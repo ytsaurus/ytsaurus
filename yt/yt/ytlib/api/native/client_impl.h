@@ -527,6 +527,10 @@ public: \
         const TPutFileToCacheOptions& options),
         (path, expectedMD5, options))
 
+    IMPLEMENT_METHOD(TGetCurrentUserResultPtr, GetCurrentUser, (
+        const TGetCurrentUserOptions& options),
+        (options))
+
     IMPLEMENT_METHOD(void, AddMember, (
         const TString& group,
         const TString& member,

@@ -19177,6 +19177,91 @@ func (*TRspGetJobInput) Descriptor() ([]byte, []int) {
 	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{253}
 }
 
+type TReqGetCurrentUser struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *TReqGetCurrentUser) Reset() {
+	*x = TReqGetCurrentUser{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[254]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TReqGetCurrentUser) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TReqGetCurrentUser) ProtoMessage() {}
+
+func (x *TReqGetCurrentUser) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[254]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TReqGetCurrentUser.ProtoReflect.Descriptor instead.
+func (*TReqGetCurrentUser) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{254}
+}
+
+type TRspGetCurrentUser struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	User *string `protobuf:"bytes,1,req,name=user" json:"user,omitempty"`
+}
+
+func (x *TRspGetCurrentUser) Reset() {
+	*x = TRspGetCurrentUser{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[255]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *TRspGetCurrentUser) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TRspGetCurrentUser) ProtoMessage() {}
+
+func (x *TRspGetCurrentUser) ProtoReflect() protoreflect.Message {
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[255]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TRspGetCurrentUser.ProtoReflect.Descriptor instead.
+func (*TRspGetCurrentUser) Descriptor() ([]byte, []int) {
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{255}
+}
+
+func (x *TRspGetCurrentUser) GetUser() string {
+	if x != nil && x.User != nil {
+		return *x.User
+	}
+	return ""
+}
+
 type TReqAddMember struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -19191,7 +19276,7 @@ type TReqAddMember struct {
 func (x *TReqAddMember) Reset() {
 	*x = TReqAddMember{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[254]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[256]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19204,7 +19289,7 @@ func (x *TReqAddMember) String() string {
 func (*TReqAddMember) ProtoMessage() {}
 
 func (x *TReqAddMember) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[254]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[256]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19217,7 +19302,7 @@ func (x *TReqAddMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqAddMember.ProtoReflect.Descriptor instead.
 func (*TReqAddMember) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{254}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{256}
 }
 
 func (x *TReqAddMember) GetGroup() string {
@@ -19257,7 +19342,7 @@ type TRspAddMember struct {
 func (x *TRspAddMember) Reset() {
 	*x = TRspAddMember{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[255]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[257]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19270,7 +19355,7 @@ func (x *TRspAddMember) String() string {
 func (*TRspAddMember) ProtoMessage() {}
 
 func (x *TRspAddMember) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[255]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[257]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19283,7 +19368,7 @@ func (x *TRspAddMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspAddMember.ProtoReflect.Descriptor instead.
 func (*TRspAddMember) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{255}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{257}
 }
 
 type TReqRemoveMember struct {
@@ -19300,7 +19385,7 @@ type TReqRemoveMember struct {
 func (x *TReqRemoveMember) Reset() {
 	*x = TReqRemoveMember{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[256]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[258]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19313,7 +19398,7 @@ func (x *TReqRemoveMember) String() string {
 func (*TReqRemoveMember) ProtoMessage() {}
 
 func (x *TReqRemoveMember) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[256]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[258]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19326,7 +19411,7 @@ func (x *TReqRemoveMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqRemoveMember.ProtoReflect.Descriptor instead.
 func (*TReqRemoveMember) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{256}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{258}
 }
 
 func (x *TReqRemoveMember) GetGroup() string {
@@ -19366,7 +19451,7 @@ type TRspRemoveMember struct {
 func (x *TRspRemoveMember) Reset() {
 	*x = TRspRemoveMember{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[257]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[259]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19379,7 +19464,7 @@ func (x *TRspRemoveMember) String() string {
 func (*TRspRemoveMember) ProtoMessage() {}
 
 func (x *TRspRemoveMember) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[257]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[259]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19392,7 +19477,7 @@ func (x *TRspRemoveMember) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspRemoveMember.ProtoReflect.Descriptor instead.
 func (*TRspRemoveMember) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{257}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{259}
 }
 
 type TReqCheckPermission struct {
@@ -19413,7 +19498,7 @@ type TReqCheckPermission struct {
 func (x *TReqCheckPermission) Reset() {
 	*x = TReqCheckPermission{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[258]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[260]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19426,7 +19511,7 @@ func (x *TReqCheckPermission) String() string {
 func (*TReqCheckPermission) ProtoMessage() {}
 
 func (x *TReqCheckPermission) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[258]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[260]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19439,7 +19524,7 @@ func (x *TReqCheckPermission) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqCheckPermission.ProtoReflect.Descriptor instead.
 func (*TReqCheckPermission) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{258}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{260}
 }
 
 func (x *TReqCheckPermission) GetUser() string {
@@ -19510,7 +19595,7 @@ type TRspCheckPermission struct {
 func (x *TRspCheckPermission) Reset() {
 	*x = TRspCheckPermission{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[259]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[261]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19523,7 +19608,7 @@ func (x *TRspCheckPermission) String() string {
 func (*TRspCheckPermission) ProtoMessage() {}
 
 func (x *TRspCheckPermission) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[259]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[261]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19536,7 +19621,7 @@ func (x *TRspCheckPermission) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspCheckPermission.ProtoReflect.Descriptor instead.
 func (*TRspCheckPermission) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{259}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{261}
 }
 
 func (x *TRspCheckPermission) GetResult() *TCheckPermissionResult {
@@ -19574,7 +19659,7 @@ const (
 func (x *TReqCheckPermissionByAcl) Reset() {
 	*x = TReqCheckPermissionByAcl{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[260]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[262]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19587,7 +19672,7 @@ func (x *TReqCheckPermissionByAcl) String() string {
 func (*TReqCheckPermissionByAcl) ProtoMessage() {}
 
 func (x *TReqCheckPermissionByAcl) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[260]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[262]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19600,7 +19685,7 @@ func (x *TReqCheckPermissionByAcl) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqCheckPermissionByAcl.ProtoReflect.Descriptor instead.
 func (*TReqCheckPermissionByAcl) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{260}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{262}
 }
 
 func (x *TReqCheckPermissionByAcl) GetUser() string {
@@ -19656,7 +19741,7 @@ type TRspCheckPermissionByAcl struct {
 func (x *TRspCheckPermissionByAcl) Reset() {
 	*x = TRspCheckPermissionByAcl{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[261]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[263]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19669,7 +19754,7 @@ func (x *TRspCheckPermissionByAcl) String() string {
 func (*TRspCheckPermissionByAcl) ProtoMessage() {}
 
 func (x *TRspCheckPermissionByAcl) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[261]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[263]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19682,7 +19767,7 @@ func (x *TRspCheckPermissionByAcl) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspCheckPermissionByAcl.ProtoReflect.Descriptor instead.
 func (*TRspCheckPermissionByAcl) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{261}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{263}
 }
 
 func (x *TRspCheckPermissionByAcl) GetResult() *TCheckPermissionByAclResult {
@@ -19706,7 +19791,7 @@ type TReqTransferAccountResources struct {
 func (x *TReqTransferAccountResources) Reset() {
 	*x = TReqTransferAccountResources{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[262]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[264]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19719,7 +19804,7 @@ func (x *TReqTransferAccountResources) String() string {
 func (*TReqTransferAccountResources) ProtoMessage() {}
 
 func (x *TReqTransferAccountResources) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[262]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[264]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19732,7 +19817,7 @@ func (x *TReqTransferAccountResources) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqTransferAccountResources.ProtoReflect.Descriptor instead.
 func (*TReqTransferAccountResources) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{262}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{264}
 }
 
 func (x *TReqTransferAccountResources) GetSrcAccount() string {
@@ -19772,7 +19857,7 @@ type TRspTransferAccountResources struct {
 func (x *TRspTransferAccountResources) Reset() {
 	*x = TRspTransferAccountResources{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[263]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[265]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19785,7 +19870,7 @@ func (x *TRspTransferAccountResources) String() string {
 func (*TRspTransferAccountResources) ProtoMessage() {}
 
 func (x *TRspTransferAccountResources) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[263]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[265]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19798,7 +19883,7 @@ func (x *TRspTransferAccountResources) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspTransferAccountResources.ProtoReflect.Descriptor instead.
 func (*TRspTransferAccountResources) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{263}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{265}
 }
 
 type TReqTransferPoolResources struct {
@@ -19816,7 +19901,7 @@ type TReqTransferPoolResources struct {
 func (x *TReqTransferPoolResources) Reset() {
 	*x = TReqTransferPoolResources{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[264]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[266]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19829,7 +19914,7 @@ func (x *TReqTransferPoolResources) String() string {
 func (*TReqTransferPoolResources) ProtoMessage() {}
 
 func (x *TReqTransferPoolResources) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[264]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[266]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19842,7 +19927,7 @@ func (x *TReqTransferPoolResources) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqTransferPoolResources.ProtoReflect.Descriptor instead.
 func (*TReqTransferPoolResources) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{264}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{266}
 }
 
 func (x *TReqTransferPoolResources) GetSrcPool() string {
@@ -19889,7 +19974,7 @@ type TRspTransferPoolResources struct {
 func (x *TRspTransferPoolResources) Reset() {
 	*x = TRspTransferPoolResources{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[265]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[267]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19902,7 +19987,7 @@ func (x *TRspTransferPoolResources) String() string {
 func (*TRspTransferPoolResources) ProtoMessage() {}
 
 func (x *TRspTransferPoolResources) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[265]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[267]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19915,7 +20000,7 @@ func (x *TRspTransferPoolResources) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspTransferPoolResources.ProtoReflect.Descriptor instead.
 func (*TRspTransferPoolResources) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{265}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{267}
 }
 
 type TReqCheckClusterLiveness struct {
@@ -19931,7 +20016,7 @@ type TReqCheckClusterLiveness struct {
 func (x *TReqCheckClusterLiveness) Reset() {
 	*x = TReqCheckClusterLiveness{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[266]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[268]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -19944,7 +20029,7 @@ func (x *TReqCheckClusterLiveness) String() string {
 func (*TReqCheckClusterLiveness) ProtoMessage() {}
 
 func (x *TReqCheckClusterLiveness) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[266]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[268]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -19957,7 +20042,7 @@ func (x *TReqCheckClusterLiveness) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqCheckClusterLiveness.ProtoReflect.Descriptor instead.
 func (*TReqCheckClusterLiveness) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{266}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{268}
 }
 
 func (x *TReqCheckClusterLiveness) GetCheckCypressRoot() bool {
@@ -19990,7 +20075,7 @@ type TRspCheckClusterLiveness struct {
 func (x *TRspCheckClusterLiveness) Reset() {
 	*x = TRspCheckClusterLiveness{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[267]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[269]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20003,7 +20088,7 @@ func (x *TRspCheckClusterLiveness) String() string {
 func (*TRspCheckClusterLiveness) ProtoMessage() {}
 
 func (x *TRspCheckClusterLiveness) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[267]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[269]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20016,7 +20101,7 @@ func (x *TRspCheckClusterLiveness) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspCheckClusterLiveness.ProtoReflect.Descriptor instead.
 func (*TRspCheckClusterLiveness) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{267}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{269}
 }
 
 type TReqGetPipelineSpec struct {
@@ -20030,7 +20115,7 @@ type TReqGetPipelineSpec struct {
 func (x *TReqGetPipelineSpec) Reset() {
 	*x = TReqGetPipelineSpec{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[268]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[270]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20043,7 +20128,7 @@ func (x *TReqGetPipelineSpec) String() string {
 func (*TReqGetPipelineSpec) ProtoMessage() {}
 
 func (x *TReqGetPipelineSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[268]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[270]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20056,7 +20141,7 @@ func (x *TReqGetPipelineSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqGetPipelineSpec.ProtoReflect.Descriptor instead.
 func (*TReqGetPipelineSpec) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{268}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{270}
 }
 
 func (x *TReqGetPipelineSpec) GetPipelinePath() []byte {
@@ -20078,7 +20163,7 @@ type TRspGetPipelineSpec struct {
 func (x *TRspGetPipelineSpec) Reset() {
 	*x = TRspGetPipelineSpec{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[269]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[271]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20091,7 +20176,7 @@ func (x *TRspGetPipelineSpec) String() string {
 func (*TRspGetPipelineSpec) ProtoMessage() {}
 
 func (x *TRspGetPipelineSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[269]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[271]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20104,7 +20189,7 @@ func (x *TRspGetPipelineSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspGetPipelineSpec.ProtoReflect.Descriptor instead.
 func (*TRspGetPipelineSpec) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{269}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{271}
 }
 
 func (x *TRspGetPipelineSpec) GetVersion() int64 {
@@ -20136,7 +20221,7 @@ type TReqSetPipelineSpec struct {
 func (x *TReqSetPipelineSpec) Reset() {
 	*x = TReqSetPipelineSpec{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[270]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[272]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20149,7 +20234,7 @@ func (x *TReqSetPipelineSpec) String() string {
 func (*TReqSetPipelineSpec) ProtoMessage() {}
 
 func (x *TReqSetPipelineSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[270]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[272]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20162,7 +20247,7 @@ func (x *TReqSetPipelineSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqSetPipelineSpec.ProtoReflect.Descriptor instead.
 func (*TReqSetPipelineSpec) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{270}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{272}
 }
 
 func (x *TReqSetPipelineSpec) GetPipelinePath() []byte {
@@ -20204,7 +20289,7 @@ type TRspSetPipelineSpec struct {
 func (x *TRspSetPipelineSpec) Reset() {
 	*x = TRspSetPipelineSpec{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[271]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[273]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20217,7 +20302,7 @@ func (x *TRspSetPipelineSpec) String() string {
 func (*TRspSetPipelineSpec) ProtoMessage() {}
 
 func (x *TRspSetPipelineSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[271]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[273]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20230,7 +20315,7 @@ func (x *TRspSetPipelineSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspSetPipelineSpec.ProtoReflect.Descriptor instead.
 func (*TRspSetPipelineSpec) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{271}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{273}
 }
 
 func (x *TRspSetPipelineSpec) GetVersion() int64 {
@@ -20251,7 +20336,7 @@ type TReqGetPipelineDynamicSpec struct {
 func (x *TReqGetPipelineDynamicSpec) Reset() {
 	*x = TReqGetPipelineDynamicSpec{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[272]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[274]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20264,7 +20349,7 @@ func (x *TReqGetPipelineDynamicSpec) String() string {
 func (*TReqGetPipelineDynamicSpec) ProtoMessage() {}
 
 func (x *TReqGetPipelineDynamicSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[272]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[274]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20277,7 +20362,7 @@ func (x *TReqGetPipelineDynamicSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqGetPipelineDynamicSpec.ProtoReflect.Descriptor instead.
 func (*TReqGetPipelineDynamicSpec) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{272}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{274}
 }
 
 func (x *TReqGetPipelineDynamicSpec) GetPipelinePath() []byte {
@@ -20299,7 +20384,7 @@ type TRspGetPipelineDynamicSpec struct {
 func (x *TRspGetPipelineDynamicSpec) Reset() {
 	*x = TRspGetPipelineDynamicSpec{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[273]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[275]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20312,7 +20397,7 @@ func (x *TRspGetPipelineDynamicSpec) String() string {
 func (*TRspGetPipelineDynamicSpec) ProtoMessage() {}
 
 func (x *TRspGetPipelineDynamicSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[273]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[275]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20325,7 +20410,7 @@ func (x *TRspGetPipelineDynamicSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspGetPipelineDynamicSpec.ProtoReflect.Descriptor instead.
 func (*TRspGetPipelineDynamicSpec) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{273}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{275}
 }
 
 func (x *TRspGetPipelineDynamicSpec) GetVersion() int64 {
@@ -20355,7 +20440,7 @@ type TReqSetPipelineDynamicSpec struct {
 func (x *TReqSetPipelineDynamicSpec) Reset() {
 	*x = TReqSetPipelineDynamicSpec{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[274]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[276]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20368,7 +20453,7 @@ func (x *TReqSetPipelineDynamicSpec) String() string {
 func (*TReqSetPipelineDynamicSpec) ProtoMessage() {}
 
 func (x *TReqSetPipelineDynamicSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[274]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[276]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20381,7 +20466,7 @@ func (x *TReqSetPipelineDynamicSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqSetPipelineDynamicSpec.ProtoReflect.Descriptor instead.
 func (*TReqSetPipelineDynamicSpec) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{274}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{276}
 }
 
 func (x *TReqSetPipelineDynamicSpec) GetPipelinePath() []byte {
@@ -20416,7 +20501,7 @@ type TRspSetPipelineDynamicSpec struct {
 func (x *TRspSetPipelineDynamicSpec) Reset() {
 	*x = TRspSetPipelineDynamicSpec{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[275]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[277]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20429,7 +20514,7 @@ func (x *TRspSetPipelineDynamicSpec) String() string {
 func (*TRspSetPipelineDynamicSpec) ProtoMessage() {}
 
 func (x *TRspSetPipelineDynamicSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[275]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[277]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20442,7 +20527,7 @@ func (x *TRspSetPipelineDynamicSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspSetPipelineDynamicSpec.ProtoReflect.Descriptor instead.
 func (*TRspSetPipelineDynamicSpec) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{275}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{277}
 }
 
 func (x *TRspSetPipelineDynamicSpec) GetVersion() int64 {
@@ -20463,7 +20548,7 @@ type TReqStartPipeline struct {
 func (x *TReqStartPipeline) Reset() {
 	*x = TReqStartPipeline{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[276]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[278]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20476,7 +20561,7 @@ func (x *TReqStartPipeline) String() string {
 func (*TReqStartPipeline) ProtoMessage() {}
 
 func (x *TReqStartPipeline) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[276]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[278]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20489,7 +20574,7 @@ func (x *TReqStartPipeline) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqStartPipeline.ProtoReflect.Descriptor instead.
 func (*TReqStartPipeline) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{276}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{278}
 }
 
 func (x *TReqStartPipeline) GetPipelinePath() []byte {
@@ -20508,7 +20593,7 @@ type TRspStartPipeline struct {
 func (x *TRspStartPipeline) Reset() {
 	*x = TRspStartPipeline{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[277]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[279]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20521,7 +20606,7 @@ func (x *TRspStartPipeline) String() string {
 func (*TRspStartPipeline) ProtoMessage() {}
 
 func (x *TRspStartPipeline) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[277]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[279]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20534,7 +20619,7 @@ func (x *TRspStartPipeline) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspStartPipeline.ProtoReflect.Descriptor instead.
 func (*TRspStartPipeline) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{277}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{279}
 }
 
 type TReqPausePipeline struct {
@@ -20548,7 +20633,7 @@ type TReqPausePipeline struct {
 func (x *TReqPausePipeline) Reset() {
 	*x = TReqPausePipeline{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[278]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[280]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20561,7 +20646,7 @@ func (x *TReqPausePipeline) String() string {
 func (*TReqPausePipeline) ProtoMessage() {}
 
 func (x *TReqPausePipeline) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[278]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[280]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20574,7 +20659,7 @@ func (x *TReqPausePipeline) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqPausePipeline.ProtoReflect.Descriptor instead.
 func (*TReqPausePipeline) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{278}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{280}
 }
 
 func (x *TReqPausePipeline) GetPipelinePath() []byte {
@@ -20593,7 +20678,7 @@ type TRspPausePipeline struct {
 func (x *TRspPausePipeline) Reset() {
 	*x = TRspPausePipeline{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[279]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[281]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20606,7 +20691,7 @@ func (x *TRspPausePipeline) String() string {
 func (*TRspPausePipeline) ProtoMessage() {}
 
 func (x *TRspPausePipeline) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[279]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[281]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20619,7 +20704,7 @@ func (x *TRspPausePipeline) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspPausePipeline.ProtoReflect.Descriptor instead.
 func (*TRspPausePipeline) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{279}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{281}
 }
 
 type TReqStopPipeline struct {
@@ -20633,7 +20718,7 @@ type TReqStopPipeline struct {
 func (x *TReqStopPipeline) Reset() {
 	*x = TReqStopPipeline{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[280]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[282]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20646,7 +20731,7 @@ func (x *TReqStopPipeline) String() string {
 func (*TReqStopPipeline) ProtoMessage() {}
 
 func (x *TReqStopPipeline) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[280]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[282]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20659,7 +20744,7 @@ func (x *TReqStopPipeline) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqStopPipeline.ProtoReflect.Descriptor instead.
 func (*TReqStopPipeline) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{280}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{282}
 }
 
 func (x *TReqStopPipeline) GetPipelinePath() []byte {
@@ -20678,7 +20763,7 @@ type TRspStopPipeline struct {
 func (x *TRspStopPipeline) Reset() {
 	*x = TRspStopPipeline{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[281]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[283]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20691,7 +20776,7 @@ func (x *TRspStopPipeline) String() string {
 func (*TRspStopPipeline) ProtoMessage() {}
 
 func (x *TRspStopPipeline) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[281]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[283]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20704,7 +20789,7 @@ func (x *TRspStopPipeline) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspStopPipeline.ProtoReflect.Descriptor instead.
 func (*TRspStopPipeline) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{281}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{283}
 }
 
 type TReqGetPipelineState struct {
@@ -20718,7 +20803,7 @@ type TReqGetPipelineState struct {
 func (x *TReqGetPipelineState) Reset() {
 	*x = TReqGetPipelineState{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[282]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[284]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20731,7 +20816,7 @@ func (x *TReqGetPipelineState) String() string {
 func (*TReqGetPipelineState) ProtoMessage() {}
 
 func (x *TReqGetPipelineState) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[282]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[284]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20744,7 +20829,7 @@ func (x *TReqGetPipelineState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqGetPipelineState.ProtoReflect.Descriptor instead.
 func (*TReqGetPipelineState) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{282}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{284}
 }
 
 func (x *TReqGetPipelineState) GetPipelinePath() []byte {
@@ -20766,7 +20851,7 @@ type TRspGetPipelineState struct {
 func (x *TRspGetPipelineState) Reset() {
 	*x = TRspGetPipelineState{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[283]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[285]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20779,7 +20864,7 @@ func (x *TRspGetPipelineState) String() string {
 func (*TRspGetPipelineState) ProtoMessage() {}
 
 func (x *TRspGetPipelineState) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[283]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[285]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20792,7 +20877,7 @@ func (x *TRspGetPipelineState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspGetPipelineState.ProtoReflect.Descriptor instead.
 func (*TRspGetPipelineState) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{283}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{285}
 }
 
 func (x *TRspGetPipelineState) GetState() int32 {
@@ -20820,7 +20905,7 @@ const (
 func (x *TReqGetFlowView) Reset() {
 	*x = TReqGetFlowView{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[284]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[286]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20833,7 +20918,7 @@ func (x *TReqGetFlowView) String() string {
 func (*TReqGetFlowView) ProtoMessage() {}
 
 func (x *TReqGetFlowView) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[284]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[286]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20846,7 +20931,7 @@ func (x *TReqGetFlowView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqGetFlowView.ProtoReflect.Descriptor instead.
 func (*TReqGetFlowView) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{284}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{286}
 }
 
 func (x *TReqGetFlowView) GetPipelinePath() []byte {
@@ -20881,7 +20966,7 @@ type TRspGetFlowView struct {
 func (x *TRspGetFlowView) Reset() {
 	*x = TRspGetFlowView{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[285]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[287]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20894,7 +20979,7 @@ func (x *TRspGetFlowView) String() string {
 func (*TRspGetFlowView) ProtoMessage() {}
 
 func (x *TRspGetFlowView) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[285]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[287]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20907,7 +20992,7 @@ func (x *TRspGetFlowView) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspGetFlowView.ProtoReflect.Descriptor instead.
 func (*TRspGetFlowView) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{285}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{287}
 }
 
 func (x *TRspGetFlowView) GetFlowViewPart() []byte {
@@ -20930,7 +21015,7 @@ type TReqFlowExecute struct {
 func (x *TReqFlowExecute) Reset() {
 	*x = TReqFlowExecute{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[286]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[288]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -20943,7 +21028,7 @@ func (x *TReqFlowExecute) String() string {
 func (*TReqFlowExecute) ProtoMessage() {}
 
 func (x *TReqFlowExecute) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[286]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[288]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -20956,7 +21041,7 @@ func (x *TReqFlowExecute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqFlowExecute.ProtoReflect.Descriptor instead.
 func (*TReqFlowExecute) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{286}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{288}
 }
 
 func (x *TReqFlowExecute) GetPipelinePath() []byte {
@@ -20991,7 +21076,7 @@ type TRspFlowExecute struct {
 func (x *TRspFlowExecute) Reset() {
 	*x = TRspFlowExecute{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[287]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[289]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21004,7 +21089,7 @@ func (x *TRspFlowExecute) String() string {
 func (*TRspFlowExecute) ProtoMessage() {}
 
 func (x *TRspFlowExecute) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[287]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[289]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21017,7 +21102,7 @@ func (x *TRspFlowExecute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspFlowExecute.ProtoReflect.Descriptor instead.
 func (*TRspFlowExecute) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{287}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{289}
 }
 
 func (x *TRspFlowExecute) GetResult() []byte {
@@ -21065,7 +21150,7 @@ type TOperation struct {
 func (x *TOperation) Reset() {
 	*x = TOperation{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[288]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[290]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21078,7 +21163,7 @@ func (x *TOperation) String() string {
 func (*TOperation) ProtoMessage() {}
 
 func (x *TOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[288]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[290]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21091,7 +21176,7 @@ func (x *TOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TOperation.ProtoReflect.Descriptor instead.
 func (*TOperation) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{288}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{290}
 }
 
 func (x *TOperation) GetId() *misc.TGuid {
@@ -21313,7 +21398,7 @@ const (
 func (x *TListOperationsResult) Reset() {
 	*x = TListOperationsResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[289]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[291]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21326,7 +21411,7 @@ func (x *TListOperationsResult) String() string {
 func (*TListOperationsResult) ProtoMessage() {}
 
 func (x *TListOperationsResult) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[289]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[291]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21339,7 +21424,7 @@ func (x *TListOperationsResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TListOperationsResult.ProtoReflect.Descriptor instead.
 func (*TListOperationsResult) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{289}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291}
 }
 
 func (x *TListOperationsResult) GetOperations() []*TOperation {
@@ -21443,7 +21528,7 @@ type TJob struct {
 func (x *TJob) Reset() {
 	*x = TJob{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[290]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[292]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21456,7 +21541,7 @@ func (x *TJob) String() string {
 func (*TJob) ProtoMessage() {}
 
 func (x *TJob) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[290]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[292]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21469,7 +21554,7 @@ func (x *TJob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TJob.ProtoReflect.Descriptor instead.
 func (*TJob) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{290}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{292}
 }
 
 func (x *TJob) GetId() *misc.TGuid {
@@ -21729,7 +21814,7 @@ type TListJobsStatistics struct {
 func (x *TListJobsStatistics) Reset() {
 	*x = TListJobsStatistics{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[291]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[293]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21742,7 +21827,7 @@ func (x *TListJobsStatistics) String() string {
 func (*TListJobsStatistics) ProtoMessage() {}
 
 func (x *TListJobsStatistics) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[291]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[293]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21755,7 +21840,7 @@ func (x *TListJobsStatistics) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TListJobsStatistics.ProtoReflect.Descriptor instead.
 func (*TListJobsStatistics) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{293}
 }
 
 func (x *TListJobsStatistics) GetStateCounts() *TListJobsStatistics_TJobStateCounts {
@@ -21789,7 +21874,7 @@ type TListJobsResult struct {
 func (x *TListJobsResult) Reset() {
 	*x = TListJobsResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[292]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[294]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21802,7 +21887,7 @@ func (x *TListJobsResult) String() string {
 func (*TListJobsResult) ProtoMessage() {}
 
 func (x *TListJobsResult) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[292]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[294]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21815,7 +21900,7 @@ func (x *TListJobsResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TListJobsResult.ProtoReflect.Descriptor instead.
 func (*TListJobsResult) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{292}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{294}
 }
 
 func (x *TListJobsResult) GetJobs() []*TJob {
@@ -21883,7 +21968,7 @@ type TJobTraceEvent struct {
 func (x *TJobTraceEvent) Reset() {
 	*x = TJobTraceEvent{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[293]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[295]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21896,7 +21981,7 @@ func (x *TJobTraceEvent) String() string {
 func (*TJobTraceEvent) ProtoMessage() {}
 
 func (x *TJobTraceEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[293]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[295]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21909,7 +21994,7 @@ func (x *TJobTraceEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TJobTraceEvent.ProtoReflect.Descriptor instead.
 func (*TJobTraceEvent) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{293}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{295}
 }
 
 func (x *TJobTraceEvent) GetOperationId() *misc.TGuid {
@@ -21965,7 +22050,7 @@ type TGetFileFromCacheResult struct {
 func (x *TGetFileFromCacheResult) Reset() {
 	*x = TGetFileFromCacheResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[294]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[296]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -21978,7 +22063,7 @@ func (x *TGetFileFromCacheResult) String() string {
 func (*TGetFileFromCacheResult) ProtoMessage() {}
 
 func (x *TGetFileFromCacheResult) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[294]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[296]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -21991,7 +22076,7 @@ func (x *TGetFileFromCacheResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TGetFileFromCacheResult.ProtoReflect.Descriptor instead.
 func (*TGetFileFromCacheResult) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{294}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{296}
 }
 
 func (x *TGetFileFromCacheResult) GetPath() []byte {
@@ -22012,7 +22097,7 @@ type TPutFileToCacheResult struct {
 func (x *TPutFileToCacheResult) Reset() {
 	*x = TPutFileToCacheResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[295]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[297]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22025,7 +22110,7 @@ func (x *TPutFileToCacheResult) String() string {
 func (*TPutFileToCacheResult) ProtoMessage() {}
 
 func (x *TPutFileToCacheResult) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[295]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[297]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22038,7 +22123,7 @@ func (x *TPutFileToCacheResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TPutFileToCacheResult.ProtoReflect.Descriptor instead.
 func (*TPutFileToCacheResult) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{295}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{297}
 }
 
 func (x *TPutFileToCacheResult) GetPath() []byte {
@@ -22063,7 +22148,7 @@ type TCheckPermissionResult struct {
 func (x *TCheckPermissionResult) Reset() {
 	*x = TCheckPermissionResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[296]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[298]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22076,7 +22161,7 @@ func (x *TCheckPermissionResult) String() string {
 func (*TCheckPermissionResult) ProtoMessage() {}
 
 func (x *TCheckPermissionResult) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[296]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[298]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22089,7 +22174,7 @@ func (x *TCheckPermissionResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TCheckPermissionResult.ProtoReflect.Descriptor instead.
 func (*TCheckPermissionResult) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{296}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{298}
 }
 
 func (x *TCheckPermissionResult) GetAction() ESecurityAction {
@@ -22141,7 +22226,7 @@ type TCheckPermissionByAclResult struct {
 func (x *TCheckPermissionByAclResult) Reset() {
 	*x = TCheckPermissionByAclResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[297]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[299]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22154,7 +22239,7 @@ func (x *TCheckPermissionByAclResult) String() string {
 func (*TCheckPermissionByAclResult) ProtoMessage() {}
 
 func (x *TCheckPermissionByAclResult) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[297]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[299]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22167,7 +22252,7 @@ func (x *TCheckPermissionByAclResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TCheckPermissionByAclResult.ProtoReflect.Descriptor instead.
 func (*TCheckPermissionByAclResult) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{297}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{299}
 }
 
 func (x *TCheckPermissionByAclResult) GetAction() ESecurityAction {
@@ -22218,7 +22303,7 @@ type TReqStartQuery struct {
 func (x *TReqStartQuery) Reset() {
 	*x = TReqStartQuery{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[298]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[300]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22231,7 +22316,7 @@ func (x *TReqStartQuery) String() string {
 func (*TReqStartQuery) ProtoMessage() {}
 
 func (x *TReqStartQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[298]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[300]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22244,7 +22329,7 @@ func (x *TReqStartQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqStartQuery.ProtoReflect.Descriptor instead.
 func (*TReqStartQuery) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{298}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{300}
 }
 
 func (x *TReqStartQuery) GetQueryTrackerStage() string {
@@ -22328,7 +22413,7 @@ type TRspStartQuery struct {
 func (x *TRspStartQuery) Reset() {
 	*x = TRspStartQuery{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[299]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[301]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22341,7 +22426,7 @@ func (x *TRspStartQuery) String() string {
 func (*TRspStartQuery) ProtoMessage() {}
 
 func (x *TRspStartQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[299]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[301]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22354,7 +22439,7 @@ func (x *TRspStartQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspStartQuery.ProtoReflect.Descriptor instead.
 func (*TRspStartQuery) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{299}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{301}
 }
 
 func (x *TRspStartQuery) GetQueryId() *misc.TGuid {
@@ -22377,7 +22462,7 @@ type TReqAbortQuery struct {
 func (x *TReqAbortQuery) Reset() {
 	*x = TReqAbortQuery{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[300]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[302]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22390,7 +22475,7 @@ func (x *TReqAbortQuery) String() string {
 func (*TReqAbortQuery) ProtoMessage() {}
 
 func (x *TReqAbortQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[300]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[302]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22403,7 +22488,7 @@ func (x *TReqAbortQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqAbortQuery.ProtoReflect.Descriptor instead.
 func (*TReqAbortQuery) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{300}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{302}
 }
 
 func (x *TReqAbortQuery) GetQueryTrackerStage() string {
@@ -22436,7 +22521,7 @@ type TRspAbortQuery struct {
 func (x *TRspAbortQuery) Reset() {
 	*x = TRspAbortQuery{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[301]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[303]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22449,7 +22534,7 @@ func (x *TRspAbortQuery) String() string {
 func (*TRspAbortQuery) ProtoMessage() {}
 
 func (x *TRspAbortQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[301]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[303]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22462,7 +22547,7 @@ func (x *TRspAbortQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspAbortQuery.ProtoReflect.Descriptor instead.
 func (*TRspAbortQuery) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{301}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{303}
 }
 
 type TReqGetQueryResult struct {
@@ -22478,7 +22563,7 @@ type TReqGetQueryResult struct {
 func (x *TReqGetQueryResult) Reset() {
 	*x = TReqGetQueryResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[302]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[304]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22491,7 +22576,7 @@ func (x *TReqGetQueryResult) String() string {
 func (*TReqGetQueryResult) ProtoMessage() {}
 
 func (x *TReqGetQueryResult) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[302]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[304]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22504,7 +22589,7 @@ func (x *TReqGetQueryResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqGetQueryResult.ProtoReflect.Descriptor instead.
 func (*TReqGetQueryResult) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{302}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{304}
 }
 
 func (x *TReqGetQueryResult) GetQueryTrackerStage() string {
@@ -22545,7 +22630,7 @@ type TRspGetQueryResult struct {
 func (x *TRspGetQueryResult) Reset() {
 	*x = TRspGetQueryResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[303]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[305]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22558,7 +22643,7 @@ func (x *TRspGetQueryResult) String() string {
 func (*TRspGetQueryResult) ProtoMessage() {}
 
 func (x *TRspGetQueryResult) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[303]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[305]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22571,7 +22656,7 @@ func (x *TRspGetQueryResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspGetQueryResult.ProtoReflect.Descriptor instead.
 func (*TRspGetQueryResult) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{303}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{305}
 }
 
 func (x *TRspGetQueryResult) GetQueryId() *misc.TGuid {
@@ -22639,7 +22724,7 @@ type TReqReadQueryResult struct {
 func (x *TReqReadQueryResult) Reset() {
 	*x = TReqReadQueryResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[304]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[306]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22652,7 +22737,7 @@ func (x *TReqReadQueryResult) String() string {
 func (*TReqReadQueryResult) ProtoMessage() {}
 
 func (x *TReqReadQueryResult) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[304]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[306]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22665,7 +22750,7 @@ func (x *TReqReadQueryResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqReadQueryResult.ProtoReflect.Descriptor instead.
 func (*TReqReadQueryResult) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{304}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{306}
 }
 
 func (x *TReqReadQueryResult) GetQueryTrackerStage() string {
@@ -22721,7 +22806,7 @@ type TRspReadQueryResult struct {
 func (x *TRspReadQueryResult) Reset() {
 	*x = TRspReadQueryResult{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[305]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[307]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22734,7 +22819,7 @@ func (x *TRspReadQueryResult) String() string {
 func (*TRspReadQueryResult) ProtoMessage() {}
 
 func (x *TRspReadQueryResult) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[305]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[307]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22747,7 +22832,7 @@ func (x *TRspReadQueryResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspReadQueryResult.ProtoReflect.Descriptor instead.
 func (*TRspReadQueryResult) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{305}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{307}
 }
 
 func (x *TRspReadQueryResult) GetRowsetDescriptor() *TRowsetDescriptor {
@@ -22783,7 +22868,7 @@ type TQuery struct {
 func (x *TQuery) Reset() {
 	*x = TQuery{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[306]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[308]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22796,7 +22881,7 @@ func (x *TQuery) String() string {
 func (*TQuery) ProtoMessage() {}
 
 func (x *TQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[306]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[308]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22809,7 +22894,7 @@ func (x *TQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TQuery.ProtoReflect.Descriptor instead.
 func (*TQuery) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{306}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{308}
 }
 
 func (x *TQuery) GetId() *misc.TGuid {
@@ -22938,7 +23023,7 @@ type TReqGetQuery struct {
 func (x *TReqGetQuery) Reset() {
 	*x = TReqGetQuery{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[307]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[309]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -22951,7 +23036,7 @@ func (x *TReqGetQuery) String() string {
 func (*TReqGetQuery) ProtoMessage() {}
 
 func (x *TReqGetQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[307]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[309]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -22964,7 +23049,7 @@ func (x *TReqGetQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqGetQuery.ProtoReflect.Descriptor instead.
 func (*TReqGetQuery) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{307}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{309}
 }
 
 func (x *TReqGetQuery) GetQueryTrackerStage() string {
@@ -23006,7 +23091,7 @@ type TRspGetQuery struct {
 func (x *TRspGetQuery) Reset() {
 	*x = TRspGetQuery{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[308]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[310]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23019,7 +23104,7 @@ func (x *TRspGetQuery) String() string {
 func (*TRspGetQuery) ProtoMessage() {}
 
 func (x *TRspGetQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[308]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[310]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23032,7 +23117,7 @@ func (x *TRspGetQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspGetQuery.ProtoReflect.Descriptor instead.
 func (*TRspGetQuery) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{308}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{310}
 }
 
 func (x *TRspGetQuery) GetQuery() *TQuery {
@@ -23069,7 +23154,7 @@ const (
 func (x *TReqListQueries) Reset() {
 	*x = TReqListQueries{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[309]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[311]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23082,7 +23167,7 @@ func (x *TReqListQueries) String() string {
 func (*TReqListQueries) ProtoMessage() {}
 
 func (x *TReqListQueries) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[309]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[311]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23095,7 +23180,7 @@ func (x *TReqListQueries) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqListQueries.ProtoReflect.Descriptor instead.
 func (*TReqListQueries) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{309}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{311}
 }
 
 func (x *TReqListQueries) GetQueryTrackerStage() string {
@@ -23188,7 +23273,7 @@ type TRspListQueries struct {
 func (x *TRspListQueries) Reset() {
 	*x = TRspListQueries{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[310]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[312]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23201,7 +23286,7 @@ func (x *TRspListQueries) String() string {
 func (*TRspListQueries) ProtoMessage() {}
 
 func (x *TRspListQueries) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[310]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[312]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23214,7 +23299,7 @@ func (x *TRspListQueries) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspListQueries.ProtoReflect.Descriptor instead.
 func (*TRspListQueries) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{310}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{312}
 }
 
 func (x *TRspListQueries) GetQueries() []*TQuery {
@@ -23253,7 +23338,7 @@ type TReqAlterQuery struct {
 func (x *TReqAlterQuery) Reset() {
 	*x = TReqAlterQuery{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[311]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[313]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23266,7 +23351,7 @@ func (x *TReqAlterQuery) String() string {
 func (*TReqAlterQuery) ProtoMessage() {}
 
 func (x *TReqAlterQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[311]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[313]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23279,7 +23364,7 @@ func (x *TReqAlterQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqAlterQuery.ProtoReflect.Descriptor instead.
 func (*TReqAlterQuery) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{311}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{313}
 }
 
 func (x *TReqAlterQuery) GetQueryTrackerStage() string {
@@ -23326,7 +23411,7 @@ type TRspAlterQuery struct {
 func (x *TRspAlterQuery) Reset() {
 	*x = TRspAlterQuery{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[312]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[314]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23339,7 +23424,7 @@ func (x *TRspAlterQuery) String() string {
 func (*TRspAlterQuery) ProtoMessage() {}
 
 func (x *TRspAlterQuery) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[312]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[314]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23352,7 +23437,7 @@ func (x *TRspAlterQuery) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspAlterQuery.ProtoReflect.Descriptor instead.
 func (*TRspAlterQuery) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{312}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{314}
 }
 
 type TReqGetQueryTrackerInfo struct {
@@ -23367,7 +23452,7 @@ type TReqGetQueryTrackerInfo struct {
 func (x *TReqGetQueryTrackerInfo) Reset() {
 	*x = TReqGetQueryTrackerInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[313]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[315]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23380,7 +23465,7 @@ func (x *TReqGetQueryTrackerInfo) String() string {
 func (*TReqGetQueryTrackerInfo) ProtoMessage() {}
 
 func (x *TReqGetQueryTrackerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[313]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[315]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23393,7 +23478,7 @@ func (x *TReqGetQueryTrackerInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqGetQueryTrackerInfo.ProtoReflect.Descriptor instead.
 func (*TReqGetQueryTrackerInfo) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{313}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{315}
 }
 
 func (x *TReqGetQueryTrackerInfo) GetQueryTrackerStage() string {
@@ -23425,7 +23510,7 @@ type TRspGetQueryTrackerInfo struct {
 func (x *TRspGetQueryTrackerInfo) Reset() {
 	*x = TRspGetQueryTrackerInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[314]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[316]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23438,7 +23523,7 @@ func (x *TRspGetQueryTrackerInfo) String() string {
 func (*TRspGetQueryTrackerInfo) ProtoMessage() {}
 
 func (x *TRspGetQueryTrackerInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[314]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[316]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23451,7 +23536,7 @@ func (x *TRspGetQueryTrackerInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspGetQueryTrackerInfo.ProtoReflect.Descriptor instead.
 func (*TRspGetQueryTrackerInfo) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{314}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{316}
 }
 
 func (x *TRspGetQueryTrackerInfo) GetClusterName() string {
@@ -23502,7 +23587,7 @@ type TReqStartDistributedWriteSession struct {
 func (x *TReqStartDistributedWriteSession) Reset() {
 	*x = TReqStartDistributedWriteSession{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[315]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[317]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23515,7 +23600,7 @@ func (x *TReqStartDistributedWriteSession) String() string {
 func (*TReqStartDistributedWriteSession) ProtoMessage() {}
 
 func (x *TReqStartDistributedWriteSession) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[315]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[317]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23528,7 +23613,7 @@ func (x *TReqStartDistributedWriteSession) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqStartDistributedWriteSession.ProtoReflect.Descriptor instead.
 func (*TReqStartDistributedWriteSession) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{315}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{317}
 }
 
 func (x *TReqStartDistributedWriteSession) GetPath() []byte {
@@ -23564,7 +23649,7 @@ type TRspStartDistributedWriteSession struct {
 func (x *TRspStartDistributedWriteSession) Reset() {
 	*x = TRspStartDistributedWriteSession{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[316]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[318]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23577,7 +23662,7 @@ func (x *TRspStartDistributedWriteSession) String() string {
 func (*TRspStartDistributedWriteSession) ProtoMessage() {}
 
 func (x *TRspStartDistributedWriteSession) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[316]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[318]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23590,7 +23675,7 @@ func (x *TRspStartDistributedWriteSession) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspStartDistributedWriteSession.ProtoReflect.Descriptor instead.
 func (*TRspStartDistributedWriteSession) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{316}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{318}
 }
 
 func (x *TRspStartDistributedWriteSession) GetSignedSession() []byte {
@@ -23620,7 +23705,7 @@ type TReqFinishDistributedWriteSession struct {
 func (x *TReqFinishDistributedWriteSession) Reset() {
 	*x = TReqFinishDistributedWriteSession{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[317]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[319]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23633,7 +23718,7 @@ func (x *TReqFinishDistributedWriteSession) String() string {
 func (*TReqFinishDistributedWriteSession) ProtoMessage() {}
 
 func (x *TReqFinishDistributedWriteSession) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[317]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[319]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23646,7 +23731,7 @@ func (x *TReqFinishDistributedWriteSession) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TReqFinishDistributedWriteSession.ProtoReflect.Descriptor instead.
 func (*TReqFinishDistributedWriteSession) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{317}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{319}
 }
 
 func (x *TReqFinishDistributedWriteSession) GetSignedSession() []byte {
@@ -23679,7 +23764,7 @@ type TRspFinishDistributedWriteSession struct {
 func (x *TRspFinishDistributedWriteSession) Reset() {
 	*x = TRspFinishDistributedWriteSession{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[318]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[320]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23692,7 +23777,7 @@ func (x *TRspFinishDistributedWriteSession) String() string {
 func (*TRspFinishDistributedWriteSession) ProtoMessage() {}
 
 func (x *TRspFinishDistributedWriteSession) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[318]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[320]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23705,7 +23790,7 @@ func (x *TRspFinishDistributedWriteSession) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TRspFinishDistributedWriteSession.ProtoReflect.Descriptor instead.
 func (*TRspFinishDistributedWriteSession) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{318}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{320}
 }
 
 type TReqWriteTableFragment struct {
@@ -23721,7 +23806,7 @@ type TReqWriteTableFragment struct {
 func (x *TReqWriteTableFragment) Reset() {
 	*x = TReqWriteTableFragment{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[319]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[321]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23734,7 +23819,7 @@ func (x *TReqWriteTableFragment) String() string {
 func (*TReqWriteTableFragment) ProtoMessage() {}
 
 func (x *TReqWriteTableFragment) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[319]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[321]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23747,7 +23832,7 @@ func (x *TReqWriteTableFragment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqWriteTableFragment.ProtoReflect.Descriptor instead.
 func (*TReqWriteTableFragment) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{319}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{321}
 }
 
 func (x *TReqWriteTableFragment) GetConfig() []byte {
@@ -23782,7 +23867,7 @@ type TRspWriteTableFragment struct {
 func (x *TRspWriteTableFragment) Reset() {
 	*x = TRspWriteTableFragment{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[320]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[322]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23795,7 +23880,7 @@ func (x *TRspWriteTableFragment) String() string {
 func (*TRspWriteTableFragment) ProtoMessage() {}
 
 func (x *TRspWriteTableFragment) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[320]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[322]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23808,7 +23893,7 @@ func (x *TRspWriteTableFragment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspWriteTableFragment.ProtoReflect.Descriptor instead.
 func (*TRspWriteTableFragment) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{320}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{322}
 }
 
 func (x *TRspWriteTableFragment) GetSignedWriteResult() []byte {
@@ -23833,7 +23918,7 @@ type TReqStartShuffle struct {
 func (x *TReqStartShuffle) Reset() {
 	*x = TReqStartShuffle{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[321]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[323]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23846,7 +23931,7 @@ func (x *TReqStartShuffle) String() string {
 func (*TReqStartShuffle) ProtoMessage() {}
 
 func (x *TReqStartShuffle) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[321]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[323]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23859,7 +23944,7 @@ func (x *TReqStartShuffle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqStartShuffle.ProtoReflect.Descriptor instead.
 func (*TReqStartShuffle) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{321}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{323}
 }
 
 func (x *TReqStartShuffle) GetAccount() string {
@@ -23908,7 +23993,7 @@ type TRspStartShuffle struct {
 func (x *TRspStartShuffle) Reset() {
 	*x = TRspStartShuffle{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[322]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[324]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23921,7 +24006,7 @@ func (x *TRspStartShuffle) String() string {
 func (*TRspStartShuffle) ProtoMessage() {}
 
 func (x *TRspStartShuffle) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[322]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[324]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23934,7 +24019,7 @@ func (x *TRspStartShuffle) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspStartShuffle.ProtoReflect.Descriptor instead.
 func (*TRspStartShuffle) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{322}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{324}
 }
 
 func (x *TRspStartShuffle) GetShuffleHandle() []byte {
@@ -23958,7 +24043,7 @@ type TReqReadShuffleData struct {
 func (x *TReqReadShuffleData) Reset() {
 	*x = TReqReadShuffleData{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[323]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[325]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -23971,7 +24056,7 @@ func (x *TReqReadShuffleData) String() string {
 func (*TReqReadShuffleData) ProtoMessage() {}
 
 func (x *TReqReadShuffleData) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[323]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[325]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -23984,7 +24069,7 @@ func (x *TReqReadShuffleData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqReadShuffleData.ProtoReflect.Descriptor instead.
 func (*TReqReadShuffleData) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{323}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{325}
 }
 
 func (x *TReqReadShuffleData) GetShuffleHandle() []byte {
@@ -24024,7 +24109,7 @@ type TRspReadShuffleData struct {
 func (x *TRspReadShuffleData) Reset() {
 	*x = TRspReadShuffleData{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[324]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[326]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24037,7 +24122,7 @@ func (x *TRspReadShuffleData) String() string {
 func (*TRspReadShuffleData) ProtoMessage() {}
 
 func (x *TRspReadShuffleData) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[324]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[326]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24050,7 +24135,7 @@ func (x *TRspReadShuffleData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspReadShuffleData.ProtoReflect.Descriptor instead.
 func (*TRspReadShuffleData) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{324}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{326}
 }
 
 type TReqWriteShuffleData struct {
@@ -24067,7 +24152,7 @@ type TReqWriteShuffleData struct {
 func (x *TReqWriteShuffleData) Reset() {
 	*x = TReqWriteShuffleData{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[325]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[327]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24080,7 +24165,7 @@ func (x *TReqWriteShuffleData) String() string {
 func (*TReqWriteShuffleData) ProtoMessage() {}
 
 func (x *TReqWriteShuffleData) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[325]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[327]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24093,7 +24178,7 @@ func (x *TReqWriteShuffleData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqWriteShuffleData.ProtoReflect.Descriptor instead.
 func (*TReqWriteShuffleData) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{325}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{327}
 }
 
 func (x *TReqWriteShuffleData) GetShuffleHandle() []byte {
@@ -24133,7 +24218,7 @@ type TRspWriteShuffleData struct {
 func (x *TRspWriteShuffleData) Reset() {
 	*x = TRspWriteShuffleData{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[326]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[328]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24146,7 +24231,7 @@ func (x *TRspWriteShuffleData) String() string {
 func (*TRspWriteShuffleData) ProtoMessage() {}
 
 func (x *TRspWriteShuffleData) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[326]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[328]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24159,7 +24244,7 @@ func (x *TRspWriteShuffleData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspWriteShuffleData.ProtoReflect.Descriptor instead.
 func (*TRspWriteShuffleData) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{326}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{328}
 }
 
 type TRowsetDescriptor_TNameTableEntry struct {
@@ -24177,7 +24262,7 @@ type TRowsetDescriptor_TNameTableEntry struct {
 func (x *TRowsetDescriptor_TNameTableEntry) Reset() {
 	*x = TRowsetDescriptor_TNameTableEntry{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[327]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[329]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24190,7 +24275,7 @@ func (x *TRowsetDescriptor_TNameTableEntry) String() string {
 func (*TRowsetDescriptor_TNameTableEntry) ProtoMessage() {}
 
 func (x *TRowsetDescriptor_TNameTableEntry) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[327]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[329]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24238,7 +24323,7 @@ type TReqStartTransaction_TReplicateToMasterCellTags struct {
 func (x *TReqStartTransaction_TReplicateToMasterCellTags) Reset() {
 	*x = TReqStartTransaction_TReplicateToMasterCellTags{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[328]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[330]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24251,7 +24336,7 @@ func (x *TReqStartTransaction_TReplicateToMasterCellTags) String() string {
 func (*TReqStartTransaction_TReplicateToMasterCellTags) ProtoMessage() {}
 
 func (x *TReqStartTransaction_TReplicateToMasterCellTags) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[328]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[330]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24299,7 +24384,7 @@ const (
 func (x *TReqMultiLookup_TSubrequest) Reset() {
 	*x = TReqMultiLookup_TSubrequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[329]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[331]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24312,7 +24397,7 @@ func (x *TReqMultiLookup_TSubrequest) String() string {
 func (*TReqMultiLookup_TSubrequest) ProtoMessage() {}
 
 func (x *TReqMultiLookup_TSubrequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[329]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[331]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24397,7 +24482,7 @@ type TRspMultiLookup_TSubresponse struct {
 func (x *TRspMultiLookup_TSubresponse) Reset() {
 	*x = TRspMultiLookup_TSubresponse{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[330]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[332]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24410,7 +24495,7 @@ func (x *TRspMultiLookup_TSubresponse) String() string {
 func (*TRspMultiLookup_TSubresponse) ProtoMessage() {}
 
 func (x *TRspMultiLookup_TSubresponse) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[330]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[332]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24459,7 +24544,7 @@ type TReqRegisterQueueConsumer_TRegistrationPartitions struct {
 func (x *TReqRegisterQueueConsumer_TRegistrationPartitions) Reset() {
 	*x = TReqRegisterQueueConsumer_TRegistrationPartitions{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[331]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[333]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24472,7 +24557,7 @@ func (x *TReqRegisterQueueConsumer_TRegistrationPartitions) String() string {
 func (*TReqRegisterQueueConsumer_TRegistrationPartitions) ProtoMessage() {}
 
 func (x *TReqRegisterQueueConsumer_TRegistrationPartitions) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[331]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[333]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24509,7 +24594,7 @@ type TRspListQueueConsumerRegistrations_TQueueConsumerRegistration struct {
 func (x *TRspListQueueConsumerRegistrations_TQueueConsumerRegistration) Reset() {
 	*x = TRspListQueueConsumerRegistrations_TQueueConsumerRegistration{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[332]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[334]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24522,7 +24607,7 @@ func (x *TRspListQueueConsumerRegistrations_TQueueConsumerRegistration) String()
 func (*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration) ProtoMessage() {}
 
 func (x *TRspListQueueConsumerRegistrations_TQueueConsumerRegistration) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[332]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[334]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24578,7 +24663,7 @@ type TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistration
 func (x *TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions) Reset() {
 	*x = TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[333]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[335]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24592,7 +24677,7 @@ func (*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrati
 }
 
 func (x *TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[333]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[335]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24632,7 +24717,7 @@ type TRspGetTabletInfos_TTabletInfo struct {
 func (x *TRspGetTabletInfos_TTabletInfo) Reset() {
 	*x = TRspGetTabletInfos_TTabletInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[334]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[336]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24645,7 +24730,7 @@ func (x *TRspGetTabletInfos_TTabletInfo) String() string {
 func (*TRspGetTabletInfos_TTabletInfo) ProtoMessage() {}
 
 func (x *TRspGetTabletInfos_TTabletInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[334]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[336]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24726,7 +24811,7 @@ type TRspGetTabletInfos_TTabletInfo_TReplicaInfo struct {
 func (x *TRspGetTabletInfos_TTabletInfo_TReplicaInfo) Reset() {
 	*x = TRspGetTabletInfos_TTabletInfo_TReplicaInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[335]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[337]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24739,7 +24824,7 @@ func (x *TRspGetTabletInfos_TTabletInfo_TReplicaInfo) String() string {
 func (*TRspGetTabletInfos_TTabletInfo_TReplicaInfo) ProtoMessage() {}
 
 func (x *TRspGetTabletInfos_TTabletInfo_TReplicaInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[335]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[337]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24808,7 +24893,7 @@ type TRspGetTabletErrors_TErrorList struct {
 func (x *TRspGetTabletErrors_TErrorList) Reset() {
 	*x = TRspGetTabletErrors_TErrorList{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[336]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[338]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24821,7 +24906,7 @@ func (x *TRspGetTabletErrors_TErrorList) String() string {
 func (*TRspGetTabletErrors_TErrorList) ProtoMessage() {}
 
 func (x *TRspGetTabletErrors_TErrorList) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[336]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[338]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24855,7 +24940,7 @@ type TRspRemoveMaintenance_TMaintenanceCounts struct {
 func (x *TRspRemoveMaintenance_TMaintenanceCounts) Reset() {
 	*x = TRspRemoveMaintenance_TMaintenanceCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[339]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[341]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24868,7 +24953,7 @@ func (x *TRspRemoveMaintenance_TMaintenanceCounts) String() string {
 func (*TRspRemoveMaintenance_TMaintenanceCounts) ProtoMessage() {}
 
 func (x *TRspRemoveMaintenance_TMaintenanceCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[339]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[341]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24902,7 +24987,7 @@ type TPrerequisiteOptions_TTransactionPrerequisite struct {
 func (x *TPrerequisiteOptions_TTransactionPrerequisite) Reset() {
 	*x = TPrerequisiteOptions_TTransactionPrerequisite{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[342]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[344]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24915,7 +25000,7 @@ func (x *TPrerequisiteOptions_TTransactionPrerequisite) String() string {
 func (*TPrerequisiteOptions_TTransactionPrerequisite) ProtoMessage() {}
 
 func (x *TPrerequisiteOptions_TTransactionPrerequisite) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[342]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[344]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -24950,7 +25035,7 @@ type TPrerequisiteOptions_TRevisionPrerequisite struct {
 func (x *TPrerequisiteOptions_TRevisionPrerequisite) Reset() {
 	*x = TPrerequisiteOptions_TRevisionPrerequisite{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[343]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[345]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -24963,7 +25048,7 @@ func (x *TPrerequisiteOptions_TRevisionPrerequisite) String() string {
 func (*TPrerequisiteOptions_TRevisionPrerequisite) ProtoMessage() {}
 
 func (x *TPrerequisiteOptions_TRevisionPrerequisite) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[343]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[345]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25005,7 +25090,7 @@ type TBackupManifest_TClusterManifest struct {
 func (x *TBackupManifest_TClusterManifest) Reset() {
 	*x = TBackupManifest_TClusterManifest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[344]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[346]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25018,7 +25103,7 @@ func (x *TBackupManifest_TClusterManifest) String() string {
 func (*TBackupManifest_TClusterManifest) ProtoMessage() {}
 
 func (x *TBackupManifest_TClusterManifest) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[344]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[346]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25060,7 +25145,7 @@ type TReqMultisetAttributesNode_TSubrequest struct {
 func (x *TReqMultisetAttributesNode_TSubrequest) Reset() {
 	*x = TReqMultisetAttributesNode_TSubrequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[345]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[347]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25073,7 +25158,7 @@ func (x *TReqMultisetAttributesNode_TSubrequest) String() string {
 func (*TReqMultisetAttributesNode_TSubrequest) ProtoMessage() {}
 
 func (x *TReqMultisetAttributesNode_TSubrequest) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[345]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[347]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25119,7 +25204,7 @@ const (
 func (x *TReqConcatenateNodes_TFetcher) Reset() {
 	*x = TReqConcatenateNodes_TFetcher{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[346]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[348]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25132,7 +25217,7 @@ func (x *TReqConcatenateNodes_TFetcher) String() string {
 func (*TReqConcatenateNodes_TFetcher) ProtoMessage() {}
 
 func (x *TReqConcatenateNodes_TFetcher) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[346]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[348]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25166,7 +25251,7 @@ type TReqPartitionTables_TChunkSliceFetcherConfig struct {
 func (x *TReqPartitionTables_TChunkSliceFetcherConfig) Reset() {
 	*x = TReqPartitionTables_TChunkSliceFetcherConfig{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[347]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[349]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25179,7 +25264,7 @@ func (x *TReqPartitionTables_TChunkSliceFetcherConfig) String() string {
 func (*TReqPartitionTables_TChunkSliceFetcherConfig) ProtoMessage() {}
 
 func (x *TReqPartitionTables_TChunkSliceFetcherConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[347]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[349]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25215,7 +25300,7 @@ type TMultiTablePartition_TStatistics struct {
 func (x *TMultiTablePartition_TStatistics) Reset() {
 	*x = TMultiTablePartition_TStatistics{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[348]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[350]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25228,7 +25313,7 @@ func (x *TMultiTablePartition_TStatistics) String() string {
 func (*TMultiTablePartition_TStatistics) ProtoMessage() {}
 
 func (x *TMultiTablePartition_TStatistics) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[348]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[350]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25276,7 +25361,7 @@ type TReqCheckPermission_TColumns struct {
 func (x *TReqCheckPermission_TColumns) Reset() {
 	*x = TReqCheckPermission_TColumns{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[349]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[351]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25289,7 +25374,7 @@ func (x *TReqCheckPermission_TColumns) String() string {
 func (*TReqCheckPermission_TColumns) ProtoMessage() {}
 
 func (x *TReqCheckPermission_TColumns) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[349]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[351]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25302,7 +25387,7 @@ func (x *TReqCheckPermission_TColumns) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqCheckPermission_TColumns.ProtoReflect.Descriptor instead.
 func (*TReqCheckPermission_TColumns) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{258, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{260, 0}
 }
 
 func (x *TReqCheckPermission_TColumns) GetItems() []string {
@@ -25323,7 +25408,7 @@ type TRspCheckPermission_TColumns struct {
 func (x *TRspCheckPermission_TColumns) Reset() {
 	*x = TRspCheckPermission_TColumns{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[350]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[352]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25336,7 +25421,7 @@ func (x *TRspCheckPermission_TColumns) String() string {
 func (*TRspCheckPermission_TColumns) ProtoMessage() {}
 
 func (x *TRspCheckPermission_TColumns) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[350]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[352]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25349,7 +25434,7 @@ func (x *TRspCheckPermission_TColumns) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TRspCheckPermission_TColumns.ProtoReflect.Descriptor instead.
 func (*TRspCheckPermission_TColumns) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{259, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{261, 0}
 }
 
 func (x *TRspCheckPermission_TColumns) GetItems() []*TCheckPermissionResult {
@@ -25370,7 +25455,7 @@ type TOperation_TStrings struct {
 func (x *TOperation_TStrings) Reset() {
 	*x = TOperation_TStrings{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[351]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[353]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25383,7 +25468,7 @@ func (x *TOperation_TStrings) String() string {
 func (*TOperation_TStrings) ProtoMessage() {}
 
 func (x *TOperation_TStrings) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[351]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[353]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25396,7 +25481,7 @@ func (x *TOperation_TStrings) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TOperation_TStrings.ProtoReflect.Descriptor instead.
 func (*TOperation_TStrings) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{288, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{290, 0}
 }
 
 func (x *TOperation_TStrings) GetData() []string {
@@ -25417,7 +25502,7 @@ type TListOperationsResult_TPoolCounts struct {
 func (x *TListOperationsResult_TPoolCounts) Reset() {
 	*x = TListOperationsResult_TPoolCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[352]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[354]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25430,7 +25515,7 @@ func (x *TListOperationsResult_TPoolCounts) String() string {
 func (*TListOperationsResult_TPoolCounts) ProtoMessage() {}
 
 func (x *TListOperationsResult_TPoolCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[352]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[354]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25443,7 +25528,7 @@ func (x *TListOperationsResult_TPoolCounts) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TListOperationsResult_TPoolCounts.ProtoReflect.Descriptor instead.
 func (*TListOperationsResult_TPoolCounts) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{289, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 0}
 }
 
 func (x *TListOperationsResult_TPoolCounts) GetEntries() []*TListOperationsResult_TPoolCounts_TPoolCount {
@@ -25464,7 +25549,7 @@ type TListOperationsResult_TUserCounts struct {
 func (x *TListOperationsResult_TUserCounts) Reset() {
 	*x = TListOperationsResult_TUserCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[353]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[355]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25477,7 +25562,7 @@ func (x *TListOperationsResult_TUserCounts) String() string {
 func (*TListOperationsResult_TUserCounts) ProtoMessage() {}
 
 func (x *TListOperationsResult_TUserCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[353]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[355]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25490,7 +25575,7 @@ func (x *TListOperationsResult_TUserCounts) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use TListOperationsResult_TUserCounts.ProtoReflect.Descriptor instead.
 func (*TListOperationsResult_TUserCounts) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{289, 1}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 1}
 }
 
 func (x *TListOperationsResult_TUserCounts) GetEntries() []*TListOperationsResult_TUserCounts_TUserCount {
@@ -25511,7 +25596,7 @@ type TListOperationsResult_TOperationStateCounts struct {
 func (x *TListOperationsResult_TOperationStateCounts) Reset() {
 	*x = TListOperationsResult_TOperationStateCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[354]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[356]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25524,7 +25609,7 @@ func (x *TListOperationsResult_TOperationStateCounts) String() string {
 func (*TListOperationsResult_TOperationStateCounts) ProtoMessage() {}
 
 func (x *TListOperationsResult_TOperationStateCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[354]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[356]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25537,7 +25622,7 @@ func (x *TListOperationsResult_TOperationStateCounts) ProtoReflect() protoreflec
 
 // Deprecated: Use TListOperationsResult_TOperationStateCounts.ProtoReflect.Descriptor instead.
 func (*TListOperationsResult_TOperationStateCounts) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{289, 2}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 2}
 }
 
 func (x *TListOperationsResult_TOperationStateCounts) GetEntries() []*TListOperationsResult_TOperationStateCounts_TOperationStateCount {
@@ -25558,7 +25643,7 @@ type TListOperationsResult_TOperationTypeCounts struct {
 func (x *TListOperationsResult_TOperationTypeCounts) Reset() {
 	*x = TListOperationsResult_TOperationTypeCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[355]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[357]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25571,7 +25656,7 @@ func (x *TListOperationsResult_TOperationTypeCounts) String() string {
 func (*TListOperationsResult_TOperationTypeCounts) ProtoMessage() {}
 
 func (x *TListOperationsResult_TOperationTypeCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[355]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[357]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25584,7 +25669,7 @@ func (x *TListOperationsResult_TOperationTypeCounts) ProtoReflect() protoreflect
 
 // Deprecated: Use TListOperationsResult_TOperationTypeCounts.ProtoReflect.Descriptor instead.
 func (*TListOperationsResult_TOperationTypeCounts) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{289, 3}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 3}
 }
 
 func (x *TListOperationsResult_TOperationTypeCounts) GetEntries() []*TListOperationsResult_TOperationTypeCounts_TOperationTypeCount {
@@ -25605,7 +25690,7 @@ type TListOperationsResult_TPoolTreeCounts struct {
 func (x *TListOperationsResult_TPoolTreeCounts) Reset() {
 	*x = TListOperationsResult_TPoolTreeCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[356]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[358]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25618,7 +25703,7 @@ func (x *TListOperationsResult_TPoolTreeCounts) String() string {
 func (*TListOperationsResult_TPoolTreeCounts) ProtoMessage() {}
 
 func (x *TListOperationsResult_TPoolTreeCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[356]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[358]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25631,7 +25716,7 @@ func (x *TListOperationsResult_TPoolTreeCounts) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use TListOperationsResult_TPoolTreeCounts.ProtoReflect.Descriptor instead.
 func (*TListOperationsResult_TPoolTreeCounts) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{289, 4}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 4}
 }
 
 func (x *TListOperationsResult_TPoolTreeCounts) GetEntries() map[string]int64 {
@@ -25653,7 +25738,7 @@ type TListOperationsResult_TPoolCounts_TPoolCount struct {
 func (x *TListOperationsResult_TPoolCounts_TPoolCount) Reset() {
 	*x = TListOperationsResult_TPoolCounts_TPoolCount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[357]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[359]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25666,7 +25751,7 @@ func (x *TListOperationsResult_TPoolCounts_TPoolCount) String() string {
 func (*TListOperationsResult_TPoolCounts_TPoolCount) ProtoMessage() {}
 
 func (x *TListOperationsResult_TPoolCounts_TPoolCount) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[357]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[359]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25679,7 +25764,7 @@ func (x *TListOperationsResult_TPoolCounts_TPoolCount) ProtoReflect() protorefle
 
 // Deprecated: Use TListOperationsResult_TPoolCounts_TPoolCount.ProtoReflect.Descriptor instead.
 func (*TListOperationsResult_TPoolCounts_TPoolCount) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{289, 0, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 0, 0}
 }
 
 func (x *TListOperationsResult_TPoolCounts_TPoolCount) GetPool() string {
@@ -25708,7 +25793,7 @@ type TListOperationsResult_TUserCounts_TUserCount struct {
 func (x *TListOperationsResult_TUserCounts_TUserCount) Reset() {
 	*x = TListOperationsResult_TUserCounts_TUserCount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[358]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[360]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25721,7 +25806,7 @@ func (x *TListOperationsResult_TUserCounts_TUserCount) String() string {
 func (*TListOperationsResult_TUserCounts_TUserCount) ProtoMessage() {}
 
 func (x *TListOperationsResult_TUserCounts_TUserCount) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[358]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[360]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25734,7 +25819,7 @@ func (x *TListOperationsResult_TUserCounts_TUserCount) ProtoReflect() protorefle
 
 // Deprecated: Use TListOperationsResult_TUserCounts_TUserCount.ProtoReflect.Descriptor instead.
 func (*TListOperationsResult_TUserCounts_TUserCount) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{289, 1, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 1, 0}
 }
 
 func (x *TListOperationsResult_TUserCounts_TUserCount) GetUser() string {
@@ -25763,7 +25848,7 @@ type TListOperationsResult_TOperationStateCounts_TOperationStateCount struct {
 func (x *TListOperationsResult_TOperationStateCounts_TOperationStateCount) Reset() {
 	*x = TListOperationsResult_TOperationStateCounts_TOperationStateCount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[359]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[361]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25776,7 +25861,7 @@ func (x *TListOperationsResult_TOperationStateCounts_TOperationStateCount) Strin
 func (*TListOperationsResult_TOperationStateCounts_TOperationStateCount) ProtoMessage() {}
 
 func (x *TListOperationsResult_TOperationStateCounts_TOperationStateCount) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[359]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[361]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25789,7 +25874,7 @@ func (x *TListOperationsResult_TOperationStateCounts_TOperationStateCount) Proto
 
 // Deprecated: Use TListOperationsResult_TOperationStateCounts_TOperationStateCount.ProtoReflect.Descriptor instead.
 func (*TListOperationsResult_TOperationStateCounts_TOperationStateCount) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{289, 2, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 2, 0}
 }
 
 func (x *TListOperationsResult_TOperationStateCounts_TOperationStateCount) GetState() EOperationState {
@@ -25818,7 +25903,7 @@ type TListOperationsResult_TOperationTypeCounts_TOperationTypeCount struct {
 func (x *TListOperationsResult_TOperationTypeCounts_TOperationTypeCount) Reset() {
 	*x = TListOperationsResult_TOperationTypeCounts_TOperationTypeCount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[360]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[362]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25831,7 +25916,7 @@ func (x *TListOperationsResult_TOperationTypeCounts_TOperationTypeCount) String(
 func (*TListOperationsResult_TOperationTypeCounts_TOperationTypeCount) ProtoMessage() {}
 
 func (x *TListOperationsResult_TOperationTypeCounts_TOperationTypeCount) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[360]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[362]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25844,7 +25929,7 @@ func (x *TListOperationsResult_TOperationTypeCounts_TOperationTypeCount) ProtoRe
 
 // Deprecated: Use TListOperationsResult_TOperationTypeCounts_TOperationTypeCount.ProtoReflect.Descriptor instead.
 func (*TListOperationsResult_TOperationTypeCounts_TOperationTypeCount) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{289, 3, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 3, 0}
 }
 
 func (x *TListOperationsResult_TOperationTypeCounts_TOperationTypeCount) GetType() EOperationType {
@@ -25872,7 +25957,7 @@ type TListJobsStatistics_TJobStateCounts struct {
 func (x *TListJobsStatistics_TJobStateCounts) Reset() {
 	*x = TListJobsStatistics_TJobStateCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[362]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[364]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25885,7 +25970,7 @@ func (x *TListJobsStatistics_TJobStateCounts) String() string {
 func (*TListJobsStatistics_TJobStateCounts) ProtoMessage() {}
 
 func (x *TListJobsStatistics_TJobStateCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[362]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[364]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25898,7 +25983,7 @@ func (x *TListJobsStatistics_TJobStateCounts) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use TListJobsStatistics_TJobStateCounts.ProtoReflect.Descriptor instead.
 func (*TListJobsStatistics_TJobStateCounts) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{293, 0}
 }
 
 func (x *TListJobsStatistics_TJobStateCounts) GetEntries() []*TListJobsStatistics_TJobStateCounts_TJobStateCount {
@@ -25919,7 +26004,7 @@ type TListJobsStatistics_TJobTypeCounts struct {
 func (x *TListJobsStatistics_TJobTypeCounts) Reset() {
 	*x = TListJobsStatistics_TJobTypeCounts{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[363]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[365]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25932,7 +26017,7 @@ func (x *TListJobsStatistics_TJobTypeCounts) String() string {
 func (*TListJobsStatistics_TJobTypeCounts) ProtoMessage() {}
 
 func (x *TListJobsStatistics_TJobTypeCounts) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[363]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[365]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25945,7 +26030,7 @@ func (x *TListJobsStatistics_TJobTypeCounts) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use TListJobsStatistics_TJobTypeCounts.ProtoReflect.Descriptor instead.
 func (*TListJobsStatistics_TJobTypeCounts) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 1}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{293, 1}
 }
 
 func (x *TListJobsStatistics_TJobTypeCounts) GetEntries() []*TListJobsStatistics_TJobTypeCounts_TJobTypeCount {
@@ -25967,7 +26052,7 @@ type TListJobsStatistics_TJobStateCounts_TJobStateCount struct {
 func (x *TListJobsStatistics_TJobStateCounts_TJobStateCount) Reset() {
 	*x = TListJobsStatistics_TJobStateCounts_TJobStateCount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[364]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[366]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -25980,7 +26065,7 @@ func (x *TListJobsStatistics_TJobStateCounts_TJobStateCount) String() string {
 func (*TListJobsStatistics_TJobStateCounts_TJobStateCount) ProtoMessage() {}
 
 func (x *TListJobsStatistics_TJobStateCounts_TJobStateCount) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[364]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[366]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -25993,7 +26078,7 @@ func (x *TListJobsStatistics_TJobStateCounts_TJobStateCount) ProtoReflect() prot
 
 // Deprecated: Use TListJobsStatistics_TJobStateCounts_TJobStateCount.ProtoReflect.Descriptor instead.
 func (*TListJobsStatistics_TJobStateCounts_TJobStateCount) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 0, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{293, 0, 0}
 }
 
 func (x *TListJobsStatistics_TJobStateCounts_TJobStateCount) GetState() EJobState {
@@ -26022,7 +26107,7 @@ type TListJobsStatistics_TJobTypeCounts_TJobTypeCount struct {
 func (x *TListJobsStatistics_TJobTypeCounts_TJobTypeCount) Reset() {
 	*x = TListJobsStatistics_TJobTypeCounts_TJobTypeCount{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[365]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[367]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -26035,7 +26120,7 @@ func (x *TListJobsStatistics_TJobTypeCounts_TJobTypeCount) String() string {
 func (*TListJobsStatistics_TJobTypeCounts_TJobTypeCount) ProtoMessage() {}
 
 func (x *TListJobsStatistics_TJobTypeCounts_TJobTypeCount) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[365]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[367]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26048,7 +26133,7 @@ func (x *TListJobsStatistics_TJobTypeCounts_TJobTypeCount) ProtoReflect() protor
 
 // Deprecated: Use TListJobsStatistics_TJobTypeCounts_TJobTypeCount.ProtoReflect.Descriptor instead.
 func (*TListJobsStatistics_TJobTypeCounts_TJobTypeCount) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{291, 1, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{293, 1, 0}
 }
 
 func (x *TListJobsStatistics_TJobTypeCounts_TJobTypeCount) GetType() EJobType {
@@ -26078,7 +26163,7 @@ type TReqStartQuery_TQueryFile struct {
 func (x *TReqStartQuery_TQueryFile) Reset() {
 	*x = TReqStartQuery_TQueryFile{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[366]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[368]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -26091,7 +26176,7 @@ func (x *TReqStartQuery_TQueryFile) String() string {
 func (*TReqStartQuery_TQueryFile) ProtoMessage() {}
 
 func (x *TReqStartQuery_TQueryFile) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[366]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[368]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26104,7 +26189,7 @@ func (x *TReqStartQuery_TQueryFile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqStartQuery_TQueryFile.ProtoReflect.Descriptor instead.
 func (*TReqStartQuery_TQueryFile) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{298, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{300, 0}
 }
 
 func (x *TReqStartQuery_TQueryFile) GetName() string {
@@ -26139,7 +26224,7 @@ type TReqStartQuery_TAccessControlObjects struct {
 func (x *TReqStartQuery_TAccessControlObjects) Reset() {
 	*x = TReqStartQuery_TAccessControlObjects{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[367]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[369]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -26152,7 +26237,7 @@ func (x *TReqStartQuery_TAccessControlObjects) String() string {
 func (*TReqStartQuery_TAccessControlObjects) ProtoMessage() {}
 
 func (x *TReqStartQuery_TAccessControlObjects) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[367]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[369]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26165,7 +26250,7 @@ func (x *TReqStartQuery_TAccessControlObjects) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TReqStartQuery_TAccessControlObjects.ProtoReflect.Descriptor instead.
 func (*TReqStartQuery_TAccessControlObjects) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{298, 1}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{300, 1}
 }
 
 func (x *TReqStartQuery_TAccessControlObjects) GetItems() []string {
@@ -26189,7 +26274,7 @@ type TReqStartQuery_TSecret struct {
 func (x *TReqStartQuery_TSecret) Reset() {
 	*x = TReqStartQuery_TSecret{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[368]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[370]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -26202,7 +26287,7 @@ func (x *TReqStartQuery_TSecret) String() string {
 func (*TReqStartQuery_TSecret) ProtoMessage() {}
 
 func (x *TReqStartQuery_TSecret) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[368]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[370]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26215,7 +26300,7 @@ func (x *TReqStartQuery_TSecret) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqStartQuery_TSecret.ProtoReflect.Descriptor instead.
 func (*TReqStartQuery_TSecret) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{298, 2}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{300, 2}
 }
 
 func (x *TReqStartQuery_TSecret) GetId() string {
@@ -26257,7 +26342,7 @@ type TReqReadQueryResult_TColumns struct {
 func (x *TReqReadQueryResult_TColumns) Reset() {
 	*x = TReqReadQueryResult_TColumns{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[369]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[371]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -26270,7 +26355,7 @@ func (x *TReqReadQueryResult_TColumns) String() string {
 func (*TReqReadQueryResult_TColumns) ProtoMessage() {}
 
 func (x *TReqReadQueryResult_TColumns) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[369]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[371]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26283,7 +26368,7 @@ func (x *TReqReadQueryResult_TColumns) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqReadQueryResult_TColumns.ProtoReflect.Descriptor instead.
 func (*TReqReadQueryResult_TColumns) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{304, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{306, 0}
 }
 
 func (x *TReqReadQueryResult_TColumns) GetItems() []string {
@@ -26304,7 +26389,7 @@ type TReqAlterQuery_TAccessControlObjects struct {
 func (x *TReqAlterQuery_TAccessControlObjects) Reset() {
 	*x = TReqAlterQuery_TAccessControlObjects{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[370]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[372]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -26317,7 +26402,7 @@ func (x *TReqAlterQuery_TAccessControlObjects) String() string {
 func (*TReqAlterQuery_TAccessControlObjects) ProtoMessage() {}
 
 func (x *TReqAlterQuery_TAccessControlObjects) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[370]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[372]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26330,7 +26415,7 @@ func (x *TReqAlterQuery_TAccessControlObjects) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use TReqAlterQuery_TAccessControlObjects.ProtoReflect.Descriptor instead.
 func (*TReqAlterQuery_TAccessControlObjects) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{311, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{313, 0}
 }
 
 func (x *TReqAlterQuery_TAccessControlObjects) GetItems() []string {
@@ -26352,7 +26437,7 @@ type TReqReadShuffleData_IndexRange struct {
 func (x *TReqReadShuffleData_IndexRange) Reset() {
 	*x = TReqReadShuffleData_IndexRange{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[371]
+		mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[373]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -26365,7 +26450,7 @@ func (x *TReqReadShuffleData_IndexRange) String() string {
 func (*TReqReadShuffleData_IndexRange) ProtoMessage() {}
 
 func (x *TReqReadShuffleData_IndexRange) ProtoReflect() protoreflect.Message {
-	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[371]
+	mi := &file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[373]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -26378,7 +26463,7 @@ func (x *TReqReadShuffleData_IndexRange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TReqReadShuffleData_IndexRange.ProtoReflect.Descriptor instead.
 func (*TReqReadShuffleData_IndexRange) Descriptor() ([]byte, []int) {
-	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{323, 0}
+	return file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZIP(), []int{325, 0}
 }
 
 func (x *TReqReadShuffleData_IndexRange) GetBegin() int32 {
@@ -29936,7 +30021,11 @@ var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDesc = [
 	0x45, 0x4a, 0x6f, 0x62, 0x53, 0x70, 0x65, 0x63, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x3a, 0x08,
 	0x4a, 0x53, 0x53, 0x5f, 0x41, 0x55, 0x54, 0x4f, 0x52, 0x0d, 0x6a, 0x6f, 0x62, 0x53, 0x70, 0x65,
 	0x63, 0x53, 0x6f, 0x75, 0x72, 0x63, 0x65, 0x22, 0x11, 0x0a, 0x0f, 0x54, 0x52, 0x73, 0x70, 0x47,
-	0x65, 0x74, 0x4a, 0x6f, 0x62, 0x49, 0x6e, 0x70, 0x75, 0x74, 0x22, 0xf9, 0x01, 0x0a, 0x0d, 0x54,
+	0x65, 0x74, 0x4a, 0x6f, 0x62, 0x49, 0x6e, 0x70, 0x75, 0x74, 0x22, 0x14, 0x0a, 0x12, 0x54, 0x52,
+	0x65, 0x71, 0x47, 0x65, 0x74, 0x43, 0x75, 0x72, 0x72, 0x65, 0x6e, 0x74, 0x55, 0x73, 0x65, 0x72,
+	0x22, 0x28, 0x0a, 0x12, 0x54, 0x52, 0x73, 0x70, 0x47, 0x65, 0x74, 0x43, 0x75, 0x72, 0x72, 0x65,
+	0x6e, 0x74, 0x55, 0x73, 0x65, 0x72, 0x12, 0x12, 0x0a, 0x04, 0x75, 0x73, 0x65, 0x72, 0x18, 0x01,
+	0x20, 0x02, 0x28, 0x09, 0x52, 0x04, 0x75, 0x73, 0x65, 0x72, 0x22, 0xf9, 0x01, 0x0a, 0x0d, 0x54,
 	0x52, 0x65, 0x71, 0x41, 0x64, 0x64, 0x4d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x12, 0x14, 0x0a, 0x05,
 	0x67, 0x72, 0x6f, 0x75, 0x70, 0x18, 0x01, 0x20, 0x02, 0x28, 0x09, 0x52, 0x05, 0x67, 0x72, 0x6f,
 	0x75, 0x70, 0x12, 0x16, 0x0a, 0x06, 0x6d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x18, 0x02, 0x20, 0x02,
@@ -31185,7 +31274,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDescGZI
 }
 
 var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_enumTypes = make([]protoimpl.EnumInfo, 29)
-var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes = make([]protoimpl.MessageInfo, 372)
+var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes = make([]protoimpl.MessageInfo, 374)
 var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_goTypes = []interface{}{
 	(ETransactionType)(0),                                     // 0: NYT.NApi.NRpcProxy.NProto.ETransactionType
 	(ERowModificationType)(0),                                 // 1: NYT.NApi.NRpcProxy.NProto.ERowModificationType
@@ -31470,169 +31559,171 @@ var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_goTypes = [
 	(*TRspWriteTable)(nil),                                    // 280: NYT.NApi.NRpcProxy.NProto.TRspWriteTable
 	(*TReqGetJobInput)(nil),                                   // 281: NYT.NApi.NRpcProxy.NProto.TReqGetJobInput
 	(*TRspGetJobInput)(nil),                                   // 282: NYT.NApi.NRpcProxy.NProto.TRspGetJobInput
-	(*TReqAddMember)(nil),                                     // 283: NYT.NApi.NRpcProxy.NProto.TReqAddMember
-	(*TRspAddMember)(nil),                                     // 284: NYT.NApi.NRpcProxy.NProto.TRspAddMember
-	(*TReqRemoveMember)(nil),                                  // 285: NYT.NApi.NRpcProxy.NProto.TReqRemoveMember
-	(*TRspRemoveMember)(nil),                                  // 286: NYT.NApi.NRpcProxy.NProto.TRspRemoveMember
-	(*TReqCheckPermission)(nil),                               // 287: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission
-	(*TRspCheckPermission)(nil),                               // 288: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission
-	(*TReqCheckPermissionByAcl)(nil),                          // 289: NYT.NApi.NRpcProxy.NProto.TReqCheckPermissionByAcl
-	(*TRspCheckPermissionByAcl)(nil),                          // 290: NYT.NApi.NRpcProxy.NProto.TRspCheckPermissionByAcl
-	(*TReqTransferAccountResources)(nil),                      // 291: NYT.NApi.NRpcProxy.NProto.TReqTransferAccountResources
-	(*TRspTransferAccountResources)(nil),                      // 292: NYT.NApi.NRpcProxy.NProto.TRspTransferAccountResources
-	(*TReqTransferPoolResources)(nil),                         // 293: NYT.NApi.NRpcProxy.NProto.TReqTransferPoolResources
-	(*TRspTransferPoolResources)(nil),                         // 294: NYT.NApi.NRpcProxy.NProto.TRspTransferPoolResources
-	(*TReqCheckClusterLiveness)(nil),                          // 295: NYT.NApi.NRpcProxy.NProto.TReqCheckClusterLiveness
-	(*TRspCheckClusterLiveness)(nil),                          // 296: NYT.NApi.NRpcProxy.NProto.TRspCheckClusterLiveness
-	(*TReqGetPipelineSpec)(nil),                               // 297: NYT.NApi.NRpcProxy.NProto.TReqGetPipelineSpec
-	(*TRspGetPipelineSpec)(nil),                               // 298: NYT.NApi.NRpcProxy.NProto.TRspGetPipelineSpec
-	(*TReqSetPipelineSpec)(nil),                               // 299: NYT.NApi.NRpcProxy.NProto.TReqSetPipelineSpec
-	(*TRspSetPipelineSpec)(nil),                               // 300: NYT.NApi.NRpcProxy.NProto.TRspSetPipelineSpec
-	(*TReqGetPipelineDynamicSpec)(nil),                        // 301: NYT.NApi.NRpcProxy.NProto.TReqGetPipelineDynamicSpec
-	(*TRspGetPipelineDynamicSpec)(nil),                        // 302: NYT.NApi.NRpcProxy.NProto.TRspGetPipelineDynamicSpec
-	(*TReqSetPipelineDynamicSpec)(nil),                        // 303: NYT.NApi.NRpcProxy.NProto.TReqSetPipelineDynamicSpec
-	(*TRspSetPipelineDynamicSpec)(nil),                        // 304: NYT.NApi.NRpcProxy.NProto.TRspSetPipelineDynamicSpec
-	(*TReqStartPipeline)(nil),                                 // 305: NYT.NApi.NRpcProxy.NProto.TReqStartPipeline
-	(*TRspStartPipeline)(nil),                                 // 306: NYT.NApi.NRpcProxy.NProto.TRspStartPipeline
-	(*TReqPausePipeline)(nil),                                 // 307: NYT.NApi.NRpcProxy.NProto.TReqPausePipeline
-	(*TRspPausePipeline)(nil),                                 // 308: NYT.NApi.NRpcProxy.NProto.TRspPausePipeline
-	(*TReqStopPipeline)(nil),                                  // 309: NYT.NApi.NRpcProxy.NProto.TReqStopPipeline
-	(*TRspStopPipeline)(nil),                                  // 310: NYT.NApi.NRpcProxy.NProto.TRspStopPipeline
-	(*TReqGetPipelineState)(nil),                              // 311: NYT.NApi.NRpcProxy.NProto.TReqGetPipelineState
-	(*TRspGetPipelineState)(nil),                              // 312: NYT.NApi.NRpcProxy.NProto.TRspGetPipelineState
-	(*TReqGetFlowView)(nil),                                   // 313: NYT.NApi.NRpcProxy.NProto.TReqGetFlowView
-	(*TRspGetFlowView)(nil),                                   // 314: NYT.NApi.NRpcProxy.NProto.TRspGetFlowView
-	(*TReqFlowExecute)(nil),                                   // 315: NYT.NApi.NRpcProxy.NProto.TReqFlowExecute
-	(*TRspFlowExecute)(nil),                                   // 316: NYT.NApi.NRpcProxy.NProto.TRspFlowExecute
-	(*TOperation)(nil),                                        // 317: NYT.NApi.NRpcProxy.NProto.TOperation
-	(*TListOperationsResult)(nil),                             // 318: NYT.NApi.NRpcProxy.NProto.TListOperationsResult
-	(*TJob)(nil),                                              // 319: NYT.NApi.NRpcProxy.NProto.TJob
-	(*TListJobsStatistics)(nil),                               // 320: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics
-	(*TListJobsResult)(nil),                                   // 321: NYT.NApi.NRpcProxy.NProto.TListJobsResult
-	(*TJobTraceEvent)(nil),                                    // 322: NYT.NApi.NRpcProxy.NProto.TJobTraceEvent
-	(*TGetFileFromCacheResult)(nil),                           // 323: NYT.NApi.NRpcProxy.NProto.TGetFileFromCacheResult
-	(*TPutFileToCacheResult)(nil),                             // 324: NYT.NApi.NRpcProxy.NProto.TPutFileToCacheResult
-	(*TCheckPermissionResult)(nil),                            // 325: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult
-	(*TCheckPermissionByAclResult)(nil),                       // 326: NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult
-	(*TReqStartQuery)(nil),                                    // 327: NYT.NApi.NRpcProxy.NProto.TReqStartQuery
-	(*TRspStartQuery)(nil),                                    // 328: NYT.NApi.NRpcProxy.NProto.TRspStartQuery
-	(*TReqAbortQuery)(nil),                                    // 329: NYT.NApi.NRpcProxy.NProto.TReqAbortQuery
-	(*TRspAbortQuery)(nil),                                    // 330: NYT.NApi.NRpcProxy.NProto.TRspAbortQuery
-	(*TReqGetQueryResult)(nil),                                // 331: NYT.NApi.NRpcProxy.NProto.TReqGetQueryResult
-	(*TRspGetQueryResult)(nil),                                // 332: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult
-	(*TReqReadQueryResult)(nil),                               // 333: NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult
-	(*TRspReadQueryResult)(nil),                               // 334: NYT.NApi.NRpcProxy.NProto.TRspReadQueryResult
-	(*TQuery)(nil),                                            // 335: NYT.NApi.NRpcProxy.NProto.TQuery
-	(*TReqGetQuery)(nil),                                      // 336: NYT.NApi.NRpcProxy.NProto.TReqGetQuery
-	(*TRspGetQuery)(nil),                                      // 337: NYT.NApi.NRpcProxy.NProto.TRspGetQuery
-	(*TReqListQueries)(nil),                                   // 338: NYT.NApi.NRpcProxy.NProto.TReqListQueries
-	(*TRspListQueries)(nil),                                   // 339: NYT.NApi.NRpcProxy.NProto.TRspListQueries
-	(*TReqAlterQuery)(nil),                                    // 340: NYT.NApi.NRpcProxy.NProto.TReqAlterQuery
-	(*TRspAlterQuery)(nil),                                    // 341: NYT.NApi.NRpcProxy.NProto.TRspAlterQuery
-	(*TReqGetQueryTrackerInfo)(nil),                           // 342: NYT.NApi.NRpcProxy.NProto.TReqGetQueryTrackerInfo
-	(*TRspGetQueryTrackerInfo)(nil),                           // 343: NYT.NApi.NRpcProxy.NProto.TRspGetQueryTrackerInfo
-	(*TReqStartDistributedWriteSession)(nil),                  // 344: NYT.NApi.NRpcProxy.NProto.TReqStartDistributedWriteSession
-	(*TRspStartDistributedWriteSession)(nil),                  // 345: NYT.NApi.NRpcProxy.NProto.TRspStartDistributedWriteSession
-	(*TReqFinishDistributedWriteSession)(nil),                 // 346: NYT.NApi.NRpcProxy.NProto.TReqFinishDistributedWriteSession
-	(*TRspFinishDistributedWriteSession)(nil),                 // 347: NYT.NApi.NRpcProxy.NProto.TRspFinishDistributedWriteSession
-	(*TReqWriteTableFragment)(nil),                            // 348: NYT.NApi.NRpcProxy.NProto.TReqWriteTableFragment
-	(*TRspWriteTableFragment)(nil),                            // 349: NYT.NApi.NRpcProxy.NProto.TRspWriteTableFragment
-	(*TReqStartShuffle)(nil),                                  // 350: NYT.NApi.NRpcProxy.NProto.TReqStartShuffle
-	(*TRspStartShuffle)(nil),                                  // 351: NYT.NApi.NRpcProxy.NProto.TRspStartShuffle
-	(*TReqReadShuffleData)(nil),                               // 352: NYT.NApi.NRpcProxy.NProto.TReqReadShuffleData
-	(*TRspReadShuffleData)(nil),                               // 353: NYT.NApi.NRpcProxy.NProto.TRspReadShuffleData
-	(*TReqWriteShuffleData)(nil),                              // 354: NYT.NApi.NRpcProxy.NProto.TReqWriteShuffleData
-	(*TRspWriteShuffleData)(nil),                              // 355: NYT.NApi.NRpcProxy.NProto.TRspWriteShuffleData
-	(*TRowsetDescriptor_TNameTableEntry)(nil),                 // 356: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.TNameTableEntry
-	(*TReqStartTransaction_TReplicateToMasterCellTags)(nil),   // 357: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.TReplicateToMasterCellTags
-	(*TReqMultiLookup_TSubrequest)(nil),                       // 358: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest
-	(*TRspMultiLookup_TSubresponse)(nil),                      // 359: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.TSubresponse
-	(*TReqRegisterQueueConsumer_TRegistrationPartitions)(nil), // 360: NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer.TRegistrationPartitions
-	(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration)(nil),                         // 361: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration
-	(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions)(nil), // 362: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration.TRegistrationPartitions
-	(*TRspGetTabletInfos_TTabletInfo)(nil),                                                        // 363: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo
-	(*TRspGetTabletInfos_TTabletInfo_TReplicaInfo)(nil),                                           // 364: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo
-	(*TRspGetTabletErrors_TErrorList)(nil),                                                        // 365: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList
-	nil,                                                                                           // 366: NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance.IdPerTargetEntry
-	nil,                                                                                           // 367: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsEntry
-	(*TRspRemoveMaintenance_TMaintenanceCounts)(nil),                                              // 368: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.TMaintenanceCounts
-	nil, // 369: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsPerTargetEntry
-	nil, // 370: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.TMaintenanceCounts.CountsEntry
-	(*TPrerequisiteOptions_TTransactionPrerequisite)(nil),                    // 371: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TTransactionPrerequisite
-	(*TPrerequisiteOptions_TRevisionPrerequisite)(nil),                       // 372: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TRevisionPrerequisite
-	(*TBackupManifest_TClusterManifest)(nil),                                 // 373: NYT.NApi.NRpcProxy.NProto.TBackupManifest.TClusterManifest
-	(*TReqMultisetAttributesNode_TSubrequest)(nil),                           // 374: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.TSubrequest
-	(*TReqConcatenateNodes_TFetcher)(nil),                                    // 375: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.TFetcher
-	(*TReqPartitionTables_TChunkSliceFetcherConfig)(nil),                     // 376: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.TChunkSliceFetcherConfig
-	(*TMultiTablePartition_TStatistics)(nil),                                 // 377: NYT.NApi.NRpcProxy.NProto.TMultiTablePartition.TStatistics
-	(*TReqCheckPermission_TColumns)(nil),                                     // 378: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.TColumns
-	(*TRspCheckPermission_TColumns)(nil),                                     // 379: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.TColumns
-	(*TOperation_TStrings)(nil),                                              // 380: NYT.NApi.NRpcProxy.NProto.TOperation.TStrings
-	(*TListOperationsResult_TPoolCounts)(nil),                                // 381: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts
-	(*TListOperationsResult_TUserCounts)(nil),                                // 382: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts
-	(*TListOperationsResult_TOperationStateCounts)(nil),                      // 383: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts
-	(*TListOperationsResult_TOperationTypeCounts)(nil),                       // 384: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts
-	(*TListOperationsResult_TPoolTreeCounts)(nil),                            // 385: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts
-	(*TListOperationsResult_TPoolCounts_TPoolCount)(nil),                     // 386: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts.TPoolCount
-	(*TListOperationsResult_TUserCounts_TUserCount)(nil),                     // 387: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts.TUserCount
-	(*TListOperationsResult_TOperationStateCounts_TOperationStateCount)(nil), // 388: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.TOperationStateCount
-	(*TListOperationsResult_TOperationTypeCounts_TOperationTypeCount)(nil),   // 389: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.TOperationTypeCount
-	nil, // 390: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts.EntriesEntry
-	(*TListJobsStatistics_TJobStateCounts)(nil),                // 391: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts
-	(*TListJobsStatistics_TJobTypeCounts)(nil),                 // 392: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts
-	(*TListJobsStatistics_TJobStateCounts_TJobStateCount)(nil), // 393: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.TJobStateCount
-	(*TListJobsStatistics_TJobTypeCounts_TJobTypeCount)(nil),   // 394: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.TJobTypeCount
-	(*TReqStartQuery_TQueryFile)(nil),                          // 395: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TQueryFile
-	(*TReqStartQuery_TAccessControlObjects)(nil),               // 396: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TAccessControlObjects
-	(*TReqStartQuery_TSecret)(nil),                             // 397: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TSecret
-	(*TReqReadQueryResult_TColumns)(nil),                       // 398: NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult.TColumns
-	(*TReqAlterQuery_TAccessControlObjects)(nil),               // 399: NYT.NApi.NRpcProxy.NProto.TReqAlterQuery.TAccessControlObjects
-	(*TReqReadShuffleData_IndexRange)(nil),                     // 400: NYT.NApi.NRpcProxy.NProto.TReqReadShuffleData.IndexRange
-	(*chunk_client.TDataStatistics)(nil),                       // 401: NYT.NChunkClient.NProto.TDataStatistics
-	(*misc.TGuid)(nil),                                         // 402: NYT.NProto.TGuid
-	(*ytree.TAttributeDictionary)(nil),                         // 403: NYT.NYTree.NProto.TAttributeDictionary
-	(*hive.TTimestampMap)(nil),                                 // 404: NYT.NHiveClient.NProto.TTimestampMap
-	(*table_client.TVersionedReadOptions)(nil),                 // 405: NYT.NTableClient.NProto.TVersionedReadOptions
-	(*chaos_client.TReplicationProgress)(nil),                  // 406: NYT.NChaosClient.NProto.TReplicationProgress
-	(*tablet_client.TLockMask)(nil),                            // 407: NYT.NTabletClient.NProto.TLockMask
-	(*ytree.TAttributeFilter)(nil),                             // 408: NYT.NYTree.NProto.TAttributeFilter
-	(*ytree.TReadRequestComplexityLimits)(nil),                 // 409: NYT.NYTree.NProto.TReadRequestComplexityLimits
-	(*misc.THyperLogLogDigest)(nil),                            // 410: NYT.NProto.THyperLogLogDigest
-	(*scheduler.TSpecPatch)(nil),                               // 411: NYT.NScheduler.NProto.TSpecPatch
-	(*node_tracker_client.TAddressMap)(nil),                    // 412: NYT.NNodeTrackerClient.NProto.TAddressMap
-	(*misc.TError)(nil),                                        // 413: NYT.NProto.TError
+	(*TReqGetCurrentUser)(nil),                                // 283: NYT.NApi.NRpcProxy.NProto.TReqGetCurrentUser
+	(*TRspGetCurrentUser)(nil),                                // 284: NYT.NApi.NRpcProxy.NProto.TRspGetCurrentUser
+	(*TReqAddMember)(nil),                                     // 285: NYT.NApi.NRpcProxy.NProto.TReqAddMember
+	(*TRspAddMember)(nil),                                     // 286: NYT.NApi.NRpcProxy.NProto.TRspAddMember
+	(*TReqRemoveMember)(nil),                                  // 287: NYT.NApi.NRpcProxy.NProto.TReqRemoveMember
+	(*TRspRemoveMember)(nil),                                  // 288: NYT.NApi.NRpcProxy.NProto.TRspRemoveMember
+	(*TReqCheckPermission)(nil),                               // 289: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission
+	(*TRspCheckPermission)(nil),                               // 290: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission
+	(*TReqCheckPermissionByAcl)(nil),                          // 291: NYT.NApi.NRpcProxy.NProto.TReqCheckPermissionByAcl
+	(*TRspCheckPermissionByAcl)(nil),                          // 292: NYT.NApi.NRpcProxy.NProto.TRspCheckPermissionByAcl
+	(*TReqTransferAccountResources)(nil),                      // 293: NYT.NApi.NRpcProxy.NProto.TReqTransferAccountResources
+	(*TRspTransferAccountResources)(nil),                      // 294: NYT.NApi.NRpcProxy.NProto.TRspTransferAccountResources
+	(*TReqTransferPoolResources)(nil),                         // 295: NYT.NApi.NRpcProxy.NProto.TReqTransferPoolResources
+	(*TRspTransferPoolResources)(nil),                         // 296: NYT.NApi.NRpcProxy.NProto.TRspTransferPoolResources
+	(*TReqCheckClusterLiveness)(nil),                          // 297: NYT.NApi.NRpcProxy.NProto.TReqCheckClusterLiveness
+	(*TRspCheckClusterLiveness)(nil),                          // 298: NYT.NApi.NRpcProxy.NProto.TRspCheckClusterLiveness
+	(*TReqGetPipelineSpec)(nil),                               // 299: NYT.NApi.NRpcProxy.NProto.TReqGetPipelineSpec
+	(*TRspGetPipelineSpec)(nil),                               // 300: NYT.NApi.NRpcProxy.NProto.TRspGetPipelineSpec
+	(*TReqSetPipelineSpec)(nil),                               // 301: NYT.NApi.NRpcProxy.NProto.TReqSetPipelineSpec
+	(*TRspSetPipelineSpec)(nil),                               // 302: NYT.NApi.NRpcProxy.NProto.TRspSetPipelineSpec
+	(*TReqGetPipelineDynamicSpec)(nil),                        // 303: NYT.NApi.NRpcProxy.NProto.TReqGetPipelineDynamicSpec
+	(*TRspGetPipelineDynamicSpec)(nil),                        // 304: NYT.NApi.NRpcProxy.NProto.TRspGetPipelineDynamicSpec
+	(*TReqSetPipelineDynamicSpec)(nil),                        // 305: NYT.NApi.NRpcProxy.NProto.TReqSetPipelineDynamicSpec
+	(*TRspSetPipelineDynamicSpec)(nil),                        // 306: NYT.NApi.NRpcProxy.NProto.TRspSetPipelineDynamicSpec
+	(*TReqStartPipeline)(nil),                                 // 307: NYT.NApi.NRpcProxy.NProto.TReqStartPipeline
+	(*TRspStartPipeline)(nil),                                 // 308: NYT.NApi.NRpcProxy.NProto.TRspStartPipeline
+	(*TReqPausePipeline)(nil),                                 // 309: NYT.NApi.NRpcProxy.NProto.TReqPausePipeline
+	(*TRspPausePipeline)(nil),                                 // 310: NYT.NApi.NRpcProxy.NProto.TRspPausePipeline
+	(*TReqStopPipeline)(nil),                                  // 311: NYT.NApi.NRpcProxy.NProto.TReqStopPipeline
+	(*TRspStopPipeline)(nil),                                  // 312: NYT.NApi.NRpcProxy.NProto.TRspStopPipeline
+	(*TReqGetPipelineState)(nil),                              // 313: NYT.NApi.NRpcProxy.NProto.TReqGetPipelineState
+	(*TRspGetPipelineState)(nil),                              // 314: NYT.NApi.NRpcProxy.NProto.TRspGetPipelineState
+	(*TReqGetFlowView)(nil),                                   // 315: NYT.NApi.NRpcProxy.NProto.TReqGetFlowView
+	(*TRspGetFlowView)(nil),                                   // 316: NYT.NApi.NRpcProxy.NProto.TRspGetFlowView
+	(*TReqFlowExecute)(nil),                                   // 317: NYT.NApi.NRpcProxy.NProto.TReqFlowExecute
+	(*TRspFlowExecute)(nil),                                   // 318: NYT.NApi.NRpcProxy.NProto.TRspFlowExecute
+	(*TOperation)(nil),                                        // 319: NYT.NApi.NRpcProxy.NProto.TOperation
+	(*TListOperationsResult)(nil),                             // 320: NYT.NApi.NRpcProxy.NProto.TListOperationsResult
+	(*TJob)(nil),                                              // 321: NYT.NApi.NRpcProxy.NProto.TJob
+	(*TListJobsStatistics)(nil),                               // 322: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics
+	(*TListJobsResult)(nil),                                   // 323: NYT.NApi.NRpcProxy.NProto.TListJobsResult
+	(*TJobTraceEvent)(nil),                                    // 324: NYT.NApi.NRpcProxy.NProto.TJobTraceEvent
+	(*TGetFileFromCacheResult)(nil),                           // 325: NYT.NApi.NRpcProxy.NProto.TGetFileFromCacheResult
+	(*TPutFileToCacheResult)(nil),                             // 326: NYT.NApi.NRpcProxy.NProto.TPutFileToCacheResult
+	(*TCheckPermissionResult)(nil),                            // 327: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult
+	(*TCheckPermissionByAclResult)(nil),                       // 328: NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult
+	(*TReqStartQuery)(nil),                                    // 329: NYT.NApi.NRpcProxy.NProto.TReqStartQuery
+	(*TRspStartQuery)(nil),                                    // 330: NYT.NApi.NRpcProxy.NProto.TRspStartQuery
+	(*TReqAbortQuery)(nil),                                    // 331: NYT.NApi.NRpcProxy.NProto.TReqAbortQuery
+	(*TRspAbortQuery)(nil),                                    // 332: NYT.NApi.NRpcProxy.NProto.TRspAbortQuery
+	(*TReqGetQueryResult)(nil),                                // 333: NYT.NApi.NRpcProxy.NProto.TReqGetQueryResult
+	(*TRspGetQueryResult)(nil),                                // 334: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult
+	(*TReqReadQueryResult)(nil),                               // 335: NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult
+	(*TRspReadQueryResult)(nil),                               // 336: NYT.NApi.NRpcProxy.NProto.TRspReadQueryResult
+	(*TQuery)(nil),                                            // 337: NYT.NApi.NRpcProxy.NProto.TQuery
+	(*TReqGetQuery)(nil),                                      // 338: NYT.NApi.NRpcProxy.NProto.TReqGetQuery
+	(*TRspGetQuery)(nil),                                      // 339: NYT.NApi.NRpcProxy.NProto.TRspGetQuery
+	(*TReqListQueries)(nil),                                   // 340: NYT.NApi.NRpcProxy.NProto.TReqListQueries
+	(*TRspListQueries)(nil),                                   // 341: NYT.NApi.NRpcProxy.NProto.TRspListQueries
+	(*TReqAlterQuery)(nil),                                    // 342: NYT.NApi.NRpcProxy.NProto.TReqAlterQuery
+	(*TRspAlterQuery)(nil),                                    // 343: NYT.NApi.NRpcProxy.NProto.TRspAlterQuery
+	(*TReqGetQueryTrackerInfo)(nil),                           // 344: NYT.NApi.NRpcProxy.NProto.TReqGetQueryTrackerInfo
+	(*TRspGetQueryTrackerInfo)(nil),                           // 345: NYT.NApi.NRpcProxy.NProto.TRspGetQueryTrackerInfo
+	(*TReqStartDistributedWriteSession)(nil),                  // 346: NYT.NApi.NRpcProxy.NProto.TReqStartDistributedWriteSession
+	(*TRspStartDistributedWriteSession)(nil),                  // 347: NYT.NApi.NRpcProxy.NProto.TRspStartDistributedWriteSession
+	(*TReqFinishDistributedWriteSession)(nil),                 // 348: NYT.NApi.NRpcProxy.NProto.TReqFinishDistributedWriteSession
+	(*TRspFinishDistributedWriteSession)(nil),                 // 349: NYT.NApi.NRpcProxy.NProto.TRspFinishDistributedWriteSession
+	(*TReqWriteTableFragment)(nil),                            // 350: NYT.NApi.NRpcProxy.NProto.TReqWriteTableFragment
+	(*TRspWriteTableFragment)(nil),                            // 351: NYT.NApi.NRpcProxy.NProto.TRspWriteTableFragment
+	(*TReqStartShuffle)(nil),                                  // 352: NYT.NApi.NRpcProxy.NProto.TReqStartShuffle
+	(*TRspStartShuffle)(nil),                                  // 353: NYT.NApi.NRpcProxy.NProto.TRspStartShuffle
+	(*TReqReadShuffleData)(nil),                               // 354: NYT.NApi.NRpcProxy.NProto.TReqReadShuffleData
+	(*TRspReadShuffleData)(nil),                               // 355: NYT.NApi.NRpcProxy.NProto.TRspReadShuffleData
+	(*TReqWriteShuffleData)(nil),                              // 356: NYT.NApi.NRpcProxy.NProto.TReqWriteShuffleData
+	(*TRspWriteShuffleData)(nil),                              // 357: NYT.NApi.NRpcProxy.NProto.TRspWriteShuffleData
+	(*TRowsetDescriptor_TNameTableEntry)(nil),                 // 358: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.TNameTableEntry
+	(*TReqStartTransaction_TReplicateToMasterCellTags)(nil),   // 359: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.TReplicateToMasterCellTags
+	(*TReqMultiLookup_TSubrequest)(nil),                       // 360: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest
+	(*TRspMultiLookup_TSubresponse)(nil),                      // 361: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.TSubresponse
+	(*TReqRegisterQueueConsumer_TRegistrationPartitions)(nil), // 362: NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer.TRegistrationPartitions
+	(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration)(nil),                         // 363: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration
+	(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions)(nil), // 364: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration.TRegistrationPartitions
+	(*TRspGetTabletInfos_TTabletInfo)(nil),                                                        // 365: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo
+	(*TRspGetTabletInfos_TTabletInfo_TReplicaInfo)(nil),                                           // 366: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo
+	(*TRspGetTabletErrors_TErrorList)(nil),                                                        // 367: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList
+	nil,                                                                                           // 368: NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance.IdPerTargetEntry
+	nil,                                                                                           // 369: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsEntry
+	(*TRspRemoveMaintenance_TMaintenanceCounts)(nil),                                              // 370: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.TMaintenanceCounts
+	nil, // 371: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsPerTargetEntry
+	nil, // 372: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.TMaintenanceCounts.CountsEntry
+	(*TPrerequisiteOptions_TTransactionPrerequisite)(nil),                    // 373: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TTransactionPrerequisite
+	(*TPrerequisiteOptions_TRevisionPrerequisite)(nil),                       // 374: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TRevisionPrerequisite
+	(*TBackupManifest_TClusterManifest)(nil),                                 // 375: NYT.NApi.NRpcProxy.NProto.TBackupManifest.TClusterManifest
+	(*TReqMultisetAttributesNode_TSubrequest)(nil),                           // 376: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.TSubrequest
+	(*TReqConcatenateNodes_TFetcher)(nil),                                    // 377: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.TFetcher
+	(*TReqPartitionTables_TChunkSliceFetcherConfig)(nil),                     // 378: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.TChunkSliceFetcherConfig
+	(*TMultiTablePartition_TStatistics)(nil),                                 // 379: NYT.NApi.NRpcProxy.NProto.TMultiTablePartition.TStatistics
+	(*TReqCheckPermission_TColumns)(nil),                                     // 380: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.TColumns
+	(*TRspCheckPermission_TColumns)(nil),                                     // 381: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.TColumns
+	(*TOperation_TStrings)(nil),                                              // 382: NYT.NApi.NRpcProxy.NProto.TOperation.TStrings
+	(*TListOperationsResult_TPoolCounts)(nil),                                // 383: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts
+	(*TListOperationsResult_TUserCounts)(nil),                                // 384: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts
+	(*TListOperationsResult_TOperationStateCounts)(nil),                      // 385: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts
+	(*TListOperationsResult_TOperationTypeCounts)(nil),                       // 386: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts
+	(*TListOperationsResult_TPoolTreeCounts)(nil),                            // 387: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts
+	(*TListOperationsResult_TPoolCounts_TPoolCount)(nil),                     // 388: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts.TPoolCount
+	(*TListOperationsResult_TUserCounts_TUserCount)(nil),                     // 389: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts.TUserCount
+	(*TListOperationsResult_TOperationStateCounts_TOperationStateCount)(nil), // 390: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.TOperationStateCount
+	(*TListOperationsResult_TOperationTypeCounts_TOperationTypeCount)(nil),   // 391: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.TOperationTypeCount
+	nil, // 392: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts.EntriesEntry
+	(*TListJobsStatistics_TJobStateCounts)(nil),                // 393: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts
+	(*TListJobsStatistics_TJobTypeCounts)(nil),                 // 394: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts
+	(*TListJobsStatistics_TJobStateCounts_TJobStateCount)(nil), // 395: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.TJobStateCount
+	(*TListJobsStatistics_TJobTypeCounts_TJobTypeCount)(nil),   // 396: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.TJobTypeCount
+	(*TReqStartQuery_TQueryFile)(nil),                          // 397: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TQueryFile
+	(*TReqStartQuery_TAccessControlObjects)(nil),               // 398: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TAccessControlObjects
+	(*TReqStartQuery_TSecret)(nil),                             // 399: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TSecret
+	(*TReqReadQueryResult_TColumns)(nil),                       // 400: NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult.TColumns
+	(*TReqAlterQuery_TAccessControlObjects)(nil),               // 401: NYT.NApi.NRpcProxy.NProto.TReqAlterQuery.TAccessControlObjects
+	(*TReqReadShuffleData_IndexRange)(nil),                     // 402: NYT.NApi.NRpcProxy.NProto.TReqReadShuffleData.IndexRange
+	(*chunk_client.TDataStatistics)(nil),                       // 403: NYT.NChunkClient.NProto.TDataStatistics
+	(*misc.TGuid)(nil),                                         // 404: NYT.NProto.TGuid
+	(*ytree.TAttributeDictionary)(nil),                         // 405: NYT.NYTree.NProto.TAttributeDictionary
+	(*hive.TTimestampMap)(nil),                                 // 406: NYT.NHiveClient.NProto.TTimestampMap
+	(*table_client.TVersionedReadOptions)(nil),                 // 407: NYT.NTableClient.NProto.TVersionedReadOptions
+	(*chaos_client.TReplicationProgress)(nil),                  // 408: NYT.NChaosClient.NProto.TReplicationProgress
+	(*tablet_client.TLockMask)(nil),                            // 409: NYT.NTabletClient.NProto.TLockMask
+	(*ytree.TAttributeFilter)(nil),                             // 410: NYT.NYTree.NProto.TAttributeFilter
+	(*ytree.TReadRequestComplexityLimits)(nil),                 // 411: NYT.NYTree.NProto.TReadRequestComplexityLimits
+	(*misc.THyperLogLogDigest)(nil),                            // 412: NYT.NProto.THyperLogLogDigest
+	(*scheduler.TSpecPatch)(nil),                               // 413: NYT.NScheduler.NProto.TSpecPatch
+	(*node_tracker_client.TAddressMap)(nil),                    // 414: NYT.NNodeTrackerClient.NProto.TAddressMap
+	(*misc.TError)(nil),                                        // 415: NYT.NProto.TError
 }
 var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_depIdxs = []int32{
 	7,   // 0: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.rowset_kind:type_name -> NYT.NApi.NRpcProxy.NProto.ERowsetKind
 	8,   // 1: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.rowset_format:type_name -> NYT.NApi.NRpcProxy.NProto.ERowsetFormat
-	356, // 2: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.name_table_entries:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.TNameTableEntry
+	358, // 2: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.name_table_entries:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.TNameTableEntry
 	133, // 3: NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
-	401, // 4: NYT.NApi.NRpcProxy.NProto.TRowsetStatistics.data_statistics:type_name -> NYT.NChunkClient.NProto.TDataStatistics
+	403, // 4: NYT.NApi.NRpcProxy.NProto.TRowsetStatistics.data_statistics:type_name -> NYT.NChunkClient.NProto.TDataStatistics
 	0,   // 5: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.type:type_name -> NYT.NApi.NRpcProxy.NProto.ETransactionType
-	402, // 6: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.id:type_name -> NYT.NProto.TGuid
-	402, // 7: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.parent_id:type_name -> NYT.NProto.TGuid
+	404, // 6: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.id:type_name -> NYT.NProto.TGuid
+	404, // 7: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.parent_id:type_name -> NYT.NProto.TGuid
 	2,   // 8: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.atomicity:type_name -> NYT.NApi.NRpcProxy.NProto.EAtomicity
 	3,   // 9: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.durability:type_name -> NYT.NApi.NRpcProxy.NProto.EDurability
-	403, // 10: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
-	402, // 11: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.prerequisite_transaction_ids:type_name -> NYT.NProto.TGuid
-	357, // 12: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.replicate_to_master_cell_tags:type_name -> NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.TReplicateToMasterCellTags
+	405, // 10: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
+	404, // 11: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.prerequisite_transaction_ids:type_name -> NYT.NProto.TGuid
+	359, // 12: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.replicate_to_master_cell_tags:type_name -> NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.TReplicateToMasterCellTags
 	117, // 13: NYT.NApi.NRpcProxy.NProto.TReqStartTransaction.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	402, // 14: NYT.NApi.NRpcProxy.NProto.TRspStartTransaction.id:type_name -> NYT.NProto.TGuid
-	402, // 15: NYT.NApi.NRpcProxy.NProto.TReqPingTransaction.transaction_id:type_name -> NYT.NProto.TGuid
-	402, // 16: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.transaction_id:type_name -> NYT.NProto.TGuid
-	402, // 17: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.additional_participant_cell_ids:type_name -> NYT.NProto.TGuid
+	404, // 14: NYT.NApi.NRpcProxy.NProto.TRspStartTransaction.id:type_name -> NYT.NProto.TGuid
+	404, // 15: NYT.NApi.NRpcProxy.NProto.TReqPingTransaction.transaction_id:type_name -> NYT.NProto.TGuid
+	404, // 16: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.transaction_id:type_name -> NYT.NProto.TGuid
+	404, // 17: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.additional_participant_cell_ids:type_name -> NYT.NProto.TGuid
 	115, // 18: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	117, // 19: NYT.NApi.NRpcProxy.NProto.TReqCommitTransaction.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	404, // 20: NYT.NApi.NRpcProxy.NProto.TRspCommitTransaction.commit_timestamps:type_name -> NYT.NHiveClient.NProto.TTimestampMap
-	402, // 21: NYT.NApi.NRpcProxy.NProto.TReqFlushTransaction.transaction_id:type_name -> NYT.NProto.TGuid
-	402, // 22: NYT.NApi.NRpcProxy.NProto.TRspFlushTransaction.participant_cell_ids:type_name -> NYT.NProto.TGuid
-	402, // 23: NYT.NApi.NRpcProxy.NProto.TReqAbortTransaction.transaction_id:type_name -> NYT.NProto.TGuid
+	406, // 20: NYT.NApi.NRpcProxy.NProto.TRspCommitTransaction.commit_timestamps:type_name -> NYT.NHiveClient.NProto.TTimestampMap
+	404, // 21: NYT.NApi.NRpcProxy.NProto.TReqFlushTransaction.transaction_id:type_name -> NYT.NProto.TGuid
+	404, // 22: NYT.NApi.NRpcProxy.NProto.TRspFlushTransaction.participant_cell_ids:type_name -> NYT.NProto.TGuid
+	404, // 23: NYT.NApi.NRpcProxy.NProto.TReqAbortTransaction.transaction_id:type_name -> NYT.NProto.TGuid
 	117, // 24: NYT.NApi.NRpcProxy.NProto.TReqAbortTransaction.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
 	120, // 25: NYT.NApi.NRpcProxy.NProto.TReqLookupRows.tablet_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletReadOptions
 	5,   // 26: NYT.NApi.NRpcProxy.NProto.TReqLookupRows.replica_consistency:type_name -> NYT.NApi.NRpcProxy.NProto.EReplicaConsistency
 	19,  // 27: NYT.NApi.NRpcProxy.NProto.TReqLookupRows.multiplexing_band:type_name -> NYT.NApi.NRpcProxy.NProto.EMultiplexingBand
 	30,  // 28: NYT.NApi.NRpcProxy.NProto.TReqLookupRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	405, // 29: NYT.NApi.NRpcProxy.NProto.TReqLookupRows.versioned_read_options:type_name -> NYT.NTableClient.NProto.TVersionedReadOptions
+	407, // 29: NYT.NApi.NRpcProxy.NProto.TReqLookupRows.versioned_read_options:type_name -> NYT.NTableClient.NProto.TVersionedReadOptions
 	30,  // 30: NYT.NApi.NRpcProxy.NProto.TRspLookupRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
 	44,  // 31: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows.retention_config:type_name -> NYT.NApi.NRpcProxy.NProto.TRetentionConfig
 	120, // 32: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows.tablet_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletReadOptions
@@ -31640,19 +31731,19 @@ var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_depIdxs = [
 	19,  // 34: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows.multiplexing_band:type_name -> NYT.NApi.NRpcProxy.NProto.EMultiplexingBand
 	30,  // 35: NYT.NApi.NRpcProxy.NProto.TReqVersionedLookupRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
 	30,  // 36: NYT.NApi.NRpcProxy.NProto.TRspVersionedLookupRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	358, // 37: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.subrequests:type_name -> NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest
+	360, // 37: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.subrequests:type_name -> NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest
 	120, // 38: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.tablet_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletReadOptions
 	5,   // 39: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.replica_consistency:type_name -> NYT.NApi.NRpcProxy.NProto.EReplicaConsistency
 	19,  // 40: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.multiplexing_band:type_name -> NYT.NApi.NRpcProxy.NProto.EMultiplexingBand
-	359, // 41: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.subresponses:type_name -> NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.TSubresponse
+	361, // 41: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.subresponses:type_name -> NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.TSubresponse
 	49,  // 42: NYT.NApi.NRpcProxy.NProto.TQueryStatistics.inner_statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TQueryStatistics
 	5,   // 43: NYT.NApi.NRpcProxy.NProto.TReqSelectRows.replica_consistency:type_name -> NYT.NApi.NRpcProxy.NProto.EReplicaConsistency
-	405, // 44: NYT.NApi.NRpcProxy.NProto.TReqSelectRows.versioned_read_options:type_name -> NYT.NTableClient.NProto.TVersionedReadOptions
+	407, // 44: NYT.NApi.NRpcProxy.NProto.TReqSelectRows.versioned_read_options:type_name -> NYT.NTableClient.NProto.TVersionedReadOptions
 	118, // 45: NYT.NApi.NRpcProxy.NProto.TReqSelectRows.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
 	30,  // 46: NYT.NApi.NRpcProxy.NProto.TRspSelectRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
 	49,  // 47: NYT.NApi.NRpcProxy.NProto.TRspSelectRows.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TQueryStatistics
-	402, // 48: NYT.NApi.NRpcProxy.NProto.TReqAdvanceQueueConsumer.transaction_id:type_name -> NYT.NProto.TGuid
-	402, // 49: NYT.NApi.NRpcProxy.NProto.TReqPushQueueProducer.transaction_id:type_name -> NYT.NProto.TGuid
+	404, // 48: NYT.NApi.NRpcProxy.NProto.TReqAdvanceQueueConsumer.transaction_id:type_name -> NYT.NProto.TGuid
+	404, // 49: NYT.NApi.NRpcProxy.NProto.TReqPushQueueProducer.transaction_id:type_name -> NYT.NProto.TGuid
 	30,  // 50: NYT.NApi.NRpcProxy.NProto.TReqPushQueueProducer.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
 	56,  // 51: NYT.NApi.NRpcProxy.NProto.TReqPullQueue.row_batch_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TRowBatchReadOptions
 	5,   // 52: NYT.NApi.NRpcProxy.NProto.TReqPullQueue.replica_consistency:type_name -> NYT.NApi.NRpcProxy.NProto.EReplicaConsistency
@@ -31660,99 +31751,99 @@ var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_depIdxs = [
 	56,  // 54: NYT.NApi.NRpcProxy.NProto.TReqPullQueueConsumer.row_batch_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TRowBatchReadOptions
 	5,   // 55: NYT.NApi.NRpcProxy.NProto.TReqPullQueueConsumer.replica_consistency:type_name -> NYT.NApi.NRpcProxy.NProto.EReplicaConsistency
 	30,  // 56: NYT.NApi.NRpcProxy.NProto.TRspPullQueueConsumer.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	360, // 57: NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer.partitions:type_name -> NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer.TRegistrationPartitions
-	361, // 58: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.registrations:type_name -> NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration
-	402, // 59: NYT.NApi.NRpcProxy.NProto.TReplicationRowIndex.tablet_id:type_name -> NYT.NProto.TGuid
-	402, // 60: NYT.NApi.NRpcProxy.NProto.TReqPullRows.upstream_replica_id:type_name -> NYT.NProto.TGuid
-	406, // 61: NYT.NApi.NRpcProxy.NProto.TReqPullRows.replication_progress:type_name -> NYT.NChaosClient.NProto.TReplicationProgress
+	362, // 57: NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer.partitions:type_name -> NYT.NApi.NRpcProxy.NProto.TReqRegisterQueueConsumer.TRegistrationPartitions
+	363, // 58: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.registrations:type_name -> NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration
+	404, // 59: NYT.NApi.NRpcProxy.NProto.TReplicationRowIndex.tablet_id:type_name -> NYT.NProto.TGuid
+	404, // 60: NYT.NApi.NRpcProxy.NProto.TReqPullRows.upstream_replica_id:type_name -> NYT.NProto.TGuid
+	408, // 61: NYT.NApi.NRpcProxy.NProto.TReqPullRows.replication_progress:type_name -> NYT.NChaosClient.NProto.TReplicationProgress
 	73,  // 62: NYT.NApi.NRpcProxy.NProto.TReqPullRows.start_replication_row_indexes:type_name -> NYT.NApi.NRpcProxy.NProto.TReplicationRowIndex
-	406, // 63: NYT.NApi.NRpcProxy.NProto.TRspPullRows.replication_progress:type_name -> NYT.NChaosClient.NProto.TReplicationProgress
+	408, // 63: NYT.NApi.NRpcProxy.NProto.TRspPullRows.replication_progress:type_name -> NYT.NChaosClient.NProto.TReplicationProgress
 	73,  // 64: NYT.NApi.NRpcProxy.NProto.TRspPullRows.end_replication_row_indexes:type_name -> NYT.NApi.NRpcProxy.NProto.TReplicationRowIndex
 	30,  // 65: NYT.NApi.NRpcProxy.NProto.TRspPullRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
 	30,  // 66: NYT.NApi.NRpcProxy.NProto.TReqGetInSyncReplicas.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	402, // 67: NYT.NApi.NRpcProxy.NProto.TRspGetInSyncReplicas.replica_ids:type_name -> NYT.NProto.TGuid
-	363, // 68: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.tablets:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo
-	402, // 69: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.tablet_ids:type_name -> NYT.NProto.TGuid
-	365, // 70: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.tablet_errors:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList
-	402, // 71: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.replica_ids:type_name -> NYT.NProto.TGuid
-	365, // 72: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.replication_errors:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList
-	402, // 73: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.transaction_id:type_name -> NYT.NProto.TGuid
+	404, // 67: NYT.NApi.NRpcProxy.NProto.TRspGetInSyncReplicas.replica_ids:type_name -> NYT.NProto.TGuid
+	365, // 68: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.tablets:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo
+	404, // 69: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.tablet_ids:type_name -> NYT.NProto.TGuid
+	367, // 70: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.tablet_errors:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList
+	404, // 71: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.replica_ids:type_name -> NYT.NProto.TGuid
+	367, // 72: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.replication_errors:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList
+	404, // 73: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.transaction_id:type_name -> NYT.NProto.TGuid
 	1,   // 74: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.row_modification_types:type_name -> NYT.NApi.NRpcProxy.NProto.ERowModificationType
-	402, // 75: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.upstream_replica_id:type_name -> NYT.NProto.TGuid
-	407, // 76: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.row_locks:type_name -> NYT.NTabletClient.NProto.TLockMask
+	404, // 75: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.upstream_replica_id:type_name -> NYT.NProto.TGuid
+	409, // 76: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.row_locks:type_name -> NYT.NTabletClient.NProto.TLockMask
 	30,  // 77: NYT.NApi.NRpcProxy.NProto.TReqModifyRows.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	402, // 78: NYT.NApi.NRpcProxy.NProto.TReqBatchModifyRows.transaction_id:type_name -> NYT.NProto.TGuid
-	402, // 79: NYT.NApi.NRpcProxy.NProto.TReqBuildSnapshot.cell_id:type_name -> NYT.NProto.TGuid
-	402, // 80: NYT.NApi.NRpcProxy.NProto.TReqExitReadOnly.cell_id:type_name -> NYT.NProto.TGuid
-	402, // 81: NYT.NApi.NRpcProxy.NProto.TReqDiscombobulateNonvotingPeers.cell_id:type_name -> NYT.NProto.TGuid
-	402, // 82: NYT.NApi.NRpcProxy.NProto.TReqGCCollect.cell_id:type_name -> NYT.NProto.TGuid
-	402, // 83: NYT.NApi.NRpcProxy.NProto.TReqSuspendCoordinator.coordinator_cell_id:type_name -> NYT.NProto.TGuid
-	402, // 84: NYT.NApi.NRpcProxy.NProto.TReqResumeCoordinator.coordinator_cell_id:type_name -> NYT.NProto.TGuid
-	402, // 85: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards.chaos_cell_id:type_name -> NYT.NProto.TGuid
-	402, // 86: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards.destination_cell_id:type_name -> NYT.NProto.TGuid
-	402, // 87: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards.replication_card_ids:type_name -> NYT.NProto.TGuid
-	402, // 88: NYT.NApi.NRpcProxy.NProto.TReqSuspendChaosCells.cell_ids:type_name -> NYT.NProto.TGuid
-	402, // 89: NYT.NApi.NRpcProxy.NProto.TReqResumeChaosCells.cell_ids:type_name -> NYT.NProto.TGuid
-	402, // 90: NYT.NApi.NRpcProxy.NProto.TReqSuspendTabletCells.cell_ids:type_name -> NYT.NProto.TGuid
-	402, // 91: NYT.NApi.NRpcProxy.NProto.TReqResumeTabletCells.cell_ids:type_name -> NYT.NProto.TGuid
+	404, // 78: NYT.NApi.NRpcProxy.NProto.TReqBatchModifyRows.transaction_id:type_name -> NYT.NProto.TGuid
+	404, // 79: NYT.NApi.NRpcProxy.NProto.TReqBuildSnapshot.cell_id:type_name -> NYT.NProto.TGuid
+	404, // 80: NYT.NApi.NRpcProxy.NProto.TReqExitReadOnly.cell_id:type_name -> NYT.NProto.TGuid
+	404, // 81: NYT.NApi.NRpcProxy.NProto.TReqDiscombobulateNonvotingPeers.cell_id:type_name -> NYT.NProto.TGuid
+	404, // 82: NYT.NApi.NRpcProxy.NProto.TReqGCCollect.cell_id:type_name -> NYT.NProto.TGuid
+	404, // 83: NYT.NApi.NRpcProxy.NProto.TReqSuspendCoordinator.coordinator_cell_id:type_name -> NYT.NProto.TGuid
+	404, // 84: NYT.NApi.NRpcProxy.NProto.TReqResumeCoordinator.coordinator_cell_id:type_name -> NYT.NProto.TGuid
+	404, // 85: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards.chaos_cell_id:type_name -> NYT.NProto.TGuid
+	404, // 86: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards.destination_cell_id:type_name -> NYT.NProto.TGuid
+	404, // 87: NYT.NApi.NRpcProxy.NProto.TReqMigrateReplicationCards.replication_card_ids:type_name -> NYT.NProto.TGuid
+	404, // 88: NYT.NApi.NRpcProxy.NProto.TReqSuspendChaosCells.cell_ids:type_name -> NYT.NProto.TGuid
+	404, // 89: NYT.NApi.NRpcProxy.NProto.TReqResumeChaosCells.cell_ids:type_name -> NYT.NProto.TGuid
+	404, // 90: NYT.NApi.NRpcProxy.NProto.TReqSuspendTabletCells.cell_ids:type_name -> NYT.NProto.TGuid
+	404, // 91: NYT.NApi.NRpcProxy.NProto.TReqResumeTabletCells.cell_ids:type_name -> NYT.NProto.TGuid
 	24,  // 92: NYT.NApi.NRpcProxy.NProto.TReqAddMaintenance.component:type_name -> NYT.NApi.NRpcProxy.NProto.EMaintenanceComponent
 	23,  // 93: NYT.NApi.NRpcProxy.NProto.TReqAddMaintenance.type:type_name -> NYT.NApi.NRpcProxy.NProto.EMaintenanceType
-	402, // 94: NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance.id:type_name -> NYT.NProto.TGuid
-	366, // 95: NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance.id_per_target:type_name -> NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance.IdPerTargetEntry
+	404, // 94: NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance.id:type_name -> NYT.NProto.TGuid
+	368, // 95: NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance.id_per_target:type_name -> NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance.IdPerTargetEntry
 	24,  // 96: NYT.NApi.NRpcProxy.NProto.TReqRemoveMaintenance.component:type_name -> NYT.NApi.NRpcProxy.NProto.EMaintenanceComponent
-	402, // 97: NYT.NApi.NRpcProxy.NProto.TReqRemoveMaintenance.ids:type_name -> NYT.NProto.TGuid
+	404, // 97: NYT.NApi.NRpcProxy.NProto.TReqRemoveMaintenance.ids:type_name -> NYT.NProto.TGuid
 	23,  // 98: NYT.NApi.NRpcProxy.NProto.TReqRemoveMaintenance.type:type_name -> NYT.NApi.NRpcProxy.NProto.EMaintenanceType
-	367, // 99: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.removed_maintenance_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsEntry
-	369, // 100: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.removed_maintenance_counts_per_target:type_name -> NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsPerTargetEntry
-	402, // 101: NYT.NApi.NRpcProxy.NProto.TTransactionalOptions.transaction_id:type_name -> NYT.NProto.TGuid
-	371, // 102: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.transactions:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TTransactionPrerequisite
-	372, // 103: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.revisions:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TRevisionPrerequisite
+	369, // 99: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.removed_maintenance_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsEntry
+	371, // 100: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.removed_maintenance_counts_per_target:type_name -> NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsPerTargetEntry
+	404, // 101: NYT.NApi.NRpcProxy.NProto.TTransactionalOptions.transaction_id:type_name -> NYT.NProto.TGuid
+	373, // 102: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.transactions:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TTransactionPrerequisite
+	374, // 103: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.revisions:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TRevisionPrerequisite
 	6,   // 104: NYT.NApi.NRpcProxy.NProto.TMasterReadOptions.read_from:type_name -> NYT.NApi.NRpcProxy.NProto.EMasterReadKind
-	402, // 105: NYT.NApi.NRpcProxy.NProto.TMutatingOptions.mutation_id:type_name -> NYT.NProto.TGuid
+	404, // 105: NYT.NApi.NRpcProxy.NProto.TMutatingOptions.mutation_id:type_name -> NYT.NProto.TGuid
 	9,   // 106: NYT.NApi.NRpcProxy.NProto.TTabletReadOptions.read_from:type_name -> NYT.NApi.NRpcProxy.NProto.ETabletReadKind
 	114, // 107: NYT.NApi.NRpcProxy.NProto.TReqExistsNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 108: NYT.NApi.NRpcProxy.NProto.TReqExistsNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	116, // 109: NYT.NApi.NRpcProxy.NProto.TReqExistsNode.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
 	118, // 110: NYT.NApi.NRpcProxy.NProto.TReqExistsNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
 	29,  // 111: NYT.NApi.NRpcProxy.NProto.TReqGetNode.legacy_attributes:type_name -> NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
-	408, // 112: NYT.NApi.NRpcProxy.NProto.TReqGetNode.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
-	409, // 113: NYT.NApi.NRpcProxy.NProto.TReqGetNode.complexity_limits:type_name -> NYT.NYTree.NProto.TReadRequestComplexityLimits
+	410, // 112: NYT.NApi.NRpcProxy.NProto.TReqGetNode.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	411, // 113: NYT.NApi.NRpcProxy.NProto.TReqGetNode.complexity_limits:type_name -> NYT.NYTree.NProto.TReadRequestComplexityLimits
 	114, // 114: NYT.NApi.NRpcProxy.NProto.TReqGetNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 115: NYT.NApi.NRpcProxy.NProto.TReqGetNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	116, // 116: NYT.NApi.NRpcProxy.NProto.TReqGetNode.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
 	118, // 117: NYT.NApi.NRpcProxy.NProto.TReqGetNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	403, // 118: NYT.NApi.NRpcProxy.NProto.TReqGetNode.options:type_name -> NYT.NYTree.NProto.TAttributeDictionary
+	405, // 118: NYT.NApi.NRpcProxy.NProto.TReqGetNode.options:type_name -> NYT.NYTree.NProto.TAttributeDictionary
 	29,  // 119: NYT.NApi.NRpcProxy.NProto.TReqListNode.legacy_attributes:type_name -> NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
-	408, // 120: NYT.NApi.NRpcProxy.NProto.TReqListNode.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
-	409, // 121: NYT.NApi.NRpcProxy.NProto.TReqListNode.complexity_limits:type_name -> NYT.NYTree.NProto.TReadRequestComplexityLimits
+	410, // 120: NYT.NApi.NRpcProxy.NProto.TReqListNode.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	411, // 121: NYT.NApi.NRpcProxy.NProto.TReqListNode.complexity_limits:type_name -> NYT.NYTree.NProto.TReadRequestComplexityLimits
 	114, // 122: NYT.NApi.NRpcProxy.NProto.TReqListNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 123: NYT.NApi.NRpcProxy.NProto.TReqListNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	116, // 124: NYT.NApi.NRpcProxy.NProto.TReqListNode.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
 	118, // 125: NYT.NApi.NRpcProxy.NProto.TReqListNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	403, // 126: NYT.NApi.NRpcProxy.NProto.TReqCreateObject.attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
+	405, // 126: NYT.NApi.NRpcProxy.NProto.TReqCreateObject.attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
 	117, // 127: NYT.NApi.NRpcProxy.NProto.TReqCreateObject.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	402, // 128: NYT.NApi.NRpcProxy.NProto.TRspCreateObject.object_id:type_name -> NYT.NProto.TGuid
+	404, // 128: NYT.NApi.NRpcProxy.NProto.TRspCreateObject.object_id:type_name -> NYT.NProto.TGuid
 	131, // 129: NYT.NApi.NRpcProxy.NProto.TTableSchema.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TColumnSchema
 	132, // 130: NYT.NApi.NRpcProxy.NProto.TTableSchema.deleted_columns:type_name -> NYT.NApi.NRpcProxy.NProto.TDeletedColumn
-	402, // 131: NYT.NApi.NRpcProxy.NProto.TTabletInfo.tablet_id:type_name -> NYT.NProto.TGuid
-	402, // 132: NYT.NApi.NRpcProxy.NProto.TTabletInfo.cell_id:type_name -> NYT.NProto.TGuid
-	402, // 133: NYT.NApi.NRpcProxy.NProto.TReplicaInfo.replica_id:type_name -> NYT.NProto.TGuid
-	402, // 134: NYT.NApi.NRpcProxy.NProto.TIndexInfo.index_table_id:type_name -> NYT.NProto.TGuid
+	404, // 131: NYT.NApi.NRpcProxy.NProto.TTabletInfo.tablet_id:type_name -> NYT.NProto.TGuid
+	404, // 132: NYT.NApi.NRpcProxy.NProto.TTabletInfo.cell_id:type_name -> NYT.NProto.TGuid
+	404, // 133: NYT.NApi.NRpcProxy.NProto.TReplicaInfo.replica_id:type_name -> NYT.NProto.TGuid
+	404, // 134: NYT.NApi.NRpcProxy.NProto.TIndexInfo.index_table_id:type_name -> NYT.NProto.TGuid
 	133, // 135: NYT.NApi.NRpcProxy.NProto.TIndexInfo.evaluated_columns_schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
-	402, // 136: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.table_id:type_name -> NYT.NProto.TGuid
+	404, // 136: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.table_id:type_name -> NYT.NProto.TGuid
 	133, // 137: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
 	134, // 138: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.tablets:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletInfo
-	402, // 139: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.upstream_replica_id:type_name -> NYT.NProto.TGuid
+	404, // 139: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.upstream_replica_id:type_name -> NYT.NProto.TGuid
 	135, // 140: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.replicas:type_name -> NYT.NApi.NRpcProxy.NProto.TReplicaInfo
 	136, // 141: NYT.NApi.NRpcProxy.NProto.TRspGetTableMountInfo.indices:type_name -> NYT.NApi.NRpcProxy.NProto.TIndexInfo
-	373, // 142: NYT.NApi.NRpcProxy.NProto.TBackupManifest.clusters:type_name -> NYT.NApi.NRpcProxy.NProto.TBackupManifest.TClusterManifest
+	375, // 142: NYT.NApi.NRpcProxy.NProto.TBackupManifest.clusters:type_name -> NYT.NApi.NRpcProxy.NProto.TBackupManifest.TClusterManifest
 	142, // 143: NYT.NApi.NRpcProxy.NProto.TReqCreateTableBackup.manifest:type_name -> NYT.NApi.NRpcProxy.NProto.TBackupManifest
 	142, // 144: NYT.NApi.NRpcProxy.NProto.TReqRestoreTableBackup.manifest:type_name -> NYT.NApi.NRpcProxy.NProto.TBackupManifest
-	403, // 145: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
+	405, // 145: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
 	114, // 146: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 147: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	117, // 148: NYT.NApi.NRpcProxy.NProto.TReqCreateNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	402, // 149: NYT.NApi.NRpcProxy.NProto.TRspCreateNode.node_id:type_name -> NYT.NProto.TGuid
+	404, // 149: NYT.NApi.NRpcProxy.NProto.TRspCreateNode.node_id:type_name -> NYT.NProto.TGuid
 	114, // 150: NYT.NApi.NRpcProxy.NProto.TReqRemoveNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 151: NYT.NApi.NRpcProxy.NProto.TReqRemoveNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	117, // 152: NYT.NApi.NRpcProxy.NProto.TReqRemoveNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
@@ -31760,7 +31851,7 @@ var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_depIdxs = [
 	115, // 154: NYT.NApi.NRpcProxy.NProto.TReqSetNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	117, // 155: NYT.NApi.NRpcProxy.NProto.TReqSetNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
 	118, // 156: NYT.NApi.NRpcProxy.NProto.TReqSetNode.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	374, // 157: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.subrequests:type_name -> NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.TSubrequest
+	376, // 157: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.subrequests:type_name -> NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.TSubrequest
 	114, // 158: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 159: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	117, // 160: NYT.NApi.NRpcProxy.NProto.TReqMultisetAttributesNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
@@ -31768,37 +31859,37 @@ var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_depIdxs = [
 	114, // 162: NYT.NApi.NRpcProxy.NProto.TReqLockNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 163: NYT.NApi.NRpcProxy.NProto.TReqLockNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	117, // 164: NYT.NApi.NRpcProxy.NProto.TReqLockNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	402, // 165: NYT.NApi.NRpcProxy.NProto.TRspLockNode.node_id:type_name -> NYT.NProto.TGuid
-	402, // 166: NYT.NApi.NRpcProxy.NProto.TRspLockNode.lock_id:type_name -> NYT.NProto.TGuid
+	404, // 165: NYT.NApi.NRpcProxy.NProto.TRspLockNode.node_id:type_name -> NYT.NProto.TGuid
+	404, // 166: NYT.NApi.NRpcProxy.NProto.TRspLockNode.lock_id:type_name -> NYT.NProto.TGuid
 	114, // 167: NYT.NApi.NRpcProxy.NProto.TReqUnlockNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 168: NYT.NApi.NRpcProxy.NProto.TReqUnlockNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	117, // 169: NYT.NApi.NRpcProxy.NProto.TReqUnlockNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
 	114, // 170: NYT.NApi.NRpcProxy.NProto.TReqCopyNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 171: NYT.NApi.NRpcProxy.NProto.TReqCopyNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	117, // 172: NYT.NApi.NRpcProxy.NProto.TReqCopyNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	402, // 173: NYT.NApi.NRpcProxy.NProto.TRspCopyNode.node_id:type_name -> NYT.NProto.TGuid
+	404, // 173: NYT.NApi.NRpcProxy.NProto.TRspCopyNode.node_id:type_name -> NYT.NProto.TGuid
 	114, // 174: NYT.NApi.NRpcProxy.NProto.TReqMoveNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 175: NYT.NApi.NRpcProxy.NProto.TReqMoveNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	117, // 176: NYT.NApi.NRpcProxy.NProto.TReqMoveNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	402, // 177: NYT.NApi.NRpcProxy.NProto.TRspMoveNode.node_id:type_name -> NYT.NProto.TGuid
+	404, // 177: NYT.NApi.NRpcProxy.NProto.TRspMoveNode.node_id:type_name -> NYT.NProto.TGuid
 	114, // 178: NYT.NApi.NRpcProxy.NProto.TReqLinkNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 179: NYT.NApi.NRpcProxy.NProto.TReqLinkNode.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	117, // 180: NYT.NApi.NRpcProxy.NProto.TReqLinkNode.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	402, // 181: NYT.NApi.NRpcProxy.NProto.TRspLinkNode.node_id:type_name -> NYT.NProto.TGuid
-	375, // 182: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.fetcher:type_name -> NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.TFetcher
+	404, // 181: NYT.NApi.NRpcProxy.NProto.TRspLinkNode.node_id:type_name -> NYT.NProto.TGuid
+	377, // 182: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.fetcher:type_name -> NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.TFetcher
 	114, // 183: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	117, // 184: NYT.NApi.NRpcProxy.NProto.TReqConcatenateNodes.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
 	114, // 185: NYT.NApi.NRpcProxy.NProto.TReqExternalizeNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	114, // 186: NYT.NApi.NRpcProxy.NProto.TReqInternalizeNode.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	402, // 187: NYT.NApi.NRpcProxy.NProto.TReqAttachTransaction.transaction_id:type_name -> NYT.NProto.TGuid
+	404, // 187: NYT.NApi.NRpcProxy.NProto.TReqAttachTransaction.transaction_id:type_name -> NYT.NProto.TGuid
 	0,   // 188: NYT.NApi.NRpcProxy.NProto.TRspAttachTransaction.type:type_name -> NYT.NApi.NRpcProxy.NProto.ETransactionType
 	2,   // 189: NYT.NApi.NRpcProxy.NProto.TRspAttachTransaction.atomicity:type_name -> NYT.NApi.NRpcProxy.NProto.EAtomicity
 	3,   // 190: NYT.NApi.NRpcProxy.NProto.TRspAttachTransaction.durability:type_name -> NYT.NApi.NRpcProxy.NProto.EDurability
-	402, // 191: NYT.NApi.NRpcProxy.NProto.TReqDetachTransaction.transaction_id:type_name -> NYT.NProto.TGuid
-	402, // 192: NYT.NApi.NRpcProxy.NProto.TReqMountTable.cell_id:type_name -> NYT.NProto.TGuid
+	404, // 191: NYT.NApi.NRpcProxy.NProto.TReqDetachTransaction.transaction_id:type_name -> NYT.NProto.TGuid
+	404, // 192: NYT.NApi.NRpcProxy.NProto.TReqMountTable.cell_id:type_name -> NYT.NProto.TGuid
 	117, // 193: NYT.NApi.NRpcProxy.NProto.TReqMountTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
 	119, // 194: NYT.NApi.NRpcProxy.NProto.TReqMountTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
-	402, // 195: NYT.NApi.NRpcProxy.NProto.TReqMountTable.target_cell_ids:type_name -> NYT.NProto.TGuid
+	404, // 195: NYT.NApi.NRpcProxy.NProto.TReqMountTable.target_cell_ids:type_name -> NYT.NProto.TGuid
 	117, // 196: NYT.NApi.NRpcProxy.NProto.TReqUnmountTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
 	119, // 197: NYT.NApi.NRpcProxy.NProto.TReqUnmountTable.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
 	117, // 198: NYT.NApi.NRpcProxy.NProto.TReqRemountTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
@@ -31812,107 +31903,107 @@ var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_depIdxs = [
 	30,  // 206: NYT.NApi.NRpcProxy.NProto.TReqReshardTable.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
 	117, // 207: NYT.NApi.NRpcProxy.NProto.TReqReshardTableAutomatic.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
 	119, // 208: NYT.NApi.NRpcProxy.NProto.TReqReshardTableAutomatic.tablet_range_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTabletRangeOptions
-	402, // 209: NYT.NApi.NRpcProxy.NProto.TRspReshardTableAutomatic.tablet_actions:type_name -> NYT.NProto.TGuid
-	402, // 210: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.upstream_replica_id:type_name -> NYT.NProto.TGuid
+	404, // 209: NYT.NApi.NRpcProxy.NProto.TRspReshardTableAutomatic.tablet_actions:type_name -> NYT.NProto.TGuid
+	404, // 210: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.upstream_replica_id:type_name -> NYT.NProto.TGuid
 	20,  // 211: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.schema_modification:type_name -> NYT.NApi.NRpcProxy.NProto.ETableSchemaModification
-	406, // 212: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.replication_progress:type_name -> NYT.NChaosClient.NProto.TReplicationProgress
-	402, // 213: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.schema_id:type_name -> NYT.NProto.TGuid
+	408, // 212: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.replication_progress:type_name -> NYT.NChaosClient.NProto.TReplicationProgress
+	404, // 213: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.schema_id:type_name -> NYT.NProto.TGuid
 	114, // 214: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	117, // 215: NYT.NApi.NRpcProxy.NProto.TReqAlterTable.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	402, // 216: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica.replica_id:type_name -> NYT.NProto.TGuid
+	404, // 216: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica.replica_id:type_name -> NYT.NProto.TGuid
 	4,   // 217: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica.mode:type_name -> NYT.NApi.NRpcProxy.NProto.ETableReplicaMode
 	2,   // 218: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica.atomicity:type_name -> NYT.NApi.NRpcProxy.NProto.EAtomicity
 	117, // 219: NYT.NApi.NRpcProxy.NProto.TReqAlterTableReplica.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	402, // 220: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard.replication_card_id:type_name -> NYT.NProto.TGuid
-	402, // 221: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard.replication_card_collocation_id:type_name -> NYT.NProto.TGuid
+	404, // 220: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard.replication_card_id:type_name -> NYT.NProto.TGuid
+	404, // 221: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard.replication_card_collocation_id:type_name -> NYT.NProto.TGuid
 	117, // 222: NYT.NApi.NRpcProxy.NProto.TReqAlterReplicationCard.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
 	197, // 223: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics.fetch_chunk_spec_config:type_name -> NYT.NApi.NRpcProxy.NProto.TFetchChunkSpecConfig
 	198, // 224: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics.fetcher_config:type_name -> NYT.NApi.NRpcProxy.NProto.TFetcherConfig
 	21,  // 225: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics.fetcher_mode:type_name -> NYT.NApi.NRpcProxy.NProto.EColumnarStatisticsFetcherMode
 	114, // 226: NYT.NApi.NRpcProxy.NProto.TReqGetColumnarStatistics.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	410, // 227: NYT.NApi.NRpcProxy.NProto.TColumnarStatistics.column_hyperloglog_digests:type_name -> NYT.NProto.THyperLogLogDigest
+	412, // 227: NYT.NApi.NRpcProxy.NProto.TColumnarStatistics.column_hyperloglog_digests:type_name -> NYT.NProto.THyperLogLogDigest
 	200, // 228: NYT.NApi.NRpcProxy.NProto.TRspGetColumnarStatistics.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TColumnarStatistics
-	402, // 229: NYT.NApi.NRpcProxy.NProto.TReqDisableChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
-	402, // 230: NYT.NApi.NRpcProxy.NProto.TRspDisableChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
-	402, // 231: NYT.NApi.NRpcProxy.NProto.TReqDestroyChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
-	402, // 232: NYT.NApi.NRpcProxy.NProto.TRspDestroyChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
-	402, // 233: NYT.NApi.NRpcProxy.NProto.TReqResurrectChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
-	402, // 234: NYT.NApi.NRpcProxy.NProto.TRspResurrectChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
+	404, // 229: NYT.NApi.NRpcProxy.NProto.TReqDisableChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
+	404, // 230: NYT.NApi.NRpcProxy.NProto.TRspDisableChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
+	404, // 231: NYT.NApi.NRpcProxy.NProto.TReqDestroyChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
+	404, // 232: NYT.NApi.NRpcProxy.NProto.TRspDestroyChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
+	404, // 233: NYT.NApi.NRpcProxy.NProto.TReqResurrectChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
+	404, // 234: NYT.NApi.NRpcProxy.NProto.TRspResurrectChunkLocations.location_uuids:type_name -> NYT.NProto.TGuid
 	197, // 235: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.fetch_chunk_spec_config:type_name -> NYT.NApi.NRpcProxy.NProto.TFetchChunkSpecConfig
 	198, // 236: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.fetcher_config:type_name -> NYT.NApi.NRpcProxy.NProto.TFetcherConfig
-	376, // 237: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.chunk_slice_fetcher_config:type_name -> NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.TChunkSliceFetcherConfig
+	378, // 237: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.chunk_slice_fetcher_config:type_name -> NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.TChunkSliceFetcherConfig
 	22,  // 238: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.partition_mode:type_name -> NYT.NApi.NRpcProxy.NProto.EPartitionTablesMode
 	114, // 239: NYT.NApi.NRpcProxy.NProto.TReqPartitionTables.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	377, // 240: NYT.NApi.NRpcProxy.NProto.TMultiTablePartition.aggregate_statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TMultiTablePartition.TStatistics
+	379, // 240: NYT.NApi.NRpcProxy.NProto.TMultiTablePartition.aggregate_statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TMultiTablePartition.TStatistics
 	211, // 241: NYT.NApi.NRpcProxy.NProto.TRspPartitionTables.partitions:type_name -> NYT.NApi.NRpcProxy.NProto.TMultiTablePartition
 	8,   // 242: NYT.NApi.NRpcProxy.NProto.TReqReadTablePartition.desired_rowset_format:type_name -> NYT.NApi.NRpcProxy.NProto.ERowsetFormat
 	8,   // 243: NYT.NApi.NRpcProxy.NProto.TReqReadTablePartition.arrow_fallback_rowset_format:type_name -> NYT.NApi.NRpcProxy.NProto.ERowsetFormat
 	117, // 244: NYT.NApi.NRpcProxy.NProto.TReqBalanceTabletCells.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	402, // 245: NYT.NApi.NRpcProxy.NProto.TRspBalanceTabletCells.tablet_actions:type_name -> NYT.NProto.TGuid
+	404, // 245: NYT.NApi.NRpcProxy.NProto.TRspBalanceTabletCells.tablet_actions:type_name -> NYT.NProto.TGuid
 	114, // 246: NYT.NApi.NRpcProxy.NProto.TReqGetFileFromCache.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	116, // 247: NYT.NApi.NRpcProxy.NProto.TReqGetFileFromCache.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	323, // 248: NYT.NApi.NRpcProxy.NProto.TRspGetFileFromCache.result:type_name -> NYT.NApi.NRpcProxy.NProto.TGetFileFromCacheResult
+	325, // 248: NYT.NApi.NRpcProxy.NProto.TRspGetFileFromCache.result:type_name -> NYT.NApi.NRpcProxy.NProto.TGetFileFromCacheResult
 	114, // 249: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 250: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	116, // 251: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
 	117, // 252: NYT.NApi.NRpcProxy.NProto.TReqPutFileToCache.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	324, // 253: NYT.NApi.NRpcProxy.NProto.TRspPutFileToCache.result:type_name -> NYT.NApi.NRpcProxy.NProto.TPutFileToCacheResult
+	326, // 253: NYT.NApi.NRpcProxy.NProto.TRspPutFileToCache.result:type_name -> NYT.NApi.NRpcProxy.NProto.TPutFileToCacheResult
 	10,  // 254: NYT.NApi.NRpcProxy.NProto.TReqStartOperation.type:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationType
 	114, // 255: NYT.NApi.NRpcProxy.NProto.TReqStartOperation.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	117, // 256: NYT.NApi.NRpcProxy.NProto.TReqStartOperation.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	402, // 257: NYT.NApi.NRpcProxy.NProto.TRspStartOperation.operation_id:type_name -> NYT.NProto.TGuid
-	402, // 258: NYT.NApi.NRpcProxy.NProto.TReqAbortOperation.operation_id:type_name -> NYT.NProto.TGuid
-	402, // 259: NYT.NApi.NRpcProxy.NProto.TReqSuspendOperation.operation_id:type_name -> NYT.NProto.TGuid
-	402, // 260: NYT.NApi.NRpcProxy.NProto.TReqResumeOperation.operation_id:type_name -> NYT.NProto.TGuid
-	402, // 261: NYT.NApi.NRpcProxy.NProto.TReqCompleteOperation.operation_id:type_name -> NYT.NProto.TGuid
-	402, // 262: NYT.NApi.NRpcProxy.NProto.TReqUpdateOperationParameters.operation_id:type_name -> NYT.NProto.TGuid
-	402, // 263: NYT.NApi.NRpcProxy.NProto.TReqPatchOperationSpec.operation_id:type_name -> NYT.NProto.TGuid
-	411, // 264: NYT.NApi.NRpcProxy.NProto.TReqPatchOperationSpec.patches:type_name -> NYT.NScheduler.NProto.TSpecPatch
-	402, // 265: NYT.NApi.NRpcProxy.NProto.TReqGetOperation.operation_id:type_name -> NYT.NProto.TGuid
-	408, // 266: NYT.NApi.NRpcProxy.NProto.TReqGetOperation.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	404, // 257: NYT.NApi.NRpcProxy.NProto.TRspStartOperation.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 258: NYT.NApi.NRpcProxy.NProto.TReqAbortOperation.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 259: NYT.NApi.NRpcProxy.NProto.TReqSuspendOperation.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 260: NYT.NApi.NRpcProxy.NProto.TReqResumeOperation.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 261: NYT.NApi.NRpcProxy.NProto.TReqCompleteOperation.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 262: NYT.NApi.NRpcProxy.NProto.TReqUpdateOperationParameters.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 263: NYT.NApi.NRpcProxy.NProto.TReqPatchOperationSpec.operation_id:type_name -> NYT.NProto.TGuid
+	413, // 264: NYT.NApi.NRpcProxy.NProto.TReqPatchOperationSpec.patches:type_name -> NYT.NScheduler.NProto.TSpecPatch
+	404, // 265: NYT.NApi.NRpcProxy.NProto.TReqGetOperation.operation_id:type_name -> NYT.NProto.TGuid
+	410, // 266: NYT.NApi.NRpcProxy.NProto.TReqGetOperation.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
 	116, // 267: NYT.NApi.NRpcProxy.NProto.TReqGetOperation.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
 	12,  // 268: NYT.NApi.NRpcProxy.NProto.TReqListOperations.cursor_direction:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationSortDirection
 	11,  // 269: NYT.NApi.NRpcProxy.NProto.TReqListOperations.state_filter:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationState
 	10,  // 270: NYT.NApi.NRpcProxy.NProto.TReqListOperations.type_filter:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationType
 	29,  // 271: NYT.NApi.NRpcProxy.NProto.TReqListOperations.legacy_attributes:type_name -> NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
-	408, // 272: NYT.NApi.NRpcProxy.NProto.TReqListOperations.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	410, // 272: NYT.NApi.NRpcProxy.NProto.TReqListOperations.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
 	116, // 273: NYT.NApi.NRpcProxy.NProto.TReqListOperations.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	318, // 274: NYT.NApi.NRpcProxy.NProto.TRspListOperations.result:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult
-	402, // 275: NYT.NApi.NRpcProxy.NProto.TReqListJobs.operation_id:type_name -> NYT.NProto.TGuid
+	320, // 274: NYT.NApi.NRpcProxy.NProto.TRspListOperations.result:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult
+	404, // 275: NYT.NApi.NRpcProxy.NProto.TReqListJobs.operation_id:type_name -> NYT.NProto.TGuid
 	13,  // 276: NYT.NApi.NRpcProxy.NProto.TReqListJobs.type:type_name -> NYT.NApi.NRpcProxy.NProto.EJobType
 	14,  // 277: NYT.NApi.NRpcProxy.NProto.TReqListJobs.state:type_name -> NYT.NApi.NRpcProxy.NProto.EJobState
 	15,  // 278: NYT.NApi.NRpcProxy.NProto.TReqListJobs.sort_field:type_name -> NYT.NApi.NRpcProxy.NProto.EJobSortField
 	16,  // 279: NYT.NApi.NRpcProxy.NProto.TReqListJobs.sort_order:type_name -> NYT.NApi.NRpcProxy.NProto.EJobSortDirection
 	17,  // 280: NYT.NApi.NRpcProxy.NProto.TReqListJobs.data_source:type_name -> NYT.NApi.NRpcProxy.NProto.EDataSource
-	402, // 281: NYT.NApi.NRpcProxy.NProto.TReqListJobs.job_competition_id:type_name -> NYT.NProto.TGuid
-	408, // 282: NYT.NApi.NRpcProxy.NProto.TReqListJobs.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	404, // 281: NYT.NApi.NRpcProxy.NProto.TReqListJobs.job_competition_id:type_name -> NYT.NProto.TGuid
+	410, // 282: NYT.NApi.NRpcProxy.NProto.TReqListJobs.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
 	116, // 283: NYT.NApi.NRpcProxy.NProto.TReqListJobs.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	321, // 284: NYT.NApi.NRpcProxy.NProto.TRspListJobs.result:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsResult
-	402, // 285: NYT.NApi.NRpcProxy.NProto.TReqGetJob.operation_id:type_name -> NYT.NProto.TGuid
-	402, // 286: NYT.NApi.NRpcProxy.NProto.TReqGetJob.job_id:type_name -> NYT.NProto.TGuid
+	323, // 284: NYT.NApi.NRpcProxy.NProto.TRspListJobs.result:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsResult
+	404, // 285: NYT.NApi.NRpcProxy.NProto.TReqGetJob.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 286: NYT.NApi.NRpcProxy.NProto.TReqGetJob.job_id:type_name -> NYT.NProto.TGuid
 	29,  // 287: NYT.NApi.NRpcProxy.NProto.TReqGetJob.legacy_attributes:type_name -> NYT.NApi.NRpcProxy.NProto.TLegacyAttributeKeys
-	408, // 288: NYT.NApi.NRpcProxy.NProto.TReqGetJob.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
-	402, // 289: NYT.NApi.NRpcProxy.NProto.TReqGetJobInputPaths.job_id:type_name -> NYT.NProto.TGuid
+	410, // 288: NYT.NApi.NRpcProxy.NProto.TReqGetJob.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	404, // 289: NYT.NApi.NRpcProxy.NProto.TReqGetJobInputPaths.job_id:type_name -> NYT.NProto.TGuid
 	25,  // 290: NYT.NApi.NRpcProxy.NProto.TReqGetJobInputPaths.job_spec_source:type_name -> NYT.NApi.NRpcProxy.NProto.EJobSpecSource
-	402, // 291: NYT.NApi.NRpcProxy.NProto.TReqGetJobSpec.job_id:type_name -> NYT.NProto.TGuid
+	404, // 291: NYT.NApi.NRpcProxy.NProto.TReqGetJobSpec.job_id:type_name -> NYT.NProto.TGuid
 	25,  // 292: NYT.NApi.NRpcProxy.NProto.TReqGetJobSpec.job_spec_source:type_name -> NYT.NApi.NRpcProxy.NProto.EJobSpecSource
-	402, // 293: NYT.NApi.NRpcProxy.NProto.TReqGetJobStderr.operation_id:type_name -> NYT.NProto.TGuid
-	402, // 294: NYT.NApi.NRpcProxy.NProto.TReqGetJobStderr.job_id:type_name -> NYT.NProto.TGuid
-	402, // 295: NYT.NApi.NRpcProxy.NProto.TReqGetJobTrace.operation_id:type_name -> NYT.NProto.TGuid
-	402, // 296: NYT.NApi.NRpcProxy.NProto.TReqGetJobTrace.job_id:type_name -> NYT.NProto.TGuid
-	402, // 297: NYT.NApi.NRpcProxy.NProto.TReqGetJobTrace.trace_id:type_name -> NYT.NProto.TGuid
-	322, // 298: NYT.NApi.NRpcProxy.NProto.TRspGetJobTrace.events:type_name -> NYT.NApi.NRpcProxy.NProto.TJobTraceEvent
-	402, // 299: NYT.NApi.NRpcProxy.NProto.TReqGetJobFailContext.operation_id:type_name -> NYT.NProto.TGuid
-	402, // 300: NYT.NApi.NRpcProxy.NProto.TReqGetJobFailContext.job_id:type_name -> NYT.NProto.TGuid
-	402, // 301: NYT.NApi.NRpcProxy.NProto.TReqDumpJobContext.job_id:type_name -> NYT.NProto.TGuid
-	402, // 302: NYT.NApi.NRpcProxy.NProto.TReqAbandonJob.job_id:type_name -> NYT.NProto.TGuid
-	402, // 303: NYT.NApi.NRpcProxy.NProto.TReqPollJobShell.job_id:type_name -> NYT.NProto.TGuid
-	402, // 304: NYT.NApi.NRpcProxy.NProto.TReqAbortJob.job_id:type_name -> NYT.NProto.TGuid
-	402, // 305: NYT.NApi.NRpcProxy.NProto.TReqDumpJobProxyLog.job_id:type_name -> NYT.NProto.TGuid
-	402, // 306: NYT.NApi.NRpcProxy.NProto.TReqDumpJobProxyLog.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 293: NYT.NApi.NRpcProxy.NProto.TReqGetJobStderr.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 294: NYT.NApi.NRpcProxy.NProto.TReqGetJobStderr.job_id:type_name -> NYT.NProto.TGuid
+	404, // 295: NYT.NApi.NRpcProxy.NProto.TReqGetJobTrace.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 296: NYT.NApi.NRpcProxy.NProto.TReqGetJobTrace.job_id:type_name -> NYT.NProto.TGuid
+	404, // 297: NYT.NApi.NRpcProxy.NProto.TReqGetJobTrace.trace_id:type_name -> NYT.NProto.TGuid
+	324, // 298: NYT.NApi.NRpcProxy.NProto.TRspGetJobTrace.events:type_name -> NYT.NApi.NRpcProxy.NProto.TJobTraceEvent
+	404, // 299: NYT.NApi.NRpcProxy.NProto.TReqGetJobFailContext.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 300: NYT.NApi.NRpcProxy.NProto.TReqGetJobFailContext.job_id:type_name -> NYT.NProto.TGuid
+	404, // 301: NYT.NApi.NRpcProxy.NProto.TReqDumpJobContext.job_id:type_name -> NYT.NProto.TGuid
+	404, // 302: NYT.NApi.NRpcProxy.NProto.TReqAbandonJob.job_id:type_name -> NYT.NProto.TGuid
+	404, // 303: NYT.NApi.NRpcProxy.NProto.TReqPollJobShell.job_id:type_name -> NYT.NProto.TGuid
+	404, // 304: NYT.NApi.NRpcProxy.NProto.TReqAbortJob.job_id:type_name -> NYT.NProto.TGuid
+	404, // 305: NYT.NApi.NRpcProxy.NProto.TReqDumpJobProxyLog.job_id:type_name -> NYT.NProto.TGuid
+	404, // 306: NYT.NApi.NRpcProxy.NProto.TReqDumpJobProxyLog.operation_id:type_name -> NYT.NProto.TGuid
 	114, // 307: NYT.NApi.NRpcProxy.NProto.TReqReadFile.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	118, // 308: NYT.NApi.NRpcProxy.NProto.TReqReadFile.suppressable_access_tracking_options:type_name -> NYT.NApi.NRpcProxy.NProto.TSuppressableAccessTrackingOptions
-	402, // 309: NYT.NApi.NRpcProxy.NProto.TReadFileMeta.id:type_name -> NYT.NProto.TGuid
+	404, // 309: NYT.NApi.NRpcProxy.NProto.TReadFileMeta.id:type_name -> NYT.NProto.TGuid
 	114, // 310: NYT.NApi.NRpcProxy.NProto.TReqWriteFile.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 311: NYT.NApi.NRpcProxy.NProto.TReqWriteFile.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	114, // 312: NYT.NApi.NRpcProxy.NProto.TReqReadJournal.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
@@ -31929,7 +32020,7 @@ var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_depIdxs = [
 	31,  // 323: NYT.NApi.NRpcProxy.NProto.TRspReadTableMeta.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetStatistics
 	114, // 324: NYT.NApi.NRpcProxy.NProto.TReqWriteTable.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	133, // 325: NYT.NApi.NRpcProxy.NProto.TWriteTableMeta.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
-	402, // 326: NYT.NApi.NRpcProxy.NProto.TReqGetJobInput.job_id:type_name -> NYT.NProto.TGuid
+	404, // 326: NYT.NApi.NRpcProxy.NProto.TReqGetJobInput.job_id:type_name -> NYT.NProto.TGuid
 	25,  // 327: NYT.NApi.NRpcProxy.NProto.TReqGetJobInput.job_spec_source:type_name -> NYT.NApi.NRpcProxy.NProto.EJobSpecSource
 	117, // 328: NYT.NApi.NRpcProxy.NProto.TReqAddMember.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
 	115, // 329: NYT.NApi.NRpcProxy.NProto.TReqAddMember.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
@@ -31938,104 +32029,104 @@ var file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_depIdxs = [
 	114, // 332: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
 	115, // 333: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	116, // 334: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	378, // 335: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.TColumns
-	325, // 336: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.result:type_name -> NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult
-	379, // 337: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.TColumns
+	380, // 335: NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TReqCheckPermission.TColumns
+	327, // 336: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.result:type_name -> NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult
+	381, // 337: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.TColumns
 	115, // 338: NYT.NApi.NRpcProxy.NProto.TReqCheckPermissionByAcl.prerequisite_options:type_name -> NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions
 	116, // 339: NYT.NApi.NRpcProxy.NProto.TReqCheckPermissionByAcl.master_read_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMasterReadOptions
-	326, // 340: NYT.NApi.NRpcProxy.NProto.TRspCheckPermissionByAcl.result:type_name -> NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult
+	328, // 340: NYT.NApi.NRpcProxy.NProto.TRspCheckPermissionByAcl.result:type_name -> NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult
 	117, // 341: NYT.NApi.NRpcProxy.NProto.TReqTransferAccountResources.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
 	117, // 342: NYT.NApi.NRpcProxy.NProto.TReqTransferPoolResources.mutating_options:type_name -> NYT.NApi.NRpcProxy.NProto.TMutatingOptions
-	402, // 343: NYT.NApi.NRpcProxy.NProto.TOperation.id:type_name -> NYT.NProto.TGuid
+	404, // 343: NYT.NApi.NRpcProxy.NProto.TOperation.id:type_name -> NYT.NProto.TGuid
 	10,  // 344: NYT.NApi.NRpcProxy.NProto.TOperation.type:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationType
 	11,  // 345: NYT.NApi.NRpcProxy.NProto.TOperation.state:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationState
-	380, // 346: NYT.NApi.NRpcProxy.NProto.TOperation.pools:type_name -> NYT.NApi.NRpcProxy.NProto.TOperation.TStrings
-	317, // 347: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.operations:type_name -> NYT.NApi.NRpcProxy.NProto.TOperation
-	381, // 348: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.pool_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts
-	382, // 349: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.user_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts
-	383, // 350: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.state_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts
-	384, // 351: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.type_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts
-	385, // 352: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.pool_tree_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts
-	402, // 353: NYT.NApi.NRpcProxy.NProto.TJob.id:type_name -> NYT.NProto.TGuid
+	382, // 346: NYT.NApi.NRpcProxy.NProto.TOperation.pools:type_name -> NYT.NApi.NRpcProxy.NProto.TOperation.TStrings
+	319, // 347: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.operations:type_name -> NYT.NApi.NRpcProxy.NProto.TOperation
+	383, // 348: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.pool_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts
+	384, // 349: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.user_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts
+	385, // 350: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.state_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts
+	386, // 351: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.type_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts
+	387, // 352: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.pool_tree_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts
+	404, // 353: NYT.NApi.NRpcProxy.NProto.TJob.id:type_name -> NYT.NProto.TGuid
 	13,  // 354: NYT.NApi.NRpcProxy.NProto.TJob.type:type_name -> NYT.NApi.NRpcProxy.NProto.EJobType
 	14,  // 355: NYT.NApi.NRpcProxy.NProto.TJob.state:type_name -> NYT.NApi.NRpcProxy.NProto.EJobState
-	402, // 356: NYT.NApi.NRpcProxy.NProto.TJob.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 356: NYT.NApi.NRpcProxy.NProto.TJob.operation_id:type_name -> NYT.NProto.TGuid
 	14,  // 357: NYT.NApi.NRpcProxy.NProto.TJob.controller_state:type_name -> NYT.NApi.NRpcProxy.NProto.EJobState
 	14,  // 358: NYT.NApi.NRpcProxy.NProto.TJob.archive_state:type_name -> NYT.NApi.NRpcProxy.NProto.EJobState
-	402, // 359: NYT.NApi.NRpcProxy.NProto.TJob.job_competition_id:type_name -> NYT.NProto.TGuid
-	402, // 360: NYT.NApi.NRpcProxy.NProto.TJob.probing_job_competition_id:type_name -> NYT.NProto.TGuid
-	402, // 361: NYT.NApi.NRpcProxy.NProto.TJob.allocation_id:type_name -> NYT.NProto.TGuid
-	412, // 362: NYT.NApi.NRpcProxy.NProto.TJob.addresses:type_name -> NYT.NNodeTrackerClient.NProto.TAddressMap
-	391, // 363: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.state_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts
-	392, // 364: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.type_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts
-	319, // 365: NYT.NApi.NRpcProxy.NProto.TListJobsResult.jobs:type_name -> NYT.NApi.NRpcProxy.NProto.TJob
-	320, // 366: NYT.NApi.NRpcProxy.NProto.TListJobsResult.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics
-	413, // 367: NYT.NApi.NRpcProxy.NProto.TListJobsResult.errors:type_name -> NYT.NProto.TError
-	402, // 368: NYT.NApi.NRpcProxy.NProto.TJobTraceEvent.operation_id:type_name -> NYT.NProto.TGuid
-	402, // 369: NYT.NApi.NRpcProxy.NProto.TJobTraceEvent.job_id:type_name -> NYT.NProto.TGuid
-	402, // 370: NYT.NApi.NRpcProxy.NProto.TJobTraceEvent.trace_id:type_name -> NYT.NProto.TGuid
+	404, // 359: NYT.NApi.NRpcProxy.NProto.TJob.job_competition_id:type_name -> NYT.NProto.TGuid
+	404, // 360: NYT.NApi.NRpcProxy.NProto.TJob.probing_job_competition_id:type_name -> NYT.NProto.TGuid
+	404, // 361: NYT.NApi.NRpcProxy.NProto.TJob.allocation_id:type_name -> NYT.NProto.TGuid
+	414, // 362: NYT.NApi.NRpcProxy.NProto.TJob.addresses:type_name -> NYT.NNodeTrackerClient.NProto.TAddressMap
+	393, // 363: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.state_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts
+	394, // 364: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.type_counts:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts
+	321, // 365: NYT.NApi.NRpcProxy.NProto.TListJobsResult.jobs:type_name -> NYT.NApi.NRpcProxy.NProto.TJob
+	322, // 366: NYT.NApi.NRpcProxy.NProto.TListJobsResult.statistics:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics
+	415, // 367: NYT.NApi.NRpcProxy.NProto.TListJobsResult.errors:type_name -> NYT.NProto.TError
+	404, // 368: NYT.NApi.NRpcProxy.NProto.TJobTraceEvent.operation_id:type_name -> NYT.NProto.TGuid
+	404, // 369: NYT.NApi.NRpcProxy.NProto.TJobTraceEvent.job_id:type_name -> NYT.NProto.TGuid
+	404, // 370: NYT.NApi.NRpcProxy.NProto.TJobTraceEvent.trace_id:type_name -> NYT.NProto.TGuid
 	18,  // 371: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult.action:type_name -> NYT.NApi.NRpcProxy.NProto.ESecurityAction
-	402, // 372: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult.object_id:type_name -> NYT.NProto.TGuid
-	402, // 373: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult.subject_id:type_name -> NYT.NProto.TGuid
+	404, // 372: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult.object_id:type_name -> NYT.NProto.TGuid
+	404, // 373: NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult.subject_id:type_name -> NYT.NProto.TGuid
 	18,  // 374: NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult.action:type_name -> NYT.NApi.NRpcProxy.NProto.ESecurityAction
-	402, // 375: NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult.subject_id:type_name -> NYT.NProto.TGuid
+	404, // 375: NYT.NApi.NRpcProxy.NProto.TCheckPermissionByAclResult.subject_id:type_name -> NYT.NProto.TGuid
 	26,  // 376: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.engine:type_name -> NYT.NApi.NRpcProxy.NProto.EQueryEngine
-	395, // 377: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.files:type_name -> NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TQueryFile
-	396, // 378: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.access_control_objects:type_name -> NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TAccessControlObjects
-	397, // 379: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.secrets:type_name -> NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TSecret
-	402, // 380: NYT.NApi.NRpcProxy.NProto.TRspStartQuery.query_id:type_name -> NYT.NProto.TGuid
-	402, // 381: NYT.NApi.NRpcProxy.NProto.TReqAbortQuery.query_id:type_name -> NYT.NProto.TGuid
-	402, // 382: NYT.NApi.NRpcProxy.NProto.TReqGetQueryResult.query_id:type_name -> NYT.NProto.TGuid
-	402, // 383: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult.query_id:type_name -> NYT.NProto.TGuid
-	413, // 384: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult.error:type_name -> NYT.NProto.TError
+	397, // 377: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.files:type_name -> NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TQueryFile
+	398, // 378: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.access_control_objects:type_name -> NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TAccessControlObjects
+	399, // 379: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.secrets:type_name -> NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TSecret
+	404, // 380: NYT.NApi.NRpcProxy.NProto.TRspStartQuery.query_id:type_name -> NYT.NProto.TGuid
+	404, // 381: NYT.NApi.NRpcProxy.NProto.TReqAbortQuery.query_id:type_name -> NYT.NProto.TGuid
+	404, // 382: NYT.NApi.NRpcProxy.NProto.TReqGetQueryResult.query_id:type_name -> NYT.NProto.TGuid
+	404, // 383: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult.query_id:type_name -> NYT.NProto.TGuid
+	415, // 384: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult.error:type_name -> NYT.NProto.TError
 	133, // 385: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult.schema:type_name -> NYT.NApi.NRpcProxy.NProto.TTableSchema
-	401, // 386: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult.data_statistics:type_name -> NYT.NChunkClient.NProto.TDataStatistics
-	402, // 387: NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult.query_id:type_name -> NYT.NProto.TGuid
-	398, // 388: NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult.TColumns
+	403, // 386: NYT.NApi.NRpcProxy.NProto.TRspGetQueryResult.data_statistics:type_name -> NYT.NChunkClient.NProto.TDataStatistics
+	404, // 387: NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult.query_id:type_name -> NYT.NProto.TGuid
+	400, // 388: NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult.columns:type_name -> NYT.NApi.NRpcProxy.NProto.TReqReadQueryResult.TColumns
 	30,  // 389: NYT.NApi.NRpcProxy.NProto.TRspReadQueryResult.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	402, // 390: NYT.NApi.NRpcProxy.NProto.TQuery.id:type_name -> NYT.NProto.TGuid
+	404, // 390: NYT.NApi.NRpcProxy.NProto.TQuery.id:type_name -> NYT.NProto.TGuid
 	26,  // 391: NYT.NApi.NRpcProxy.NProto.TQuery.engine:type_name -> NYT.NApi.NRpcProxy.NProto.EQueryEngine
 	28,  // 392: NYT.NApi.NRpcProxy.NProto.TQuery.state:type_name -> NYT.NApi.NRpcProxy.NProto.EQueryState
-	413, // 393: NYT.NApi.NRpcProxy.NProto.TQuery.error:type_name -> NYT.NProto.TError
-	403, // 394: NYT.NApi.NRpcProxy.NProto.TQuery.other_attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
-	402, // 395: NYT.NApi.NRpcProxy.NProto.TReqGetQuery.query_id:type_name -> NYT.NProto.TGuid
-	408, // 396: NYT.NApi.NRpcProxy.NProto.TReqGetQuery.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
-	335, // 397: NYT.NApi.NRpcProxy.NProto.TRspGetQuery.query:type_name -> NYT.NApi.NRpcProxy.NProto.TQuery
+	415, // 393: NYT.NApi.NRpcProxy.NProto.TQuery.error:type_name -> NYT.NProto.TError
+	405, // 394: NYT.NApi.NRpcProxy.NProto.TQuery.other_attributes:type_name -> NYT.NYTree.NProto.TAttributeDictionary
+	404, // 395: NYT.NApi.NRpcProxy.NProto.TReqGetQuery.query_id:type_name -> NYT.NProto.TGuid
+	410, // 396: NYT.NApi.NRpcProxy.NProto.TReqGetQuery.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	337, // 397: NYT.NApi.NRpcProxy.NProto.TRspGetQuery.query:type_name -> NYT.NApi.NRpcProxy.NProto.TQuery
 	12,  // 398: NYT.NApi.NRpcProxy.NProto.TReqListQueries.cursor_direction:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationSortDirection
 	28,  // 399: NYT.NApi.NRpcProxy.NProto.TReqListQueries.state_filter:type_name -> NYT.NApi.NRpcProxy.NProto.EQueryState
 	26,  // 400: NYT.NApi.NRpcProxy.NProto.TReqListQueries.engine_filter:type_name -> NYT.NApi.NRpcProxy.NProto.EQueryEngine
-	408, // 401: NYT.NApi.NRpcProxy.NProto.TReqListQueries.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
-	335, // 402: NYT.NApi.NRpcProxy.NProto.TRspListQueries.queries:type_name -> NYT.NApi.NRpcProxy.NProto.TQuery
-	402, // 403: NYT.NApi.NRpcProxy.NProto.TReqAlterQuery.query_id:type_name -> NYT.NProto.TGuid
-	399, // 404: NYT.NApi.NRpcProxy.NProto.TReqAlterQuery.access_control_objects:type_name -> NYT.NApi.NRpcProxy.NProto.TReqAlterQuery.TAccessControlObjects
-	408, // 405: NYT.NApi.NRpcProxy.NProto.TReqGetQueryTrackerInfo.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	410, // 401: NYT.NApi.NRpcProxy.NProto.TReqListQueries.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
+	337, // 402: NYT.NApi.NRpcProxy.NProto.TRspListQueries.queries:type_name -> NYT.NApi.NRpcProxy.NProto.TQuery
+	404, // 403: NYT.NApi.NRpcProxy.NProto.TReqAlterQuery.query_id:type_name -> NYT.NProto.TGuid
+	401, // 404: NYT.NApi.NRpcProxy.NProto.TReqAlterQuery.access_control_objects:type_name -> NYT.NApi.NRpcProxy.NProto.TReqAlterQuery.TAccessControlObjects
+	410, // 405: NYT.NApi.NRpcProxy.NProto.TReqGetQueryTrackerInfo.attributes:type_name -> NYT.NYTree.NProto.TAttributeFilter
 	114, // 406: NYT.NApi.NRpcProxy.NProto.TReqStartDistributedWriteSession.transactional_options:type_name -> NYT.NApi.NRpcProxy.NProto.TTransactionalOptions
-	402, // 407: NYT.NApi.NRpcProxy.NProto.TReqStartShuffle.parent_transaction_id:type_name -> NYT.NProto.TGuid
-	400, // 408: NYT.NApi.NRpcProxy.NProto.TReqReadShuffleData.writer_index_range:type_name -> NYT.NApi.NRpcProxy.NProto.TReqReadShuffleData.IndexRange
+	404, // 407: NYT.NApi.NRpcProxy.NProto.TReqStartShuffle.parent_transaction_id:type_name -> NYT.NProto.TGuid
+	402, // 408: NYT.NApi.NRpcProxy.NProto.TReqReadShuffleData.writer_index_range:type_name -> NYT.NApi.NRpcProxy.NProto.TReqReadShuffleData.IndexRange
 	30,  // 409: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	405, // 410: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest.versioned_read_options:type_name -> NYT.NTableClient.NProto.TVersionedReadOptions
+	407, // 410: NYT.NApi.NRpcProxy.NProto.TReqMultiLookup.TSubrequest.versioned_read_options:type_name -> NYT.NTableClient.NProto.TVersionedReadOptions
 	30,  // 411: NYT.NApi.NRpcProxy.NProto.TRspMultiLookup.TSubresponse.rowset_descriptor:type_name -> NYT.NApi.NRpcProxy.NProto.TRowsetDescriptor
-	362, // 412: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration.partitions:type_name -> NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration.TRegistrationPartitions
-	364, // 413: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.replicas:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo
-	413, // 414: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.tablet_errors:type_name -> NYT.NProto.TError
-	402, // 415: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo.replica_id:type_name -> NYT.NProto.TGuid
-	413, // 416: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo.replication_error:type_name -> NYT.NProto.TError
-	413, // 417: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList.errors:type_name -> NYT.NProto.TError
-	402, // 418: NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance.IdPerTargetEntry.value:type_name -> NYT.NProto.TGuid
-	370, // 419: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.TMaintenanceCounts.counts:type_name -> NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.TMaintenanceCounts.CountsEntry
-	368, // 420: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsPerTargetEntry.value:type_name -> NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.TMaintenanceCounts
-	402, // 421: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TTransactionPrerequisite.transaction_id:type_name -> NYT.NProto.TGuid
+	364, // 412: NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration.partitions:type_name -> NYT.NApi.NRpcProxy.NProto.TRspListQueueConsumerRegistrations.TQueueConsumerRegistration.TRegistrationPartitions
+	366, // 413: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.replicas:type_name -> NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo
+	415, // 414: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.tablet_errors:type_name -> NYT.NProto.TError
+	404, // 415: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo.replica_id:type_name -> NYT.NProto.TGuid
+	415, // 416: NYT.NApi.NRpcProxy.NProto.TRspGetTabletInfos.TTabletInfo.TReplicaInfo.replication_error:type_name -> NYT.NProto.TError
+	415, // 417: NYT.NApi.NRpcProxy.NProto.TRspGetTabletErrors.TErrorList.errors:type_name -> NYT.NProto.TError
+	404, // 418: NYT.NApi.NRpcProxy.NProto.TRspAddMaintenance.IdPerTargetEntry.value:type_name -> NYT.NProto.TGuid
+	372, // 419: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.TMaintenanceCounts.counts:type_name -> NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.TMaintenanceCounts.CountsEntry
+	370, // 420: NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.RemovedMaintenanceCountsPerTargetEntry.value:type_name -> NYT.NApi.NRpcProxy.NProto.TRspRemoveMaintenance.TMaintenanceCounts
+	404, // 421: NYT.NApi.NRpcProxy.NProto.TPrerequisiteOptions.TTransactionPrerequisite.transaction_id:type_name -> NYT.NProto.TGuid
 	141, // 422: NYT.NApi.NRpcProxy.NProto.TBackupManifest.TClusterManifest.table_manifests:type_name -> NYT.NApi.NRpcProxy.NProto.TTableBackupManifest
-	325, // 423: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.TColumns.items:type_name -> NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult
-	386, // 424: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts.TPoolCount
-	387, // 425: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts.TUserCount
-	388, // 426: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.TOperationStateCount
-	389, // 427: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.TOperationTypeCount
-	390, // 428: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts.EntriesEntry
+	327, // 423: NYT.NApi.NRpcProxy.NProto.TRspCheckPermission.TColumns.items:type_name -> NYT.NApi.NRpcProxy.NProto.TCheckPermissionResult
+	388, // 424: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolCounts.TPoolCount
+	389, // 425: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TUserCounts.TUserCount
+	390, // 426: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.TOperationStateCount
+	391, // 427: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.TOperationTypeCount
+	392, // 428: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TPoolTreeCounts.EntriesEntry
 	11,  // 429: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationStateCounts.TOperationStateCount.state:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationState
 	10,  // 430: NYT.NApi.NRpcProxy.NProto.TListOperationsResult.TOperationTypeCounts.TOperationTypeCount.type:type_name -> NYT.NApi.NRpcProxy.NProto.EOperationType
-	393, // 431: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.TJobStateCount
-	394, // 432: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.TJobTypeCount
+	395, // 431: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.TJobStateCount
+	396, // 432: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.entries:type_name -> NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.TJobTypeCount
 	14,  // 433: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobStateCounts.TJobStateCount.state:type_name -> NYT.NApi.NRpcProxy.NProto.EJobState
 	13,  // 434: NYT.NApi.NRpcProxy.NProto.TListJobsStatistics.TJobTypeCounts.TJobTypeCount.type:type_name -> NYT.NApi.NRpcProxy.NProto.EJobType
 	27,  // 435: NYT.NApi.NRpcProxy.NProto.TReqStartQuery.TQueryFile.type:type_name -> NYT.NApi.NRpcProxy.NProto.EContentType
@@ -35101,7 +35192,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[254].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqAddMember); i {
+			switch v := v.(*TReqGetCurrentUser); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35113,7 +35204,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[255].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspAddMember); i {
+			switch v := v.(*TRspGetCurrentUser); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35125,7 +35216,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[256].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqRemoveMember); i {
+			switch v := v.(*TReqAddMember); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35137,7 +35228,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[257].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspRemoveMember); i {
+			switch v := v.(*TRspAddMember); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35149,7 +35240,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[258].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqCheckPermission); i {
+			switch v := v.(*TReqRemoveMember); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35161,7 +35252,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[259].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspCheckPermission); i {
+			switch v := v.(*TRspRemoveMember); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35173,7 +35264,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[260].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqCheckPermissionByAcl); i {
+			switch v := v.(*TReqCheckPermission); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35185,7 +35276,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[261].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspCheckPermissionByAcl); i {
+			switch v := v.(*TRspCheckPermission); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35197,7 +35288,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[262].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqTransferAccountResources); i {
+			switch v := v.(*TReqCheckPermissionByAcl); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35209,7 +35300,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[263].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspTransferAccountResources); i {
+			switch v := v.(*TRspCheckPermissionByAcl); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35221,7 +35312,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[264].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqTransferPoolResources); i {
+			switch v := v.(*TReqTransferAccountResources); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35233,7 +35324,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[265].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspTransferPoolResources); i {
+			switch v := v.(*TRspTransferAccountResources); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35245,7 +35336,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[266].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqCheckClusterLiveness); i {
+			switch v := v.(*TReqTransferPoolResources); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35257,7 +35348,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[267].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspCheckClusterLiveness); i {
+			switch v := v.(*TRspTransferPoolResources); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35269,7 +35360,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[268].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqGetPipelineSpec); i {
+			switch v := v.(*TReqCheckClusterLiveness); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35281,7 +35372,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[269].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetPipelineSpec); i {
+			switch v := v.(*TRspCheckClusterLiveness); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35293,7 +35384,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[270].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqSetPipelineSpec); i {
+			switch v := v.(*TReqGetPipelineSpec); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35305,7 +35396,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[271].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspSetPipelineSpec); i {
+			switch v := v.(*TRspGetPipelineSpec); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35317,7 +35408,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[272].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqGetPipelineDynamicSpec); i {
+			switch v := v.(*TReqSetPipelineSpec); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35329,7 +35420,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[273].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetPipelineDynamicSpec); i {
+			switch v := v.(*TRspSetPipelineSpec); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35341,7 +35432,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[274].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqSetPipelineDynamicSpec); i {
+			switch v := v.(*TReqGetPipelineDynamicSpec); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35353,7 +35444,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[275].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspSetPipelineDynamicSpec); i {
+			switch v := v.(*TRspGetPipelineDynamicSpec); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35365,7 +35456,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[276].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqStartPipeline); i {
+			switch v := v.(*TReqSetPipelineDynamicSpec); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35377,7 +35468,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[277].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspStartPipeline); i {
+			switch v := v.(*TRspSetPipelineDynamicSpec); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35389,7 +35480,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[278].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqPausePipeline); i {
+			switch v := v.(*TReqStartPipeline); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35401,7 +35492,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[279].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspPausePipeline); i {
+			switch v := v.(*TRspStartPipeline); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35413,7 +35504,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[280].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqStopPipeline); i {
+			switch v := v.(*TReqPausePipeline); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35425,7 +35516,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[281].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspStopPipeline); i {
+			switch v := v.(*TRspPausePipeline); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35437,7 +35528,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[282].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqGetPipelineState); i {
+			switch v := v.(*TReqStopPipeline); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35449,7 +35540,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[283].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetPipelineState); i {
+			switch v := v.(*TRspStopPipeline); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35461,7 +35552,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[284].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqGetFlowView); i {
+			switch v := v.(*TReqGetPipelineState); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35473,7 +35564,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[285].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetFlowView); i {
+			switch v := v.(*TRspGetPipelineState); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35485,7 +35576,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[286].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqFlowExecute); i {
+			switch v := v.(*TReqGetFlowView); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35497,7 +35588,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[287].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspFlowExecute); i {
+			switch v := v.(*TRspGetFlowView); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35509,7 +35600,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[288].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TOperation); i {
+			switch v := v.(*TReqFlowExecute); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35521,7 +35612,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[289].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListOperationsResult); i {
+			switch v := v.(*TRspFlowExecute); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35533,7 +35624,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[290].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TJob); i {
+			switch v := v.(*TOperation); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35545,7 +35636,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[291].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListJobsStatistics); i {
+			switch v := v.(*TListOperationsResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35557,7 +35648,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[292].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TListJobsResult); i {
+			switch v := v.(*TJob); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35569,7 +35660,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[293].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TJobTraceEvent); i {
+			switch v := v.(*TListJobsStatistics); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35581,7 +35672,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[294].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TGetFileFromCacheResult); i {
+			switch v := v.(*TListJobsResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35593,7 +35684,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[295].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TPutFileToCacheResult); i {
+			switch v := v.(*TJobTraceEvent); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35605,7 +35696,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[296].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TCheckPermissionResult); i {
+			switch v := v.(*TGetFileFromCacheResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35617,7 +35708,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[297].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TCheckPermissionByAclResult); i {
+			switch v := v.(*TPutFileToCacheResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35629,7 +35720,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[298].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqStartQuery); i {
+			switch v := v.(*TCheckPermissionResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35641,7 +35732,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[299].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspStartQuery); i {
+			switch v := v.(*TCheckPermissionByAclResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35653,7 +35744,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[300].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqAbortQuery); i {
+			switch v := v.(*TReqStartQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35665,7 +35756,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[301].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspAbortQuery); i {
+			switch v := v.(*TRspStartQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35677,7 +35768,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[302].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqGetQueryResult); i {
+			switch v := v.(*TReqAbortQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35689,7 +35780,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[303].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetQueryResult); i {
+			switch v := v.(*TRspAbortQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35701,7 +35792,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[304].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqReadQueryResult); i {
+			switch v := v.(*TReqGetQueryResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35713,7 +35804,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[305].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspReadQueryResult); i {
+			switch v := v.(*TRspGetQueryResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35725,7 +35816,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[306].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TQuery); i {
+			switch v := v.(*TReqReadQueryResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35737,7 +35828,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[307].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqGetQuery); i {
+			switch v := v.(*TRspReadQueryResult); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35749,7 +35840,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[308].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetQuery); i {
+			switch v := v.(*TQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35761,7 +35852,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[309].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqListQueries); i {
+			switch v := v.(*TReqGetQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35773,7 +35864,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[310].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspListQueries); i {
+			switch v := v.(*TRspGetQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35785,7 +35876,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[311].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqAlterQuery); i {
+			switch v := v.(*TReqListQueries); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35797,7 +35888,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[312].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspAlterQuery); i {
+			switch v := v.(*TRspListQueries); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35809,7 +35900,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[313].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqGetQueryTrackerInfo); i {
+			switch v := v.(*TReqAlterQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35821,7 +35912,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[314].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetQueryTrackerInfo); i {
+			switch v := v.(*TRspAlterQuery); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35833,7 +35924,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[315].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqStartDistributedWriteSession); i {
+			switch v := v.(*TReqGetQueryTrackerInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35845,7 +35936,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[316].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspStartDistributedWriteSession); i {
+			switch v := v.(*TRspGetQueryTrackerInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35857,7 +35948,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[317].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqFinishDistributedWriteSession); i {
+			switch v := v.(*TReqStartDistributedWriteSession); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35869,7 +35960,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[318].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspFinishDistributedWriteSession); i {
+			switch v := v.(*TRspStartDistributedWriteSession); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35881,7 +35972,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[319].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqWriteTableFragment); i {
+			switch v := v.(*TReqFinishDistributedWriteSession); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35893,7 +35984,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[320].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspWriteTableFragment); i {
+			switch v := v.(*TRspFinishDistributedWriteSession); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35905,7 +35996,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[321].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqStartShuffle); i {
+			switch v := v.(*TReqWriteTableFragment); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35917,7 +36008,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[322].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspStartShuffle); i {
+			switch v := v.(*TRspWriteTableFragment); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35929,7 +36020,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[323].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqReadShuffleData); i {
+			switch v := v.(*TReqStartShuffle); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35941,7 +36032,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[324].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspReadShuffleData); i {
+			switch v := v.(*TRspStartShuffle); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35953,7 +36044,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[325].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqWriteShuffleData); i {
+			switch v := v.(*TReqReadShuffleData); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35965,7 +36056,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[326].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspWriteShuffleData); i {
+			switch v := v.(*TRspReadShuffleData); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35977,7 +36068,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[327].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRowsetDescriptor_TNameTableEntry); i {
+			switch v := v.(*TReqWriteShuffleData); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -35989,7 +36080,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[328].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqStartTransaction_TReplicateToMasterCellTags); i {
+			switch v := v.(*TRspWriteShuffleData); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -36001,7 +36092,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[329].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqMultiLookup_TSubrequest); i {
+			switch v := v.(*TRowsetDescriptor_TNameTableEntry); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -36013,7 +36104,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[330].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspMultiLookup_TSubresponse); i {
+			switch v := v.(*TReqStartTransaction_TReplicateToMasterCellTags); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -36025,7 +36116,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[331].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TReqRegisterQueueConsumer_TRegistrationPartitions); i {
+			switch v := v.(*TReqMultiLookup_TSubrequest); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -36037,7 +36128,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[332].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration); i {
+			switch v := v.(*TRspMultiLookup_TSubresponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -36049,7 +36140,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[333].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions); i {
+			switch v := v.(*TReqRegisterQueueConsumer_TRegistrationPartitions); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -36061,7 +36152,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[334].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetTabletInfos_TTabletInfo); i {
+			switch v := v.(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -36073,7 +36164,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[335].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*TRspGetTabletInfos_TTabletInfo_TReplicaInfo); i {
+			switch v := v.(*TRspListQueueConsumerRegistrations_TQueueConsumerRegistration_TRegistrationPartitions); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -36085,6 +36176,30 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			}
 		}
 		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[336].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TRspGetTabletInfos_TTabletInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[337].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*TRspGetTabletInfos_TTabletInfo_TReplicaInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[338].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TRspGetTabletErrors_TErrorList); i {
 			case 0:
 				return &v.state
@@ -36096,7 +36211,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[339].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[341].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TRspRemoveMaintenance_TMaintenanceCounts); i {
 			case 0:
 				return &v.state
@@ -36108,7 +36223,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[342].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[344].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TPrerequisiteOptions_TTransactionPrerequisite); i {
 			case 0:
 				return &v.state
@@ -36120,7 +36235,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[343].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[345].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TPrerequisiteOptions_TRevisionPrerequisite); i {
 			case 0:
 				return &v.state
@@ -36132,7 +36247,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[344].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[346].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TBackupManifest_TClusterManifest); i {
 			case 0:
 				return &v.state
@@ -36144,7 +36259,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[345].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[347].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TReqMultisetAttributesNode_TSubrequest); i {
 			case 0:
 				return &v.state
@@ -36156,7 +36271,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[346].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[348].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TReqConcatenateNodes_TFetcher); i {
 			case 0:
 				return &v.state
@@ -36168,7 +36283,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[347].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[349].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TReqPartitionTables_TChunkSliceFetcherConfig); i {
 			case 0:
 				return &v.state
@@ -36180,7 +36295,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[348].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[350].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TMultiTablePartition_TStatistics); i {
 			case 0:
 				return &v.state
@@ -36192,7 +36307,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[349].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[351].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TReqCheckPermission_TColumns); i {
 			case 0:
 				return &v.state
@@ -36204,7 +36319,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[350].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[352].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TRspCheckPermission_TColumns); i {
 			case 0:
 				return &v.state
@@ -36216,7 +36331,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[351].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[353].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TOperation_TStrings); i {
 			case 0:
 				return &v.state
@@ -36228,7 +36343,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[352].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[354].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListOperationsResult_TPoolCounts); i {
 			case 0:
 				return &v.state
@@ -36240,7 +36355,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[353].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[355].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListOperationsResult_TUserCounts); i {
 			case 0:
 				return &v.state
@@ -36252,7 +36367,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[354].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[356].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListOperationsResult_TOperationStateCounts); i {
 			case 0:
 				return &v.state
@@ -36264,7 +36379,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[355].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[357].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListOperationsResult_TOperationTypeCounts); i {
 			case 0:
 				return &v.state
@@ -36276,7 +36391,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[356].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[358].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListOperationsResult_TPoolTreeCounts); i {
 			case 0:
 				return &v.state
@@ -36288,7 +36403,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[357].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[359].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListOperationsResult_TPoolCounts_TPoolCount); i {
 			case 0:
 				return &v.state
@@ -36300,7 +36415,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[358].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[360].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListOperationsResult_TUserCounts_TUserCount); i {
 			case 0:
 				return &v.state
@@ -36312,7 +36427,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[359].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[361].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListOperationsResult_TOperationStateCounts_TOperationStateCount); i {
 			case 0:
 				return &v.state
@@ -36324,7 +36439,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[360].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[362].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListOperationsResult_TOperationTypeCounts_TOperationTypeCount); i {
 			case 0:
 				return &v.state
@@ -36336,7 +36451,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[362].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[364].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListJobsStatistics_TJobStateCounts); i {
 			case 0:
 				return &v.state
@@ -36348,7 +36463,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[363].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[365].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListJobsStatistics_TJobTypeCounts); i {
 			case 0:
 				return &v.state
@@ -36360,7 +36475,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[364].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[366].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListJobsStatistics_TJobStateCounts_TJobStateCount); i {
 			case 0:
 				return &v.state
@@ -36372,7 +36487,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[365].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[367].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TListJobsStatistics_TJobTypeCounts_TJobTypeCount); i {
 			case 0:
 				return &v.state
@@ -36384,7 +36499,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[366].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[368].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TReqStartQuery_TQueryFile); i {
 			case 0:
 				return &v.state
@@ -36396,7 +36511,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[367].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[369].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TReqStartQuery_TAccessControlObjects); i {
 			case 0:
 				return &v.state
@@ -36408,7 +36523,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[368].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[370].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TReqStartQuery_TSecret); i {
 			case 0:
 				return &v.state
@@ -36420,7 +36535,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[369].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[371].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TReqReadQueryResult_TColumns); i {
 			case 0:
 				return &v.state
@@ -36432,7 +36547,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[370].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[372].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TReqAlterQuery_TAccessControlObjects); i {
 			case 0:
 				return &v.state
@@ -36444,7 +36559,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 				return nil
 			}
 		}
-		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[371].Exporter = func(v interface{}, i int) interface{} {
+		file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_msgTypes[373].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*TReqReadShuffleData_IndexRange); i {
 			case 0:
 				return &v.state
@@ -36511,7 +36626,7 @@ func file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_yt_yt_proto_yt_client_api_rpc_proxy_proto_api_service_proto_rawDesc,
 			NumEnums:      29,
-			NumMessages:   372,
+			NumMessages:   374,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
