@@ -885,6 +885,16 @@ void SetNodeTagFilter(
             assigningSlotCount,
             requiredDataCenterSlotCount);
 
+        if (!input.Config->EnableSpareNodeAssignment) {
+            YT_LOG_DEBUG("Spare node assignment/releasement is disabled (Bundle: %v, DataCenter: %v, ReleasingSlotCount: %v, AssigningSlotCount: %v)",
+                bundleName,
+                dataCenterName,
+                releasingSlotCount,
+                assigningSlotCount);
+
+            continue;
+        }
+
         if (releasingSlotCount > 0) {
             YT_LOG_DEBUG("Creating spare nodes releasements (BundleName: %v, DataCenter: %v, ReleasingSlotCount: %v)",
                 bundleName,
