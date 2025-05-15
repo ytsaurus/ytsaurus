@@ -137,8 +137,12 @@ private:
         }
     }
 
-    static void CommitSequoiaNodeCreation(TCypressNode* node)
+    void CommitSequoiaNodeCreation(TCypressNode* node)
     {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& handler = cypressManager->GetHandler(node);
+        handler->SetReachable(node);
+
         while (true) {
             VerifySequoiaNode(node);
 
@@ -216,7 +220,11 @@ private:
             /*key*/ NYPath::DirNameAndBaseName(request->path()).second,
             /*path*/ request->path());
 
-        trunkNode->RefObject();
+        // A branched trunk node is additionally referenced at the time of
+        // commit if it becomes reachable.
+        if (!cypressTransaction) {
+            Bootstrap_->GetObjectManager()->RefObject(trunkNode);
+        }
 
         nodeFactory->Commit();
     }
@@ -229,11 +237,9 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        auto* node = cypressManager->GetNode(TVersionedNodeId{nodeId, cypressTransactionId});
+        auto* node = Bootstrap_->GetCypressManager()->GetNode(TVersionedNodeId{nodeId, cypressTransactionId});
         CommitSequoiaNodeCreation(node);
     }
 
@@ -245,8 +251,10 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        if (auto* node = Bootstrap_->GetCypressManager()->FindNode(TVersionedNodeId(nodeId))) {
+        auto* node = Bootstrap_->GetCypressManager()->FindNode(TVersionedNodeId(nodeId));
+        if (node && !cypressTransactionId) {
             Bootstrap_->GetObjectManager()->UnrefObject(node);
         }
 
@@ -497,6 +505,8 @@ private:
             return;
         }
 
+        const auto& handler = cypressManager->GetHandler(trunkNode);
+
         // NB: lock is already checked in prepare. Nobody cannot lock this node
         // between prepare and commit of Sequoia tx due to:
         //   - exlusive lock in "node_id_to_path" Sequoia table;
@@ -504,7 +514,9 @@ private:
         if (cypressTransaction) {
             auto* branchedNode = cypressManager->LockNode(trunkNode, cypressTransaction, ELockMode::Exclusive);
             branchedNode->MutableSequoiaProperties()->Tombstone = true;
+            handler->SetUnreachable(branchedNode);
         } else {
+            handler->SetUnreachable(trunkNode);
             Bootstrap_->GetObjectManager()->UnrefObject(trunkNode);
         }
     }
@@ -659,10 +671,14 @@ private:
             NYPath::DirNameAndBaseName(request->dst_path()).second,
             request->dst_path());
 
-        clonedNode->GetTrunkNode()->RefObject();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        if (!cypressTransaction) {
+            objectManager->RefObject(clonedNode->GetTrunkNode());
+        }
+
         nodeFactory->Commit();
 
-        Bootstrap_->GetObjectManager()->WeakRefObject(sourceNode);
+        objectManager->WeakRefObject(sourceNode);
     }
 
     void HydraCommitCloneNode(
@@ -708,13 +724,18 @@ private:
 
         auto sourceNodeId = FromProto<TNodeId>(request->src_id());
         auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        if (auto* sourceNode = Bootstrap_->GetCypressManager()->FindNode(TVersionedNodeId(sourceNodeId))) {
-            Bootstrap_->GetObjectManager()->WeakUnrefObject(sourceNode);
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        if (auto* sourceNode = cypressManager->FindNode(TVersionedNodeId(sourceNodeId))) {
+            objectManager->WeakUnrefObject(sourceNode);
         }
 
-        if (auto* destinationNode = Bootstrap_->GetCypressManager()->FindNode(TVersionedNodeId(destinationNodeId))) {
-            Bootstrap_->GetObjectManager()->UnrefObject(destinationNode);
+        auto* destinationNode = cypressManager->FindNode(TVersionedNodeId(destinationNodeId));
+        if (destinationNode && !cypressTransactionId) {
+            objectManager->UnrefObject(destinationNode);
         }
     }
 
