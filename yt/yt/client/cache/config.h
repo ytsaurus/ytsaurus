@@ -36,8 +36,8 @@ struct TClientsCacheAuthentificationOptions final
     // Get options with `DefaultOptions` filled from env.
     static TClientsCacheAuthentificationOptionsPtr GetFromEnvStatic();
 
-    NAuth::TAuthenticationOptions DefaultOptions;
-    THashMap<TString, NAuth::TAuthenticationOptions> ClusterOptions;
+    NApi::TClientOptions DefaultOptions;
+    THashMap<TString, NApi::TClientOptions> ClusterOptions;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientsCacheAuthentificationOptions)

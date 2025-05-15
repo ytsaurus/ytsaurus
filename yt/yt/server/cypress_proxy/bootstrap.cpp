@@ -250,7 +250,7 @@ private:
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
         NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
-        NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
+        NativeRootClient_ = NativeConnection_->CreateNativeClient(NApi::TClientOptions::Root());
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
@@ -330,7 +330,7 @@ private:
                 BIND_NO_PROPAGATE([=, this] (const std::string& clusterName, const INodePtr& /*configNode*/) {
                     if (clusterName == *groundClusterName) {
                         auto groundConnection = NativeConnection_->GetClusterDirectory()->GetConnection(*groundClusterName);
-                        auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});
+                        auto groundClient = groundConnection->CreateNativeClient(NApi::TClientOptions::Root());
                         SequoiaClient_->SetGroundClient(std::move(groundClient));
                     }
                 }));

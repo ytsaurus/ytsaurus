@@ -1156,7 +1156,7 @@ void TBootstrap::DoStart()
             BIND_NO_PROPAGATE([=, this] (const std::string& clusterName, const INodePtr& /*configNode*/) {
                 if (clusterName == *groundClusterName) {
                     auto groundConnection = ClusterConnection_->GetClusterDirectory()->GetConnection(*groundClusterName);
-                    auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});
+                    auto groundClient = groundConnection->CreateNativeClient(TClientOptions::Root());
                     SequoiaClient_->SetGroundClient(std::move(groundClient));
                 }
             }));

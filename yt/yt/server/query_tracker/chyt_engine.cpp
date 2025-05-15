@@ -95,7 +95,7 @@ public:
         , Clique_(Settings_->Clique.value_or(config->DefaultClique))
         , Cluster_(Settings_->Cluster.value_or(config->DefaultCluster))
         , NativeConnection_(clusterDirectory->GetConnectionOrThrow(Cluster_))
-        , QueryClient_(NativeConnection_->CreateClient(TClientOptions{.User = activeQuery.User}))
+        , QueryClient_(NativeConnection_->CreateClient(TClientOptions::FromUser(activeQuery.User)))
         , ChannelFactory_(channelFactory)
     { }
 
