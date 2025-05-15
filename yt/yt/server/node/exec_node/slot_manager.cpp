@@ -1206,10 +1206,23 @@ void TSlotManager::AsyncInitialize()
     }
     YT_LOG_INFO("Locations initialization finished");
 
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    auto timeout = dynamicConfig->SlotReleaseTimeout;
+    auto slotSync = WaitFor(Bootstrap_->GetJobController()->GetAllJobsCleanupFinishedFuture()
+        .WithTimeout(timeout));
+
+    YT_LOG_FATAL_IF(!slotSync.IsOK(), slotSync, "Slot synchronization failed");
+
     // To this moment all old processed must have been killed, so we can safely clean up old volumes
     // during root volume manager initialization.
     JobEnvironmentType_ = StaticConfig_->JobEnvironment.GetCurrentType();
     if (JobEnvironmentType_ == NJobProxy::EJobEnvironmentType::Porto) {
+        if (auto oldVolumeManager = RootVolumeManager_.Acquire()) {
+            oldVolumeManager->MarkLayersAsNotRemovable();
+            oldVolumeManager->ClearCaches();
+            RootVolumeManager_.Reset();
+        }
+
         auto volumeManager = WaitFor(CreatePortoVolumeManager(
             Bootstrap_->GetConfig()->DataNode,
             Bootstrap_->GetDynamicConfigManager(),
@@ -1223,13 +1236,6 @@ void TSlotManager::AsyncInitialize()
 
         RootVolumeManager_.Store(volumeManager);
     }
-
-    auto dynamicConfig = DynamicConfig_.Acquire();
-    auto timeout = dynamicConfig->SlotReleaseTimeout;
-    auto slotSync = WaitFor(Bootstrap_->GetJobController()->GetAllJobsCleanupFinishedFuture()
-        .WithTimeout(timeout));
-
-    YT_LOG_FATAL_IF(!slotSync.IsOK(), slotSync, "Slot synchronization failed");
 
     NumaNodeStates_.clear();
 
