@@ -43,9 +43,9 @@ PEERDIR(
     yt/yt/library/containers/cri
     yt/yt/server/lib/exec_node
     yt/yt/server/lib/rpc_proxy
-    yt/yt/server/tools
     yt/yt/server/lib/shell
     yt/yt/server/lib/user_job
+    yt/yt/server/tools
     yt/yt/library/sparse_coredump
     yt/yt/library/query/row_comparer
     yt/yt/library/profiling/solomon

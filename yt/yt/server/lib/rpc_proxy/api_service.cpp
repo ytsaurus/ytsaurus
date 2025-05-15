@@ -8,12 +8,15 @@
 #include "private.h"
 #include "proxy_coordinator.h"
 #include "query_corpus_reporter.h"
-#include "security_manager.h"
+#include "private.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/misc/format_manager.h>
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
+
+#include <yt/yt/server/lib/security_server/user_access_validator.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
@@ -117,6 +120,7 @@ using namespace NRpc;
 using namespace NScheduler;
 using namespace NSecurityClient;
 using namespace NSignature;
+using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTracing;
@@ -614,7 +618,6 @@ public:
         NRpc::IAuthenticatorPtr authenticator,
         IProxyCoordinatorPtr proxyCoordinator,
         IAccessCheckerPtr accessChecker,
-        ISecurityManagerPtr securityManager,
         NTracing::TSamplerPtr traceSampler,
         NLogging::TLogger logger,
         TProfiler profiler,
@@ -636,7 +639,6 @@ public:
         , Connection_(std::move(connection))
         , ProxyCoordinator_(std::move(proxyCoordinator))
         , AccessChecker_(std::move(accessChecker))
-        , SecurityManager_(std::move(securityManager))
         , TraceSampler_(std::move(traceSampler))
         , StickyTransactionPool_(stickyTransactionPool
             ? stickyTransactionPool
@@ -645,13 +647,16 @@ public:
             config->ClientCache,
             Connection_))
         , ControlInvoker_(std::move(controlInvoker))
-        , HeapProfilerTestingOptions_(
-            config->TestingOptions
+        , HeapProfilerTestingOptions_(config->TestingOptions
             ? config->TestingOptions->HeapProfiler
             : nullptr)
         , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest))
         , SignatureValidator_(std::move(signatureValidator))
         , SignatureGenerator_(std::move(signatureGenerator))
+        , UserAccessValidator_(CreateUserAccessValidator(
+            ApiServiceConfig_->UserAccessValidator,
+            Connection_,
+            Logger))
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
@@ -879,7 +884,7 @@ public:
 
         AuthenticatedClientCache_->Reconfigure(config->ClientCache);
 
-        SecurityManager_->Reconfigure(config->SecurityManager);
+        UserAccessValidator_->Reconfigure(config->UserAccessValidator);
         MultiproxyAccessValidator_->Reconfigure(config->Multiproxy);
 
         Config_.Store(config);
@@ -898,7 +903,6 @@ private:
     const NApi::NNative::IConnectionPtr Connection_;
     const IProxyCoordinatorPtr ProxyCoordinator_;
     const IAccessCheckerPtr AccessChecker_;
-    const ISecurityManagerPtr SecurityManager_;
     const NTracing::TSamplerPtr TraceSampler_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
@@ -907,6 +911,7 @@ private:
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
     const ISignatureValidatorPtr SignatureValidator_;
     const ISignatureGeneratorPtr SignatureGenerator_;
+    const IUserAccessValidatorPtr UserAccessValidator_;
 
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
 
@@ -1092,7 +1097,7 @@ private:
 
         THROW_ERROR_EXCEPTION_IF_FAILED(AccessChecker_->CheckAccess(identity.User));
 
-        SecurityManager_->ValidateUser(identity.User);
+        UserAccessValidator_->ValidateUser(identity.User);
 
         ProxyCoordinator_->ValidateOperable();
 
@@ -7117,7 +7122,6 @@ IApiServicePtr CreateApiService(
     NRpc::IAuthenticatorPtr authenticator,
     IProxyCoordinatorPtr proxyCoordinator,
     IAccessCheckerPtr accessChecker,
-    ISecurityManagerPtr securityManager,
     NTracing::TSamplerPtr traceSampler,
     NLogging::TLogger logger,
     TProfiler profiler,
@@ -7136,7 +7140,6 @@ IApiServicePtr CreateApiService(
         std::move(authenticator),
         std::move(proxyCoordinator),
         std::move(accessChecker),
-        std::move(securityManager),
         std::move(traceSampler),
         std::move(logger),
         std::move(profiler),

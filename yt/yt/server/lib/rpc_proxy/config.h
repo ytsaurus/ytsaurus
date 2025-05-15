@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/server/lib/security_server/config.h>
+
 #include <yt/yt/client/formats/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -16,20 +18,6 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManagerDynamicConfig
-    : public virtual NYTree::TYsonStruct
-{
-public:
-    TAsyncExpiringCacheConfigPtr UserCache;
-
-    REGISTER_YSON_STRUCT(TSecurityManagerDynamicConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
 
 class TStructuredLoggingMethodDynamicConfig
     : public virtual NYTree::TYsonStruct
@@ -114,9 +102,7 @@ class TApiServiceConfig
 public:
     TSlruCacheConfigPtr ClientCache;
 
-    TSecurityManagerDynamicConfigPtr SecurityManager;
-
-    static constexpr int DefaultClientCacheCapacity = 1000;
+    NSecurityServer::TUserAccessValidatorDynamicConfigPtr UserAccessValidator;
 
     TApiTestingOptionsPtr TestingOptions;
 
@@ -209,7 +195,7 @@ public:
     i64 ReadBufferRowCount;
     i64 ReadBufferDataWeight;
 
-    TSecurityManagerDynamicConfigPtr SecurityManager;
+    NSecurityServer::TUserAccessValidatorDynamicConfigPtr UserAccessValidator;
 
     TStructuredLoggingTopicDynamicConfigPtr StructuredLoggingMainTopic;
     TStructuredLoggingTopicDynamicConfigPtr StructuredLoggingErrorTopic;
