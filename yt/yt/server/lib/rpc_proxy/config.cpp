@@ -99,6 +99,28 @@ void TApiServiceConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMultiproxyPresetDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled_methods", &TThis::EnabledMethods)
+        .Default();
+
+    registrar.Parameter("method_overrides", &TThis::MethodOverrides)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMultiproxyDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("presets", &TThis::Presets)
+        .Default();
+
+    registrar.Parameter("cluster_presets", &TThis::ClusterPresets)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TApiServiceDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("client_cache", &TThis::ClientCache)
@@ -141,6 +163,8 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
         .Default(false);
+    registrar.Parameter("multiproxy", &TThis::Multiproxy)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

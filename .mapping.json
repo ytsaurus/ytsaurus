@@ -3462,6 +3462,7 @@
   "yt/yt/server/lib/rpc_proxy/CMakeLists.darwin-x86_64.txt":"",
   "yt/yt/server/lib/rpc_proxy/CMakeLists.linux-x86_64.txt":"",
   "yt/yt/server/lib/rpc_proxy/CMakeLists.txt":"",
+  "yt/yt/server/lib/rpc_proxy/unittests/CMakeLists.txt":"",
   "yt/yt/server/lib/scheduler/CMakeLists.darwin-arm64.txt":"",
   "yt/yt/server/lib/scheduler/CMakeLists.darwin-x86_64.txt":"",
   "yt/yt/server/lib/scheduler/CMakeLists.linux-x86_64.txt":"",

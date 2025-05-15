@@ -7,6 +7,7 @@ SRCS(
     api_service.cpp
     config.cpp
     format_row_stream.cpp
+    multiproxy_access_validator.cpp
     profilers.cpp
     helpers.cpp
     proxy_coordinator.cpp
@@ -34,3 +35,7 @@ PEERDIR(
 )
 
 END()
+
+RECURSE_FOR_TESTS(
+    unittests
+)

@@ -131,6 +131,72 @@ DEFINE_REFCOUNTED_TYPE(TApiServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// What kinds of requests we can send to specific cluster.
+DEFINE_ENUM(EMultiproxyEnabledMethods,
+    // Cannot send any request, all methods are disabled.
+    ((DisableAll)         (0))
+    // Can send requests that are explicitly enabled in configuration (EMultiproxyMethodKind::ExplicitlyEnabled).
+    ((ExplicitlyEnabled)  (1))
+    // Can send only read requests.
+    ((Read)               (2))
+    // Can send read and write requests.
+    ((ReadAndWrite)              (3))
+);
+
+DEFINE_ENUM(EMultiproxyMethodKind,
+    ((ExplicitlyEnabled) (1))
+    ((Read)              (2))
+    ((Write)             (3))
+    ((ExplicitlyDisabled)(4))
+);
+
+// Preset configuration which defines what requests can be redirected to particular cluster.
+struct TMultiproxyPresetDynamicConfig
+    : public virtual NYTree::TYsonStruct
+{
+    // What kind of requests might be send to cluster.
+    EMultiproxyEnabledMethods EnabledMethods;
+
+    // Mapping <method-name> -> <method-kind>
+    // This mapping overrides default method markup hardcoded into RPC proxy and
+    // allows to enable or disable particular method redirection in multiproxy mode.
+    //
+    // NB. Method names are in CamelCase (e.g. "WriteTable").
+    // One can usually use "explicitly_enabled" or "explicitly_disabled" as value.
+    THashMap<std::string, EMultiproxyMethodKind> MethodOverrides;
+
+    REGISTER_YSON_STRUCT(TMultiproxyPresetDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiproxyPresetDynamicConfig)
+
+// Configuration for multiproxy mode.
+struct TMultiproxyDynamicConfig
+    : public virtual NYTree::TYsonStruct
+{
+    // Mapping <preset-name> -> <preset-configuration>
+    // Preset defines which requests can be redirected to particular cluster.
+    // One preset can be used for multiple clusters.
+    THashMap<std::string, TMultiproxyPresetDynamicConfigPtr> Presets;
+
+    // Mapping <cluster-name> -> <preset-name>
+    // Mapping defines which preset should be used for particular cluster.
+    // If client tries to redirect request to cluster that is missing in current map,
+    // preset with name "default" is used. If this preset is missing proxy uses empty preset configuration
+    // that disallows any request redirection.
+    THashMap<std::string, std::string> ClusterPresets;
+
+    REGISTER_YSON_STRUCT(TMultiproxyDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMultiproxyDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TApiServiceDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -157,6 +223,8 @@ public:
     TQueryCorpusReporterConfigPtr QueryCorpusReporter;
 
     THashMap<NFormats::EFormatType, NServer::TFormatConfigPtr> Formats;
+
+    TMultiproxyDynamicConfigPtr Multiproxy;
 
     bool EnableAllocationTags;
 
