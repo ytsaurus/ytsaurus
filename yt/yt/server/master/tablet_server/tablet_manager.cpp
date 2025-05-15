@@ -2016,7 +2016,7 @@ public:
         ValidateResourceUsageIncrease(
             trunkSourceNode,
             TTabletResources().SetTabletCount(
-                trunkSourceNode->GetTabletResourceUsage().TabletCount),
+                trunkSourceNode->GetTabletResourceUsage().GetTabletCount()),
             account);
     }
 
@@ -3909,7 +3909,8 @@ private:
             }
 
             tablet->SetInMemoryMode(table->GetInMemoryMode());
-            resourceUsageDelta.TabletStaticMemory += tablet->GetTabletStaticMemorySize();
+            resourceUsageDelta.SetTabletStaticMemory(
+                resourceUsageDelta.GetTabletStaticMemory() + tablet->GetTabletStaticMemorySize());
 
             cell->GossipStatistics().Local() += tablet->GetTabletStatistics();
             table->AccountTabletStatistics(tablet->GetTabletStatistics());
@@ -5110,8 +5111,8 @@ private:
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
-            DefaultTabletCellBundle_->ResourceLimits().TabletCount = 100'000;
-            DefaultTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
+            DefaultTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
+            DefaultTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
         }
 
         // sequoia
@@ -5120,8 +5121,8 @@ private:
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
-            SequoiaTabletCellBundle_->ResourceLimits().TabletCount = 100'000;
-            SequoiaTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
+            SequoiaTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
+            SequoiaTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
 
             auto options = SequoiaTabletCellBundle_->GetOptions();
             options->ChangelogAccount = NSecurityClient::SequoiaAccountName;

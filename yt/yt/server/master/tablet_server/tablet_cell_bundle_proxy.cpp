@@ -142,8 +142,8 @@ private:
 
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("tablet_count").Value(usage.TabletCount > limits.TabletCount)
-                        .Item("tablet_static_memory").Value(usage.TabletStaticMemory > limits.TabletStaticMemory)
+                        .Item("tablet_count").Value(usage.GetTabletCount() > limits.GetTabletCount())
+                        .Item("tablet_static_memory").Value(usage.GetTabletStaticMemory() > limits.GetTabletStaticMemory())
                     .EndMap();
 
                 return true;
