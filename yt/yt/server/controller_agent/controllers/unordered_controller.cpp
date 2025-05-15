@@ -210,7 +210,7 @@ public:
             YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
-            if (joblet->CookieGroupInfo.OutputCookieGroupIndex) {
+            if (joblet->CookieGroupInfo.OutputIndex) {
                 jobSpec->MutableExtension(TJobSpecExt::job_spec_ext)->clear_extensions();
             } else {
                 AddSequentialInputSpec(jobSpec, joblet);

@@ -508,7 +508,7 @@ private:
     {
         std::optional<EJobCompetitionType> CompetitionType;
         NChunkPools::IChunkPoolOutput::TCookie OutputCookie{};
-        int OutputCookieGroupIndex = 0;
+        int OutputIndex = 0;
     };
 
     std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TryScheduleJob(
