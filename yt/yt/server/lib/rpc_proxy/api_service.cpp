@@ -798,6 +798,7 @@ public:
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTablePivotKeys));
 
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetCurrentUser));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AddMember));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveMember));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckPermission));
@@ -5444,6 +5445,23 @@ private:
     ////////////////////////////////////////////////////////////////////////////////
     // SECURITY
     ////////////////////////////////////////////////////////////////////////////////
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetCurrentUser)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        context->SuppressMissingRequestInfoCheck();
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetCurrentUser();
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_user(result->User);
+            });
+    }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AddMember)
     {
