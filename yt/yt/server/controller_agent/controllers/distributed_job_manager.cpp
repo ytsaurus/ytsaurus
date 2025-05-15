@@ -1,8 +1,10 @@
-#include "multi_job_manager.h"
+#include "distributed_job_manager.h"
+
 #include "job_info.h"
 #include "task.h"
 
 #include <yt/yt/server/controller_agent/controllers/task_host.h>
+
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
@@ -17,7 +19,7 @@ using namespace NChunkPools;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMultiJobManager::TMultiJobManager(
+TDistributedJobManager::TDistributedJobManager(
     TTask* task,
     NLogging::TLogger logger)
     : JobCounter_(New<TProgressCounter>())
@@ -25,22 +27,22 @@ TMultiJobManager::TMultiJobManager(
     , Logger(std::move(logger))
 { }
 
-i64 TMultiJobManager::GetPendingCandidatesDataWeight() const
+i64 TDistributedJobManager::GetPendingCandidatesDataWeight() const
 {
     return 0;
 }
 
-int TMultiJobManager::GetPendingJobCount() const
+int TDistributedJobManager::GetPendingJobCount() const
 {
     return JobCounter_->GetPending();
 }
 
-int TMultiJobManager::GetTotalJobCount() const
+int TDistributedJobManager::GetTotalJobCount() const
 {
     return JobCounter_->GetTotal();
 }
 
-std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> TMultiJobManager::PeekJobCandidate() const
+std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> TDistributedJobManager::PeekJobCandidate() const
 {
     YT_VERIFY(!PendingCookies_.empty());
     auto cookie = *PendingCookies_.begin();
@@ -48,27 +50,26 @@ std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> TMultiJobManager::PeekJob
     return {cookie, replicas.Secondaries.size() - replicas.Pending + 1};
 }
 
-bool TMultiJobManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason reason)
+bool TDistributedJobManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason reason)
 {
     return OnUnsuccessfulJobFinish(joblet, reason);
 }
 
-bool TMultiJobManager::OnJobFailed(const TJobletPtr& joblet)
+bool TDistributedJobManager::OnJobFailed(const TJobletPtr& joblet)
 {
     return OnUnsuccessfulJobFinish(joblet, EAbortReason::CookieGroupDisbanded);
 }
 
-void TMultiJobManager::OnJobLost(IChunkPoolOutput::TCookie)
+void TDistributedJobManager::OnJobLost(IChunkPoolOutput::TCookie)
 { }
 
-void TMultiJobManager::OnJobScheduled(const TJobletPtr& joblet)
+void TDistributedJobManager::OnJobScheduled(const TJobletPtr& joblet)
 {
     if (!IsRelevant()) {
         return;
     }
-    if (joblet->MultiJob.OutputCookieGroupIndex == 0) {
-        auto [it, inserted] = CookieToReplicas_.try_emplace(joblet->OutputCookie);
-        YT_VERIFY(inserted);
+    if (joblet->CookieGroupInfo.OutputCookieGroupIndex == 0) {
+        auto it = TryEmplaceOrCrash(CookieToReplicas_, joblet->OutputCookie);
         auto& replicas = it->second;
         for (int i = 1; i < GetCookieGroupSize(); i++) {
             auto guard = TProgressCounterGuard(JobCounter_);
@@ -81,10 +82,10 @@ void TMultiJobManager::OnJobScheduled(const TJobletPtr& joblet)
         InsertOrCrash(PendingCookies_, joblet->OutputCookie);
     } else {
         auto& replicas = GetOrCrash(CookieToReplicas_, joblet->OutputCookie);
-        auto& secondary = replicas.Secondaries[joblet->MultiJob.OutputCookieGroupIndex - 1];
+        auto& secondary = replicas.Secondaries[joblet->CookieGroupInfo.OutputCookieGroupIndex - 1];
         secondary.JobId = joblet->JobId;
         secondary.ProgressCounterGuard.SetCategory(EProgressCategory::Running);
-        joblet->MultiJob.MainJobId = replicas.MainJobId;
+        joblet->CookieGroupInfo.MainJobId = replicas.MainJobId;
         --replicas.Pending;
         if (!replicas.Pending) {
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
@@ -92,54 +93,52 @@ void TMultiJobManager::OnJobScheduled(const TJobletPtr& joblet)
     }
 }
 
-bool TMultiJobManager::OnJobCompleted(const TJobletPtr& joblet)
+bool TDistributedJobManager::OnJobCompleted(const TJobletPtr& joblet)
 {
     if (!IsRelevant()) {
         return true;
     }
 
-    auto replicasIt = CookieToReplicas_.find(joblet->OutputCookie);
-    if (replicasIt != CookieToReplicas_.end()) {
-        auto& replicas = replicasIt->second;
-        if (joblet->MultiJob.OutputCookieGroupIndex != 0) {
-            replicas.Secondaries[joblet->MultiJob.OutputCookieGroupIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
-        }
-        --replicas.NotCompletedCount;
-        YT_VERIFY(replicas.NotCompletedCount >= 0);
-        if (!replicas.NotCompletedCount) {
-            CookieToReplicas_.erase(replicasIt);
-            return true;
-        }
+    auto replicasIt = GetIteratorOrCrash(CookieToReplicas_, joblet->OutputCookie);
+    auto& replicas = replicasIt->second;
+    if (joblet->CookieGroupInfo.OutputCookieGroupIndex != 0) {
+        replicas.Secondaries[joblet->CookieGroupInfo.OutputCookieGroupIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
+    }
+    --replicas.NotCompletedCount;
+    YT_VERIFY(replicas.NotCompletedCount >= 0);
+    if (!replicas.NotCompletedCount) {
+        CookieToReplicas_.erase(replicasIt);
+        return true;
     }
     return false;
 }
 
-std::optional<EAbortReason> TMultiJobManager::ShouldAbortCompletingJob(const TJobletPtr&)
+std::optional<EAbortReason> TDistributedJobManager::ShouldAbortCompletingJob(const TJobletPtr&)
 {
     return std::nullopt;
 }
 
-bool TMultiJobManager::IsFinished() const
+bool TDistributedJobManager::IsFinished() const
 {
     return CookieToReplicas_.empty() && PendingCookies_.empty();
 }
 
-TProgressCounterPtr TMultiJobManager::GetProgressCounter() const
+TProgressCounterPtr TDistributedJobManager::GetProgressCounter() const
 {
     return JobCounter_;
 }
 
-int TMultiJobManager::GetCookieGroupSize() const {
+int TDistributedJobManager::GetCookieGroupSize() const {
     auto userJobSpec = Task_->GetUserJobSpec();
     return userJobSpec ? userJobSpec->CookieGroupSize : 1;
 }
 
-bool TMultiJobManager::IsRelevant() const
+bool TDistributedJobManager::IsRelevant() const
 {
     return GetCookieGroupSize() > 1;
 }
 
-void TMultiJobManager::RegisterMetadata(auto&& registrar)
+void TDistributedJobManager::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, CookieToReplicas_);
     PHOENIX_REGISTER_FIELD(2, PendingCookies_);
@@ -148,9 +147,9 @@ void TMultiJobManager::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(5, Logger);
 }
 
-PHOENIX_DEFINE_TYPE(TMultiJobManager);
+PHOENIX_DEFINE_TYPE(TDistributedJobManager);
 
-bool TMultiJobManager::OnUnsuccessfulJobFinish(
+bool TDistributedJobManager::OnUnsuccessfulJobFinish(
     const TJobletPtr& joblet,
     EAbortReason abortReason)
 {
@@ -172,15 +171,15 @@ bool TMultiJobManager::OnUnsuccessfulJobFinish(
     return false;
 }
 
-void TMultiJobManager::TSecondary::RegisterMetadata(auto&& registrar)
+void TDistributedJobManager::TSecondary::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, JobId);
     PHOENIX_REGISTER_FIELD(2, ProgressCounterGuard);
 }
 
-PHOENIX_DEFINE_TYPE(TMultiJobManager::TSecondary);
+PHOENIX_DEFINE_TYPE(TDistributedJobManager::TSecondary);
 
-void TMultiJobManager::TReplicas::RegisterMetadata(auto&& registrar)
+void TDistributedJobManager::TReplicas::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, MainJobId);
     PHOENIX_REGISTER_FIELD(2, Secondaries);
@@ -188,7 +187,7 @@ void TMultiJobManager::TReplicas::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(4, NotCompletedCount);
 }
 
-PHOENIX_DEFINE_TYPE(TMultiJobManager::TReplicas);
+PHOENIX_DEFINE_TYPE(TDistributedJobManager::TReplicas);
 
 ////////////////////////////////////////////////////////////////////////////////
 
