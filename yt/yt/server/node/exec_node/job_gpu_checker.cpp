@@ -76,7 +76,8 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         YT_LOG_INFO("GPU check command successfully verified");
     }
 
-    {
+    // Setup actions should be performed only once (in preliminary GPU check).
+    if (Context_.Type == EGpuCheckType::Preliminary && !Context_.Options.SetupCommands.empty()) {
         YT_LOG_INFO("Run GPU check setup commands");
 
         auto resultOrError = WaitFor(
