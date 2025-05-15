@@ -3,6 +3,7 @@ RECURSE(
     test_cypress_election
     test_data_node_rpc
     test_hydra
+    test_multiproxy
     test_native_api
     test_rpc_api
     test_sequoia
