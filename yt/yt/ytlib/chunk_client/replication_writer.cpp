@@ -1136,6 +1136,8 @@ private:
         cancelFutures.reserve(nodes.size());
         for (const auto& channel : nodes) {
             TDataNodeServiceProxy proxy(channel);
+            // TODO(nadya02): Set the correct timeout here.
+            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
             auto req = proxy.CancelChunk();
             req->set_wait_for_cancelation(wait);
             ToProto(req->mutable_session_id(), SessionId_);

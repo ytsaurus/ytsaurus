@@ -586,6 +586,8 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
             multicellManager->GetMasterChannelOrThrow(ForwardedCellTag_, peerKind));
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
         auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
         batchReq->SetOriginalRequestId(context->GetRequestId());
@@ -1945,6 +1947,8 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
         multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
+    // TODO(nadya02): Set the correct timeout here.
+    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
     auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
     batchReq->SetOriginalRequestId(requestId);
     batchReq->SetTimeout(timeout);

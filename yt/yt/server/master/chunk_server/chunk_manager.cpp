@@ -6425,6 +6425,8 @@ private:
         responseFutures.reserve(channels.size());
         for (const auto& channel : channels) {
             auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
+            // TODO(nadya02): Set the correct timeout here.
+            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
             auto req = TYPathProxy::Get("//sys/local_lost_vital_chunks/@count");
             responseFutures.push_back(proxy.Execute(req));
         }

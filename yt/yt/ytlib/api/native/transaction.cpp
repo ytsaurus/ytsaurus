@@ -940,6 +940,8 @@ private:
 
             auto cellChannel = transaction->Client_->GetCellChannelOrThrow(RandomHunkTabletInfo_->CellId);
             TTabletServiceProxy proxy(cellChannel);
+            // TODO(nadya02): Set the correct timeout here.
+            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
             auto req = proxy.WriteHunks();
             ToProto(req->mutable_tablet_id(), RandomHunkTabletInfo_->TabletId);
             req->set_mount_revision(ToProto(RandomHunkTabletInfo_->MountRevision));
