@@ -267,6 +267,7 @@ public:
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnDynamicStoreAllocated, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetCustomRuntimeData, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnregisterMasterAvenueEndpoint, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraAdvanceReplicationEra, Unretained(this)));
     }
 
     void Initialize() override
@@ -3408,6 +3409,30 @@ private:
             "Replication progress advance aborted (TabletId: %v, TransactionId: %v)",
             tabletId,
             transaction->GetId());
+    }
+
+    void HydraAdvanceReplicationEra(
+        TReqAdvanceReplicationEra* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        ui64 newReplicationEra = request->new_replication_era();
+
+        auto* tablet = GetTabletOrThrow(tabletId);
+        if (ui64 era = tablet->RuntimeData()->ReplicationEra.load();
+            era == InvalidReplicationEra || era < newReplicationEra)
+        {
+            tablet->RuntimeData()->ReplicationEra.store(newReplicationEra);
+
+            YT_LOG_DEBUG("Replication era advanced (TabletId: %v, NewReplicationEra: %v, OldReplicationEra: %v)",
+                tabletId,
+                newReplicationEra,
+                era);
+        } else {
+            YT_LOG_ALERT("Trying to advance to older era (TabletId: %v, CurrentReplicationEra: %v, NewReplicationEra: %v)",
+                tabletId,
+                era,
+                newReplicationEra);
+        }
     }
 
     void HydraPrepareReplicateRows(

@@ -904,6 +904,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, DynamicStoreIdRequested_);
     Save(context, ReservedDynamicStoreIdCount_);
     Save(context, SchemaId_);
+    Save(context, RuntimeData_->ReplicationEra.load());
     TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Acquire());
     Save(context, ChaosData_->ReplicationRound);
     Save(context, ChaosData_->CurrentReplicationRowIndexes.Load());
@@ -1059,6 +1060,11 @@ void TTablet::Load(TLoadContext& context)
     }
 
     Load(context, SchemaId_);
+
+    // COMPAT(osidorkin)
+    if (context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent_25_1) {
+        RuntimeData_->ReplicationEra.store(Load<TReplicationEra>(context));
+    }
 
     TRefCountedReplicationProgressPtr replicationProgress;
     TNullableIntrusivePtrSerializer<>::Load(context, replicationProgress);

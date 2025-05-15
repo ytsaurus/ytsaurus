@@ -346,6 +346,21 @@ private:
                 THROW_ERROR_EXCEPTION("No replication card");
             }
 
+            ui64 snapshotEra = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+            if (snapshotEra == InvalidReplicationEra) {
+                YT_LOG_DEBUG("Will not pull rows since replication era is not known yet");
+                return;
+            }
+
+            if (replicationCard->Era < snapshotEra) {
+                // This can happen right after snapshot loading when old replication card is fetched from cache.
+                YT_LOG_DEBUG("Will not pull rows since replication card is outdated "
+                    "(ReplicationCardEra: %v, TabletSnapshotReplicationEra: %v)",
+                    replicationCard->Era,
+                    snapshotEra);
+                return;
+            }
+
             auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
             if (!selfReplica) {
                 THROW_ERROR_EXCEPTION("Table unable to identify self replica in replication card")
@@ -413,6 +428,13 @@ private:
 
                 // writeMode might change during reconfiguration so load it again.
                 writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();
+            }
+
+            if (snapshotEra != tabletSnapshot->TabletRuntimeData->ReplicationEra.load()) {
+                YT_LOG_DEBUG("Skipping pull rows iteration since snapshot era has changed (SnapshotEra: %v, ReplicationEra: %v)",
+                    snapshotEra,
+                    tabletSnapshot->TabletRuntimeData->ReplicationEra.load());
+                return;
             }
 
             if (writeMode != ETabletWriteMode::Pull) {
