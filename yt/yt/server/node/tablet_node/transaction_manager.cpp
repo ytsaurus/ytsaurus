@@ -309,6 +309,9 @@ public:
             ExternalizedTransactionMap_.Insert(
                 {transactionId, externalizationToken},
                 std::move(externalizedTransactionHolder));
+            EmplaceOrCrash(
+                TokenToExternalizedTransactions_[externalizationToken],
+                transaction);
         } else {
             auto& map = transient ? TransientTransactionMap_ : PersistentTransactionMap_;
             map.Insert(transactionId, std::move(transactionHolder));
@@ -327,6 +330,21 @@ public:
             transient);
 
         return transaction;
+    }
+
+    void RemoveExternalizedTransaction(TTransaction* transaction)
+    {
+        auto token = transaction->GetExternalizationToken();
+
+        auto it = TokenToExternalizedTransactions_.find(token);
+        YT_VERIFY(it != TokenToExternalizedTransactions_.end());
+        EraseOrCrash(it->second, transaction);
+
+        if (it->second.empty()) {
+            TokenToExternalizedTransactions_.erase(it);
+        }
+
+        ExternalizedTransactionMap_.Remove({transaction->GetId(), token});
     }
 
     TTransaction* MakeTransactionPersistentOrThrow(TTransactionId transactionId) override
@@ -363,6 +381,32 @@ public:
             transactions.push_back(transaction);
         }
         return transactions;
+    }
+
+    void AbortTransactionsExternalizedToThisCell(
+        TTransactionExternalizationToken token) override
+    {
+        auto it = TokenToExternalizedTransactions_.find(token);
+        if (it == TokenToExternalizedTransactions_.end()) {
+            return;
+        }
+
+        // Make a copy since the set is modified when transactions are aborted.
+        auto transactions = it->second;
+
+        TTransactionAbortOptions options{
+            .Force = true,
+        };
+
+        for (auto* transaction : transactions) {
+            YT_LOG_DEBUG("Aborting externalized transaction as externalization token is abandoned "
+                "(TransactionId: %v)",
+                FormatTransactionId(transaction->GetId(), token));
+
+            YT_VERIFY(transaction->GetExternalizationToken() == token);
+
+            AbortTransaction(transaction->GetId(), token, options);
+        }
     }
 
     TFuture<void> RegisterTransactionActions(
@@ -644,7 +688,7 @@ public:
             transaction->SetFinished();
 
             if (externalizationToken) {
-                ExternalizedTransactionMap_.Remove({transactionId, externalizationToken});
+                RemoveExternalizedTransaction(transaction);
             } else {
                 PersistentTransactionMap_.Remove(transactionId);
             }
@@ -718,7 +762,7 @@ public:
             options);
 
         if (externalizationToken) {
-            ExternalizedTransactionMap_.Remove({transactionId, externalizationToken});
+            RemoveExternalizedTransaction(transaction);
         } else if (transaction->GetTransient()) {
             TransientTransactionMap_.Remove(transactionId);
         } else {
@@ -837,6 +881,7 @@ private:
     TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;
     TEntityMap<TExternalizedTransaction> ExternalizedTransactionMap_;
+    THashMap<TTransactionExternalizationToken, THashSet<TTransaction*>> TokenToExternalizedTransactions_;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
     NConcurrency::TPeriodicExecutorPtr BarrierCheckExecutor_;
@@ -1003,6 +1048,12 @@ private:
             MakeHeap(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
             UpdateMinCommitTimestamp(heap);
         }
+
+        for (auto [transactionId, transaction] : ExternalizedTransactionMap_) {
+            EmplaceOrCrash(
+                TokenToExternalizedTransactions_[transaction->GetExternalizationToken()],
+                transaction);
+        }
     }
 
     void OnLeaderActive() override
@@ -1140,6 +1191,7 @@ private:
         TransientTransactionMap_.Clear();
         PersistentTransactionMap_.Clear();
         ExternalizedTransactionMap_.Clear();
+        TokenToExternalizedTransactions_.clear();
         SerializingTransactionHeaps_.clear();
         PreparedTransactions_.clear();
         LastSerializedCommitTimestamps_.clear();
