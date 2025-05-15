@@ -88,6 +88,8 @@
 
 #include <yt/yt/client/sequoia_client/public.h>
 
+#include <yt/yt/client/signature/generator.h>
+
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -132,6 +134,7 @@ using namespace NQueryTrackerClient;
 using namespace NQueueClient;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NSignature;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
@@ -200,6 +203,8 @@ public:
         , DownedCellTracker_(New<TDownedCellTracker>(Config_.Acquire()->DownedCellTracker))
         , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
+        // NB(pavook): we can't hurt anybody by generating fake signatures.
+        , SignatureGenerator_(GetDummySignatureGenerator())
     { }
 
     void Initialize()
@@ -1010,6 +1015,8 @@ private:
 
     std::string ShuffleServiceAddress_;
 
+    ISignatureGeneratorPtr SignatureGenerator_;
+
     void ConfigureMasterCells()
     {
         CellDirectory_->ReconfigureCell(StaticConfig_->PrimaryMaster);
@@ -1294,6 +1301,16 @@ private:
     IChannelPtr CreateChannelByAddress(const std::string& address) override
     {
         return ChannelFactory_->CreateChannel(address);
+    }
+
+    ISignatureGeneratorPtr GetSignatureGenerator() const override
+    {
+        return SignatureGenerator_;
+    }
+
+    void SetSignatureGenerator(ISignatureGeneratorPtr signatureGenerator) override
+    {
+        SignatureGenerator_ = std::move(signatureGenerator);
     }
 };
 

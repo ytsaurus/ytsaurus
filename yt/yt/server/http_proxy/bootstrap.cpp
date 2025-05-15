@@ -277,10 +277,10 @@ void TBootstrap::DoInitialize()
             GetControlInvoker(),
             std::move(cypressKeyWriter),
             signatureGenerator);
-        SignatureGenerator_ = std::move(signatureGenerator);
+        Connection_->SetSignatureGenerator(std::move(signatureGenerator));
     } else {
         // NB(pavook): we cannot do any meaningful signature operations safely.
-        SignatureGenerator_ = CreateAlwaysThrowingSignatureGenerator();
+        Connection_->SetSignatureGenerator(CreateAlwaysThrowingSignatureGenerator());
     }
 
     auto driverV3Config = CloneYsonStruct(Config_->Driver);
@@ -288,7 +288,6 @@ void TBootstrap::DoInitialize()
     DriverV3_ = CreateDriver(
         Connection_,
         driverV3Config,
-        SignatureGenerator_,
         SignatureValidator_);
 
     auto driverV4Config = CloneYsonStruct(Config_->Driver);
@@ -296,7 +295,6 @@ void TBootstrap::DoInitialize()
     DriverV4_ = CreateDriver(
         Connection_,
         driverV4Config,
-        SignatureGenerator_,
         SignatureValidator_);
 
     AuthenticationManager_ = CreateAuthenticationManager(
