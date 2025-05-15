@@ -1105,7 +1105,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     return result;
 }
 
-void TQueryAnalyzer::LazyProcessQueryTree() {
+void TQueryAnalyzer::LazyProcessQueryTree()
+{
     if (GlobalJoin_) {
         QueryInfo_.query_tree = DB::buildQueryTreeForShard(QueryInfo_.planner_context, QueryInfo_.query_tree);
         QueryInfo_.query = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
@@ -1359,8 +1360,8 @@ void TQueryAnalyzer::AddBoundConditionToJoinedSubquery(
         upperBound,
         *boundConditions);
 
-    YT_VERIFY(TableExpressions_.size() == 2 && TableExpressions_[1]);
-    YT_VERIFY(TableExpressionPtrs_.size() == 2 && TableExpressionPtrs_[1]);
+    YT_VERIFY(TableExpressions_.size() >= 2 && TableExpressions_[1]);
+    YT_VERIFY(TableExpressionPtrs_.size() >= 2 && TableExpressionPtrs_[1]);
 
     // Adding where condition into existing table expression is difficult or impossible because of:
     // 1. Table expression is a table function (e.g. numberes(10)) or not-yt table identifier (e.g. system.clique).
