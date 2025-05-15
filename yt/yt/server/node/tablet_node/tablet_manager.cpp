@@ -573,6 +573,8 @@ public:
         NHiveServer::TAvenueEndpointId siblingEndpointId) override
     {
         Slot_->UnregisterSiblingTabletAvenue(siblingEndpointId);
+        Slot_->GetTransactionManager()->AbortTransactionsExternalizedToThisCell(
+            GetSiblingAvenueEndpointId(siblingEndpointId));
     }
 
     void RegisterMasterAvenue(
