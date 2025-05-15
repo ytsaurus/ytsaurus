@@ -927,14 +927,26 @@ class TestHttpProxyAuth(HttpProxyTestBase):
         }
         super(TestHttpProxyAuth, cls).setup_class()
 
+    def create_user_with_token(self, user):
+        create_user(user)
+        token, _ = issue_token(user)
+        return token
+
+    @authors("ermolovd")
+    def test_get_current_user(self):
+        token = self.create_user_with_token("test_get_current_user")
+
+        url = f"{self._get_proxy_address()}/api/v4/get_current_user"
+        headers = {
+            "Authorization": f"OAuth {token}",
+        }
+        rsp = requests.get(url, headers=headers)
+        assert rsp.status_code == 200, f"Proxy returned {rsp.status_code} response: {rsp.content}"
+        assert rsp.json()["user"] == "test_get_current_user"
+
     @authors("mpereskokova")
     def test_access_on_behalf_of_the_user(self):
         proxy_address = self._get_proxy_address()
-
-        def create_user_with_token(user):
-            create_user(user)
-            token, _ = issue_token(user)
-            return token
 
         def check_access(proxy_address, path="/", status_code=200, error_code=None, user=None, token=None):
             url = "{}/api/v4/get?path={}".format(proxy_address, path)
@@ -951,8 +963,8 @@ class TestHttpProxyAuth(HttpProxyTestBase):
             assert rsp.status_code in [200, 400, 401]
             return rsp.status_code == status_code
 
-        yql_agent_token = create_user_with_token("yql_agent")
-        test_user_token = create_user_with_token("test_user")
+        yql_agent_token = self.create_user_with_token("yql_agent")
+        test_user_token = self.create_user_with_token("test_user")
 
         wait(lambda: check_access(proxy_address, status_code=200, token=yql_agent_token))
         wait(lambda: check_access(proxy_address, status_code=200, token=yql_agent_token, user="test_user"))
