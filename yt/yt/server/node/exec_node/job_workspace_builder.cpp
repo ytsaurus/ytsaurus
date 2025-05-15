@@ -620,11 +620,8 @@ private:
                     // COMPAT(ignat)
                     : MakeWritableRootFS(),
                 .CommandUser = Context_.CommandUser,
-
                 .Type = EGpuCheckType::Preliminary,
-
                 .Options = options,
-
                 .CurrentStartIndex = ResultHolder_.SetupCommandCount,
                 // It is preliminary (not extra) GPU check.
                 .TestExtraGpuCheckCommandFailure = false,
