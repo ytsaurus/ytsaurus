@@ -1432,7 +1432,7 @@ private:
             keyCount += dataSplit.Keys.size();
         }
 
-        YT_LOG_DEBUG("Generating reader (SplitCount: %v, PartitionBounds: %v, SortedRanges: %v, OrderedRanges: %v, Keys: %v",
+        YT_LOG_DEBUG("Generating reader (SplitCount: %v, PartitionBounds: %v, SortedRanges: %v, OrderedRanges: %v, Keys: %v)",
             dataSplits.size(),
             partitionBounds,
             sortedRangeCount,
