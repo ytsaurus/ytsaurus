@@ -4,6 +4,8 @@
 
 #include "block_device.h"
 
+#include <yt/yt/ytlib/chunk_client/session_id.h>
+
 #include <yt/yt/core/actions/future.h>
 
 #include <library/cpp/yt/memory/ref.h>
@@ -31,7 +33,12 @@ IChunkHandlerPtr CreateChunkHandler(
     TChunkBlockDeviceConfigPtr config,
     IInvokerPtr invoker,
     NRpc::IChannelPtr channel,
+    std::optional<NChunkClient::TSessionId> sessionId,
     NLogging::TLogger logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+NChunkClient::TSessionId GenerateSessionId(int mediumIndex);
 
 ////////////////////////////////////////////////////////////////////////////////
 

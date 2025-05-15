@@ -90,6 +90,7 @@ protected:
             std::move(deviceConfig),
             queue->GetInvoker(),
             std::move(channel),
+            std::nullopt /*sessionId*/,
             Logger());
 
         handler->Initialize().Get().ThrowOnError();

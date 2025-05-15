@@ -767,8 +767,14 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NP
 struct TNbdDiskConfig
     : public NYTree::TYsonStruct
 {
-    //! Address of data node that hosts NBD chunk.
+    //! Params to connect to chosen data nodes.
+    TDuration DataNodeRpcTimeout;
     std::optional<std::string> DataNodeAddress;
+
+    //! Params to get suitable data nodes from master.
+    TDuration MasterRpcTimeout;
+    int MinDataNodesCount;
+    int MaxDataNodesCount;
 
     REGISTER_YSON_STRUCT(TNbdDiskConfig);
 

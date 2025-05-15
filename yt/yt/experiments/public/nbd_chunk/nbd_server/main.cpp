@@ -85,6 +85,7 @@ protected:
                 NConcurrency::GetUnlimitedThrottler(),
                 threadPool->GetInvoker(),
                 std::move(channel),
+                std::nullopt /*sessionId*/,
                 logger);
 
             NConcurrency::WaitFor(device->Initialize()).ThrowOnError();
