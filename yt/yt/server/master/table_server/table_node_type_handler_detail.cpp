@@ -23,6 +23,7 @@
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/helpers.h>
 
+#include <yt/yt/server/master/table_server/config.h>
 #include <yt/yt/server/master/tablet_server/chaos_helpers.h>
 #include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 #include <yt/yt/server/master/tablet_server/mount_config_storage.h>
@@ -153,6 +154,14 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     }
 
     auto tableSchema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
+    if (GetBootstrap()->GetConfigManager()->GetConfig()->TableManager->EnableNoOpSchemaProcessing && tableSchema) {
+        auto protobufTableSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(tableSchema);
+        auto parsedTableSchema = FromProto<TTableSchema>(protobufTableSchema);
+        // Purpose of logging is to prevent compiler to optimize and delete the above.
+        YT_LOG_TRACE("Performed no op serialization of schema (TableSchema: %v, ParsedTableSchema: %v)",
+            protobufTableSchema,
+            parsedTableSchema);
+    }
     auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
     auto schemaMode = combinedAttributes->GetAndRemove<ETableSchemaMode>("schema_mode", ETableSchemaMode::Weak);
 
@@ -628,6 +637,14 @@ template <class TImpl>
 std::optional<std::vector<std::string>> TTableNodeTypeHandlerBase<TImpl>::DoListColumns(TImpl* node) const
 {
     const auto& schema = *node->GetSchema()->AsTableSchema();
+    if (GetBootstrap()->GetConfigManager()->GetConfig()->TableManager->EnableNoOpSchemaProcessing) {
+        auto protobufSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(schema);
+        auto parsedSchema = FromProto<TTableSchema>(protobufSchema);
+        // Purpose of logging is to prevent compiler to optimize and delete the above.
+        YT_LOG_TRACE("Performed no op serialization of schema (Schema: %v, ParsedSchema: %v)",
+            protobufSchema,
+            parsedSchema);
+    }
 
     std::vector<std::string> result;
     result.reserve(schema.Columns().size());

@@ -189,6 +189,9 @@ def get_dynamic_master_config():
     };
 
     sequoia_manager = {};
+    table_manager = {
+        enable_no_op_schema_processing = %true;
+    };
 
     cell_master = {
         alert_update_period = 500;

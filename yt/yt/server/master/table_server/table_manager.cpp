@@ -737,6 +737,12 @@ public:
         }
 
         const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig();
+        if (dynamicConfig->TableManager->EnableNoOpSchemaProcessing) {
+            auto protobufSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(*effectiveTableSchema);
+            auto parsedSchema = FromProto<TTableSchema>(protobufSchema);
+            // Purpose of logging is to prevent compiler to optimize and delete the above.
+            YT_LOG_TRACE("Performed no op serialization of schema (Schema %v, ParsedSchema: %v)", protobufSchema, parsedSchema);
+        }
         ValidateTableSchemaUpdateInternal(TTableSchema(), *effectiveTableSchema, GetSchemaUpdateEnabledFeatures(dynamicConfig), dynamic, true);
 
         if (!dynamicConfig->EnableDescendingSortOrder || (dynamic && !dynamicConfig->EnableDescendingSortOrderDynamic)) {
@@ -844,6 +850,21 @@ public:
 
             const auto& tableSchema = *table->GetSchema()->AsTableSchema();
             const auto& indexTableSchema = *indexTable->GetSchema()->AsTableSchema();
+
+            const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig();
+            if (dynamicConfig->TableManager->EnableNoOpSchemaProcessing) {
+                auto protobufTableSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(tableSchema);
+                auto parsedTableSchema = FromProto<TTableSchema>(protobufTableSchema);
+                auto protobufIndexTableSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(indexTableSchema);
+                auto parsedIndexTableSchema = FromProto<TTableSchema>(protobufIndexTableSchema);
+                // Purpose of logging is to prevent compiler to optimize and delete the above.
+                YT_LOG_TRACE("Performed no op serialization of schema "
+                    "(TableSchema %v, ParsedTableSchema: %v, IndexTableSchema: %v, ParsedIndexTableSchema: %v)",
+                    protobufTableSchema,
+                    parsedTableSchema,
+                    protobufIndexTableSchema,
+                    parsedIndexTableSchema);
+            }
 
             switch(kind) {
                 case ESecondaryIndexKind::FullSync:
@@ -1989,6 +2010,26 @@ private:
         if (NeedToFindUnfoldedColumnName_) {
             for (const auto& [id, secondaryIndex] : SecondaryIndexMap_) {
                 if (secondaryIndex->GetKind() == ESecondaryIndexKind::Unfolding) {
+                    const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig();
+                    if (dynamicConfig->TableManager->EnableNoOpSchemaProcessing) {
+                        const auto& tableSchema = GetTableNodeOrThrow(secondaryIndex->GetTableId())
+                            ->GetSchema()
+                            ->AsTableSchema();
+                        const auto& indexTableSchema = GetTableNodeOrThrow(secondaryIndex->GetIndexTableId())
+                            ->GetSchema()
+                            ->AsTableSchema();
+                        auto protobufTableSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(*tableSchema);
+                        auto parsedTableSchema = FromProto<TTableSchema>(protobufTableSchema);
+                        auto protobufIndexTableSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(*indexTableSchema);
+                        auto parsedIndexTableSchema = FromProto<TTableSchema>(protobufIndexTableSchema);
+                        // Purpose of logging is to prevent compiler to optimize and delete the above.
+                        YT_LOG_TRACE("Performed no op serialization of schema "
+                            "(TableSchema %v, ParsedTableSchema: %v, IndexTableSchema: %v, ParsedIndexTableSchema: %v)",
+                            protobufTableSchema,
+                            parsedTableSchema,
+                            protobufIndexTableSchema,
+                            parsedIndexTableSchema);
+                    }
                     const auto& indexUnfoldedColumn = FindUnfoldedColumnAndValidate(
                         *GetTableNodeOrThrow(secondaryIndex->GetTableId())
                         ->GetSchema()

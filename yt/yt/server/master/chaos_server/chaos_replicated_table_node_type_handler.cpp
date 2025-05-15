@@ -12,6 +12,7 @@
 
 #include <yt/yt/server/master/cell_server/tamed_cell_manager.h>
 
+#include <yt/yt/server/master/table_server/config.h>
 #include <yt/yt/server/master/table_server/schemaful_node_type_handler.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
 
@@ -100,6 +101,14 @@ private:
         auto ownsReplicationCard = combinedAttributes->GetAndRemove<bool>("owns_replication_card", true);
 
         auto tableSchema = combinedAttributes->FindAndRemove<TTableSchemaPtr>("schema");
+        if (GetBootstrap()->GetConfigManager()->GetConfig()->TableManager->EnableNoOpSchemaProcessing && tableSchema) {
+            auto protobufTableSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(tableSchema);
+            auto parsedTableSchema = FromProto<TTableSchema>(protobufTableSchema);
+            // Purpose of logging is to prevent compiler to optimize and delete the above.
+            YT_LOG_TRACE("Performed no op serialization of schema (TableSchema: %v, ParsedTableSchema: %v)",
+                protobufTableSchema,
+                parsedTableSchema);
+        }
         auto schemaId = combinedAttributes->GetAndRemove<TObjectId>("schema_id", NullObjectId);
 
         const auto& tableManager = this->GetBootstrap()->GetTableManager();

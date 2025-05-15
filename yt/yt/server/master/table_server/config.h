@@ -19,6 +19,8 @@ public:
     // COMPAT(babenko)
     std::vector<std::string> NonOpaqueSchemaAttributeUserWhitelist;
 
+    bool EnableNoOpSchemaProcessing;
+
     REGISTER_YSON_STRUCT(TDynamicTableManagerConfig)
 
     static void Register(TRegistrar registrar);

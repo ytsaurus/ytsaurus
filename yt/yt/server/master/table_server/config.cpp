@@ -16,6 +16,9 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("non_opaque_schema_attribute_user_whitelist", &TThis::NonOpaqueSchemaAttributeUserWhitelist)
         .Default()
         .DontSerializeDefault();
+    registrar.Parameter("enable_no_op_schema_processing", &TThis::EnableNoOpSchemaProcessing)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 void TTableManagerConfig::Register(TRegistrar /*registrar*/)

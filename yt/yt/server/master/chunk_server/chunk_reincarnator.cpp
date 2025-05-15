@@ -20,6 +20,7 @@
 
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
+#include <yt/yt/server/master/table_server/config.h>
 #include <yt/yt/server/master/table_server/helpers.h>
 
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
@@ -1151,6 +1152,19 @@ private:
             }
 
             if (oldChunk->Schema() && oldChunk->Schema() != newChunk->Schema()) {
+                if (Bootstrap_->GetConfigManager()->GetConfig()->TableManager->EnableNoOpSchemaProcessing) {
+                    auto newChunkSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(*newChunk->Schema()->AsTableSchema());
+                    auto parsedNewChunkSchema = FromProto<NTableClient::TTableSchema>(newChunkSchema);
+                    auto oldChunkSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(*oldChunk->Schema()->AsTableSchema());
+                    auto parsedOldChunkSchema = FromProto<NTableClient::TTableSchema>(oldChunkSchema);
+                    // Purpose of logging is to prevent compiler to optimize and delete the above.
+                    YT_LOG_TRACE("Performed no op serialization of schema "
+                        "(NewChunkSchema %v, ParsedNewChunkSchema: %v, OldChunkSchema: %v, ParsedOldChunkSchema: %v)",
+                        newChunkSchema,
+                        parsedNewChunkSchema,
+                        oldChunkSchema,
+                        parsedOldChunkSchema);
+                }
                 YT_LOG_ALERT(
                     "Reincarnated chunk has a different schema (NewChunkId: %v, NewSchema: %v, OldSchema: %v)",
                     newChunk->GetId(),

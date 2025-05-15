@@ -67,6 +67,7 @@
 
 #include <yt/yt/server/lib/hydra/hydra_janitor_helpers.h>
 
+#include <yt/yt/server/master/table_server/config.h>
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/replicated_table_node.h>
 #include <yt/yt/server/master/table_server/table_collocation.h>
@@ -1070,6 +1071,14 @@ public:
             Bootstrap_->GetChunkManager(),
             GetDynamicConfig());
         ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
+        if (Bootstrap_->GetConfigManager()->GetConfig()->TableManager->EnableNoOpSchemaProcessing) {
+            auto protobufIndexTableSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(table->GetSchema()->AsTableSchema());
+            auto parsedIndexTableSchema = FromProto<TTableSchema>(protobufIndexTableSchema);
+            // Purpose of logging is to prevent compiler to optimize and delete the above.
+            YT_LOG_TRACE("Performed no op serialization of schema (IndexTableSchema: %v, ParsedIndexTableSchema: %v)",
+                protobufIndexTableSchema,
+                parsedIndexTableSchema);
+        }
 
         if (table->GetReplicationCardId() && !table->IsSorted()) {
             if (table->GetCommitOrdering() != ECommitOrdering::Strong) {

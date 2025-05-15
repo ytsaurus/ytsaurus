@@ -126,6 +126,14 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
             checkOptions.Columns = std::move(context->Columns);
         } else {
             const auto& tableSchema = *table->GetSchema()->AsTableSchema();
+            if (Bootstrap_->GetConfigManager()->GetConfig()->TableManager->EnableNoOpSchemaProcessing) {
+                auto protobufSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(tableSchema);
+                auto parsedSchema = FromProto<TTableSchema>(protobufSchema);
+                // Purpose of logging is to prevent compiler to optimize and delete the above.
+                YT_LOG_TRACE("Performed no op serialization of schema (Schema %v, ParsedSchema: %v)",
+                    protobufSchema,
+                    parsedSchema);
+            }
             checkOptions.Columns.emplace();
             checkOptions.Columns->reserve(tableSchema.Columns().size());
             for (const auto& columnSchema : tableSchema.Columns()) {
@@ -2182,6 +2190,19 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         }
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+        if (config->TableManager->EnableNoOpSchemaProcessing) {
+            auto protobufTableSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(*table->GetSchema()->AsTableSchema());
+            auto parsedTableSchema = FromProto<TTableSchema>(protobufTableSchema);
+            auto protobufNewTableSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(*schema);
+            auto parsedNewTableSchema = FromProto<TTableSchema>(protobufNewTableSchema);
+            // Purpose of logging is to prevent compiler to optimize and delete the above.
+            YT_LOG_TRACE("Performed no op serialization of schema "
+                "(TableSchema %v, ParsedTableSchema: %v, NewTableSchema: %v, ParsedNewTableSchema: %v)",
+                protobufTableSchema,
+                parsedTableSchema,
+                protobufNewTableSchema,
+                parsedNewTableSchema);
+        }
 
         ValidateTableSchemaUpdateInternal(
             *table->GetSchema()->AsTableSchema(),
@@ -2196,6 +2217,14 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             for (auto index : table->SecondaryIndices()) {
                 auto* indexTable = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
                 const auto& indexTableSchema = indexTable->GetSchema()->AsTableSchema();
+                if (config->TableManager->EnableNoOpSchemaProcessing) {
+                    auto protobufIndexTableSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(*indexTableSchema);
+                    auto parsedIndexTableSchema = FromProto<TTableSchema>(protobufIndexTableSchema);
+                    // Purpose of logging is to prevent compiler to optimize and delete the above.
+                    YT_LOG_TRACE("Performed no op serialization of schema (IndexTableSchema: %v, ParsedIndexTableSchema: %v)",
+                        protobufIndexTableSchema,
+                        parsedIndexTableSchema);
+                }
                 switch (index->GetKind()) {
                     case ESecondaryIndexKind::FullSync:
                         ValidateFullSyncIndexSchema(*schema, *indexTableSchema);

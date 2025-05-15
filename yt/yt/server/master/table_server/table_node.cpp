@@ -1,5 +1,6 @@
 #include "table_node.h"
 
+#include "config.h"
 #include "private.h"
 #include "master_table_schema.h"
 #include "mount_config_attributes.h"
@@ -748,6 +749,15 @@ void TTableNode::ValidateReshard(
                 }
             }
 
+            if (bootstrap->GetConfigManager()->GetConfig()->TableManager->EnableNoOpSchemaProcessing) {
+                const auto& schema = *GetSchema()->AsTableSchema();
+                auto protobufSchema = ToProto<NTableClient::NProto::TTableSchemaExt>(schema);
+                auto parsedSchema = FromProto<TTableSchema>(protobufSchema);
+                // Purpose of logging is to prevent compiler to optimize and delete the above.
+                YT_LOG_TRACE("Performed no op serialization of schema (Schema %v, ParsedSchema: %v)",
+                    protobufSchema,
+                    parsedSchema);
+            }
             // Validate pivot keys against table schema.
             for (const auto& pivotKey : pivotKeys) {
                 ValidatePivotKey(pivotKey, *GetSchema()->AsTableSchema());
