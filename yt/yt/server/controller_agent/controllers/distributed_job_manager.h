@@ -12,14 +12,14 @@ namespace NYT::NControllerAgent::NControllers {
 //! The cookie group counts as completed when all the jobs successfully complete.
 //! When some jobs fail or abort, then it gets restarted.
 
-class TMultiJobManager
+class TDistributedJobManager
     : public IExtraJobManager
 {
 public:
     //! Used only for persistence.
-    TMultiJobManager() = default;
+    TDistributedJobManager() = default;
 
-    TMultiJobManager(
+    TDistributedJobManager(
         TTask* host,
         NLogging::TLogger logger);
 
@@ -80,7 +80,7 @@ private:
         EAbortReason abortReason);
 
     PHOENIX_DECLARE_FRIEND();
-    PHOENIX_DECLARE_TYPE(TMultiJobManager, 0xccfb1994);
+    PHOENIX_DECLARE_TYPE(TDistributedJobManager, 0xccfb1994);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
