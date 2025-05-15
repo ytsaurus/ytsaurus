@@ -766,17 +766,22 @@ void TJobProxy::SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment)
 void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
 {
     YT_VERIFY(Config_->OriginalClusterConnection);
-    NLogging::TLogger proxyLogger("RpcProxy");
+
     auto connection = CreateNativeConnection(Config_->OriginalClusterConnection);
     connection->GetClusterDirectorySynchronizer()->Start();
     connection->GetNodeDirectorySynchronizer()->Start();
     connection->GetQueueConsumerRegistrationManager()->StartSync();
     connection->GetMasterCellDirectorySynchronizer()->Start();
+
     auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     auto proxyCoordinator = CreateProxyCoordinator();
     proxyCoordinator->SetAvailableState(true);
-    auto securityManager = CreateSecurityManager(Config_->ApiService->SecurityManager, connection, proxyLogger);
+
+    auto securityManager = CreateSecurityManager(
+        Config_->ApiService->SecurityManager,
+        connection,
+        RpcProxyLogger());
     auto authenticationManager = NAuth::CreateAuthenticationManager(
         Config_->AuthenticationManager,
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
@@ -792,7 +797,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         CreateNoopAccessChecker(),
         securityManager,
         New<TSampler>(),
-        proxyLogger,
+        RpcProxyLogger(),
         TProfiler(),
         NSignature::CreateAlwaysThrowingSignatureValidator(),
         NSignature::CreateAlwaysThrowingSignatureGenerator());

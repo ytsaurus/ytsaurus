@@ -2,6 +2,10 @@
 
 #include <yt/yt/client/api/rpc_proxy/public.h>
 
+#include <yt/yt/core/logging/log.h>
+
+#include <yt/yt/library/profiling/sensor.h>
+
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,6 +32,11 @@ DECLARE_REFCOUNTED_STRUCT(IMultiproxyAccessValidator)
 
 enum class EMultiproxyEnabledMethods;
 enum class EMultiproxyMethodKind;
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, RpcProxyProfiler, "/rpc_proxy");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, RpcProxyLogger, "RpcProxy");
 
 ////////////////////////////////////////////////////////////////////////////////
 

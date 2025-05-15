@@ -1,6 +1,5 @@
 #include "program.h"
 
-#include "private.h"
 #include "bootstrap.h"
 #include "config.h"
 
