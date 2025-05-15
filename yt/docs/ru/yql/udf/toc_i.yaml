@@ -8,12 +8,12 @@ items:
     when: audience == "internal"
   - name: Разработка на C++
     href: cpp.md
-#    items:
-#     - name: Тестирование
-#       href: cpp_testing.md
-#       when: audience == "internal"
- #   - name: Коротко о С++ UDF
- #     href: cpp_about_udf.md
+    items:
+ #    - name: Тестирование
+ #      href: cpp_testing.md
+ #      when: audience == "internal"
+     - name: Коротко о С++ UDF
+       href: cpp_about_udf.md
  #   - name: Обработка данных в C++ UDF
  #     href: cpp_data_processing.md
  #   - name: Type-Aware UDF
