@@ -58,7 +58,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((NewUnorderedChunkPoolSlicing)          (301718))
     // 25.2 starts here
     ((BumpTo_25_2)                           (301800))
-    ((MultiJobManagers)                      (301801))
+    ((DistributedJobManagers)                (301801))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
