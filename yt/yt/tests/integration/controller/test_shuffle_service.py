@@ -174,7 +174,7 @@ class TestShuffleService(YTEnvSetup):
         commit_transaction(parent_transaction)
 
     @authors("apollo1321")
-    def test_mappers_range(self):
+    def test_read_from_writer_index_range(self):
         parent_transaction = start_transaction(timeout=60000)
 
         shuffle_handle = start_shuffle("intermediate", partition_count=4, parent_transaction_id=parent_transaction)
@@ -216,7 +216,7 @@ class TestShuffleService(YTEnvSetup):
                 assert_items_equal(actual, expected)
 
     @authors("apollo1321")
-    def test_mappers_range_invalid_arguments(self):
+    def test_read_from_writer_index_range_invalid_arguments(self):
         parent_transaction = start_transaction(timeout=60000)
 
         shuffle_handle = start_shuffle("intermediate", partition_count=4, parent_transaction_id=parent_transaction)
@@ -232,3 +232,63 @@ class TestShuffleService(YTEnvSetup):
 
         with raises_yt_error("Expected >= 0, found -42"):
             write_shuffle_data(shuffle_handle, "id", {"id": 0}, writer_index=-42)
+
+    @authors("apollo1321")
+    def test_overwrite_existing_writer_data(self):
+        parent_transaction = start_transaction(timeout=60000)
+
+        shuffle_handle = start_shuffle("intermediate", partition_count=4, parent_transaction_id=parent_transaction)
+
+        permanent_rows = [
+            {"partition_id": 3, "data": -1},
+            {"partition_id": 1, "data": -1},
+        ]
+
+        write_shuffle_data(shuffle_handle, "partition_id", permanent_rows)
+
+        rows = [
+            {"partition_id": 0, "data": 0},
+            {"partition_id": 1, "data": 1},
+        ]
+        write_shuffle_data(shuffle_handle, "partition_id", rows, writer_index=0, overwrite_existing_writer_data=True)
+        assert read_shuffle_data(shuffle_handle, 0) == [rows[0]]
+        assert read_shuffle_data(shuffle_handle, 1) == [permanent_rows[1], rows[1]]
+        assert read_shuffle_data(shuffle_handle, 3) == [permanent_rows[0]]
+
+        rows.append({"partition_id": 0, "data": 2})
+        write_shuffle_data(shuffle_handle, "partition_id", rows[2], writer_index=0, overwrite_existing_writer_data=False)
+
+        assert read_shuffle_data(shuffle_handle, 0) == [rows[0], rows[2]]
+        assert read_shuffle_data(shuffle_handle, 1) == [permanent_rows[1], rows[1]]
+        assert read_shuffle_data(shuffle_handle, 3) == [permanent_rows[0]]
+
+        rows.append({"partition_id": 0, "data": 3})
+        write_shuffle_data(shuffle_handle, "partition_id", rows[3], writer_index=2, overwrite_existing_writer_data=True)
+        assert read_shuffle_data(shuffle_handle, 0) == [rows[0], rows[2], rows[3]]
+        assert read_shuffle_data(shuffle_handle, 1) == [permanent_rows[1], rows[1]]
+
+        assert read_shuffle_data(shuffle_handle, 0, writer_index_begin=0, writer_index_end=1) == [rows[0], rows[2]]
+        assert read_shuffle_data(shuffle_handle, 1, writer_index_begin=0, writer_index_end=1) == [rows[1]]
+
+        assert read_shuffle_data(shuffle_handle, 0, writer_index_begin=1, writer_index_end=11) == [rows[3]]
+        assert read_shuffle_data(shuffle_handle, 1, writer_index_begin=1, writer_index_end=11) == []
+
+        assert read_shuffle_data(shuffle_handle, 3, writer_index_begin=1, writer_index_end=11) == []
+        assert read_shuffle_data(shuffle_handle, 3) == [permanent_rows[0]]
+
+        rows.append({"partition_id": 0, "data": 4})
+        write_shuffle_data(shuffle_handle, "partition_id", rows[4], writer_index=0, overwrite_existing_writer_data=True)
+
+        assert read_shuffle_data(shuffle_handle, 0) == [rows[3], rows[4]]
+        assert read_shuffle_data(shuffle_handle, 0, writer_index_begin=0, writer_index_end=2) == [rows[4]]
+        assert read_shuffle_data(shuffle_handle, 0, writer_index_begin=2, writer_index_end=3) == [rows[3]]
+
+        assert read_shuffle_data(shuffle_handle, 1) == [permanent_rows[1]]
+        assert read_shuffle_data(shuffle_handle, 1, writer_index_begin=0, writer_index_end=2) == []
+        assert read_shuffle_data(shuffle_handle, 1, writer_index_begin=2, writer_index_end=3) == []
+
+        assert read_shuffle_data(shuffle_handle, 3, writer_index_begin=0, writer_index_end=1000) == []
+        assert read_shuffle_data(shuffle_handle, 3) == [permanent_rows[0]]
+
+        with raises_yt_error("Writer index must be set"):
+            write_shuffle_data(shuffle_handle, "partition_id", rows[0], overwrite_existing_writer_data=True)

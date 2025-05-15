@@ -41,11 +41,13 @@ public:
         ISchemalessMultiChunkWriterPtr writer,
         TClientPtr client,
         TShuffleHandlePtr shuffleHandle,
-        std::optional<int> writerIndex)
+        std::optional<int> writerIndex,
+        bool overwriteExistingWriterData)
         : Writer_(std::move(writer))
         , Client_(std::move(client))
         , ShuffleHandle_(std::move(shuffleHandle))
         , WriterIndex_(writerIndex)
+        , OverwriteExistingWriterData_(overwriteExistingWriterData)
     { }
 
     bool Write(TRange<TUnversionedRow> rows) override
@@ -61,7 +63,11 @@ public:
     TFuture<void> Close() override
     {
         return Writer_->Close().Apply(BIND([this, this_ = MakeStrong(this)]() {
-            return Client_->RegisterShuffleChunks(ShuffleHandle_, Writer_->GetWrittenChunkSpecs(), WriterIndex_, /*options*/ {});
+            return Client_->RegisterShuffleChunks(
+                ShuffleHandle_,
+                Writer_->GetWrittenChunkSpecs(),
+                WriterIndex_,
+                /*options*/ {.OverwriteExistingWriterData = OverwriteExistingWriterData_});
         }));
     }
 
@@ -75,6 +81,7 @@ private:
     const TClientPtr Client_;
     const TShuffleHandlePtr ShuffleHandle_;
     const std::optional<int> WriterIndex_;
+    const bool OverwriteExistingWriterData_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,6 +161,7 @@ void TClient::DoRegisterShuffleChunks(
     if (writerIndex) {
         req->set_writer_index(*writerIndex);
     }
+    req->set_overwrite_existing_writer_data(options.OverwriteExistingWriterData);
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -192,7 +200,7 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
     const TShuffleHandlePtr& shuffleHandle,
     int partitionIndex,
     std::optional<std::pair<int, int>> writerIndexRange,
-    const TTableReaderConfigPtr& config)
+    const TShuffleReaderOptions& options)
 {
     return FetchShuffleChunks(
         shuffleHandle,
@@ -219,7 +227,7 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
             }
 
             auto reader = CreateSchemalessSequentialMultiReader(
-                std::move(config),
+                options.Config,
                 New<TTableReaderOptions>(),
                 TChunkReaderHost::FromClient(this),
                 dataSourceDirectory,
@@ -240,7 +248,7 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     const TShuffleHandlePtr& shuffleHandle,
     const std::string& partitionColumn,
     std::optional<int> writerIndex,
-    const TTableWriterConfigPtr& config)
+    const TShuffleWriterOptions& options)
 {
     // The partition column index must be preserved for the partitioner.
     // However, the row is partitioned after the row value ids are mapped to
@@ -259,15 +267,15 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
         shuffleHandle->PartitionCount,
         nameTable->GetId(partitionColumn));
 
-    auto options = New<TTableWriterOptions>();
-    options->EvaluateComputedColumns = false;
-    options->Account = shuffleHandle->Account;
-    options->ReplicationFactor = shuffleHandle->ReplicationFactor;
-    options->MediumName = shuffleHandle->Medium;
+    auto tableWriterOptions = New<TTableWriterOptions>();
+    tableWriterOptions->EvaluateComputedColumns = false;
+    tableWriterOptions->Account = shuffleHandle->Account;
+    tableWriterOptions->ReplicationFactor = shuffleHandle->ReplicationFactor;
+    tableWriterOptions->MediumName = shuffleHandle->Medium;
 
     auto writer = CreatePartitionMultiChunkWriter(
-        config,
-        std::move(options),
+        options.Config,
+        std::move(tableWriterOptions),
         std::move(nameTable),
         std::move(schema),
         this,
@@ -280,7 +288,12 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
         /*dataSink*/ {},
         /*writeBlocksOptions*/ {});
 
-    return MakeFuture(New<TShuffleWriter>(std::move(writer), this, std::move(shuffleHandle), writerIndex))
+    return MakeFuture(New<TShuffleWriter>(
+        std::move(writer),
+        this,
+        std::move(shuffleHandle),
+        writerIndex,
+        options.OverwriteExistingWriterData))
         .As<IRowBatchWriterPtr>();
 }
 
