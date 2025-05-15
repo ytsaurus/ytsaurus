@@ -23,7 +23,7 @@ SRCS(
     input_transaction_manager.cpp
     input_manager.cpp
     live_preview.cpp
-    multi_job_manager.cpp
+    distributed_job_manager.cpp
     operation_controller_detail.cpp
     ordered_controller.cpp
     probing_job_manager.cpp

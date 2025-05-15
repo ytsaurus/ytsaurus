@@ -3944,7 +3944,7 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("statistics").Value(joblet->BuildCombinedStatistics())
         .Item("suspicious").Value(joblet->Suspicious)
         .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
-        .Item("main_job_id").Value(joblet->MultiJob.MainJobId)
+        .Item("main_job_id").Value(joblet->CookieGroupInfo.MainJobId)
         .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
         .Item("has_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Speculative])
         .Item("has_probing_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Probing])
@@ -3952,7 +3952,7 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("speculative").Value(joblet->CompetitionType == EJobCompetitionType::Speculative)
         .Item("task_name").Value(joblet->TaskName)
         .Item("job_cookie").Value(joblet->OutputCookie)
-        .Item("job_cookie_group_index").Value(joblet->MultiJob.OutputCookieGroupIndex)
+        .Item("job_cookie_group_index").Value(joblet->CookieGroupInfo.OutputCookieGroupIndex)
         .DoIf(joblet->UserJobMonitoringDescriptor.has_value(), [&] (TFluentMap fluent) {
             fluent.Item("monitoring_descriptor").Value(ToString(*joblet->UserJobMonitoringDescriptor));
         })
@@ -10393,8 +10393,8 @@ void TOperationControllerBase::InitUserJobSpec(
         setEnvironmentVariable("YT_TASK_JOB_INDEX", ToString(joblet->TaskJobIndex));
         setEnvironmentVariable("YT_JOB_ID", ToString(joblet->JobId));
         setEnvironmentVariable("YT_JOB_COOKIE", ToString(joblet->OutputCookie));
-        setEnvironmentVariable("YT_JOB_COOKIE_GROUP_INDEX", ToString(joblet->MultiJob.OutputCookieGroupIndex));
-        setEnvironmentVariable("YT_JOB_COOKIE_MAIN_JOB_ID", ToString(joblet->MultiJob.MainJobId));
+        setEnvironmentVariable("YT_JOB_COOKIE_GROUP_INDEX", ToString(joblet->CookieGroupInfo.OutputCookieGroupIndex));
+        setEnvironmentVariable("YT_JOB_COOKIE_MAIN_JOB_ID", ToString(joblet->CookieGroupInfo.MainJobId));
 
         for (const auto& [key, value] : joblet->Task->BuildJobEnvironment()) {
             setEnvironmentVariable(key, value);

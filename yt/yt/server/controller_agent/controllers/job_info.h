@@ -120,13 +120,14 @@ struct TJoblet
     TEnumIndexedArray<EJobCompetitionType, bool> HasCompetitors;
     TString TaskName;
 
-    struct TMultiJob {
+    struct TCookieGroupInfo
+    {
         TJobId MainJobId;
         int OutputCookieGroupIndex = 0;
 
         void Persist(const TPersistenceContext& context);
     };
-    TMultiJob MultiJob;
+    TCookieGroupInfo CookieGroupInfo;
 
     // Controller encapsulates lifetime of both, tasks and joblets.
     TTask* Task;
