@@ -211,14 +211,14 @@ void TJoblet::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(45, OutputStreamDescriptors);
     PHOENIX_REGISTER_FIELD(46, InputStreamDescriptors);
     PHOENIX_REGISTER_FIELD(47, UserJobMonitoringDescriptor);
-    PHOENIX_REGISTER_FIELD(48, MultiJob);
+    PHOENIX_REGISTER_FIELD(48, CookieGroupInfo);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
        this_->Revived = true;
     });
 }
 
-void TJoblet::TMultiJob::Persist(const TPersistenceContext& context) {
+void TJoblet::TCookieGroupInfo::Persist(const TPersistenceContext& context) {
     using NYT::Persist;
     Persist(context, MainJobId);
     Persist(context, OutputCookieGroupIndex);
