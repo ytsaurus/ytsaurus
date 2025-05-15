@@ -43,13 +43,26 @@ SIZE(LARGE)
 
 YT_SPEC(yt/yt/tests/integration/spec.yson)
 
-REQUIREMENTS(
-    ram:20
-    cpu:4
-)
+
+IF (CLANG_COVERAGE)
+    REQUIREMENTS(
+        ram_disk:16
+        ram:32
+    )
+ELSE()
+    REQUIREMENTS(ram_disk:10)
+ENDIF()
 
 IF (SANITIZER_TYPE)
-    REQUIREMENTS(ram:25)
+    REQUIREMENTS(
+        cpu:46
+        ram:56
+    )
+ELSE()
+    REQUIREMENTS(
+        cpu:22
+        ram:18
+    )
 ENDIF()
 
 END()
