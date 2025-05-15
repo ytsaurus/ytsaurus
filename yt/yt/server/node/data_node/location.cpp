@@ -915,6 +915,11 @@ i64 TChunkLocation::GetRequestedQueueSize() const
     return ProbePutBlocksRequests_.size();
 }
 
+TError TChunkLocation::GetLocationDisableError() const
+{
+    return LocationDisabledAlert_.Load();
+}
+
 void TChunkLocation::PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier)
 {
     auto guard = Guard(ProbePutBlocksRequestsLock_);
@@ -1702,10 +1707,6 @@ void TChunkLocation::MarkUninitializedLocationDisabled(const TError& error)
     }
     ChunkCount_.store(0);
 
-    Profiler_
-        .WithTag("error_code", ToString(static_cast<int>(error.GetNonTrivialCode())))
-        .AddFuncGauge("/disabled", MakeStrong(this), [] { return 1.0; });
-
     ChangeState(ELocationState::Disabled, ELocationState::Disabling);
 }
 
@@ -1902,12 +1903,14 @@ class TStoreLocation::TIOStatisticsProvider
 {
 public:
     TIOStatisticsProvider(
+        TWeakPtr<TStoreLocation> storeLocation,
         TStoreLocationConfigPtr config,
         NIO::IIOEnginePtr ioEngine,
         TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         NProfiling::TProfiler profiler,
         TLogger logger)
         : MaxWriteRateByDwpd_(config->MaxWriteRateByDwpd)
+        , StoreLocation_(storeLocation)
         , IOEngine_(std::move(ioEngine))
         , Logger(std::move(logger))
         , LastUpdateTime_(TInstant::Now())
@@ -1944,6 +1947,7 @@ public:
 
 private:
     const i64 MaxWriteRateByDwpd_;
+    const TWeakPtr<TStoreLocation> StoreLocation_;
     const NIO::IIOEnginePtr IOEngine_;
     const TLogger Logger;
 
@@ -2052,6 +2056,20 @@ private:
             }
         }
 
+        if (auto storeLocation = StoreLocation_.Lock(); storeLocation) {
+            writer->AddGauge(
+                "/alive",
+                storeLocation->IsEnabled());
+
+            if (!storeLocation->IsEnabled()) {
+                writer->PushTag(TTag{"error_code", ToString(static_cast<int>(storeLocation->GetLocationDisableError().GetNonTrivialCode()))});
+                writer->AddGauge(
+                    "/disabled",
+                    !storeLocation->IsEnabled());
+                writer->PopTag();
+            }
+        }
+
         writer->AddGauge(
             "/disk/max_write_rate_by_dwpd",
             MaxWriteRateByDwpd_);
@@ -2087,6 +2105,7 @@ TStoreLocation::TStoreLocation(
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         config->TrashCheckPeriod))
     , IOStatisticsProvider_(New<TIOStatisticsProvider>(
+        MakeWeak(this),
         config,
         GetIOEngine(),
         DynamicConfigManager_,

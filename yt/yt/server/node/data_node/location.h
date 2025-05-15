@@ -514,6 +514,8 @@ public:
     //! Returns size of requests queue.
     i64 GetRequestedQueueSize() const;
 
+    TError GetLocationDisableError() const;
+
 protected:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
     const TChunkStorePtr ChunkStore_;
