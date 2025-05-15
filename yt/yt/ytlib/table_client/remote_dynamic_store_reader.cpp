@@ -332,6 +332,8 @@ protected:
             const auto& channelFactory = Client_->GetChannelFactory();
             auto channel = channelFactory->CreateChannel(*address);
             TQueryServiceProxy proxy(channel);
+            // TODO(nadya02): Set the correct timeout here.
+            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
             auto req = proxy.ReadDynamicStore();
             ToProto(req->mutable_store_id(), storeId);

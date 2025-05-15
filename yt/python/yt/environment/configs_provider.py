@@ -2159,6 +2159,7 @@ def init_singletons(config, yt_config):
         "compression_pool_size": 1,
         "heavy_pool_size": 1,
         "alert_on_missing_request_info": True,
+        "alert_on_unset_request_timeout": True,
     })
     set_at(config, "chunk_client_dispatcher", {
         "chunk_reader_pool_size": 1,

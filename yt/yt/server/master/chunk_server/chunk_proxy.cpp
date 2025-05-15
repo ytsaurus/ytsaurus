@@ -970,6 +970,8 @@ private:
             for (int peerIndex = 0; peerIndex < cellManager->GetTotalPeerCount(); ++peerIndex) {
                 auto peerChannel = cellManager->GetPeerChannel(peerIndex);
                 auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(peerChannel));
+                // TODO(nadya02): Set the correct timeout here.
+                proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
                 auto req = TYPathProxy::Get(FromObjectId(chunk->GetId()) + attributeSuffix);
                 responseFutures.push_back(proxy.Execute(req));
             }
