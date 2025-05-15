@@ -788,6 +788,7 @@
   "contrib/libs/pfr/CMakeLists.darwin-x86_64.txt":"",
   "contrib/libs/pfr/CMakeLists.linux-x86_64.txt":"",
   "contrib/libs/pfr/CMakeLists.txt":"",
+  "contrib/libs/pocketfft/CMakeLists.txt":"",
   "contrib/libs/poco/CMakeLists.txt":"",
   "contrib/libs/poco/Foundation/CMakeLists.txt":"",
   "contrib/libs/poco/MongoDB/CMakeLists.txt":"",

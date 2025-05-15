@@ -35,7 +35,6 @@ PEERDIR(
     contrib/libs/croaring
     contrib/libs/double-conversion
     contrib/libs/farmhash
-    contrib/libs/fastops/fastops
     contrib/libs/fmt
     contrib/libs/icu
     contrib/libs/libc_compat
@@ -44,6 +43,7 @@ PEERDIR(
     contrib/libs/metrohash
     contrib/libs/miniselect
     contrib/libs/msgpack
+    contrib/libs/pocketfft
     contrib/libs/poco/MongoDB
     contrib/libs/rapidjson
     contrib/libs/re2
@@ -80,6 +80,12 @@ PEERDIR(
     library/cpp/sanitizer/include
 )
 
+IF (ARCH_X86_64)
+    PEERDIR(
+        contrib/libs/fastops/fastops
+    )
+ENDIF()
+
 ADDINCL(
     GLOBAL contrib/clickhouse/src
     GLOBAL contrib/libs/croaring/cpp
@@ -110,6 +116,7 @@ ADDINCL(
     contrib/libs/lz4
     contrib/libs/miniselect/include
     contrib/libs/msgpack/include
+    contrib/libs/pocketfft
     contrib/libs/rapidjson/include
     contrib/libs/simdjson/include
     contrib/libs/sparsehash/src
@@ -126,8 +133,10 @@ NO_COMPILER_WARNINGS()
 NO_UTIL()
 
 IF (OS_DARWIN)
-                SET_APPEND(C_DEFINES -D_DARWIN_C_SOURCE)
-            ENDIF()
+    CFLAGS(
+        -D_DARWIN_C_SOURCE
+    )
+ENDIF()
 
 IF (OS_DARWIN)
     CFLAGS(
@@ -2548,6 +2557,8 @@ SRCS(
     TableFunctions/registerDataLakeTableFunctions.cpp
     TableFunctions/registerTableFunctions.cpp
 )
+
+SRC(Functions/divide/divideImpl.cpp -DNAMESPACE=Generic)
 
 SRC_C_SSE2(Functions/divide/divideImpl.cpp -DNAMESPACE=SSE2)
 

@@ -289,6 +289,7 @@ SRCS(
     src/Common/checkStackSize.cpp
     src/Common/clearPasswordFromCommandLine.cpp
     src/Common/clickhouse_malloc.cpp
+    src/Common/computeMaxTableNameLength.cpp
     src/Common/createHardLink.cpp
     src/Common/escapeForFileName.cpp
     src/Common/escapeString.cpp

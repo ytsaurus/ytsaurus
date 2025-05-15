@@ -80,6 +80,7 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/lz4
   ${PROJECT_SOURCE_DIR}/contrib/libs/miniselect/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pocketfft
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/simdjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
@@ -114,7 +115,6 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-croaring
   contrib-libs-double-conversion
   contrib-libs-farmhash
-  libs-fastops-fastops
   contrib-libs-fmt
   contrib-libs-icu
   contrib-libs-libc_compat
@@ -123,6 +123,7 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-metrohash
   contrib-libs-miniselect
   contrib-libs-msgpack
+  contrib-libs-pocketfft
   libs-poco-MongoDB
   contrib-libs-rapidjson
   contrib-libs-re2
@@ -157,9 +158,11 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   cpp-clickhouse_deps-incbin_stub
   consistent-hashing
   cpp-sanitizer-include
+  libs-fastops-fastops
 )
 
 target_sources(contrib-clickhouse-src PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/divide/divideImpl.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessBackup.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessChangesNotifier.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Access/AccessControl.cpp
@@ -1885,6 +1888,15 @@ target_sources(contrib-clickhouse-src PRIVATE
 )
 
 
+set_property(
+  SOURCE
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Functions/divide/divideImpl.cpp
+  APPEND
+  PROPERTY
+  COMPILE_OPTIONS
+  -DNAMESPACE=Generic
+)
+
 target_sources_custom(contrib-clickhouse-src
   .sse2
   SRCS
@@ -1970,6 +1982,7 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/lz4
   ${PROJECT_SOURCE_DIR}/contrib/libs/miniselect/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pocketfft
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/simdjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
@@ -2004,7 +2017,6 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   contrib-libs-croaring
   contrib-libs-double-conversion
   contrib-libs-farmhash
-  libs-fastops-fastops
   contrib-libs-fmt
   contrib-libs-icu
   contrib-libs-libc_compat
@@ -2013,6 +2025,7 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   contrib-libs-metrohash
   contrib-libs-miniselect
   contrib-libs-msgpack
+  contrib-libs-pocketfft
   libs-poco-MongoDB
   contrib-libs-rapidjson
   contrib-libs-re2
@@ -2047,6 +2060,7 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   cpp-clickhouse_deps-incbin_stub
   consistent-hashing
   cpp-sanitizer-include
+  libs-fastops-fastops
 )
 
 target_sources(contrib-clickhouse-src.global PRIVATE
