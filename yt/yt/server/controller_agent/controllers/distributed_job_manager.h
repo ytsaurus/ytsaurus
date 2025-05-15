@@ -23,7 +23,7 @@ public:
         TTask* host,
         NLogging::TLogger logger);
 
-    i64 GetPendingCandidatesDataWeight() const override final;
+    i64 GetPendingCandidatesDataWeight() const final;
 
     int GetPendingJobCount() const override final;
 
