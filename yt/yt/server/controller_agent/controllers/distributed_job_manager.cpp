@@ -68,7 +68,7 @@ void TDistributedJobManager::OnJobScheduled(const TJobletPtr& joblet)
     if (!IsRelevant()) {
         return;
     }
-    if (joblet->CookieGroupInfo.OutputCookieGroupIndex == 0) {
+    if (joblet->CookieGroupInfo.OutputIndex == 0) {
         auto it = TryEmplaceOrCrash(CookieToReplicas_, joblet->OutputCookie);
         auto& replicas = it->second;
         for (int i = 1; i < GetCookieGroupSize(); i++) {
@@ -82,7 +82,7 @@ void TDistributedJobManager::OnJobScheduled(const TJobletPtr& joblet)
         InsertOrCrash(PendingCookies_, joblet->OutputCookie);
     } else {
         auto& replicas = GetOrCrash(CookieToReplicas_, joblet->OutputCookie);
-        auto& secondary = replicas.Secondaries[joblet->CookieGroupInfo.OutputCookieGroupIndex - 1];
+        auto& secondary = replicas.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1];
         secondary.JobId = joblet->JobId;
         secondary.ProgressCounterGuard.SetCategory(EProgressCategory::Running);
         joblet->CookieGroupInfo.MainJobId = replicas.MainJobId;
@@ -101,8 +101,8 @@ bool TDistributedJobManager::OnJobCompleted(const TJobletPtr& joblet)
 
     auto replicasIt = GetIteratorOrCrash(CookieToReplicas_, joblet->OutputCookie);
     auto& replicas = replicasIt->second;
-    if (joblet->CookieGroupInfo.OutputCookieGroupIndex != 0) {
-        replicas.Secondaries[joblet->CookieGroupInfo.OutputCookieGroupIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
+    if (joblet->CookieGroupInfo.OutputIndex != 0) {
+        replicas.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
     }
     --replicas.NotCompletedCount;
     YT_VERIFY(replicas.NotCompletedCount >= 0);
@@ -138,17 +138,6 @@ bool TDistributedJobManager::IsRelevant() const
     return GetCookieGroupSize() > 1;
 }
 
-void TDistributedJobManager::RegisterMetadata(auto&& registrar)
-{
-    PHOENIX_REGISTER_FIELD(1, CookieToReplicas_);
-    PHOENIX_REGISTER_FIELD(2, PendingCookies_);
-    PHOENIX_REGISTER_FIELD(3, JobCounter_);
-    PHOENIX_REGISTER_FIELD(4, Task_);
-    PHOENIX_REGISTER_FIELD(5, Logger);
-}
-
-PHOENIX_DEFINE_TYPE(TDistributedJobManager);
-
 bool TDistributedJobManager::OnUnsuccessfulJobFinish(
     const TJobletPtr& joblet,
     EAbortReason abortReason)
@@ -170,6 +159,17 @@ bool TDistributedJobManager::OnUnsuccessfulJobFinish(
     }
     return false;
 }
+
+void TDistributedJobManager::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, CookieToReplicas_);
+    PHOENIX_REGISTER_FIELD(2, PendingCookies_);
+    PHOENIX_REGISTER_FIELD(3, JobCounter_);
+    PHOENIX_REGISTER_FIELD(4, Task_);
+    PHOENIX_REGISTER_FIELD(5, Logger);
+}
+
+PHOENIX_DEFINE_TYPE(TDistributedJobManager);
 
 void TDistributedJobManager::TSecondary::RegisterMetadata(auto&& registrar)
 {

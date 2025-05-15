@@ -211,7 +211,8 @@ void TJoblet::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(45, OutputStreamDescriptors);
     PHOENIX_REGISTER_FIELD(46, InputStreamDescriptors);
     PHOENIX_REGISTER_FIELD(47, UserJobMonitoringDescriptor);
-    PHOENIX_REGISTER_FIELD(48, CookieGroupInfo);
+    PHOENIX_REGISTER_FIELD(48, CookieGroupInfo,
+        .SinceVersion(ESnapshotVersion::DistributedJobManagers));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
        this_->Revived = true;
@@ -221,7 +222,18 @@ void TJoblet::RegisterMetadata(auto&& registrar)
 void TJoblet::TCookieGroupInfo::Persist(const TPersistenceContext& context) {
     using NYT::Persist;
     Persist(context, MainJobId);
-    Persist(context, OutputCookieGroupIndex);
+    Persist(context, OutputIndex);
+}
+
+void Serialize(const TJoblet::TCookieGroupInfo& cookieGroupInfo, NYson::IYsonConsumer* consumer) {
+    using NYT::Serialize;
+
+    consumer->OnBeginAttributes();
+    consumer->OnKeyedItem("main_job_id");
+    NYTree::Serialize(cookieGroupInfo.MainJobId, consumer);
+    consumer->OnKeyedItem("output_index");
+    NYTree::Serialize(cookieGroupInfo.OutputIndex, consumer);
+    consumer->OnEndAttributes();
 }
 
 PHOENIX_DEFINE_TYPE(TJoblet);

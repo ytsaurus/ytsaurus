@@ -3944,6 +3944,7 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("statistics").Value(joblet->BuildCombinedStatistics())
         .Item("suspicious").Value(joblet->Suspicious)
         .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
+        .Item("cookie_group_info").Value(joblet->CookieGroupInfo)
         .Item("main_job_id").Value(joblet->CookieGroupInfo.MainJobId)
         .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
         .Item("has_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Speculative])
@@ -3952,7 +3953,7 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("speculative").Value(joblet->CompetitionType == EJobCompetitionType::Speculative)
         .Item("task_name").Value(joblet->TaskName)
         .Item("job_cookie").Value(joblet->OutputCookie)
-        .Item("job_cookie_group_index").Value(joblet->CookieGroupInfo.OutputCookieGroupIndex)
+        .Item("job_cookie_group_index").Value(joblet->CookieGroupInfo.OutputIndex)
         .DoIf(joblet->UserJobMonitoringDescriptor.has_value(), [&] (TFluentMap fluent) {
             fluent.Item("monitoring_descriptor").Value(ToString(*joblet->UserJobMonitoringDescriptor));
         })
@@ -10393,7 +10394,7 @@ void TOperationControllerBase::InitUserJobSpec(
         setEnvironmentVariable("YT_TASK_JOB_INDEX", ToString(joblet->TaskJobIndex));
         setEnvironmentVariable("YT_JOB_ID", ToString(joblet->JobId));
         setEnvironmentVariable("YT_JOB_COOKIE", ToString(joblet->OutputCookie));
-        setEnvironmentVariable("YT_JOB_COOKIE_GROUP_INDEX", ToString(joblet->CookieGroupInfo.OutputCookieGroupIndex));
+        setEnvironmentVariable("YT_JOB_COOKIE_GROUP_INDEX", ToString(joblet->CookieGroupInfo.OutputIndex));
         setEnvironmentVariable("YT_JOB_COOKIE_MAIN_JOB_ID", ToString(joblet->CookieGroupInfo.MainJobId));
 
         for (const auto& [key, value] : joblet->Task->BuildJobEnvironment()) {

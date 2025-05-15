@@ -75,7 +75,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PersistentCompletedRankCount)          (301903))
     // 25.4 starts here
     ((BumpTo_25_4)                           (302000))
-    ((MultiJobManagers)                      (302001))
+    ((DistributedJobManagers)                (302001))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
