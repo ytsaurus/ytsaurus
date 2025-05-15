@@ -77,6 +77,7 @@ struct TGpuCheckOptions
     THashMap<TString, TString> Environment;
     std::vector<NContainers::TDevice> Devices;
     std::vector<TShellCommandConfigPtr> SetupCommands;
+    std::optional<TString> InfinibandCluster;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
