@@ -267,6 +267,9 @@ public:
     //! Maximum number of suspicious jobs that are reported in Orchid for each job type.
     i64 MaxOrchidEntryCountPerType;
 
+    //! Minimum CPU limit for jobs that are checked for suspiciousness.
+    NScheduler::TCpuResource MinRequiredCpuLimit;
+
     REGISTER_YSON_STRUCT(TSuspiciousJobsOptions);
 
     static void Register(TRegistrar registrar);

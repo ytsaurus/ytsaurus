@@ -306,6 +306,8 @@ void TSuspiciousJobsOptions::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("max_orchid_entry_count_per_type", &TThis::MaxOrchidEntryCountPerType)
         .Default(100);
+    registrar.Parameter("min_required_cpu_limit", &TThis::MinRequiredCpuLimit)
+        .Default(NScheduler::TCpuResource(0.1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
