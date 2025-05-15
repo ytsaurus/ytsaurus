@@ -13,3 +13,8 @@ public:
     pool-tree: default
     ipa: _вай-ти-за́у-рус_
     yt-docs-root: https://ytsaurus.tech/docs/ru
+
+    yql:
+        udf-cpp-dir: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs
+        udf-ivaluebuilder-example-link: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs/examples/structs
+        udf-ivaluebuilder-example: yql/essentials/udfs/examples/structs
