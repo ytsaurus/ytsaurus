@@ -10,7 +10,7 @@
 #include "job_splitter.h"
 #include "helpers.h"
 #include "probing_job_manager.h"
-#include "multi_job_manager.h"
+#include "distributed_job_manager.h"
 #include "aggregated_job_statistics.h"
 
 #include <yt/yt/server/controller_agent/tentative_tree_eligibility.h>
@@ -446,8 +446,8 @@ private:
     TSpeculativeJobManager SpeculativeJobManager_;
     TProbingJobManager ProbingJobManager_;
     TExperimentJobManager ExperimentJobManager_;
-    TMultiJobManager MultiJobManager_;
-    std::array<IExtraJobManager*, 4> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_, &MultiJobManager_};
+    TDistributedJobManager DistributedJobManager_;
+    std::array<IExtraJobManager*, 4> JobManagers_ = {&SpeculativeJobManager_, &ProbingJobManager_, &ExperimentJobManager_, &DistributedJobManager_};
 
     //! Time of first job scheduling.
     std::optional<TInstant> StartTime_;
