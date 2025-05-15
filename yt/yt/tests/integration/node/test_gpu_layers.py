@@ -1130,6 +1130,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
                 "mapper": {
                     "job_count": 1,
+                    "gpu_limit": 1,
                     "layer_paths": ["//tmp/base_layer"],
                     "enable_gpu_layers": True,
                     "gpu_check_layer_name": "0",
@@ -1250,6 +1251,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         op = run_test_vanilla(
             "sleep 1",
             task_patch={
+                "gpu_limit": 1,
                 "layer_paths": ["//tmp/base_layer"],
                 "enable_gpu_layers": True,
                 "enable_gpu_check": True,
@@ -1312,6 +1314,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
                 "mapper": {
                     "job_count": 1,
+                    "gpu_limit": 1,
                     "layer_paths": ["//tmp/base_layer"],
                     "enable_gpu_layers": True,
                     "enable_gpu_check": True,
@@ -1343,10 +1346,10 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
                 "mapper": {
                     "job_count": 1,
+                    "gpu_limit": 1,
                     "layer_paths": ["//tmp/base_layer"],
                     "enable_gpu_layers": True,
                     "enable_gpu_check": True,
-                    "gpu_limit": 1,
                 },
             },
             track=False,

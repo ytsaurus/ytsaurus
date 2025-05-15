@@ -4318,9 +4318,7 @@ TGpuCheckOptions TJob::GetGpuCheckOptions() const
             : std::nullopt,
         .Environment = FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()),
         .Devices = GetGpuDevices(),
-        .SetupCommands = GpuCheckVolume_
-            ? Bootstrap_->GetGpuManager()->GetSetupCommands()
-            : std::vector<TShellCommandConfigPtr>(),
+        .SetupCommands = Bootstrap_->GetGpuManager()->GetSetupCommands(),
     };
 }
 
