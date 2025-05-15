@@ -442,6 +442,12 @@ message TReqAdvanceReplicationProgress
     optional uint64 replication_round = 4;
 }
 
+message TReqAdvanceReplicationEra
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 new_replication_era = 2;
+}
+
 message THunkStorageSettings
 {
     required bytes mount_config = 1; // YSON-serialized
