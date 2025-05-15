@@ -366,7 +366,7 @@ private:
         YT_LOG_DEBUG("GPU check is not supported in simple workspace");
 
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
-        SetJobPhase(EJobPhase::RunningGpuCheckCommand);
+        // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
 
         return VoidFuture;
     }
@@ -602,9 +602,16 @@ private:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
-        SetJobPhase(EJobPhase::RunningGpuCheckCommand);
 
         if (Context_.GpuCheckOptions) {
+            SetJobPhase(EJobPhase::RunningGpuCheckCommand);
+
+            auto options = *Context_.GpuCheckOptions;
+            // COMPAT(ignat): do not perform setup commands in case of running GPU check in user job volume.
+            if (!ResultHolder_.GpuCheckVolume) {
+                options.SetupCommands.clear();
+            }
+
             auto context = TJobGpuCheckerContext{
                 .Slot = Context_.Slot,
                 .Job = Context_.Job,
@@ -616,7 +623,7 @@ private:
 
                 .Type = EGpuCheckType::Preliminary,
 
-                .Options = *Context_.GpuCheckOptions,
+                .Options = options,
 
                 .CurrentStartIndex = ResultHolder_.SetupCommandCount,
                 // It is preliminary (not extra) GPU check.
@@ -649,6 +656,7 @@ private:
                     YT_LOG_INFO("Preliminary GPU check command finished");
                 }).AsyncVia(Invoker_));
         } else {
+            // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
             YT_LOG_INFO("No preliminary GPU check is needed");
 
             return VoidFuture;
@@ -819,7 +827,7 @@ private:
         YT_LOG_DEBUG_IF(Context_.GpuCheckOptions, "GPU check is not supported in CRI workspace");
 
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
-        SetJobPhase(EJobPhase::RunningGpuCheckCommand);
+        // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
 
         return VoidFuture;
     }
