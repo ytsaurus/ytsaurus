@@ -124,7 +124,7 @@ struct TJoblet
     struct TCookieGroupInfo
     {
         TJobId MainJobId;
-        int OutputCookieGroupIndex = 0;
+        int OutputIndex = 0;
 
         void Persist(const TPersistenceContext& context);
     };
@@ -220,6 +220,8 @@ struct TJoblet
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)
+
+void Serialize(const TJoblet::TCookieGroupInfo& cookieGroupInfo, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

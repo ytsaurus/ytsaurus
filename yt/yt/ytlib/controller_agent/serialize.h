@@ -61,7 +61,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((CompressedDataSizePerJob)              (301801))
     ((DropSolidFromChunkStripe)              (301802))
     ((GangRanks)                             (301803))
-    ((MultiJobManagers)                      (301804))
+    ((DistributedJobManagers)                (301804))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
