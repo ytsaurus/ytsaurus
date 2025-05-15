@@ -4223,6 +4223,29 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/map_node/table", tx=tx, force=True)
         assert get("//tmp/map_node/table/@compression_codec", tx=tx) == "zstd_17"
 
+    @authors("danilalexeev")
+    @not_implemented_in_sequoia
+    def test_node_reachability_basic(self):
+        assert get("//tmp/@reachable")
+
+        set("//tmp/n", 1)
+        assert get("//tmp/n/@reachable")
+
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        map_id = create("map_node", "//tmp/m", tx=tx2)
+        assert not get(f"#{map_id}/@reachable")
+        assert not get(f"#{map_id}/@reachable", tx=tx1)
+        assert get("//tmp/m/@reachable", tx=tx2)
+
+        commit_transaction(tx2)
+        assert not get(f"#{map_id}/@reachable")
+        assert get("//tmp/m/@reachable", tx=tx1)
+
+        commit_transaction(tx1)
+        assert get(f"#{map_id}/@reachable")
+
 
 ##################################################################
 
