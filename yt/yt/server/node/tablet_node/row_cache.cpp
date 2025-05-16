@@ -2,7 +2,7 @@
 
 #include <yt/yt/ytlib/table_client/versioned_row_merger.h>
 
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 namespace NYT::NTabletNode {
 

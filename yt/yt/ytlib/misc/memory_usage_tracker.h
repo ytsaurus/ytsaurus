@@ -10,9 +10,9 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
 
 namespace NYT {
 
