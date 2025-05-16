@@ -23,8 +23,8 @@ namespace NSQLTranslationV1 {
 
     size_t MatchANSIMultilineComment(TStringBuf remaining);
 
-    TTokenMatcher ANSICommentMatcher(TTokenMatcher defaultComment) {
-        return [defaultComment](TStringBuf prefix) -> TMaybe<TGenericToken> {
+    TTokenMatcher ANSICommentMatcher(TString name, TTokenMatcher defaultComment) {
+        return [defaultComment, name = std::move(name)](TStringBuf prefix) -> TMaybe<TGenericToken> {
             const auto basic = defaultComment(prefix);
             if (basic.Empty()) {
                 return Nothing();
@@ -43,7 +43,7 @@ namespace NSQLTranslationV1 {
             }
 
             return TGenericToken{
-                .Name = "COMMENT",
+                .Name = name,
                 .Content = ll1Content,
             };
         };
@@ -162,7 +162,7 @@ namespace NSQLTranslationV1 {
         for (const auto& [name, regex] : regexByOtherName) {
             generic.emplace_back(Compile(name, {regex}));
             if (name == "COMMENT" && ansi) {
-                generic.back() = ANSICommentMatcher(std::move(generic.back()));
+                generic.back() = ANSICommentMatcher(name, std::move(generic.back()));
             }
         }
 

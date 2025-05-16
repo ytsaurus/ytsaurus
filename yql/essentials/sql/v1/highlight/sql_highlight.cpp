@@ -12,6 +12,7 @@
 
 namespace NSQLHighlight {
 
+    using NSQLTranslationV1::Merged;
     using NSQLTranslationV1::TRegexPattern;
 
     struct Syntax {

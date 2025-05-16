@@ -7,7 +7,7 @@
 
 namespace NSQLTranslationV1 {
 
-    TTokenMatcher ANSICommentMatcher(TTokenMatcher defaultComment);
+    TTokenMatcher ANSICommentMatcher(TString name, TTokenMatcher defaultComment);
 
     TRegexPattern KeywordPattern(const NSQLReflect::TLexerGrammar& grammar);
 
