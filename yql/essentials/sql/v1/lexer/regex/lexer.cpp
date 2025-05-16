@@ -23,7 +23,7 @@ namespace NSQLTranslationV1 {
     size_t MatchANSIMultilineComment(TStringBuf remaining);
 
     TTokenMatcher ANSICommentMatcher(TTokenMatcher defaultComment) {
-        return [defaultComment](TStringBuf prefix) -> TMaybe<TStringBuf> {
+        return [defaultComment](TStringBuf prefix) -> TMaybe<TGenericToken> {
             const auto basic = defaultComment(prefix);
             if (basic.Empty()) {
                 return Nothing();
@@ -36,12 +36,15 @@ namespace NSQLTranslationV1 {
             size_t ll1Length = MatchANSIMultilineComment(prefix);
             TStringBuf ll1Content = prefix.SubString(0, ll1Length);
 
-            Y_ENSURE(ll1Content == 0 || basic <= ll1Content);
+            Y_ENSURE(ll1Content == 0 || basic->Content <= ll1Content);
             if (ll1Content == 0) {
                 return basic;
             }
 
-            return ll1Content;
+            return TGenericToken{
+                .Name = "COMMENT",
+                .Content = ll1Content,
+            };
         };
     }
 
@@ -96,31 +99,23 @@ namespace NSQLTranslationV1 {
         TGenericLexerGrammar generic;
 
         for (const auto& name : grammar.KeywordNames) {
-            auto matcher = Compile({
+            TRegexPattern pattern = {
                 .Body = TString(TLexerGrammar::KeywordBlock(name)),
                 .IsCaseInsensitive = true,
-            });
-            generic.emplace_back(name, std::move(matcher));
+            };
+            generic.emplace_back(Compile(name, std::move(pattern)));
         }
 
         for (const auto& name : grammar.PunctuationNames) {
-            generic.emplace_back(
-                name, Compile({RE2::QuoteMeta(grammar.BlockByName.at(name))}));
+            generic.emplace_back(Compile(name, {RE2::QuoteMeta(grammar.BlockByName.at(name))}));
         }
 
         for (const auto& [name, regex] : regexByOtherName) {
-            auto matcher = Compile({
-                .Body = regex,
-            });
-            generic.emplace_back(name, std::move(matcher));
-        }
+            generic.emplace_back(Compile(name, {regex}));
 
-        if (ansi) {
-            auto it = FindIf(generic, [](const auto& m) {
-                return m.TokenName == "COMMENT";
-            });
-            Y_ENSURE(it != std::end(generic));
-            it->Match = ANSICommentMatcher(it->Match);
+            if (name == "COMMENT" && ansi) {
+                generic.back() = ANSICommentMatcher(std::move(generic.back()));
+            }
         }
 
         return generic;

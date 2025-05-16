@@ -32,14 +32,9 @@ namespace NSQLTranslationV1 {
             size_t maxErrors = IGenericLexer::MaxErrorsLimit) const = 0;
     };
 
-    using TTokenMatcher = std::function<TMaybe<TStringBuf>(TStringBuf prefix)>;
+    using TTokenMatcher = std::function<TMaybe<TGenericToken>(TStringBuf prefix)>;
 
-    struct TTokenRule {
-        TString TokenName;
-        TTokenMatcher Match;
-    };
-
-    using TGenericLexerGrammar = TVector<TTokenRule>;
+    using TGenericLexerGrammar = TVector<TTokenMatcher>;
 
     struct TRegexPattern {
         TString Body;
@@ -47,7 +42,7 @@ namespace NSQLTranslationV1 {
         bool IsCaseInsensitive = false;
     };
 
-    TTokenMatcher Compile(const TRegexPattern& regex);
+    TTokenMatcher Compile(TString name, const TRegexPattern& regex);
 
     IGenericLexer::TPtr MakeGenericLexer(TGenericLexerGrammar grammar);
 

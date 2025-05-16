@@ -84,12 +84,9 @@ namespace NSQLTranslationV1 {
         }
 
         void Match(TStringBuf prefix, auto onMatch) const {
-            for (const auto& token : Grammar_) {
-                if (auto content = token.Match(prefix)) {
-                    onMatch(TGenericToken{
-                        .Name = token.TokenName,
-                        .Content = *content,
-                    });
+            for (const auto& matcher : Grammar_) {
+                if (auto token = matcher(prefix)) {
+                    onMatch(std::move(*token));
                 }
             }
         }
@@ -97,16 +94,20 @@ namespace NSQLTranslationV1 {
         TGenericLexerGrammar Grammar_;
     };
 
-    TTokenMatcher Compile(const TRegexPattern& regex) {
+    TTokenMatcher Compile(TString name, const TRegexPattern& regex) {
         RE2::Options options;
         options.set_case_sensitive(!regex.IsCaseInsensitive);
 
         return [bodyRe = MakeAtomicShared<RE2>(regex.Body, options),
-                afterRe = MakeAtomicShared<RE2>(regex.After, options)](TStringBuf prefix) -> TMaybe<TStringBuf> {
+                afterRe = MakeAtomicShared<RE2>(regex.After, options),
+                name = std::move(name)](TStringBuf prefix) -> TMaybe<TGenericToken> {
             TMaybe<TStringBuf> body, after;
             if ((body = Match(prefix, *bodyRe)) &&
                 (after = Match(prefix.Tail(body->size()), *afterRe))) {
-                return body;
+                return TGenericToken{
+                    .Name = name,
+                    .Content = *body,
+                };
             }
             return Nothing();
         };
