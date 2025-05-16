@@ -389,12 +389,29 @@ void AttachChildToSequoiaNodeOrThrow(
     auto type = parent->GetType();
     YT_VERIFY(type == EObjectType::Scion || type == EObjectType::SequoiaMapNode);
     auto* sequoiaNode = parent->As<TSequoiaMapNode>();
+    auto* originator = sequoiaNode;
+    auto isReplacement = false;
+    while (originator) {
+        auto& children = originator->MutableChildren();
+        if (auto it = children.KeyToChild().find(childKey); it != children.KeyToChild().end()) {
+            isReplacement = (it->second).operator bool();
+            break;
+        }
+
+        originator = originator->GetOriginator()->As<TSequoiaMapNode>();
+    }
+
     auto& children = sequoiaNode->MutableChildren();
     if (auto it = children.KeyToChild().find(childKey); it != children.KeyToChild().end()) {
         // NB: "ignore_existing" flag is validated in Cypress proxy.
         children.Remove(childKey, it->second);
     }
+
     children.Insert(childKey, childId);
+    // If it's not a replacement, then it's an addition of a new node.
+    if (!isReplacement) {
+        ++sequoiaNode->ChildCountDelta();
+    }
 }
 
 void MaybeSetUnreachable(
