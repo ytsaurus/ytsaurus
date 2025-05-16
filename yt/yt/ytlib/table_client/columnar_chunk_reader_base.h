@@ -35,6 +35,7 @@ public:
         NChunkClient::IChunkReaderPtr underlyingReader,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        bool unpackAny,
         NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
         std::function<void(int /*skippedRowCount*/)> onRowsSkipped,
@@ -49,6 +50,7 @@ protected:
 
     const std::vector<ESortOrder> SortOrders_;
     const int CommonKeyPrefix_;
+    const bool UnpackAny_;
 
     TBernoulliSampler Sampler_;
 
