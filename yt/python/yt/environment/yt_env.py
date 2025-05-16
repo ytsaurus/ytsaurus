@@ -183,7 +183,7 @@ def _get_ports_generator(yt_config):
 class YTInstance(object):
     def __init__(self, path, yt_config,
                  modify_configs_func=None,
-                 modify_dynamic_configs_func=None,
+                 modify_dynamic_configs_func=None,  # TODO(kvk1920): rename to modify_node_dynamic_configs_func.
                  kill_child_processes=False,
                  watcher_config=None,
                  run_watcher=True,
@@ -194,10 +194,12 @@ class YTInstance(object):
                  external_bin_path=None,
                  tmpfs_path=None,
                  open_port_iterator=None,
-                 modify_driver_logging_config_func=None):
+                 modify_driver_logging_config_func=None,
+                 modify_master_dynamic_configs_func=None):
         self.path = os.path.realpath(os.path.abspath(path))
         self.yt_config = yt_config
         self.modify_dynamic_configs_func = modify_dynamic_configs_func
+        self.modify_master_dynamic_configs_func = modify_master_dynamic_configs_func
 
         self.id = yt_config.cluster_name
 
@@ -644,7 +646,7 @@ class YTInstance(object):
                 client.set("//sys/@local_mode_fqdn", get_fqdn())
 
             if on_masters_started_func is not None:
-                on_masters_started_func()
+                on_masters_started_func(client)
 
             patched_node_config = self._apply_nodes_dynamic_config(client)
 
@@ -1413,7 +1415,14 @@ class YTInstance(object):
                 # `suppress_transaction_coordinator_sync` and `suppress_upstream_sync`
                 # are set True due to possibly enabled read-only mode.
                 if set_config:
-                    client.set("//sys/@config", get_patched_dynamic_master_config(get_dynamic_master_config()),
+                    patched_dynamic_master_config = get_patched_dynamic_master_config(get_dynamic_master_config())
+                    # TODO(kvk1920): there are many optional callbacks which
+                    # leads to "if some_func is not None: some_func()". It's
+                    # better use no-op callbacks instead of None.
+                    if self.modify_master_dynamic_configs_func is not None:
+                        self.modify_master_dynamic_configs_func(patched_dynamic_master_config, self.abi_version)
+
+                    client.set("//sys/@config", patched_dynamic_master_config,
                                suppress_transaction_coordinator_sync=True,
                                suppress_upstream_sync=True)
                 else:

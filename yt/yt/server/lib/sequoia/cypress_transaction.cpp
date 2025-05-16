@@ -994,14 +994,7 @@ private:
                 Description_);
         }
 
-        if (IsRetriableSequoiaError(result)) {
-            THROW_ERROR_EXCEPTION(
-                NSequoiaClient::EErrorCode::SequoiaRetriableError,
-                "Sequoia retriable error")
-                << std::move(result);
-        }
-
-        THROW_ERROR result;
+        THROW_ERROR MaybeWrapSequoiaRetriableError<void>(result);
     }
 };
 
