@@ -43,6 +43,7 @@ namespace NSQLTranslationV1 {
     };
 
     TTokenMatcher Compile(TString name, const TRegexPattern& regex);
+    TRegexPattern Merged(TVector<TRegexPattern> patterns);
 
     IGenericLexer::TPtr MakeGenericLexer(TGenericLexerGrammar grammar);
 

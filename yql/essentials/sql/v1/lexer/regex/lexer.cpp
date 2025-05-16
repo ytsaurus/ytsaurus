@@ -13,6 +13,7 @@
 #include <util/generic/maybe.h>
 #include <util/string/subst.h>
 #include <util/string/ascii.h>
+#include <util/string/join.h>
 
 namespace NSQLTranslationV1 {
 
@@ -92,19 +93,39 @@ namespace NSQLTranslationV1 {
         }
     }
 
+    TTokenMatcher KeywordMatcher(const NSQLReflect::TLexerGrammar& grammar) {
+        auto keyword = Compile("Keyword", KeywordPattern(grammar));
+        return [keyword = std::move(keyword)](TStringBuf content) -> TMaybe<TGenericToken> {
+            if (auto token = keyword(content)) {
+                return TGenericToken{
+                    .Name = TLexerGrammar::KeywordNameByBlock(token->Content),
+                    .Content = token->Content,
+                };
+            }
+            return Nothing();
+        };
+    }
+
+    TRegexPattern KeywordPattern(const NSQLReflect::TLexerGrammar& grammar) {
+        TVector<TRegexPattern> patterns;
+        patterns.reserve(grammar.KeywordNames.size());
+        for (const auto& keyword : grammar.KeywordNames) {
+            const TStringBuf content = TLexerGrammar::KeywordBlockByName(keyword);
+            patterns.push_back({
+                .Body = TString(content),
+                .IsCaseInsensitive = true,
+            });
+        }
+        return Merged(std::move(patterns));
+    }
+
     TGenericLexerGrammar MakeGenericLexerGrammar(
         bool ansi,
         const TLexerGrammar& grammar,
         const TVector<std::tuple<TString, TString>>& regexByOtherName) {
         TGenericLexerGrammar generic;
 
-        for (const auto& name : grammar.KeywordNames) {
-            TRegexPattern pattern = {
-                .Body = TString(TLexerGrammar::KeywordBlock(name)),
-                .IsCaseInsensitive = true,
-            };
-            generic.emplace_back(Compile(name, std::move(pattern)));
-        }
+        generic.emplace_back(KeywordMatcher(grammar));
 
         for (const auto& name : grammar.PunctuationNames) {
             generic.emplace_back(Compile(name, {RE2::QuoteMeta(grammar.BlockByName.at(name))}));
@@ -112,7 +133,6 @@ namespace NSQLTranslationV1 {
 
         for (const auto& [name, regex] : regexByOtherName) {
             generic.emplace_back(Compile(name, {regex}));
-
             if (name == "COMMENT" && ansi) {
                 generic.back() = ANSICommentMatcher(std::move(generic.back()));
             }
