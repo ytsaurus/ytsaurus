@@ -26,6 +26,7 @@
 #include <yt/yt/core/misc/config.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/phoenix/type_def.h>
 
@@ -43,6 +44,7 @@ using namespace NYTree;
 using namespace NYson;
 
 using NVectorHdrf::EIntegralGuaranteeType;
+using NYT::ToProto;
 
 extern const TString OperationAliasPrefix;
 
@@ -523,8 +525,26 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NP
 
 void TNbdDiskConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("data_node_rpc_timeout", &TThis::DataNodeRpcTimeout)
+        .Default(TDuration::Seconds(10));
     registrar.Parameter("data_node_address", &TThis::DataNodeAddress)
         .Default();
+    registrar.Parameter("master_rpc_timeout", &TThis::MasterRpcTimeout)
+        .Default(TDuration::Seconds(2));
+    registrar.Parameter("min_data_nodes_count", &TThis::MinDataNodesCount)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("max_data_nodes_count", &TThis::MaxDataNodesCount)
+        .GreaterThanOrEqual(0)
+        .Default(3);
+
+    registrar.Postprocessor([&] (TNbdDiskConfig* config) {
+        if (config->MinDataNodesCount > config->MaxDataNodesCount) {
+            THROW_ERROR_EXCEPTION("Invalid \"min_data_nodes_count\", \"max_data_nodes_count\" pair.")
+                << TErrorAttribute("min_data_nodes_count", config->MinDataNodesCount)
+                << TErrorAttribute("max_data_nodes_count", config->MaxDataNodesCount);
+        }
+    });
 }
 
 void TDiskRequestConfig::Register(TRegistrar registrar)
@@ -565,8 +585,15 @@ void ToProto(
         YT_VERIFY(diskRequestConfig.MediumIndex);
         protoDiskRequest->set_medium_index(*diskRequestConfig.MediumIndex);
     }
-    if (diskRequestConfig.NbdDisk && diskRequestConfig.NbdDisk->DataNodeAddress) {
-        protoDiskRequest->mutable_nbd_disk()->set_data_node_address(*diskRequestConfig.NbdDisk->DataNodeAddress);
+    if (diskRequestConfig.NbdDisk) {
+        auto* nbd_disk = protoDiskRequest->mutable_nbd_disk();
+        if (diskRequestConfig.NbdDisk->DataNodeAddress) {
+            nbd_disk->set_data_node_address(*diskRequestConfig.NbdDisk->DataNodeAddress);
+        }
+        nbd_disk->set_data_node_rpc_timeout(ToProto(diskRequestConfig.NbdDisk->DataNodeRpcTimeout));
+        nbd_disk->set_master_rpc_timeout(ToProto(diskRequestConfig.NbdDisk->MasterRpcTimeout));
+        nbd_disk->set_min_data_nodes_count(diskRequestConfig.NbdDisk->MinDataNodesCount);
+        nbd_disk->set_max_data_nodes_count(diskRequestConfig.NbdDisk->MaxDataNodesCount);
     }
 }
 

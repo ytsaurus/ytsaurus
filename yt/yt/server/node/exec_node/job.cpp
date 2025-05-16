@@ -3374,13 +3374,20 @@ void TJob::InitializeSandboxNbdRootVolumeData()
     YT_VERIFY(UserJobSpec_->disk_request().has_medium_index());
 
     SandboxNbdRootVolumeData_ = TSandboxNbdRootVolumeData{
-        .NbdDiskSize = UserJobSpec_->disk_request().disk_space(),
-        .NbdDiskMediumIndex = UserJobSpec_->disk_request().medium_index(),
+        .Size = UserJobSpec_->disk_request().disk_space(),
+        .MediumIndex = UserJobSpec_->disk_request().medium_index(),
     };
 
-    if (UserJobSpec_->disk_request().nbd_disk().has_data_node_address()) {
-        SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress = UserJobSpec_->disk_request().nbd_disk().data_node_address();
+    const auto& nbdDisk = UserJobSpec_->disk_request().nbd_disk();
+
+    if (nbdDisk.has_data_node_address()) {
+        SandboxNbdRootVolumeData_->DataNodeAddress = nbdDisk.data_node_address();
     }
+
+    SandboxNbdRootVolumeData_->DataNodeRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_rpc_timeout());
+    SandboxNbdRootVolumeData_->MasterRpcTimeout = FromProto<TDuration>(nbdDisk.master_rpc_timeout());
+    SandboxNbdRootVolumeData_->MinDataNodesCount = FromProto<int>(nbdDisk.min_data_nodes_count());
+    SandboxNbdRootVolumeData_->MaxDataNodesCount = FromProto<int>(nbdDisk.max_data_nodes_count());
 }
 
 THashSet<TString> TJob::InitializeNbdExportIds()
@@ -3433,7 +3440,7 @@ THashSet<TString> TJob::InitializeNbdExportIds()
         EmplaceOrCrash(nbdExportIds, nbdExportId);
         ++nbdExportCount;
 
-        SandboxNbdRootVolumeData_->NbdExportId = nbdExportId;
+        SandboxNbdRootVolumeData_->ExportId = nbdExportId;
     }
 
     return nbdExportIds;

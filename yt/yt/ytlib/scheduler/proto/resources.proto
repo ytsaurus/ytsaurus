@@ -24,8 +24,15 @@ message TDiskQuota
 
 message TNbdDisk
 {
+    //! Params to connect to chosen data nodes.
+    optional int64 data_node_rpc_timeout = 1 [default = 10000];
     //! Address of data node that hosts NBD chunk.
-    optional string data_node_address = 1;
+    optional string data_node_address = 2;
+
+    //! Params to get suitable data nodes from master.
+    optional int64 master_rpc_timeout = 3 [default = 2000];
+    optional int32 min_data_nodes_count = 4 [default = 0];
+    optional int32 max_data_nodes_count = 5 [default = 3];
 }
 
 message TDiskRequest

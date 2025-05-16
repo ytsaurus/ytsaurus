@@ -1,10 +1,9 @@
 #include "data_node_nbd_service.h"
 
 #include "bootstrap.h"
-#include "config.h"
-// TODO: remove me.
-#include "session.h"
+#include "chunk_store.h"
 #include "nbd_session.h"
+#include "session.h"
 #include "session_manager.h"
 
 #include <yt/yt/server/lib/nbd/chunk_block_device.h>
@@ -86,6 +85,13 @@ private:
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
 
+        if (sessionManager->FindSession(sessionId.ChunkId)) {
+            // Session is already opened.
+            context->Reply();
+            return;
+        }
+
+        // Open a new session.
         TSessionOptions options;
         options.WorkloadDescriptor.Category = EWorkloadCategory::UserInteractive;
         options.NbdChunkSize = size;

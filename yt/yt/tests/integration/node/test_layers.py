@@ -1393,7 +1393,8 @@ class TestNbdSquashFSLayers(YTEnvSetup):
     @authors("yuryalekseev")
     @pytest.mark.parametrize("use_disk_request", [True, False])
     @pytest.mark.parametrize("access_method", ["from_user_spec", "from_cypress"])
-    def test_squashfs_layer(self, use_disk_request, access_method):
+    @pytest.mark.parametrize("data_node_address", ["from_user_spec", "from_master"])
+    def test_squashfs_layer(self, use_disk_request, access_method, data_node_address):
         # Set up image file.
         create("file", "//tmp/squashfs.img")
         write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
@@ -1426,11 +1427,21 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             spec["mapper"]["disk_request"] = {
                 "medium_name": "default",
                 "disk_space": 16 * 1024 * 1024,
-                # Use NBD disk.
-                "nbd_disk": {
+            }
+
+            # Use NBD disk.
+            if data_node_address == "from_user_spec":
+                # Take data node address from user spec.
+                spec["mapper"]["disk_request"]["nbd_disk"] = {
                     "data_node_address": ls("//sys/data_nodes")[0],
                 }
-            }
+            else:
+                # TODO(yuryalekseev): Take data node address from master.
+                # spec["mapper"]["disk_request"]["nbd_disk"] = {}
+
+                spec["mapper"]["disk_request"]["nbd_disk"] = {
+                    "data_node_address": ls("//sys/data_nodes")[0],
+                }
 
         op = map(
             in_="//tmp/t_in",
