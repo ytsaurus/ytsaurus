@@ -17,8 +17,7 @@ class THorizontalBlockWriter
 public:
     explicit THorizontalBlockWriter(
         TTableSchemaPtr schema,
-        i64 reserveSize = 128_KB,
-        IMemoryUsageTrackerPtr memoryUsageTracker = GetNullMemoryUsageTracker());
+        i64 reserveSize = 128_KB);
 
     void WriteRow(TUnversionedRow row);
 

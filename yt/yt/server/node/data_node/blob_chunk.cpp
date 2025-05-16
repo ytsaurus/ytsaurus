@@ -24,9 +24,9 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/profiling/timing.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <util/system/align.h>
 

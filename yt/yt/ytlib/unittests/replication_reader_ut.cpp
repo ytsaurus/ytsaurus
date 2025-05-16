@@ -28,6 +28,7 @@
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/random.h>
 #include <yt/yt/core/misc/fs.h>
 
@@ -42,8 +43,6 @@
 #include <yt/yt/core/rpc/local_server.h>
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/service_detail.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 namespace NYT::NChunkClient {
 

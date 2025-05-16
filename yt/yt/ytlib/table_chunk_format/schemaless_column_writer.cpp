@@ -29,9 +29,8 @@ public:
         int schemaColumnCount,
         TDataBlockWriter* blockWriter,
         IMemoryUsageTrackerPtr memoryUsageTracker)
-        : TColumnWriterBase(blockWriter, memoryUsageTracker)
+        : TColumnWriterBase(blockWriter, std::move(memoryUsageTracker))
         , SchemaColumnCount_(schemaColumnCount)
-        , MemoryUsageTracker_(std::move(memoryUsageTracker))
     {
         Reset();
     }
@@ -44,15 +43,17 @@ public:
     void WriteUnversionedValues(TRange<TUnversionedRow> rows) override
     {
         AddValues(rows);
-        MemoryGuard_.SetSize(GetUntrackedMemoryUsage());
+        MemoryGuard_.SetSize(GetMemoryUsage());
         if (Offsets_.size() > MaxRowCount || DataBuffer_->GetSize() > MaxBufferSize) {
             FinishCurrentSegment();
         }
     }
 
-    i64 GetUntrackedMemoryUsage() const
+    i64 GetMemoryUsage() const
     {
-        return GetVectorMemoryUsage(Offsets_) + GetVectorMemoryUsage(ValueCounts_);
+        return DataBuffer_->GetSize() +
+            GetVectorMemoryUsage(Offsets_) +
+            GetVectorMemoryUsage(ValueCounts_);
     }
 
     i32 GetCurrentSegmentSize() const override
@@ -75,7 +76,6 @@ public:
 
 private:
     const int SchemaColumnCount_;
-    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     std::unique_ptr<TChunkedOutputStream> DataBuffer_;
 
@@ -89,12 +89,10 @@ private:
         Offsets_.clear();
         ValueCounts_.clear();
 
-        DataBuffer_ = std::make_unique<TChunkedOutputStream>(
-            GetRefCountedTypeCookie<TDefaultChunkedOutputStreamTag>(),
-            MemoryUsageTracker_
-        );
+        DataBuffer_ = std::make_unique<TChunkedOutputStream>();
+
         MaxValueCount_ = 0;
-        MemoryGuard_.SetSize(GetUntrackedMemoryUsage());
+        MemoryGuard_.SetSize(GetMemoryUsage());
     }
 
     void DumpSegment()
