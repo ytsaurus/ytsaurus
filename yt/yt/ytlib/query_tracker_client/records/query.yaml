@@ -391,3 +391,8 @@ types:
         cpp_type: bool
         column_name: is_truncated
         column_type: Boolean
+
+      - cpp_name: FullResult
+        cpp_type: std::optional<NYson::TYsonString>
+        column_name: full_result
+        column_type: Any
