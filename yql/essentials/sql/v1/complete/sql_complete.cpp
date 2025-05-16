@@ -4,6 +4,7 @@
 #include <yql/essentials/sql/v1/complete/name/service/static/name_service.h>
 #include <yql/essentials/sql/v1/complete/syntax/local.h>
 #include <yql/essentials/sql/v1/complete/syntax/format.h>
+#include <yql/essentials/sql/v1/complete/analysis/global/global.h>
 
 #include <util/generic/algorithm.h>
 #include <util/charset/utf8.h>
@@ -18,6 +19,7 @@ namespace NSQLComplete {
             ISqlCompletionEngine::TConfiguration configuration)
             : Configuration_(std::move(configuration))
             , SyntaxAnalysis_(MakeLocalSyntaxAnalysis(lexer))
+            , GlobalAnalysis_(MakeGlobalAnalysis())
             , Names_(std::move(names))
         {
         }
@@ -36,19 +38,20 @@ namespace NSQLComplete {
                     << " for input size " << input.Text.size();
             }
 
-            TLocalSyntaxContext context = SyntaxAnalysis_->Analyze(input);
-            auto keywords = context.Keywords;
+            TLocalSyntaxContext local = SyntaxAnalysis_->Analyze(input);
+            TGlobalContext global = GlobalAnalysis_->Analyze(input);
+            auto keywords = local.Keywords;
 
-            TNameRequest request = NameRequestFrom(input, context);
+            TNameRequest request = NameRequestFrom(input, local, global);
             if (request.IsEmpty()) {
                 return NThreading::MakeFuture<TCompletion>({
-                    .CompletedToken = GetCompletedToken(input, context.EditRange),
+                    .CompletedToken = GetCompletedToken(input, local.EditRange),
                     .Candidates = {},
                 });
             }
 
             return Names_->Lookup(std::move(request))
-                .Apply([this, input, context = std::move(context)](auto f) {
+                .Apply([this, input, context = std::move(local)](auto f) {
                     return ToCompletion(input, context, f.ExtractValue());
                 });
         }
@@ -61,50 +64,60 @@ namespace NSQLComplete {
             };
         }
 
-        TNameRequest NameRequestFrom(TCompletionInput input, const TLocalSyntaxContext& context) const {
+        TNameRequest NameRequestFrom(
+            TCompletionInput input,
+            const TLocalSyntaxContext& local,
+            const TGlobalContext& global) const {
             TNameRequest request = {
-                .Prefix = TString(GetCompletedToken(input, context.EditRange).Content),
+                .Prefix = TString(GetCompletedToken(input, local.EditRange).Content),
                 .Limit = Configuration_.Limit,
             };
 
-            for (const auto& [first, _] : context.Keywords) {
+            for (const auto& [first, _] : local.Keywords) {
                 request.Keywords.emplace_back(first);
             }
 
-            if (context.Pragma) {
+            if (local.Pragma) {
                 TPragmaName::TConstraints constraints;
-                constraints.Namespace = context.Pragma->Namespace;
+                constraints.Namespace = local.Pragma->Namespace;
                 request.Constraints.Pragma = std::move(constraints);
             }
 
-            if (context.Type) {
+            if (local.Type) {
                 request.Constraints.Type = TTypeName::TConstraints();
             }
 
-            if (context.Function) {
+            if (local.Function) {
                 TFunctionName::TConstraints constraints;
-                constraints.Namespace = context.Function->Namespace;
+                constraints.Namespace = local.Function->Namespace;
                 request.Constraints.Function = std::move(constraints);
             }
 
-            if (context.Hint) {
+            if (local.Hint) {
                 THintName::TConstraints constraints;
-                constraints.Statement = context.Hint->StatementKind;
+                constraints.Statement = local.Hint->StatementKind;
                 request.Constraints.Hint = std::move(constraints);
             }
 
-            if (context.Object) {
-                request.Constraints.Object = TObjectNameConstraints{
-                    .Provider = context.Object->Provider,
-                    .Cluster = context.Object->Cluster,
-                    .Kinds = context.Object->Kinds,
-                };
-                request.Prefix = context.Object->Path;
+            if (local.Object) {
+                request.Constraints.Object = TObjectNameConstraints();
+                request.Constraints.Object->Kinds = local.Object->Kinds;
+                request.Prefix = local.Object->Path;
             }
 
-            if (context.Cluster) {
+            if (local.Object && global.Object) {
+                request.Constraints.Object->Provider = global.Object->Provider;
+                request.Constraints.Object->Cluster = global.Object->Cluster;
+            }
+
+            if (local.Object && local.Object->HasCluster()) {
+                request.Constraints.Object->Provider = local.Object->Provider;
+                request.Constraints.Object->Cluster = local.Object->Cluster;
+            }
+
+            if (local.Cluster) {
                 TClusterName::TConstraints constraints;
-                constraints.Namespace = context.Cluster->Provider;
+                constraints.Namespace = local.Cluster->Provider;
                 request.Constraints.Cluster = std::move(constraints);
             }
 
@@ -195,6 +208,7 @@ namespace NSQLComplete {
 
         TConfiguration Configuration_;
         ILocalSyntaxAnalysis::TPtr SyntaxAnalysis_;
+        IGlobalAnalysis::TPtr GlobalAnalysis_;
         INameService::TPtr Names_;
     };
 

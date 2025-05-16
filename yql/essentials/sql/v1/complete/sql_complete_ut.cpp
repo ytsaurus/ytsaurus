@@ -604,6 +604,29 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
     }
 
+    Y_UNIT_TEST(SelectFromWithUse) {
+        auto engine = MakeSqlCompletionEngineUT();
+        TVector<TCandidate> expected = {
+            {TableName, "`maxim`"},
+            {ClusterName, "example"},
+            {ClusterName, "yt:saurus"},
+            {Keyword, "ANY"},
+            {Keyword, "CALLABLE"},
+            {Keyword, "DICT"},
+            {Keyword, "ENUM"},
+            {Keyword, "FLOW"},
+            {Keyword, "LIST"},
+            {Keyword, "OPTIONAL"},
+            {Keyword, "RESOURCE"},
+            {Keyword, "SET"},
+            {Keyword, "STRUCT"},
+            {Keyword, "TAGGED"},
+            {Keyword, "TUPLE"},
+            {Keyword, "VARIANT"},
+        };
+        UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "USE yt:saurus; SELECT * FROM "), expected);
+    }
+
     Y_UNIT_TEST(SelectWhere) {
         TVector<TCandidate> expected = {
             {Keyword, "BITCAST("},

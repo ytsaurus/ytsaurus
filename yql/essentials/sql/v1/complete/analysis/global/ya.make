@@ -2,6 +2,7 @@ LIBRARY()
 
 SRCS(
     global.cpp
+    use.cpp
 )
 
 PEERDIR(
