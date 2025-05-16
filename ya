@@ -23,11 +23,6 @@ exit 2
 import os
 import sys
 import platform
-import time
-
-def add_stage_start_to_environ(stage_name):
-    stages = os.environ.get('YA_STAGES', '')
-    os.environ['YA_STAGES'] = stages + (':' if stages else '') + '{}@{}'.format(stage_name, time.time())
 
 RETRIES = 5
 HASH_PREFIX = 10
@@ -38,40 +33,39 @@ REGISTRY_ENDPOINT = os.environ.get("YA_REGISTRY_ENDPOINT", "https://devtools-reg
 # Start of mapping
 PLATFORM_MAP = {
     "data": {
-        "win32": {
-            "md5": "700385eaf8a059b387a08c8554c38bd0",
-            "urls": [
-                f"{REGISTRY_ENDPOINT}/8689723252"
-            ]
-        },
         "darwin": {
-            "md5": "703aa992a2568a97ae0cd261bf9b58a6",
+            "md5": "7b2226d901c8a5ff8af1bf2e6c55809c",
             "urls": [
-                f"{REGISTRY_ENDPOINT}/8689718827"
+                f"{REGISTRY_ENDPOINT}/5769213676"
             ]
         },
         "darwin-arm64": {
-            "md5": "96b0ee82f13aa73908c2726b84925aea",
+            "md5": "bb60ba3324f9ec3b2180ea19ba855b4d",
             "urls": [
-                f"{REGISTRY_ENDPOINT}/8689714545"
+                f"{REGISTRY_ENDPOINT}/5769213411"
             ]
         },
         "linux-aarch64": {
-            "md5": "8245182717411b9c75525edf913d4a8a",
+            "md5": "1c7b17b1b1851c24ca0f531702c95e36",
             "urls": [
-                f"{REGISTRY_ENDPOINT}/8689710653"
+                f"{REGISTRY_ENDPOINT}/5769213228"
+            ]
+        },
+        "win32-clang-cl": {
+            "md5": "06e62eb7e79cb6f7822a144280f1fa7e",
+            "urls": [
+                f"{REGISTRY_ENDPOINT}/5769214015"
             ]
         },
         "linux": {
-            "md5": "499519b40142e3444cec4dba8254edee",
+            "md5": "d5a6093cb0147a99c8a6ec46481364c2",
             "urls": [
-                f"{REGISTRY_ENDPOINT}/8689727626"
+                f"{REGISTRY_ENDPOINT}/5769214248"
             ]
         }
     }
 } # End of mapping
 
-add_stage_start_to_environ('ya-script-initialization')
 
 def create_dirs(path):
     try:
@@ -164,8 +158,6 @@ def _fetch(url, into):
 
     _tune_ssl()
 
-    add_stage_start_to_environ('ya-script-download')
-
     from urllib.request import urlopen
     from urllib.request import Request
     from urllib.parse import urlparse
@@ -232,10 +224,7 @@ def _extract(path, into):
     # mock it with noop to retain current user ownership.
     tar.chown = lambda *args, **kwargs: None
 
-    if sys.version_info >= (3, 12):
-        tar.extractall(path=into, filter='data')
-    else:
-        tar.extractall(path=into)
+    tar.extractall(path=into)
     tar.close()
 
 
@@ -251,6 +240,8 @@ def _get(urls, md5):
                 if iter + 1 == RETRIES:
                     raise
                 else:
+                    import time
+
                     time.sleep(iter)
 
     return dest_path
@@ -268,8 +259,6 @@ def _get_dir(urls, md5, ya_name):
         if os.path.isfile(os.path.join(dest_dir, ya_name)):
             return dest_dir
         raise
-
-    add_stage_start_to_environ('ya-script-extract')
 
     tmp_dir = dest_dir + '.' + uniq()
     try:
@@ -336,7 +325,6 @@ def main():
 
     ya_name = {'win32': 'ya-bin.exe', 'win32-clang-cl': 'ya-bin.exe'}.get(best_key, 'ya-bin')  # XXX
     ya_dir = _get_dir(value['urls'], value['md5'], ya_name)
-    add_stage_start_to_environ('ya-script-prepare')
 
     # Popen `args` must have `str` type
     ya_path = str(os.path.join(ya_dir, ya_name))
