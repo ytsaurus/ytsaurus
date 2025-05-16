@@ -26,6 +26,7 @@ TAG(
     ya:large_tests_on_single_slots
 )
 
+YT_SPEC(yt/yt/tests/integration/spec.yson)
 SIZE(LARGE)
 TIMEOUT(1200)
 
