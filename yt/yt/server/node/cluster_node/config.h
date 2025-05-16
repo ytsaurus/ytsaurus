@@ -505,10 +505,10 @@ public:
     //! Network throttler limit is this smaller than NetworkBandwidth.
     std::optional<double> ThrottlerFreeBandwidthRatio;
 
-    //! Chunk replica cache config overrides
+    //! Chunk replica cache config overrides.
     TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
 
-    //! Chaos residency cache config overrides
+    //! Chaos residency cache config overrides.
     TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
 
     bool UsePortoNetworkLimitInThrottler;
