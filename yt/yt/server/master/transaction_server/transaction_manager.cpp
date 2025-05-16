@@ -1545,7 +1545,22 @@ public:
 
         TTransactionContextGuard guard(Bootstrap_, transaction);
 
-        RunPrepareTransactionActions(transaction, options);
+        if (transaction->IsSequoiaTransaction()) {
+            try {
+                RunPrepareTransactionActions(transaction, options);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    NSequoiaClient::EErrorCode::TransactionActionFailedOnMasterCell,
+                    "Prepare action for Sequoia transaction %v failed on master participant %v",
+                    transaction->GetId(),
+                    Bootstrap_->GetCellId())
+                    << TErrorAttribute("sequoia_transaction_id", transaction->GetId())
+                    << TErrorAttribute("master_cell_id", Bootstrap_->GetCellId())
+                    << ex;
+            }
+        } else {
+            RunPrepareTransactionActions(transaction, options);
+        }
 
         if (persistent) {
             transaction->SetPersistentState(ETransactionState::PersistentCommitPrepared);

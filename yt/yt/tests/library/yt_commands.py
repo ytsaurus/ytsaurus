@@ -175,6 +175,9 @@ def init_drivers(clusters):
         return drivers
 
     for instance in clusters:
+        if instance is None:
+            continue
+
         if instance.yt_config.master_count > 0:
             if instance._default_driver_backend == "native":
                 default_driver = create_driver_per_api(instance.configs["driver"])
