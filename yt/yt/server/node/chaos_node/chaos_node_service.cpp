@@ -147,6 +147,16 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         auto* replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
+        if (!fetchOptions.IncludeProgress) {
+            // Replication card is small without replication progress,
+            // so do not try to copy or validate the progress if progress was not requested.
+            ToProto(response->mutable_replication_card(), *replicationCard, fetchOptions);
+            context->SetResponseInfo("ReplicationCardId: %v",
+                replicationCardId);
+            context->Reply();
+            return;
+        }
+
         auto awaitingCollocationId = replicationCard->GetAwaitingCollocationId();
 
         auto isSame = [] (const auto& cachedCard, const auto& replicationCard) {
