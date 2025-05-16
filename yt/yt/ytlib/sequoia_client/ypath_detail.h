@@ -35,6 +35,8 @@ public:
     //! Returns the last path segment.
     TString GetBaseName() const;
 
+    void RemoveLastSegment();
+
     TMangledSequoiaPath ToMangledSequoiaPath() const;
 
     TRawYPath ToRawYPath() const &;
@@ -78,11 +80,18 @@ public:
     using TBase::TBase;
 
     //! Returns part preceding the name, stripped of trailing slash (if any).
-    TYPathBuf GetDirPath() const;
+    TYPathBuf GetDirPath() const &;
+    TYPathBuf GetDirPath() const && = delete;
 
     //! Allows iteration over path segments, omitting directory separators.
     class TSegmentView;
-    TSegmentView AsSegments() const;
+    TSegmentView AsSegments() const &;
+    TSegmentView AsSegments() const && = delete;
+
+    //! Returns the first path segment, skipping leading separators. Throws when
+    //! path doesn't start with separator followed by a literal.
+    TStringBuf GetFirstSegment() const &;
+    TStringBuf GetFirstSegment() const && = delete;
 };
 
 template <class TUnderlying>
@@ -95,11 +104,13 @@ public:
     using TBase::TBase;
 
     //! Returns part preceding the name, stripped of trailing slash (if any).
-    TAbsoluteYPathBuf GetDirPath() const;
+    TAbsoluteYPathBuf GetDirPath() const &;
+    TAbsoluteYPathBuf GetDirPath() const && = delete;
 
     //! Returns the root designator, throws if path does not contain any.
     //! Validates GUID in case of object root designator.
-    std::pair<TRootDesignator, TYPathBuf> GetRootDesignator() const;
+    std::pair<TRootDesignator, TYPathBuf> GetRootDesignator() const &;
+    std::pair<TRootDesignator, TYPathBuf> GetRootDesignator() const && = delete;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
