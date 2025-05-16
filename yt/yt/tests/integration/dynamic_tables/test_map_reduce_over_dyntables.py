@@ -458,6 +458,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert get(f"#{chunk_id}/@min_timestamp") == 123
 
     @authors("dave11ar")
+    @pytest.mark.timeout(180)
     @pytest.mark.parametrize("enable_dynamic_store_read", [False, True])
     def test_versioned_map_reduce_read(self, enable_dynamic_store_read):
         input = "//tmp/t_input"
