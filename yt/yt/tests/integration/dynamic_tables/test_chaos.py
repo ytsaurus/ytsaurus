@@ -2971,10 +2971,22 @@ class TestChaos(ChaosTestBase):
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r0"},
-            {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/r1"}
+            {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/r1"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        last_history_item_ts = get("#{0}/@replicas/{1}/history".format(card_id, replica_ids[1]))[-1]["timestamp"]
+
+        # Wait for replica to report itself being in the last era (i.e. it's actually enabled).
+        def _check_replica_timestamp():
+            segments = get("#{0}/@replicas/{1}/replication_progress/segments".format(card_id, replica_ids[1]))
+            return min(segment["timestamp"] for segment in segments) >= last_history_item_ts
+        wait(_check_replica_timestamp)
+
+        # Trigger era change to refresh rpc_proxy cache.
+        self._sync_alter_replica(card_id, replicas, replica_ids, 3, enabled=True)
 
         values = [{"key": 0, "value": "0"}]
         keys = [{"key": 0}]
