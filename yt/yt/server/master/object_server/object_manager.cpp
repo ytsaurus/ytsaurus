@@ -1812,44 +1812,88 @@ TObjectId TObjectManager::ResolvePathToObjectId(
 auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectId>& objectIds)
     -> TFuture<std::vector<TErrorOr<TVersionedObjectPath>>>
 {
-    // Request object paths from the primary cell.
-    auto proxy = CreateObjectServiceReadProxy(
-        Bootstrap_->GetRootClient(),
-        NApi::EMasterChannelKind::Follower);
-
-    // TODO(babenko): improve
-    auto batchReq = proxy.ExecuteBatch();
-    for (const auto& versionedId : objectIds) {
-        auto req = TCypressYPathProxy::Get(FromObjectId(versionedId.ObjectId) + "/@path");
-        SetTransactionId(req, versionedId.TransactionId);
-        batchReq->AddRequest(req);
+    if (objectIds.empty()) {
+        return MakeFuture<std::vector<TErrorOr<TVersionedObjectPath>>>({});
     }
 
-    return
-        batchReq->Invoke()
-        .Apply(BIND([=] (const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError) -> TErrorOr<std::vector<TErrorOr<TVersionedObjectPath>>> {
-            if (!batchRspOrError.IsOK()) {
-                return TError("Error requesting object paths")
-                    << batchRspOrError;
-            }
+    struct TOriginRequestInfo
+    {
+        TTransactionId TransactionId;
+        int OriginIndex;
+    };
 
-            const auto& batchRsp = batchRspOrError.Value();
-            auto rspOrErrors = batchRsp->GetResponses<TCypressYPathProxy::TRspGet>();
-            YT_VERIFY(rspOrErrors.size() == objectIds.size());
+    struct TPerCellRequest
+    {
+        TObjectServiceProxy::TReqExecuteBatchPtr Batch;
+        std::vector<TOriginRequestInfo> OriginRequestInfos;
+    };
+    TCompactFlatMap<TCellTag, TPerCellRequest, MaxSecondaryMasterCells> perCellRequests;
 
-            std::vector<TErrorOr<TVersionedObjectPath>> results;
-            results.reserve(rspOrErrors.size());
-            for (int index = 0; index < std::ssize(rspOrErrors); ++index) {
-                const auto& rspOrError = rspOrErrors[index];
-                if (rspOrError.IsOK()) {
-                    const auto& rsp = rspOrError.Value();
-                    results.push_back(TVersionedObjectPath{ConvertTo<TYPath>(TYsonString(rsp->value())), objectIds[index].TransactionId});
-                } else {
-                    results.push_back(TError(rspOrError));
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    for (int index : std::views::iota(0, std::ssize(objectIds))) {
+        const auto& [objectId, transactionId] = objectIds[index];
+        auto cellTag = CellTagFromId(objectId);
+        auto it = perCellRequests.find(cellTag);
+        if (it == perCellRequests.end()) {
+            it = EmplaceOrCrash(
+                perCellRequests,
+                cellTag,
+                TPerCellRequest{
+                    .Batch = TObjectServiceProxy::FromDirectMasterChannel(
+                        multicellManager->GetMasterChannelOrThrow(cellTag, EPeerKind::Follower))
+                        .ExecuteBatch(),
+                    .OriginRequestInfos = {},
+                });
+        }
+        auto& request = it->second;
+        request.OriginRequestInfos.emplace_back(transactionId, index);
+        auto req = TCypressYPathProxy::Get(FromObjectId(objectId) + "/@path");
+        SetTransactionId(req, transactionId);
+        SetAllowResolveFromSequoiaObject(req, true);
+        request.Batch->AddRequest(req);
+    }
+
+    auto results = std::make_shared<std::vector<TErrorOr<TVersionedObjectPath>>>(objectIds.size());
+    std::vector<TFuture<void>> perCellFutures;
+    perCellFutures.reserve(perCellRequests.size());
+    for (auto& [cellTag, request] : perCellRequests) {
+        perCellFutures.push_back(request.Batch->Invoke().Apply(
+            BIND([
+                cellTag,
+                originRequestInfos = std::move(request.OriginRequestInfos),
+                results
+            ] (const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& responsesOrError) {
+                if (!responsesOrError.IsOK()) {
+                    auto error = TError("Error requesting object paths from master cell %v", cellTag)
+                        << responsesOrError;
+                    for (const auto& [transactionId, index] : originRequestInfos) {
+                        (*results)[index] = error;
+                    }
+                    return;
                 }
-            }
 
-            return results;
+                const auto& responses = responsesOrError.Value();
+                YT_VERIFY(responses->GetResponseCount() == std::ssize(originRequestInfos));
+
+                for (int index : std::views::iota(0, responses->GetResponseCount())) {
+                    const auto& responseOrError = responses->GetResponse<TYPathProxy::TRspGet>(index);
+                    auto [transactionId, originIndex] = originRequestInfos[index];
+                    auto& result = (*results)[originIndex];
+                    if (!responseOrError.IsOK()) {
+                        result = TError(responseOrError);
+                    } else {
+                        result = TVersionedObjectPath{
+                            .Path = ConvertTo<TYPath>(TYsonString(responseOrError.Value()->value())),
+                            .TransactionId = transactionId,
+                        };
+                    }
+                }
+            })));
+    }
+
+    return AllSucceeded(std::move(perCellFutures))
+        .Apply(BIND([results = std::move(results)] {
+            return std::move(*results);
         }));
 }
 
