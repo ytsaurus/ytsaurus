@@ -2973,7 +2973,7 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "primary", "content_type": "data", "mode": "async", "enabled": False, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_1", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/r1"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0"},
-            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": False, "replica_path": "//tmp/q1"},
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
 
