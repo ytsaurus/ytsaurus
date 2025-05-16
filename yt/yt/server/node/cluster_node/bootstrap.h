@@ -112,7 +112,7 @@ struct IBootstrapBase
     virtual NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const = 0;
     virtual std::vector<std::string> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const = 0;
 
-    virtual void ResetAndRegisterAtMaster() = 0;
+    virtual void ResetAndRegisterAtMaster(ERegistrationReason reason) = 0;
 
     virtual bool IsConnected() const = 0;
     virtual NNodeTrackerClient::TNodeId GetNodeId() const = 0;
@@ -287,7 +287,7 @@ public:
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const override;
     std::vector<std::string> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const override;
 
-    void ResetAndRegisterAtMaster() override;
+    void ResetAndRegisterAtMaster(ERegistrationReason reason) override;
 
     bool IsConnected() const override;
     NNodeTrackerClient::TNodeId GetNodeId() const override;
