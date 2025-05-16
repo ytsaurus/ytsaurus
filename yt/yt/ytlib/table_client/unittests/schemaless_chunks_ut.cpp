@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/config.h>
+#include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
 
@@ -43,7 +44,7 @@ using NChunkClient::NProto::TChunkSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int RowCount = 50000;
+const int RowCount = 60000;
 const TStringBuf StringValue = "She sells sea shells on a sea shore";
 const TStringBuf AnyValueList = "[one; two; three]";
 const TStringBuf AnyValueMap = "{a=b; c=d}";
@@ -53,22 +54,38 @@ const std::vector<TString> ColumnNames = {"c0", "c1", "c2", "c3", "c4", "c5", "c
 
 // TODO(cherepashka): add test checking no chunk materialization happen during read.
 
-class TSchemalessChunksTest
-    : public ::testing::TestWithParam<std::tuple<EOptimizeFor, TTableSchema, TColumnFilter, TLegacyReadRange>>
+class TSchemalessChunkTestBase
 {
 protected:
-    IChunkReaderPtr MemoryReader_;
-    TNameTablePtr WriteNameTable_;
-    TChunkSpec ChunkSpec_;
-    TColumnarChunkMetaPtr ChunkMeta_;
     TChunkedMemoryPool Pool_;
-    std::vector<TUnversionedRow> Rows_;
+
+    TUnversionedRow CreateRow(int rowIndex, TNameTablePtr nameTable, bool testEntity)
+    {
+        auto row = TMutableUnversionedRow::Allocate(&Pool_, 7);
+        row[0] = CreateC0(rowIndex, nameTable);
+        row[1] = CreateC1(rowIndex, nameTable);
+        row[2] = CreateC2(rowIndex, nameTable);
+        row[3] = CreateC3(rowIndex, nameTable);
+        row[4] = CreateC4(rowIndex, nameTable);
+        row[5] = CreateC5(rowIndex, nameTable);
+        row[6] = CreateC6(rowIndex, nameTable, testEntity);
+        return row;
+    }
+
+    std::vector<TUnversionedRow> CreateRows(TNameTablePtr nameTable, bool testEntity)
+    {
+        std::vector<TUnversionedRow> rows;
+        for (int rowIndex = 0; rowIndex < RowCount; ++rowIndex) {
+            rows.push_back(CreateRow(rowIndex, nameTable, testEntity));
+        }
+        return rows;
+    }
 
     static TUnversionedValue CreateC0(int rowIndex, TNameTablePtr nameTable)
     {
         // Key part 0, Any.
         int id = nameTable->GetId("c0");
-        switch (rowIndex / 100000) {
+        switch (rowIndex / 10000) {
             case 0:
                 return MakeUnversionedSentinelValue(EValueType::Null, id);
             case 1:
@@ -151,11 +168,11 @@ protected:
         }
     }
 
-    static TUnversionedValue CreateC6(int rowIndex, TNameTablePtr nameTable)
+    static TUnversionedValue CreateC6(int rowIndex, TNameTablePtr nameTable, bool testEntity)
     {
         // Not key, Any.
         int id = nameTable->GetId("c6");
-        switch (rowIndex % 8) {
+        switch (rowIndex % 9) {
             case 0:
                 return MakeUnversionedSentinelValue(EValueType::Null, id);
             case 1:
@@ -172,38 +189,36 @@ protected:
                 return MakeUnversionedAnyValue(AnyValueList, id);
             case 7:
                 return MakeUnversionedAnyValue(AnyValueMap, id);
+            case 8:
+                if (testEntity) {
+                    return MakeUnversionedAnyValue("#", id);
+                } else {
+                    return MakeUnversionedNullValue(id);
+                }
             default:
                 YT_ABORT();
         }
     }
+};
 
-    TUnversionedRow CreateRow(int rowIndex, TNameTablePtr nameTable)
-    {
-        auto row = TMutableUnversionedRow::Allocate(&Pool_, 7);
-        row[0] = CreateC0(2 * rowIndex, nameTable);
-        row[1] = CreateC1(2 * rowIndex, nameTable);
-        row[2] = CreateC2(2 * rowIndex, nameTable);
-        row[3] = CreateC3(2 * rowIndex, nameTable);
-        row[4] = CreateC4(2 * rowIndex, nameTable);
-        row[5] = CreateC5(2 * rowIndex, nameTable);
-        row[6] = CreateC6(2 * rowIndex, nameTable);
-        return row;
-    }
+////////////////////////////////////////////////////////////////////////////////
 
-    std::vector<TUnversionedRow> CreateRows(TNameTablePtr nameTable)
-    {
-        std::vector<TUnversionedRow> rows;
-        for (int rowIndex = 0; rowIndex < RowCount; ++rowIndex) {
-            rows.push_back(CreateRow(rowIndex, nameTable));
-        }
-        return rows;
-    }
+class TSchemalessChunksTest
+    : public ::testing::TestWithParam<std::tuple<EOptimizeFor, TTableSchema, TColumnFilter, TLegacyReadRange>>
+    , public TSchemalessChunkTestBase
+{
+protected:
+    IChunkReaderPtr MemoryReader_;
+    TNameTablePtr WriteNameTable_;
+    TChunkSpec ChunkSpec_;
+    TColumnarChunkMetaPtr ChunkMeta_;
+    std::vector<TUnversionedRow> Rows_;
 
     void SetUp() override
     {
         auto nameTable = New<TNameTable>();
         InitNameTable(nameTable);
-        Rows_ = CreateRows(nameTable);
+        Rows_ = CreateRows(nameTable, /*testEntity*/ false);
 
         auto memoryWriter = New<TMemoryWriter>();
 
@@ -358,6 +373,122 @@ INSTANTIATE_TEST_SUITE_P(Sorted,
 // ToDo(psushin):
 //  1. Test sampling.
 //  2. Test system columns.
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOrderedDynamicStoreChunksTest
+    : public ::testing::Test
+    , public TSchemalessChunkTestBase
+{
+protected:
+    IChunkReaderPtr MemoryReader_;
+    std::vector<TUnversionedRow> Rows_;
+    TTableSchemaPtr TableSchema_;
+    TRefCountedChunkMetaPtr ChunkMeta_;
+
+    void SetUp() override
+    {
+        TableSchema_ = ConvertTo<TTableSchemaPtr>(TYsonString(TStringBuf(
+            "<strict=%true>["
+            "{name = c0; type = any;};"
+            "{name = c1; type = int64;};"
+            "{name = c2; type = uint64;};"
+            "{name = c3; type = string;};"
+            "{name = c4; type = boolean;};"
+            "{name = c5; type = double;};"
+            "{name = c6; type = any};"
+            "]")));
+
+        auto nameTable = TNameTable::FromSchemaStable(*TableSchema_);
+        Rows_ = CreateRows(nameTable, /*testEntity*/ true);
+
+        auto memoryWriter = New<TMemoryWriter>();
+
+        auto config = New<TChunkWriterConfig>();
+        config->BlockSize = 256;
+        config->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery);
+        config->SampleRate = 0.0;
+        config->Postprocess();
+
+        auto options = New<TChunkWriterOptions>();
+        options->OptimizeFor = EOptimizeFor::Scan;
+        options->SetChunkCreationTime = false;
+        options->Postprocess();
+
+        auto chunkWriter = CreateSchemalessChunkWriter(
+            config,
+            options,
+            TableSchema_,
+            /*nameTable*/ nullptr,
+            memoryWriter,
+            /*writeBlocksOptions*/ {},
+            /*dataSink*/ std::nullopt);
+
+        Y_UNUSED(chunkWriter->Write(Rows_));
+        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+
+        ChunkMeta_ = memoryWriter->GetChunkMeta();
+
+        MemoryReader_ = CreateMemoryReader(
+            ChunkMeta_,
+            memoryWriter->GetBlocks());
+    }
+
+    static bool IsAny(int id)
+    {
+        return id == 0 || id == 6;
+    }
+
+    virtual ISchemafulUnversionedReaderPtr CreateReader()
+    {
+        auto chunkState = New<TChunkState>(TChunkState{
+            .BlockCache = GetNullBlockCache(),
+            .TableSchema = TableSchema_,
+        });
+
+        return CreateSchemafulChunkReader(
+            CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>()),
+            std::move(chunkState),
+            New<TColumnarChunkMeta>(*ChunkMeta_),
+            TChunkReaderConfig::GetDefault(),
+            MemoryReader_,
+            TClientChunkReadOptions(),
+            TableSchema_,
+            TSortColumns(),
+            TReadRange());
+    }
+};
+
+TEST_F(TOrderedDynamicStoreChunksTest, OrderedDynamicStoreChunksTest)
+{
+    auto reader = CreateReader();
+
+    auto rowBuffer = New<TRowBuffer>();
+
+    int index = 0;
+    while (auto batch = ReadRowBatch(reader)) {
+        for (auto actualRow : batch->MaterializeRows()) {
+            auto expectedRow = Rows_[index++];
+
+            ASSERT_EQ(actualRow.GetCount(), expectedRow.GetCount());
+
+            for (int id = 0; id < static_cast<int>(actualRow.GetCount()); ++id) {
+                if (IsAny(id)) {
+                    EXPECT_TRUE(actualRow[id].Type == EValueType::Any || actualRow[id].Type == EValueType::Null);
+                    if (expectedRow[id].Type == EValueType::Null || expectedRow[id].AsStringBuf() == "#") {
+                        EXPECT_EQ(actualRow[id], expectedRow[id]);
+                    } else {
+                        auto value = TryDecodeUnversionedAnyValue(actualRow[id], rowBuffer);
+                        EXPECT_EQ(value.Type, expectedRow[id].Type);
+                        EXPECT_EQ(value.Length, expectedRow[id].Length);
+                    }
+                } else {
+                    EXPECT_EQ(actualRow[id], expectedRow[id]);
+                }
+            }
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
