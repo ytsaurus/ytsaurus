@@ -45,8 +45,7 @@ Spark кластер при чтении игнорирует метаинфор
 spark-launch-yt \
   --proxy <cluster-name> \
   --discovery-path my_discovery_path \
-  --params '{"spark_conf"={"spark.yt.jarCaching"="True";};"layer_paths"=["//.../ubuntu_xenial_app_lastest.tar.gz";...;];"operation_spec"={"max_failed_job_count"=100;};}' \
-  --spyt-version '2.2.0'
+  --params '{"spark_conf"={"spark.yt.jarCaching"="True";};"layer_paths"=["//.../ubuntu_xenial_app_lastest.tar.gz";...;];"operation_spec"={"max_failed_job_count"=100;};}'
 ```
 
 ### Spark configuration
@@ -57,8 +56,7 @@ spark-launch-yt \
 spark-launch-yt \
   --proxy <cluster-name> \
   --discovery-path my_discovery_path \
-  --params '{"spark_conf"={"spark.sql.shuffle.partitions":1,"spark.cores.max":1,"spark.executor.cores"=1};}' \
-  --spyt-version '2.2.0'
+  --params '{"spark_conf"={"spark.sql.shuffle.partitions":1,"spark.cores.max":1,"spark.executor.cores"=1};}'
 ```
 
 При использовании `spark-submit-yt` для настройки задачи существует опция `spark_conf_args`:
@@ -113,8 +111,7 @@ protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
 spark-launch-yt \
   --proxy <cluster-name> \
   --discovery-path my_discovery_path \
-  --params '{"operation_spec"={"max_failed_job_count"=100;owners=[...]};}' \
-  --spyt-version '2.2.0'
+  --params '{"operation_spec"={"max_failed_job_count"=100;owners=[...]};}'
 ```
 
 ### Обновление версии python 
@@ -185,8 +182,8 @@ RUN python3.12 -m pip install -r requirements.txt
 ```text
 # requirements.txt
 ytsaurus-client==0.13.18
-ytsaurus-spyt==2.3.0
-pyspark==3.3.4
+ytsaurus-spyt==2.6.3
+pyspark==3.5.5
 ```
 
 #### Запуск кластера с docker образом
