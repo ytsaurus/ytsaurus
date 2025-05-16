@@ -260,6 +260,9 @@ private:
 
         auto instanceChannel = GetChannelForRandomInstance();
         TQueryServiceProxy proxy(instanceChannel);
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+
         auto req = proxy.ExecuteQuery();
 
         SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
