@@ -132,6 +132,7 @@ DEFINE_ENUM(EMasterReign,
     ((GlobalObjectReplicationRespectsTypeHandlers)                  (2843))  // shakurov
     ((LostVitalChunksSample_25_1)                                   (2844))  // koloshmet
     ((SecondaryIndexOuroboros)                                      (2845))  // sabdenovch
+    ((FixDetachmentOfJournalHunkChunk_25_1)                         (2846))  // akozhikhov
     // 25.2 starts here.
     ((Start_25_2)                                                   (2900))  // ponasenko-rs
     ((TabletTransactionSerializationType)                           (2901))  // ponasenko-rs
@@ -160,6 +161,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixTransactionActionAbort)                                    (2924))  // kvk1920
     ((ResetHunkMediaOnBranchedNodesOnly)                            (2925))  // shakurov
     ((ResetInheritACLInCrossCellCopy)                               (2926))  // h0pless
+    ((FixDetachmentOfJournalHunkChunk)                              (2927))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
