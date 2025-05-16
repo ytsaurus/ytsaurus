@@ -1,6 +1,7 @@
 #include "global.h"
 
 #include "parse_tree.h"
+#include "use.h"
 
 #include <yql/essentials/sql/v1/complete/antlr4/pipeline.h>
 #include <yql/essentials/sql/v1/complete/syntax/ansi.h>
@@ -29,12 +30,22 @@ namespace NSQLComplete {
             , Tokens_(&Lexer_)
             , Parser_(&Tokens_)
         {
+            Lexer_.removeErrorListeners();
+            Parser_.removeErrorListeners();
         }
 
         TGlobalContext Analyze(TCompletionInput input) override {
             auto* sqlQuery = Parse(input.Text);
-            Y_UNUSED(sqlQuery); // FIXME
-            return {};
+
+            TGlobalContext ctx;
+
+            if (auto use = FindUseStatement(sqlQuery)) {
+                ctx.Object = TGlobalContext::TObject();
+                ctx.Object->Provider = use->Provider;
+                ctx.Object->Cluster = use->Cluster;
+            }
+
+            return ctx;
         }
 
     private:
@@ -71,7 +82,7 @@ namespace NSQLComplete {
         TSpecializedGlobalAnalysis</* IsAnsiLexer = */ true> AnsiAnalysis_;
     };
 
-    IGlobalAnalysis::TPtr MakeLocalSyntaxAnalysis() {
+    IGlobalAnalysis::TPtr MakeGlobalAnalysis() {
         return MakeHolder<TGlobalAnalysis>();
     }
 
