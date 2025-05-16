@@ -159,6 +159,7 @@ DEFINE_ENUM(EMasterReign,
     ((MinorRefactoringInExpirationTracker)                          (2923))  // h0pless
     ((FixTransactionActionAbort)                                    (2924))  // kvk1920
     ((ResetHunkMediaOnBranchedNodesOnly)                            (2925))  // shakurov
+    ((ResetInheritACLInCrossCellCopy)                               (2926))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
