@@ -11,9 +11,9 @@ DECLARE_REFCOUNTED_STRUCT(IUserJobWriterFactory)
 DECLARE_REFCOUNTED_STRUCT(IUserJobReadController)
 DECLARE_REFCOUNTED_STRUCT(TJobTestingOptions)
 
-DECLARE_REFCOUNTED_CLASS(IProfilingMultiChunkReader);
-DECLARE_REFCOUNTED_CLASS(IProfilingMultiChunkWriter);
-DECLARE_REFCOUNTED_CLASS(IProfilingSchemalessFormatWriter);
+DECLARE_REFCOUNTED_STRUCT(IProfilingMultiChunkReader);
+DECLARE_REFCOUNTED_STRUCT(IProfilingMultiChunkWriter);
+DECLARE_REFCOUNTED_STRUCT(IProfilingSchemalessFormatWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
