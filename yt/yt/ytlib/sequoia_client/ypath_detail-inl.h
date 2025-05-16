@@ -49,11 +49,28 @@ TYPathBase<Absolute, TUnderlying>::TYPathBase(const TRawYPath& path)
 template <bool Absolute, class TUnderlying>
 TString TYPathBase<Absolute, TUnderlying>::GetBaseName() const
 {
-    if (!Absolute && Path_.empty()) {
-        return TString{};
+    if constexpr (!Absolute) {
+        if (Path_.empty()) {
+            return TString{};
+        }
     }
+
     auto offset = FindLastSegment();
     return NSequoiaClient::ToStringLiteral(TString(Path_.begin() + offset + 1, Path_.end()));
+}
+
+template <bool Absolute, class TUnderlying>
+void TYPathBase<Absolute, TUnderlying>::RemoveLastSegment()
+{
+    auto offset = FindLastSegment();
+
+    if constexpr (Absolute) {
+        if (offset == 0) {
+            return;
+        }
+    }
+
+    Path_.resize(offset);
 }
 
 template <bool Absolute, class TUnderlying>
@@ -71,7 +88,7 @@ TRawYPath TYPathBase<Absolute, TUnderlying>::ToRawYPath() const &
 template <bool Absolute, class TUnderlying>
 TRawYPath TYPathBase<Absolute, TUnderlying>::ToRawYPath() &&
 {
-    return TRawYPath(TString(Underlying()));
+    return TRawYPath(TString(std::move(*this).Underlying()));
 }
 
 template <bool Absolute, class TUnderlying>
@@ -170,28 +187,43 @@ template <class TUnderlying>
 }
 
 template <class TUnderlying>
-TYPathBuf TYPathBaseImpl<false, TUnderlying>::GetDirPath() const
+TYPathBuf TYPathBaseImpl<false, TUnderlying>::GetDirPath() const &
 {
     return TYPathBuf(TStringBuf(TBase::Path_, 0, TBase::FindLastSegment()));
 }
 
 template <class TUnderlying>
-typename TYPathBaseImpl<false, TUnderlying>::TSegmentView TYPathBaseImpl<false, TUnderlying>::AsSegments() const
+typename TYPathBaseImpl<false, TUnderlying>::TSegmentView TYPathBaseImpl<false, TUnderlying>::AsSegments() const &
 {
     return TSegmentView(this);
+}
+
+template <class TUnderlying>
+TStringBuf TYPathBaseImpl<false, TUnderlying>::GetFirstSegment() const &
+{
+    if (TBase::Path_.size() < 2) {
+        return TStringBuf{};
+    }
+
+    NYPath::TTokenizer tokenizer(TBase::Path_);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Slash);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Literal);
+    return tokenizer.GetToken();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TUnderlying>
-TAbsoluteYPathBuf TYPathBaseImpl<true, TUnderlying>::GetDirPath() const
+TAbsoluteYPathBuf TYPathBaseImpl<true, TUnderlying>::GetDirPath() const &
 {
     return TAbsoluteYPathBuf(TStringBuf(TBase::Path_, 0, TBase::FindLastSegment()));
 }
 
 template <class TUnderlying>
 std::pair<TRootDesignator, TYPathBuf>
-TYPathBaseImpl<true, TUnderlying>::GetRootDesignator() const
+TYPathBaseImpl<true, TUnderlying>::GetRootDesignator() const &
 {
     NYPath::TTokenizer tokenizer(TBase::Path_);
     tokenizer.Advance();
@@ -363,7 +395,15 @@ void TBasicYPath<Absolute>::Join(const TYPathBase<false, T>& other)
 template <bool Absolute>
 void TBasicYPath<Absolute>::Append(TStringBuf literal)
 {
-    TBase::Path_ = NYPath::YPathJoin(NYPath::TYPath(TBase::Path_), literal);
+    // TODO(h0pless): Think about adding some kind of literal validation here to avoid allocations.
+    auto parsedLiteral = NYPath::ToYPathLiteral(literal);
+    TBase::Path_.reserve(TBase::Path_.size() + 1 + parsedLiteral.size());
+
+    if (!Absolute || TBase::Path_.size() != 2) {
+        TBase::Path_ += '/';
+    }
+
+    TBase::Path_ += parsedLiteral;
 }
 
 template <bool Absolute>
@@ -392,7 +432,7 @@ TBasicYPath<Absolute> operator+(const TYPathBase<Absolute, T>& lhs, const TYPath
 template <bool Absolute, class T, typename ...TArgs>
 TBasicYPath<Absolute> YPathJoin(const TYPathBase<Absolute, T>& path, TArgs&&... literals)
 {
-    auto joinedPath = NYPath::YPathJoin(NYPath::TYPath(path.Underlying()), literals...);
+    auto joinedPath = NYPath::YPathJoin(path.Underlying(), literals...);
     return TBasicYPath<Absolute>(joinedPath);
 }
 
