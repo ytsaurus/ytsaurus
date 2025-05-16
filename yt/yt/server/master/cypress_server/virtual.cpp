@@ -373,6 +373,7 @@ TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchRemoteItems(
     for (const auto& item : items) {
         auto req = TYPathProxy::Get(FromObjectId(item) + "/@");
         ToProto(req->mutable_attributes(), attributeFilter);
+        SetAllowResolveFromSequoiaObject(req, true);
 
         batchReq->AddRequest(req);
     }

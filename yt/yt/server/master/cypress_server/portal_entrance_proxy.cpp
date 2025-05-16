@@ -84,10 +84,9 @@ private:
                 auto exitCellTag = node->GetExitCellTag();
                 auto portalExitNodeId = MakePortalExitNodeId(node->GetId(), exitCellTag);
 
-                auto proxy = CreateObjectServiceReadProxy(
-                    Bootstrap_->GetRootClient(),
-                    NApi::EMasterChannelKind::Follower,
-                    exitCellTag);
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+                    multicellManager->GetMasterChannelOrThrow(exitCellTag, NHydra::EPeerKind::Follower));
                 auto batchReq = proxy.ExecuteBatch();
 
                 auto req = TYPathProxy::Get(FromObjectId(portalExitNodeId) + "/@" + key.Unintern());
