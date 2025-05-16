@@ -16,15 +16,15 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, JobProxyClientLogger, "JobProxyClient"
 class TFirstBatchTimeTrackingBase
 {
 public:
-    TFirstBatchTimeTrackingBase(TCpuInstant startTime);
-    std::optional<TCpuDuration> GetTimeToFirstBatch() const;
+    TFirstBatchTimeTrackingBase(TInstant startTime);
+    std::optional<TDuration> GetTimeToFirstBatch() const;
 
 protected:
     void TryUpdateFirstBatchTime();
 
 private:
-    const TCpuInstant StartTime_;
-    std::atomic<TCpuInstant> FirstBatchTime_ = 0;
+    const TInstant StartTime_;
+    std::atomic<TInstant> FirstBatchTime_ = TInstant::Zero();
 };
 
 } // namespace NYT::NJobProxy

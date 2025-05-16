@@ -16,12 +16,12 @@ class TProfilingMultiChunkWriter
     , public TFirstBatchTimeTrackingBase
 {
 public:
-    TProfilingMultiChunkWriter(ISchemalessMultiChunkWriterPtr underlying, TCpuInstant start)
+    TProfilingMultiChunkWriter(ISchemalessMultiChunkWriterPtr underlying, TInstant start)
         : TFirstBatchTimeTrackingBase(start)
         , Underlying_(std::move(underlying))
     { }
 
-    std::optional<TCpuDuration> GetTimeToFirstBatch() const override
+    std::optional<TDuration> GetTimeToFirstBatch() const override
     {
         return TFirstBatchTimeTrackingBase::GetTimeToFirstBatch();
     }
@@ -94,12 +94,12 @@ class TProfilingSchemalessFormatWriter
     , public TFirstBatchTimeTrackingBase
 {
 public:
-    TProfilingSchemalessFormatWriter(ISchemalessFormatWriterPtr underlying, TCpuInstant start)
+    TProfilingSchemalessFormatWriter(ISchemalessFormatWriterPtr underlying, TInstant start)
         : TFirstBatchTimeTrackingBase(start)
         , Underlying_(std::move(underlying))
     { }
 
-    std::optional<TCpuDuration> GetTimeToFirstBatch() const override
+    std::optional<TDuration> GetTimeToFirstBatch() const override
     {
         return TFirstBatchTimeTrackingBase::GetTimeToFirstBatch();
     }
@@ -170,13 +170,15 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IProfilingMultiChunkWriterPtr CreateProfilingMultiChunkWriter(
-    NTableClient::ISchemalessMultiChunkWriterPtr underlying, TCpuInstant start)
+    NTableClient::ISchemalessMultiChunkWriterPtr underlying,
+    TInstant start)
 {
     return New<TProfilingMultiChunkWriter>(std::move(underlying), start);
 }
 
 IProfilingSchemalessFormatWriterPtr CreateProfilingSchemalessFormatWriter(
-    ISchemalessFormatWriterPtr underlying, TCpuInstant start)
+    ISchemalessFormatWriterPtr underlying,
+    TInstant start)
 {
     return New<TProfilingSchemalessFormatWriter>(std::move(underlying), start);
 }

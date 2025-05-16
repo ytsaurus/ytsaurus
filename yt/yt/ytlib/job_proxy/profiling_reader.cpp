@@ -15,12 +15,12 @@ class TProfilingMultiChunkReader
     , public TFirstBatchTimeTrackingBase
 {
 public:
-    TProfilingMultiChunkReader(ISchemalessMultiChunkReaderPtr underlying, TCpuInstant start)
+    TProfilingMultiChunkReader(ISchemalessMultiChunkReaderPtr underlying, TInstant start)
         : TFirstBatchTimeTrackingBase(start)
         , Underlying_(std::move(underlying))
     { }
 
-    std::optional<TCpuDuration> GetTimeToFirstBatch() const override
+    std::optional<TDuration> GetTimeToFirstBatch() const override
     {
         return TFirstBatchTimeTrackingBase::GetTimeToFirstBatch();
     }
@@ -90,6 +90,7 @@ public:
     {
         return Underlying_->GetDataStatistics();
     }
+
     TCodecStatistics GetDecompressionStatistics() const override
     {
         return Underlying_->GetDecompressionStatistics();
@@ -99,6 +100,7 @@ public:
     {
         return Underlying_->IsFetchingCompleted();
     }
+
     std::vector<TChunkId> GetFailedChunkIds() const override
     {
         return Underlying_->GetFailedChunkIds();
@@ -115,7 +117,8 @@ private:
 };
 
 IProfilingMultiChunkReaderPtr CreateProfilingMultiChunkReader(
-    ISchemalessMultiChunkReaderPtr underlying, TCpuInstant start)
+    ISchemalessMultiChunkReaderPtr underlying,
+    TInstant start)
 {
     return New<TProfilingMultiChunkReader>(std::move(underlying), start);
 }
