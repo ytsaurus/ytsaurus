@@ -381,7 +381,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         auto updateWriterStatistics = [&] {
             auto guard = Guard(task->RuntimeData.SpinLock);
-            task->RuntimeData.ProcessedWriterStatistics = TBackgroundActivityTaskInfoBase::TWriterStatistics(tableWriter->GetDataStatistics());
+            task->RuntimeData.ProcessedWriterStatistics =
+                TBackgroundActivityTaskInfoBase::TWriterStatistics(tableWriter->GetDataStatistics());
         };
 
         std::vector<TUnversionedRow> rows;
@@ -425,7 +426,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
                 .ChunkId = tableWriter->GetChunkId(),
                 .ChunkMeta = tableWriter->GetMeta(),
                 .TabletId = tabletSnapshot->TabletId,
-                .MountRevision = tabletSnapshot->MountRevision
+                .MountRevision = tabletSnapshot->MountRevision,
             }
         };
 
@@ -483,4 +484,3 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

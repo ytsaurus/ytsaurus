@@ -443,7 +443,8 @@ void DetachFromChunkList(
         }
 
         case EChunkDetachPolicy::SortedTablet:
-        case EChunkDetachPolicy::HunkTablet: {
+        case EChunkDetachPolicy::HunkTablet:
+        case EChunkDetachPolicy::OrderedTabletHunk: {
             switch (policy) {
                 case EChunkDetachPolicy::SortedTablet:
                     YT_VERIFY(
@@ -453,6 +454,9 @@ void DetachFromChunkList(
                     break;
                 case EChunkDetachPolicy::HunkTablet:
                     YT_VERIFY(chunkList->GetKind() == EChunkListKind::HunkTablet);
+                    break;
+                case EChunkDetachPolicy::OrderedTabletHunk:
+                    YT_VERIFY(chunkList->GetKind() == EChunkListKind::Hunk);
                     break;
                 default:
                     YT_ABORT();
