@@ -212,7 +212,7 @@ private:
                 replicationCard = WaitFor(replicationCardCache->GetReplicationCard(key))
                     .ValueOrThrow();
 
-                if (replicationCard->Era < newEra) {
+                if (replicationCard->Era < snapshotEra) {
                     YT_LOG_ALERT(
                         "Replication card era is outdated after forced refresh "
                         "(FetchedEra: %v, SnapshotEra: %v)",
