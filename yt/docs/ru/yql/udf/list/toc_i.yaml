@@ -2,6 +2,7 @@ items:
 - name: Обзор
   href: index.md
 - { name: AugurTokenizer,         href: augurtokenizer.md,  when: audience == "internal"   }
+- { name: BertModels,             href: bert_models.md,     when: audience == "internal"   }
 - { name: CatBoost,               href: catboost.md                            }
 - { name: DateTime,               href: datetime.md                            }
 - { name: Digest,                 href: digest.md                              }
