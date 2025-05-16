@@ -882,6 +882,21 @@ public:
         return {};
     }
 
+    std::optional<TAggregatedNodeStatistics> GetDataCenterFlavoredNodeStatistics(
+        const TDataCenter* dataCenter,
+        ENodeFlavor flavor) override
+    {
+        MaybeRebuildAggregatedNodeStatistics();
+
+        auto guard = ReaderGuard(NodeStatisticsLock_);
+        auto dataCenterStatistics = DataCenterFlavoredNodeStatistics_.find(dataCenter);
+        if (dataCenterStatistics != DataCenterFlavoredNodeStatistics_.end()) {
+            return dataCenterStatistics->second[flavor];
+        }
+
+        return {};
+    }
+
     int GetOnlineNodeCount() override
     {
         return AggregatedOnlineNodeCount_;
@@ -984,8 +999,10 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeStatisticsLock_);
     TCpuInstant NodeStatisticsUpdateDeadline_ = 0;
     TAggregatedNodeStatistics AggregatedNodeStatistics_;
-    TEnumIndexedArray<ENodeFlavor, TAggregatedNodeStatistics> FlavoredNodeStatistics_;
+    using TFlavoredNodeStatistics = TEnumIndexedArray<ENodeFlavor, TAggregatedNodeStatistics>;
+    TFlavoredNodeStatistics FlavoredNodeStatistics_;
     THashMap<const TDataCenter*, TAggregatedNodeStatistics> DataCenterNodeStatistics_;
+    THashMap<const TDataCenter*, TFlavoredNodeStatistics> DataCenterFlavoredNodeStatistics_;
 
     // Cf. YT-7009.
     // Maintain a dedicated counter of alive racks since RackMap_ may contain zombies.
@@ -2752,6 +2769,7 @@ private:
         for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
             FlavoredNodeStatistics_[flavor] = TAggregatedNodeStatistics();
         }
+        DataCenterFlavoredNodeStatistics_.clear();
         DataCenterNodeStatistics_.clear();
 
         auto increment = [] (
@@ -2801,6 +2819,7 @@ private:
 
             for (auto flavor : node->Flavors()) {
                 updateStatistics(&FlavoredNodeStatistics_[flavor]);
+                updateStatistics(&DataCenterFlavoredNodeStatistics_[node->GetDataCenter()][flavor]);
             }
             updateStatistics(&DataCenterNodeStatistics_[node->GetDataCenter()]);
         }
