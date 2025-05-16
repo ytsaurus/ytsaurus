@@ -317,6 +317,20 @@ Publishes as docker images.
 
 **All releases:**
 
+{% cut "**2.6.4**" %}
+
+Maintenance release with minor enhancements and bug fixes
+
+- Support for retrieving driver operation id in direct submit scenarios
+- Reducing YTsaurusClient threads by reusing client instances
+- Fix JSON layout for log4j2
+- Transaction titles for SPYT transactions
+- Fix prometeus metrics configuration
+- Fix dedicated driver mode for standalone cluster
+
+
+{% endcut %}
+
 {% cut "**2.6.0**" %}
 
 - Java 17 support
