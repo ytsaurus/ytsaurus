@@ -534,8 +534,7 @@ public:
     void OnFunction(TFunctionExpressionPtr functionExpr)
     {
         const auto& functionName = functionExpr->FunctionName;
-        const auto& descriptor = Functions_->GetFunction(functionName);
-        bool isAggregate = descriptor->As<NQueryClient::TAggregateFunctionTypeInferrer>() != nullptr;
+        bool isAggregate = Functions_->GetFunction(functionName)->IsAggregate();
 
         if (!isAggregate) {
             TBase::OnFunction(functionExpr);

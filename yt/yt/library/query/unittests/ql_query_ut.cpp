@@ -914,11 +914,9 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         AggregateProfilers_.Get());
 
     {
-        TypeInferrers_->emplace("short_invalid_ir", New<TFunctionTypeInferrer>(
-            std::unordered_map<TTypeParameter, TUnionType>{},
-            std::vector<TType>{EValueType::Int64},
-            EValueType::Null,
-            EValueType::Int64));
+        TypeInferrers_->emplace("short_invalid_ir", CreateFunctionTypeInferrer(
+            EValueType::Int64,
+            std::vector<TType>{EValueType::Int64}));
 
         FunctionProfilers_->emplace("short_invalid_ir", New<TExternalFunctionCodegen>(
             "short_invalid_ir",
@@ -930,11 +928,9 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     }
 
     {
-        TypeInferrers_->emplace("long_invalid_ir", New<TFunctionTypeInferrer>(
-            std::unordered_map<TTypeParameter, TUnionType>{},
-            std::vector<TType>{EValueType::Int64},
-            EValueType::Null,
-            EValueType::Int64));
+        TypeInferrers_->emplace("long_invalid_ir", CreateFunctionTypeInferrer(
+            EValueType::Int64,
+            std::vector<TType>{EValueType::Int64}));
 
         FunctionProfilers_->emplace("long_invalid_ir", New<TExternalFunctionCodegen>(
             "long_invalid_ir",
