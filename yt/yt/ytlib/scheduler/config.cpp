@@ -532,9 +532,19 @@ void TNbdDiskConfig::Register(TRegistrar registrar)
     registrar.Parameter("master_rpc_timeout", &TThis::MasterRpcTimeout)
         .Default(TDuration::Seconds(2));
     registrar.Parameter("min_data_nodes_count", &TThis::MinDataNodesCount)
+        .GreaterThanOrEqual(0)
         .Default(0);
     registrar.Parameter("max_data_nodes_count", &TThis::MaxDataNodesCount)
+        .GreaterThanOrEqual(0)
         .Default(3);
+
+    registrar.Postprocessor([&] (TNbdDiskConfig* config) {
+        if (config->MinDataNodesCount > config->MaxDataNodesCount) {
+            THROW_ERROR_EXCEPTION("Invalid \"min_data_nodes_count\", \"max_data_nodes_count\" pair.")
+                << TErrorAttribute("min_data_nodes_count", config->MinDataNodesCount)
+                << TErrorAttribute("max_data_nodes_count", config->MaxDataNodesCount);
+        }
+    });
 }
 
 void TDiskRequestConfig::Register(TRegistrar registrar)
