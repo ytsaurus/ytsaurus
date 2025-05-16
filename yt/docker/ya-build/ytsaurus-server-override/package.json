@@ -5,60 +5,13 @@
         "description": "Core YTsaurus image built with yt client libraries from existing base image",
         "version": "local-{revision}",
     },
+    "include": [
+        "yt/docker/ya-build/base/build-server-linux-x86_64.json",
+        "yt/docker/ya-build/base/data-common.json",
+        "yt/docker/ya-build/base/data-server.json",
+    ],
     "params": {
         "format": "docker",
         "docker_target": "ytsaurus-server-override",
     },
-    "build": {
-        "build_server_binaries": {
-            "targets": [
-                "yt/yt/server/all",
-            ],
-            "build_type": "profile",
-            "thinlto": true,
-            "target-platforms": [
-                "default-linux-x86_64",
-            ],
-            "flags": [
-                {
-                    "name": "NO_STRIP",
-                    "value": "yes",
-                },
-            ],
-        },
-    },
-    "data": [
-        {
-            "source": {
-                "type": "ARCADIA",
-                "path": "yt/docker/ytsaurus/Dockerfile",
-            },
-            "destination": {
-                "path": "/Dockerfile",
-            },
-        },
-        {
-            "source": {
-                "type": "ARCADIA",
-                "path": "yt/python/yt/environment",
-                "files": [
-                    "init_queue_agent_state.py",
-                    "init_operations_archive.py",
-                ],
-            },
-            "destination": {
-                "path": "/",
-            },
-        },
-        {
-            "source": {
-                "type": "BUILD_OUTPUT",
-		        "build_key": "build_server_binaries",
-                "path": "yt/yt/server/all/ytserver-all",
-            },
-            "destination": {
-                "path": "/",
-            },
-        },
-    ],
 }
