@@ -445,6 +445,10 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         if (!config->Rack && config->DataCenter) {
             THROW_ERROR_EXCEPTION("\"data_center\" should be defined with \"rack\"");
         }
+
+        //! NB: LeaseTransactionPingPeriod and LeaseTransactionTimeout should be ensured to be initialized by compat above.
+        THROW_ERROR_EXCEPTION_IF(*config->MasterConnector->LeaseTransactionPingPeriod >= *config->MasterConnector->LeaseTransactionTimeout,
+            "Lease transaction ping period cannot be greater or equal to lease transaction timeout");
     });
 }
 

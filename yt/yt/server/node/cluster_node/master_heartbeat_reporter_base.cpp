@@ -160,7 +160,7 @@ TError TMasterHeartbeatReporterBase::ReportHeartbeat(TCellTag cellTag)
                 error,
                 "Received non-retriable error during heartbeat report to master, node will reconnect to primary master (CellTag: %v)",
                 cellTag);
-            clusterNodeMasterConnector->ResetAndRegisterAtMaster(/*firstTime*/ false);
+            clusterNodeMasterConnector->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
             return TError("Received non-retriable error while reporting node heartbeat") << error;
         }
     }

@@ -681,8 +681,6 @@ protected:
                     cellTag,
                     state);
 
-                Bootstrap_->ResetAndRegisterAtMaster();
-
                 return MakeFuture(TError("Invalid node state %Qlv", state) << TErrorAttribute("data_node_state", state));
             }
         }
@@ -720,7 +718,7 @@ protected:
                     cellTag,
                     state);
 
-                Bootstrap_->ResetAndRegisterAtMaster();
+                Bootstrap_->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
             }
         }
     }
@@ -757,7 +755,7 @@ protected:
                     cellTag,
                     state);
 
-                Bootstrap_->ResetAndRegisterAtMaster();
+                Bootstrap_->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
             }
         }
     }
@@ -1145,7 +1143,7 @@ private:
                 if (IsRetriableError(rspOrError) || rspOrError.FindMatching(HeartbeatRetriableErrors)) {
                     DoScheduleJobHeartbeat(/*immediately*/ false);
                 } else {
-                    Bootstrap_->ResetAndRegisterAtMaster();
+                    Bootstrap_->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
                 }
 
                 return;
