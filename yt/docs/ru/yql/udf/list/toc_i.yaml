@@ -4,7 +4,7 @@ items:
 - { name: AugurTokenizer,         href: augurtokenizer.md,  when: audience == "internal"   }
 - { name: BertModels,             href: bert_models.md,     when: audience == "internal"   }
 - { name: BlenderFactorStorage,   href: blender_factor_storage.md,   when: audience == "internal" }
-- { name: CatBoost,               href: catboost.md                            }
+- { name: CatBoost,               href: catboost.md,        when: audience == "internal"   }
 - { name: DateTime,               href: datetime.md                            }
 - { name: Digest,                 href: digest.md                              }
 - { name: Histogram,              href: histogram.md                           }
