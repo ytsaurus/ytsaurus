@@ -438,17 +438,11 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
 
     auto* queryNode = QueryInfo_.query_tree->as<DB::QueryNode>();
     YT_VERIFY(queryNode);
-    auto joinNodeType = queryNode->getJoinTree()->getNodeType();
-    YT_VERIFY(joinNodeType == DB::QueryTreeNodeType::JOIN || joinNodeType == DB::QueryTreeNodeType::ARRAY_JOIN);
 
-    auto joinNode = queryNode->getJoinTree();
-    if (joinNodeType == DB::QueryTreeNodeType::ARRAY_JOIN) {
-        // In the case where the outermost join in a JoinTree is an ArrayJoin,
-        // it should be skipped because further analysis is performed for a normal join.
-        // We can safely do this because there can be at most one ArrayJoin in a JoinTree
-        // and we know that the JoinTree contains a normal join.
-        joinNode = joinNode->as<DB::ArrayJoinNode>()->getTableExpression();
-    }
+    // We need to extract the leftmost JoinNode of the connection tree.
+    auto tableExpressionsStack = DB::buildTableExpressionsStack(queryNode->getJoinTree());
+    YT_VERIFY(tableExpressionsStack.size() >= 3 && tableExpressionsStack[2]->getNodeType() == DB::QueryTreeNodeType::JOIN);
+    auto joinNode = tableExpressionsStack[2];
 
     auto keyLists = ParseJoinKeyColumns(joinNode, QueryInfo_.planner_context);
     const auto& joinLeftKeys = keyLists.joinLeftKeys;
