@@ -145,6 +145,20 @@ IReplicationCardsWatcherClientPtr CreateReplicationCardsWatcherClientWithCallbac
     return watcherClient;
 }
 
+const TReplicationCardFetchOptions& ExtendFetchOptions(const TReplicationCardFetchOptions& fetchOptions)
+{
+    if (MinimalFetchOptions.Contains(fetchOptions)) {
+        return MinimalFetchOptions;
+    }
+
+    if (FetchOptionsWithProgress.Contains(fetchOptions)) {
+        return FetchOptionsWithProgress;
+    }
+
+    // Seems to be request from master.
+    return fetchOptions;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChaosCacheService
@@ -209,9 +223,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
         ? request->refresh_era()
         : InvalidReplicationEra;
 
-    const auto& extendedFetchOptions = MinimalFetchOptions.Contains(fetchOptions)
-        ? MinimalFetchOptions
-        : fetchOptions;
+    const auto& extendedFetchOptions = ExtendFetchOptions(fetchOptions);
 
     TFuture<TReplicationCardPtr> replicationCardFuture;
     const auto& requestHeader = context->GetRequestHeader();
