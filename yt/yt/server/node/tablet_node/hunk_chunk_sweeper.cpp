@@ -201,6 +201,8 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IHunkChunkSweeperPtr CreateHunkChunkSweeper(IBootstrap* bootstrap)
 {
     return New<THunkChunkSweeper>(bootstrap);
