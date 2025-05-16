@@ -858,15 +858,27 @@ bool TSlotManager::Disable(TError error)
 
     if (auto volumeManager = RootVolumeManager_.Acquire()) {
         auto result = WaitFor(volumeManager->GetVolumeReleaseEvent()
-            .Apply(BIND(&IVolumeManager::DisableLayerCache, volumeManager, Passed(std::move(error)))
-            .AsyncVia(Bootstrap_->GetControlInvoker()))
             .WithTimeout(timeout));
+
+        auto disableLayerCacheResult = WaitFor(BIND(&IVolumeManager::DisableLayerCache, volumeManager, Passed(std::move(error)))
+            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .Run()
+            .WithTimeout(timeout));
+
         if (!result.IsOK()) {
             YT_LOG_EVENT(
                 Logger(),
                 dynamicConfig->AbortOnFreeVolumeSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
                 result,
                 "Free volume synchronization failed");
+        }
+
+        if (!disableLayerCacheResult.IsOK()) {
+            YT_LOG_EVENT(
+                Logger(),
+                dynamicConfig->AbortOnFreeVolumeSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
+                disableLayerCacheResult,
+                "Disabling the layer cache failed with an error");
         }
     }
 
