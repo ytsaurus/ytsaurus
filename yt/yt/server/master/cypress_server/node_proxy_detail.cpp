@@ -2258,17 +2258,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, AssembleTreeCopy)
     DeclareMutating();
     ValidateTransaction();
 
-    bool force = request->force();
     bool inplace = request->inplace();
+    // Other fields are logged in CopyCore.
+    context->SetIncrementalRequestInfo("Inplace: %v", inplace);
+
     bool preserveModificationTime = request->preserve_modification_time();
     bool preserveAcl = request->preserve_acl();
-    context->SetIncrementalRequestInfo(
-        "RootNodeId: %v, Force: %v, Inplace: %v, PreserveModificationTime: %v, PreserveAcl: %v",
-        GetVersionedId(),
-        force,
-        inplace,
-        preserveModificationTime,
-        preserveAcl);
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto rootNodeId = FromProto<TNodeId>(request->root_node_id());
@@ -2290,6 +2285,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, AssembleTreeCopy)
             if (!preserveAcl) {
                 // Acls are always preserved during materialization.
                 trunkNode->Acd().ClearEntries();
+                trunkNode->Acd().SetInherit(true);
             }
 
             if (!preserveModificationTime) {
