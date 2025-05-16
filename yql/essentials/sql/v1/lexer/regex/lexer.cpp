@@ -119,6 +119,37 @@ namespace NSQLTranslationV1 {
         return Merged(std::move(patterns));
     }
 
+    TTokenMatcher PuntuationMatcher(const NSQLReflect::TLexerGrammar& grammar) {
+        THashMap<TString, TString> nameByBlock;
+        nameByBlock.reserve(grammar.PunctuationNames.size());
+        for (const auto& name : grammar.PunctuationNames) {
+            const auto& block = grammar.BlockByName.at(name);
+            nameByBlock[block] = name;
+        }
+
+        auto punct = Compile("Punctuation", PuntuationPattern(grammar));
+
+        return [nameByBlock = std::move(nameByBlock),
+                punct = std::move(punct)](TStringBuf content) -> TMaybe<TGenericToken> {
+            if (auto token = punct(content)) {
+                return TGenericToken{
+                    .Name = nameByBlock.at(token->Content),
+                    .Content = token->Content,
+                };
+            }
+            return Nothing();
+        };
+    }
+
+    TRegexPattern PuntuationPattern(const NSQLReflect::TLexerGrammar& grammar) {
+        TVector<TRegexPattern> patterns;
+        patterns.reserve(grammar.PunctuationNames.size());
+        for (const auto& name : grammar.PunctuationNames) {
+            patterns.push_back({RE2::QuoteMeta(grammar.BlockByName.at(name))});
+        }
+        return Merged(std::move(patterns));
+    }
+
     TGenericLexerGrammar MakeGenericLexerGrammar(
         bool ansi,
         const TLexerGrammar& grammar,
@@ -126,10 +157,7 @@ namespace NSQLTranslationV1 {
         TGenericLexerGrammar generic;
 
         generic.emplace_back(KeywordMatcher(grammar));
-
-        for (const auto& name : grammar.PunctuationNames) {
-            generic.emplace_back(Compile(name, {RE2::QuoteMeta(grammar.BlockByName.at(name))}));
-        }
+        generic.emplace_back(PuntuationMatcher(grammar));
 
         for (const auto& [name, regex] : regexByOtherName) {
             generic.emplace_back(Compile(name, {regex}));

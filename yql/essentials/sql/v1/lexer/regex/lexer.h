@@ -11,6 +11,8 @@ namespace NSQLTranslationV1 {
 
     TRegexPattern KeywordPattern(const NSQLReflect::TLexerGrammar& grammar);
 
+    TRegexPattern PuntuationPattern(const NSQLReflect::TLexerGrammar& grammar);
+
     NSQLTranslation::TLexerFactoryPtr MakeRegexLexerFactory(bool ansi);
 
 } // namespace NSQLTranslationV1
