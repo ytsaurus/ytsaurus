@@ -17,6 +17,7 @@ PEERDIR(
 END()
 
 RECURSE(
+    analysis
     antlr4
     core
     name
