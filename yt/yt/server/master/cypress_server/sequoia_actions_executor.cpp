@@ -429,6 +429,8 @@ private:
             children.Set(key, NullObjectId);
         }
 
+        --parent->ChildCountDelta();
+
         MaybeTouchNode(
             cypressManager,
             parent,
@@ -627,7 +629,7 @@ private:
 
         // TODO(h0pless): Think about throwing an error if this cell is not sequoia_node_host anymore.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* sourceNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(sourceNodeId));
+        auto* trunkSourceNode = cypressManager->GetNodeOrThrow({sourceNodeId, NullTransactionId});
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId
@@ -635,7 +637,7 @@ private:
             : nullptr;
 
         // Maybe this is excessive.
-        auto type = sourceNode->GetType();
+        auto type = trunkSourceNode->GetType();
         if (!CanCreateSequoiaType(type)) {
             THROW_ERROR_EXCEPTION("Type %Qlv is not supported in Sequoia", type);
         }
@@ -663,6 +665,8 @@ private:
 
         // TODO(cherepashka): after inherited attributes are supported, implement copyable-inherited attributes.
         auto emptyInheritedAttributes = CreateEphemeralAttributes();
+
+        auto* sourceNode = cypressManager->GetVersionedNode(trunkSourceNode, cypressTransaction);
         auto* clonedNode = nodeFactory->CloneNode(sourceNode, mode, emptyInheritedAttributes.Get(), destinationNodeId);
 
         PrepareSequoiaNodeCreation(
@@ -678,7 +682,7 @@ private:
 
         nodeFactory->Commit();
 
-        objectManager->WeakRefObject(sourceNode);
+        objectManager->WeakRefObject(trunkSourceNode);
     }
 
     void HydraCommitCloneNode(

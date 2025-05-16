@@ -3543,9 +3543,20 @@ void TSequoiaMapNodeProxy::ListSelf(
 
 int TSequoiaMapNodeProxy::GetChildCount() const
 {
-    const auto* node = GetThisImpl();
-    const auto* mapNode = node->As<TSequoiaMapNode>();
-    return mapNode->KeyToChild().size();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto originators = cypressManager->GetNodeOriginators(Transaction_, TrunkNode_);
+
+    int result = 0;
+    for (const auto* node : originators) {
+        const auto* mapNode = node->As<TSequoiaMapNode>();
+        result += mapNode->ChildCountDelta();
+
+        if (mapNode->GetLockMode() == ELockMode::Snapshot) {
+            break;
+        }
+    }
+
+    return result;
 }
 
 void TSequoiaMapNodeProxy::Clear()
@@ -3598,6 +3609,8 @@ void TListNodeProxy::Clear()
     SetModified(EModificationType::Content);
 }
 
+// TODO(h0pless): Combine GetChildCount for Sequoia and Cypress into a single method
+// when removing code related to list nodes.
 int TListNodeProxy::GetChildCount() const
 {
     const auto* impl = GetThisImpl();
