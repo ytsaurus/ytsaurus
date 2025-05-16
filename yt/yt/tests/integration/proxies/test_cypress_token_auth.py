@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create_user, issue_token, revoke_token, list_user_tokens,
-    wait, get, set, set_user_password, create, raises_yt_error
+    wait, get, set, set_user_password, create, raises_yt_error, remove
 )
 from yt.environment.helpers import assert_items_equal
 
@@ -43,6 +43,10 @@ class TestCypressTokenAuthBase(YTEnvSetup):
 
     def _compute_sha256(self, value):
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+    def teardown_method(self, method):
+        super().teardown_method(method)
+        remove("//sys/cypress_tokens/*")
 
 
 @pytest.mark.enabled_multidaemon
