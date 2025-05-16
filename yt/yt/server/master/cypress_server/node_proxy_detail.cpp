@@ -377,14 +377,15 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     auto req = TYPathProxy::Get(FromObjectId(GetId()) + "/@" + key);
     AddCellTagToSyncWith(req, GetId());
     SetTransactionId(req, transactionId);
+    SetAllowResolveFromSequoiaObject(&req->Header(), true);
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto channel = multicellManager->GetMasterChannelOrThrow(externalCellTag, NHydra::EPeerKind::Follower);
+    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(channel));
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
-    auto proxy = CreateObjectServiceReadProxy(
-        Bootstrap_->GetClusterConnection(),
-        NApi::EMasterChannelKind::Follower,
-        externalCellTag);
     auto batchReq = proxy.ExecuteBatch();
     SetAuthenticationIdentity(batchReq, NRpc::TAuthenticationIdentity(user->GetName()));
     batchReq->AddRequest(std::move(req));

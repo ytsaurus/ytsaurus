@@ -454,10 +454,9 @@ private:
         TCellTag cellTag,
         ERemoteTransactionType remoteTransactionType)
     {
-        auto proxy = CreateObjectServiceReadProxy(
-            Bootstrap_->GetRootClient(),
-            NApi::EMasterChannelKind::Follower,
-            cellTag);
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+            multicellManager->GetMasterChannelOrThrow(cellTag, EPeerKind::Follower));
         auto batchReq = proxy.ExecuteBatch();
 
         auto transactionId = GetId();
@@ -505,10 +504,9 @@ private:
         TCellTag cellTag,
         const std::function<void(const TIntrusivePtr<TSession>& session, const TYsonString& yson)>& accumulator)
     {
-        auto proxy = CreateObjectServiceReadProxy(
-            Bootstrap_->GetRootClient(),
-            NApi::EMasterChannelKind::Follower,
-            cellTag);
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+            multicellManager->GetMasterChannelOrThrow(cellTag, EPeerKind::Follower));
         auto batchReq = proxy.ExecuteBatch();
 
         auto transactionId = Object_->GetId();
@@ -632,4 +630,3 @@ IObjectProxyPtr CreateTransactionProxy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionServer
-
