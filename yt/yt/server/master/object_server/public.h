@@ -171,7 +171,8 @@ constexpr TRopSanTag DeadRopSanTag = 0xdead;
     using type ## RawPtr = ::NYT::NObjectServer::TRawObjectPtr<type>; \
     \
     YT_ATTRIBUTE_USED ::NYT::NObjectServer::TObject* ToObject(type* obj); \
-    YT_ATTRIBUTE_USED const ::NYT::NObjectServer::TObject* ToObject(const type* obj);
+    YT_ATTRIBUTE_USED const ::NYT::NObjectServer::TObject* ToObject(const type* obj); \
+    YT_ATTRIBUTE_USED ::NYT::NObjectServer::TObject* ToTrunkObject(type* obj);
 
 #define DEFINE_MASTER_OBJECT_TYPE(type) \
     YT_ATTRIBUTE_USED Y_FORCE_INLINE ::NYT::NObjectServer::TObject* ToObject(type* obj) \
@@ -182,6 +183,11 @@ constexpr TRopSanTag DeadRopSanTag = 0xdead;
     YT_ATTRIBUTE_USED Y_FORCE_INLINE const ::NYT::NObjectServer::TObject* ToObject(const type* obj) \
     { \
         return obj; \
+    } \
+    \
+    YT_ATTRIBUTE_USED Y_FORCE_INLINE ::NYT::NObjectServer::TObject* ToTrunkObject(type* obj) \
+    { \
+        return ::NYT::NObjectServer::NDetail::ToTrunkObject(obj); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
