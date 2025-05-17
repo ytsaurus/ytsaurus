@@ -12,7 +12,7 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::string> GatherHeader(const NHttp::THeadersPtr& headers, const TString& headerName);
+std::optional<std::string> GatherHeader(const NHttp::THeadersPtr& headers, const std::string& headerName);
 
 NYTree::IMapNodePtr ParseQueryString(TStringBuf queryString);
 

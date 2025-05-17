@@ -31,7 +31,7 @@ protected:
 
 private:
     NTabletNode::IBootstrap* const Bootstrap_;
-    THashSet<TString> Methods_;
+    THashSet<std::string> Methods_;
 
     void HandleLoadAdjusted();
 };
