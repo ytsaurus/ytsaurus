@@ -1629,11 +1629,14 @@ DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
 struct TSimpleOperationSpecBase
     : public TOperationSpecBase
 {
-    //! During sorted merge the scheduler tries to ensure that large connected
-    //! groups of chunks are partitioned into tasks of this or smaller size.
-    //! This number, however, is merely an estimate, i.e. some tasks may still
-    //! be larger.
+    //! During sorted merge, the controller tries to ensure that large, connected
+    //! groups of chunks are partitioned into tasks of this size or greater.
+    //! However, this number is merely an estimate; some tasks may still be
+    //! smaller or significantly larger in some cases.
     std::optional<i64> DataWeightPerJob;
+
+    //! Recomendation for job input compressed data size.
+    std::optional<i64> CompressedDataSizePerJob;
 
     std::optional<int> JobCount;
     std::optional<int> MaxJobCount;

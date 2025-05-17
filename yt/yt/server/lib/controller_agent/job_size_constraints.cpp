@@ -24,6 +24,7 @@ public:
         int jobCount,
         i64 dataWeightPerJob,
         i64 primaryDataWeightPerJob,
+        i64 compressedDataSizePerJob,
         i64 maxDataSlicesPerJob,
         i64 maxDataWeightPerJob,
         i64 maxPrimaryDataWeightPerJob,
@@ -44,6 +45,7 @@ public:
         , JobCount_(jobCount)
         , DataWeightPerJob_(dataWeightPerJob)
         , PrimaryDataWeightPerJob_(primaryDataWeightPerJob)
+        , CompressedDataSizePerJob_(compressedDataSizePerJob)
         , MaxDataSlicesPerJob_(maxDataSlicesPerJob)
         , MaxDataWeightPerJob_(maxDataWeightPerJob)
         , MaxPrimaryDataWeightPerJob_(maxPrimaryDataWeightPerJob)
@@ -64,6 +66,7 @@ public:
         DataWeightPerJob_ = std::max<i64>(1, DataWeightPerJob_);
         PrimaryDataWeightPerJob_ = std::max<i64>(1, PrimaryDataWeightPerJob_);
 
+        YT_VERIFY(compressedDataSizePerJob > 0);
         YT_VERIFY(maxCompressedDataSizePerJob > 0);
     }
 
@@ -90,6 +93,11 @@ public:
     i64 GetDataWeightPerJob() const override
     {
         return DataWeightPerJob_;
+    }
+
+    i64 GetCompressedDataSizePerJob() const override
+    {
+        return CompressedDataSizePerJob_;
     }
 
     i64 GetMaxDataSlicesPerJob() const override
@@ -181,6 +189,7 @@ private:
     int JobCount_;
     i64 DataWeightPerJob_;
     i64 PrimaryDataWeightPerJob_;
+    i64 CompressedDataSizePerJob_;
     i64 MaxDataSlicesPerJob_;
     i64 MaxDataWeightPerJob_;
     i64 MaxPrimaryDataWeightPerJob_;
@@ -232,6 +241,12 @@ void TExplicitJobSizeConstraints::RegisterMetadata(auto&& registrar)
             this_->MaxCompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
         }));
 
+    PHOENIX_REGISTER_FIELD(20, CompressedDataSizePerJob_,
+        .SinceVersion(ESnapshotVersion::CompressedDataSizePerJob)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->CompressedDataSizePerJob_ = std::numeric_limits<i64>::max() / 4;
+        }));
+
     // COMPAT(max42): remove this after YT-10666 (and put YT_VERIFY about job having non-empty
     // input somewhere in controller).
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
@@ -253,6 +268,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     int jobCount,
     i64 dataWeightPerJob,
     i64 primaryDataWeightPerJob,
+    i64 compressedDataSizePerJob,
     i64 maxDataSlicesPerJob,
     i64 maxDataWeightPerJob,
     i64 maxPrimaryDataWeightPerJob,
@@ -274,6 +290,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
         jobCount,
         dataWeightPerJob,
         primaryDataWeightPerJob,
+        compressedDataSizePerJob,
         maxDataSlicesPerJob,
         maxDataWeightPerJob,
         maxPrimaryDataWeightPerJob,

@@ -69,6 +69,7 @@ public:
         , JobManager_(New<TNewJobManager>(options.Logger))
         , FreeJobCounter_(New<TProgressCounter>())
         , FreeDataWeightCounter_(New<TProgressCounter>())
+        , FreeCompressedDataSizeCounter_(New<TProgressCounter>())
         , FreeRowCounter_(New<TProgressCounter>())
         , SingleChunkTeleportStrategy_(options.SingleChunkTeleportStrategy)
         , UseNewSlicingImplementation_(options.UseNewSlicingImplementation)
@@ -164,6 +165,9 @@ public:
             Unregister(cookie);
             const auto& statistics = suspendableStripe.GetStatistics();
             FreeDataWeightCounter_->AddSuspended(statistics.DataWeight);
+            if (FreeCompressedDataSizeCounter_) {
+                FreeCompressedDataSizeCounter_->AddSuspended(statistics.CompressedDataSize);
+            }
             FreeRowCounter_->AddSuspended(statistics.RowCount);
         }
 
@@ -193,6 +197,10 @@ public:
             const auto& statistics = suspendableStripe.GetStatistics();
             FreeDataWeightCounter_->AddSuspended(-statistics.DataWeight);
             YT_VERIFY(FreeDataWeightCounter_->GetSuspended() >= 0);
+            if (FreeCompressedDataSizeCounter_) {
+                FreeCompressedDataSizeCounter_->AddSuspended(-statistics.CompressedDataSize);
+                YT_VERIFY(FreeCompressedDataSizeCounter_->GetSuspended() >= 0);
+            }
             FreeRowCounter_->AddSuspended(-statistics.RowCount);
             YT_VERIFY(FreeRowCounter_->GetSuspended() >= 0);
         }
@@ -252,7 +260,8 @@ public:
             if (jobManagerJobCounter->GetPending() == 0) {
                 YT_VERIFY(!FreeStripes_.empty());
 
-                auto idealDataWeightPerJob = UseNewSlicingImplementation_ ? GetAdjustedDataWeightPerJob() : GetDataWeightPerJobFromJobCounter();
+                i64 idealDataWeightPerJob = UseNewSlicingImplementation_ ? GetAdjustedDataWeightPerJob() : GetDataWeightPerJobFromJobCounter();
+                i64 idealCompressedDataSizePerJob = UseNewSlicingImplementation_ ? GetAdjustedCompressedDataSizePerJob() : std::numeric_limits<i64>::max() / 4;
 
                 auto jobStub = std::make_unique<TNewJobStub>();
 
@@ -267,7 +276,8 @@ public:
                             jobStub.get(),
                             entry.StripeIndexes.begin(),
                             entry.StripeIndexes.end(),
-                            idealDataWeightPerJob);
+                            idealDataWeightPerJob,
+                            idealCompressedDataSizePerJob);
                     }
                 }
 
@@ -277,7 +287,8 @@ public:
                     jobStub.get(),
                     FreeStripes_.begin(),
                     FreeStripes_.end(),
-                    idealDataWeightPerJob);
+                    idealDataWeightPerJob,
+                    idealCompressedDataSizePerJob);
 
                 jobStub->Finalize();
 
@@ -490,6 +501,7 @@ private:
 
     TProgressCounterPtr FreeJobCounter_;
     TProgressCounterPtr FreeDataWeightCounter_;
+    TProgressCounterPtr FreeCompressedDataSizeCounter_;
     TProgressCounterPtr FreeRowCounter_;
 
     bool IsCompleted_ = false;
@@ -673,6 +685,14 @@ private:
             JobSizeConstraints_->GetMaxDataWeightPerJob());
     }
 
+    i64 GetAdjustedCompressedDataSizePerJob() const
+    {
+        return std::clamp<i64>(
+            JobSizeConstraints_->GetCompressedDataSizePerJob(),
+            1,
+            JobSizeConstraints_->GetMaxCompressedDataSizePerJob());
+    }
+
     i64 GetDataWeightPerJobFromJobCounter() const
     {
         i64 freePendingJobCount = FreeJobCounter_->GetTotal();
@@ -684,26 +704,28 @@ private:
 
     void UpdateFreeJobCounter()
     {
-        i64 pendingJobCount = 0;
         i64 blockedJobCount = !Finished && !JobSizeConstraints_->IsExplicitJobCount() ? 1 : 0;
 
-        i64 dataWeightLeft = FreeDataWeightCounter_->GetTotal();
-
-        if (JobSizeConstraints_->IsExplicitJobCount()) {
-            pendingJobCount = FreeJobCounter_->GetTotal();
-        } else {
-            i64 dataWeightPerJob = GetAdjustedDataWeightPerJob();
-            if (Finished) {
-                pendingJobCount = DivCeil<i64>(dataWeightLeft, dataWeightPerJob);
-            } else {
-                pendingJobCount = dataWeightLeft / dataWeightPerJob;
+        auto computePendingJobCount = [&] (i64 sizeLeft, i64 sizePerJob) {
+            if (JobSizeConstraints_->IsExplicitJobCount()) {
+                return FreeJobCounter_->GetTotal();
             }
-            pendingJobCount = std::max<i64>(
+
+            i64 pendingJobCount = Finished ?  DivCeil<i64>(sizeLeft, sizePerJob) : sizeLeft / sizePerJob;
+
+            return std::max<i64>(
                 pendingJobCount,
                 std::ssize(FreeStripes_) / JobSizeConstraints_->GetMaxDataSlicesPerJob() - blockedJobCount);
-        }
+        };
 
-        if (Finished && dataWeightLeft == 0) {
+        i64 pendingJobCountByDataWeight = computePendingJobCount(FreeDataWeightCounter_->GetTotal(), GetAdjustedDataWeightPerJob());
+        i64 pendingJobCountByCompressedDataSize = FreeCompressedDataSizeCounter_
+            ? computePendingJobCount(FreeCompressedDataSizeCounter_->GetTotal(), GetAdjustedCompressedDataSizePerJob())
+            : 0;
+
+        i64 pendingJobCount = std::max(pendingJobCountByDataWeight, pendingJobCountByCompressedDataSize);
+
+        if (Finished && FreeDataWeightCounter_->GetTotal() == 0) {
             pendingJobCount = 0;
             blockedJobCount = 0;
         }
@@ -759,6 +781,10 @@ private:
 
         const auto& statistics = suspendableStripe.GetStatistics();
         FreeDataWeightCounter_->AddPending(statistics.DataWeight);
+        if (FreeCompressedDataSizeCounter_) {
+            // NB(apollo1321): statistics.CompressedDataSize may be zero for dynamic tables.
+            FreeCompressedDataSizeCounter_->AddPending(statistics.CompressedDataSize);
+        }
         FreeRowCounter_->AddPending(statistics.RowCount);
 
         YT_VERIFY(FreeStripes_.insert(stripeIndex).second);
@@ -804,6 +830,10 @@ private:
         const auto& statistics = suspendableStripe.GetStatistics();
         FreeDataWeightCounter_->AddPending(-statistics.DataWeight);
         YT_VERIFY(FreeDataWeightCounter_->GetPending() >= 0);
+        if (FreeCompressedDataSizeCounter_) {
+            FreeCompressedDataSizeCounter_->AddPending(-statistics.CompressedDataSize);
+            YT_VERIFY(FreeCompressedDataSizeCounter_->GetPending() >= 0);
+        }
         FreeRowCounter_->AddPending(-statistics.RowCount);
         YT_VERIFY(FreeRowCounter_->GetPending() >= 0);
 
@@ -814,13 +844,14 @@ private:
         TNewJobStub* jobStub,
         const THashSet<int>::const_iterator& begin,
         const THashSet<int>::const_iterator& end,
-        i64 idealDataWeightPerJob)
+        i64 idealDataWeightPerJob,
+        i64 idealCompressedDataSizePerJob)
     {
         const auto& jobCounter = GetJobCounter();
         i64 pendingStripesCount = std::ssize(FreeStripes_);
         std::vector<int> addedStripeIndexes;
         for (auto it = begin; it != end; ++it) {
-            if (jobStub->GetDataWeight() >= idealDataWeightPerJob) {
+            if (jobStub->GetDataWeight() >= idealDataWeightPerJob || jobStub->GetCompressedDataSize() >= idealCompressedDataSizePerJob) {
                 break;
             }
 
@@ -928,6 +959,9 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(23, UseNewSlicingImplementation_,
         .SinceVersion(ESnapshotVersion::NewUnorderedChunkPoolSlicing));
+    PHOENIX_REGISTER_FIELD(24, FreeCompressedDataSizeCounter_,
+        // COMPAT(apollo1321): Make FreeCompressedDataSizeCounter_ non-null in 25.2.
+        .SinceVersion(ESnapshotVersion::CompressedDataSizePerJob));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);

@@ -159,6 +159,7 @@ TAutoMergeTask::TAutoMergeTask(
             /*jobCount*/ 1,
             /*dataWeightPerJob*/ dataWeightPerJob,
             /*primaryDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
+            /*compressedDataSizePerJob*/ std::numeric_limits<i64>::max() / 4,
             /*maxDataSlicesPerJob*/ maxChunksPerJob,
             /*maxDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
             /*primaryMaxDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
