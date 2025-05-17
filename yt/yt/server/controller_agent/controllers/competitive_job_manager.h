@@ -8,6 +8,8 @@
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
+#include "extra_job_manager.h"
+
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +33,7 @@ struct ICompetitiveJobManagerHost
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCompetitiveJobManagerBase
+    : public IExtraJobManager
 {
 public:
     //! Used only for persistence.
@@ -46,28 +49,25 @@ public:
     //! This method may be called either by derived class (in case of probing) or by external code (in case of speculative).
     bool TryAddCompetitiveJob(const TJobletPtr& joblet);
 
-    i64 GetPendingCandidatesDataWeight() const;
+    i64 GetPendingCandidatesDataWeight() const override;
 
-    int GetPendingJobCount() const;
+    int GetPendingJobCount() const override;
 
-    int GetTotalJobCount() const;
+    int GetTotalJobCount() const override;
 
     NChunkPools::IChunkPoolOutput::TCookie PeekJobCandidate() const;
 
-    bool OnJobAborted(const TJobletPtr& joblet, EAbortReason reason);
-    bool OnJobFailed(const TJobletPtr& joblet);
-    void OnJobLost(NChunkPools::IChunkPoolOutput::TCookie cookie);
+    bool OnJobAborted(const TJobletPtr& joblet, EAbortReason reason) override;
+    bool OnJobFailed(const TJobletPtr& joblet) override;
+    void OnJobLost(NChunkPools::IChunkPoolOutput::TCookie cookie) override;
 
-    virtual void OnJobScheduled(const TJobletPtr& joblet);
-    virtual void OnJobCompleted(const TJobletPtr& joblet) = 0;
-
-    virtual std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet) = 0;
+    virtual void OnJobScheduled(const TJobletPtr& joblet) override;
 
     bool IsRelevant(const TJobletPtr& joblet) const;
 
-    bool IsFinished() const;
+    bool IsFinished() const override;
 
-    TProgressCounterPtr GetProgressCounter() const;
+    TProgressCounterPtr GetProgressCounter() const override;
 
 protected:
     struct TCompetition

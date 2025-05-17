@@ -213,14 +213,15 @@ void TExperimentJobManager::OnJobScheduled(const TJobletPtr& joblet)
     }
 }
 
-void TExperimentJobManager::OnJobCompleted(const TJobletPtr& joblet)
+bool TExperimentJobManager::OnJobCompleted(const TJobletPtr& joblet)
 {
     if (!IsRelevant(joblet) || !FindCompetition(joblet)) {
-        return;
+        return true;
     }
 
     OnJobFinished(joblet);
     MarkCompetitionAsCompleted(joblet);
+    return true;
 }
 
 bool TExperimentJobManager::OnUnsuccessfulJobFinish(
