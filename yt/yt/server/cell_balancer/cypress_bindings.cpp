@@ -422,7 +422,7 @@ void TDrillsModeOperationState::Register(TRegistrar registrar)
         .Default();
 }
 
-void TInstanceAnnotations::Register(TRegistrar registrar)
+void TBundleControllerInstanceAnnotations::Register(TRegistrar registrar)
 {
     registrar.Parameter("yp_cluster", &TThis::YPCluster)
         .Default();
@@ -439,6 +439,12 @@ void TInstanceAnnotations::Register(TRegistrar registrar)
     registrar.Parameter("deallocation_strategy", &TThis::DeallocationStrategy)
         .Default();
     registrar.Parameter("data_center", &TThis::DataCenter)
+        .Optional();
+}
+
+void TCypressAnnotations::Register(TRegistrar registrar)
+{
+    registrar.Parameter("pod_id", &TThis::PodId)
         .Optional();
 }
 
@@ -497,7 +503,9 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "user_tags", &TThis::UserTags)
         .Default();
-    RegisterAttribute(registrar, "bundle_controller_annotations", &TThis::Annotations)
+    RegisterAttribute(registrar, "bundle_controller_annotations", &TThis::BundleControllerAnnotations)
+        .DefaultNew();
+    RegisterAttribute(registrar, "annotations", &TThis::CypressAnnotations)
         .DefaultNew();
     RegisterAttribute(registrar, "tablet_slots", &TThis::TabletSlots)
         .Default();
@@ -541,7 +549,9 @@ void TRpcProxyInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "role", &TThis::Role)
         .Default();
-    RegisterAttribute(registrar, "bundle_controller_annotations", &TThis::Annotations)
+    RegisterAttribute(registrar, "bundle_controller_annotations", &TThis::BundleControllerAnnotations)
+        .DefaultNew();
+    RegisterAttribute(registrar, "annotations", &TThis::CypressAnnotations)
         .DefaultNew();
     RegisterAttribute(registrar, "cms_maintenance_requests", &TThis::CmsMaintenanceRequests)
         .Default();
