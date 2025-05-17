@@ -5,6 +5,7 @@ def pytest_configure(config):
         "skip_if(condition)",
         "timeout(timeout)",
         "opensource",
+        "enabled_multidaemon",
     ]:
         config.addinivalue_line("markers", line)
 
