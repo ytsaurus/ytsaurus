@@ -42,6 +42,10 @@ namespace NSQLComplete {
             TString Path;
             THashSet<EObjectKind> Kinds;
             bool IsEnclosed = false;
+
+            bool HasCluster() const {
+                return !Cluster.empty();
+            }
         };
 
         TKeywords Keywords;

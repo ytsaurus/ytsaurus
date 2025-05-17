@@ -9,6 +9,7 @@ PEERDIR(
     yql/essentials/sql/v1/complete/antlr4
     yql/essentials/sql/v1/complete/name/service
     yql/essentials/sql/v1/complete/syntax
+    yql/essentials/sql/v1/complete/analysis/global
     yql/essentials/sql/v1/complete/text
     # TODO(YQL-19747): add it to YDB CLI PEERDIR
     yql/essentials/sql/v1/complete/name/service/static
@@ -17,6 +18,7 @@ PEERDIR(
 END()
 
 RECURSE(
+    analysis
     antlr4
     core
     name
