@@ -5,6 +5,7 @@
 
 #include <util/string/split.h>
 #include <util/string/strip.h>
+#include <util/charset/utf8.h>
 
 namespace NSQLReflect {
 
@@ -23,11 +24,11 @@ namespace NSQLReflect {
         return name;
     }
 
-    const TStringBuf TLexerGrammar::KeywordNameByBlock(const TStringBuf block Y_LIFETIME_BOUND) {
+    const TString TLexerGrammar::KeywordNameByBlock(const TStringBuf block) {
         if (TCaseInsensitiveStringBuf(block) == "SKIP") {
             return "TSKIP";
         }
-        return block;
+        return ToUpperUTF8(block);
     }
 
     TVector<TString> GetResourceLines(const TStringBuf key) {

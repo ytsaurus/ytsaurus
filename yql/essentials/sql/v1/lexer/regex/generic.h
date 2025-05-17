@@ -13,7 +13,7 @@ namespace NSQLTranslationV1 {
     struct TGenericToken {
         static constexpr const char* Error = "<ERROR>";
 
-        TStringBuf Name;
+        TString Name;
         TStringBuf Content;
         size_t Begin = 0; // In bytes
     };
