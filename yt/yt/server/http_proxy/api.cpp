@@ -228,8 +228,7 @@ void TApi::IncrementBytesOutProfilingCounters(
 {
     auto networkName = GetNetworkNameForAddress(clientAddress);
 
-    // TODO(babenko): migrate to std::string
-    IncrementUserCounter(&BytesOut_, user, networkName, "/bytes_out", "network", TString(networkName), bytesOut);
+    IncrementUserCounter(&BytesOut_, user, networkName, "/bytes_out", "network", networkName, bytesOut);
 
     if (outputFormat) {
         IncrementUserCounter(
@@ -263,8 +262,7 @@ void TApi::IncrementBytesInProfilingCounters(
 {
     auto networkName = GetNetworkNameForAddress(clientAddress);
 
-    // TODO(babenko): migrate to std::string
-    IncrementUserCounter(&BytesIn_, user, networkName, "/bytes_in", "network", TString(networkName), bytesIn);
+    IncrementUserCounter(&BytesIn_, user, networkName, "/bytes_in", "network", networkName, bytesIn);
 
     if (inputFormat) {
         IncrementUserCounter(

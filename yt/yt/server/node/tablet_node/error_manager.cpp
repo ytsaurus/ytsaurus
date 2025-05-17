@@ -151,7 +151,7 @@ public:
         DeduplicationCache_->SetExpirationTimeout(config->DeduplicationCacheTimeout);
     }
 
-    void HandleError(const TError& error, const TString& method) override
+    void HandleError(const TError& error, const std::string& method) override
     {
         auto context = *Context;
 

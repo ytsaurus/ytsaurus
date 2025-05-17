@@ -316,7 +316,7 @@ bool TContext::TryGetHeaderFormat()
 
 bool TContext::TryGetInputFormat()
 {
-    static const TString YtHeaderName = "X-YT-Input-Format";
+    static const std::string YtHeaderName = "X-YT-Input-Format";
     std::optional<TString> ytHeader;
     try {
         ytHeader = GatherHeader(Request_->GetHeaders(), YtHeaderName);
@@ -341,7 +341,7 @@ bool TContext::TryGetInputCompression()
 {
     auto header = Request_->GetHeaders()->Find("Content-Encoding");
     if (header) {
-        auto compression = StripString(*header);
+        auto compression = StripString(TString(*header));
         if (!IsContentEncodingSupported(compression)) {
             Response_->SetStatus(EStatusCode::UnsupportedMediaType);
             ReplyError(TError{"Unsupported Content-Encoding"});
