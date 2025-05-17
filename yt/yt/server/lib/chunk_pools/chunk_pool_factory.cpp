@@ -89,6 +89,11 @@ public:
         return InfiniteWeight;
     }
 
+    i64 GetCompressedDataSizePerJob() const override
+    {
+        return InfiniteWeight;
+    }
+
     i64 GetMaxCompressedDataSizePerJob() const override
     {
         return InfiniteWeight;

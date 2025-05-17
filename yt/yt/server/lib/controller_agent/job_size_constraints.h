@@ -39,7 +39,11 @@ struct IJobSizeConstraints
     //! Can be overflown if exact job count is provided.
     virtual i64 GetMaxPrimaryDataWeightPerJob() const = 0;
 
+    //! Approximate read data size provided via operation spec.
+    virtual i64 GetCompressedDataSizePerJob() const = 0;
+
     //! Recommended upper limit on the compressed data size per job.
+    //! Can be overflown if exact job count is provided.
     virtual i64 GetMaxCompressedDataSizePerJob() const = 0;
 
     virtual i64 GetInputSliceDataWeight() const = 0;
@@ -94,6 +98,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     int jobCount,
     i64 dataWeightPerJob,
     i64 primaryDataWeightPerJob,
+    i64 compressedDataSizePerJob,
     i64 maxDataSlicesPerJob,
     i64 maxDataWeightPerJob,
     i64 maxPrimaryDataWeightPerJob,

@@ -1578,6 +1578,9 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
         .Alias("data_size_per_job")
         .Default()
         .GreaterThan(0);
+    registrar.Parameter("compressed_data_size_per_job", &TThis::CompressedDataSizePerJob)
+        .Default()
+        .GreaterThan(0);
     registrar.Parameter("job_count", &TThis::JobCount)
         .Default()
         .GreaterThan(0);
@@ -1595,6 +1598,19 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("job_io", &TThis::JobIO)
         .DefaultNew();
+
+    registrar.Postprocessor([] (TSimpleOperationSpecBase* spec) {
+        if (spec->DataWeightPerJob > spec->MaxDataWeightPerJob) {
+            THROW_ERROR_EXCEPTION("\"data_weight_per_job\" cannot be greater than \"max_data_weight_per_job\"")
+                << TErrorAttribute("data_weight_per_job", spec->DataWeightPerJob)
+                << TErrorAttribute("max_data_weight_per_job", spec->MaxDataWeightPerJob);
+        }
+        if (spec->CompressedDataSizePerJob > spec->MaxCompressedDataSizePerJob) {
+            THROW_ERROR_EXCEPTION("\"compressed_data_size_per_job\" cannot be greater than \"max_compressed_data_size_per_job\"")
+                << TErrorAttribute("compressed_data_size_per_job", spec->CompressedDataSizePerJob)
+                << TErrorAttribute("max_compressed_data_size_per_job", spec->MaxCompressedDataSizePerJob);
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

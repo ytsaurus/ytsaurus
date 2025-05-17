@@ -29,7 +29,7 @@ struct TChunkStripe
     TCompactVector<NChunkClient::TLegacyDataSlicePtr, 1> DataSlices;
     int WaitingChunkCount = 0;
     bool Foreign = false;
-    bool Solid = false;
+    bool Solid = false; // TODO(apollo1321): Remove this field.
 
     NChunkClient::TChunkListId ChunkListId;
     TBoundaryKeys BoundaryKeys;
