@@ -286,9 +286,6 @@ private:
         std::vector<std::string> result;
         result.reserve(std::min(limit, std::ssize(cells)));
         for (const auto& cell : cells) {
-            if (std::ssize(result) >= limit) {
-                break;
-            }
             result.push_back(ToString(cell->GetId()));
         }
         return result;
