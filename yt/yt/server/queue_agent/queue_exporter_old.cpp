@@ -256,7 +256,7 @@ private:
 
     ui64 GetMinFragmentUnixTs(TTimestamp timestamp)
     {
-        auto period = ExportConfig_->ExportPeriod.Seconds();
+        auto period = ExportConfig_->ExportPeriod->Seconds();
         YT_VERIFY(period > 0);
 
         auto unixTs = UnixTimeFromTimestamp(timestamp);
@@ -267,7 +267,7 @@ private:
 
     void ComputeExportFragmentUnixTs()
     {
-        auto period = ExportConfig_->ExportPeriod.Seconds();
+        auto period = ExportConfig_->ExportPeriod->Seconds();
         YT_VERIFY(period > 0);
 
         auto exportUnixTs = ExportInstant_.Seconds();
@@ -489,7 +489,7 @@ private:
 
     TString GetOutputTableName(ui64 unixTs)
     {
-        auto periodInSeconds = ExportConfig_->ExportPeriod.Seconds();
+        auto periodInSeconds = ExportConfig_->ExportPeriod->Seconds();
 
         if (!ExportConfig_->UseUpperBoundForTableNames) {
             unixTs -= periodInSeconds;
