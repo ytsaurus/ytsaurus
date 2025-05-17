@@ -83,6 +83,8 @@
 
 #include <yt/yt/server/master/transaction_server/cypress_integration.h>
 
+#include <yt/yt/server/lib/cellar_agent/helpers.h>
+
 #include <yt/yt/server/lib/hydra/hydra_context.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
@@ -2707,6 +2709,9 @@ private:
     // COMPAT(shakurov)
     bool NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
 
+    // COMPAT(danilalexeev): YT-21862.
+    bool DropLegacyCellMapsOnSnapshotLoaded_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -2777,6 +2782,11 @@ private:
             YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_); // Check and leave it false.
             NeedResetHunkSpecificMediaOnBranchedNodes_ = true;
         } // Else leave both of them false.
+
+        // COMPAT(danilalexeev): YT-21862.
+        if (context.GetVersion() < EMasterReign::AutomaticCellMapMigration) {
+            DropLegacyCellMapsOnSnapshotLoaded_ = true;
+        }
     }
 
     void Clear() override
@@ -2804,6 +2814,7 @@ private:
         RecomputeNodeReachability_ = false;
         NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
         NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
+        DropLegacyCellMapsOnSnapshotLoaded_ = false;
     }
 
     void SetZeroState() override
@@ -2958,6 +2969,37 @@ private:
                     "Please consider removing or replacing them with document nodes (NodeId: %v, Path: %v)",
                     nodeId,
                     GetNodePath(node->GetTrunkNode(), node->GetTransaction()));
+            }
+        }
+
+        // COMPAT(danilalexeev): YT-21862.
+        if (DropLegacyCellMapsOnSnapshotLoaded_) {
+            for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
+                auto cellMapNodeProxy = ResolvePathToNodeProxy(
+                    NCellarAgent::GetCellarTypeCypressPathPrefix(cellarType),
+                    /*transaction*/ nullptr);
+                if (cellMapNodeProxy->GetType() != ENodeType::Map) {
+                    return;
+                }
+
+                auto descendants = ListSubtreeNodes(
+                    cellMapNodeProxy->GetTrunkNode(),
+                    /*transaction*/ nullptr,
+                    /*includeRoot*/ false);
+
+                for (auto* node : descendants) {
+                    THROW_ERROR_EXCEPTION_IF(
+                        node->GetType() == EObjectType::Journal ||
+                        node->GetType() == EObjectType::File,
+                        "Failed to migrate to new cell map nodes: found legacy"
+                        " object %v at %v. Before updating, ensure all data is"
+                        " migrated and legacy storage is empty.",
+                        node->GetId(),
+                        GetNodePath(node, /*transaction*/ nullptr));
+                }
+
+                cellMapNodeProxy->GetParent()->RemoveChild(cellMapNodeProxy);
+                // Virtual Cell Map creation is delegated to World Initializer.
             }
         }
     }

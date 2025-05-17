@@ -162,6 +162,7 @@ DEFINE_ENUM(EMasterReign,
     ((ResetHunkMediaOnBranchedNodesOnly)                            (2925))  // shakurov
     ((ResetInheritACLInCrossCellCopy)                               (2926))  // h0pless
     ((FixDetachmentOfJournalHunkChunk)                              (2927))  // akozhikhov
+    ((AutomaticCellMapMigration)                                    (2928))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

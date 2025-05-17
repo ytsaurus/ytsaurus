@@ -285,8 +285,6 @@ struct TCellMasterBootstrapConfig
 
     NObjectServer::TObjectServiceConfigPtr ObjectService;
 
-    NCellServer::TCellManagerConfigPtr CellManager;
-
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
     bool EnableTimestampManager;
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
