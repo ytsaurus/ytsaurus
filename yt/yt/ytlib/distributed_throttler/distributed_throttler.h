@@ -16,10 +16,6 @@ namespace NYT::NDistributedThrottler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TThrottlerId = TString;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TThrottlerUsage
 {
     double Rate = 0.0;
@@ -45,7 +41,7 @@ struct IDistributedThrottlerFactory
     : public virtual TRefCounted
 {
     virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
-        const TString& throttlerId,
+        const std::string& throttlerId,
         NConcurrency::TThroughputThrottlerConfigPtr throttlerConfig,
         TDuration throttleRpcTimeout = DefaultThrottleRpcTimeout) = 0;
 
@@ -65,7 +61,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     NDiscoveryClient::TGroupId groupId,
     NDiscoveryClient::TMemberId memberId,
     NRpc::IServerPtr rpcServer,
-    TString address,
+    std::string address,
     NLogging::TLogger logger,
     NRpc::IAuthenticatorPtr authenticator,
     NProfiling::TProfiler profiler = {});
