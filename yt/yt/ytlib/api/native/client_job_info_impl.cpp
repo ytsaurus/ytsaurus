@@ -229,12 +229,13 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"controller_finish_time", 58},
 };
 
-static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion) {
+static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion)
+{
     auto it = JobAttributeToMinArchiveVersion.find(attribute);
     if (it == JobAttributeToMinArchiveVersion.end()) {
         return false;
     }
-    const auto& minArchiveVersion = it->second;
+    std::optional<int> minArchiveVersion = it->second;
     return !minArchiveVersion.has_value() || minArchiveVersion.value() <= archiveVersion;
 }
 
@@ -1749,7 +1750,8 @@ static void AddSelectExpressions(
     }
 }
 
-static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& options, int archiveVersion) {
+static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& options, int archiveVersion)
+{
     if (options.WithStderr) {
         if (*options.WithStderr) {
             builder->AddWhereConjunct("stderr_size != 0 AND NOT is_null(stderr_size)");
@@ -1827,7 +1829,8 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
     }
 }
 
-static void AddOrderByExpression(TQueryBuilder* builder, const TListJobsOptions& options) {
+static void AddOrderByExpression(TQueryBuilder* builder, const TListJobsOptions& options)
+{
     auto orderByDirection = [&] {
         switch (options.SortOrder) {
             case EJobSortDirection::Ascending:
@@ -2345,7 +2348,8 @@ static TError TryFillJobPools(
     return TError();
 }
 
-static void FillIsStale(bool operationFinished, std::vector<TJob>* jobs) {
+static void FillIsStale(bool operationFinished, std::vector<TJob>* jobs)
+{
     for (auto& job : *jobs) {
         auto jobState = job.GetState();
         job.IsStale = jobState && IsJobInProgress(*jobState);
@@ -2355,7 +2359,8 @@ static void FillIsStale(bool operationFinished, std::vector<TJob>* jobs) {
     }
 }
 
-static void ValidateRequestedAttributes(const THashSet<TString>& attributes) {
+static void ValidateRequestedAttributes(const THashSet<TString>& attributes)
+{
     for (const auto& attribute : attributes) {
         if (!SupportedJobsAttributes.contains(attribute)) {
             THROW_ERROR_EXCEPTION(
@@ -2366,9 +2371,10 @@ static void ValidateRequestedAttributes(const THashSet<TString>& attributes) {
     }
 }
 
-static void RemoveUnneededLightAttributes(const THashSet<TString>& attributes, std::vector<TJob>* jobs) {
+static void RemoveUnneededLightAttributes(const THashSet<TString>& attributes, std::vector<TJob>* jobs)
+{
     for (auto& job : *jobs) {
-        auto filterAttribute = [&] (TString attributeName, auto TJob::* attribute) {
+        auto filterAttribute = [&] (std::string attributeName, auto TJob::* attribute) {
             if (!attributes.contains(attributeName)) {
                 job.*attribute = {};
             }
