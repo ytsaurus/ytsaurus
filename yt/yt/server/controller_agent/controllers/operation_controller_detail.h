@@ -1351,9 +1351,9 @@ private:
 
         PHOENIX_DECLARE_TYPE(TResourceUsageLeaseInfo, 0xcbbf64d9);
     };
-    THashMap<TString, TResourceUsageLeaseInfo> AccountResourceUsageLeaseMap_;
+    THashMap<std::string, TResourceUsageLeaseInfo> AccountResourceUsageLeaseMap_;
 
-    THashMap<TString, TResourceUsageLeaseInfo> LastUpdatedAccountResourceUsageLeaseMap_;
+    THashMap<std::string, TResourceUsageLeaseInfo> LastUpdatedAccountResourceUsageLeaseMap_;
 
     const NConcurrency::TPeriodicExecutorPtr UpdateAccountResourceUsageLeasesExecutor_;
 
