@@ -1,5 +1,6 @@
 #include "chaos_agent.h"
 
+#include "config.h"
 #include "private.h"
 #include "tablet.h"
 #include "tablet_slot.h"

@@ -12,13 +12,13 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/server/lib/tablet_node/public.h>
-
 #include <yt/yt/server/node/cellar_node/public.h>
 
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/server/node/query_agent/public.h>
+
+#include <yt/yt/server/node/tablet_node/public.h>
 
 #include <yt/yt/ytlib/hive/public.h>
 

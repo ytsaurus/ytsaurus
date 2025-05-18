@@ -5,7 +5,6 @@
 #include "tablet_context_mock.h"
 #include "store_context_mock.h"
 
-#include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/sorted_dynamic_store.h>
 #include <yt/yt/server/node/tablet_node/sorted_store_manager.h>
 #include <yt/yt/server/node/tablet_node/ordered_dynamic_store.h>
@@ -16,6 +15,7 @@
 #include <yt/yt/server/node/tablet_node/automaton.h>
 #include <yt/yt/server/node/tablet_node/structured_logger.h>
 #include <yt/yt/server/node/tablet_node/serialize.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>

@@ -1,6 +1,7 @@
 #include "smooth_movement_tracker.h"
 
 #include "automaton.h"
+#include "config.h"
 #include "store_manager.h"
 #include "tablet.h"
 #include "transaction_manager.h"
@@ -12,8 +13,6 @@
 #include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/persistent_mailbox_state_cookie.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 namespace NYT::NTabletNode {
 

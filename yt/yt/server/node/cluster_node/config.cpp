@@ -6,9 +6,9 @@
 
 #include <yt/yt/server/node/query_agent/config.h>
 
-#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 

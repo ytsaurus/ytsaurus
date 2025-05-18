@@ -1,8 +1,9 @@
 #include "partition_balancer.h"
 
-#include "tablet.h"
-#include "store.h"
+#include "config.h"
 #include "partition.h"
+#include "store.h"
+#include "tablet.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/private.h>
@@ -26,7 +27,7 @@ class TPartitionBalancer
 public:
     void StartNewRound(const TLsmBackendState& state) override
     {
-        ResamplingPeriod_ = state.TabletNodeConfig->PartitionBalancer->ResamplingPeriod;
+        ResamplingPeriod_ = state.TabletNodeConfig->ResamplingPeriod;
         CurrentTime_ = state.CurrentTime;
     }
 

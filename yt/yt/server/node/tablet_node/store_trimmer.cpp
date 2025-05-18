@@ -1,7 +1,9 @@
 #include "store_trimmer.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "ordered_chunk_store.h"
+#include "replication_log.h"
 #include "slot_manager.h"
 #include "store.h"
 #include "store_manager.h"
@@ -9,7 +11,6 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
-#include "replication_log.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>

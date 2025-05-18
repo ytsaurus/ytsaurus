@@ -1,6 +1,7 @@
 #include "tablet_write_manager.h"
 
 #include "backup_manager.h"
+#include "config.h"
 #include "hunks_serialization.h"
 #include "private.h"
 #include "serialize.h"
@@ -10,8 +11,6 @@
 #include "tablet.h"
 #include "transaction.h"
 #include "transaction_manager.h"
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/hive/helpers.h>
 

@@ -1,6 +1,7 @@
 #include "tablet_cell_write_manager.h"
 
 #include "automaton.h"
+#include "config.h"
 #include "hunk_lock_manager.h"
 #include "mutation_forwarder.h"
 #include "sorted_dynamic_store.h"
