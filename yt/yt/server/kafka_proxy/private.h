@@ -8,7 +8,7 @@ namespace NYT::NKafkaProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_DEFINE_GLOBAL(const NLogging::TLogger, KafkaProxyLogger, "KafkaProxy");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, KafkaProxyLogger, NLogging::TLogger("KafkaProxy").WithMinLevel(NLogging::ELogLevel::Trace));
 
 ////////////////////////////////////////////////////////////////////////////////
 
