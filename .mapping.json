@@ -1333,6 +1333,8 @@
   "contrib/restricted/aws/aws-c-mqtt/CMakeLists.txt":"",
   "contrib/restricted/aws/aws-c-s3/CMakeLists.txt":"",
   "contrib/restricted/aws/aws-c-sdkutils/CMakeLists.txt":"",
+  "contrib/restricted/aws/aws-checksums/CMakeLists.linux-aarch64.txt":"",
+  "contrib/restricted/aws/aws-checksums/CMakeLists.linux-x86_64.txt":"",
   "contrib/restricted/aws/aws-checksums/CMakeLists.txt":"",
   "contrib/restricted/aws/aws-crt-cpp/CMakeLists.txt":"",
   "contrib/restricted/aws/s2n/CMakeLists.linux-aarch64.txt":"",
