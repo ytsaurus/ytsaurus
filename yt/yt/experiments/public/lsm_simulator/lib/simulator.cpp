@@ -6,6 +6,8 @@
 #include "structured_logger.h"
 #include "throttler.h"
 
+#include <yt/yt/server/lib/lsm/config.h>
+
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/concurrency/coroutine.h>
@@ -497,13 +499,11 @@ private:
         YT_LOG_INFO("Running LSM");
         auto backend = NLsm::CreateLsmBackend();
 
-        static auto TabletNodeConfig = New<NTabletNode::TTabletNodeConfig>();
-        static auto TabletNodeDynamicConfig = New<NTabletNode::TTabletNodeDynamicConfig>();
+        static auto LsmTabletNodeConfig = New<NLsm::TLsmTabletNodeConfig>();
 
         NLsm::TLsmBackendState state;
         state.CurrentTime = ActionQueue_->GetNow();
-        state.TabletNodeConfig = TabletNodeConfig;
-        state.TabletNodeDynamicConfig = TabletNodeDynamicConfig;
+        state.TabletNodeConfig = LsmTabletNodeConfig;
 
         state.Bundles["default"] = NLsm::TTabletCellBundleState{
             .ForcedRotationMemoryRatio = 0.8,

@@ -1,14 +1,15 @@
 #include "lookup.h"
+
 #include "error_manager.h"
 #include "hedging_manager_registry.h"
 #include "private.h"
+#include "sorted_dynamic_store.h"
 #include "store.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
 #include "tablet_reader.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
-#include "sorted_dynamic_store.h"
 
 #include <yt/yt/server/node/query_agent/helpers.h>
 

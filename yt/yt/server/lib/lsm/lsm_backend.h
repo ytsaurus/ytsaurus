@@ -82,8 +82,7 @@ struct TTabletCellBundleState
 struct TLsmBackendState
 {
     TTimestamp CurrentTimestamp;
-    NTabletNode::TTabletNodeConfigPtr TabletNodeConfig;
-    NTabletNode::TTabletNodeDynamicConfigPtr TabletNodeDynamicConfig;
+    TLsmTabletNodeConfigPtr TabletNodeConfig;
 
     i64 DynamicMemoryLimit = 0;
     i64 DynamicMemoryUsage = 0;

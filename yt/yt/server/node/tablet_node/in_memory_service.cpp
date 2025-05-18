@@ -1,15 +1,14 @@
 #include "in_memory_service.h"
 
 #include "bootstrap.h"
-#include "public.h"
-#include "private.h"
+#include "config.h"
 #include "in_memory_service_proxy.h"
+#include "private.h"
+#include "public.h"
 #include "tablet_snapshot_store.h"
 
 #include <yt/yt/server/node/tablet_node/in_memory_manager.h>
 #include <yt/yt/server/node/tablet_node/slot_manager.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>

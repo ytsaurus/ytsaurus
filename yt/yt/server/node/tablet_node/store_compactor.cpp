@@ -2,6 +2,7 @@
 
 #include "background_activity_orchid.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "hunk_chunk.h"
 #include "in_memory_manager.h"
 #include "partition.h"

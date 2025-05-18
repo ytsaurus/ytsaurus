@@ -7,13 +7,12 @@
 #include <yt/yt/server/node/cellar_node/config.h>
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 
+#include <yt/yt/server/node/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/serialize.h>
 
 #include <yt/yt/server/lib/hydra/config.h>
 
 #include <yt/yt/server/lib/hydra/dry_run/helpers.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/library/server_program/server_program.h>
 

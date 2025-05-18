@@ -1,4 +1,6 @@
 #include "row_digest_fetcher.h"
+
+#include "config.h"
 #include "sorted_chunk_store.h"
 #include "tablet.h"
 

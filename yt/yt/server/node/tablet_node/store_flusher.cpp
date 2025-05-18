@@ -1,6 +1,7 @@
 #include "store_flusher.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "public.h"
 #include "slot_manager.h"
 #include "store_detail.h"

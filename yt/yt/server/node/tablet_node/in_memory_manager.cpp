@@ -1,6 +1,7 @@
 #include "in_memory_manager.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "in_memory_service_proxy.h"
 #include "private.h"
 #include "slot_manager.h"

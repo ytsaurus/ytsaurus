@@ -1,7 +1,6 @@
 #include "store_context_mock.h"
 
-#include <yt/yt/server/lib/tablet_node/config.h>
-
+#include <yt/yt/server/node/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
 #include <yt/yt/library/query/engine_api/config.h>

@@ -1,11 +1,12 @@
 #include "transaction_manager.h"
 
-#include "bootstrap.h"
-#include "private.h"
 #include "automaton.h"
+#include "bootstrap.h"
+#include "config.h"
+#include "private.h"
+#include "serialize.h"
 #include "tablet_slot.h"
 #include "transaction.h"
-#include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -15,8 +16,6 @@
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.h>
 
 #include <yt/yt/server/lib/hydra/mutation.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 

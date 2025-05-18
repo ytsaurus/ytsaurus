@@ -1,14 +1,16 @@
+#include "sorted_store_manager.h"
+
+#include "automaton.h"
+#include "config.h"
 #include "in_memory_manager.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
-#include "sorted_store_manager.h"
+#include "store_flusher.h"
+#include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
 #include "tablet_slot.h"
 #include "transaction_manager.h"
-#include "structured_logger.h"
-#include "automaton.h"
-#include "store_flusher.h"
 #include "versioned_chunk_meta_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
