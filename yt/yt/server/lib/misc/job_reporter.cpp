@@ -76,8 +76,8 @@ public:
     size_t EstimateSize() const override
     {
         return NServer::EstimateSizes(
-            Report_.OperationId().Underlying(),
-            Report_.JobId().Underlying(),
+            Report_.OperationId(),
+            Report_.JobId(),
             Report_.State(),
             Report_.StartTime(),
             Report_.FinishTime(),
@@ -98,15 +98,15 @@ public:
             Report_.Spec().has_value(),
             /*failContextSize*/ i64{0},
             Report_.CoreInfos(),
-            Report_.JobCompetitionId().Underlying(),
-            Report_.ProbingJobCompetitionId().Underlying(),
+            Report_.JobCompetitionId(),
+            Report_.ProbingJobCompetitionId(),
             Report_.ExecAttributes(),
             Report_.JobCookie(),
             Report_.ControllerState(),
             Report_.ArchiveFeatures(),
             Report_.Ttl(),
             Report_.OperationIncarnation(),
-            Report_.AllocationId().Underlying(),
+            Report_.AllocationId(),
             Report_.ControllerStartTime(),
             Report_.ControllerFinishTime());
     }
@@ -235,8 +235,8 @@ public:
     size_t EstimateSize() const override
     {
         return ::NYT::NServer::EstimateSizes(
-            Report_.OperationId().Underlying(),
-            Report_.JobId().Underlying());
+            Report_.OperationId(),
+            Report_.JobId());
     }
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
@@ -270,8 +270,8 @@ public:
     size_t EstimateSize() const override
     {
         return ::NYT::NServer::EstimateSizes(
-            Report_.OperationId().Underlying(),
-            Report_.JobId().Underlying(),
+            Report_.OperationId(),
+            Report_.JobId(),
             Report_.Spec(),
             Report_.SpecVersion());
     }
@@ -310,8 +310,8 @@ public:
     size_t EstimateSize() const override
     {
         return ::NYT::NServer::EstimateSizes(
-            Report_.OperationId().Underlying(),
-            Report_.JobId().Underlying(),
+            Report_.OperationId(),
+            Report_.JobId(),
             Report_.Stderr());
     }
 
@@ -352,8 +352,8 @@ public:
     size_t EstimateSize() const override
     {
         return NServer::EstimateSizes(
-            Report_.OperationId().Underlying(),
-            Report_.JobId().Underlying(),
+            Report_.OperationId(),
+            Report_.JobId(),
             Report_.FailContext());
     }
 
@@ -394,8 +394,8 @@ public:
     size_t EstimateSize() const override
     {
         return ::NYT::NServer::EstimateSizes(
-            Report_.OperationId().Underlying(),
-            Report_.JobId().Underlying(),
+            Report_.OperationId(),
+            Report_.JobId(),
             Report_.Profile().value_or(NJobAgent::TJobProfile{}).Type,
             /*partIndex*/ int{0},
             Report_.Profile().value_or(NJobAgent::TJobProfile{}).Blob,

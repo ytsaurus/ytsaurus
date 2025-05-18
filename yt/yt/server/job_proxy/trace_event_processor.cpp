@@ -38,9 +38,9 @@ TJobTraceEventRowlet::TJobTraceEventRowlet(TJobTraceEventReport&& report)
 size_t TJobTraceEventRowlet::EstimateSize() const
 {
     return NServer::EstimateSizes(
-        Report_.OperationId.Underlying(),
-        Report_.JobId.Underlying(),
-        Report_.TraceId.Underlying(),
+        Report_.OperationId,
+        Report_.JobId,
+        Report_.TraceId,
         Report_.EventIndex,
         Report_.Event,
         Report_.EventTime);
