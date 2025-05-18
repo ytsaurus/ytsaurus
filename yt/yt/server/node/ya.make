@@ -118,6 +118,7 @@ SRCS(
     tablet_node/compaction_hint_fetcher.cpp
     tablet_node/compression_dictionary_builder.cpp
     tablet_node/compression_dictionary_manager.cpp
+    tablet_node/config.cpp
     tablet_node/distributed_throttler_manager.cpp
     tablet_node/dynamic_store_bits.cpp
     tablet_node/error_manager.cpp

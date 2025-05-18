@@ -9,8 +9,6 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/yt/server/lib/tablet_node/config.h>
-
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 
 namespace NYT::NTabletNode {

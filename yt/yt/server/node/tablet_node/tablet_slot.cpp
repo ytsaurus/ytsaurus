@@ -2,12 +2,14 @@
 
 #include "automaton.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "distributed_throttler_manager.h"
 #include "hint_manager.h"
 #include "hunk_tablet_manager.h"
 #include "master_connector.h"
 #include "mutation_forwarder.h"
 #include "mutation_forwarder_thunk.h"
+#include "overload_controller.h"
 #include "private.h"
 #include "security_manager.h"
 #include "serialize.h"
@@ -19,7 +21,6 @@
 #include "tablet_service.h"
 #include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
-#include "overload_controller.h"
 
 #include <yt/yt/server/node/data_node/config.h>
 
@@ -40,8 +41,6 @@
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
 #include <yt/yt/server/node/cellar_node/config.h>

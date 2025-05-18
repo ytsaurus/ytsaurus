@@ -1,9 +1,11 @@
 #include "sorted_chunk_store.h"
+
 #include "automaton.h"
+#include "config.h"
 #include "in_memory_manager.h"
+#include "serialize.h"
 #include "tablet.h"
 #include "transaction.h"
-#include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>

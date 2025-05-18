@@ -2,6 +2,7 @@
 
 #include "automaton.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "compression_dictionary_manager.h"
 #include "distributed_throttler_manager.h"
 #include "hedging_manager_registry.h"
@@ -14,9 +15,9 @@
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "tablet_manager.h"
-#include "tablet_snapshot_store.h"
-#include "tablet_slot.h"
 #include "tablet_profiling.h"
+#include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>

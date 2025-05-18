@@ -3,10 +3,9 @@
 #include "tablet_context_mock.h"
 
 #include <yt/yt/server/node/tablet_node/automaton.h>
-#include <yt/yt/server/node/tablet_node/tablet_cell_write_manager.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/node/tablet_node/tablet_cell_write_manager.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 

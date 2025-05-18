@@ -1,15 +1,16 @@
 #include "partition_balancer.h"
+
 #include "bootstrap.h"
-#include "private.h"
-#include "sorted_chunk_store.h"
+#include "config.h"
 #include "partition.h"
+#include "private.h"
 #include "slot_manager.h"
+#include "sorted_chunk_store.h"
 #include "store.h"
+#include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
-#include "structured_logger.h"
-#include "yt/yt/library/profiling/sensor.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -51,6 +52,8 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NTabletNode {
 

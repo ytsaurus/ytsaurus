@@ -1,7 +1,7 @@
 #include "overload_controller.h"
-#include "private.h"
 
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include "config.h"
+#include "private.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>

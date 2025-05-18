@@ -1,5 +1,6 @@
 #include "table_replicator.h"
 
+#include "config.h"
 #include "hint_manager.h"
 #include "private.h"
 #include "relative_replication_throttler.h"

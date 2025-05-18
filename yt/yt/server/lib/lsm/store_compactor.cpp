@@ -1,8 +1,9 @@
 #include "store_compactor.h"
 
-#include "tablet.h"
-#include "store.h"
+#include "config.h"
 #include "partition.h"
+#include "store.h"
+#include "tablet.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/private.h>
@@ -71,7 +72,7 @@ public:
 private:
     // Hydra timestamp. Crucial for consistency.
     TTimestamp CurrentTimestamp_;
-    TTabletNodeConfigPtr Config_;
+    TLsmTabletNodeConfigPtr Config_;
     // System time. Used for imprecise activities like periodic compaction.
     TInstant CurrentTime_;
 
@@ -556,7 +557,7 @@ private:
         }
 
         return CurrentTime_ > store->GetLastCompactionTimestamp() +
-            Config_->TabletManager->CompactionBackoffTime;
+            Config_->CompactionBackoffTime;
     }
 
     static bool IsStoreCompactionForced(const TStore* store)
