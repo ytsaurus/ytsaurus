@@ -27,8 +27,6 @@ from pandas._libs.tslibs.util cimport (
     is_timedelta64_object, is_datetime64_object, is_integer_object,
     is_float_object, is_string_object)
 
-from pandas._libs.tslibs.ccalendar import DAY_SECONDS
-
 from pandas._libs.tslibs.np_datetime cimport (
     cmp_scalar, reverse_ops, td64_to_tdstruct, pandas_timedeltastruct)
 
@@ -262,10 +260,10 @@ cpdef inline object precision_from_unit(object unit):
         m = 1000000000L * 2629746
         p = 9
     elif unit == 'W':
-        m = 1000000000L * DAY_SECONDS * 7
+        m = 1000000000L * 86400 * 7
         p = 9
     elif unit == 'D' or unit == 'd':
-        m = 1000000000L * DAY_SECONDS
+        m = 1000000000L * 86400
         p = 9
     elif unit == 'h':
         m = 1000000000L * 3600
