@@ -4752,7 +4752,7 @@ void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& con
     DiagnosableInvokerPool_->UpdateActionTimeRelevancyHalflife(config->InvokerPoolTotalTimeAggregationPeriod);
 }
 
-void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /*joblet*/)
+void TOperationControllerBase::CustomizeJoblet(const TJobletPtr& /*joblet*/, const TAllocation& /*allocation*/)
 { }
 
 void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSpec* jobSpec) const

@@ -33,7 +33,7 @@ using namespace NTableClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
-
+using namespace NLogging;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,8 +83,6 @@ public:
 
     bool IsJobInterruptible() const override;
 
-    bool IsJobRestartingEnabled() const noexcept;
-
     int GetTargetJobCount() const noexcept;
 
     IVanillaChunkPoolOutputPtr GetVanillaChunkPool() const noexcept;
@@ -96,6 +94,8 @@ protected:
 
     TVanillaTaskSpecPtr Spec_;
     TString Name_;
+
+    TSerializableLogger Logger;
 
     //! This chunk pool does not really operate with chunks, it is used as an interface for a job counter in it.
     IVanillaChunkPoolOutputPtr VanillaChunkPool_;
@@ -221,10 +221,11 @@ TVanillaTask::TVanillaTask(
     , VanillaController_(dynamic_cast<TVanillaController*>(TaskHost_))
     , Spec_(std::move(spec))
     , Name_(std::move(name))
+    , Logger(TTask::Logger.WithTag("TaskName: %v", Name_))
     , VanillaChunkPool_(CreateVanillaChunkPool(TVanillaChunkPoolOptions{
         .JobCount = Spec_->JobCount,
         .RestartCompletedJobs = Spec_->RestartCompletedJobs,
-        .Logger = Logger.WithTag("Name: %v", Name_),
+        .Logger = Logger,
     }))
 { }
 
@@ -234,8 +235,9 @@ void TVanillaTask::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(1, Spec_);
     PHOENIX_REGISTER_FIELD(2, Name_);
-    PHOENIX_REGISTER_FIELD(3, VanillaChunkPool_);
-    PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_);
+    PHOENIX_REGISTER_FIELD(3, Logger);
+    PHOENIX_REGISTER_FIELD(4, VanillaChunkPool_);
+    PHOENIX_REGISTER_FIELD(5, JobSpecTemplate_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // COMPAT(pogorelov)
@@ -344,11 +346,6 @@ bool TVanillaTask::IsJobInterruptible() const
     // We do not allow to interrupt job without interruption_signal
     // because there are no more ways to notify vanilla job about it.
     return Spec_->InterruptionSignal.has_value();
-}
-
-bool TVanillaTask::IsJobRestartingEnabled() const noexcept
-{
-    return static_cast<bool>(Spec_->GangOptions);
 }
 
 int TVanillaTask::GetTargetJobCount() const noexcept
@@ -469,7 +466,6 @@ void TVanillaController::CustomMaterialize()
     for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
         std::vector<TOutputStreamDescriptorPtr> streamDescriptors;
         int taskIndex = Tasks_.size();
-        TotalTargetJobCount_ += taskSpec->JobCount;
         for (int index = 0; index < std::ssize(TaskOutputTables_[taskIndex]); ++index) {
             auto streamDescriptor = TaskOutputTables_[taskIndex][index]->GetStreamDescriptorTemplate(index)->Clone();
             streamDescriptor->DestinationPool = GetSink();
@@ -489,6 +485,8 @@ void TVanillaController::CustomMaterialize()
         GetDataFlowGraph()->RegisterEdge(
             TDataFlowGraph::SourceDescriptor,
             task->GetVertexDescriptor());
+
+        TotalTargetJobCount_ += task->GetTargetJobCount();
 
         Tasks_.emplace_back(std::move(task));
         ValidateUserFileCount(taskSpec, taskName);
@@ -776,6 +774,8 @@ struct TLastGangJobInfo
 
     TJobMonitoringDescriptor MonitoringDescriptor;
 
+    std::optional<int> Rank;
+
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TLastGangJobInfo, 0x2201d8d6);
 };
 
@@ -787,6 +787,8 @@ public:
 
     TOperationIncarnation OperationIncarnation;
 
+    std::optional<int> Rank;
+
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TGangJoblet, 0x99fa99b3);
 };
 
@@ -796,18 +798,74 @@ DECLARE_REFCOUNTED_CLASS(TGangJoblet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGangRankPool
+{
+public:
+    // NB(pogorelov): This is needed for deserialization.
+    TGangRankPool() = default;
+
+    TGangRankPool(int gangSize, TLogger logger);
+    TGangRankPool(TGangRankPool&& other) = default;
+
+    TGangRankPool& operator=(TGangRankPool&& other) = default;
+
+    void Fill();
+
+    std::optional<int> AcquireRank(std::optional<int> requiredRank = std::nullopt);
+    void ReleaseRank(int rank);
+
+    void VerifyEmpty() const;
+
+    bool IsCompleted() const;
+
+    void OnRankCompleted(int rank);
+
+private:
+    int GangSize_;
+    TSerializableLogger Logger;
+
+    THashSet<int> RankPool_;
+    // Intentionally not persistent.
+    int CompletedRankCount_ = 0;
+
+    PHOENIX_DECLARE_TYPE(TGangRankPool, 0x99c08734);
+};
+
+PHOENIX_DEFINE_TYPE(TGangRankPool);
+
 class TGangTask
     : public TVanillaTask
 {
 public:
-    using TVanillaTask::TVanillaTask;
+    // NB(pogorelov): This is needed for deserialization.
+    TGangTask() = default;
+    TGangTask(
+        ITaskHostPtr taskHost,
+        TVanillaTaskSpecPtr spec,
+        TString name,
+        std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
+        std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors);
 
     void TrySwitchToNewOperationIncarnation(
         const TGangJobletPtr& joblet,
         bool operationIsReviving,
         EOperationIncarnationSwitchReason reason);
 
+    int GetGangSize() const;
+
+    void VerifyRankPoolEmpty() const;
+
+    bool IsGangPolicyEnabled() const noexcept;
+
+    bool IsCompleted() const final;
+
+    void Restart();
+
+    void CustomizeJoblet(TNonNullPtr<TGangJoblet> joblet, const TLastGangJobInfo* lastJobInfo);
+
 private:
+    TGangRankPool RankPool_;
+
     IChunkPoolOutput::TCookie ExtractCookieForAllocation(
         const TAllocation& allocation) final;
 
@@ -816,6 +874,10 @@ private:
     TGangOperationController& GetOperationController() const;
 
     void StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& joblet) const final;
+
+    TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) final;
+    TJobFinishedResult OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary) final;
+    TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) final;
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TGangTask, 0x99fa90be);
 };
@@ -871,6 +933,8 @@ public:
 private:
     TOperationIncarnation Incarnation_;
 
+    int TotalGangSize_ = 0;
+
     std::optional<EOperationIncarnationSwitchReason> ShouldRestartJobsOnRevival() const;
 
     void TrySwitchToNewOperationIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason);
@@ -905,6 +969,10 @@ private:
         TJobId jobId,
         const TAllocation& allocation) final;
 
+    void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& allocation) final;
+
+    void CustomMaterialize() final;
+
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TGangOperationController, 0x99fa99be);
 };
 
@@ -918,6 +986,7 @@ void TLastGangJobInfo::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(1, OutputCookie);
     PHOENIX_REGISTER_FIELD(2, MonitoringDescriptor);
+    PHOENIX_REGISTER_FIELD(3, Rank);
 }
 
 PHOENIX_DEFINE_TYPE(TLastGangJobInfo);
@@ -927,22 +996,167 @@ void TGangJoblet::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TJoblet>();
 
     PHOENIX_REGISTER_FIELD(1, OperationIncarnation);
+    PHOENIX_REGISTER_FIELD(2, Rank);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TGangRankPool::TGangRankPool(int gangSize, TLogger logger)
+    : GangSize_(gangSize)
+    , Logger(std::move(logger))
+{
+    Fill();
+}
+
+void TGangRankPool::Fill()
+{
+    YT_LOG_DEBUG("Filling rank pool (GangSize: %v)", GangSize_);
+
+    CompletedRankCount_ = 0;
+
+    RankPool_.clear();
+    RankPool_.reserve(GangSize_);
+
+    for (int i = 0; i < GangSize_; ++i) {
+        RankPool_.insert(i);
+    }
+}
+
+std::optional<int> TGangRankPool::AcquireRank(std::optional<int> requiredRank)
+{
+    YT_VERIFY(!IsCompleted());
+
+    if (requiredRank) {
+        EraseOrCrash(RankPool_, *requiredRank);
+        return requiredRank;
+    }
+
+    if (empty(RankPool_)) {
+        return std::nullopt;
+    }
+
+    auto rank = *begin(RankPool_);
+    RankPool_.erase(begin(RankPool_));
+
+    return rank;
+}
+
+void TGangRankPool::ReleaseRank(int rank)
+{
+    InsertOrCrash(RankPool_, rank);
+}
+
+bool TGangRankPool::IsCompleted() const
+{
+    return CompletedRankCount_ == GangSize_;
+}
+
+void TGangRankPool::OnRankCompleted(int rank)
+{
+    ++CompletedRankCount_;
+    YT_LOG_DEBUG(
+        "Rank completed (Rank: %v, CompletedRankCount: %v)",
+        rank,
+        CompletedRankCount_);
+}
+
+void TGangRankPool::VerifyEmpty() const
+{
+    if (!empty(RankPool_)) {
+        std::vector<int> ranks(begin(RankPool_), end(RankPool_));
+        std::ranges::sort(ranks);
+        YT_LOG_FATAL(
+            "Rank pool is not empty (AvailableRanks: %v)",
+            ranks);
+    }
+}
+
+void TGangRankPool::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, GangSize_);
+    PHOENIX_REGISTER_FIELD(2, Logger);
+    PHOENIX_REGISTER_FIELD(4, RankPool_);
+}
+
+TGangTask::TGangTask(
+    ITaskHostPtr taskHost,
+    TVanillaTaskSpecPtr spec,
+    TString name,
+    std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
+    std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors)
+    : TVanillaTask(
+        std::move(taskHost),
+        std::move(spec),
+        std::move(name),
+        std::move(outputStreamDescriptors),
+        std::move(inputStreamDescriptors))
+    , RankPool_(GetGangSize(), Logger)
+{ }
 
 void TGangTask::TrySwitchToNewOperationIncarnation(
     const TGangJobletPtr& joblet,
     bool operationIsReviving,
     EOperationIncarnationSwitchReason reason)
 {
-    if (IsJobRestartingEnabled()) {
+    if (IsGangPolicyEnabled()) {
         YT_LOG_DEBUG("Trying to switch operation to new incarnation");
 
         GetOperationController().TrySwitchToNewOperationIncarnation(joblet, operationIsReviving, reason);
     } else {
         YT_LOG_DEBUG("Operation incarnation switch skipped due to task gang options");
     }
+}
+
+int TGangTask::GetGangSize() const
+{
+    return (Spec_->GangOptions && Spec_->GangOptions->Size) ? *Spec_->GangOptions->Size : Spec_->JobCount;
+}
+
+void TGangTask::VerifyRankPoolEmpty() const
+{
+    RankPool_.VerifyEmpty();
+}
+
+bool TGangTask::IsGangPolicyEnabled() const noexcept
+{
+    return static_cast<bool>(Spec_->GangOptions);
+}
+
+bool TGangTask::IsCompleted() const
+{
+    if (RankPool_.IsCompleted()) {
+        return true;
+    }
+
+    YT_VERIFY(!VanillaChunkPool_->IsCompleted());
+
+    return false;
+}
+
+void TGangTask::Restart()
+{
+    VanillaChunkPool_->LostAll();
+
+    RankPool_.Fill();
+}
+
+void TGangTask::CustomizeJoblet(TNonNullPtr<TGangJoblet> joblet, const TLastGangJobInfo* lastJobInfo)
+{
+    YT_LOG_DEBUG(
+        "Trying to acquire rank for gang job (JobId: %v, PreviousRank: %v)",
+        joblet->JobId,
+        lastJobInfo ? lastJobInfo->Rank : std::nullopt);
+
+    if (lastJobInfo && lastJobInfo->Rank) {
+        joblet->Rank = RankPool_.AcquireRank(lastJobInfo->Rank);
+    } else {
+        joblet->Rank = RankPool_.AcquireRank();
+    }
+
+    YT_LOG_DEBUG(
+        "Rank for gang job acquired (JobId: %v, Rank: %v)",
+        joblet->JobId,
+        joblet->Rank);
 }
 
 IChunkPoolOutput::TCookie TGangTask::ExtractCookieForAllocation(
@@ -963,8 +1177,7 @@ THashMap<TString, TString> TGangTask::BuildJobEnvironment() const
     auto jobEnvironment = TVanillaTask::BuildJobEnvironment();
 
     jobEnvironment.emplace("YT_TASK_JOB_COUNT", ToString(GetTargetJobCount()));
-    jobEnvironment.emplace("YT_JOB_COUNT", ToString(GetOperationController().GetTotalTargetJobCount()));
-
+    jobEnvironment.emplace("YT_TASK_GANG_SIZE", ToString(GetGangSize()));
     return jobEnvironment;
 }
 
@@ -975,6 +1188,8 @@ TGangOperationController& TGangTask::GetOperationController() const
 
 void TGangTask::StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& joblet) const
 {
+    auto& gangJoblet = static_cast<TGangJoblet&>(*joblet);
+
     auto lastJobInfo = std::make_unique<TLastGangJobInfo>();
     lastJobInfo->JobId = joblet->JobId;
     lastJobInfo->CompetitionType = joblet->CompetitionType;
@@ -986,13 +1201,77 @@ void TGangTask::StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& jobl
     } else {
         lastJobInfo->MonitoringDescriptor = *joblet->UserJobMonitoringDescriptor;
     }
+    lastJobInfo->Rank = gangJoblet.Rank;
 
     allocation.LastJobInfo = std::move(lastJobInfo);
+}
+
+TJobFinishedResult TGangTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary)
+{
+    const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
+
+    auto result = TTask::OnJobCompleted(joblet, jobSummary);
+
+    if (auto rank = gangJoblet.Rank) {
+        if (jobSummary.InterruptionReason == EInterruptionReason::None) {
+            RankPool_.OnRankCompleted(*rank);
+        } else {
+            YT_LOG_DEBUG(
+                "Returning rank to pool due to job interruption (JobId: %v, Rank: %v, InterruptionReason: %v)",
+                joblet->JobId,
+                *rank,
+                jobSummary.InterruptionReason);
+
+            RankPool_.ReleaseRank(*rank);
+        }
+    }
+
+    return result;
+}
+
+TJobFinishedResult TGangTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary& jobSummary)
+{
+    const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
+    auto rank = gangJoblet.Rank;
+
+    auto result = TVanillaTask::OnJobFailed(joblet, jobSummary);
+
+    if (rank) {
+        YT_LOG_DEBUG(
+            "Returning rank to pool due to job failure (JobId: %v, Rank: %v)",
+            joblet->JobId,
+            *rank);
+
+        RankPool_.ReleaseRank(*rank);
+    }
+
+    return result;
+}
+
+TJobFinishedResult TGangTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
+{
+    const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
+    auto rank = gangJoblet.Rank;
+
+    auto result = TVanillaTask::OnJobAborted(joblet, jobSummary);
+
+    if (rank) {
+        YT_LOG_DEBUG(
+            "Returning rank to pool due to job abortion (JobId: %v, Rank: %v)",
+            joblet->JobId,
+            *rank);
+
+        RankPool_.ReleaseRank(*rank);
+    }
+
+    return result;
 }
 
 void TGangTask::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TVanillaTask>();
+
+    PHOENIX_REGISTER_FIELD(1, RankPool_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1028,14 +1307,36 @@ bool TGangOperationController::OnJobCompleted(
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
+    const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
+    auto rank = gangJoblet.Rank;
+
+    // TODO(pogorelov): Move it from here and TOperationControllerBase::OnJobCompleted to TCompletedJobSummary parsing.
+    if (const auto& jobResultExt = jobSummary->GetJobResultExt();
+        !jobResultExt.restart_needed() && jobSummary->InterruptionReason != EInterruptionReason::None)
+    {
+        YT_LOG_DEBUG(
+            "Overriding job interrupt reason due to unneeded restart (JobId: %v, InterruptionReason: %v)",
+            joblet->JobId,
+            jobSummary->InterruptionReason);
+        jobSummary->InterruptionReason = EInterruptionReason::None;
+    }
+
     auto interruptionReason = jobSummary->InterruptionReason;
+
+    YT_LOG_DEBUG(
+        "Gang job completed (JobId: %v, Rank: %v, InterruptionReason: %v)",
+        joblet->JobId,
+        rank,
+        interruptionReason);
 
     if (!TOperationControllerBase::OnJobCompleted(joblet, std::move(jobSummary))) {
         return false;
     }
 
-    if (joblet->JobType == EJobType::Vanilla && interruptionReason != EInterruptionReason::None) {
-        static_cast<TGangTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(
+    if (auto& gangTask = static_cast<TGangTask&>(*joblet->Task);
+        rank && interruptionReason != EInterruptionReason::None)
+    {
+        gangTask.TrySwitchToNewOperationIncarnation(
             StaticPointerCast<TGangJoblet>(std::move(joblet)),
             /*operationIsReviving*/ false,
             EOperationIncarnationSwitchReason::JobInterrupted);
@@ -1050,12 +1351,16 @@ bool TGangOperationController::OnJobFailed(
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
+    const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
+    auto rank = gangJoblet.Rank;
+
     if (!TOperationControllerBase::OnJobFailed(joblet, std::move(jobSummary))) {
         return false;
     }
 
-    if (joblet->JobType == EJobType::Vanilla) {
-        static_cast<TGangTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(
+    if (rank) {
+        auto& gangTask = static_cast<TGangTask&>(*joblet->Task);
+        gangTask.TrySwitchToNewOperationIncarnation(
             StaticPointerCast<TGangJoblet>(std::move(joblet)),
             /*operationIsReviving*/ false,
             EOperationIncarnationSwitchReason::JobFailed);
@@ -1070,12 +1375,15 @@ bool TGangOperationController::OnJobAborted(
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
+    const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
+
     if (!TOperationControllerBase::OnJobAborted(joblet, std::move(jobSummary))) {
         return false;
     }
 
-    if (joblet->JobType == EJobType::Vanilla) {
-        static_cast<TGangTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(
+    if (gangJoblet.Rank) {
+        auto& gangTask = static_cast<TGangTask&>(*joblet->Task);
+        gangTask.TrySwitchToNewOperationIncarnation(
             StaticPointerCast<TGangJoblet>(std::move(joblet)),
             /*operationIsReviving*/ false,
             EOperationIncarnationSwitchReason::JobAborted);
@@ -1171,10 +1479,10 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
 
     // Currently gang operation may not contain not vanilla tasks at all.
     for (const auto& task : Tasks_) {
+        auto& gangTask = static_cast<TGangTask&>(*task);
         YT_VERIFY(task->GetJobType() == EJobType::Vanilla);
 
-        auto chunkPool = task->GetVanillaChunkPool();
-        chunkPool->LostAll();
+        gangTask.Restart();
     }
 
     if (operationIsReviving) {
@@ -1194,6 +1502,14 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
 
         return;
     }
+
+    // We want to restart jobs with ranks first.
+    std::partition(
+        begin(allocationsToRestartJobs),
+        end(allocationsToRestartJobs),
+        [] (TNonNullPtr<TAllocation> allocation) {
+            return static_cast<TLastGangJobInfo*>(allocation->LastJobInfo.get())->Rank;
+        });
 
     for (auto allocation : allocationsToRestartJobs) {
         auto failReason = TryScheduleNextJob(*allocation, allocation->LastJobInfo->JobId);
@@ -1259,6 +1575,11 @@ void TGangOperationController::InitUserJobSpec(
 
     auto fillEnvironment = [&] (const auto& setEnvironmentVariable) {
         setEnvironmentVariable("YT_OPERATION_INCARNATION", ToString(gangJoblet.OperationIncarnation));
+        setEnvironmentVariable("YT_JOB_COUNT", ToString(GetTotalTargetJobCount()));
+        setEnvironmentVariable("YT_GANG_SIZE", ToString(TotalGangSize_));
+        if (gangJoblet.Rank) {
+            setEnvironmentVariable("YT_GANG_RANK", ToString(*gangJoblet.Rank));
+        }
     };
 
     fillEnvironment([&jobSpec] (TStringBuf key, TStringBuf value) {
@@ -1279,8 +1600,11 @@ void TGangOperationController::EnrichJobInfo(NYTree::TFluentMap fluent, const TJ
 {
     TOperationControllerBase::EnrichJobInfo(fluent, joblet);
 
+    const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
+
     fluent
-        .Item("operation_incarnation").Value(static_cast<const TGangJoblet&>(*joblet).OperationIncarnation);
+        .Item("operation_incarnation").Value(static_cast<const TGangJoblet&>(*joblet).OperationIncarnation)
+        .OptionalItem("gang_rank", gangJoblet.Rank);
 }
 
 std::optional<TJobMonitoringDescriptor> TGangOperationController::AcquireMonitoringDescriptorForJob(
@@ -1310,6 +1634,27 @@ std::optional<TJobMonitoringDescriptor> TGangOperationController::AcquireMonitor
         lastGangJobInfo->MonitoringDescriptor);
 
     return lastGangJobInfo->MonitoringDescriptor;
+}
+
+void TGangOperationController::CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& allocation)
+{
+    TOperationControllerBase::CustomizeJoblet(joblet, allocation);
+
+    auto& gangJoblet = static_cast<TGangJoblet&>(*joblet);
+    auto* lastGangJobInfo = static_cast<TLastGangJobInfo*>(allocation.LastJobInfo.get());
+
+    static_cast<TGangTask*>(joblet->Task)->CustomizeJoblet(
+        GetPtr(gangJoblet),
+        lastGangJobInfo);
+}
+
+void TGangOperationController::CustomMaterialize()
+{
+    TVanillaController::CustomMaterialize();
+
+    for (const auto& task : Tasks_) {
+        TotalGangSize_ += static_cast<const TGangTask*>(task.Get())->GetGangSize();
+    }
 }
 
 void TGangOperationController::OnOperationIncarnationChanged(bool operationIsReviving, EOperationIncarnationSwitchReason reason)
@@ -1371,38 +1716,47 @@ std::optional<EOperationIncarnationSwitchReason> TGangOperationController::Shoul
 
     VerifyJobsIncarnationsEqual();
 
-    THashMap<TTask*, int> jobCountByTasks;
+    THashMap<TTask*, int> rankCountByTasks;
     for (const auto& [id, allocation] : AllocationMap_) {
-        if (allocation.Joblet && allocation.Joblet->JobType == EJobType::Vanilla) {
-            ++jobCountByTasks[allocation.Joblet->Task];
+        if (allocation.Joblet) {
+            YT_VERIFY(allocation.Joblet->JobType == EJobType::Vanilla);
+            if (const auto& gangJoblet = static_cast<const TGangJoblet&>(*allocation.Joblet);
+                gangJoblet.Rank)
+            {
+                ++rankCountByTasks[gangJoblet.Task];
+            } else {
+                YT_LOG_DEBUG(
+                    "Job with no rank revived (JobId: %v)",
+                    gangJoblet.JobId);
+            }
         }
     }
 
     for (const auto& task : Tasks_) {
-        if (!task->IsJobRestartingEnabled()) {
+        auto* gangTask = static_cast<TGangTask*>(task.Get());
+        if (!gangTask->IsGangPolicyEnabled()) {
             continue;
         }
 
-        auto jobCountIt = jobCountByTasks.find(static_cast<TTask*>(task.Get()));
-        if (jobCountIt == end(jobCountByTasks)) {
-            YT_LOG_DEBUG(
-                "No jobs started in task, switching to new incarnation (TaskName: %v)",
-                task->GetTitle());
+        auto rankCountIt = rankCountByTasks.find(gangTask);
+        if (rankCountIt == end(rankCountByTasks)) {
+            YT_LOG_DEBUG("No jobs started in task, switching to new incarnation");
 
             return EOperationIncarnationSwitchReason::JobLackAfterRevival;
         }
 
-        if (auto jobCount = jobCountIt->second;
-            jobCount != task->GetTargetJobCount())
+        if (auto rankCount = rankCountIt->second;
+            rankCount != gangTask->GetGangSize())
         {
             YT_LOG_DEBUG(
-                "Not all jobs started in task, switching to new incarnation (TaskName: %v, RevivedJobCount: %v, TargetJobCount: %v)",
-                task->GetTitle(),
-                jobCount,
-                task->GetTargetJobCount());
+                "Not all jobs with ranks started in task, switching to new incarnation (RevivedJobCountWithRanks: %v, TargetJobCount: %v)",
+                rankCount,
+                gangTask->GetGangSize());
 
             return EOperationIncarnationSwitchReason::JobLackAfterRevival;
         }
+
+        gangTask->VerifyRankPoolEmpty();
     }
 
     return std::nullopt;
