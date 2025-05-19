@@ -119,6 +119,7 @@ func (m RawMessage) MarshalYSON(w *yson.Writer) error {
 			if maybeValueWithAttributes {
 				if v == valueKey || v == attributesKey {
 					inMap = inMap[:len(inMap)-1]
+					mapKey = false
 					valueWithAttrs, err := parseValueWithAttributes(d, v)
 					if err != nil {
 						return fmt.Errorf("failed to parse value with attributes: %w", err)
