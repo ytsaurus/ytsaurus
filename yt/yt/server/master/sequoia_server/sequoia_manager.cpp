@@ -83,11 +83,11 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        // Fast path.
         if (!Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases) {
             return;
         }
 
-        // Fast path.
         if (prerequisiteTransactionIds.empty()) {
             return;
         }
