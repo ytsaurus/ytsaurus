@@ -325,7 +325,7 @@ public:
     const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const override;
 
     void CustomizeJobSpec(const TJobletPtr& joblet, NControllerAgent::NProto::TJobSpec* jobSpec) const override;
-    void CustomizeJoblet(const TJobletPtr& joblet) override;
+    void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& allocation) override;
 
     void AddValueToEstimatedHistogram(const TJobletPtr& joblet) override;
     void RemoveValueFromEstimatedHistogram(const TJobletPtr& joblet) override;

@@ -1523,6 +1523,8 @@ DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
 struct TGangOptions
     : public NYTree::TYsonStruct
 {
+    std::optional<int> Size;
+
     REGISTER_YSON_STRUCT(TGangOptions);
 
     static void Register(TRegistrar registrar);

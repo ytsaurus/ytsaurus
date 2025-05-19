@@ -1470,8 +1470,12 @@ void TMandatoryUserJobSpec::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGangOptions::Register(TRegistrar /*registrar*/)
-{ }
+void TGangOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("size", &TThis::Size)
+        .GreaterThanOrEqual(1)
+        .Default();
+}
 
 void TVanillaTaskSpec::Register(TRegistrar registrar)
 {
@@ -1492,6 +1496,13 @@ void TVanillaTaskSpec::Register(TRegistrar registrar)
         if (spec->GangOptions && spec->RestartCompletedJobs) {
             THROW_ERROR_EXCEPTION(
                 "\"gang_options\" and \"restart_completed_jobs\" can not be turned on both");
+        }
+
+        if (spec->GangOptions && spec->GangOptions->Size && *spec->GangOptions->Size > spec->JobCount) {
+            THROW_ERROR_EXCEPTION(
+                "\"gang_options.size\" must be less than or equal to \"job_count\"")
+                << TErrorAttribute("gang_options.size", *spec->GangOptions->Size)
+                << TErrorAttribute("job_count", spec->JobCount);
         }
     });
 }
