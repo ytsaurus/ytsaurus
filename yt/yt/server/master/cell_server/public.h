@@ -59,7 +59,6 @@ DECLARE_REFCOUNTED_STRUCT(ITamedCellManager)
 
 DECLARE_REFCOUNTED_STRUCT(TCellBalancerBootstrapConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicCellarNodeTrackerConfig)
-DECLARE_REFCOUNTED_STRUCT(TCellManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TDynamicCellManagerConfig)
 
 struct ICellBalancer;
