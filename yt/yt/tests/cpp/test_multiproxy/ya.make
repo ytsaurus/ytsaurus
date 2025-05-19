@@ -19,6 +19,8 @@ SET(YT_CLUSTER_NAMES target,read_access,write_access)
 SET(YT_CONFIG_PATCH {rpc_proxy_count=1;scheduler_count=0;rpc_proxy_config={enable_authentication=%true;cypress_token_authenticator={secure=%true}}})
 INCLUDE(${ARCADIA_ROOT}/yt/recipe/basic/recipe.inc)
 
+YT_SPEC(yt/yt/tests/integration/spec.yson)
+
 TAG(
     ya:yt
     ya:fat
