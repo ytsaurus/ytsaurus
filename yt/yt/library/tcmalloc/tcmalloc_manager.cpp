@@ -450,6 +450,8 @@ public:
                             tcmalloc::MallocExtension::ReleaseMemoryToSystem(config->AggressiveReleaseSize);
                         }
 
+                        tcmalloc::MallocExtension::ProcessBackgroundActions();
+
                         Sleep(config->AggressiveReleasePeriod);
                     }
                 }).detach();
