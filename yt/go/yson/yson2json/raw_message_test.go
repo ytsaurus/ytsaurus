@@ -78,6 +78,10 @@ func TestRawMessage_MarshalYSON(t *testing.T) {
 			Input:  `{}`,
 			Output: `{}`,
 		},
+		{
+			Input:  `{"one":{"$value": {"x": "y"}, "$attributes": {"attr": 10}}, "two": {"$value": {"x": "y"}, "$attributes": {"attr2": 10}}}`,
+			Output: `{one=<attr=10.000000;>{x=y;};two=<attr=10.000000;>{x=y;};}`,
+		},
 	} {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			m := RawMessage{
