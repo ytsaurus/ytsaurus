@@ -11,7 +11,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/rpc/server.h>
 
@@ -28,7 +28,9 @@ class TChaosCachePartBootstrap
 public:
     explicit TChaosCachePartBootstrap(IBootstrap* bootstrap)
         : TPartBootstrapBase(bootstrap)
-        , ChaosCacheQueue_(New<TActionQueue>("ChaosCache"))
+        , WorkerPool_(CreateThreadPool(
+            GetConfig()->ChaosCache->WorkerThreadCount,
+            "ChaosCache"))
     { }
 
     void Initialize() override
@@ -42,7 +44,7 @@ public:
 
         ChaosCacheService_ = CreateChaosCacheService(
             GetConfig()->ChaosCache,
-            ChaosCacheQueue_->GetInvoker(),
+            WorkerPool_->GetInvoker(),
             client,
             ChaosCache_,
             GetNativeAuthenticator());
@@ -51,7 +53,7 @@ public:
     }
 
 private:
-    const TActionQueuePtr ChaosCacheQueue_;
+    const NConcurrency::IThreadPoolPtr WorkerPool_;
 
     TChaosCachePtr ChaosCache_;
     NRpc::IServicePtr ChaosCacheService_;
