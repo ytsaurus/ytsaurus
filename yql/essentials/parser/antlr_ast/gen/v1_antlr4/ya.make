@@ -24,7 +24,7 @@ COPY_FILE(
 
 RUN_ANTLR4(
     ${SQL_GRAMMAR}
-    -listener
+    -no-listener
     -visitor
     -package NALADefaultAntlr4
     -lib .
@@ -34,8 +34,6 @@ RUN_ANTLR4(
         ${ARCADIA_BUILD_ROOT}/${MODDIR}/org/antlr/v4/tool/templates/codegen/Cpp/Files.stg
     OUT SQLv1Antlr4Parser.cpp SQLv1Antlr4Parser.h
         SQLv1Antlr4Lexer.cpp SQLv1Antlr4Lexer.h
-        SQLv1Antlr4BaseListener.cpp SQLv1Antlr4BaseListener.h
-        SQLv1Antlr4Listener.cpp SQLv1Antlr4Listener.h
         SQLv1Antlr4Visitor.cpp SQLv1Antlr4Visitor.h 
         SQLv1Antlr4BaseVisitor.cpp SQLv1Antlr4BaseVisitor.h
     OUTPUT_INCLUDES contrib/libs/antlr4_cpp_runtime/src/antlr4-runtime.h

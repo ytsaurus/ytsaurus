@@ -1,7 +1,5 @@
 #include "use.h"
 
-#include <util/generic/map.h>
-
 namespace NSQLComplete {
 
     namespace {
@@ -78,7 +76,6 @@ namespace NSQLComplete {
                 return antlr4::misc::Interval(CursorPosition_, CursorPosition_);
             }
 
-            TMap<size_t, TUseContext> Uses_;
             antlr4::TokenStream* Tokens_;
             size_t CursorPosition_;
         };

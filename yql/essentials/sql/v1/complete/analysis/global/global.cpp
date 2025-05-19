@@ -49,9 +49,10 @@ namespace NSQLComplete {
             TGlobalContext ctx;
 
             if (auto use = FindUseStatement(sqlQuery, &Tokens_, input.CursorPosition)) {
-                ctx.Object = TGlobalContext::TObject();
-                ctx.Object->Provider = use->Provider;
-                ctx.Object->Cluster = use->Cluster;
+                ctx.Object = TGlobalContext::TObject{
+                    .Provider = std::move(use->Provider),
+                    .Cluster = std::move(use->Cluster),
+                };
             }
 
             return ctx;

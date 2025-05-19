@@ -11,7 +11,6 @@ namespace NSQLComplete {
     struct TUseContext {
         TString Provider;
         TString Cluster;
-        size_t Depth = 0;
     };
 
     TMaybe<TUseContext> FindUseStatement(

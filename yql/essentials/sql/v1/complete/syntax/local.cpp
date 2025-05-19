@@ -119,23 +119,20 @@ namespace NSQLComplete {
         }
 
         TC3Candidates C3Complete(TCompletionInput statement, const TCursorTokenContext& context) {
-            size_t caretTokenIndex = CursorTokenIndex(context);
+            auto enclosing = context.Enclosing();
+
+            size_t caretTokenIndex = context.Cursor.NextTokenIndex;
+            if (enclosing.Defined()) {
+                caretTokenIndex = enclosing->Index;
+            }
 
             TStringBuf text = statement.Text;
-            if (auto enclosing = context.Enclosing();
-                enclosing.Defined() && enclosing->Base->Name == "NOT_EQUALS2") {
+            if (enclosing.Defined() && enclosing->Base->Name == "NOT_EQUALS2") {
                 text = statement.Text.Head(statement.CursorPosition);
                 caretTokenIndex += 1;
             }
 
             return C3_.Complete(text, caretTokenIndex);
-        }
-
-        size_t CursorTokenIndex(const TCursorTokenContext& context) {
-            if (auto enclosing = context.Enclosing()) {
-                return enclosing->Index;
-            }
-            return context.Cursor.NextTokenIndex;
         }
 
         TLocalSyntaxContext::TKeywords SiftedKeywords(const TC3Candidates& candidates) const {
