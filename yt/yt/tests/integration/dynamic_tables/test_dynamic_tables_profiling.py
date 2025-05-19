@@ -3,7 +3,7 @@ from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 
 from yt_commands import (
     authors, print_debug, wait, create, get, set, create_user,
-    create_tablet_cell_bundle, remove_tablet_cell,
+    create_tablet_cell_bundle, remove_tablet_cell, update_nodes_dynamic_config,
     insert_rows, select_rows, lookup_rows, sync_create_cells, pull_queue,
     sync_mount_table, sync_flush_table, generate_uuid, sync_reshard_table)
 
@@ -421,3 +421,107 @@ class TestOrderedDynamicTablesProfiling(TestOrderedDynamicTablesBase):
         wait(
             lambda: table_profiling.get_counter("fetch_table_rows/data_weight") == 50
         )
+
+
+##################################################################
+
+
+class TestStatisticsReporterBase:
+    @staticmethod
+    def _create_table_for_statistics_reporter(table_path, driver=None, bundle="default"):
+        def make_struct(name):
+            return {
+                "name": name,
+                "type_v3": {
+                    "type_name": "struct",
+                    "members": [
+                        {"name": "count", "type": "int64"},
+                        {"name": "rate", "type": "double"},
+                        {"name": "rate_10m", "type": "double"},
+                        {"name": "rate_1h", "type": "double"},
+                    ],
+                }
+            }
+
+        create(
+            "table",
+            table_path,
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
+                    {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
+                    make_struct("dynamic_row_read"),
+                    make_struct("dynamic_row_read_data_weight"),
+                    make_struct("dynamic_row_lookup"),
+                    make_struct("dynamic_row_lookup_data_weight"),
+                    make_struct("dynamic_row_write"),
+                    make_struct("dynamic_row_write_data_weight"),
+                    make_struct("dynamic_row_delete"),
+                    make_struct("static_chunk_row_read"),
+                    make_struct("static_chunk_row_read_data_weight"),
+                    make_struct("static_hunk_chunk_row_read_data_weight"),
+                    make_struct("static_chunk_row_lookup"),
+                    make_struct("static_chunk_row_lookup_data_weight"),
+                    make_struct("static_hunk_chunk_row_lookup_data_weight"),
+                    make_struct("compaction_data_weight"),
+                    make_struct("partitioning_data_weight"),
+                    make_struct("lookup_error"),
+                    make_struct("write_error"),
+                    make_struct("lookup_cpu_time"),
+                    {"name": "uncompressed_data_size", "type_v3": "int64"},
+                    {"name": "compressed_data_size", "type_v3": "int64"},
+                ],
+                "mount_config": {
+                    "min_data_ttl": 0,
+                    "max_data_ttl": 86400000,
+                    "min_data_versions": 0,
+                    "max_data_versions": 1,
+                    "merge_rows_on_flush": True,
+                },
+                "tablet_cell_bundle": bundle,
+            },
+            driver=driver)
+
+    @classmethod
+    def _setup_statistics_reporter(cls, path, driver=None, tablet_cell_bundle="default"):
+        update_nodes_dynamic_config({
+            "tablet_node" : {
+                "statistics_reporter" : {
+                    "enable" : True,
+                    "table_path": path,
+                    "report_backoff_time": 1,
+                    "periodic_options": {
+                        "period": 1,
+                        "splay": 0,
+                        "jitter": 0,
+                    }
+                }
+            }
+        }, driver=driver)
+
+        if tablet_cell_bundle != "default":
+            create_tablet_cell_bundle(tablet_cell_bundle, driver=driver)
+        sync_create_cells(1, tablet_cell_bundle=tablet_cell_bundle, driver=driver)
+
+        cls._create_table_for_statistics_reporter(path, driver=driver, bundle=tablet_cell_bundle)
+        set(f"{path}/@tablet_balancer_config", {
+            "enable_auto_reshard": False,
+            "enable_auto_tablet_move": False
+        }, driver=driver)
+        sync_mount_table(path, driver=driver)
+
+
+class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTablesBase):
+    @authors("dave11ar")
+    def test_statistics_reporter(self):
+        statistics_path = "//tmp/statistics_reporter_table"
+        self._setup_statistics_reporter(statistics_path)
+
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        wait(lambda: len(lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])) == 1)

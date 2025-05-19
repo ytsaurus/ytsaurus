@@ -5,7 +5,7 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     wait, ls, get, set, exists, create_dynamic_table, set_node_decommissioned,
     disable_tablet_cells_on_node, get_driver, get_cluster_drivers, print_debug,
-    create, remove
+    remove
 )
 
 from yt.common import YtError
@@ -390,59 +390,3 @@ class DynamicTablesBase(YTEnvSetup):
         wait(lambda: _do_init())
 
         return sensors[0]
-
-    @staticmethod
-    def _create_table_for_statistics_reporter(table_path, driver=None, bundle="default"):
-        def make_struct(name):
-            return {
-                "name": name,
-                "type_v3": {
-                    "type_name": "struct",
-                    "members": [
-                        {"name": "count", "type": "int64"},
-                        {"name": "rate", "type": "double"},
-                        {"name": "rate_10m", "type": "double"},
-                        {"name": "rate_1h", "type": "double"},
-                    ],
-                }
-            }
-
-        create(
-            "table",
-            table_path,
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "table_id", "type_v3": "string", "sort_order": "ascending"},
-                    {"name": "tablet_id", "type_v3": "string", "sort_order": "ascending"},
-                    make_struct("dynamic_row_read"),
-                    make_struct("dynamic_row_read_data_weight"),
-                    make_struct("dynamic_row_lookup"),
-                    make_struct("dynamic_row_lookup_data_weight"),
-                    make_struct("dynamic_row_write"),
-                    make_struct("dynamic_row_write_data_weight"),
-                    make_struct("dynamic_row_delete"),
-                    make_struct("static_chunk_row_read"),
-                    make_struct("static_chunk_row_read_data_weight"),
-                    make_struct("static_hunk_chunk_row_read_data_weight"),
-                    make_struct("static_chunk_row_lookup"),
-                    make_struct("static_chunk_row_lookup_data_weight"),
-                    make_struct("static_hunk_chunk_row_lookup_data_weight"),
-                    make_struct("compaction_data_weight"),
-                    make_struct("partitioning_data_weight"),
-                    make_struct("lookup_error"),
-                    make_struct("write_error"),
-                    make_struct("lookup_cpu_time"),
-                    {"name": "uncompressed_data_size", "type_v3": "int64"},
-                    {"name": "compressed_data_size", "type_v3": "int64"},
-                ],
-                "mount_config": {
-                    "min_data_ttl": 0,
-                    "max_data_ttl": 86400000,
-                    "min_data_versions": 0,
-                    "max_data_versions": 1,
-                    "merge_rows_on_flush": True,
-                },
-                "tablet_cell_bundle": bundle,
-            },
-            driver=driver)
