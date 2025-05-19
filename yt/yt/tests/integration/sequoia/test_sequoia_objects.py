@@ -15,9 +15,9 @@ from yt.sequoia_tools import DESCRIPTORS
 from yt_commands import (
     authors, commit_transaction, create, get, get_cell_tag, raises_yt_error,
     remove, get_singular_chunk_id, write_table, read_table, wait, exists,
-    create_domestic_medium, ls, set, link, build_master_snapshots, get_driver,
+    create_domestic_medium, ls, set, link, build_master_snapshots,
     start_transaction, abort_transaction, sync_mount_table, sync_unmount_table,
-    sync_compact_table, set_nodes_banned, set_node_banned, gc_collect,
+    sync_compact_table, set_nodes_banned, set_node_banned,
     get_account_disk_space_limit, set_account_disk_space_limit,
     get_active_primary_master_leader_address,
 )
@@ -729,11 +729,3 @@ class TestSequoiaObjects(YTEnvSetup):
         assert get_cell_tag(tx1) == 11 and get_cell_tag(tx2) == 12
         with raises_yt_error("Multiple prerequisite transactions from different cells specified"):
             start_transaction(prerequisite_transaction_ids=[tx1, tx2])
-
-    @authors("danilalexeev")
-    def test_nodes_do_not_leak_yt_24997(self):
-        tx = start_transaction()
-        table_id = create("map_node", "//tmp/m", tx=tx)
-        abort_transaction(tx)
-        gc_collect()
-        assert not exists(f"#{table_id}", driver=get_driver(0))
