@@ -14,7 +14,6 @@ DEPENDS(
 #proxies
 DEPENDS(
     yt/yt/tests/integration/fake_blackbox
-    contrib/libs/openssl/apps
 )
 
 IF (NOT OPENSOURCE)
