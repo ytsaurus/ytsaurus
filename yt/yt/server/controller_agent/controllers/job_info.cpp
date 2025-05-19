@@ -228,12 +228,12 @@ void TJoblet::TCookieGroupInfo::Persist(const TPersistenceContext& context) {
 void Serialize(const TJoblet::TCookieGroupInfo& cookieGroupInfo, NYson::IYsonConsumer* consumer) {
     using NYT::Serialize;
 
-    consumer->OnBeginAttributes();
+    consumer->OnBeginMap();
     consumer->OnKeyedItem("main_job_id");
     NYTree::Serialize(cookieGroupInfo.MainJobId, consumer);
     consumer->OnKeyedItem("output_index");
     NYTree::Serialize(cookieGroupInfo.OutputIndex, consumer);
-    consumer->OnEndAttributes();
+    consumer->OnEndMap();
 }
 
 PHOENIX_DEFINE_TYPE(TJoblet);
