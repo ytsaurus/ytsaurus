@@ -722,7 +722,7 @@ private:
             Spec_->DebugArtifactsAccount);
     }
 
-    void CustomizeJoblet(const TJobletPtr& joblet) override
+    void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& /*allocation*/) override
     {
         joblet->StartRowIndex = StartRowIndex_;
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;

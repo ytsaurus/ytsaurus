@@ -60,6 +60,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((BumpTo_25_2)                           (301800))
     ((CompressedDataSizePerJob)              (301801))
     ((DropSolidFromChunkStripe)              (301802))
+    ((GangRanks)                             (301803))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

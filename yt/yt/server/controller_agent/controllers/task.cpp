@@ -978,7 +978,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     }
 
     // Sync part.
-    TaskHost_->CustomizeJoblet(joblet);
+    TaskHost_->CustomizeJoblet(joblet, allocation);
 
     TaskHost_->RegisterJoblet(joblet);
     if (!joblet->CompetitionType) {
