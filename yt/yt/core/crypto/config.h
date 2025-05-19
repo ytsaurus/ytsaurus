@@ -8,10 +8,11 @@ namespace NYT::NCrypto {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Either an inlined value or a file reference.
+//! Either an inlined value, environment variable, or a file reference.
 struct TPemBlobConfig
     : public NYTree::TYsonStruct
 {
+    std::optional<TString> EnvironmentVariable;
     std::optional<TString> FileName;
     std::optional<TString> Value;
 
