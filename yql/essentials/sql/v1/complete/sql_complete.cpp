@@ -38,21 +38,21 @@ namespace NSQLComplete {
                     << " for input size " << input.Text.size();
             }
 
-            TLocalSyntaxContext local = SyntaxAnalysis_->Analyze(input);
-            auto keywords = local.Keywords;
+            TLocalSyntaxContext context = SyntaxAnalysis_->Analyze(input);
+            auto keywords = context.Keywords;
 
             TGlobalContext global = GlobalAnalysis_->Analyze(input);
 
-            TNameRequest request = NameRequestFrom(input, local, global);
+            TNameRequest request = NameRequestFrom(input, context, global);
             if (request.IsEmpty()) {
                 return NThreading::MakeFuture<TCompletion>({
-                    .CompletedToken = GetCompletedToken(input, local.EditRange),
+                    .CompletedToken = GetCompletedToken(input, context.EditRange),
                     .Candidates = {},
                 });
             }
 
             return Names_->Lookup(std::move(request))
-                .Apply([this, input, context = std::move(local)](auto f) {
+                .Apply([this, input, context = std::move(context)](auto f) {
                     return ToCompletion(input, context, f.ExtractValue());
                 });
         }

@@ -8,6 +8,7 @@ PEERDIR(
     yql/essentials/sql/v1/lexer
     yql/essentials/sql/v1/complete/antlr4
     yql/essentials/sql/v1/complete/name/service
+    # TODO(YQL-19747): move to /analysis/local
     yql/essentials/sql/v1/complete/syntax
     yql/essentials/sql/v1/complete/analysis/global
     yql/essentials/sql/v1/complete/text
