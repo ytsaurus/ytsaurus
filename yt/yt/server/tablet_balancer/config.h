@@ -116,7 +116,7 @@ struct TTabletBalancerBootstrapConfig
 
     TStandaloneTabletBalancerConfigPtr TabletBalancer;
 
-    TString ClusterUser;
+    std::string ClusterUser;
 
     NYPath::TYPath RootPath;
 

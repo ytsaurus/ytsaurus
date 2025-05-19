@@ -1854,7 +1854,7 @@ private:
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
 
-    THashMap<TString, TString> UserToDefaultPoolMap_;
+    THashMap<std::string, TString> UserToDefaultPoolMap_;
 
     TExperimentAssigner ExperimentsAssigner_;
     TError LastExperimentAssignmentError_;
@@ -2513,7 +2513,7 @@ private:
 
         auto future =
             BIND([userToDefaultPoolMapYson = TYsonString(rspOrError.Value()->value())] {
-                return ConvertTo<THashMap<TString, TString>>(userToDefaultPoolMapYson);
+                return ConvertTo<THashMap<std::string, TString>>(userToDefaultPoolMapYson);
             })
             .AsyncVia(GetBackgroundInvoker())
             .Run();
@@ -4084,7 +4084,7 @@ private:
         return result;
     }
 
-    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
     {
         return UserToDefaultPoolMap_;
     }

@@ -179,7 +179,8 @@ void TDQYTBackend::Register(TRegistrar registrar)
     registrar.Parameter("pool_trees", &TThis::PoolTrees)
         .Default({});
     registrar.Parameter("owner", &TThis::Owner)
-        .Default({YqlAgentUserName});
+        // TODO(babenko): migrate to std::string
+        .Default({TString(YqlAgentUserName)});
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)
         .Default(6);
     registrar.Parameter("worker_capacity", &TThis::WorkerCapacity)
@@ -403,7 +404,8 @@ void TYqlAgentServerConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("user", &TThis::User)
-        .Default(YqlAgentUserName);
+        // TODO(babenko): migrate to std::string
+        .Default(TString(YqlAgentUserName));
     registrar.Parameter("cypress_annotations", &TThis::CypressAnnotations)
         .Default(BuildYsonNodeFluently()
             .BeginMap()

@@ -243,7 +243,7 @@ private:
     const TCellId PrimaryCellId_;
     const TCellTag PrimaryCellTag_;
     const TCellTagList SecondaryCellTags_;
-    const TString User_;
+    const std::string User_;
     const IClockManagerPtr ClockManager_;
     const NHiveClient::ICellDirectoryPtr CellDirectory_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;

@@ -105,7 +105,7 @@ public:
 
     void CloseEventLogger();
 
-    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override;
+    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override;
 
 private:
     const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;

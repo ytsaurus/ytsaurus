@@ -98,7 +98,7 @@ struct ISchedulerStrategyHost
 
     virtual TFuture<void> UpdateLastMeteringLogTime(TInstant time) = 0;
 
-    virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const = 0;
+    virtual const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -261,7 +261,7 @@ struct ISchedulerStrategy
 
     virtual void UpdatePoolTrees(const NYson::TYsonString& poolTreesYson) = 0;
 
-    virtual TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
+    virtual TError UpdateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) = 0;
 
     //! Initializes persistent strategy state.
     virtual void InitPersistentState(const TPersistentStrategyStatePtr& persistentStrategyState) = 0;

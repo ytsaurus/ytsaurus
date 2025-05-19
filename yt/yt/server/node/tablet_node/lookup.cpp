@@ -826,8 +826,7 @@ protected:
         if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
             ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                 THedgingUnit{
-                    // TODO(babenko): migrate to std::string
-                    .UserTag = profilingUser ? std::optional<TString>(profilingUser) : std::nullopt,
+                    .UserTag = profilingUser ? profilingUser : std::nullopt,
                     .HunkChunk = true,
                 });
         }
@@ -1298,8 +1297,7 @@ void TLookupSession::AddTabletRequest(
                 if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
                     ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                         THedgingUnit{
-                            // TODO(babenko): migrate to std::string
-                            .UserTag = ProfilingUser_ ? std::optional<TString>(ProfilingUser_) : std::nullopt,
+                            .UserTag = ProfilingUser_ ? ProfilingUser_ : std::nullopt,
                             .HunkChunk = false,
                         });
                 }

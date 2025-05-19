@@ -42,7 +42,7 @@ types:
         lock: client
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
         lock: client
@@ -186,7 +186,7 @@ types:
         column_type: Any
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
 
@@ -263,7 +263,7 @@ types:
         column_type: String
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
 
@@ -314,7 +314,7 @@ types:
         column_type: String
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
 
@@ -334,7 +334,7 @@ types:
       # Key.
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
         sort_order: Ascending

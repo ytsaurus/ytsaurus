@@ -27,7 +27,7 @@ public:
     NScheduler::EOperationState GetState() const override;
     std::optional<NScheduler::EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId) const override;
     TInstant GetStartTime() const override;
-    TString GetAuthenticatedUser() const override;
+    std::string GetAuthenticatedUser() const override;
 
     std::optional<int> FindSlotIndex(const TString& treeId) const override;
     void SetSlotIndex(const TString& treeId, int index) override;
@@ -63,7 +63,7 @@ private:
     const NScheduler::EOperationType Type_;
     const NYson::TYsonString SpecString_;
     const NYson::TYsonString TrimmedAnnotations_;
-    const TString AuthenticatedUser_;
+    const std::string AuthenticatedUser_;
     const TInstant StartTime_;
     const NScheduler::TOperationRuntimeParametersPtr RuntimeParameters_;
     NScheduler::EOperationState State_ = NScheduler::EOperationState::Running;

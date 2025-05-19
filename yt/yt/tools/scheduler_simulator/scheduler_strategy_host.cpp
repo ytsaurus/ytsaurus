@@ -270,9 +270,9 @@ void TSchedulerStrategyHost::CloseEventLogger()
     }
 }
 
-const THashMap<TString, TString>& TSchedulerStrategyHost::GetUserDefaultParentPoolMap() const
+const THashMap<std::string, TString>& TSchedulerStrategyHost::GetUserDefaultParentPoolMap() const
 {
-    static THashMap<TString, TString> stub;
+    static const THashMap<std::string, TString> stub;
     return stub;
 }
 

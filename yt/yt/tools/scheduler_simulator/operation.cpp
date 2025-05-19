@@ -65,7 +65,7 @@ TInstant TOperation::GetStartTime() const
     return StartTime_;
 }
 
-TString TOperation::GetAuthenticatedUser() const
+std::string TOperation::GetAuthenticatedUser() const
 {
     return AuthenticatedUser_;
 }

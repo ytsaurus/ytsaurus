@@ -156,7 +156,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 
         TObjectServiceCacheKey key(
             CellTagFromId(MasterCellId_),
-            cachingRequestHeaderExt->disable_per_user_cache() ? TString() : context->GetAuthenticationIdentity().User,
+            cachingRequestHeaderExt->disable_per_user_cache() ? std::string() : context->GetAuthenticationIdentity().User,
             ypathExt.target_path(),
             subrequestHeader.service(),
             subrequestHeader.method(),
