@@ -22,12 +22,20 @@ def create_ca(ca_cert, ca_cert_key, subj="/CN=Fake CA", key_type="rsa:2048"):
             "-sha512", "-nodes", "-newkey", key_type,
             "-days", "30", "-subj", subj,
             "-keyout", ca_cert_key, "-out", ca_cert,
+            "-addext", "basicConstraints=critical,CA:TRUE,pathlen:0",
+            "-addext", "keyUsage=critical,keyCertSign",
         ], stderr=subprocess.DEVNULL)
 
 
-def create_certificate(cert, cert_key, ca_cert, ca_cert_key, names, key_type="rsa:2048"):
+def create_certificate(cert, cert_key, ca_cert, ca_cert_key, names, extended_key_usage="serverAuth", key_type="rsa:2048"):
     subj = "/CN=" + names[0]
-    addext = "subjectAltName = " + ",".join(["DNS:" + n for n in names])
+    addext = [
+        "subjectAltName = " + ",".join(["DNS:" + n for n in names]),
+        "basicConstraints = critical,CA:FALSE",
+        "keyUsage = critical,digitalSignature,keyEncipherment",
+        "extendedKeyUsage = critical," + extended_key_usage,
+    ]
+    addext_args = sum([["-addext", ext] for ext in addext], [])
 
     # works for openssl 3.x
     # run([openssl_binary(), "req",  "-batch", "-x509", "-nodes", "-sha512",
@@ -43,14 +51,14 @@ def create_certificate(cert, cert_key, ca_cert, ca_cert_key, names, key_type="rs
         cfg.write("[req]\ndistinguished_name = req\n")
         cfg.flush()
 
-        ext.write("[ext]\n{}\n".format(addext))
+        ext.write("[ext]\n{}\n".format("\n".join(addext)))
         ext.flush()
 
         subprocess.check_call([
             openssl_binary(), "req", "-new", "-batch", "-config", cfg.name,
-            "-nodes", "-newkey", key_type, "-subj", subj, "-addext", addext,
+            "-nodes", "-newkey", key_type, "-subj", subj,
             "-keyout", cert_key, "-out", cert_req.name,
-        ], stderr=subprocess.DEVNULL)
+        ] + addext_args, stderr=subprocess.DEVNULL)
 
         subprocess.check_call([
             openssl_binary(), "x509", "-req", "-sha512", "-days", "30",
