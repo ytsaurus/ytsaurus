@@ -8,12 +8,11 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TProto>
+template <class TProto, class TState>
 void ITransactionManager::RegisterTransactionActionHandlers(
-    NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction, TProto> descriptor)
+    TTypedTransactionActionDescriptor<TProto, TState> descriptor)
 {
-    RegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTransactionActionDescriptor<TTransaction>(std::move(descriptor)));
+    RegisterTransactionActionHandlers(TTypeErasedTransactionActionDescriptor(std::move(descriptor)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

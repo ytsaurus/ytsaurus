@@ -276,8 +276,6 @@ DEFINE_ENUM(EObjectLockMode,
 
 DECLARE_REFCOUNTED_STRUCT(ICompressionDictionaryManager)
 
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_ENTITY_TYPE(THunkTablet, TTabletId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_REFCOUNTED_STRUCT(IHunkTabletHost)
@@ -285,6 +283,19 @@ DECLARE_REFCOUNTED_STRUCT(IHunkTabletManager)
 DECLARE_REFCOUNTED_STRUCT(IHunkTabletScanner)
 
 DECLARE_REFCOUNTED_CLASS(THunkStore)
+
+template <class TProto, class TState>
+using TTypedTransactionActionDescriptor = NTransactionSupervisor::TTypedTransactionActionDescriptor<
+    TTransaction,
+    TProto,
+    TState
+>;
+
+using TTypeErasedTransactionActionDescriptor = NTransactionSupervisor::TTypeErasedTransactionActionDescriptor<
+    TTransaction,
+    TSaveContext,
+    TLoadContext
+>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -29,10 +29,6 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransaction::TTransaction(TTransactionId id)
-    : TTransactionBase(id)
-{ }
-
 void TTransaction::Save(TSaveContext& context) const
 {
     TTransactionBase::Save(context);

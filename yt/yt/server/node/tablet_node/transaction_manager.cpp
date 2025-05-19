@@ -76,7 +76,11 @@ static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 class TTransactionManager
     : public TTabletAutomatonPart
     , public ITransactionManager
-    , public TTransactionManagerBase<TTransaction>
+    , public TTransactionManagerBase<
+        TTransaction,
+        TSaveContext,
+        TLoadContext
+    >
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionStarted);
@@ -860,11 +864,9 @@ public:
         return Decommission_ && PersistentTransactionMap_.empty();
     }
 
-    void RegisterTransactionActionHandlers(
-        TTransactionActionDescriptor<TTransaction> descriptor) override
+    void RegisterTransactionActionHandlers(TTypeErasedTransactionActionDescriptor descriptor) override
     {
-        TTransactionManagerBase<TTransaction>::DoRegisterTransactionActionHandlers(
-            std::move(descriptor));
+        TTransactionManagerBase::RegisterTransactionActionHandlers(std::move(descriptor));
     }
 
 private:
@@ -1296,11 +1298,11 @@ private:
 
         for (const auto& protoData : request->actions()) {
             auto data = FromProto<TTransactionActionData>(protoData);
-            transaction->Actions().push_back(data);
+            auto& action = transaction->Actions().emplace_back(std::move(data));
 
-            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v, Signature: %v)",
+            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v, Signature: %x)",
                 FormatTransactionId(transactionId, externalizationToken),
-                data.Type,
+                action.Type,
                 signature);
         }
 

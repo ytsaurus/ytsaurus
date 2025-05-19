@@ -155,9 +155,12 @@ struct ITransactionManager
         NElection::TCellId cellId,
         THashSet<TTransactionId>* cellLeaseTransactionIds) = 0;
 
-    template <class TProto>
+    virtual void RegisterTransactionActionHandlers(
+        TTypeErasedTransactionActionDescriptor descriptor) = 0;
+    template <class TProto, class TState = void>
     void RegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction, TProto> descriptor);
+        TTypedTransactionActionDescriptor<TProto, TState> descriptor);
+    virtual ITransactionActionStateFactory* GetTransactionActionStateFactory() = 0;
 
     using TCtxStartTransaction = NRpc::TTypedServiceContext<
         NTransactionClient::NProto::TReqStartTransaction,
@@ -221,10 +224,6 @@ struct ITransactionManager
     virtual void AbortCypressTransaction(const TCtxAbortCypressTransactionPtr& context) = 0;
 
     virtual TTransaction* GetAndValidatePrerequisiteTransaction(TTransactionId transactionId) = 0;
-
-protected:
-    virtual void DoRegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTransactionActionDescriptor<TTransaction> descriptor) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionManager)

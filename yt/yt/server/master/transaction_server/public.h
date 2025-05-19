@@ -2,7 +2,11 @@
 
 #include <yt/yt/server/lib/transaction_server/public.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/public.h>
+
 #include <yt/yt/server/master/object_server/public.h>
+
+#include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/ytlib/cypress_transaction_client/public.h>
 
@@ -61,6 +65,26 @@ DEFINE_ENUM(ETransactionLeasesState,
     // Leases are revoked and new leases cannot be issued.
     ((Revoked)               (2))
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TProto, class TState>
+using TTypedTransactionActionDescriptor = NTransactionSupervisor::TTypedTransactionActionDescriptor<
+    TTransaction,
+    TProto,
+    TState
+>;
+
+using TTypeErasedTransactionActionDescriptor = NTransactionSupervisor::TTypeErasedTransactionActionDescriptor<
+    TTransaction,
+    NCellMaster::TSaveContext,
+    NCellMaster::TLoadContext
+>;
+
+using ITransactionActionStateFactory = NTransactionSupervisor::ITransactionActionStateFactory<
+    NCellMaster::TSaveContext,
+    NCellMaster::TLoadContext
+>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -29,12 +29,11 @@ struct ITransactionManager
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
-    template <class TProto>
-    void RegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction, TProto> descriptor);
-
     virtual void RegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTransactionActionDescriptor<TTransaction> descriptor) = 0;
+        TTypeErasedTransactionActionDescriptor descriptor) = 0;
+    template <class TProto, class TState = void>
+    void RegisterTransactionActionHandlers(
+        TTypedTransactionActionDescriptor<TProto, TState> descriptor);
 
     virtual std::unique_ptr<NHydra::TMutation> CreateRegisterTransactionActionsMutation(
         TCtxRegisterTransactionActionsPtr context) = 0;
