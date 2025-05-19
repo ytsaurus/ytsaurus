@@ -564,6 +564,26 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
     }
 
+    Y_UNIT_TEST(SelectFromUnclosedIdQuoted) {
+        auto engine = MakeSqlCompletionEngineUT();
+        {
+            TVector<TCandidate> expected = {
+                {FolderName, ".sys/"},
+                {FolderName, "local/"},
+                {FolderName, "prod/"},
+                {FolderName, "test/"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM `#"), expected);
+        }
+        {
+            TVector<TCandidate> expected = {
+                {TableName, "meta"},
+                {FolderName, "service/"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM `test/"), expected);
+        }
+    }
+
     Y_UNIT_TEST(SelectFromCluster) {
         auto engine = MakeSqlCompletionEngineUT();
         {
