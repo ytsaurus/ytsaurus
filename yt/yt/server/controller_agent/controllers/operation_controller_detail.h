@@ -716,6 +716,7 @@ protected:
     void PrepareInputTables();
     bool HasDiskRequestsWithSpecifiedAccount() const;
     void InitAccountResourceUsageLeases();
+    void ValidateCookieGroupSize();
     void ValidateSecureVault();
 
     // Preparation.
