@@ -146,6 +146,7 @@ message TRspGetTableBalancingAttributes
         required bool dynamic = 1;
         required int32 in_memory_mode = 2; // EInMemoryMode
         required string tablet_balancer_config = 3;
+        optional NYT.NProto.TGuid upstream_replica_id = 4;
     }
 
     message TTable
