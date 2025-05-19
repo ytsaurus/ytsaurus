@@ -393,14 +393,14 @@ public:
         i64 rowsToAdd = rowsPerJob;
         int sliceIndex = 0;
         auto currentDataSlice = dataSlices[0];
-        TChunkStripePtr stripe = New<TChunkStripe>(false /*foreign*/, true /*solid*/);
+        TChunkStripePtr stripe = New<TChunkStripe>(false /*foreign*/);
         std::vector<IChunkPoolOutput::TCookie> childCookies;
         auto flushStripe = [&] {
-            auto outputCookie = AddStripe(std::move(stripe));
+            auto outputCookie = AddStripe(std::move(stripe), /*solid*/ true);
             if (outputCookie != IChunkPoolOutput::NullCookie) {
                 childCookies.push_back(outputCookie);
             }
-            stripe = New<TChunkStripe>(false /*foreign*/, true /*solid*/);
+            stripe = New<TChunkStripe>(false /*foreign*/);
         };
         while (true) {
             i64 sliceRowCount = currentDataSlice->GetRowCount();
@@ -554,7 +554,7 @@ private:
         dataSlice->Tag = inputCookie;
 
         if (dataSlice->Type == EDataSourceType::VersionedTable) {
-            AddStripe(New<TChunkStripe>(std::move(dataSlice)));
+            AddStripe(New<TChunkStripe>(std::move(dataSlice)), /*solid*/ false);
             return;
         }
 
@@ -598,7 +598,7 @@ private:
                 newDataSlice->CopyPayloadFrom(*dataSlice);
                 // XXX
                 newDataSlice->GetInputStreamIndex();
-                AddStripe(New<TChunkStripe>(std::move(newDataSlice)));
+                AddStripe(New<TChunkStripe>(std::move(newDataSlice)), /*solid*/ false);
             }
         } else {
             for (const auto& slice : CreateErasureInputChunkSlices(chunk, codecId)) {
@@ -630,7 +630,7 @@ private:
                     newDataSlice->CopyPayloadFrom(*dataSlice);
                     // XXX
                     newDataSlice->GetInputStreamIndex();
-                    AddStripe(New<TChunkStripe>(std::move(newDataSlice)));
+                    AddStripe(New<TChunkStripe>(std::move(newDataSlice)), /*solid*/ false);
                 }
             }
         }
@@ -644,9 +644,9 @@ private:
             Stripes_.size() - oldSize);
     }
 
-    IChunkPoolOutput::TCookie AddStripe(TChunkStripePtr stripe)
+    IChunkPoolOutput::TCookie AddStripe(TChunkStripePtr stripe, bool solid)
     {
-        if (!stripe->Solid && !Sampler_.Sample()) {
+        if (!solid && !Sampler_.Sample()) {
             return IChunkPoolOutput::NullCookie;
         }
 
@@ -658,7 +658,7 @@ private:
 
         GetDataSliceCounter()->AddUncategorized(Stripes_.back().GetStripe()->DataSlices.size());
 
-        if (Stripes_.back().GetStripe()->Solid) {
+        if (solid) {
             AddSolid(internalCookie);
         } else {
             Register(internalCookie);
@@ -795,7 +795,6 @@ private:
         const auto& suspendableStripe = Stripes_[stripeIndex];
         YT_VERIFY(!FreeStripes_.contains(stripeIndex));
         YT_VERIFY(ExtractedStripes_.insert(stripeIndex).second);
-        YT_VERIFY(suspendableStripe.GetStripe()->Solid);
 
         auto jobStub = std::make_unique<TNewJobStub>();
         for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
