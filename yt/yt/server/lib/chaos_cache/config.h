@@ -16,6 +16,7 @@ class TChaosCacheConfig
 public:
     NChaosClient::TReplicationCardsWatcherConfigPtr ReplicationCardsWatcher;
     TDuration UnwatchedCardExpirationDelay;
+    int WorkerThreadCount = 1;
 
     REGISTER_YSON_STRUCT(TChaosCacheConfig);
 
