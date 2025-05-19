@@ -492,7 +492,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         try {
-            if (reason != ERegistrationReason::RegistrationFailure) {
+            // Lease could be aborted between reregistrations.
+            if (!LeaseTransaction_ || reason != ERegistrationReason::RegistrationFailure) {
                 StartLeaseTransaction();
             }
             RegisterAtPrimaryMaster();
@@ -562,6 +563,7 @@ private:
     void RegisterAtPrimaryMaster()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
+        YT_VERIFY(LeaseTransaction_);
 
         auto masterChannel = GetMasterChannel(PrimaryMasterCellTagSentinel);
         TNodeTrackerServiceProxy proxy(std::move(masterChannel));

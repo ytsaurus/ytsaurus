@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 
 from yt_commands import (
-    authors, print_debug, raises_yt_error, wait, execute_command, get_driver, build_snapshot,
+    abort_transaction, authors, print_debug, raises_yt_error, wait, execute_command, get_driver, build_snapshot,
     exists, ls, get, set, create, remove,
     write_table, update_nodes_dynamic_config,
     create_rack, create_data_center, vanilla,
@@ -626,3 +626,40 @@ class TestNodesThrottling(YTEnvSetup):
             assert tx in active_lease_txs
             assert exists(f"//sys/transactions/{tx}")
             assert tx not in old_lease_txs
+
+    @authors("cherepashka")
+    def test_abort_lease_during_registration(self):
+        data_node_group = "data-node"
+        # Set registration throttling to force nodes fail simultaneous reregistration requests.
+        set("//sys/@config/node_tracker/node_groups", {
+            data_node_group: {
+                "node_tag_filter": data_node_group,
+                "max_concurrent_node_registrations": 1,
+            }
+        })
+
+        for node in ls("//sys/cluster_nodes"):
+            set(f"//sys/cluster_nodes/{node}/@user_tags", [data_node_group])
+            assert sorted(get(f"//sys/cluster_nodes/{node}/@node_groups")) == sorted([data_node_group, "default"])
+
+        # Restart nodes to trigger reregistration.
+        with Restarter(self.Env, NODES_SERVICE, sync=False):
+            pass
+
+        # Wait for nodes to start registration process.
+        wait(lambda: self.get_nodes_count("registered") > 0)
+        assert TestNodesThrottling.get_nodes_count() != self.NUM_NODES
+
+        # Gather leases issued during throttled registration.
+        lease_txs = builtins.set()
+        while len(lease_txs) < self.NUM_NODES:
+            for tx in ls("//sys/transactions", attributes=["title"]):
+                title = tx.attributes.get("title", "")
+                if "Lease for node" in title:
+                    lease_txs.add(str(tx))
+        # Abort all transactions.
+        for lease_tx in lease_txs:
+            abort_transaction(lease_tx)
+
+        # Wait for nodes to become online, nothing should crash.
+        wait(lambda: self.get_nodes_count() == self.NUM_NODES)
