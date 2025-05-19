@@ -372,7 +372,7 @@ public:
         return Location_->GetSandboxPath(SlotIndex_, sandbox);
     }
 
-    TString GetMediumName() const override
+    std::string GetMediumName() const override
     {
         VerifyEnabled();
 

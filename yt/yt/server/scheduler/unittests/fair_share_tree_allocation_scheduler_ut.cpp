@@ -154,12 +154,12 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    std::optional<int> FindMediumIndexByName(const TString& /*mediumName*/) const override
+    std::optional<int> FindMediumIndexByName(const std::string& /*mediumName*/) const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    const TString& GetMediumNameByIndex(int /*mediumIndex*/) const override
+    const std::string& GetMediumNameByIndex(int /*mediumIndex*/) const override
     {
         YT_UNIMPLEMENTED();
     }

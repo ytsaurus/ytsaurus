@@ -284,7 +284,7 @@ TSecurityManager::~TSecurityManager() = default;
 
 TFuture<void> TSecurityManager::CheckResourceLimits(
     const std::string& account,
-    const TString& mediumName,
+    const std::string& mediumName,
     const std::optional<std::string>& tabletCellBundle,
     EInMemoryMode inMemoryMode)
 {

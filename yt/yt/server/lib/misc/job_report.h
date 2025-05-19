@@ -151,7 +151,7 @@ struct TExecAttributes
     TString SandboxPath;
 
     //! Medium of disk acquired by slot.
-    TString MediumName;
+    std::string MediumName;
 
     //! Absolute path to job proxy socket file.
     TString JobProxySocketPath;

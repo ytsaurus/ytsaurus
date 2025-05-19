@@ -91,7 +91,7 @@ struct TChunkLocationConfig
 
     // NB: Actually registered as parameter by subclasses (because default value
     // is subclass-specific).
-    TString MediumName;
+    std::string MediumName;
 
     //! Configuration for various per-location throttlers.
     TEnumIndexedArray<EChunkLocationThrottlerKind, NConcurrency::TThroughputThrottlerConfigPtr> Throttlers;
@@ -571,7 +571,7 @@ DEFINE_REFCOUNTED_TYPE(TDataNodeTestingOptions)
 struct TMediumThroughputMeterConfig
     : public NIO::TGentleLoaderConfig
 {
-    TString MediumName;
+    std::string MediumName;
     bool Enabled;
 
     double VerificationInitialWindowFactor;

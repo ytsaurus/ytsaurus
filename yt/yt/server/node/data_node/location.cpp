@@ -588,7 +588,7 @@ const TString& TChunkLocation::GetDiskFamily() const
     return StaticConfig_->DiskFamily;
 }
 
-TString TChunkLocation::GetMediumName() const
+std::string TChunkLocation::GetMediumName() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

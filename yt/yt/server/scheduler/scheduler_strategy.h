@@ -57,8 +57,8 @@ struct ISchedulerStrategyHost
     virtual void SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const = 0;
     virtual void SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const = 0;
 
-    virtual std::optional<int> FindMediumIndexByName(const TString& mediumName) const = 0;
-    virtual const TString& GetMediumNameByIndex(int mediumIndex) const = 0;
+    virtual std::optional<int> FindMediumIndexByName(const std::string& mediumName) const = 0;
+    virtual const std::string& GetMediumNameByIndex(int mediumIndex) const = 0;
 
     virtual TInstant GetConnectionTime() const = 0;
 

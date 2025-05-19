@@ -166,7 +166,7 @@ public:
         ScheduledAt_.reset();
     }
 
-    TString GetMediumName() const
+    std::string GetMediumName() const
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 

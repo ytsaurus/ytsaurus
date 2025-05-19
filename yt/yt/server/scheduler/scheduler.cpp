@@ -1562,7 +1562,7 @@ public:
             now);
     }
 
-    std::optional<int> FindMediumIndexByName(const TString& mediumName) const override
+    std::optional<int> FindMediumIndexByName(const std::string& mediumName) const override
     {
         const auto& mediumDirectory = Bootstrap_
             ->GetClient()
@@ -1572,7 +1572,7 @@ public:
         return descriptor ? std::optional(descriptor->Index) : std::nullopt;
     }
 
-    const TString& GetMediumNameByIndex(int mediumIndex) const override
+    const std::string& GetMediumNameByIndex(int mediumIndex) const override
     {
         const auto& mediumDirectory = Bootstrap_
             ->GetClient()

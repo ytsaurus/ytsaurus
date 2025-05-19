@@ -849,7 +849,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         auto objectId = attributes.Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
         auto newState = attributes.Get<NNodeTrackerClient::ENodeState>("state");
-        auto ioWeights = attributes.Get<THashMap<TString, double>>("io_weights", {});
+        auto ioWeights = attributes.Get<THashMap<std::string, double>>("io_weights", {});
         auto annotationsYson = attributes.FindYson("annotations");
         auto schedulingOptionsYson = attributes.FindYson("scheduling_options");
 

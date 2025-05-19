@@ -150,7 +150,7 @@ struct TBundleDynamicConfig
 {
     TCpuLimitsPtr CpuLimits;
     TMemoryLimitsPtr MemoryLimits;
-    THashMap<TString, TMediumThroughputLimitsPtr> MediumThroughputLimits;
+    THashMap<std::string, TMediumThroughputLimitsPtr> MediumThroughputLimits;
 
     REGISTER_YSON_STRUCT(TBundleDynamicConfig);
 

@@ -152,14 +152,14 @@ void TSchedulerStrategyHost::AbortAllocationsAtNode(TNodeId /*nodeId*/, NSchedul
     // Nothing to do.
 }
 
-std::optional<int> TSchedulerStrategyHost::FindMediumIndexByName(const TString& /*mediumName*/) const
+std::optional<int> TSchedulerStrategyHost::FindMediumIndexByName(const std::string& /*mediumName*/) const
 {
     return {};
 }
 
-const TString& TSchedulerStrategyHost::GetMediumNameByIndex(int /*mediumIndex*/) const
+const std::string& TSchedulerStrategyHost::GetMediumNameByIndex(int /*mediumIndex*/) const
 {
-    static const TString defaultMediumName = "default";
+    static const std::string defaultMediumName = "default";
     return defaultMediumName;
 }
 

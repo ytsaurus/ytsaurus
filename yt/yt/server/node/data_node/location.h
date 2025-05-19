@@ -254,7 +254,7 @@ public:
     i64 GetCoalescedReadMaxGapSize() const;
 
     //! Returns the medium name.
-    TString GetMediumName() const;
+    std::string GetMediumName() const;
 
     //! Sets medium descriptor.
     //! #onInitialize indicates whether this method called before any data node heartbeat or on heartbeat response.

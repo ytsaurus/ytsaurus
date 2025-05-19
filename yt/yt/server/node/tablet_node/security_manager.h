@@ -29,7 +29,7 @@ public:
 
     TFuture<void> CheckResourceLimits(
         const std::string& account,
-        const TString& mediumName,
+        const std::string& mediumName,
         const std::optional<std::string>& tabletCellBundle = std::nullopt,
         NTabletClient::EInMemoryMode inMemoryMode = NTabletClient::EInMemoryMode::None);
 
