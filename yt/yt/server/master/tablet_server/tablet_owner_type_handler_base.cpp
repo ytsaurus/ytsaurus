@@ -20,7 +20,7 @@ using namespace NServer;
 template<class TImpl>
 bool TTabletOwnerTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const std::string& key) const
 {
-    static const THashSet<TString> SupportedInheritableAttributes{
+    static const THashSet<std::string> SupportedInheritableAttributes{
         EInternedAttributeKey::InMemoryMode.Unintern(),
         EInternedAttributeKey::TabletCellBundle.Unintern(),
     };

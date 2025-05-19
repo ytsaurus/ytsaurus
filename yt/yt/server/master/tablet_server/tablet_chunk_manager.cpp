@@ -635,7 +635,7 @@ public:
         }
     }
 
-    TString CommitUpdateTabletStores(
+    std::string CommitUpdateTabletStores(
         TTablet* tablet,
         NTransactionServer::TTransaction* transaction,
         NProto::TReqUpdateTabletStores* request,
@@ -840,7 +840,7 @@ public:
             hunkChunksToDetach,
             table->IsPhysicallySorted()
                 ? EChunkDetachPolicy::SortedTablet
-                : EChunkDetachPolicy::OrderedTabletPrefix);
+                : EChunkDetachPolicy::OrderedTabletHunk);
 
         // Unstage just attached chunks.
         for (auto chunk : chunksToAttach) {
@@ -880,7 +880,7 @@ public:
             detachedRowCount);
     }
 
-    TString CommitUpdateHunkTabletStores(
+    std::string CommitUpdateHunkTabletStores(
         THunkTablet* tablet,
         NProto::TReqUpdateHunkTabletStores* request) override
     {
@@ -1059,9 +1059,13 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (policy == EChunkDetachPolicy::OrderedTabletPrefix ||
-            policy == EChunkDetachPolicy::OrderedTabletSuffix)
+            policy == EChunkDetachPolicy::OrderedTabletSuffix ||
+            policy == EChunkDetachPolicy::OrderedTabletHunk)
         {
-            chunkManager->DetachFromChunkList(tablet->GetChunkList(), chunkTrees, policy);
+            auto* chunkList = policy == EChunkDetachPolicy::OrderedTabletHunk
+                ? tablet->GetHunkChunkList()
+                : tablet->GetChunkList();
+            chunkManager->DetachFromChunkList(chunkList, chunkTrees, policy);
             return;
         }
 
@@ -1317,7 +1321,7 @@ public:
     }
 
 private:
-    using TProfilerKey = std::tuple<std::optional<ETabletStoresUpdateReason>, TString, bool>;
+    using TProfilerKey = std::tuple<std::optional<ETabletStoresUpdateReason>, std::string, bool>;
     THashMap<TProfilerKey, TProfilingCounters> Counters_;
 
     TProfilingCounters* GetCounters(std::optional<ETabletStoresUpdateReason> reason, TTabletOwnerBase* owner)
@@ -1350,7 +1354,7 @@ private:
 
         auto profiler = TabletServerProfiler()
             .WithSparse()
-            .WithTag("tablet_cell_bundle", std::get<TString>(key))
+            .WithTag("tablet_cell_bundle", std::get<std::string>(key))
             .WithTag("table_type", table->IsPhysicallySorted() ? "sorted" : "ordered");
 
         if (reason) {
@@ -1372,7 +1376,7 @@ private:
     {
         auto makeError = [&] (const TDynamicStore* dynamicStore) {
             const auto* originalTablet = dynamicStore->GetTablet();
-            const TString& originalTablePath = IsObjectAlive(originalTablet) && IsObjectAlive(originalTablet->GetTable())
+            const auto& originalTablePath = IsObjectAlive(originalTablet) && IsObjectAlive(originalTablet->GetTable())
                 ? originalTablet->GetTable()->GetMountPath()
                 : "";
             return TError("Cannot restore table from backup since "

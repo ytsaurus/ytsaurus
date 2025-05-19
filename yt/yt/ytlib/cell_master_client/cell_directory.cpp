@@ -123,6 +123,21 @@ public:
         return SecondaryMasterConnectionConfigs_;
     }
 
+    bool IsMasterCacheConfigured() override
+    {
+        const auto& config = Config_->MasterCache;
+
+        if (!config) {
+            return false;
+        }
+
+        if (!config->EnableMasterCacheDiscovery && !config->Endpoints && !config->Addresses) {
+            return false;
+        }
+
+        return true;
+    }
+
     IChannelPtr FindMasterChannel(EMasterChannelKind kind, TCellTag cellTag) override
     {
         cellTag = cellTag == PrimaryMasterCellTagSentinel ? GetPrimaryMasterCellTag() : cellTag;

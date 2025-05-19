@@ -7,6 +7,7 @@
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
 
+#include <yt/yt/server/lib/controller_agent/network_project.h>
 #include <yt/yt/server/lib/controller_agent/progress_counter.h>
 
 #include <yt/yt/server/lib/scheduler/public.h>
@@ -92,7 +93,7 @@ public:
     TMtnJobExperiment(
         const NApi::NNative::IClientPtr& client,
         const std::string& authenticatedUser,
-        TString networkProject,
+        const std::string& networkProjectName,
         NLogging::TLogger logger);
 
     static bool IsEnabled(
@@ -107,11 +108,9 @@ public:
     TError GetAlert(const TOperationSpecBasePtr& operationSpec) const override;
 
 private:
-    TString NetworkProject_;
+    std::string NetworkProjectName_;
+    TNetworkProject NetworkProject_;
     NLogging::TSerializableLogger Logger;
-    ui32 ProjectId_;
-    bool EnableNat64_;
-    bool DisableNetwork_;
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TMtnJobExperiment, 0x05b35208);
 };

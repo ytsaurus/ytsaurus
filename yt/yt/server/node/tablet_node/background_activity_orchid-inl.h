@@ -4,8 +4,7 @@
 #include "background_activity_orchid.h"
 #endif
 
-#include <yt/yt/server/lib/tablet_node/config.h>
-#include <yt/yt/server/lib/tablet_node/private.h>
+#include "config.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 

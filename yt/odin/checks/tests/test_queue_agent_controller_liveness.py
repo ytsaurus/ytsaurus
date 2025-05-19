@@ -66,7 +66,7 @@ def test_queue_agent_controller_liveness_unavailable(yt_env_one_queue_agent, obj
         "queue_agent": {
             "controller": {
                 "delayed_objects": [yson.loads(f"<cluster={cluster_name}>\"{bad_object_path}\"".encode())],
-                "controller_delay_duration": 3_600_000,  # 1 hour
+                "controller_delay": 3_600_000,  # 1 hour
             },
         }
     })

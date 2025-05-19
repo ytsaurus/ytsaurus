@@ -1014,8 +1014,7 @@ def _build_node_configs(multidaemon_config_output,
         init_cypress_annotations(config, index)
 
         config["addresses"] = [
-            ("interconnect", yt_config.fqdn),
-            ("default", yt_config.fqdn)
+            (network_name, yt_config.fqdn) for network_name in yt_config.node_network_names
         ]
 
         config["rpc_port"] = next(ports_generator)
@@ -1266,8 +1265,7 @@ def _build_chaos_node_configs(multidaemon_config_output,
         init_cypress_annotations(config, index)
 
         config["addresses"] = [
-            ("interconnect", yt_config.fqdn),
-            ("default", yt_config.fqdn)
+            (network_name, yt_config.fqdn) for network_name in yt_config.node_network_names
         ]
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
@@ -2161,6 +2159,7 @@ def init_singletons(config, yt_config):
         "compression_pool_size": 1,
         "heavy_pool_size": 1,
         "alert_on_missing_request_info": True,
+        "alert_on_unset_request_timeout": True,
     })
     set_at(config, "chunk_client_dispatcher", {
         "chunk_reader_pool_size": 1,

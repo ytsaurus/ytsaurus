@@ -64,6 +64,11 @@ IClientPtr TTestConnection::CreateNativeClient(const TClientOptions& options)
     return New<TClient>(this, options, NodeMemoryTracker_);
 }
 
+NSequoiaClient::ISequoiaClientPtr TTestConnection::CreateSequoiaClient()
+{
+    YT_UNIMPLEMENTED();
+}
+
 const NRpc::IChannelFactoryPtr& TTestConnection::GetChannelFactory()
 {
     return ChannelFactory_;

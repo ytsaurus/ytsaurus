@@ -3,6 +3,7 @@ from yt_commands import (
     raises_yt_error, read_table, select_rows, sync_mount_table, wait, get, set, ls, create,
     start_transaction, write_table)
 
+from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
 from yt_master_cell_addition_base import MasterCellAdditionBase, MasterCellAdditionBaseChecks, MasterCellAdditionChaosMultiClusterBaseChecks
@@ -294,13 +295,13 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
 
         wait_for_cell_to_become_healthy(cell_id)
         assert check_cell_tags(cell_id, ["10", "11", "12"])
-        assert select_rows("* from [//tmp/dt]") == rows
+        assert_items_equal(select_rows("* from [//tmp/dt]"), rows)
 
         self._enable_last_cell(downtime=False)
 
         wait_for_cell_to_become_healthy(cell_id)
         assert check_cell_tags(cell_id, ["10", "11", "12", "13"])
-        assert select_rows("* from [//tmp/dt]") == rows
+        assert_items_equal(select_rows("* from [//tmp/dt]"), rows)
 
 
 ##################################################################

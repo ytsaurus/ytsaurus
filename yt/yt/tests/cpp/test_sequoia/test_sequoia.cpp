@@ -396,7 +396,7 @@ TEST_F(TSequoiaTest, TestParallelActionsWithPrerequisiteTx)
             &timestamp,
             barrierFuture = barrierPromise.ToFuture(),
             prerequisiteTx
-        ]() -> std::tuple<int, int, TError> {
+        ] () -> std::tuple<int, int, TError> {
             WaitForFast(barrierFuture)
                 .ThrowOnError();
 
@@ -462,6 +462,64 @@ TEST_F(TSequoiaTest, TestParallelActionsWithPrerequisiteTx)
             "//sys/cypress_proxies/@config/object_service/enable_fast_path_prerequisite_transactions_check",
             ConvertToYsonString(true)))
         .ThrowOnError();
+}
+
+TEST_F(TSequoiaTest, TestTransactionAbortConflict)
+{
+    std::vector<NApi::ITransactionPtr> transactions;
+    std::vector<TTransactionId> transactionIds;
+    std::vector<NCypressClient::TNodeId> createdNodes;
+
+    NApi::ITransactionPtr currentTransaction;
+    std::string currentPath = "//sequoia";
+    for (int i = 0; i < 15; ++i) {
+        currentPath += Format("/level%v", i);
+        NApi::TTransactionStartOptions startTransactionOptions;
+        if (currentTransaction) {
+            startTransactionOptions.ParentId = currentTransaction->GetId();
+        }
+        currentTransaction = StartCypressTransaction(startTransactionOptions);
+        transactions.push_back(currentTransaction);
+        transactionIds.push_back(currentTransaction->GetId());
+        TCreateNodeOptions createNodeOptions;
+        createNodeOptions.TransactionId = currentTransaction->GetId();
+        createdNodes.push_back(
+            WaitFor(Client_->CreateNode(currentPath.c_str(), EObjectType::MapNode, createNodeOptions))
+                .ValueOrThrow());
+    }
+
+    auto threadPool = CreateThreadPool(3, "ConcurrentAbortTx");
+    auto barrierPromise = NewPromise<void>();
+    std::vector<TFuture<void>> resultFutures;
+    for (auto tx : transactions) {
+        resultFutures.push_back(
+            BIND([barrierFuture = barrierPromise.ToFuture(), transaction = tx] () {
+                WaitFor(barrierFuture)
+                    .ThrowOnError();
+                return transaction->Abort();
+            })
+                .AsyncVia(threadPool->GetInvoker())
+                .Run());
+    }
+
+    barrierPromise.Set();
+
+    WaitFor(AllSucceeded(resultFutures))
+        .ThrowOnError();
+
+    for (auto transactionId : transactionIds) {
+        EXPECT_FALSE(WaitFor(Client_->NodeExists(FromObjectId(transactionId)))
+            .ValueOrThrow());
+    }
+
+
+    WaitFor(Client_->GCCollect())
+        .ThrowOnError();
+
+    for (auto nodeId : createdNodes) {
+        EXPECT_FALSE(WaitFor(Client_->NodeExists(FromObjectId(nodeId)))
+            .ValueOrThrow());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

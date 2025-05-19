@@ -1,6 +1,7 @@
 #include "porto_executor.h"
 #include "config.h"
 
+#include "porto_helpers.h"
 #include "private.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -612,11 +613,11 @@ private:
 
             auto* netConfig = portoSpec.mutable_net()->add_cfg();
             netConfig->set_opt("L3");
-            netConfig->add_arg("veth0");
+            netConfig->add_arg(DefaultPortoNetworkInterface);
 
             for (const auto& address : spec.IPAddresses) {
                 auto* ipConfig = portoSpec.mutable_ip()->add_cfg();
-                ipConfig->set_dev("veth0");
+                ipConfig->set_dev(DefaultPortoNetworkInterface);
                 ipConfig->set_ip(ToString(address));
             }
 

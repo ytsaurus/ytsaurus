@@ -76,7 +76,7 @@ int main(int argc, char** argv)
 
         TSlabAllocator allocator;
 
-        TConcurrentCache<TElement> concurrentCache(tableSize);
+        TConcurrentCache<TElement> concurrentCache(tableSize, /*memoryUsageTracker*/ nullptr);
 
         auto threadPool = CreateThreadPool(threadCount, "Workers");
         std::vector<TFuture<void>> asyncResults;

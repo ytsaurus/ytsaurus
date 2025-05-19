@@ -52,6 +52,12 @@ size_t EstimateSize(E /*value*/)
     return EstimatedValueSize;
 }
 
+template <typename T, typename Tag>
+size_t EstimateSize(const TStrongTypedef<T, Tag>& v)
+{
+    return EstimateSize(v.Underlying());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename... Ts>

@@ -613,7 +613,9 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
                 fetchStatistics.ExtensionSize += extension.data().size();
             }
 
-            bool shouldSkipChunkInFetchers = IsUnavailable(inputChunk, Host_->GetChunkAvailabilityPolicy()) && Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
+            bool shouldSkipChunkInFetchers =
+                inputChunk->IsUnavailable(Host_->GetChunkAvailabilityPolicy()) &&
+                Host_->GetSpec()->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
 
             // We only fetch chunk slice sizes for unversioned table chunks with non-trivial limits.
             // We do not fetch slice sizes in cases when ChunkSliceFetcher should later be used, since it performs similar computations and will misuse the scaling factors.
@@ -890,7 +892,7 @@ void TInputManager::FetchInputTablesAttributes()
     for (const auto& [table, attributes] : tableAttributes) {
         table->ChunkCount = attributes->Get<int>("chunk_count");
         table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
-        table->Account = attributes->Get<TString>("account");
+        table->Account = attributes->Get<std::string>("account");
         if (table->Type == EObjectType::File) {
             // NB(coteeq): Files have none of the following attributes.
             continue;
@@ -1125,7 +1127,7 @@ void TInputManager::OnInputChunkBatchLocated(
 
 void TInputManager::OnInputChunkAvailable(
     TChunkId chunkId,
-    const TChunkReplicaWithMediumList& replicas,
+    const TChunkReplicaList& replicas,
     TInputChunkDescriptor* descriptor)
 {
     YT_ASSERT_INVOKER_AFFINITY(Host_->GetCancelableInvoker(EOperationControllerQueue::Default));
@@ -1143,7 +1145,7 @@ void TInputManager::OnInputChunkAvailable(
 
     // Update replicas in place for all input chunks with current chunkId.
     for (const auto& chunkSpec : descriptor->InputChunks) {
-        chunkSpec->SetReplicaList(replicas);
+        chunkSpec->SetReplicas(replicas);
     }
 
     descriptor->State = EInputChunkState::Active;
@@ -1318,7 +1320,7 @@ void TInputManager::RegisterInputChunk(const TInputChunkPtr& inputChunk)
     auto& chunkDescriptor = InputChunkMap_[chunkId];
     chunkDescriptor.InputChunks.push_back(inputChunk);
 
-    if (IsUnavailable(inputChunk, Host_->GetChunkAvailabilityPolicy())) {
+    if (inputChunk->IsUnavailable(Host_->GetChunkAvailabilityPolicy())) {
         chunkDescriptor.State = EInputChunkState::Waiting;
     }
 }
@@ -1334,7 +1336,7 @@ std::vector<TInputChunkPtr> TInputManager::CollectPrimaryChunks(bool versioned, 
     for (const auto& table : tables) {
         if (!table->IsForeign() && ((table->Dynamic && table->Schema->IsSorted()) == versioned)) {
             for (const auto& chunk : Concatenate(table->Chunks, table->HunkChunks)) {
-                if (IsUnavailable(chunk, Host_->GetChunkAvailabilityPolicy())) {
+                if (chunk->IsUnavailable(Host_->GetChunkAvailabilityPolicy())) {
                     switch (Host_->GetSpec()->UnavailableChunkStrategy) {
                         case EUnavailableChunkAction::Skip:
                             continue;

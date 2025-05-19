@@ -222,7 +222,8 @@ public:
             auto layerBlockCache = CreateClientBlockCache(
                 blockCacheConfig,
                 EBlockType::CompressedData,
-                GetNullMemoryUsageTracker());
+                GetNullMemoryUsageTracker(),
+                ExecNodeProfiler().WithPrefix("/layer_block_cache"));
 
             LayerReaderHost_ = New<TChunkReaderHost>(
                 client,

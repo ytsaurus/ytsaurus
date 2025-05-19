@@ -108,7 +108,7 @@ public:
         return Occupant_->GetCellId();
     }
 
-    const TString& GetCellBundleName() const override
+    const std::string& GetCellBundleName() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 

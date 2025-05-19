@@ -279,7 +279,6 @@ public:
         const auto& sourceReplicas = replicasOrError.Value();
         builder.Add(sourceReplicas);
         ToProto(jobSpecExt->mutable_source_replicas(), sourceReplicas);
-        ToProto(jobSpecExt->mutable_legacy_source_replicas(), sourceReplicas);
 
         jobSpecExt->set_striped_erasure_chunk(Chunk_->GetStripedErasure());
 
@@ -2932,9 +2931,9 @@ void TChunkReplicator::OnCheckEnabledPrimary()
 
 void TChunkReplicator::OnCheckEnabledSecondary()
 {
-    auto proxy = CreateObjectServiceReadProxy(
-        Bootstrap_->GetRootClient(),
-        NApi::EMasterChannelKind::Leader);
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+        multicellManager->GetMasterChannelOrThrow(PrimaryMasterCellTagSentinel, NHydra::EPeerKind::Leader));
 
     auto [enabledRsp, faultyStorageDCsRsp] = WaitFor(proxy.ExecuteMany(
         TYPathProxy::Get("//sys/@chunk_replicator_enabled"),

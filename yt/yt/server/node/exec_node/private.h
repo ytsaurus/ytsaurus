@@ -4,7 +4,11 @@
 
 #include <yt/yt/server/lib/scheduler/public.h>
 
+#include <yt/yt/server/lib/job_proxy/public.h>
+
 #include <yt/yt/library/profiling/sensor.h>
+
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -52,6 +56,28 @@ struct TShellCommandOutput
 {
     TString Stdout;
     TString Stderr;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNetworkAttributes
+{
+    ui32 ProjectId;
+    TString HostName;
+    std::vector<NJobProxy::TUserJobNetworkAddressPtr> Addresses;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGpuCheckOptions
+{
+    TString BinaryPath;
+    std::vector<TString> BinaryArgs;
+    std::optional<TNetworkAttributes> NetworkAttributes;
+    THashMap<TString, TString> Environment;
+    std::vector<NContainers::TDevice> Devices;
+    std::vector<TShellCommandConfigPtr> SetupCommands;
+    std::optional<TString> InfinibandCluster;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

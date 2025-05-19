@@ -485,9 +485,9 @@ public:
         return unwrapAddresses(secondaryMaster->Addresses);
     }
 
-    void ResetAndRegisterAtMaster() override
+    void ResetAndRegisterAtMaster(ERegistrationReason reason) override
     {
-        return MasterConnector_->ResetAndRegisterAtMaster();
+        return MasterConnector_->ResetAndRegisterAtMaster(reason);
     }
 
     bool IsConnected() const override
@@ -1915,9 +1915,9 @@ std::vector<std::string> TBootstrapBase::GetMasterAddressesOrThrow(TCellTag cell
     return Bootstrap_->GetMasterAddressesOrThrow(cellTag);
 }
 
-void TBootstrapBase::ResetAndRegisterAtMaster()
+void TBootstrapBase::ResetAndRegisterAtMaster(ERegistrationReason reason)
 {
-    return Bootstrap_->ResetAndRegisterAtMaster();
+    return Bootstrap_->ResetAndRegisterAtMaster(reason);
 }
 
 bool TBootstrapBase::IsConnected() const

@@ -114,9 +114,7 @@ Y_UNIT_TEST_SUITE(TDiscoverYqlExpr) {
 ))";
 
         auto res = Discover(s);
-        UNIT_ASSERT_VALUES_EQUAL(res, R"(<main>: Error: Default error
-    <main>:5:6: Error: MrTableRange/MrTableRangeStrict is not allowed in Discovery mode, code: 4600
-)");
+        UNIT_ASSERT_C(res.Contains("Error: MrTableRange/MrTableRangeStrict is not allowed in Discovery mode, code: 4600"), res);
     }
 
     Y_UNIT_TEST(ErrorOnTime) {
@@ -138,13 +136,7 @@ Y_UNIT_TEST_SUITE(TDiscoverYqlExpr) {
 ))";
 
         auto res = Discover(s);
-        UNIT_ASSERT_VALUES_EQUAL(res, R"(<main>: Error: Default error
-    <main>:4:28: Error: At function: EvaluateAtom
-        <main>: Error: Type annotation, code: 1030
-            <main>:4:42: Error: At function: SafeCast
-                <main>:4:52: Error: At function: CurrentUtcDate
-                    <main>:4:52: Error: CurrentUtcDate is not allowed in Discovery mode, code: 4600
-)");
+        UNIT_ASSERT_C(res.Contains("Error: CurrentUtcDate is not allowed in Discovery mode, code: 4600"), res);
     }
 }
 

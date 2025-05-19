@@ -10,8 +10,6 @@
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
-
 #include <algorithm>
 
 namespace NYT {
@@ -418,6 +416,10 @@ i64 TNodeMemoryTracker::CalculatePoolLimit(i64 limit, const TPool* pool) const
 
     YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
+    auto saturatedCastToInteger = [] (double value) {
+        return value >= std::numeric_limits<i64>::max() ? std::numeric_limits<i64>::max() : static_cast<i64>(value);
+    };
+
     auto result = limit;
 
     auto totalPoolWeight = TotalPoolWeight_.load();
@@ -431,11 +433,11 @@ i64 TNodeMemoryTracker::CalculatePoolLimit(i64 limit, const TPool* pool) const
         }
 
         auto fpResult = 1.0 * limit / totalPoolWeight * (*poolWeight);
-        result = std::min(static_cast<i64>(fpResult), result);
+        result = std::min(saturatedCastToInteger(fpResult), result);
     }
 
     if (poolRatio) {
-        result = std::min(static_cast<i64>(limit * (*poolRatio)), result);
+        result = std::min(saturatedCastToInteger(limit * (*poolRatio)), result);
     }
 
     return result;

@@ -35,16 +35,6 @@ class TestJobSplitter(YTEnvSetup):
         },
     }
 
-    JOB_SPLITTER_CONFIG = {
-        "min_job_time": 5000,
-        "min_total_data_weight": 1024,
-        "update_period": 100,
-        "candidate_percentile": 0.8,
-        "max_jobs_per_split": 3,
-        "job_logging_period": 0,
-        "max_input_table_count": 10,
-    }
-
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operations_update_period": 10,
@@ -53,24 +43,15 @@ class TestJobSplitter(YTEnvSetup):
                     "use_new_sorted_pool": False,
                     "foreign_table_lookup_keys_threshold": 1000,
                 },
-            },
-            "map_operation_options": {
-                "job_splitter": JOB_SPLITTER_CONFIG,
-            },
-            "reduce_operation_options": {
-                "job_splitter": JOB_SPLITTER_CONFIG,
-            },
-            "join_reduce_operation_options": {
-                "job_splitter": JOB_SPLITTER_CONFIG,
-            },
-            "map_reduce_operation_options": {
-                "job_splitter": JOB_SPLITTER_CONFIG,
-            },
-            "sorted_merge_operation_options": {
-                "job_splitter": JOB_SPLITTER_CONFIG,
-            },
-            "ordered_merge_operation_options": {
-                "job_splitter": JOB_SPLITTER_CONFIG,
+                "job_splitter": {
+                    "min_job_time": 5000,
+                    "min_total_data_weight": 1024,
+                    "update_period": 100,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                    "job_logging_period": 0,
+                    "max_input_table_count": 10,
+                },
             },
         }
     }

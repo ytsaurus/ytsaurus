@@ -771,7 +771,7 @@ private:
             auto listNode = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
             auto list = listNode->AsList();
             for (const auto& item : list->GetChildren()) {
-                auto key = item->GetValue<TString>();
+                auto key = item->GetValue<std::string>();
                 int id;
                 if (!TryFromString<int>(key, id)) {
                     continue;

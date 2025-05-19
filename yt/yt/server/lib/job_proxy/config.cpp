@@ -231,10 +231,6 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("executor_stderr_path", &TThis::ExecutorStderrPath)
         .Default();
 
-    // COMPAT(artemagafonov): RootFS is always writable, so the flag should be removed after the update of all nodes.
-    registrar.Parameter("make_rootfs_writable", &TThis::MakeRootFSWritable)
-        .Default(true);
-
     registrar.Parameter("enable_fuse", &TThis::EnableFuse)
         .Default(false);
 
@@ -389,7 +385,11 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("adaptive_row_count_upper_bound", &TThis::AdaptiveRowCountUpperBound)
-        .Default(std::numeric_limits<i64>::max());
+        .Default(40000)
+        .GreaterThan(0);
+
+    registrar.Parameter("use_new_delivery_fenced_connection", &TThis::UseNewDeliveryFencedConnection)
+        .Default(true);
 
     registrar.Parameter("start_queue_consumer_registration_manager", &TThis::StartQueueConsumerRegistrationManager)
         .Default(true);
@@ -455,7 +455,11 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
 
     registrar.Parameter("adaptive_row_count_upper_bound", &TThis::AdaptiveRowCountUpperBound)
-        .Default(std::numeric_limits<i64>::max());
+        .Default(40000)
+        .GreaterThan(0);
+
+    registrar.Parameter("use_new_delivery_fenced_connection", &TThis::UseNewDeliveryFencedConnection)
+        .Default(true);
 
     registrar.Parameter("memory_profile_dump_path", &TThis::MemoryProfileDumpPath)
         .Alias("heap_dump_directory")

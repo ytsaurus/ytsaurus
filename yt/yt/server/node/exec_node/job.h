@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "job_info.h"
 #include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
@@ -18,9 +19,9 @@
 #include <yt/yt/server/lib/job_agent/public.h>
 #include <yt/yt/server/lib/job_agent/structs.h>
 
-#include <yt/yt/server/lib/job_proxy/public.h>
-
 #include <yt/yt/server/lib/scheduler/structs.h>
+
+#include <yt/yt/server/lib/controller_agent/network_project.h>
 
 #include <yt/yt/client/api/client.h>
 
@@ -372,7 +373,7 @@ private:
 
     int SetupCommandCount_ = 0;
 
-    std::optional<ui32> NetworkProjectId_;
+    std::optional<NControllerAgent::TNetworkProject> NetworkProject_;
     std::vector<TString> TmpfsPaths_;
 
     std::atomic<bool> UseJobInputCache_ = false;
@@ -383,6 +384,7 @@ private:
     std::vector<NDataNode::TArtifactKey> RootVolumeLayerArtifactKeys_;
     std::vector<NDataNode::TArtifactKey> GpuCheckVolumeLayerArtifactKeys_;
     std::optional<TString> DockerImage_;
+    std::optional<TString> DockerImageId_;
 
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
 
@@ -422,6 +424,7 @@ private:
     NRpc::IChannelPtr JobProxyChannel_;
 
     std::vector<TNameWithAddress> ResolvedNodeAddresses_;
+    TNetworkAttributes NetworkAttributes_;
 
     // Artifact statistics.
     NJobAgent::TChunkCacheStatistics ChunkCacheStatistics_;
@@ -501,7 +504,7 @@ private:
 
     void OnSetupCommandsFinished(const TError& error);
 
-    std::vector<NContainers::TDevice> GetGpuDevices();
+    std::vector<NContainers::TDevice> GetGpuDevices() const;
 
     bool IsFullHostGpuJob() const;
 
@@ -549,7 +552,7 @@ private:
 
     std::vector<NContainers::TBind> GetRootFSBinds();
 
-    void PrepareSandboxDirectories();
+    TNetworkAttributes BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject) const;
 
     bool CanBeAccessedViaBind(const TArtifact& artifact) const;
     bool CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const;
@@ -609,6 +612,10 @@ private:
 
     bool NeedGpu();
 
+    bool NeedsGpuCheck() const;
+
+    TGpuCheckOptions GetGpuCheckOptions() const;
+
     void CollectSensorsFromStatistics(NProfiling::ISensorWriter* writer);
     void CollectSensorsFromGpuAndRdmaDeviceInfo(NProfiling::ISensorWriter* writer);
 
@@ -627,8 +634,6 @@ private:
     void OnJobFinalized();
 
     void DeduceAndSetFinishedJobState();
-
-    bool NeedsGpuCheck() const;
 
     static std::vector<NScheduler::TTmpfsVolumeConfigPtr> ParseTmpfsVolumeInfos(
         const NControllerAgent::NProto::TUserJobSpec* maybeUserJobSpec);

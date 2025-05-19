@@ -767,8 +767,14 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NP
 struct TNbdDiskConfig
     : public NYTree::TYsonStruct
 {
-    //! Address of data node that hosts NBD chunk.
+    //! Params to connect to chosen data nodes.
+    TDuration DataNodeRpcTimeout;
     std::optional<std::string> DataNodeAddress;
+
+    //! Params to get suitable data nodes from master.
+    TDuration MasterRpcTimeout;
+    int MinDataNodesCount;
+    int MaxDataNodesCount;
 
     REGISTER_YSON_STRUCT(TNbdDiskConfig);
 
@@ -788,7 +794,7 @@ struct TDiskRequestConfig
 
     std::optional<TString> MediumName;
     std::optional<int> MediumIndex;
-    std::optional<TString> Account;
+    std::optional<std::string> Account;
 
     //! Use Network Block Device (NBD) disk.
     TNbdDiskConfigPtr NbdDisk;
@@ -912,7 +918,7 @@ struct TJobExperimentConfig
     std::optional<TString> BaseLayerPath;
 
     //! The network project used in the treatment jobs of the experiment.
-    std::optional<TString> NetworkProject;
+    std::optional<std::string> NetworkProject;
 
     //! Do not run any more treatment jobs if the `MaxFailedTreatmentJobs` of them failed.
     int MaxFailedTreatmentJobs;
@@ -998,7 +1004,7 @@ struct TOperationSpecBase
     : public TStrategyOperationSpec
 {
     //! Account holding intermediate data produces by the operation.
-    TString IntermediateDataAccount;
+    std::string IntermediateDataAccount;
 
     //! Codec used for compressing intermediate output during shuffle.
     NCompression::ECodec IntermediateCompressionCodec;
@@ -1015,7 +1021,7 @@ struct TOperationSpecBase
     //! SyncOnClose option for intermediate data.
     bool IntermediateDataSyncOnClose;
 
-    TString IntermediateDataMediumName;
+    std::string IntermediateDataMediumName;
 
     //! Table writer config for the data that will be written to the fast medium (SSD) in the default intermediate account.
     TFastIntermediateMediumTableWriterConfigPtr FastIntermediateMediumTableWriterConfig;
@@ -1024,7 +1030,7 @@ struct TOperationSpecBase
     i64 FastIntermediateMediumLimit;
 
     //! Account for job nodes and operation files (stderrs and input contexts of failed jobs).
-    TString DebugArtifactsAccount;
+    std::string DebugArtifactsAccount;
 
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;
@@ -1422,7 +1428,7 @@ struct TUserJobSpec
     std::optional<TDuration> JobSpeculationTimeout;
 
     //! Name of the network project to use in job.
-    std::optional<TString> NetworkProject;
+    std::optional<std::string> NetworkProject;
 
     //! Configures |enable_porto| setting for user job containers.
     //! If not given, then the global default from controller agent's config is used.
@@ -1514,15 +1520,15 @@ DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGangManagerConfig
+struct TGangOptions
     : public NYTree::TYsonStruct
 {
-    REGISTER_YSON_STRUCT(TGangManagerConfig);
+    REGISTER_YSON_STRUCT(TGangOptions);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TGangOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1538,7 +1544,7 @@ struct TVanillaTaskSpec
 
     bool RestartCompletedJobs;
 
-    TGangManagerConfigPtr GangManager;
+    TGangOptionsPtr GangOptions;
 
     REGISTER_YSON_STRUCT(TVanillaTaskSpec);
 
@@ -1623,11 +1629,14 @@ DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
 struct TSimpleOperationSpecBase
     : public TOperationSpecBase
 {
-    //! During sorted merge the scheduler tries to ensure that large connected
-    //! groups of chunks are partitioned into tasks of this or smaller size.
-    //! This number, however, is merely an estimate, i.e. some tasks may still
-    //! be larger.
+    //! During sorted merge, the controller tries to ensure that large, connected
+    //! groups of chunks are partitioned into tasks of this size or greater.
+    //! However, this number is merely an estimate; some tasks may still be
+    //! smaller or significantly larger in some cases.
     std::optional<i64> DataWeightPerJob;
+
+    //! Recomendation for job input compressed data size.
+    std::optional<i64> CompressedDataSizePerJob;
 
     std::optional<int> JobCount;
     std::optional<int> MaxJobCount;

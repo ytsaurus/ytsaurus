@@ -18,7 +18,8 @@ void ToProto(NProto::TProgressValues* protoProgress, const TProgressValues& prog
     protoProgress->set_finished(progress.Finished);
 }
 
-void ToProto(NProto::TQueryProgressValues* protoProgress, TQueryId queryId, const std::optional<TQueryProgressValues>& progress) {
+void ToProto(NProto::TQueryProgressValues* protoProgress, TQueryId queryId, const std::optional<TQueryProgressValues>& progress)
+{
     ToProto(protoProgress->mutable_query_id(), queryId);
 
     if (progress) {

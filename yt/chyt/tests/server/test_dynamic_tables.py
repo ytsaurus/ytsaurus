@@ -292,6 +292,7 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
 
     @authors("max42")
     @pytest.mark.parametrize("instance_count", [1, 2])
+    @pytest.mark.timeout(500)
     def test_map_on_dynamic_table(self, instance_count):
         self._create_simple_dynamic_table("//tmp/t", sort_order="ascending")
         set("//tmp/t/@min_compaction_store_count", 5)
@@ -304,39 +305,38 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
         with Clique(instance_count, config_patch=self._get_config_patch()) as clique:
             assert_items_equal(clique.make_query("select * from `//tmp/t`"), rows)
 
-        rows1 = [{"key": i, "value": str(i + 1)} for i in range(3)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows1)
-        sync_unmount_table("//tmp/t")
+            rows1 = [{"key": i, "value": str(i + 1)} for i in range(3)]
+            sync_mount_table("//tmp/t")
+            insert_rows("//tmp/t", rows1)
+            sync_unmount_table("//tmp/t")
 
-        rows2 = [{"key": i, "value": str(i + 2)} for i in range(2, 6)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows2)
-        sync_unmount_table("//tmp/t")
+            rows2 = [{"key": i, "value": str(i + 2)} for i in range(2, 6)]
+            sync_mount_table("//tmp/t")
+            insert_rows("//tmp/t", rows2)
+            sync_unmount_table("//tmp/t")
 
-        rows3 = [{"key": i, "value": str(i + 3)} for i in range(7, 8)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows3)
-        sync_unmount_table("//tmp/t")
+            rows3 = [{"key": i, "value": str(i + 3)} for i in range(7, 8)]
+            sync_mount_table("//tmp/t")
+            insert_rows("//tmp/t", rows3)
+            sync_unmount_table("//tmp/t")
 
-        assert len(get("//tmp/t/@chunk_ids")) == 4
+            assert len(get("//tmp/t/@chunk_ids")) == 4
 
-        def update(new):
-            def update_row(row):
-                for r in rows:
-                    if r["key"] == row["key"]:
-                        r["value"] = row["value"]
-                        return
-                rows.append(row)
+            def update(new):
+                def update_row(row):
+                    for r in rows:
+                        if r["key"] == row["key"]:
+                            r["value"] = row["value"]
+                            return
+                    rows.append(row)
 
-            for row in new:
-                update_row(row)
+                for row in new:
+                    update_row(row)
 
-        update(rows1)
-        update(rows2)
-        update(rows3)
+            update(rows1)
+            update(rows2)
+            update(rows3)
 
-        with Clique(instance_count, config_patch=self._get_config_patch()) as clique:
             assert_items_equal(clique.make_query("select * from `//tmp/t`"), rows)
 
     @authors("max42")
@@ -500,6 +500,8 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
 
 
 class TestClickHouseDynamicTablesFetchFromTablets(TestClickHouseDynamicTables):
+    NUM_TEST_PARTITIONS = 4
+
     def _get_config_patch(self):
         config_patch = super(TestClickHouseDynamicTablesFetchFromTablets, self)._get_config_patch()
         config_patch["yt"]["settings"]["dynamic_table"]["fetch_from_tablets"] = True

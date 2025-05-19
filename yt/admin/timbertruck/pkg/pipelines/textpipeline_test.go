@@ -3,6 +3,7 @@ package pipelines_test
 import (
 	"context"
 	"io"
+	"log/slog"
 	"os"
 	"path"
 	"strings"
@@ -51,7 +52,7 @@ func TestFollowingPipelinesWithCompression(t *testing.T) {
 func testTextPipeline(t *testing.T, filepath string, fileWriter io.Writer) {
 	t.Helper()
 
-	p, s, err := pipelines.NewTextPipeline(filepath, pipelines.FilePosition{}, pipelines.TextPipelineOptions{
+	p, s, err := pipelines.NewTextPipeline(slog.Default(), filepath, pipelines.FilePosition{}, pipelines.TextPipelineOptions{
 		LineLimit:   8,
 		BufferLimit: 64,
 	})

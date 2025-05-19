@@ -94,7 +94,7 @@ struct ITransactionManager
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
-    virtual NHydra::TEntityMap<TTransaction>* MutableTransactionMap() = 0;
+    virtual NHydra::TMutableEntityMap<TTransaction>* MutableTransactionMap() = 0;
 
     virtual const THashSet<TTransaction*>& ForeignTransactions() const = 0;
     virtual const THashSet<TTransaction*>& NativeTopmostTransactions() const = 0;

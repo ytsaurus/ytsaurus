@@ -232,9 +232,8 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
     trunkNode->SetOpaque(opaque);
 
     // Copy annotation.
-    auto optionalAnnotation = Load<std::optional<TString>>(*context);
-    if (optionalAnnotation) {
-        trunkNode->SetAnnotation(*optionalAnnotation);
+    if (auto optionalAnnotation = Load<std::optional<std::string>>(*context)) {
+        trunkNode->SetAnnotation(std::move(*optionalAnnotation));
     } else {
         trunkNode->RemoveAnnotation();
     }
@@ -266,7 +265,7 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
     }
 
     // Copy attributes directly to suppress validation.
-    auto keyToAttribute = Load<std::vector<std::pair<TString, TYsonString>>>(*context);
+    auto keyToAttribute = Load<std::vector<std::pair<std::string, TYsonString>>>(*context);
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = trunkNode->GetMutableAttributes();
         const auto& ysonInternRegistry = Bootstrap_->GetYsonInternRegistry();
@@ -397,17 +396,6 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCoreEpilogue(
     securityManager->ResetAccount(branchedNode);
 
     securityManager->UpdateMasterMemoryUsage(originatingNode);
-
-    if (originatingNode->IsSequoia() && originatingNode->IsNative()) {
-        if (branchedNode->MutableSequoiaProperties()->Tombstone) {
-            if (originatingNode->IsTrunk()) {
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                objectManager->UnrefObject(originatingNode);
-            } else {
-                originatingNode->MutableSequoiaProperties()->Tombstone = true;
-            }
-        }
-    }
 }
 
 TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
@@ -454,9 +442,7 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     // Copy ACD.
     if (factory->ShouldPreserveAcl(mode)) {
         clonedTrunkNode->Acd().SetInherit(sourceNode->Acd().Inherit());
-        for (const auto& ace : sourceNode->Acd().Acl().Entries) {
-            clonedTrunkNode->Acd().AddEntry(ace);
-        }
+        clonedTrunkNode->Acd().SetEntries(sourceNode->Acd().Acl());
     }
 
     // Copy builtin attributes.

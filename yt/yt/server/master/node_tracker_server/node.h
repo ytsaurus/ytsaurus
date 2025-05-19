@@ -129,7 +129,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, Annotations);
-    DEFINE_BYVAL_RW_PROPERTY(TString, Version);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, Version);
 
     DEFINE_BYREF_RO_PROPERTY(THashSet<ENodeFlavor>, Flavors);
 
@@ -184,7 +184,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TExecNodeStatistics, ExecNodeStatistics);
     void SetExecNodeStatistics(NNodeTrackerClient::NProto::TExecNodeStatistics&& statistics);
 
-    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, JobProxyVersion);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<std::string>, JobProxyVersion);
 
     // Chunk Manager stuff.
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TDataNodeStatistics, DataNodeStatistics);
@@ -294,7 +294,7 @@ public:
      */
     TDataCenter* GetDataCenter() const;
 
-    bool HasTag(const std::optional<TString>& tag) const;
+    bool HasTag(const std::optional<std::string>& tag) const;
 
     //! Prepares per-cell state map.
     //! Inserts new entries into the map, fills missing ones with ENodeState::Offline value.

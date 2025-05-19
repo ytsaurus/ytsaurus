@@ -175,6 +175,9 @@ def init_drivers(clusters):
         return drivers
 
     for instance in clusters:
+        if instance is None:
+            continue
+
         if instance.yt_config.master_count > 0:
             if instance._default_driver_backend == "native":
                 default_driver = create_driver_per_api(instance.configs["driver"])
@@ -429,6 +432,10 @@ def execute_command(
     if "user_tag" in parameters:
         user_tag = parameters["user_tag"]
         del parameters["user_tag"]
+    token = None
+    if "token" in parameters:
+        token = parameters["token"]
+        del parameters["token"]
 
     if "path" in parameters:
         parameters["path"] = prepare_path(parameters["path"])
@@ -477,6 +484,7 @@ def execute_command(
             user=authenticated_user,
             user_tag=user_tag,
             trace_id=trace_id,
+            token=token,
         )
     )
 

@@ -715,7 +715,7 @@ public:
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext))
         , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
-        , SourceReplicas_(ParseSourceReplicas(JobSpecExt_))
+        , SourceReplicas_(FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas()))
         , TargetReplicas_(FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas()))
         , Sensors_(std::move(sensors))
         , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->RepairChunkJob)
@@ -726,28 +726,14 @@ public:
 private:
     const TRepairChunkJobSpecExt JobSpecExt_;
     const TChunkId ChunkId_;
-    const TChunkReplicaWithMediumList SourceReplicas_;
+    const TChunkReplicaList SourceReplicas_;
     const TChunkReplicaWithMediumList TargetReplicas_;
     const TMasterJobSensors Sensors_;
     const TRepairChunkJobDynamicConfigPtr DynamicConfig_;
 
-    // COMPAT(babenko)
-    static TChunkReplicaWithMediumList ParseSourceReplicas(const TRepairChunkJobSpecExt& jobSpecExt)
-    {
-        if (jobSpecExt.source_replicas_size() == 0) {
-            TChunkReplicaWithMediumList result;
-            for (auto replica : FromProto<TChunkReplicaList>(jobSpecExt.legacy_source_replicas())) {
-                result.emplace_back(replica);
-            }
-            return result;
-        } else {
-            return FromProto<TChunkReplicaWithMediumList>(jobSpecExt.source_replicas());
-        }
-    }
-
     IChunkReaderAllowingRepairPtr CreateReader(int partIndex)
     {
-        TChunkReplicaWithMediumList partReplicas;
+        TChunkReplicaList partReplicas;
         for (auto replica : SourceReplicas_) {
             if (replica.GetReplicaIndex() == partIndex) {
                 partReplicas.push_back(replica);
@@ -1038,20 +1024,6 @@ private:
     const TChunkId ChunkId_;
     const TSealChunkJobDynamicConfigPtr DynamicConfig_;
 
-    // COMPAT(babenko)
-    static TChunkReplicaWithMediumList ParseSourceReplicas(const TSealChunkJobSpecExt& jobSpecExt)
-    {
-        if (jobSpecExt.source_replicas_size() == 0) {
-            TChunkReplicaWithMediumList result;
-            for (auto replica : FromProto<TChunkReplicaList>(jobSpecExt.legacy_source_replicas())) {
-                result.emplace_back(replica);
-            }
-            return result;
-        } else {
-            return FromProto<TChunkReplicaWithMediumList>(jobSpecExt.source_replicas());
-        }
-    }
-
     TFuture<void> DoRun() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -1067,7 +1039,7 @@ private:
 
         auto codecId = FromProto<NErasure::ECodec>(JobSpecExt_.codec_id());
         int mediumIndex = JobSpecExt_.medium_index();
-        auto sourceReplicas = ParseSourceReplicas(JobSpecExt_);
+        auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
         i64 sealRowCount = JobSpecExt_.row_count();
 
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
@@ -1530,7 +1502,6 @@ private:
         ToProto(chunkInfo.mutable_id(), writer->GetChunkId());
 
         for (auto replica : writer->GetWrittenChunkReplicasInfo().Replicas) {
-            chunkInfo.add_legacy_source_replicas(ToProto<ui32>(replica.ToChunkReplica()));
             chunkInfo.add_source_replicas(ToProto(TChunkReplicaWithMedium(replica)));
         }
 
@@ -2637,7 +2608,7 @@ private:
             return {};
         }
 
-        auto bodyChunkReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.body_chunk_replicas());
+        auto bodyChunkReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.body_chunk_replicas());
 
         auto chunkReaderHost = New<TChunkReaderHost>(
             Bootstrap_->GetClient(),

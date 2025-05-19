@@ -271,7 +271,7 @@ public:
         , MasterChannelKind_(masterChannelKind)
         , ForceUseTargetCellTag_(
             targetCellTag != Owner_->Bootstrap_->GetNativeConnection()->GetPrimaryMasterCellTag())
-        , Logger(Owner_->Logger)
+        , Logger(Owner_->Logger.WithTag("RequestId: %v", RpcContext_->GetRequestId()))
     { }
 
     void Run()
@@ -301,6 +301,8 @@ private:
 
     struct TSubrequest
     {
+        int Index;
+
         TSharedRefArray RequestMessage;
         std::optional<NRpc::NProto::TRequestHeader> RequestHeader;
 
@@ -359,6 +361,7 @@ private:
         std::optional<bool> mutating;
         for (int index = 0; index < subrequestCount; ++index) {
             auto& subrequest = Subrequests_[index];
+            subrequest.Index = index;
 
             auto partCount = request.part_counts(index);
             TSharedRefArrayBuilder messageBuilder(partCount);
@@ -478,7 +481,9 @@ private:
         }
 
         auto responses = WaitFor(AllSet(std::move(responseFutures)))
-            .ValueOrThrow(); // Unexpected error, just reply to the client.
+            // On unexpected error, just reply to the client.
+            .ValueOrThrow();
+
         for (const auto& [response, requestInfo] : Zip(responses, requestInfos)) {
             if (!response.IsOK()) {
                 if (requestInfo.SubrequestIndices.size() == Subrequests_.size()) {
@@ -515,6 +520,8 @@ private:
         const auto& masterCellDirectory = connection->GetMasterCellDirectory();
         const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(nakedMasterChannel);
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
         auto masterRequest = proxy.Execute();
 
@@ -617,8 +624,7 @@ private:
                 if (IsSubrequestRejectedByMaster(index, subresponseMessage)) {
                     YT_LOG_DEBUG(
                         "Subrequest was rejected by master server in favor of Sequoia "
-                        "(RequestId: %v, SubrequestIndex: %v)",
-                        RpcContext_->GetRequestId(),
+                        "(SubrequestIndex: %v)",
                         index);
 
                     Subrequests_[index].Target = ERequestTarget::Sequoia;
@@ -630,8 +636,7 @@ private:
                     YT_LOG_DEBUG(
                         originError,
                         "Possible Sequoia resolve miss encountered; marking it as retriable "
-                        "(RequestId: %v, SubrequestIndex: %v, SequoiaObjectId: %v)",
-                        RpcContext_->GetRequestId(),
+                        "(SubrequestIndex: %v, SequoiaObjectId: %v)",
                         index,
                         Subrequests_[index].ResolvedNodeId);
                     // See comment next to |TSubrequest::TResolvedNodeId|.
@@ -640,7 +645,11 @@ private:
             }
 
             Subrequests_[index].Target = ERequestTarget::None;
-            ReplyOnSubrequest(index, std::move(subresponseMessage));
+
+            // TODO(banbenko, kvk1920): Currently this is only filled for requests forwarded to masters.
+            // Handle Sequoia requests as well!
+            auto revision = FromProto<NHydra::TRevision>(subresponse.revision());
+            ReplyOnSubrequest(index, std::move(subresponseMessage), revision);
         }
 
         for (int index : subrequestsWithoutResponse) {
@@ -844,7 +853,6 @@ private:
 
         TSequoiaSessionPtr session;
         TResolveResult resolveResult;
-
         try {
             session = TSequoiaSession::Start(Owner_->Bootstrap_, cypressTransactionId, prerequisiteTransactionIds);
             resolveResult = ResolvePath(
@@ -852,6 +860,8 @@ private:
                 originalTargetPath,
                 subrequest->RequestHeader->method());
         } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Subrequest resolve failed (SubrequestIndex: %v)",
+                subrequest->Index);
             return CreateErrorResponseMessage(ex);
         }
 
@@ -894,8 +904,7 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG("Executing subrequest in Sequoia (RequestId: %v, SubrequestIndex: %v)",
-                RpcContext_->GetRequestId(),
+            YT_LOG_DEBUG("Executing subrequest in Sequoia (SubrequestIndex: %v)",
                 index);
 
             if (auto subresponse = ExecuteSequoiaSubrequest(&subrequest)) {
@@ -910,16 +919,23 @@ private:
         RpcContext_->Reply(error);
     }
 
-    void ReplyOnSubrequest(int subrequestIndex, TSharedRefArray subresponseMessage)
+    void ReplyOnSubrequest(
+        int subrequestIndex,
+        TSharedRefArray subresponseMessage,
+        NHydra::TRevision revision = NHydra::NullRevision)
     {
         // Caller is responsible for marking subrequest as executed.
         YT_VERIFY(Subrequests_[subrequestIndex].Target == ERequestTarget::None);
 
         auto& response = RpcContext_->Response();
 
-        auto* subresponseInfo = response.add_subresponses();
-        subresponseInfo->set_index(subrequestIndex);
-        subresponseInfo->set_part_count(subresponseMessage.Size());
+        auto* subresponse = response.add_subresponses();
+        subresponse->set_index(subrequestIndex);
+        subresponse->set_part_count(subresponseMessage.Size());
+        if (revision != NHydra::NullRevision) {
+            subresponse->set_revision(ToProto(revision));
+        }
+
         response.Attachments().insert(
             response.Attachments().end(),
             subresponseMessage.Begin(),
@@ -966,7 +982,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     if (masterChannelKind != EMasterChannelKind::Leader &&
         masterChannelKind != EMasterChannelKind::Follower)
     {
-        THROW_ERROR_EXCEPTION("Expected %Qv or %Qv master channel kind, got %Qv",
+        THROW_ERROR_EXCEPTION("Expected %Qlv or %Qlv master channel kind, got %Qlv",
             EMasterChannelKind::Leader,
             EMasterChannelKind::Follower,
             masterChannelKind);

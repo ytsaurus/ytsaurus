@@ -64,6 +64,8 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("decommission_released_nodes", &TThis::DecommissionReleasedNodes)
         .Default(true);
+    registrar.Parameter("enable_spare_node_assignment", &TThis::EnableSpareNodeAssignment)
+        .Default(true);
 
     registrar.Parameter("node_count_per_cell", &TThis::NodeCountPerCell)
         .GreaterThan(0)

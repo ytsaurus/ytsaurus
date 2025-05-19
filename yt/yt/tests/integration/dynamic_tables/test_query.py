@@ -2517,6 +2517,10 @@ class TestQuery(DynamicTablesBase):
             query = "col_name from (select 1 as col_name from [//tmp/t] limit 1) join [//tmp/t] on 1 = 1 group by col_name"
             select_rows(query, allow_join_without_index=True)
 
+        assert select_rows("cardinality_merge(Subquery.x) AS c FROM "
+                           "(SELECT cardinality_state(k_2) AS x FROM `//tmp/t` GROUP BY k_1) AS Subquery "
+                           "GROUP BY 1")[0]["c"] == 4
+
     @authors("sabdenovch")
     def test_push_down_group_by_primary_key(self):
         sync_create_cells(1)
@@ -2775,3 +2779,17 @@ class TestSelectWithRowCache(TestLookupCache):
         keys = str(list(keys))[1:-1]
         column_names = "*" if column_names is None else ", ".join(column_names)
         return select_rows(column_names + f" from [{table}] where key in ({keys})", **kwargs)
+
+
+@pytest.mark.enabled_multidaemon
+class TestQuerySequoia(TestQuery):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }

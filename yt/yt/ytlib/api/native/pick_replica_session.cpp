@@ -365,7 +365,7 @@ TClusterScoreMap TPickReplicaSession::PickViableClusters(
 
             auto error = TError(
                 NTabletClient::EErrorCode::NoInSyncReplicas,
-                "No single cluster contains in-sync replicas for table %v",
+                "No cluster contains in-sync replicas for table %v",
                 TableInfos_[index]->Path)
                 << TErrorAttribute("banned_replicas", bannedReplicaIds);
 

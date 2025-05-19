@@ -8,17 +8,17 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IProfilingMultiChunkReader
+struct IProfilingMultiChunkReader
     : public NTableClient::ISchemalessMultiChunkReader
 {
-public:
-    virtual std::optional<TCpuDuration> GetTimeToFirstBatch() const = 0;
+    virtual std::optional<TDuration> GetTimeToFirstBatch() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IProfilingMultiChunkReader)
 
 IProfilingMultiChunkReaderPtr CreateProfilingMultiChunkReader(
-    NTableClient::ISchemalessMultiChunkReaderPtr underlying, TCpuInstant start);
+    NTableClient::ISchemalessMultiChunkReaderPtr underlying,
+    TInstant start);
 
 ////////////////////////////////////////////////////////////////////////////////
 

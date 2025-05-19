@@ -72,6 +72,8 @@ struct IVolumeManager
 
     virtual void ClearCaches() const = 0;
 
+    virtual void MarkLayersAsNotRemovable() const = 0;
+
     virtual TFuture<void> GetVolumeReleaseEvent() = 0;
 
     virtual TFuture<void> DisableLayerCache(const TError& reason) = 0;

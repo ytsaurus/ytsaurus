@@ -229,12 +229,13 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"controller_finish_time", 58},
 };
 
-static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion) {
+static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion)
+{
     auto it = JobAttributeToMinArchiveVersion.find(attribute);
     if (it == JobAttributeToMinArchiveVersion.end()) {
         return false;
     }
-    const auto& minArchiveVersion = it->second;
+    std::optional<int> minArchiveVersion = it->second;
     return !minArchiveVersion.has_value() || minArchiveVersion.value() <= archiveVersion;
 }
 
@@ -1462,6 +1463,7 @@ static TQueryBuilder GetListJobsQueryBuilder(
         operationIdAsGuid.Parts64[0],
         operationIdAsGuid.Parts64[1]));
 
+    // TODO(bystrovserg): Switch node_state to transient_state.
     auto runningJobsLookbehindPeriodExpression = Format(
         "node_state IN (%v) "
         "OR ((NOT is_null(update_time)) AND update_time >= %v)",
@@ -1493,11 +1495,22 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     auto builder = GetListJobsQueryBuilder(archiveVersion, operationId, options);
 
     auto jobTypeIndex = builder.AddSelectExpression("type", "job_type");
-    auto jobStateIndex = builder.AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
+    int jobStateIndex = 0;
+    if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
+        jobStateIndex = builder.AddSelectExpression(
+            Format(
+                "if(NOT is_null(if(is_null(state), transient_state, state) AS node_state) AND NOT is_null(controller_state),"
+                "   if(node_state IN (%v), node_state, controller_state),"
+                "   if(is_null(node_state), controller_state, node_state))",
+                FinishedJobStatesString),
+            "job_state");
+    } else {
+        jobStateIndex = builder.AddSelectExpression("(if(is_null(state), transient_state, state) AS node_state)", "job_state");
+    }
     auto countIndex = builder.AddSelectExpression("sum(1)", "count");
 
     builder.AddGroupByExpression("job_type");
-    builder.AddGroupByExpression("node_state");
+    builder.AddGroupByExpression("job_state");
 
     return GetOperationsArchiveClient()->SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND([=] (const TSelectRowsResult& result) {
         TListJobsStatistics statistics;
@@ -1720,13 +1733,13 @@ static void AddSelectExpressions(
                 builder->AddSelectExpression("controller_state");
                 builder->AddSelectExpression(
                     Format(
-                        "if(NOT is_null(node_state) AND NOT is_null(controller_state), "
-                        "   if(node_state IN (%v), node_state, controller_state), "
-                        "if(is_null(node_state), controller_state, node_state))",
+                        "if(NOT is_null(node_state) AND NOT is_null(controller_state),"
+                        "   if(node_state IN (%v), node_state, controller_state),"
+                        "   if(is_null(node_state), controller_state, node_state))",
                         FinishedJobStatesString),
                     "job_state");
             } else {
-                builder->AddSelectExpression("state", "job_state");
+                builder->AddSelectExpression("node_state", "job_state");
             }
         } else if (attribute == "controller_state" && attributes.contains("state")) {
             // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
@@ -1737,7 +1750,8 @@ static void AddSelectExpressions(
     }
 }
 
-static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& options, int archiveVersion) {
+static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& options, int archiveVersion)
+{
     if (options.WithStderr) {
         if (*options.WithStderr) {
             builder->AddWhereConjunct("stderr_size != 0 AND NOT is_null(stderr_size)");
@@ -1815,7 +1829,8 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
     }
 }
 
-static void AddOrderByExpression(TQueryBuilder* builder, const TListJobsOptions& options) {
+static void AddOrderByExpression(TQueryBuilder* builder, const TListJobsOptions& options)
+{
     auto orderByDirection = [&] {
         switch (options.SortOrder) {
             case EJobSortDirection::Ascending:
@@ -2333,7 +2348,8 @@ static TError TryFillJobPools(
     return TError();
 }
 
-static void FillIsStale(bool operationFinished, std::vector<TJob>* jobs) {
+static void FillIsStale(bool operationFinished, std::vector<TJob>* jobs)
+{
     for (auto& job : *jobs) {
         auto jobState = job.GetState();
         job.IsStale = jobState && IsJobInProgress(*jobState);
@@ -2343,7 +2359,8 @@ static void FillIsStale(bool operationFinished, std::vector<TJob>* jobs) {
     }
 }
 
-static void ValidateRequestedAttributes(const THashSet<TString>& attributes) {
+static void ValidateRequestedAttributes(const THashSet<TString>& attributes)
+{
     for (const auto& attribute : attributes) {
         if (!SupportedJobsAttributes.contains(attribute)) {
             THROW_ERROR_EXCEPTION(
@@ -2354,9 +2371,10 @@ static void ValidateRequestedAttributes(const THashSet<TString>& attributes) {
     }
 }
 
-static void RemoveUnneededLightAttributes(const THashSet<TString>& attributes, std::vector<TJob>* jobs) {
+static void RemoveUnneededLightAttributes(const THashSet<TString>& attributes, std::vector<TJob>* jobs)
+{
     for (auto& job : *jobs) {
-        auto filterAttribute = [&] (TString attributeName, auto TJob::* attribute) {
+        auto filterAttribute = [&] (std::string attributeName, auto TJob::* attribute) {
             if (!attributes.contains(attributeName)) {
                 job.*attribute = {};
             }
@@ -2543,7 +2561,9 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         } else if (attribute == "state") {
             result.emplace_back("state");
             result.emplace_back("transient_state");
-            result.emplace_back("controller_state");
+            if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
+                result.emplace_back("controller_state");
+            }
         } else if (attribute == "statistics") {
             result.emplace_back("statistics");
             result.emplace_back("statistics_lz4");
@@ -2551,7 +2571,10 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
             // COMPAT(bystrovserg): Remove after dropping "controller_state" from supported attributes.
             result.emplace_back("controller_state");
         } else if (attribute == "start_time" || attribute == "finish_time") {
-            result.emplace_back("controller_" + attribute);
+            auto controllerAttribute = "controller_" + attribute;
+            if (DoesArchiveContainAttribute(controllerAttribute, archiveVersion)) {
+                result.emplace_back(controllerAttribute);
+            }
             result.emplace_back(attribute);
         } else if (attribute == "progress" || attribute == "pool") {
             // Progress and pool are missing from job archive.

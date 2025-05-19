@@ -296,7 +296,7 @@ public:
         return {};
     }
 
-    void ResetAndRegisterAtMaster() override
+    void ResetAndRegisterAtMaster(ERegistrationReason /*reason*/) override
     {
         return;
     }

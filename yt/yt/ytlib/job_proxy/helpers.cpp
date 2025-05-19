@@ -154,15 +154,4 @@ int GetJobFirstOutputTableFDFromSpec(const TUserJobSpec& spec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TDuration> OptionalCpuDurationToDuration(std::optional<TCpuDuration> cpuDuration)
-{
-    if (!cpuDuration) {
-        return std::nullopt;
-    }
-
-    return CpuDurationToDuration(*cpuDuration);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NJobProxy

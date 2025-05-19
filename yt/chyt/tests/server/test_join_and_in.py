@@ -756,6 +756,32 @@ class TestJoinAndIn(ClickHouseTestBase):
                        where t1.a in (0, 1)'''
             assert clique.make_query(query) == [{"count": 1}]
 
+    @authors("buyval01")
+    def test_two_joins_tree(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
+        write_table("//tmp/t1", [{"a": 0}, {"a": 2}])
+        write_table("<append=%true>//tmp/t1", [{"a": 4}, {"a": 8}])
+
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "b", "type": "int64", "sort_order": "ascending"}]})
+        write_table("//tmp/t2", [{"b": 4}])
+
+        create("table", "//tmp/t3", attributes={"schema": [{"name": "c", "type": "int64", "sort_order": "ascending"}]})
+        write_table("//tmp/t3", [{"c": 2}])
+        write_table("<append=%true>//tmp/t3", [{"c": 4}, {"c": 8}])
+
+        with Clique(1) as clique:
+            query = '''
+                select * from "//tmp/t1" t1
+                left join "//tmp/t2" t2 on t1.a = t2.b
+                inner join "//tmp/t3" t3 on t1.a = t3.c
+                order by a
+            '''
+            assert clique.make_query(query) == [
+                {"a": 2, "b": None, "c": 2},
+                {"a": 4, "b": 4, "c": 4},
+                {"a": 8, "b": None, "c": 8},
+            ]
+
     @authors("gudqeit")
     def test_join_for_unsorted_tables(self):
         schema = [{"name": "a", "type": "int64"}]

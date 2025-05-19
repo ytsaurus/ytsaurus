@@ -241,6 +241,57 @@ TEST(TSplitFilterTest, TwoJoins)
     EXPECT_EQ(join2, "(update_time)>(10)");
 }
 
+TEST(TSplitFilterTest, TopLevelLiteral)
+{
+    TObjectsHolder objectsHolder;
+    auto e1 = ParseInto("l.key", &objectsHolder);
+    auto e2 = ParseInto("r.value", &objectsHolder);
+
+    auto filterExpression = MakeExpression<TBinaryOpExpression>(
+        &objectsHolder,
+        NQueryClient::TSourceLocation(),
+        NQueryClient::EBinaryOp::And,
+        MakeExpression<TBinaryOpExpression>(
+            &objectsHolder,
+            NQueryClient::TSourceLocation(),
+            NQueryClient::EBinaryOp::And,
+            MakeExpression<TInExpression>(
+                &objectsHolder,
+                NQueryClient::TSourceLocation(),
+                TExpressionList{e1},
+                TLiteralValueTupleList{TLiteralValueTuple{1}, TLiteralValueTuple{2}, TLiteralValueTuple{3}}),
+            MakeExpression<TBinaryOpExpression>(
+                &objectsHolder,
+                NQueryClient::TSourceLocation(),
+                NQueryClient::EBinaryOp::GreaterOrEqual,
+                MakeExpression<TFunctionExpression>(
+                    &objectsHolder,
+                    NQueryClient::TSourceLocation(),
+                    "sum",
+                    TExpressionList{e2}),
+                MakeExpression<TLiteralExpression>(
+                    &objectsHolder,
+                    NQueryClient::TSourceLocation(),
+                    100))),
+        MakeExpression<TLiteralExpression>(
+            &objectsHolder,
+            NQueryClient::TSourceLocation(),
+            true))[0];
+
+    TFilterHints hints;
+    hints.Having.insert(e1);
+    auto result = SplitFilter(filterExpression, hints, &objectsHolder);
+    EXPECT_TRUE(result.JoinPredicates.empty());
+
+    ASSERT_TRUE(result.Having.has_value());
+    auto having = FormatExpression(*result.Having);
+    EXPECT_EQ(having, "(l.key) IN (1, 2, 3)");
+
+    ASSERT_TRUE(result.Where.has_value());
+    auto where = FormatExpression(*result.Where);
+    EXPECT_EQ(where, "((sum(r.value))>=(100))AND(true)");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NServer::NObjects::NTests

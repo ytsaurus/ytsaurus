@@ -217,7 +217,7 @@ public:
     void RegisterName(const std::string& name, TAccount* account) noexcept override;
     void UnregisterName(const std::string& name, TAccount* account) noexcept override;
 
-    NYPath::TYPath GetRootPath(const TAccount* rootAccount) const override;
+    TYPath GetRootPath(const TAccount* rootAccount) const override;
 
 protected:
     TCellTagList DoGetReplicationCellTags(const TAccount* /*account*/) override
@@ -607,7 +607,7 @@ public:
             buffer.AddGauge("/total_node_count", statistics.ResourceUsage.GetNodeCount());
             buffer.AddGauge("/chunk_count", statistics.ResourceUsage.GetChunkCount());
 
-            auto profileDetailed = [&] (i64 usage, i64 committedUsage, TString name)  {
+            auto profileDetailed = [&] (i64 usage, i64 committedUsage, std::string name)  {
                 {
                     TWithTagGuard guard(&buffer, "status", "committed");
                     buffer.AddGauge(name, committedUsage);
@@ -2489,7 +2489,7 @@ public:
         auto cellTag = multicellManager->GetCellTag();
 
         auto throwOverdraftError = [&] (
-            const TString& resourceType,
+            const std::string& resourceType,
             TAccount* overdrawnAccount,
             const auto& usage,
             const auto& increase,
@@ -2938,7 +2938,7 @@ private:
     NHydra::TEntityMap<TProxyRole> ProxyRoleMap_;
     TEnumIndexedArray<NApi::EProxyKind, THashMap<std::string, TProxyRole*>> ProxyRoleNameMaps_;
 
-    TSyncMap<TString, TProfilerTagPtr> CpuProfilerTags_;
+    TSyncMap<std::string, TProfilerTagPtr> CpuProfilerTags_;
 
     bool IsChunkHostCell_ = false;
 
@@ -3409,8 +3409,8 @@ private:
 
             auto usage = node->GetDeltaResourceUsage();
             auto tabletResourceUsage = node->GetTabletResourceUsage();
-            usage.SetTabletCount(tabletResourceUsage.TabletCount);
-            usage.SetTabletStaticMemory(tabletResourceUsage.TabletStaticMemory);
+            usage.SetTabletCount(tabletResourceUsage.GetTabletCount());
+            usage.SetTabletStaticMemory(tabletResourceUsage.GetTabletStaticMemory());
             usage.DetailedMasterMemory() = TDetailedMasterMemory();
             usage.SetChunkCount(0);
             usage.ClearDiskSpace();
@@ -4878,7 +4878,7 @@ void TAccountTypeHandler::UnregisterName(const std::string& name, TAccount* /*ac
     Owner_->UnregisterAccountName(name);
 }
 
-TString TAccountTypeHandler::GetRootPath(const TAccount* rootAccount) const
+TYPath TAccountTypeHandler::GetRootPath(const TAccount* rootAccount) const
 {
     YT_VERIFY(rootAccount == Owner_->GetRootAccount());
     return RootAccountCypressPath;

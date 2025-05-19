@@ -199,7 +199,9 @@ public:
         , Term_(term)
         , LatestChangelogId_(latestChangelogId)
     {
-        YT_VERIFY(storageState != EStorageState::None);
+        YT_VERIFY(
+            storageState != EStorageState::None &&
+            storageState != EStorageState::Secondary);
     }
 
     bool IsReadOnly() const override
@@ -322,9 +324,7 @@ private:
 
     TFuture<IChangelogPtr> DoCreateChangelog(int id, const NProto::TChangelogMeta& meta, const TChangelogOptions& options)
     {
-        auto path = GetChangelogPath(
-            StorageState_ == EStorageState::Secondary ? SecondaryPath_ : PrimaryPath_,
-            id);
+        auto path = GetChangelogPath(PrimaryPath_, id);
         try {
             ValidateWritable();
 
@@ -880,8 +880,9 @@ private:
             updateStateIfExists(SecondaryPath_, EStorageState::Secondary);
         }
 
-        if (StorageState_ == EStorageState::None) {
-            THROW_ERROR_EXCEPTION("Neither remote changelog storage exists");
+        if (!Any(StorageState_ & EStorageState::Primary)) {
+            THROW_ERROR_EXCEPTION("Persistence storage has not been created yet")
+                << TErrorAttribute("missing_path", PrimaryPath_);
         }
     }
 
@@ -905,17 +906,8 @@ private:
     {
         TLockNodeOptions options;
         options.ChildKey = "lock";
-
-        auto lockNode = [&] (const TYPath& path) {
-            Y_UNUSED(WaitFor(prerequisiteTransaction->LockNode(path, NCypressClient::ELockMode::Shared, options))
-                .ValueOrThrow());
-        };
-        if (Any(StorageState_ & EStorageState::Primary)) {
-            lockNode(PrimaryPath_);
-        }
-        if (Any(StorageState_ & EStorageState::Secondary)) {
-            lockNode(SecondaryPath_);
-        }
+        Y_UNUSED(WaitFor(prerequisiteTransaction->LockNode(PrimaryPath_, NCypressClient::ELockMode::Shared, options))
+            .ValueOrThrow());
     }
 
     void ValidateChangelogsSealed()

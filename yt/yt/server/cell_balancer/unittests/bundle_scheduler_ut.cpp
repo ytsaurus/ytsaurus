@@ -4655,6 +4655,73 @@ TEST_P(TNodeTagsFilterManager, TestSpareNodesAreReleasedProperly)
     EXPECT_EQ(1, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
 }
 
+TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedDuringWriteThreadPoolSizeChange)
+{
+    const auto nodeCountPerDc = 7;
+    const auto initialWriteThreadPoolSize = 6;
+    const auto changedWriteThreadPoolSize = 4;
+
+    for (int peerCount = 1; peerCount <= 2; ++peerCount) {
+        auto input = GenerateInputContext(GetDataCenterCount() * nodeCountPerDc, initialWriteThreadPoolSize);
+
+        for (auto& [zoneName, zoneInfo] : input.Zones) {
+            zoneInfo->SpareTargetConfig->TabletNodeCount = GetDataCenterCount();
+            zoneInfo->SpareTargetConfig->CpuLimits->WriteThreadPoolSize = initialWriteThreadPoolSize;
+            for (auto dataCenterName : GetDataCenters(input)) {
+                GenerateNodesForBundle(input, zoneInfo->SpareBundleName, 1, {.SlotCount = initialWriteThreadPoolSize, .DC = dataCenterName});
+            }
+        }
+
+        auto& bundleInfo = input.Bundles["bigd"];
+        bundleInfo->Options->PeerCount = peerCount;
+        bundleInfo->EnableNodeTagFilterManagement = true;
+        bundleInfo->EnableTabletCellManagement = true;
+        bundleInfo->EnableTabletNodeDynamicConfig = true;
+        GenerateTabletCellsForBundle(input, "bigd", GetActiveDataCenterCount() * nodeCountPerDc * initialWriteThreadPoolSize / peerCount);
+        for (auto dataCenterName : GetDataCenters(input)) {
+            GenerateNodesForBundle(input, "bigd", nodeCountPerDc, {.SetFilterTag = true, .SlotCount = initialWriteThreadPoolSize, .DC = dataCenterName});
+        }
+
+        input.Config->DecommissionReleasedNodes = false;
+
+        {
+            TSchedulerMutations mutations;
+            ScheduleBundles(input, &mutations);
+            EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->RemovingCells));
+            EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
+            ASSERT_TRUE(mutations.DynamicConfig.has_value());
+            input.DynamicConfig = *mutations.DynamicConfig;
+        }
+        {
+            bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize = changedWriteThreadPoolSize;
+            TSchedulerMutations mutations;
+            ScheduleBundles(input, &mutations);
+            EXPECT_EQ(
+                nodeCountPerDc * GetActiveDataCenterCount() * (initialWriteThreadPoolSize - changedWriteThreadPoolSize) / peerCount,
+                std::ssize(mutations.ChangedStates["bigd"]->RemovingCells));
+            EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
+            EXPECT_FALSE(mutations.DynamicConfig.has_value());
+        }
+    }
+}
+
+TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedWithOptionOff)
+{
+    auto input = GenerateInputContext(3, 5);
+    auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+    bundleInfo->EnableTabletCellManagement = false;
+    GenerateTabletCellsForBundle(input, "bigd", 15);
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 1, {.SlotCount = 5});
+
+    input.Config->EnableSpareNodeAssignment = false;
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
+}
+
 TEST_P(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
 {
     auto input = GenerateInputContext(0, 5);

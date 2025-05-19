@@ -86,7 +86,7 @@ void Deserialize(TOperationDescription& value, NYTree::INodePtr node)
     value.JobDescriptions = ConvertTo<std::vector<TJobDescription>>(mapNode->GetChildOrThrow("job_descriptions"));
     value.StartTime = ConvertTo<TInstant>(mapNode->GetChildOrThrow("start_time"));
     value.Duration = ConvertTo<TInstant>(mapNode->GetChildOrThrow("finish_time")) - value.StartTime;
-    value.AuthenticatedUser = ConvertTo<TString>(mapNode->GetChildOrThrow("authenticated_user"));
+    value.AuthenticatedUser = ConvertTo<std::string>(mapNode->GetChildOrThrow("authenticated_user"));
     value.Type = ConvertTo<NScheduler::EOperationType>(mapNode->GetChildOrThrow("operation_type"));
     value.State = ConvertTo<TString>(mapNode->GetChildOrThrow("state"));
     value.InTimeframe = ConvertTo<bool>(mapNode->GetChildOrThrow("in_timeframe"));

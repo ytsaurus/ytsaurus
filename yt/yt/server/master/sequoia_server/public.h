@@ -10,7 +10,8 @@ namespace NYT::NSequoiaServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(ISequoiaContext)
+struct ISequoiaContext;
+
 DECLARE_REFCOUNTED_STRUCT(ISequoiaManager)
 DECLARE_REFCOUNTED_STRUCT(IGroundUpdateQueueManager)
 

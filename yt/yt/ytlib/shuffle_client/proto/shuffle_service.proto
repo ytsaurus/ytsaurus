@@ -25,6 +25,8 @@ message TReqRegisterChunks
 {
     required bytes shuffle_handle = 1; // YSON-serialized TShuffleHandle
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 2;
+    optional int32 writer_index = 3;
+    optional bool overwrite_existing_writer_data = 4 [default = false];
 }
 
 message TRspRegisterChunks
@@ -35,8 +37,15 @@ message TRspRegisterChunks
 
 message TReqFetchChunks
 {
+    message IndexRange
+    {
+        required int32 begin = 1;
+        required int32 end = 2;
+    }
+
     required bytes shuffle_handle = 1; // YSON-serialized TShuffleHandle
     required int32 partition_index = 2;
+    optional IndexRange writer_index_range = 3;
 }
 
 message TRspFetchChunks

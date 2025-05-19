@@ -98,8 +98,8 @@ struct TChaosTabletData
 {
     std::atomic<ui64> ReplicationRound = 0;
     NThreading::TAtomicObject<THashMap<TTabletId, i64>> CurrentReplicationRowIndexes;
-    TTransactionId PreparedWritePulledRowsTransactionId;
-    TTransactionId PreparedAdvanceReplicationProgressTransactionId;
+    NThreading::TAtomicObject<TTransactionId> PreparedWritePulledRowsTransactionId;
+    NThreading::TAtomicObject<TTransactionId> PreparedAdvanceReplicationProgressTransactionId;
     std::atomic<bool> IsTrimInProgress = false;
 };
 
@@ -294,7 +294,7 @@ struct TTabletSnapshot
     TCompressionDictionaryInfos CompressionDictionaryInfos;
     NTableClient::IDictionaryCompressionFactoryPtr DictionaryCompressionFactory;
 
-    TString TabletCellBundle;
+    std::string TabletCellBundle;
 
     NYson::TYsonString CustomRuntimeData;
 
@@ -345,7 +345,7 @@ struct ITabletContext
     virtual ~ITabletContext() = default;
 
     virtual NObjectClient::TCellId GetCellId() const = 0;
-    virtual const TString& GetTabletCellBundleName() const = 0;
+    virtual const std::string& GetTabletCellBundleName() const = 0;
     virtual NHydra::EPeerState GetAutomatonState() const = 0;
     virtual int GetAutomatonTerm() const = 0;
     virtual IInvokerPtr GetControlInvoker() const = 0;

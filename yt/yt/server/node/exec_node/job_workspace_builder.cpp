@@ -38,12 +38,6 @@ TJobWorkspaceBuilder::TJobWorkspaceBuilder(
     YT_VERIFY(Context_.Slot);
     YT_VERIFY(Context_.Job);
     YT_VERIFY(DirectoryManager_);
-
-    if (Context_.NeedGpuCheck) {
-        YT_VERIFY(Context_.GpuCheckBinaryPath);
-        YT_VERIFY(Context_.GpuCheckBinaryArgs);
-        YT_VERIFY(Context_.GpuCheckEnvironment);
-    }
 }
 
 template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
@@ -372,7 +366,7 @@ private:
         YT_LOG_DEBUG("GPU check is not supported in simple workspace");
 
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
-        SetJobPhase(EJobPhase::RunningGpuCheckCommand);
+        // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
 
         return VoidFuture;
     }
@@ -597,6 +591,8 @@ private:
             MakeWritableRootFS(),
             Context_.CommandUser,
             /*devices*/ std::nullopt,
+            /*hostName*/ std::nullopt,
+            /*ipAddresses*/ {},
             /*tag*/ SetupCommandsTag)
             .AsVoid();
     }
@@ -606,9 +602,16 @@ private:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
-        SetJobPhase(EJobPhase::RunningGpuCheckCommand);
 
-        if (Context_.NeedGpuCheck) {
+        if (Context_.GpuCheckOptions) {
+            SetJobPhase(EJobPhase::RunningGpuCheckCommand);
+
+            auto options = *Context_.GpuCheckOptions;
+            // COMPAT(ignat): do not perform setup commands in case of running GPU check in user job volume.
+            if (!ResultHolder_.GpuCheckVolume) {
+                options.SetupCommands.clear();
+            }
+
             auto context = TJobGpuCheckerContext{
                 .Slot = Context_.Slot,
                 .Job = Context_.Job,
@@ -617,16 +620,11 @@ private:
                     // COMPAT(ignat)
                     : MakeWritableRootFS(),
                 .CommandUser = Context_.CommandUser,
-
-                .SetupCommands = Context_.GpuCheckSetupCommands,
-                .GpuCheckBinaryPath = *Context_.GpuCheckBinaryPath,
-                .GpuCheckBinaryArgs = *Context_.GpuCheckBinaryArgs,
-                .GpuCheckEnvironment = *Context_.GpuCheckEnvironment,
-                .GpuCheckType = Context_.GpuCheckType,
+                .Type = EGpuCheckType::Preliminary,
+                .Options = options,
                 .CurrentStartIndex = ResultHolder_.SetupCommandCount,
                 // It is preliminary (not extra) GPU check.
                 .TestExtraGpuCheckCommandFailure = false,
-                .GpuDevices = Context_.GpuDevices,
             };
 
             auto checker = New<TJobGpuChecker>(std::move(context), Logger);
@@ -655,6 +653,7 @@ private:
                     YT_LOG_INFO("Preliminary GPU check command finished");
                 }).AsyncVia(Invoker_));
         } else {
+            // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
             YT_LOG_INFO("No preliminary GPU check is needed");
 
             return VoidFuture;
@@ -731,15 +730,16 @@ private:
                         YT_LOG_WARNING(imageOrError, "Failed to prepare root volume (Image: %v)", imageDescriptor);
 
                         THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::DockerImagePullingFailed, "Failed to pull docker image")
-                            << TErrorAttribute("docker_image", *dockerImage)
+                            << TErrorAttribute("docker_image", imageDescriptor.Image)
                             << TErrorAttribute("authenticated", authenticated)
                             << imageOrError;
                     }
 
-                    const auto& imageId = imageOrError.Value()->ImageId();
-                    YT_LOG_INFO("Root volume prepared (ImageId: %v)", imageId);
+                    const auto& cachedImage = imageOrError.Value()->Image();
+                    YT_LOG_INFO("Root volume prepared (Image: %v)", cachedImage);
 
-                    ResultHolder_.DockerImage = imageId.Image;
+                    ResultHolder_.DockerImage = cachedImage.Image;
+                    ResultHolder_.DockerImageId = cachedImage.Id;
 
                     SetNowTime(TimePoints_.PrepareRootVolumeFinishTime);
                 }));
@@ -753,7 +753,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_DEBUG_IF(Context_.NeedGpuCheck, "Skip preparing GPU check volume since GPU check is not support in CRI environment");
+        YT_LOG_DEBUG_IF(Context_.GpuCheckOptions, "Skip preparing GPU check volume since GPU check is not support in CRI environment");
 
         ValidateJobPhase(EJobPhase::PreparingRootVolume);
         SetJobPhase(EJobPhase::PreparingGpuCheckVolume);
@@ -811,6 +811,8 @@ private:
             rootFS,
             Context_.CommandUser,
             /*devices*/ std::nullopt,
+            /*hostName*/ std::nullopt,
+            /*ipAddresses*/ {},
             /*tag*/ SetupCommandsTag)
             .AsVoid();
     }
@@ -819,10 +821,10 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_DEBUG_IF(Context_.NeedGpuCheck, "GPU check is not supported in CRI workspace");
+        YT_LOG_DEBUG_IF(Context_.GpuCheckOptions, "GPU check is not supported in CRI workspace");
 
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
-        SetJobPhase(EJobPhase::RunningGpuCheckCommand);
+        // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
 
         return VoidFuture;
     }

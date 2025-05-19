@@ -17,7 +17,7 @@ public:
 
     // If prepare phase was finished before update to current version this field
     // is |nullopt|.
-    // COMPAT(kvk1920): Make it non-optional in 24.2.
+    // COMPAT(kvk1920): Make it non-optional after 25.2.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, PreparedActionCount);
 
 public:

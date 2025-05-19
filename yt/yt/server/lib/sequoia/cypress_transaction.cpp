@@ -994,14 +994,7 @@ private:
                 Description_);
         }
 
-        if (IsRetriableSequoiaError(result)) {
-            THROW_ERROR_EXCEPTION(
-                NSequoiaClient::EErrorCode::SequoiaRetriableError,
-                "Sequoia retriable error")
-                << std::move(result);
-        }
-
-        THROW_ERROR result;
+        THROW_ERROR MaybeWrapSequoiaRetriableError<void>(result);
     }
 };
 
@@ -1863,6 +1856,7 @@ private:
         if (!replicas.empty()) {
             NTransactionServer::NProto::TReqCommitTransaction req;
             ToProto(req.mutable_transaction_id(), TransactionId_);
+            req.set_commit_timestamp(CommitTimestamp_);
             auto transactionActionData = MakeTransactionActionData(req);
 
             for (const auto& replica : replicas) {

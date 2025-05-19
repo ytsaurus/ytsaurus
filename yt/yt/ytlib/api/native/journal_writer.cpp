@@ -280,7 +280,7 @@ private:
         int ReplicaCount_ = -1;
         int ReadQuorum_ = -1;
         int WriteQuorum_ = -1;
-        TString Account_;
+        std::string Account_;
         TString PrimaryMedium_;
 
         TObjectId ObjectId_;
@@ -578,8 +578,8 @@ private:
                     : NErasure::GetCodec(ErasureCodec_)->GetTotalPartCount();
                 ReadQuorum_ = attributes->Get<int>("read_quorum");
                 WriteQuorum_ = attributes->Get<int>("write_quorum");
-                Account_ = attributes->Get<TString>("account");
-                PrimaryMedium_ = attributes->Get<TString>("primary_medium");
+                Account_ = attributes->Get<std::string>("account");
+                PrimaryMedium_ = attributes->Get<std::string>("primary_medium");
 
                 YT_LOG_DEBUG("Extended journal attributes received (ErasureCodec: %v, ReplicationFactor: %v, ReplicaCount: %v, "
                     "WriteQuorum: %v, Account: %v, PrimaryMedium: %v)",

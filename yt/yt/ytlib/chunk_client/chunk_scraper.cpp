@@ -199,7 +199,7 @@ private:
                 });
                 continue;
             }
-            auto replicas = FromProto<TChunkReplicaWithMediumList>(subresponse.replicas());
+            auto replicas = FromProto<TChunkReplicaList>(subresponse.replicas());
             chunkInfos.push_back(TScrapedChunkInfo{
                 .ChunkId = chunkId,
                 .Replicas = std::move(replicas),

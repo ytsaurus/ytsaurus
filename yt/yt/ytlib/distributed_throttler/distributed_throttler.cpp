@@ -31,11 +31,11 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString AddressAttributeKey = "address";
-static const TString RealmIdAttributeKey = "realm_id";
-static const TString LeaderIdAttributeKey = "leader_id";
-static const TString LocalThrottlersAttributeKey = "local_throttlers";
-static const TString GlobalThrottlersAttributeKey = "global_throttlers";
+static const std::string AddressAttributeKey = "address";
+static const std::string RealmIdAttributeKey = "realm_id";
+static const std::string LeaderIdAttributeKey = "leader_id";
+static const std::string LocalThrottlersAttributeKey = "local_throttlers";
+static const std::string GlobalThrottlersAttributeKey = "global_throttlers";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -222,6 +222,11 @@ public:
     std::optional<double> GetLimit() const override
     {
         return Underlying_->GetLimit();
+    }
+
+    TDuration GetPeriod() const override
+    {
+        return Underlying_->GetPeriod();
     }
 
     TDuration GetEstimatedOverdraftDuration() const override
@@ -903,7 +908,7 @@ public:
         TGroupId groupId,
         TMemberId memberId,
         IServerPtr rpcServer,
-        TString address,
+        std::string address,
         const NLogging::TLogger& logger,
         IAuthenticatorPtr authenticator,
         TProfiler profiler)
@@ -1329,7 +1334,7 @@ private:
         }
 
         const auto& leader = members[0];
-        auto optionalAddress = leader.Attributes->Find<TString>(AddressAttributeKey);
+        auto optionalAddress = leader.Attributes->Find<std::string>(AddressAttributeKey);
         if (!optionalAddress) {
             YT_LOG_WARNING("Leader does not have '%v' attribute (LeaderId: %v)",
                 AddressAttributeKey,
@@ -1469,7 +1474,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     TGroupId groupId,
     TMemberId memberId,
     IServerPtr rpcServer,
-    TString address,
+    std::string address,
     NLogging::TLogger logger,
     IAuthenticatorPtr authenticator,
     TProfiler profiler)

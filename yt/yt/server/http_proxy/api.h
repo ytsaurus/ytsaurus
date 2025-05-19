@@ -3,6 +3,10 @@
 #include "public.h"
 #include "private.h"
 
+#include <yt/yt/server/lib/security_server/user_access_validator.h>
+
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/ytlib/misc/public.h>
 
 #include <yt/yt/client/driver/driver.h>
@@ -65,9 +69,7 @@ public:
     const NConcurrency::IPollerPtr& GetPoller() const;
     const INodeMemoryTrackerPtr& GetMemoryUsageTracker() const;
 
-    bool IsUserBannedInCache(const std::string& user);
-    void PutUserIntoBanCache(const std::string& user);
-
+    void ValidateUser(const std::string& user);
     TError CheckAccess(const std::string& user);
 
     std::optional<TSemaphoreGuard> AcquireSemaphore(const std::string& user, const TString& command);
@@ -96,6 +98,11 @@ public:
         TDuration cpuTime,
         const NNet::TNetworkAddress& clientAddress);
 
+    void IncrementCpuProfilingCounter(
+        const std::string& user,
+        const TString& command,
+        TDuration cpuTime);
+
     void IncrementHttpCode(NHttp::EStatusCode httpStatusCode);
 
     int GetNumberOfConcurrentRequests();
@@ -122,6 +129,8 @@ private:
     const INodeMemoryTrackerPtr MemoryUsageTracker_;
 
     const NProfiling::TProfiler SparseProfiler_ = HttpProxyProfiler().WithSparse();
+
+    const NSecurityServer::IUserAccessValidatorPtr UserAccessValidator_;
 
     std::vector<std::pair<NNet::TIP6Network, TString>> Networks_;
     TString DefaultNetworkName_;
@@ -177,9 +186,9 @@ private:
         TUserCounterMap* counterMap,
         const std::string& user,
         const std::string& networkName,
-        const TString& counterName,
-        const TString& tagName,
-        const TString& tagValue,
+        const std::string& counterName,
+        const std::string& tagName,
+        const std::string& tagValue,
         i64 value);
 };
 

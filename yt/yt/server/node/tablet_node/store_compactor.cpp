@@ -2,6 +2,7 @@
 
 #include "background_activity_orchid.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "hunk_chunk.h"
 #include "in_memory_manager.h"
 #include "partition.h"
@@ -186,7 +187,7 @@ struct TCompactionTaskInfo
         TTabletId tabletId,
         NHydra::TRevision mountRevision,
         TString tablePath,
-        TString tabletCellBundle,
+        std::string tabletCellBundle,
         TPartitionId partitionId,
         EStoreCompactionReason reason,
         bool discardStores,

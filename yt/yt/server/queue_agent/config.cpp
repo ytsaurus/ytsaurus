@@ -37,8 +37,6 @@ void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
         .Default(ECypressSynchronizerPolicy::Polling);
     registrar.Parameter("clusters", &TThis::Clusters)
         .Default();
-    registrar.Parameter("poll_replicated_objects", &TThis::PollReplicatedObjects)
-        .Default(false);
     registrar.Parameter("write_replicated_table_mapping", &TThis::WriteReplicatedTableMapping)
         .Alias("write_registration_table_mapping")
         .Default(false);
@@ -111,8 +109,8 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("delayed_objects", &TThis::DelayedObjects)
         .Default();
-    registrar.Parameter("controller_delay_duration", &TThis::ControllerDelayDuration)
-        .Default(TDuration::Seconds(50));
+    registrar.Parameter("controller_delay", &TThis::ControllerDelay)
+        .Default(TDuration::Zero());
 
     registrar.Postprocessor([] (TQueueControllerDynamicConfig* config) {
         if (config->TrimmingPeriod && config->TrimmingPeriod->GetValue() <= 0) {

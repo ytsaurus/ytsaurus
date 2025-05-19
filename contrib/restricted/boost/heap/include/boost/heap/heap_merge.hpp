@@ -10,11 +10,10 @@
 #define BOOST_HEAP_MERGE_HPP
 
 #include <algorithm>
+#include <type_traits>
 
 #include <boost/concept/assert.hpp>
 #include <boost/heap/heap_concepts.hpp>
-#include <boost/type_traits/conditional.hpp>
-#include <boost/type_traits/is_same.hpp>
 
 #ifdef BOOST_HAS_PRAGMA_ONCE
 #    pragma once
@@ -41,7 +40,7 @@ struct heap_merge_emulate
         }
     };
 
-    typedef typename boost::conditional< Heap1::has_reserve, reserver, dummy_reserver >::type space_reserver;
+    typedef typename std::conditional< Heap1::has_reserve, reserver, dummy_reserver >::type space_reserver;
 
     static void merge( Heap1& lhs, Heap2& rhs )
     {
@@ -83,7 +82,7 @@ struct heap_merge_same
 {
     static const bool is_mergable = Heap::is_mergable;
     typedef
-        typename boost::conditional< is_mergable, heap_merge_same_mergable< Heap >, heap_merge_emulate< Heap, Heap > >::type
+        typename std::conditional< is_mergable, heap_merge_same_mergable< Heap >, heap_merge_emulate< Heap, Heap > >::type
             heap_merger;
 
     static void merge( Heap& lhs, Heap& rhs )
@@ -107,13 +106,13 @@ void heap_merge( Heap1& lhs, Heap2& rhs )
     BOOST_CONCEPT_ASSERT( (boost::heap::PriorityQueue< Heap2 >));
 
     // if this assertion is triggered, the value_compare types are incompatible
-    BOOST_STATIC_ASSERT( ( boost::is_same< typename Heap1::value_compare, typename Heap2::value_compare >::value ) );
+    BOOST_STATIC_ASSERT( ( std::is_same< typename Heap1::value_compare, typename Heap2::value_compare >::value ) );
 
-    const bool same_heaps = boost::is_same< Heap1, Heap2 >::value;
+    const bool same_heaps = std::is_same< Heap1, Heap2 >::value;
 
-    typedef typename boost::conditional< same_heaps,
-                                         detail::heap_merge_same< Heap1 >,
-                                         detail::heap_merge_emulate< Heap1, Heap2 > >::type heap_merger;
+    typedef typename std::conditional< same_heaps,
+                                       detail::heap_merge_same< Heap1 >,
+                                       detail::heap_merge_emulate< Heap1, Heap2 > >::type heap_merger;
 
     heap_merger::merge( lhs, rhs );
 }

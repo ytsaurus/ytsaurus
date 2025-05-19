@@ -6,16 +6,21 @@ from yt_env_setup import (
 )
 
 from yt_sequoia_helpers import (
-    select_rows_from_ground, lookup_rows_in_ground, mangle_sequoia_path, get_ground_driver
+    select_rows_from_ground, lookup_rows_in_ground, mangle_sequoia_path,
+    get_ground_driver,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
 
 from yt_commands import (
-    authors, commit_transaction, create, get, get_cell_tag, raises_yt_error, remove, get_singular_chunk_id, write_table, read_table, wait,
-    exists, create_domestic_medium, ls, set, get_account_disk_space_limit, set_account_disk_space_limit,
-    link, build_master_snapshots, start_transaction, abort_transaction, get_active_primary_master_leader_address,
-    sync_mount_table, sync_unmount_table, sync_compact_table, set_nodes_banned, set_node_banned)
+    authors, commit_transaction, create, get, get_cell_tag, raises_yt_error,
+    remove, get_singular_chunk_id, write_table, read_table, wait, exists,
+    create_domestic_medium, ls, set, link, build_master_snapshots,
+    start_transaction, abort_transaction, sync_mount_table, sync_unmount_table,
+    sync_compact_table, set_nodes_banned, set_node_banned,
+    get_account_disk_space_limit, set_account_disk_space_limit,
+    get_active_primary_master_leader_address,
+)
 
 from yt.wrapper import yson
 
@@ -534,7 +539,6 @@ class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
 class TestSequoiaQueues(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     USE_SEQUOIA = True
-    NUM_CYPRESS_PROXIES = 1
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
@@ -632,10 +636,9 @@ class TestSequoiaQueues(YTEnvSetup):
         assert len(get_row('//tmp/m2')) == 0
 
 
-class TestSequoiaPrerequisites(YTEnvSetup):
+class TestSequoiaObjects(YTEnvSetup):
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 3
 
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
@@ -651,7 +654,7 @@ class TestSequoiaPrerequisites(YTEnvSetup):
     }
 
     MASTER_CELL_DESCRIPTORS = {
-        "10": {"roles": ["sequoia_node_host"]},
+        "10": {"roles": ["cypress_node_host"]},
         # Master cell with tag 11 is reserved for portals.
         "12": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
         "13": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},

@@ -152,9 +152,9 @@ private:
         return *optionalAttributeValue;
     }
 
-    TString GetChaosCellBundle(const ITransactionPtr& transaction, TTableId tableId)
+    std::string GetChaosCellBundle(const ITransactionPtr& transaction, TTableId tableId)
     {
-        return GetAttributeOrThrow<TString>(
+        return GetAttributeOrThrow<std::string>(
             transaction,
             FromObjectId(tableId),
             "chaos_cell_bundle",

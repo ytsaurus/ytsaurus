@@ -1,12 +1,12 @@
 #include "error_manager.h"
+
 #include "bootstrap.h"
+#include "config.h"
 #include "tablet.h"
 #include "tablet_snapshot_store.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/core/concurrency/fls.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -38,7 +38,7 @@ NConcurrency::TFlsSlot<TErrorManagerContext> Context;
 
 struct TDeduplicationKey
 {
-    TString TabletCellBundle;
+    std::string TabletCellBundle;
     NTableClient::TTableId TableId;
     NTabletClient::TTabletId TabletId;
     std::string Method;
@@ -151,7 +151,7 @@ public:
         DeduplicationCache_->SetExpirationTimeout(config->DeduplicationCacheTimeout);
     }
 
-    void HandleError(const TError& error, const TString& method) override
+    void HandleError(const TError& error, const std::string& method) override
     {
         auto context = *Context;
 
@@ -212,7 +212,7 @@ private:
         const auto& attributes = error.Attributes();
 
         if (!context->TabletCellBundle) {
-            context->TabletCellBundle = attributes.Find<TString>("tablet_cell_bundle");
+            context->TabletCellBundle = attributes.Find<std::string>("tablet_cell_bundle");
         }
         if (!context->TablePath) {
             context->TablePath = attributes.Find<TYPath>("table_path");

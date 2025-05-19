@@ -289,8 +289,8 @@ public:
     {
         TJob::Initialize();
 
-        IOStartTime_ = GetCpuInstant();
-        YT_LOG_INFO("Starting to count I/O time (IOStartTime: %v)", CpuDurationToDuration(IOStartTime_));
+        IOStartTime_ = GetInstant();
+        YT_LOG_INFO("Started measuring I/O time (IOStartTime: %v)", IOStartTime_);
 
         UserJobReadController_ = CreateUserJobReadController(
             Host_->GetJobSpecHelper(),
@@ -1172,7 +1172,12 @@ private:
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
         auto reader = pipe->CreateAsyncReader();
-        auto asyncOutput = pipe->CreateAsyncWriter(JobIOConfig_->UseDeliveryFencedPipeWriter);
+        auto asyncOutput = pipe->CreateAsyncWriter(
+            JobIOConfig_->UseDeliveryFencedPipeWriter
+                ? Config_->UseNewDeliveryFencedConnection
+                    ? EDeliveryFencedMode::New
+                    : EDeliveryFencedMode::Old
+                : EDeliveryFencedMode::None);
 
         TablePipeWriters_.push_back(asyncOutput);
 
@@ -1446,17 +1451,14 @@ private:
             result.TimingStatistics = *timingStatistics;
         }
 
-        result.LatencyStatistics.InputTimeToFirstReadBatch = OptionalCpuDurationToDuration(
-            UserJobReadController_->GetReaderTimeToFirstBatch());
-        result.LatencyStatistics.InputTimeToFirstWrittenBatch = OptionalCpuDurationToDuration(
-            UserJobReadController_->GetWriterTimeToFirstBatch());
+        result.LatencyStatistics.InputTimeToFirstReadBatch = UserJobReadController_->GetReaderTimeToFirstBatch();
+        result.LatencyStatistics.InputTimeToFirstWrittenBatch = UserJobReadController_->GetWriterTimeToFirstBatch();
 
         auto writers = UserJobWriteController_->GetWriters();
         result.LatencyStatistics.OutputTimeToFirstReadBatch.reserve(writers.size());
         for (const auto& writer : writers) {
             result.LatencyStatistics.OutputTimeToFirstReadBatch.emplace_back(
-                OptionalCpuDurationToDuration(
-                    writer->GetTimeToFirstBatch()));
+                    writer->GetTimeToFirstBatch());
         }
 
         result.ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics;

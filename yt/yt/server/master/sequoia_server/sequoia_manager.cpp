@@ -45,14 +45,14 @@ class TSequoiaTransactionManager
 {
 public:
     explicit TSequoiaTransactionManager(TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::Default)
+        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::SequoiaTransactionService)
     {
         RegisterMethod(BIND_NO_PROPAGATE(&TSequoiaTransactionManager::HydraStartTransaction, Unretained(this)));
     }
 
     virtual void StartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // There is a common problem: if user got OK response on his request
         // there is no any guarantees that 2PC transaction was actually
@@ -77,8 +77,12 @@ public:
     }
 
 private:
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
     void ValidateWritePrerequisites(const std::vector<TTransactionId>& prerequisiteTransactionIds) const
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         if (!Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases) {
             return;
         }

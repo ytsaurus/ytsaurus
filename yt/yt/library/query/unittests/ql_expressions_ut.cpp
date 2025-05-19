@@ -2437,9 +2437,10 @@ TEST_P(TEvaluateExpressionTest, Basic)
 
     // TODO(dtorilov): build and link is_finite and *_localtime udf
     if (auto function = expr->As<TFunctionExpression>();
-        function &&
-        (function->FunctionName == "is_finite" || function->FunctionName.ends_with("_localtime")) ||
-        !EnableWebAssemblyInUnitTests())
+        function && (
+            function->FunctionName == "is_finite" ||
+            function->FunctionName.ends_with("_localtime") ||
+            function->FunctionName.ends_with("_tz")))
     {
         return;
     }
@@ -2815,7 +2816,11 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=1446325284",
             "timestamp_floor_year(i1)",
-            MakeInt64(1420070400))
+            MakeInt64(1420070400)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446325284; s1=\"Asia/Bangkok\"",
+            "timestamp_floor_day_tz(i1, s1)",
+            MakeInt64(1446310800))
 ));
 
 class TFormatTimestampExpressionTest
@@ -3152,18 +3157,15 @@ TEST_F(TExpressionStrConvTest, ErrorConvertStringToNumericTest) {
         HasSubstr("Cannot convert value"));
 }
 
-class TIllegalDoubleToIntCast
+class TIllegalDoubleToIntCastTest
     : public ::testing::Test
 {
 protected:
-    void SetUp() override
-    { }
-
     TTableSchemaPtr Schema_ = New<TTableSchema>();
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 };
 
-TEST_F(TIllegalDoubleToIntCast, NanToZero)
+TEST_F(TIllegalDoubleToIntCastTest, NanToZero)
 {
     TUnversionedValue result{};
 
@@ -3181,7 +3183,7 @@ TEST_F(TIllegalDoubleToIntCast, NanToZero)
     }
 }
 
-TEST_F(TIllegalDoubleToIntCast, UnsignedBoundaries)
+TEST_F(TIllegalDoubleToIntCastTest, UnsignedBoundaries)
 {
     TUnversionedValue result{};
 
@@ -3224,7 +3226,7 @@ TEST_F(TIllegalDoubleToIntCast, UnsignedBoundaries)
     }
 }
 
-TEST_F(TIllegalDoubleToIntCast, SignedBoundaries)
+TEST_F(TIllegalDoubleToIntCastTest, SignedBoundaries)
 {
     TUnversionedValue result{};
 

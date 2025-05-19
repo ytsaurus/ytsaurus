@@ -243,7 +243,7 @@ private:
     const TCellId PrimaryCellId_;
     const TCellTag PrimaryCellTag_;
     const TCellTagList SecondaryCellTags_;
-    const TString User_;
+    const std::string User_;
     const IClockManagerPtr ClockManager_;
     const NHiveClient::ICellDirectoryPtr CellDirectory_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
@@ -259,26 +259,34 @@ private:
 
     NThreading::TAtomicObject<THashMap<TCellId, TPingBatcherWithChannel>> PingBatchers_;
 
-    static TRetryChecker GetCommitRetryChecker()
+    static bool ContainsTransactionSuccessorHasLeasesError(const TError& error, TTransactionId id)
     {
-        static const auto Result = BIND_NO_PROPAGATE([] (const TError& error) {
+        return error.FindMatching([id] (const TError& error) {
             return
-                IsRetriableError(error) ||
-                error.FindMatching(NTransactionClient::EErrorCode::TransactionSuccessorHasLeases) ||
-                error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError);
-        });
-        return Result;
+                error.GetCode() == EErrorCode::TransactionSuccessorHasLeases &&
+                error.Attributes().Get<TTransactionId>("transaction_id") == id;
+        }).has_value();
     }
 
-    static TRetryChecker GetAbortRetryChecker()
+    static TRetryChecker GetCommitRetryChecker(TTransactionId id)
     {
-        static const auto Result = BIND_NO_PROPAGATE([] (const TError& error) {
+        return BIND_NO_PROPAGATE([id] (const TError& error) {
+            return
+                IsRetriableError(error) ||
+                error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError)||
+                ContainsTransactionSuccessorHasLeasesError(error, id) ;
+        });
+    }
+
+    static TRetryChecker GetAbortRetryChecker(TTransactionId id)
+    {
+        return BIND_NO_PROPAGATE([id] (const TError& error) {
             return
                 IsRetriableError(error) ||
                 error.FindMatching(NTransactionClient::EErrorCode::InvalidTransactionState) ||
-                error.FindMatching(NTransactionClient::EErrorCode::TransactionSuccessorHasLeases);
+                error.FindMatching(NSequoiaClient::EErrorCode::SequoiaRetriableError) ||
+                ContainsTransactionSuccessorHasLeasesError(error, id);
         });
-        return Result;
     }
 
     static TRetryChecker GetPingRetryChecker()
@@ -1159,7 +1167,7 @@ private:
         channel = CreateRetryingChannel(
             Owner_->Config_.Acquire(),
             std::move(channel),
-            Owner_->GetCommitRetryChecker());
+            Owner_->GetCommitRetryChecker(Id_));
 
         TCypressTransactionServiceProxy proxy(channel);
         auto req = proxy.CommitTransaction();
@@ -1175,7 +1183,7 @@ private:
                 &TImpl::OnAtomicTransactionCommitted<TCypressTransactionServiceProxy::TErrorOrRspCommitTransactionPtr>,
                 MakeStrong(this),
                 CoordinatorCellId_,
-                /*commitOptions*/ nullptr));
+                Passed(std::make_unique<TTransactionCommitOptions>(std::move(options)))));
     }
 
     TFuture<TTransactionCommitResult> DoCommitTransaction(const TTransactionCommitOptions& options, bool dynamicTablesLocked = false)
@@ -1194,7 +1202,7 @@ private:
         auto coordinatorChannel = options.AllowAlienCoordinator
             ? GetParticipantChannelOrThrow(CoordinatorCellId_)
             : Owner_->CellDirectory_->GetChannelByCellIdOrThrow(CoordinatorCellId_);
-        auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCommitRetryChecker());
+        auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCommitRetryChecker(Id_));
         auto req = proxy.CommitTransaction();
         req->SetUser(Owner_->User_);
         // NB: The server side only supports these for simple (non-distributed) commits, but set them anyway.
@@ -1655,6 +1663,10 @@ private:
 
         auto connection = connectionOrError.Value();
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
+        channel = CreateRetryingChannel(
+            Owner_->Config_.Acquire(),
+            std::move(channel),
+            Owner_->GetAbortRetryChecker(Id_));
         TCypressTransactionServiceProxy proxy(channel);
         auto req = proxy.AbortTransaction();
 
@@ -1700,7 +1712,7 @@ private:
             Id_,
             cellId);
 
-        auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), Owner_->GetAbortRetryChecker());
+        auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), Owner_->GetAbortRetryChecker(Id_));
         auto req = proxy.AbortTransaction();
         req->SetResponseHeavy(true);
         req->SetUser(Owner_->User_);

@@ -31,7 +31,7 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
@@ -250,9 +250,7 @@ private:
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
 
-        SequoiaClient_ = CreateSequoiaClient(
-            Config_->ClusterConnection->Dynamic->SequoiaConnection,
-            NativeRootClient_);
+        SequoiaClient_ = NativeConnection_->CreateSequoiaClient();
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
         DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));

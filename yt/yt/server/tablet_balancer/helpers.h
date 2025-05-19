@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/tablet_client/master_tablet_service_proxy.h>
 
+#include <yt/yt/client/table_client/public.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NTabletBalancer {
@@ -34,7 +36,8 @@ void ExecuteRequestsToCellTags(THashMap<NObjectClient::TCellTag, TRequest>* batc
 THashMap<NObjectClient::TCellTag, TCellTagRequest> FetchTableAttributes(
     const NApi::NNative::IClientPtr& client,
     const THashSet<TTableId>& tableIds,
-    const THashMap<TTableId, TTablePtr>& Tables,
+    const THashSet<TTableId>& tableIdsToFetchPivotKeys,
+    const THashMap<TTableId, NObjectClient::TCellTag>& tableIdToCellTag,
     std::function<void(const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr&)> prepareRequestProto);
 
 //! Fetch attributes using CellTag from ObjectId.
@@ -44,6 +47,18 @@ THashMap<NObjectClient::TObjectId, NYTree::IAttributeDictionaryPtr> FetchAttribu
     const std::vector<TString>& attributeKeys);
 
 TInstant TruncatedNow();
+
+////////////////////////////////////////////////////////////////////////////////
+
+NApi::NNative::IClientPtr GetClusterClient(
+    const NHiveClient::TClientDirectoryPtr& clientDirectory,
+    const TClusterName& clusterName);
+
+using TTablePerformanceCountersMap = THashMap<TTableId, THashMap<TTabletId, NTableClient::TUnversionedOwningRow>>;
+std::tuple<TTablePerformanceCountersMap, NQueryClient::TTableSchemaPtr> FetchPerformanceCountersAndSchemaFromTable(
+    const NApi::NNative::IClientPtr& client,
+    const THashSet<TTableId>& tableIds,
+    const NYPath::TYPath& tablePath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

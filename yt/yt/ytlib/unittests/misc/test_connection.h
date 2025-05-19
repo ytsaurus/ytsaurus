@@ -86,6 +86,8 @@
 
 #include <yt/yt/client/sequoia_client/public.h>
 
+#include <yt/yt/client/signature/generator.h>
+
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/api/client.h>
@@ -121,8 +123,7 @@
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/lazy_ptr.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -173,7 +174,7 @@ public:
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellTag, (NObjectClient::TCellTag, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCardId, (NChaosClient::TReplicationCardId, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, FindQueueAgentChannel, (TStringBuf), (const, override));
-    MOCK_METHOD(const NQueueClient::TQueueConsumerRegistrationManagerPtr&, GetQueueConsumerRegistrationManager, (), (const, override));
+    MOCK_METHOD(const NQueueClient::IQueueConsumerRegistrationManagerPtr&, GetQueueConsumerRegistrationManager, (), (const, override));
     MOCK_METHOD((std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr>), GetYqlAgentChannelProviderOrThrow, (const TString&), (const, override));
     MOCK_METHOD(const NTabletClient::ITableMountCachePtr&, GetTableMountCache, (), (override));
     MOCK_METHOD(const NChaosClient::IReplicationCardCachePtr&, GetReplicationCardCache, (), (override));
@@ -210,12 +211,15 @@ public:
     MOCK_METHOD(void, Reconfigure, (const TConnectionDynamicConfigPtr&), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetShuffleServiceChannelOrThrow, (), (override));
     MOCK_METHOD(void, RegisterShuffleService, (const std::string&), (override));
+    MOCK_METHOD(NSignature::ISignatureGeneratorPtr, GetSignatureGenerator, (), (const, override));
+    MOCK_METHOD(void, SetSignatureGenerator, (NSignature::ISignatureGeneratorPtr), (override));
 
     const TConnectionStaticConfigPtr& GetStaticConfig() const override;
     const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const override;
     TConnectionDynamicConfigPtr GetConfig() const override;
     NRpc::IChannelPtr CreateChannelByAddress(const std::string& address) override;
     IClientPtr CreateNativeClient(const TClientOptions& options) override;
+    NSequoiaClient::ISequoiaClientPtr CreateSequoiaClient() override;
     const NRpc::IChannelFactoryPtr& GetChannelFactory() override;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
 

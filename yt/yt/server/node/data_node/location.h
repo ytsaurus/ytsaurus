@@ -23,10 +23,9 @@
 
 #include <yt/yt/core/misc/atomic_ptr.h>
 #include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/profiling/sensor.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -503,7 +502,7 @@ public:
     double GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const;
 
     //! Push supplier to the queue.
-    void PushProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier);
+    void PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier);
 
     //! Try to acquire memory for top requests.
     void CheckProbePutBlocksRequests();
@@ -513,6 +512,8 @@ public:
 
     //! Returns size of requests queue.
     i64 GetRequestedQueueSize() const;
+
+    TError GetLocationDisableError() const;
 
 protected:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
@@ -569,7 +570,7 @@ private:
     // TODO(vvshlyaga): Change to fair share queue.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProbePutBlocksRequestsLock_);
     std::deque<TProbePutBlocksRequestSupplierPtr> ProbePutBlocksRequests_;
-    THashSet<TSessionId> ProbePutBlocksSuppliers_;
+    THashSet<TSessionId> ProbePutBlocksSessionIds_;
 
     const IMemoryUsageTrackerPtr ReadMemoryTracker_;
     const IMemoryUsageTrackerPtr WriteMemoryTracker_;
@@ -606,7 +607,7 @@ private:
     THazardPtr<TChunkLocationConfig> GetRuntimeConfig() const;
 
     void DoCheckProbePutBlocksRequests();
-    bool ContainsProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier) const;
+    bool ContainsProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier) const;
 
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     void IncreaseUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);

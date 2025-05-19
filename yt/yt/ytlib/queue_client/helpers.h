@@ -17,7 +17,7 @@ namespace NYT::NQueueClient {
 NYTree::IYPathServicePtr CreateQueueAgentYPathService(
     NRpc::IChannelPtr queueAgentChannel,
     const std::string& cluster,
-    const TString& objectKind,
+    const std::string& objectKind,
     const NYPath::TYPath& objectPath);
 
 struct TValidatePushQueueProducerRowsResult

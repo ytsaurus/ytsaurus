@@ -1,11 +1,13 @@
+#include "ordered_store_manager.h"
+
+#include "config.h"
 #include "in_memory_manager.h"
 #include "ordered_dynamic_store.h"
-#include "ordered_store_manager.h"
 #include "store.h"
+#include "store_flusher.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
 #include "transaction.h"
-#include "store_flusher.h"
 #include "versioned_chunk_meta_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -381,7 +383,8 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         auto updateWriterStatistics = [&] {
             auto guard = Guard(task->RuntimeData.SpinLock);
-            task->RuntimeData.ProcessedWriterStatistics = TBackgroundActivityTaskInfoBase::TWriterStatistics(tableWriter->GetDataStatistics());
+            task->RuntimeData.ProcessedWriterStatistics =
+                TBackgroundActivityTaskInfoBase::TWriterStatistics(tableWriter->GetDataStatistics());
         };
 
         std::vector<TUnversionedRow> rows;
@@ -425,7 +428,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
                 .ChunkId = tableWriter->GetChunkId(),
                 .ChunkMeta = tableWriter->GetMeta(),
                 .TabletId = tabletSnapshot->TabletId,
-                .MountRevision = tabletSnapshot->MountRevision
+                .MountRevision = tabletSnapshot->MountRevision,
             }
         };
 
@@ -483,4 +486,3 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

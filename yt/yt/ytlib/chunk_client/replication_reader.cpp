@@ -50,13 +50,12 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/hedging_manager.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/rpc/hedging_channel.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -102,21 +101,17 @@ DEFINE_ENUM(EPeerType,
 
 struct TPeer
 {
-    TChunkReplicaWithMedium Replica;
+    TChunkReplica Replica;
     std::string Address;
     const TNodeDescriptor* NodeDescriptor;
     EPeerType Type;
     EAddressLocality Locality;
-    int MediumPriority = 0;
     std::optional<TInstant> NodeSuspicionMarkTime;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TPeer& peer, TStringBuf format)
 {
     FormatValue(builder, peer.Address, format);
-    if (peer.Replica.GetMediumIndex() != GenericMediumIndex) {
-        builder->AppendFormat("@%v", peer.Replica.GetMediumIndex());
-    }
 }
 
 using TPeerList = TCompactVector<TPeer, 3>;
@@ -192,7 +187,7 @@ public:
         TRemoteReaderOptionsPtr options,
         TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
-        TChunkReplicaWithMediumList seedReplicas)
+        TChunkReplicaList seedReplicas)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(chunkReaderHost->Client)
@@ -326,7 +321,7 @@ private:
     //! If AllowFetchingSeedsFromMaster is |true| InitialSeeds_ (if present) are used
     //! until 'DiscardSeeds' is called for the first time.
     //! If AllowFetchingSeedsFromMaster is |false| InitialSeeds_ must be given and cannot be discarded.
-    TChunkReplicaWithMediumList InitialSeeds_;
+    TChunkReplicaList InitialSeeds_;
 
     std::atomic<TInstant> LastFailureTime_ = TInstant();
     TCallback<TError(i64, TDuration)> SlownessChecker_;
@@ -462,6 +457,7 @@ protected:
         bool DiskThrottling = false;
         i64 NetQueueSize = 0;
         i64 DiskQueueSize = 0;
+        int MediumPriority = 0;
         ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor> PeerDescriptors;
         TAllyReplicasInfo AllyReplicas;
         bool HasCompleteChunk = false;
@@ -472,8 +468,7 @@ protected:
 
     using TErrorOrPeerProbeResult = TErrorOr<TPeerProbeResult>;
 
-    template <class TRspPtr>
-    static TPeerProbeResult ParseProbeResponse(const TRspPtr& rsp)
+    TPeerProbeResult ParseProbeResponse(const TDataNodeServiceProxy::TRspProbeBlockSetPtr& rsp)
     {
         std::vector<TBlockInfo> blockInfos;
         blockInfos.reserve(rsp->cached_blocks_size());
@@ -484,11 +479,14 @@ protected:
                 rsp->cached_blocks()[index].block_size());
         }
 
+        const auto* mediumDescriptor = MediumDirectory_->FindByIndex(rsp->medium_index());
+
         return {
             .NetThrottling = rsp->net_throttling(),
             .DiskThrottling = rsp->disk_throttling(),
             .NetQueueSize = rsp->net_queue_size(),
             .DiskQueueSize = rsp->disk_queue_size(),
+            .MediumPriority = mediumDescriptor ? mediumDescriptor->Priority : 0,
             .PeerDescriptors = rsp->peer_descriptors(),
             .AllyReplicas = FromProto<TAllyReplicasInfo>(rsp->ally_replicas()),
             .HasCompleteChunk = rsp->has_complete_chunk(),
@@ -623,12 +621,6 @@ protected:
         return reader ? ComputeAddressLocality(descriptor, reader->LocalDescriptor_) : EAddressLocality::None;
     }
 
-    int GetMediumPriority(TChunkReplicaWithMedium replica)
-    {
-        const auto* descriptor = MediumDirectory_->FindByIndex(replica.GetMediumIndex());
-        return descriptor ? descriptor->Priority : 0;
-    }
-
     IThroughputThrottlerPtr CreateCombinedDataByteThrottler() const
     {
         return CreateCombinedThrottler({
@@ -688,7 +680,8 @@ protected:
     void HandleChunkReaderStatistics(const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
     {
         UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, protoChunkReaderStatistics);
-        TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk();
+        TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk() +
+            protoChunkReaderStatistics.meta_bytes_read_from_disk();
     }
 
     void AccountExtraMediumBandwidth(i64 throttledBytes)
@@ -733,7 +726,7 @@ protected:
 
     //! Register peer and install it into the peer queue if necessary.
     bool AddPeer(
-        TChunkReplicaWithMedium replica,
+        TChunkReplica replica,
         const std::string& address,
         const TNodeDescriptor& descriptor,
         EPeerType type,
@@ -758,7 +751,6 @@ protected:
             .NodeDescriptor = &descriptor,
             .Type = type,
             .Locality = GetNodeLocality(descriptor),
-            .MediumPriority = GetMediumPriority(replica),
             .NodeSuspicionMarkTime = nodeSuspicionMarkTime
         };
         if (!Peers_.emplace(address, peer).second) {
@@ -1037,7 +1029,7 @@ protected:
         const auto& seedReplicas = SeedReplicas_.Replicas;
 
         std::vector<const TNodeDescriptor*> peerDescriptors;
-        std::vector<TChunkReplicaWithMedium> replicas;
+        std::vector<TChunkReplica> replicas;
         std::vector<TNodeId> nodeIds;
         std::vector<std::string> peerAddresses;
         peerDescriptors.reserve(seedReplicas.size());
@@ -1290,12 +1282,6 @@ private:
 
     int ComparePeerQueueEntries(const TPeerQueueEntry& lhs, const TPeerQueueEntry rhs) const
     {
-        if (lhs.Peer.MediumPriority < rhs.Peer.MediumPriority) {
-            return -1;
-        } else if (lhs.Peer.MediumPriority > rhs.Peer.MediumPriority) {
-            return +1;
-        }
-
         if (int result = ComparePeerLocality(lhs.Peer, rhs.Peer); result != 0) {
             return result;
         }
@@ -1430,10 +1416,9 @@ private:
         return false;
     }
 
-    template <class TRspPtr>
-    static std::pair<TPeer, TErrorOrPeerProbeResult> ParsePeerAndProbeResponse(
+    std::pair<TPeer, TErrorOrPeerProbeResult> ParsePeerAndProbeResponse(
         TPeer peer,
-        const TErrorOr<TRspPtr>& rspOrError)
+        const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
             return {
@@ -1448,15 +1433,13 @@ private:
         }
     }
 
-    template <class TRspPtr>
     std::pair<TPeer, TErrorOrPeerProbeResult> ParseSuspiciousPeerAndProbeResponse(
         TPeer peer,
-        const TErrorOr<TRspPtr>& rspOrError,
+        const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError,
         const TFuture<TAllyReplicasInfo>& allyReplicasFuture,
         int totalPeerCount)
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
-
         YT_VERIFY(peer.NodeSuspicionMarkTime && NodeStatusDirectory_);
 
         if (rspOrError.IsOK()) {
@@ -1519,7 +1502,7 @@ private:
                 })
                 .AsyncVia(SessionInvoker_));
         } else {
-            return probeBlockSetResponseFuture.Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError) {
+            return probeBlockSetResponseFuture.Apply(BIND([peer, this, this_ = MakeStrong(this)] (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError) {
                 return ParsePeerAndProbeResponse(std::move(peer), rspOrError);
             }));
         }
@@ -1698,6 +1681,11 @@ private:
             [&] (const auto& first, const auto& second) {
                 const auto& [firstPeer, firstProbeResult] = first;
                 const auto& [secondPeer, secondProbeResult] = second;
+
+                if (firstProbeResult.MediumPriority != secondProbeResult.MediumPriority) {
+                    // Higher priorities must come first.
+                    return firstProbeResult.MediumPriority > secondProbeResult.MediumPriority;
+                }
 
                 auto firstNetQueueSize = firstProbeResult.NetQueueSize;
                 auto secondNetQueueSize = secondProbeResult.NetQueueSize;
@@ -1919,7 +1907,7 @@ private:
 
                 if (auto suggestedAddress = maybeSuggestedDescriptor->FindAddress(Networks_)) {
                     if (AddPeer(
-                        TChunkReplicaWithMedium(peerNodeId, GenericChunkReplicaIndex, suggestorPeer.Replica.GetMediumIndex()),
+                        TChunkReplica(peerNodeId, GenericChunkReplicaIndex),
                         *suggestedAddress,
                         *maybeSuggestedDescriptor,
                         EPeerType::Peer,
@@ -4043,7 +4031,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    TChunkReplicaWithMediumList seedReplicas)
+    TChunkReplicaList seedReplicas)
 {
     return New<TReplicationReader>(
         std::move(config),

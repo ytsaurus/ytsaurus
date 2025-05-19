@@ -77,9 +77,9 @@ TLookupCounters::TLookupCounters(
         TDuration::Seconds(10)))
     , RetryCount(profiler.Counter("/lookup/retry_count"))
     , ChunkReaderStatisticsCounters(
-        profiler.WithPrefix("/lookup/chunk_reader_statistics"),
+        mediumProfiler.WithPrefix("/lookup/chunk_reader_statistics"),
         mediumProfiler.WithPrefix("/lookup/medium_statistics"))
-    , HunkChunkReaderCounters(profiler.WithPrefix("/lookup/hunks"), schema)
+    , HunkChunkReaderCounters(mediumProfiler.WithPrefix("/lookup/hunks"), schema)
     , KeyFilterCounters(profiler.WithPrefix("/lookup/key_filter"))
 { }
 
@@ -111,9 +111,9 @@ TSelectRowsCounters::TSelectRowsCounters(
     , RangeFilterCounters(profiler.WithPrefix("/select/range_filter"))
     , KeyFilterCounters(profiler.WithPrefix("/select/key_filter"))
     , ChunkReaderStatisticsCounters(
-        profiler.WithPrefix("/select/chunk_reader_statistics"),
+        mediumProfiler.WithPrefix("/select/chunk_reader_statistics"),
         mediumProfiler.WithPrefix("/select/medium_statistics"))
-    , HunkChunkReaderCounters(profiler.WithPrefix("/select/hunks"), schema)
+    , HunkChunkReaderCounters(mediumProfiler.WithPrefix("/select/hunks"), schema)
     , CacheHits(profiler.Counter("/select/cache_hits"))
     , CacheOutdated(profiler.Counter("/select/cache_outdated"))
     , CacheMisses(profiler.Counter("/select/cache_misses"))
@@ -527,11 +527,11 @@ public:
 
     TTableProfilerPtr CreateTabletProfiler(
         EDynamicTableProfilingMode profilingMode,
-        const TString& bundle,
-        const TString& tablePath,
+        const std::string& bundle,
+        const NYPath::TYPath& tablePath,
         const TString& tableTag,
-        const TString& account,
-        const TString& medium,
+        const std::string& account,
+        const std::string& medium,
         TObjectId schemaId,
         const TTableSchemaPtr& schema)
     {
@@ -631,8 +631,7 @@ private:
     THashSet<TString> AllTables_;
     TGauge ConsumedTableTags_;
 
-    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, TString, TString, TString, TString, TObjectId>;
-
+    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, std::string, NYPath::TYPath, std::string, std::string, TObjectId>;
     THashMap<TProfilerKey, TWeakPtr<TTableProfiler>> Tables_;
 };
 
@@ -640,11 +639,11 @@ private:
 
 TTableProfilerPtr CreateTableProfiler(
     EDynamicTableProfilingMode profilingMode,
-    const TString& tabletCellBundle,
+    const std::string& tabletCellBundle,
     const TString& tablePath,
     const TString& tableTag,
-    const TString& account,
-    const TString& medium,
+    const std::string& account,
+    const std::string& medium,
     TObjectId schemaId,
     const TTableSchemaPtr& schema)
 {

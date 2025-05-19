@@ -58,6 +58,7 @@ func (f *FollowingFile) ReadContext(ctx context.Context, buf []byte) (read int, 
 		read, err = f.file.Read(buf)
 		f.filePosition += int64(read)
 		if err != nil && err != io.EOF {
+			err = fmt.Errorf("failed to read bytes (read: %d): %w", read, err)
 			return
 		}
 		if read > 0 {

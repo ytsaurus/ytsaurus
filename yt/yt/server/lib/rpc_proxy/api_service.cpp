@@ -4,6 +4,7 @@
 #include "config.h"
 #include "format_row_stream.h"
 #include "helpers.h"
+#include "multiconnection_client_cache.h"
 #include "multiproxy_access_validator.h"
 #include "private.h"
 #include "proxy_coordinator.h"
@@ -20,7 +21,10 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/client_cache.h>
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -358,6 +362,8 @@ bool IsColumnarRowsetFormat(NApi::NRpcProxy::NProto::ERowsetFormat format)
     return format == NApi::NRpcProxy::NProto::RF_ARROW;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TDetailedProfilingCounters)
 
 class TDetailedProfilingCounters
@@ -448,6 +454,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TDetailedProfilingCounters)
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! This context extends standard typed service context. By this moment it is used for structured
 //! logging reasons.
@@ -624,7 +632,6 @@ public:
         INodeMemoryTrackerPtr memoryTracker,
         IStickyTransactionPoolPtr stickyTransactionPool,
         ISignatureValidatorPtr signatureValidator,
-        ISignatureGeneratorPtr signatureGenerator,
         IQueryCorpusReporterPtr queryCorpusReporter)
         : TServiceBase(
             std::move(workerInvoker),
@@ -636,27 +643,24 @@ public:
             })
         , ApiServiceConfig_(config)
         , Profiler_(std::move(profiler))
-        , Connection_(std::move(connection))
+        , LocalConnection_(std::move(connection))
         , ProxyCoordinator_(std::move(proxyCoordinator))
         , AccessChecker_(std::move(accessChecker))
         , TraceSampler_(std::move(traceSampler))
         , StickyTransactionPool_(stickyTransactionPool
             ? stickyTransactionPool
             : CreateStickyTransactionPool(Logger))
-        , AuthenticatedClientCache_(New<NApi::NNative::TClientCache>(
-            config->ClientCache,
-            Connection_))
+        , AuthenticatedClientCache_(New<TMulticonnectionClientCache>(config->ClientCache))
         , ControlInvoker_(std::move(controlInvoker))
         , HeapProfilerTestingOptions_(config->TestingOptions
             ? config->TestingOptions->HeapProfiler
             : nullptr)
         , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest))
         , SignatureValidator_(std::move(signatureValidator))
-        , SignatureGenerator_(std::move(signatureGenerator))
         , QueryCorpusReporter_(std::move(queryCorpusReporter))
         , UserAccessValidator_(CreateUserAccessValidator(
             ApiServiceConfig_->UserAccessValidator,
-            Connection_,
+            LocalConnection_,
             Logger))
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
@@ -792,6 +796,7 @@ public:
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetTablePivotKeys));
 
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetCurrentUser));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AddMember));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RemoveMember));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(CheckPermission));
@@ -900,17 +905,16 @@ private:
     TApiServiceConfigPtr ApiServiceConfig_;
     const TProfiler Profiler_;
     TAtomicIntrusivePtr<TApiServiceDynamicConfig> Config_{New<TApiServiceDynamicConfig>()};
-    const NApi::NNative::IConnectionPtr Connection_;
+    const NApi::NNative::IConnectionPtr LocalConnection_;
     const IProxyCoordinatorPtr ProxyCoordinator_;
     const IAccessCheckerPtr AccessChecker_;
     const NTracing::TSamplerPtr TraceSampler_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
-    const NNative::TClientCachePtr AuthenticatedClientCache_;
+    const TMulticonnectionClientCachePtr AuthenticatedClientCache_;
     const IInvokerPtr ControlInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
     const ISignatureValidatorPtr SignatureValidator_;
-    const ISignatureGeneratorPtr SignatureGenerator_;
     const IQueryCorpusReporterPtr QueryCorpusReporter_;
     const IUserAccessValidatorPtr UserAccessValidator_;
 
@@ -945,10 +949,19 @@ private:
 
     std::atomic<i64> NextSequenceNumberSourceId_ = 0;
 
-    NNative::IClientPtr GetOrCreateClient(const TAuthenticationIdentity& identity)
+    std::optional<std::string> GetMultiproxyTargetCluster(const IServiceContextPtr& context)
     {
-        auto options = TClientOptions::FromAuthenticationIdentity(identity);
-        return AuthenticatedClientCache_->Get(identity, options);
+        const auto& header = context->GetRequestHeader();
+        const auto& multiproxyTargetExt = header.GetExtension(NRpc::NProto::TMultiproxyTargetExt::multiproxy_target_ext);
+        if (!multiproxyTargetExt.has_cluster()) {
+            return {};
+        }
+        const auto& cluster = multiproxyTargetExt.cluster();
+        const auto& localClusterName = LocalConnection_->GetStaticConfig()->ClusterName;
+        if (cluster == localClusterName) {
+            return {};
+        }
+        return cluster;
     }
 
     void AllocateTestData(const TTraceContextPtr& traceContext)
@@ -1096,7 +1109,11 @@ private:
 
         THROW_ERROR_EXCEPTION_IF_FAILED(AccessChecker_->CheckAccess(identity.User));
 
-        UserAccessValidator_->ValidateUser(identity.User);
+        const auto& multiproxyTargetCluster = GetMultiproxyTargetCluster(context);
+        if (multiproxyTargetCluster) {
+            MultiproxyAccessValidator_->ValidateMultiproxyAccess(*multiproxyTargetCluster, context->GetMethod());
+        }
+        UserAccessValidator_->ValidateUser(identity.User, multiproxyTargetCluster);
 
         ProxyCoordinator_->ValidateOperable();
 
@@ -1109,7 +1126,16 @@ private:
                 request->ShortDebugString());
         }
 
-        auto client = GetOrCreateClient(identity);
+        const auto& connection = multiproxyTargetCluster
+            ? LocalConnection_->GetClusterDirectory()->GetConnectionOrThrow(*multiproxyTargetCluster)
+            : LocalConnection_;
+
+        auto client = AuthenticatedClientCache_->Get(
+            multiproxyTargetCluster,
+            identity,
+            connection,
+            TClientOptions::FromAuthenticationIdentity(identity));
+
         if (!client) {
             THROW_ERROR_EXCEPTION("No client found for identity %Qv", identity);
         }
@@ -1288,15 +1314,16 @@ private:
             count,
             clockClusterTag);
 
+        const auto& connection = client->GetNativeConnection();
         if (clockClusterTag == InvalidCellTag) {
-            Connection_->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
+            connection->GetClockManager()->ValidateDefaultClock("Unable to generate timestamps");
         }
 
-        const auto& timestampProvider = Connection_->GetTimestampProvider();
+        const auto& timestampProvider = connection->GetTimestampProvider();
 
         ExecuteCall(
             context,
-            [=, Logger = Logger, connection = Connection_] {
+            [=, Logger = Logger] {
                 return timestampProvider->GenerateTimestamps(count, clockClusterTag).ApplyUnique(
                     BIND([connection, clockClusterTag, count, Logger] (TErrorOr<TTimestamp>&& providerResult) {
                         if (providerResult.IsOK() ||
@@ -5416,6 +5443,23 @@ private:
     // SECURITY
     ////////////////////////////////////////////////////////////////////////////////
 
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetCurrentUser)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        context->SuppressMissingRequestInfoCheck();
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->GetCurrentUser();
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_user(result->User);
+            });
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AddMember)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
@@ -6124,20 +6168,10 @@ private:
             options.AdjustDataWeightPerPartition,
             options.EnableCookies);
 
-        auto sign = [this_ = MakeStrong(this)] (TMultiTablePartitions&& partitions) {
-            for (auto& partition : partitions.Partitions) {
-                if (partition.Cookie) {
-                    partition.Cookie = this_->GenerateSignature<TTablePartitionCookiePtr>(std::move(partition.Cookie.Underlying()));
-                }
-            }
-            return std::move(partitions);
-        };
-
         ExecuteCall(
             context,
             [=] {
-                return client->PartitionTables(paths, options)
-                    .ApplyUnique(BIND(std::move(sign)));
+                return client->PartitionTables(paths, options);
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
@@ -6249,13 +6283,6 @@ private:
     ////////////////////////////////////////////////////////////////////////////////
 
     // Signature helpers.
-    template <std::constructible_from<TSignaturePtr> TFinal>
-    TFinal GenerateSignature(TSignaturePtr&& emptySignature) const
-    {
-        SignatureGenerator_->Resign(emptySignature);
-        return TFinal(std::move(emptySignature));
-    }
-
     TFuture<bool> ValidateSignature(const TSignaturePtr& signedValue) const
     {
         return SignatureValidator_->Validate(signedValue);
@@ -6273,21 +6300,10 @@ private:
             "Path: %v",
             path);
 
-        auto signSessionAndCookies = [&, this_ = MakeStrong(this)] (TDistributedWriteSessionWithCookies&& sessionAndCookies) {
-            sessionAndCookies.Session = GenerateSignature<TSignedDistributedWriteSessionPtr>(std::move(sessionAndCookies.Session.Underlying()));
-
-            for (auto& cookie : sessionAndCookies.Cookies) {
-                cookie = GenerateSignature<TSignedWriteFragmentCookiePtr>(std::move(cookie.Underlying()));
-            }
-
-            return std::move(sessionAndCookies);
-        };
-
         ExecuteCall(
             context,
             [=] {
-                return client->StartDistributedWriteSession(path, options)
-                    .ApplyUnique(BIND(std::move(signSessionAndCookies)));
+                return client->StartDistributedWriteSession(path, options);
             },
             [] (const auto& context, const auto& result) {
                 context->Response().set_signed_session(ConvertToYsonString(result.Session).ToString());
@@ -6381,8 +6397,8 @@ private:
             request,
             tableWriter,
             [&, tableWriter] {
-                auto signedWriteResult = GenerateSignature<TSignedWriteFragmentResultPtr>(tableWriter->GetWriteFragmentResult().Underlying());
-                response->set_signed_write_result(ConvertToYsonString(signedWriteResult).ToString());
+                auto writeResult = tableWriter->GetWriteFragmentResult();
+                response->set_signed_write_result(ConvertToYsonString(writeResult).ToString());
             });
     }
 
@@ -6990,20 +7006,55 @@ private:
 
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
+        std::optional<std::pair<int, int>> writerIndexRange;
+        if (request->has_writer_index_range()) {
+            auto writerIndexBegin = request->writer_index_range().has_begin()
+                ? std::optional<int>(request->writer_index_range().begin())
+                : std::nullopt;
+
+            auto writerIndexEnd = request->writer_index_range().has_end()
+                ? std::optional<int>(request->writer_index_range().end())
+                : std::nullopt;
+
+            if (!writerIndexBegin.has_value() || !writerIndexEnd.has_value()) {
+                THROW_ERROR_EXCEPTION("One or both writer index range limits are empty")
+                    << TErrorAttribute("begin", writerIndexBegin)
+                    << TErrorAttribute("end", writerIndexEnd);
+            }
+
+            if (*writerIndexBegin > *writerIndexEnd) {
+                THROW_ERROR_EXCEPTION(
+                    "Lower limit of mappers range %v cannot be greater than upper limit %v",
+                    *writerIndexBegin,
+                    *writerIndexEnd);
+            }
+
+            if (*writerIndexBegin < 0) {
+                THROW_ERROR_EXCEPTION("Received negative lower limit of writer index range %v", *writerIndexBegin);
+            }
+
+            writerIndexRange = std::pair(*writerIndexBegin, *writerIndexEnd);
+        }
+
         context->SetRequestInfo(
-            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionIndex: %v",
+            "TransactionId: %v, CoordinatorAddress: %v, Account: %v, PartitionCount: %v, PartitionIndex: %v, WriterIndexRange: %v",
             shuffleHandle->TransactionId,
             shuffleHandle->CoordinatorAddress,
             shuffleHandle->Account,
             shuffleHandle->PartitionCount,
-            request->partition_index());
+            request->partition_index(),
+            writerIndexRange);
 
-        auto readerConfig = ConvertTo<NTableClient::TTableReaderConfigPtr>(TYsonString(request->reader_config()));
+        TShuffleReaderOptions options;
+        options.Config = request->has_reader_config()
+            ? ConvertTo<TTableReaderConfigPtr>(TYsonString(request->reader_config()))
+            : New<TTableReaderConfig>();
 
         auto reader = WaitFor(client->CreateShuffleReader(
             shuffleHandle,
             request->partition_index(),
-            readerConfig))
+            writerIndexRange,
+            options))
             .ValueOrThrow();
 
         auto encoder = CreateWireRowStreamEncoder(reader->GetNameTable());
@@ -7038,8 +7089,6 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto writerConfig = ConvertTo<NTableClient::TTableWriterConfigPtr>(TYsonString(request->writer_config()));
-
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
         auto partitionColumn = request->partition_column();
@@ -7052,8 +7101,29 @@ private:
             shuffleHandle->PartitionCount,
             partitionColumn);
 
+        auto writerIndex = request->has_writer_index() ? std::optional<int>(request->writer_index()) : std::nullopt;
+        if (writerIndex && *writerIndex < 0) {
+            THROW_ERROR_EXCEPTION("Received negative writer index %v", *writerIndex);
+        }
+
+        TShuffleWriterOptions options;
+        options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(
+            request->has_writer_config()
+            ? request->writer_config()
+            : "{}"));
+
+
+        options.Config = request->has_writer_config()
+            ? ConvertTo<TTableWriterConfigPtr>(TYsonString(request->writer_config()))
+            : New<TTableWriterConfig>();
+
+        options.OverwriteExistingWriterData = request->overwrite_existing_writer_data();
+        if (options.OverwriteExistingWriterData && !writerIndex.has_value()) {
+            THROW_ERROR_EXCEPTION("Writer index must be set when overwrite existing writer data option is enabled");
+        }
+
         auto writer = WaitFor(
-            client->CreateShuffleWriter(shuffleHandle, partitionColumn, writerConfig))
+            client->CreateShuffleWriter(shuffleHandle, partitionColumn, writerIndex, options))
             .ValueOrThrow();
 
         auto decoder = CreateWireRowStreamDecoder(writer->GetNameTable());
@@ -7136,12 +7206,11 @@ IApiServicePtr CreateApiService(
     NLogging::TLogger logger,
     TProfiler profiler,
     ISignatureValidatorPtr signatureValidator,
-    ISignatureGeneratorPtr signatureGenerator,
     INodeMemoryTrackerPtr memoryUsageTracker,
     IStickyTransactionPoolPtr stickyTransactionPool,
     IQueryCorpusReporterPtr queryCorpusReporter)
 {
-    YT_VERIFY(signatureValidator && signatureGenerator);
+    YT_VERIFY(signatureValidator);
     return New<TApiService>(
         std::move(config),
         std::move(controlInvoker),
@@ -7156,7 +7225,6 @@ IApiServicePtr CreateApiService(
         std::move(memoryUsageTracker),
         std::move(stickyTransactionPool),
         std::move(signatureValidator),
-        std::move(signatureGenerator),
         std::move(queryCorpusReporter));
 }
 

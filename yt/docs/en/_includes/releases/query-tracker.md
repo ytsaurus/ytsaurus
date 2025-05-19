@@ -3,10 +3,41 @@
 
 Is released as a docker image.
 
-
-
-
 **Releases:**
+
+{% cut "**0.0.9**" %}
+
+**Release date:** 2025-04-08
+
+
+**Features**
+- Added possibility to ban QT\YQLA
+- Added QT\YQLA custom metrics
+- Added YQLA dynamic configuration
+- Added clickhouse UDF
+- Added possibility to specify extra credentials for YQL queries
+- Added possibility to configure YQL default cluster per query
+- Added full result table in YQL queries results (available from 25.1 proxies)
+- Supported unicode symbols in SPYT queries
+- Supported results truncation in SPYT queries
+
+**Improvements**
+- Optimized QT API calls
+- Limited max simultaneous queries per YQLA
+- Configured QT dyntables compaction
+
+**Fixes**
+- Fixed YQL queries abortion
+- Fixed completing of queries with results over 16MB
+- Fixed query completion after responsible qt crash
+- Fixed yqla deadlock
+
+**NB!** This release is only compatible with proxy version 24.1.0, operator version 0.23.1 and later
+https://github.com/ytsaurus/ytsaurus/releases/tag/docker%2Fytsaurus%2F24.1.0
+https://github.com/ytsaurus/ytsaurus-k8s-operator/releases/tag/release%2F0.23.1
+
+{% endcut %}
+
 
 {% cut "**0.0.8**" %}
 
@@ -31,7 +62,7 @@ Is released as a docker image.
 
 - **Important fix.** Fixed YQL queries results corruption. Issue: https://github.com/ytsaurus/ytsaurus/issues/707
 - Fixed YQL DQ launching
-- Fixed bug caused UTF-8 errors in yql-agent logs 
+- Fixed bug caused UTF-8 errors in yql-agent logs
 - Fixed multiple deadlocks in yql-agent
 - Added support for SPYT discovery groups
 - Added support for SPYT queries parameters
@@ -137,7 +168,7 @@ https://github.com/ytsaurus/yt-k8s-operator/releases/tag/release%2F0.5.0
 **Release date:** 2023-11-14
 
 
-- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks. 
+- Fixed a bug that caused the user transaction to expire before the completion of the yql query on IPv4 only networks.
 - System query_tracker tables have been moved to sys bundle
 
 

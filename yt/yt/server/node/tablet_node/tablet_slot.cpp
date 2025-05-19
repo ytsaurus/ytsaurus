@@ -2,12 +2,14 @@
 
 #include "automaton.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "distributed_throttler_manager.h"
 #include "hint_manager.h"
 #include "hunk_tablet_manager.h"
 #include "master_connector.h"
 #include "mutation_forwarder.h"
 #include "mutation_forwarder_thunk.h"
+#include "overload_controller.h"
 #include "private.h"
 #include "security_manager.h"
 #include "serialize.h"
@@ -19,7 +21,6 @@
 #include "tablet_service.h"
 #include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
-#include "overload_controller.h"
 
 #include <yt/yt/server/node/data_node/config.h>
 
@@ -40,8 +41,6 @@
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
 #include <yt/yt/server/node/cellar_node/config.h>
@@ -122,7 +121,7 @@ static const TString ReadDirectionName = "read";
 ////////////////////////////////////////////////////////////////////////////////
 
 static TThroughputThrottlerConfigPtr GetMediumThrottlerConfig(
-    const TString& mediumName,
+    const std::string& mediumName,
     const TBundleDynamicConfigPtr& bundleConfig,
     auto getThrottlerLimit)
 {
@@ -155,7 +154,7 @@ class TMediumThrottlerManager
 {
 public:
     TMediumThrottlerManager(
-        TString bundleName,
+        std::string bundleName,
         TCellId cellId,
         IInvokerPtr automationInvoker,
         TBundleDynamicConfigManagerPtr dynamicConfigManager,
@@ -180,7 +179,7 @@ public:
         DynamicConfigManager_->UnsubscribeConfigChanged(DynamicConfigCallback_);
     }
 
-    IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const TString& mediumName)
+    IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const std::string& mediumName)
     {
         RegisteredWriteThrottlers_.insert(mediumName);
 
@@ -189,7 +188,7 @@ public:
             DynamicConfigManager_->GetConfig());
     }
 
-    IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const TString& mediumName)
+    IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const std::string& mediumName)
     {
         RegisteredReadThrottlers_.insert(mediumName);
 
@@ -203,19 +202,19 @@ private:
         const TBundleDynamicConfigPtr& oldConfig,
         const TBundleDynamicConfigPtr& newConfig)>;
 
-    const TString BundleName_;
-    const TString BundlePath_;
+    const std::string BundleName_;
+    const NYPath::TYPath BundlePath_;
     const IInvokerPtr AutomationInvoker_;
     const TBundleDynamicConfigManagerPtr DynamicConfigManager_;
     const IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
     const NProfiling::TProfiler Profiler_;
 
-    THashSet<TString> RegisteredWriteThrottlers_;
-    THashSet<TString> RegisteredReadThrottlers_;
+    THashSet<std::string> RegisteredWriteThrottlers_;
+    THashSet<std::string> RegisteredReadThrottlers_;
     TDynamicConfigCallback DynamicConfigCallback_;
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateWriteThrottler(
-        const TString& mediumName,
+        const std::string& mediumName,
         const TBundleDynamicConfigPtr& bundleConfig)
     {
         return GetOrCreateThrottler(
@@ -228,7 +227,7 @@ private:
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateReadThrottler(
-        const TString& mediumName,
+        const std::string& mediumName,
         const TBundleDynamicConfigPtr& bundleConfig)
     {
         return GetOrCreateThrottler(
@@ -242,7 +241,7 @@ private:
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
         const TString& direction,
-        const TString& mediumName,
+        const std::string& mediumName,
         const TBundleDynamicConfigPtr& bundleConfig,
         auto getThrottlerLimit)
     {
@@ -391,7 +390,7 @@ public:
         return hydraManager ? hydraManager->GetAutomatonTerm() : InvalidTerm;
     }
 
-    const TString& GetTabletCellBundleName() override
+    const std::string& GetTabletCellBundleName() override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -933,7 +932,7 @@ private:
         return MediumThrottlerManager_->GetMediumWriteThrottler(options->ChangelogPrimaryMedium);
     }
 
-    IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const TString& mediumName) const override
+    IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const std::string& mediumName) const override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(MediumThrottlerManager_);
@@ -941,7 +940,7 @@ private:
         return MediumThrottlerManager_->GetMediumWriteThrottler(mediumName);
     }
 
-    IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const TString& mediumName) const override
+    IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const std::string& mediumName) const override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(MediumThrottlerManager_);

@@ -527,7 +527,7 @@ func (h *streamHandler) ProcessTaskQueue(ctx context.Context) {
 		taskController := taskController{
 			path:      task.StagedPath,
 			datastore: h.timberTruck.datastore,
-			logger:    h.logger.With("component", "Pipeline"),
+			logger:    h.logger.With("component", "Pipeline", "stagedpath", task.StagedPath),
 		}
 
 		var p *pipelines.Pipeline
@@ -620,6 +620,7 @@ type taskController struct {
 }
 
 func (c *taskController) NotifyProgress(pos pipelines.FilePosition) {
+	c.logger.Debug("Task progress", "progress", pos)
 	for {
 		err := c.datastore.UpdateEndPosition(c.path, pos)
 		if err != nil {

@@ -425,8 +425,19 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
                         *prepareTimeLimit);
                 }
 
-                if (UserJobSpec_->has_network_project_id()) {
-                    NetworkProjectId_ = UserJobSpec_->network_project_id();
+                if (UserJobSpec_->has_network_project()) {
+                    NetworkProject_ = FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->network_project());
+                // COMPAT(ignat)
+                } else if (UserJobSpec_->has_network_project_id()) {
+                    NetworkProject_ = NControllerAgent::TNetworkProject{
+                        .Id = UserJobSpec_->network_project_id(),
+                        .EnableNat64 = UserJobSpec_->enable_nat64(),
+                        .DisableNetwork = UserJobSpec_->disable_network(),
+                    };
+                }
+
+                if (NetworkProject_) {
+                    NetworkAttributes_ = BuildNetworkAttributes(*NetworkProject_);
                 }
             }
 
@@ -493,7 +504,11 @@ void TJob::Start() noexcept
 
     TFuture<std::vector<TNameWithAddress>> resolveFuture;
 
-    if (UserJobSpec_ && UserJobSpec_->has_network_project_id()) {
+    if (UserJobSpec_ && (
+            UserJobSpec_->has_network_project() ||
+            UserJobSpec_->has_network_project_id() ||
+            UserJobSpec_->has_gpu_check_network_project()))
+    {
         std::vector<TFuture<TNameWithAddress>> nodeAddressFutures;
 
         auto addresses = Bootstrap_->GetConfig()->Addresses;
@@ -965,6 +980,7 @@ void TJob::OnResultReceived(TJobResult jobResult)
                             if (nbdError.IsOK()) {
                                 nbdError = std::move(error);
                                 nbdError <<= TErrorAttribute("abort_reason", EAbortReason::NbdErrors);
+                                nbdError <<= TErrorAttribute("debug_info", device->DebugString());
                                 // Save job error as well.
                                 if (auto jobError = FromProto<TError>(jobResult.error()); !jobError.IsOK()) {
                                     nbdError <<= jobError;
@@ -2244,7 +2260,7 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
         });
 }
 
-std::vector<TDevice> TJob::GetGpuDevices()
+std::vector<TDevice> TJob::GetGpuDevices() const
 {
     auto gpuSlots = GetGpuSlots();
 
@@ -2329,21 +2345,9 @@ void TJob::RunWithWorkspaceBuilder()
         .DockerImage = DockerImage_,
         .DockerAuth = BuildDockerAuthConfig(),
 
-        .NeedGpuCheck = NeedsGpuCheck(),
-        .GpuCheckSetupCommands = UserJobSpec_ && !GpuCheckVolumeLayerArtifactKeys_.empty()
-            ? Bootstrap_->GetGpuManager()->GetSetupCommands()
-            : std::vector<TShellCommandConfigPtr>(),
-        .GpuCheckBinaryPath = UserJobSpec_
-            ? std::make_optional(UserJobSpec_->gpu_check_binary_path())
+        .GpuCheckOptions = NeedsGpuCheck()
+            ? std::make_optional(GetGpuCheckOptions())
             : std::nullopt,
-        .GpuCheckBinaryArgs = UserJobSpec_
-            ? std::make_optional(FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()))
-            : std::optional<std::vector<TString>>(),
-        .GpuCheckEnvironment = UserJobSpec_
-            ? std::make_optional(FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()))
-            : std::nullopt,
-        .GpuCheckType = EGpuCheckType::Preliminary,
-        .GpuDevices = devices
     };
 
     auto workspaceBuilder = GetUserSlot()->CreateJobWorkspaceBuilder(
@@ -2404,6 +2408,7 @@ void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingRe
             GpuCheckVolume_ = result.GpuCheckVolume;
             // Workspace builder may add or replace docker image.
             DockerImage_ = result.DockerImage;
+            DockerImageId_ = result.DockerImageId;
             SetupCommandCount_ = result.SetupCommandCount;
 
             THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -2609,18 +2614,10 @@ void TJob::OnJobProxyFinished(const TError& error)
                 // COMPAT(ignat)
                 : MakeWritableRootFS(),
             .CommandUser = CommonConfig_->SetupCommandUser,
-
-            .SetupCommands = GpuCheckVolume_
-                ? Bootstrap_->GetGpuManager()->GetSetupCommands()
-                : std::vector<TShellCommandConfigPtr>(),
-
-            .GpuCheckBinaryPath = UserJobSpec_->gpu_check_binary_path(),
-            .GpuCheckBinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
-            .GpuCheckEnvironment = FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()),
-            .GpuCheckType = EGpuCheckType::Extra,
+            .Type = EGpuCheckType::Extra,
+            .Options = GetGpuCheckOptions(),
             .CurrentStartIndex = SetupCommandCount_,
             .TestExtraGpuCheckCommandFailure = Bootstrap_->GetGpuManager()->ShouldTestExtraGpuCheckCommandFailure(),
-            .GpuDevices = GetGpuDevices()
         };
 
         auto checker = New<TJobGpuChecker>(std::move(context), Logger);
@@ -2952,6 +2949,35 @@ std::vector<TBind> TJob::GetRootFSBinds()
     return binds;
 }
 
+TNetworkAttributes TJob::BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject) const
+{
+    if (ResolvedNodeAddresses_.empty()) {
+        THROW_ERROR_EXCEPTION("No IPv6 node addresses were resolved");
+    }
+
+    TNetworkAttributes result;
+
+    result.ProjectId = networkProject.Id;
+    result.Addresses.reserve(ResolvedNodeAddresses_.size());
+
+    for (const auto& [addressName, address] : ResolvedNodeAddresses_) {
+        auto networkAddress = New<TUserJobNetworkAddress>();
+        networkAddress->Address = TMtnAddress{address}
+            .SetProjectId(networkProject.Id)
+            .SetHost(GetUserSlot()->GetSlotIndex())
+            .ToIP6Address();
+        networkAddress->Name = addressName;
+
+        result.Addresses.push_back(std::move(networkAddress));
+    }
+
+    result.HostName = Format("slot-%v.%v",
+        GetUserSlot()->GetSlotIndex(),
+        Bootstrap_->GetConfig()->Addresses[0].second);
+
+    return result;
+}
+
 TJobProxyInternalConfigPtr TJob::CreateConfig()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -3003,6 +3029,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     } else {
         // Pass docker image if root volume is not materialized yet.
         proxyInternalConfig->DockerImage = DockerImage_;
+        proxyInternalConfig->DockerImageId = DockerImageId_;
     }
 
     if (RootVolume_ || DockerImage_) {
@@ -3089,16 +3116,9 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     std::vector<TIP6Address> ipAddresses;
     ipAddresses.reserve(ResolvedNodeAddresses_.size());
 
-    if (NetworkProjectId_) {
-        for (const auto& [addressName, address] : ResolvedNodeAddresses_) {
-            auto networkAddress = New<TUserJobNetworkAddress>();
-            networkAddress->Address = TMtnAddress{address}
-                .SetProjectId(*NetworkProjectId_)
-                .SetHost(GetUserSlot()->GetSlotIndex())
-                .ToIP6Address();
-            networkAddress->Name = addressName;
-
-            proxyInternalConfig->NetworkAddresses.push_back(networkAddress);
+    if (NetworkProject_) {
+        proxyInternalConfig->NetworkAddresses = NetworkAttributes_.Addresses;
+        for (const auto& networkAddress : NetworkAttributes_.Addresses) {
             ipAddresses.push_back(networkAddress->Address);
         }
 
@@ -3106,19 +3126,11 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             THROW_ERROR_EXCEPTION("No IPv6 node addresses were resolved");
         }
 
-        if (UserJobSpec_ && UserJobSpec_->has_enable_nat64()) {
-            proxyInternalConfig->EnableNat64 = UserJobSpec_->enable_nat64();
-        }
-
-        if (UserJobSpec_ && UserJobSpec_->has_disable_network()) {
-            proxyInternalConfig->DisableNetwork = UserJobSpec_->disable_network();
-        }
-
-        proxyInternalConfig->HostName = Format("slot-%v.%v",
-            GetUserSlot()->GetSlotIndex(),
-            Bootstrap_->GetConfig()->Addresses[0].second);
+        proxyInternalConfig->EnableNat64 = NetworkProject_->EnableNat64;
+        proxyInternalConfig->DisableNetwork = NetworkProject_->DisableNetwork;
+        proxyInternalConfig->HostName = NetworkAttributes_.HostName;
     } else {
-        for (const auto& [addressName, address] : ResolvedNodeAddresses_) {
+        for (const auto& [_, address] : ResolvedNodeAddresses_) {
             ipAddresses.push_back(address);
         }
     }
@@ -3165,6 +3177,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
         proxyInternalConfig->RetryingChannel = proxyDynamicConfig->RetryingChannel;
         proxyInternalConfig->PipeReaderTimeoutThreshold = proxyDynamicConfig->PipeReaderTimeoutThreshold;
         proxyInternalConfig->AdaptiveRowCountUpperBound = proxyDynamicConfig->AdaptiveRowCountUpperBound;
+        proxyInternalConfig->UseNewDeliveryFencedConnection = proxyDynamicConfig->UseNewDeliveryFencedConnection;
 
         proxyInternalConfig->EnableCudaProfileEventStreaming = proxyDynamicConfig->EnableCudaProfileEventStreaming;
         proxyInternalConfig->JobTraceEventProcessor = proxyDynamicConfig->JobTraceEventProcessor;
@@ -3361,13 +3374,20 @@ void TJob::InitializeSandboxNbdRootVolumeData()
     YT_VERIFY(UserJobSpec_->disk_request().has_medium_index());
 
     SandboxNbdRootVolumeData_ = TSandboxNbdRootVolumeData{
-        .NbdDiskSize = UserJobSpec_->disk_request().disk_space(),
-        .NbdDiskMediumIndex = UserJobSpec_->disk_request().medium_index(),
+        .Size = UserJobSpec_->disk_request().disk_space(),
+        .MediumIndex = UserJobSpec_->disk_request().medium_index(),
     };
 
-    if (UserJobSpec_->disk_request().nbd_disk().has_data_node_address()) {
-        SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress = UserJobSpec_->disk_request().nbd_disk().data_node_address();
+    const auto& nbdDisk = UserJobSpec_->disk_request().nbd_disk();
+
+    if (nbdDisk.has_data_node_address()) {
+        SandboxNbdRootVolumeData_->DataNodeAddress = nbdDisk.data_node_address();
     }
+
+    SandboxNbdRootVolumeData_->DataNodeRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_rpc_timeout());
+    SandboxNbdRootVolumeData_->MasterRpcTimeout = FromProto<TDuration>(nbdDisk.master_rpc_timeout());
+    SandboxNbdRootVolumeData_->MinDataNodesCount = FromProto<int>(nbdDisk.min_data_nodes_count());
+    SandboxNbdRootVolumeData_->MaxDataNodesCount = FromProto<int>(nbdDisk.max_data_nodes_count());
 }
 
 THashSet<TString> TJob::InitializeNbdExportIds()
@@ -3420,7 +3440,7 @@ THashSet<TString> TJob::InitializeNbdExportIds()
         EmplaceOrCrash(nbdExportIds, nbdExportId);
         ++nbdExportCount;
 
-        SandboxNbdRootVolumeData_->NbdExportId = nbdExportId;
+        SandboxNbdRootVolumeData_->ExportId = nbdExportId;
     }
 
     return nbdExportIds;
@@ -4291,6 +4311,23 @@ bool TJob::NeedsGpuCheck() const
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path();
+}
+
+TGpuCheckOptions TJob::GetGpuCheckOptions() const
+{
+    YT_VERIFY(NeedsGpuCheck());
+
+    return TGpuCheckOptions{
+        .BinaryPath = UserJobSpec_->gpu_check_binary_path(),
+        .BinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
+        .NetworkAttributes = UserJobSpec_->has_gpu_check_network_project()
+            ? std::make_optional(BuildNetworkAttributes(FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->gpu_check_network_project())))
+            : std::nullopt,
+        .Environment = FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()),
+        .Devices = GetGpuDevices(),
+        .SetupCommands = Bootstrap_->GetGpuManager()->GetSetupCommands(),
+        .InfinibandCluster = Bootstrap_->GetConfig()->CypressAnnotations->FindChildValue<TString>(InfinibandClusterNameKey),
+    };
 }
 
 i64 TJob::GetJobProxyHeartbeatEpoch() const

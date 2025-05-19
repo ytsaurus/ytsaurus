@@ -1,9 +1,12 @@
 #include "chaos_agent.h"
 
+#include "config.h"
 #include "private.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "tablet_profiling.h"
+
+#include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -25,6 +28,7 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
+
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <util/generic/cast.h>
@@ -192,8 +196,33 @@ private:
                 replicationCardCache->ForceRefresh(key, ReplicationCard_);
             }
 
-            ReplicationCard_ = WaitFor(replicationCardCache->GetReplicationCard(key))
+            auto replicationCard = WaitFor(replicationCardCache->GetReplicationCard(key))
                 .ValueOrThrow();
+
+            if (ui64 snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
+                snapshotEra != InvalidReplicationEra && replicationCard->Era < snapshotEra)
+            {
+                key.RefreshEra = snapshotEra;
+                YT_LOG_DEBUG(
+                    "Forcing cached replication card update due to outdated copy obtained "
+                    "(FetchedEra: %v, SnapshotEra: %v)",
+                    replicationCard->Era,
+                    snapshotEra);
+
+                replicationCardCache->ForceRefresh(key, replicationCard);
+                replicationCard = WaitFor(replicationCardCache->GetReplicationCard(key))
+                    .ValueOrThrow();
+
+                if (replicationCard->Era < snapshotEra) {
+                    YT_LOG_ALERT(
+                        "Replication card era is outdated after forced refresh "
+                        "(FetchedEra: %v, SnapshotEra: %v)",
+                        replicationCard->Era,
+                        snapshotEra);
+                }
+            }
+
+            ReplicationCard_ = std::move(replicationCard);
 
             Tablet_->RuntimeData()->ReplicationCard.Store(ReplicationCard_);
 
@@ -215,6 +244,28 @@ private:
         .ThrowOnError();
 
         YT_LOG_DEBUG("Finished refreshing replication card era (NewEra: %v)",
+            newEra);
+    }
+
+    void TryAdvanceReplicationEra(TReplicationEra newEra)
+    {
+        ui64 snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
+        if (snapshotEra != InvalidReplicationEra && snapshotEra >= ReplicationCard_->Era) {
+            return;
+        }
+
+        NProto::TReqAdvanceReplicationEra req;
+        ToProto(req.mutable_tablet_id(), Tablet_->GetId());
+        req.set_new_replication_era(newEra);
+
+        YT_LOG_DEBUG("Committing replication era advance (NewReplicationEra: %v)",
+            newEra);
+
+        auto mutation = CreateMutation(Slot_->GetSimpleHydraManager(), req);
+        WaitFor(mutation->Commit())
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Replication era advance finished (NewReplicationEra: %v)",
             newEra);
     }
 
@@ -253,7 +304,7 @@ private:
 
         if (!selfReplica) {
             Tablet_->RuntimeData()->WriteMode = ETabletWriteMode::Pull;
-            Tablet_->RuntimeData()->ReplicationEra = ReplicationCard_->Era;
+            TryAdvanceReplicationEra(ReplicationCard_->Era);
             return;
         }
 
@@ -280,8 +331,8 @@ private:
             writeMode = ETabletWriteMode::Direct;
         }
 
+        TryAdvanceReplicationEra(ReplicationCard_->Era);
         Tablet_->RuntimeData()->WriteMode = writeMode;
-        Tablet_->RuntimeData()->ReplicationEra = ReplicationCard_->Era;
 
         YT_LOG_DEBUG("Updated tablet write mode (WriteMode: %v, ReplicationEra: %v)",
             writeMode,

@@ -136,7 +136,7 @@ std::pair<EThrottlerTrafficType, TClusterName> TThrottlerManager::FromThrottlerI
 {
     for (auto trafficType : TEnumTraits<EThrottlerTrafficType>::GetDomainValues()) {
         auto trafficTypeString = Format("%lv_", trafficType);
-        if (throttlerId.StartsWith(trafficTypeString)) {
+        if (throttlerId.starts_with(trafficTypeString)) {
             return {trafficType, TClusterName(throttlerId.substr(trafficTypeString.size()))};
         }
     }

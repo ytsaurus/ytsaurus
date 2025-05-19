@@ -126,6 +126,8 @@ private:
         for (auto replicationCardId : batch) {
             auto channel = Bootstrap_->GetClusterConnection()->GetChaosChannelByCardId(replicationCardId);
             auto proxy = TChaosNodeServiceProxy(std::move(channel));
+            // TODO(nadya02): Set the correct timeout here.
+            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
             auto req = proxy.RemoveReplicationCard();
             SetMutationId(req, GenerateMutationId(), false);

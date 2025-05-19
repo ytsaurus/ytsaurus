@@ -1,16 +1,16 @@
 #include "hunk_chunk_sweeper.h"
+
 #include "bootstrap.h"
+#include "config.h"
 #include "hunk_chunk.h"
+#include "private.h"
 #include "slot_manager.h"
 #include "tablet.h"
 #include "tablet_manager.h"
 #include "tablet_slot.h"
-#include "private.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
@@ -200,6 +200,8 @@ private:
         }
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IHunkChunkSweeperPtr CreateHunkChunkSweeper(IBootstrap* bootstrap)
 {

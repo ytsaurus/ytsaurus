@@ -132,6 +132,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (LeaseManager)
     (GroundUpdateQueueManager)
     (CypressProxyTracker)
+    (SequoiaTransactionService)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

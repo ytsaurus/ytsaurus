@@ -1,14 +1,15 @@
 #include "lookup.h"
+
 #include "error_manager.h"
 #include "hedging_manager_registry.h"
 #include "private.h"
+#include "sorted_dynamic_store.h"
 #include "store.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
 #include "tablet_reader.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
-#include "sorted_dynamic_store.h"
 
 #include <yt/yt/server/node/query_agent/helpers.h>
 
@@ -825,8 +826,7 @@ protected:
         if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
             ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                 THedgingUnit{
-                    // TODO(babenko): migrate to std::string
-                    .UserTag = profilingUser ? std::optional<TString>(profilingUser) : std::nullopt,
+                    .UserTag = profilingUser ? profilingUser : std::nullopt,
                     .HunkChunk = true,
                 });
         }
@@ -1297,8 +1297,7 @@ void TLookupSession::AddTabletRequest(
                 if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
                     ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                         THedgingUnit{
-                            // TODO(babenko): migrate to std::string
-                            .UserTag = ProfilingUser_ ? std::optional<TString>(ProfilingUser_) : std::nullopt,
+                            .UserTag = ProfilingUser_ ? ProfilingUser_ : std::nullopt,
                             .HunkChunk = false,
                         });
                 }

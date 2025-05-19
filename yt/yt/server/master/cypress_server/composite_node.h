@@ -99,7 +99,7 @@ private:
         TVersionedBuiltinAttribute<NTabletClient::EInMemoryMode> InMemoryMode;
         TVersionedBuiltinAttribute<NTableClient::EOptimizeFor> OptimizeFor;
         TVersionedBuiltinAttribute<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
-        TVersionedBuiltinAttribute<TString> ProfilingTag;
+        TVersionedBuiltinAttribute<std::string> ProfilingTag;
         TVersionedBuiltinAttribute<NChunkClient::EChunkMergerMode> ChunkMergerMode;
 
         void Persist(const NCellMaster::TPersistenceContext& context) requires (!Transient);

@@ -32,6 +32,7 @@ DEFINE_ENUM(EBalancingType,
 
 DEFINE_ENUM(EBalancingMode,
     (ParameterizedMove)
+    (ReplicaMove)
     (InMemoryMove)
     (OrdinaryMove)
     (Reshard)
@@ -41,7 +42,10 @@ DEFINE_ENUM(EBalancingMode,
 struct TTabletStatistics;
 struct TTabletCellStatistics;
 
+DECLARE_REFCOUNTED_STRUCT(TTableBase)
 DECLARE_REFCOUNTED_STRUCT(TTable)
+DECLARE_REFCOUNTED_STRUCT(TAlienTable)
+
 DECLARE_REFCOUNTED_STRUCT(TTablet)
 DECLARE_REFCOUNTED_STRUCT(TTabletCell)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellBundle)
@@ -52,6 +56,7 @@ using TActionDescriptor = std::variant<TMoveDescriptor, TReshardDescriptor>;
 
 using TNodeAddress = std::string;
 using TGroupName = TString;
+using TClusterName = std::string;
 
 struct TParameterizedReassignSolverConfig;
 

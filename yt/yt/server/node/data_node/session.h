@@ -58,7 +58,7 @@ public:
     i64 GetCurrentApprovedMemory() const;
     i64 GetMaxRequestedMemory() const;
 
-    std::optional<TRequest> GetMinRequest();
+    std::optional<TRequest> TryGetMinRequest();
     void ApproveRequest(TLocationMemoryGuard&& memoryGuard, TRequest request);
 
     void PushRequest(TRequest request);
@@ -121,7 +121,7 @@ struct ISession
 
     struct TSendBlocksResult
     {
-        bool NetThrottling;
+        bool NetThrottling = false;
         NChunkClient::TDataNodeServiceProxy::TRspPutBlocksPtr TargetNodePutBlocksResult;
     };
 

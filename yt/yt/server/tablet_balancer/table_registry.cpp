@@ -44,6 +44,29 @@ void TTableRegistry::RemoveBundle(const TTabletCellBundlePtr& bundle)
     bundle->Tables.clear();
 }
 
+void TTableRegistry::AddAlienTablePath(const TClusterName& cluster, const NYPath::TYPath& path, TTableId tableId)
+{
+    EmplaceOrCrash(AlienTablePaths_, TAlienTableTag{cluster, path}, tableId);
+}
+
+void TTableRegistry::AddAlienTable(const TAlienTablePtr& table, const std::vector<TTableId>& majorTableIds)
+{
+    EmplaceOrCrash(AlienTables_, table->Id, table);
+    TablesWithAlienTable_.insert(majorTableIds.begin(), majorTableIds.end());
+}
+
+void TTableRegistry::DropAllAlienTables()
+{
+    for (const auto& tableId : TablesWithAlienTable_) {
+        const auto& table = GetOrCrash(Tables_, tableId);
+        table->AlienTables.clear();
+    }
+
+    AlienTables_.clear();
+    AlienTablePaths_.clear();
+    TablesWithAlienTable_.clear();
+}
+
 void TTableRegistry::UnlinkTableFromOldBundle(const TTablePtr& table)
 {
     for (const auto& tablet : table->Tablets) {

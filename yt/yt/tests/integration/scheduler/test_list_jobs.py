@@ -1033,7 +1033,7 @@ class TestListJobs(TestListJobsCommon):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=2,
-            task_patch={"gang_manager": {}},
+            task_patch={"gang_options": {}},
         )
 
         job_ids = wait_breakpoint(job_count=2)
@@ -1281,6 +1281,24 @@ class TestListJobs(TestListJobsCommon):
         completed_jobs = list_jobs(op.id)["jobs"]
 
         assert frozenset(job["start_time"] for job in running_jobs) == frozenset(job["start_time"] for job in completed_jobs)
+
+    @authors("bystrovserg")
+    def test_state_count_in_statistics(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        release_breakpoint()
+        op.track()
+
+        wait_for_cells()
+
+        assert len(list_jobs(op.id)["state_counts"]) == 2
+        state_counts = list_jobs(op.id)["state_counts"]
+        assert frozenset(state_counts.keys()) == frozenset(["aborted", "completed"])
 
 
 class TestListJobsAllocation(TestListJobsBase):

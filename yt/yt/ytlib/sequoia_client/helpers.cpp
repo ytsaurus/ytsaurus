@@ -51,9 +51,16 @@ bool IsRetriableSequoiaError(const TError& error)
         return false;
     }
 
-    return AnyOf(RetriableSequoiaErrorCodes, [&] (auto errorCode) {
-        return error.FindMatching(errorCode);
-    });
+    if (error.FindMatching([] (const TError& error) {
+            return std::ranges::find(RetriableSequoiaErrorCodes, error.GetCode()) != std::end(RetriableSequoiaErrorCodes);
+        }))
+    {
+        return true;
+    }
+
+    return
+        error.FindMatching(NTransactionClient::EErrorCode::ParticipantFailedToPrepare) &&
+        !error.FindMatching(EErrorCode::TransactionActionFailedOnMasterCell);
 }
 
 bool IsRetriableSequoiaReplicasError(

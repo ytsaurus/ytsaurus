@@ -113,7 +113,7 @@ bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key,
         }
     } else if (IsKnownPoolAttribute(key)) {
         ValidateNoAliasClash(schedulerPool->FullConfig(), schedulerPool->SpecifiedAttributes(), key);
-        GuardedUpdateBuiltinPoolAttribute(key, [&value] (const TPoolConfigPtr& config, const TString& uninternedKey) {
+        GuardedUpdateBuiltinPoolAttribute(key, [&value] (const TPoolConfigPtr& config, const std::string& uninternedKey) {
             config->LoadParameter(uninternedKey, ConvertToNode(value));
         });
 
@@ -139,7 +139,7 @@ bool TSchedulerPoolProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey k
             return false;
         }
 
-        GuardedUpdateBuiltinPoolAttribute(key, [] (const TPoolConfigPtr& config, const TString& uninternedKey) {
+        GuardedUpdateBuiltinPoolAttribute(key, [] (const TPoolConfigPtr& config, const std::string& uninternedKey) {
             config->ResetParameter(uninternedKey);
         });
         schedulerPool->SpecifiedAttributes().erase(it);
@@ -150,7 +150,7 @@ bool TSchedulerPoolProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey k
 
 void TSchedulerPoolProxy::GuardedUpdateBuiltinPoolAttribute(
     NYT::NYTree::TInternedAttributeKey key,
-    const std::function<void(const TPoolConfigPtr&, const TString&)>& update)
+    const std::function<void(const TPoolConfigPtr&, const std::string&)>& update)
 {
     if (!Bootstrap_->GetSchedulerPoolManager()->IsUserManagedAttribute(key)) {
         ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);

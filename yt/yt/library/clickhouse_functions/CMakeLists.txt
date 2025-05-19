@@ -42,6 +42,7 @@ target_link_libraries(yt-library-clickhouse_functions PUBLIC
   yutil
   yt-yt-core
   contrib-clickhouse-src
+  cpp-json-yson
 )
 
 target_sources(yt-library-clickhouse_functions PRIVATE
@@ -79,10 +80,12 @@ target_link_libraries(yt-library-clickhouse_functions.global PUBLIC
   yutil
   yt-yt-core
   contrib-clickhouse-src
+  cpp-json-yson
 )
 
 target_sources(yt-library-clickhouse_functions.global PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/convert_yson.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_to_json.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/ypath.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/clickhouse_functions/yson_extract.cpp
 )

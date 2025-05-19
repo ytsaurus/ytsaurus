@@ -78,6 +78,8 @@
 #include <yt/yt/ytlib/transaction_client/config.h>
 #include <yt/yt/ytlib/transaction_client/clock_manager.h>
 
+#include <yt/yt/ytlib/sequoia_client/client.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/api/sticky_transaction_pool.h>
@@ -85,6 +87,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/sequoia_client/public.h>
+
+#include <yt/yt/client/signature/generator.h>
 
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
@@ -108,8 +112,7 @@
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/lazy_ptr.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -130,6 +133,7 @@ using namespace NQueryTrackerClient;
 using namespace NQueueClient;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NSignature;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
@@ -198,6 +202,8 @@ public:
         , DownedCellTracker_(New<TDownedCellTracker>(Config_.Acquire()->DownedCellTracker))
         , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
+        // NB(pavook): we can't hurt anybody by generating fake signatures.
+        , SignatureGenerator_(GetDummySignatureGenerator())
     { }
 
     void Initialize()
@@ -257,7 +263,7 @@ public:
             GetNetworks());
 
         InitializeQueueAgentChannels();
-        QueueConsumerRegistrationManager_ = New<TQueueConsumerRegistrationManager>(
+        QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
             config->QueueAgent->QueueConsumerRegistrationManager,
             this,
             GetInvoker(),
@@ -588,7 +594,13 @@ public:
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        auto canUseCypressProxy = kind == EMasterChannelKind::Follower || kind == EMasterChannelKind::Leader;
+        auto canUseCypressProxy =
+            kind == EMasterChannelKind::Leader ||
+            kind == EMasterChannelKind::Follower ||
+            // If master cache is not configured then all |EMasterChannelKind::Cache| requests
+            // will actually be routed to followers or Cypress Proxy (if present);
+            // cf. GetEffectiveMasterChannelKind.
+            kind == EMasterChannelKind::Cache && !MasterCellDirectory_->IsMasterCacheConfigured();
 
         return canUseCypressProxy && CypressProxyChannel_
             ? CypressProxyChannel_
@@ -634,7 +646,7 @@ public:
         return it->second;
     }
 
-    const TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
     {
         return QueueConsumerRegistrationManager_;
     }
@@ -759,6 +771,15 @@ public:
     IClientPtr CreateNativeClient(const TClientOptions& options) override
     {
         return NNative::CreateClient(this, options, MemoryTracker_);
+    }
+
+    NSequoiaClient::ISequoiaClientPtr CreateSequoiaClient() override
+    {
+        auto nativeClient = CreateNativeClient(
+            TClientOptions::FromUser(NSecurityClient::RootUserName));
+        return NSequoiaClient::CreateSequoiaClient(
+            Config_.Acquire()->SequoiaConnection,
+            nativeClient);
     }
 
     NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
@@ -949,7 +970,7 @@ private:
     IChannelPtr BundleControllerChannel_;
 
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
-    TQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
+    IQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;
     ITableMountCachePtr TableMountCache_;
@@ -965,9 +986,9 @@ private:
     ICellDirectoryPtr CellDirectory_;
     ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     IChaosCellDirectorySynchronizerPtr ChaosCellDirectorySynchronizer_;
-    TDownedCellTrackerPtr DownedCellTracker_;
+    const TDownedCellTrackerPtr DownedCellTracker_;
 
-    INodeMemoryTrackerPtr MemoryTracker_;
+    const INodeMemoryTrackerPtr MemoryTracker_;
 
     TClusterDirectoryPtr ClusterDirectory_;
     TWeakPtr<TClusterDirectory> ClusterDirectoryOverride_;
@@ -992,6 +1013,8 @@ private:
     std::atomic<bool> Terminated_ = false;
 
     std::string ShuffleServiceAddress_;
+
+    ISignatureGeneratorPtr SignatureGenerator_;
 
     void ConfigureMasterCells()
     {
@@ -1040,7 +1063,7 @@ private:
                     .BeginMap()
                         .Item("channel_attributes").Value(TimestampProviderChannel_->GetEndpointAttributes())
                     .EndMap()
-                .Item("queue_consumer_registration_manager").Do(std::bind(&TQueueConsumerRegistrationManager::BuildOrchid, QueueConsumerRegistrationManager_, _1))
+                .Item("queue_consumer_registration_manager").Do(std::bind(&IQueueConsumerRegistrationManager::BuildOrchid, QueueConsumerRegistrationManager_, _1))
             .EndMap();
     }
 
@@ -1278,6 +1301,16 @@ private:
     {
         return ChannelFactory_->CreateChannel(address);
     }
+
+    ISignatureGeneratorPtr GetSignatureGenerator() const override
+    {
+        return SignatureGenerator_;
+    }
+
+    void SetSignatureGenerator(ISignatureGeneratorPtr signatureGenerator) override
+    {
+        SignatureGenerator_ = std::move(signatureGenerator);
+    }
 };
 
 TConnectionOptions::TConnectionOptions(IInvokerPtr invoker)
@@ -1402,7 +1435,7 @@ IConnectionPtr GetRemoteConnectionOrThrow(
             THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
         }
 
-        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync(/*immediately*/ true))
+        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true))
             .ThrowOnError();
     }
 

@@ -658,7 +658,7 @@ size_t TExpressionProfiler::Profile(
             referenceExpr->GetWireType(),
             referenceExpr->ColumnName),
         referenceExpr->GetWireType(),
-        /*nullable*/ true,
+        referenceExpr->LogicalType->IsNullable(),
         /*forceInline*/ true);
     return fragments->Items.size() - 1;
 }
@@ -1008,12 +1008,11 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[resultId].UseCount;
     }
 
-    bool nullable = true;
+    bool nullable = false;
 
     if (defaultExprId) {
         ++fragments->Items[*defaultExprId].UseCount;
 
-        nullable = false;
         nullable |= fragments->Items[*defaultExprId].Nullable;
     }
 
@@ -1024,6 +1023,7 @@ size_t TExpressionProfiler::Profile(
     }
     for (auto& [_, resultId] : whenThenExpressionIds) {
         argIds.push_back(resultId);
+        nullable |= fragments->Items[resultId].Nullable;
     }
     fragments->DebugInfos.emplace_back(caseExpr, argIds, defaultExprId, optionalOperandId);
 
@@ -1087,7 +1087,7 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[*escapeCharacterId].UseCount;
     }
 
-    bool nullable = true;
+    bool nullable = false;
     nullable |= fragments->Items[textId].Nullable;
     nullable |= fragments->Items[patternId].Nullable;
     if (escapeCharacterId) {
@@ -1195,8 +1195,6 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[dictOrListItemAccessorId].UseCount;
     }
 
-    bool nullable = true;
-
     fragments->DebugInfos.emplace_back(memberAccessorExpr, std::vector{compositeId});
 
     int opaqueIndex = Variables_->AddOpaque<TCompositeMemberAccessorPath>(memberAccessorExpr->NestedStructOrTupleItemAccessor);
@@ -1208,7 +1206,7 @@ size_t TExpressionProfiler::Profile(
             memberAccessorExpr->DictOrListItemAccessor ? std::optional<size_t>(dictOrListItemAccessorId) : std::nullopt,
             memberAccessorExpr->GetWireType()),
         memberAccessorExpr->GetWireType(),
-        nullable);
+        /*nullable*/ true);
 
     return fragments->Items.size() - 1;
 }
@@ -1296,7 +1294,7 @@ size_t TExpressionProfiler::Profile(
     fragments->Items.emplace_back(
         MakeCodegenSubqueryExpr(fromExprIds, bindedExprIds, predicateId, projectExprIds, nestedFragmentsInfos, parametersIndex),
         EValueType::Any,
-        false);
+        /*nullable*/ false);
 
     return fragments->Items.size() - 1;
 }

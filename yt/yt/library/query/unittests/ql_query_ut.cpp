@@ -697,6 +697,9 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
         const auto* aliased = schema->FindColumn("N");
         EXPECT_FALSE(aliased);
     }
+
+    EXPECT_ANY_THROW(ParseAndPreparePlanFragment(
+        &PrepareMock_, "key, nested, N FROM [//t] ARRAY JOIN nested AS N, nested AS N"));
 }
 
 TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
@@ -911,11 +914,9 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         AggregateProfilers_.Get());
 
     {
-        TypeInferrers_->emplace("short_invalid_ir", New<TFunctionTypeInferrer>(
-            std::unordered_map<TTypeParameter, TUnionType>{},
-            std::vector<TType>{EValueType::Int64},
-            EValueType::Null,
-            EValueType::Int64));
+        TypeInferrers_->emplace("short_invalid_ir", CreateFunctionTypeInferrer(
+            EValueType::Int64,
+            std::vector<TType>{EValueType::Int64}));
 
         FunctionProfilers_->emplace("short_invalid_ir", New<TExternalFunctionCodegen>(
             "short_invalid_ir",
@@ -927,11 +928,9 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     }
 
     {
-        TypeInferrers_->emplace("long_invalid_ir", New<TFunctionTypeInferrer>(
-            std::unordered_map<TTypeParameter, TUnionType>{},
-            std::vector<TType>{EValueType::Int64},
-            EValueType::Null,
-            EValueType::Int64));
+        TypeInferrers_->emplace("long_invalid_ir", CreateFunctionTypeInferrer(
+            EValueType::Int64,
+            std::vector<TType>{EValueType::Int64}));
 
         FunctionProfilers_->emplace("long_invalid_ir", New<TExternalFunctionCodegen>(
             "long_invalid_ir",
@@ -1139,8 +1138,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             {"value_1", EValueType::Int64},
         }))));
 
-    auto fmt = [] (const TNamedItemList& items)
-    {
+    auto fmt = [] (const TNamedItemList& items) {
         auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
             builder->AppendString(InferName(item.Expression, /*omitValues*/ false));
         };
@@ -3514,14 +3512,15 @@ TEST_F(TQueryEvaluateTest, GroupByArrayAgg)
     EvaluateCoordinatedGroupByImpl(
         "any_to_yson_string(array_agg(v, ignore_null)) as av, "
         "any_to_yson_string(array_agg(k, true)) as ak ,"
-        "any_to_yson_string(array_agg(v_any, true)) as av_any "
+        "any_to_yson_string(array_agg(v_any, true)) as av_any, "
+        "any_to_yson_string(array_agg(#, true)) as av_empty "
         "FROM [//t] group by 0",
         split,
         sources,
         [] (TRange<TUnversionedRow> rows, const TTableSchema& /* schema */) {
             ASSERT_EQ(rows.size(), 1ull);
 
-            ASSERT_EQ(rows[0].GetCount(), 3u);
+            ASSERT_EQ(rows[0].GetCount(), 4u);
 
             ASSERT_EQ(rows[0][0].Type, EValueType::String);
             ASSERT_EQ(rows[0][1].Type, EValueType::String);
@@ -7680,6 +7679,22 @@ TEST_F(TQueryEvaluateTest, YPathGetStringFail)
 
     EvaluateExpectingError("try_get_string(yson, ypath) as result FROM [//t]", split, source);
     EvaluateExpectingError("get_string(yson, ypath) as result FROM [//t]", split, source);
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, CardinalityMergeMisuse)
+{
+    auto split = MakeSplit({
+        {"string", EValueType::String},
+    });
+
+    auto source = TSource{
+        "string=\"abc\"",
+        "string=\"def\"",
+    };
+
+    EvaluateExpectingError("cardinality_merge(string) as result FROM [//t] group by 1", split, source);
 
     SUCCEED();
 }

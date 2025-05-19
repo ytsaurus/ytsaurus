@@ -7,6 +7,7 @@
 
 namespace NYT::NNbd {
 
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NRpc;
@@ -24,6 +25,7 @@ public:
         IThroughputThrottlerPtr writeThrottler,
         IInvokerPtr invoker,
         IChannelPtr channel,
+        std::optional<TSessionId> sessionId,
         TLogger logger)
         : ExportId_(exportId)
         , Config_(std::move(config))
@@ -35,6 +37,7 @@ public:
             Config_,
             Invoker_,
             std::move(channel),
+            std::move(sessionId),
             Logger))
     { }
 
@@ -154,6 +157,7 @@ IBlockDevicePtr CreateChunkBlockDevice(
     IThroughputThrottlerPtr writeThrottler,
     IInvokerPtr invoker,
     IChannelPtr channel,
+    std::optional<TSessionId> sessionId,
     TLogger logger)
 {
     return New<TChunkBlockDevice>(
@@ -163,6 +167,7 @@ IBlockDevicePtr CreateChunkBlockDevice(
         std::move(writeThrottler),
         std::move(invoker),
         std::move(channel),
+        std::move(sessionId),
         std::move(logger));
 }
 

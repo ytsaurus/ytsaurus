@@ -2,6 +2,7 @@
 
 #include "automaton.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "compression_dictionary_manager.h"
 #include "distributed_throttler_manager.h"
 #include "hedging_manager_registry.h"
@@ -14,9 +15,9 @@
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "tablet_manager.h"
-#include "tablet_snapshot_store.h"
-#include "tablet_slot.h"
 #include "tablet_profiling.h"
+#include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -909,11 +910,12 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, DynamicStoreIdRequested_);
     Save(context, ReservedDynamicStoreIdCount_);
     Save(context, SchemaId_);
+    Save(context, RuntimeData_->ReplicationEra.load());
     TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Acquire());
     Save(context, ChaosData_->ReplicationRound);
     Save(context, ChaosData_->CurrentReplicationRowIndexes.Load());
-    Save(context, ChaosData_->PreparedWritePulledRowsTransactionId);
-    Save(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId);
+    Save(context, ChaosData_->PreparedWritePulledRowsTransactionId.Load());
+    Save(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId.Load());
     Save(context, BackupMetadata_);
     Save(context, *TabletWriteManager_);
     Save(context, LastDiscardStoresRevision_);
@@ -1076,14 +1078,21 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, SchemaId_);
 
+    // COMPAT(osidorkin)
+    if ((context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent) ||
+        (context.GetVersion() < ETabletReign::Start_25_2 &&
+            context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent_25_1)) {
+        RuntimeData_->ReplicationEra.store(Load<TReplicationEra>(context));
+    }
+
     TRefCountedReplicationProgressPtr replicationProgress;
     TNullableIntrusivePtrSerializer<>::Load(context, replicationProgress);
     RuntimeData_->ReplicationProgress.Store(std::move(replicationProgress));
     Load(context, ChaosData_->ReplicationRound);
     ChaosData_->CurrentReplicationRowIndexes.Store(Load<THashMap<TTabletId, i64>>(context));
 
-    Load(context, ChaosData_->PreparedWritePulledRowsTransactionId);
-    Load(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId);
+    ChaosData_->PreparedWritePulledRowsTransactionId.Store(Load<TTransactionId>(context));
+    ChaosData_->PreparedAdvanceReplicationProgressTransactionId.Store(Load<TTransactionId>(context));
 
     Load(context, BackupMetadata_);
 
@@ -2348,7 +2357,8 @@ const std::string& TTablet::GetLoggingTag() const
 std::optional<TString> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const
 {
     if (category == EMemoryCategory::TabletDynamic) {
-        return Context_->GetTabletCellBundleName();
+        // TODO(babenko): migrate to std::string
+        return TString(Context_->GetTabletCellBundleName());
     }
     return {};
 }

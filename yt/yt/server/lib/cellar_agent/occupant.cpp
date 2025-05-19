@@ -468,17 +468,16 @@ public:
 
         ConfigureSnapshotStore(connection);
 
-        auto addTags = [this] (auto profiler) {
-            return profiler
-                .WithRequiredTag("tablet_cell_bundle", CellBundleName_ ? CellBundleName_ : "<unknown-cell-bundle>")
-                .WithTag("cell_id", ToString(CellDescriptor_.CellId), -1);
-        };
-
         auto changelogClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
         auto primaryStoresPath = GetStoresPath(/*primary*/ true);
         auto secondaryStoresPath = GetStoresPath(/*primary*/ false);
 
-        auto changelogProfiler = addTags(occupier->GetProfiler().WithPrefix("/remote_changelog"));
+        auto changelogProfiler = occupier->GetProfiler()
+            .WithPrefix("/remote_changelog")
+            // TODO(babenko): replace with optional
+            .WithRequiredTag("tablet_cell_bundle", !CellBundleName_.empty() ? CellBundleName_ : "<unknown-cell-bundle>")
+            .WithTag("medium", Options_->ChangelogPrimaryMedium)
+            .WithTag("cell_id", ToString(CellDescriptor_.CellId), -1);
         TJournalWriterPerformanceCounters performanceCounters{changelogProfiler};
         performanceCounters.JournalWritesObserver = JournalWritesObserver_;
 
@@ -749,7 +748,7 @@ public:
         return OrchidService_;
     }
 
-    const TString& GetCellBundleName() const override
+    const std::string& GetCellBundleName() const override
     {
         return CellBundleName_;
     }
@@ -794,7 +793,7 @@ private:
     TCellDescriptor CellDescriptor_;
     int ConfigVersion_ = 0;
 
-    const TString CellBundleName_;
+    const std::string CellBundleName_;
 
     TAtomicIntrusivePtr<TDynamicTabletCellOptions> DynamicOptions_{New<TDynamicTabletCellOptions>()};
     int DynamicConfigVersion_ = -1;

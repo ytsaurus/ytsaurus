@@ -556,7 +556,7 @@ std::vector<TInputChunkSlicePtr> TInputChunkSlice::SliceEvenly(i64 sliceDataWeig
     // NB(gepardo): We need to consider cases with count == 0 or rowCount == 0 carefully. The
     // latter case is considered above. In the former case, we have non-empty data and need one
     // slice, so forcefully set count to 1.
-    count = std::max(std::min(count, rowCount), static_cast<i64>(1));
+    count = std::clamp<i64>(count, 1, rowCount);
 
     std::vector<TInputChunkSlicePtr> result;
     result.reserve(count);

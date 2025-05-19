@@ -123,13 +123,6 @@ private: \
     IMPLEMENT_SAFE_METHOD(
         public,
         void,
-        OnJobStarted,
-        (const TJobletPtr& joblet),
-        (joblet),
-        true)
-    IMPLEMENT_SAFE_METHOD(
-        public,
-        void,
         OnAllocationAborted,
         (TAbortedAllocationSummary&& abortedAllocationSummary),
         (std::move(abortedAllocationSummary)),
@@ -328,7 +321,7 @@ public:
         NControllerAgent::NProto::TUserJobSpec* jobSpec,
         const NScheduler::TUserJobSpecPtr& jobSpecConfig,
         const std::vector<TUserFile>& files,
-        const TString& debugArtifactsAccount) override;
+        const std::string& debugArtifactsAccount) override;
     const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const override;
 
     void CustomizeJobSpec(const TJobletPtr& joblet, NControllerAgent::NProto::TJobSpec* jobSpec) const override;
@@ -382,10 +375,10 @@ public:
 
     void RegisterJoblet(const TJobletPtr& joblet) override;
 
-    std::optional<TJobMonitoringDescriptor> RegisterJobForMonitoring(
+    std::optional<TJobMonitoringDescriptor> AcquireMonitoringDescriptorForJob(
         TJobId jobId,
-        const std::optional<TJobMonitoringDescriptor>& descriptorHint) override;
-    void UnregisterJobForMonitoring(const TJobletPtr& joblet);
+        const TAllocation& allocation) override;
+    void ReleaseMonitoringDescriptor(const TJobletPtr& joblet);
     std::optional<TJobMonitoringDescriptor> RegisterNewMonitoringDescriptor();
 
     int GetMonitoredUserJobCount() const override;
@@ -471,7 +464,7 @@ public:
     //! Returns |true| when operation completion event is scheduled to control invoker.
     bool IsFinished() const override;
 
-    std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() override;
+    std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction() override;
     void UpdateIntermediateMediumUsage(i64 usage) override;
 
     const std::vector<TString>& GetOffloadingPoolTrees() override;
@@ -503,26 +496,26 @@ public:
         const TCallback<void()>& callback) const override;
 
 protected:
-    const IOperationControllerHostPtr Host;
-    TControllerAgentConfigPtr Config;
+    const IOperationControllerHostPtr Host_;
+    TControllerAgentConfigPtr Config_;
 
-    const TOperationId OperationId;
+    const TOperationId OperationId_;
 
-    const EOperationType OperationType;
+    const EOperationType OperationType_;
     const TInstant StartTime_;
-    const std::string AuthenticatedUser;
-    const NYTree::IMapNodePtr SecureVault;
-    const NTransactionClient::TTransactionId UserTransactionId;
+    const std::string AuthenticatedUser_;
+    const NYTree::IMapNodePtr SecureVault_;
+    const NTransactionClient::TTransactionId UserTransactionId_;
 
     const NLogging::TLogger Logger;
     const std::vector<TString> CoreNotes_;
 
-    NSecurityClient::TSerializableAccessControlList Acl;
+    NSecurityClient::TSerializableAccessControlList Acl_;
 
-    std::optional<TString> AcoName;
+    std::optional<TString> AcoName_;
 
     // Intentionally transient.
-    NScheduler::TControllerEpoch ControllerEpoch;
+    NScheduler::TControllerEpoch ControllerEpoch_;
 
     THashMap<TAllocationId, TAllocation> AllocationMap_;
     int RunningJobCount_ = 0;
@@ -531,74 +524,74 @@ protected:
     // But `remote copy' operation connects InputClient to remote cluster.
     // OutputClient is created for the sake of symmetry with Input;
     // i.e. Client and OutputClient are always connected to the same cluster.
-    NApi::NNative::IClientPtr Client;
-    NApi::NNative::IClientPtr InputClient;
-    NApi::NNative::IClientPtr OutputClient;
+    NApi::NNative::IClientPtr Client_;
+    NApi::NNative::IClientPtr InputClient_;
+    NApi::NNative::IClientPtr OutputClient_;
 
     // These clients are identical to the above, but uses scheduler user.
-    NApi::NNative::IClientPtr SchedulerClient;
-    NApi::NNative::IClientPtr SchedulerInputClient;
-    NApi::NNative::IClientPtr SchedulerOutputClient;
+    NApi::NNative::IClientPtr SchedulerClient_;
+    NApi::NNative::IClientPtr SchedulerInputClient_;
+    NApi::NNative::IClientPtr SchedulerOutputClient_;
 
-    TCancelableContextPtr CancelableContext;
+    TCancelableContextPtr CancelableContext_;
     const IInvokerPtr ChunkScraperInvoker_;
     TDiagnosableInvokerPoolPtr DiagnosableInvokerPool_;
-    IInvokerPoolPtr InvokerPool;
-    ISuspendableInvokerPoolPtr SuspendableInvokerPool;
-    IInvokerPoolPtr CancelableInvokerPool;
+    IInvokerPoolPtr InvokerPool_;
+    ISuspendableInvokerPoolPtr SuspendableInvokerPool_;
+    IInvokerPoolPtr CancelableInvokerPool_;
 
     IInvokerPtr JobSpecBuildInvoker_;
 
     NChunkPools::TInputStreamDirectory InputStreamDirectory_;
 
-    std::atomic<EControllerState> State = {EControllerState::Preparing};
+    std::atomic<EControllerState> State_ = {EControllerState::Preparing};
 
     // These totals are approximate.
-    int TotalEstimatedInputChunkCount = 0;
-    i64 TotalEstimatedInputDataWeight = 0;
-    i64 TotalEstimatedInputRowCount = 0;
-    i64 TotalEstimatedInputValueCount = 0;
-    i64 TotalEstimatedInputCompressedDataSize = 0;
-    i64 TotalEstimatedInputUncompressedDataSize = 0;
+    int TotalEstimatedInputChunkCount_ = 0;
+    i64 TotalEstimatedInputDataWeight_ = 0;
+    i64 TotalEstimatedInputRowCount_ = 0;
+    i64 TotalEstimatedInputValueCount_ = 0;
+    i64 TotalEstimatedInputCompressedDataSize_ = 0;
+    i64 TotalEstimatedInputUncompressedDataSize_ = 0;
 
-    i64 TeleportedOutputRowCount = 0;
+    i64 TeleportedOutputRowCount_ = 0;
 
     // Only used during materialization, not persisted.
-    double InputCompressionRatio = 0.0;
+    double InputCompressionRatio_ = 0.0;
 
     // Ratio DataWeight/UncomprssedDataSize for input data.
     // Only used during materialization, not persisted.
-    double DataWeightRatio = 0.0;
+    double DataWeightRatio_ = 0.0;
 
     // Total uncompressed data size for input tables.
     // Used only during preparation, not persisted.
-    i64 PrimaryInputDataWeight = 0;
-    i64 PrimaryInputCompressedDataSize = 0;
-    i64 ForeignInputDataWeight = 0;
-    i64 ForeignInputCompressedDataSize = 0;
+    i64 PrimaryInputDataWeight_ = 0;
+    i64 PrimaryInputCompressedDataSize_ = 0;
+    i64 ForeignInputDataWeight_ = 0;
+    i64 ForeignInputCompressedDataSize_ = 0;
 
-    int UnavailableIntermediateChunkCount = 0;
+    int UnavailableIntermediateChunkCount_ = 0;
 
     // NB: Transaction objects are ephemeral and should not be saved to snapshot.
-    TInputTransactionManagerPtr InputTransactions;
-    NApi::ITransactionPtr AsyncTransaction;
-    NApi::ITransactionPtr OutputTransaction;
-    NApi::ITransactionPtr DebugTransaction;
-    NApi::NNative::ITransactionPtr OutputCompletionTransaction;
-    NApi::ITransactionPtr DebugCompletionTransaction;
-    NApi::ITransactionPtr UserTransaction;
+    TInputTransactionManagerPtr InputTransactions_;
+    NApi::ITransactionPtr AsyncTransaction_;
+    NApi::ITransactionPtr OutputTransaction_;
+    NApi::ITransactionPtr DebugTransaction_;
+    NApi::NNative::ITransactionPtr OutputCompletionTransaction_;
+    NApi::ITransactionPtr DebugCompletionTransaction_;
+    NApi::ITransactionPtr UserTransaction_;
 
-    bool CommitFinished = false;
+    bool CommitFinished_ = false;
 
     //! If this flag is set, operation clean start is done instead of revive.
-    bool CleanStart = false;
+    bool CleanStart_ = false;
 
-    TOperationSnapshot Snapshot;
+    TOperationSnapshot Snapshot_;
 
     struct TRowBufferTag { };
-    NTableClient::TRowBufferPtr RowBuffer;
+    NTableClient::TRowBufferPtr RowBuffer_;
 
-    TInputManagerPtr InputManager;
+    TInputManagerPtr InputManager_;
 
     THashMap<NYPath::TYPath, TOutputTablePtr> PathToOutputTable_;
     std::vector<TOutputTablePtr> OutputTables_;
@@ -610,7 +603,7 @@ protected:
     // All output tables plus stderr and core tables (if present).
     std::vector<TOutputTablePtr> UpdatingTables_;
 
-    TIntermediateTablePtr IntermediateTable = New<TIntermediateTable>();
+    TIntermediateTablePtr IntermediateTable_ = New<TIntermediateTable>();
 
     THashMap<NScheduler::TUserJobSpecPtr, std::vector<TUserFile>> UserJobFiles_;
 
@@ -621,10 +614,10 @@ protected:
         NScheduler::TQueryFilterOptionsPtr QueryFilterOptions;
     };
 
-    std::optional<TInputQuery> InputQuery;
+    std::optional<TInputQuery> InputQuery_;
 
     //! All tasks declared by calling #RegisterTask, in the order of decreasing priority.
-    std::vector<TTaskPtr> Tasks;
+    std::vector<TTaskPtr> Tasks_;
 
     TAutoMergeTaskPtr AutoMergeTask_;
 
@@ -653,20 +646,20 @@ protected:
     std::atomic<int> MonitoredUserJobCount_ = 0;
     int MonitoredUserJobAttemptCount_ = 0;
 
-    // These values are intentionally transient.
     THashSet<TJobMonitoringDescriptor> MonitoringDescriptorPool_;
-    THashMap<TJobId, TJobMonitoringDescriptor> JobIdToMonitoringDescriptor_;
 
     std::optional<TUserFile> BaseLayer_;
 
     TJobExperimentBasePtr JobExperiment_;
 
     //! One output table can have row_count_limit attribute in operation.
-    std::optional<int> RowCountLimitTableIndex;
-    i64 RowCountLimit = std::numeric_limits<i64>::max() / 4;
+    std::optional<int> RowCountLimitTableIndex_;
+    i64 RowCountLimit_ = std::numeric_limits<i64>::max() / 4;
 
     // Current row count in table with attribute row_count_limit.
     i64 CompletedRowCount_ = 0;
+
+    virtual void OnJobStarted(const TJobletPtr& joblet);
 
     TFuture<NApi::NNative::ITransactionPtr> StartTransaction(
         ETransactionType type,
@@ -887,7 +880,7 @@ protected:
 
     void OnIntermediateChunkAvailable(
         NChunkClient::TChunkId chunkId,
-        const NChunkClient::TChunkReplicaWithMediumList& replicas);
+        const NChunkClient::TChunkReplicaList& replicas);
 
     //! Return a pointer to `YsonSerializable` object that represents
     //! the fully typed operation spec which know more than a simple
@@ -1083,7 +1076,7 @@ protected:
 
     const NChunkPools::IPersistentChunkPoolInputPtr& GetSink();
 
-    void ValidateAccountPermission(const TString& account, NYTree::EPermission permission) const;
+    void ValidateAccountPermission(const std::string& account, NYTree::EPermission permission) const;
 
     int GetYsonNestingLevelLimit() const;
 
@@ -1112,6 +1105,10 @@ protected:
         bool requestJobTrackerJobAbortion,
         bool force);
 
+    void HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport) const;
+
+    virtual void EnrichJobInfo(NYTree::TFluentMap fluent, const TJobletPtr& joblet) const;
+
 private:
     NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;
     std::optional<std::vector<TString>> OffloadingPoolTrees_;
@@ -1123,22 +1120,22 @@ private:
 
     TSpecManagerPtr SpecManager_;
 
-    NObjectClient::TCellTagList IntermediateOutputCellTagList;
+    NObjectClient::TCellTagList IntermediateOutputCellTagList_;
     TChunkListPoolPtr OutputChunkListPool_;
     TChunkListPoolPtr DebugChunkListPool_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredOutputChunkListCount_;
     THashMap<NObjectClient::TCellTag, int> CellTagToRequiredDebugChunkListCount_;
 
-    NThreading::TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount = {};
-    int CachedTotalJobCount = 0;
+    NThreading::TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount_;
+    int CachedTotalJobCount_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OverrunWriteBufferMemoryPerJobLock);
-    std::set<TOverrunTableWriteBufferMemoryInfo> OverrunWriteBufferMemoryPerJob;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OverrunWriteBufferMemoryPerJobLock_);
+    std::set<TOverrunTableWriteBufferMemoryInfo> OverrunWriteBufferMemoryPerJob_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock);
-    NScheduler::TCompositeNeededResources CachedNeededResources;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock_);
+    NScheduler::TCompositeNeededResources CachedNeededResources_;
 
-    NThreading::TAtomicObject<NScheduler::TAllocationGroupResourcesMap> CachedGroupedNeededResources;
+    NThreading::TAtomicObject<NScheduler::TAllocationGroupResourcesMap> CachedGroupedNeededResources_;
 
     NScheduler::TAllocationGroupResourcesMap InitialGroupedNeededResources_;
 
@@ -1171,17 +1168,17 @@ private:
     NConcurrency::TPeriodicExecutorPtr SuspiciousJobsYsonUpdater_;
 
     //! Maps an intermediate chunk id to its originating completed job.
-    THashMap<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap;
+    THashMap<NChunkClient::TChunkId, TCompletedJobPtr> ChunkOriginMap_;
 
-    TIntermediateChunkScraperPtr IntermediateChunkScraper;
+    TIntermediateChunkScraperPtr IntermediateChunkScraper_;
 
     //! Scrapes chunks of dynamic tables during data slice fetching.
-    std::vector<NChunkClient::IFetcherChunkScraperPtr> DataSliceFetcherChunkScrapers;
+    std::vector<NChunkClient::IFetcherChunkScraperPtr> DataSliceFetcherChunkScrapers_;
 
     NProfiling::TCpuInstant TaskUpdateDeadline_ = 0;
 
     //! Increments each time a new job is scheduled.
-    TIdGenerator JobIndexGenerator;
+    TIdGenerator JobIndexGenerator_;
 
     TAggregatedJobStatistics AggregatedRunningJobStatistics_;
     NConcurrency::TPeriodicExecutorPtr RunningJobStatisticsUpdateExecutor_;
@@ -1209,23 +1206,23 @@ private:
     NProfiling::TCpuInstant ScheduleAllocationStatisticsLogDeadline_ = 0;
 
     //! Runs periodic time limit checks that fail operation on timeout.
-    NConcurrency::TPeriodicExecutorPtr CheckTimeLimitExecutor;
+    NConcurrency::TPeriodicExecutorPtr CheckTimeLimitExecutor_;
 
     //! Runs periodic checks to verify that compatible nodes are present in the cluster.
-    NConcurrency::TPeriodicExecutorPtr ExecNodesCheckExecutor;
+    NConcurrency::TPeriodicExecutorPtr ExecNodesCheckExecutor_;
 
     //! Periodically checks operation progress and registers operation alerts if necessary.
     IAlertManagerPtr AlertManager_;
 
     //! Periodically checks min needed resources of tasks for sanity.
-    NConcurrency::TPeriodicExecutorPtr MinNeededResourcesSanityCheckExecutor;
+    NConcurrency::TPeriodicExecutorPtr MinNeededResourcesSanityCheckExecutor_;
 
     //! Periodically checks operation controller memory usage.
     //! If memory usage exceeds the limit, operation fails.
-    NConcurrency::TPeriodicExecutorPtr PeakMemoryUsageUpdateExecutor;
+    NConcurrency::TPeriodicExecutorPtr PeakMemoryUsageUpdateExecutor_;
 
     //! Periodically updates various info about exec nodes.
-    NConcurrency::TPeriodicExecutorPtr ExecNodesUpdateExecutor;
+    NConcurrency::TPeriodicExecutorPtr ExecNodesUpdateExecutor_;
 
     //! Exec node count do not consider schedufling tag.
     //! But descriptors do.
@@ -1240,8 +1237,8 @@ private:
     std::unique_ptr<IHistogram> EstimatedInputDataSizeHistogram_;
     std::unique_ptr<IHistogram> InputDataSizeHistogram_;
 
-    const NProfiling::TCpuDuration LogProgressBackoff;
-    NProfiling::TCpuInstant NextLogProgressDeadline = 0;
+    const NProfiling::TCpuDuration LogProgressBackoff_;
+    NProfiling::TCpuInstant NextLogProgressDeadline_ = 0;
 
     std::atomic<bool> ShouldUpdateProgressAttributesInCypress_ = true;
     NYson::TYsonString ProgressString_;
@@ -1316,7 +1313,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, AlertsLock_);
     TOperationAlertMap Alerts_;
 
-    bool IsLegacyLivePreviewSuppressed = false;
+    bool IsLegacyLivePreviewSuppressed_ = false;
 
     std::atomic<bool> MemoryLimitExceeded_ = false;
 
@@ -1354,9 +1351,9 @@ private:
 
         PHOENIX_DECLARE_TYPE(TResourceUsageLeaseInfo, 0xcbbf64d9);
     };
-    THashMap<TString, TResourceUsageLeaseInfo> AccountResourceUsageLeaseMap_;
+    THashMap<std::string, TResourceUsageLeaseInfo> AccountResourceUsageLeaseMap_;
 
-    THashMap<TString, TResourceUsageLeaseInfo> LastUpdatedAccountResourceUsageLeaseMap_;
+    THashMap<std::string, TResourceUsageLeaseInfo> LastUpdatedAccountResourceUsageLeaseMap_;
 
     const NConcurrency::TPeriodicExecutorPtr UpdateAccountResourceUsageLeasesExecutor_;
 
@@ -1414,7 +1411,7 @@ private:
 
     void IncreaseNeededResources(const NScheduler::TCompositeNeededResources& resourcesDelta);
 
-    void IncreaseAccountResourceUsageLease(const std::optional<TString>& account, const NScheduler::TDiskQuota& quota);
+    void IncreaseAccountResourceUsageLease(const std::optional<std::string>& account, const NScheduler::TDiskQuota& quota);
 
     void UpdateAccountResourceUsageLeases();
 
@@ -1491,8 +1488,6 @@ private:
     void MaybeCancel(NScheduler::ECancelationStage cancelationStage) override;
     const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override;
 
-    void HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport) const;
-
     void ReportJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType);
 
     //! Returns list of operation tasks that have a vertex in data flow graph,
@@ -1513,7 +1508,6 @@ private:
 
     void ReportJobCookieToArchive(const TJobletPtr& joblet) const;
     void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const;
-    void ReportOperationIncarnationToArchive(const TJobletPtr& joblet) const;
     void ReportStartTimeToArchive(const TJobletPtr& joblet) const;
     void ReportFinishTimeToArchive(const TJobletPtr& joblet) const;
 

@@ -28,6 +28,8 @@
 
 #include <yt/yt/ytlib/yql_client/public.h>
 
+#include <yt/yt/ytlib/sequoia_client/public.h>
+
 #include <yt/yt/library/auth_server/public.h>
 
 #include <yt/yt/client/cell_master_client/public.h>
@@ -122,7 +124,7 @@ struct IConnection
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
     virtual NRpc::IChannelPtr FindQueueAgentChannel(TStringBuf stage) const = 0;
-    virtual const NQueueClient::TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
+    virtual const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
 
     virtual std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(const TString& stage) const = 0;
 
@@ -145,6 +147,7 @@ struct IConnection
     virtual const ITableReplicaSynchronicityCachePtr& GetTableReplicaSynchronicityCache() = 0;
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
+    virtual NSequoiaClient::ISequoiaClientPtr CreateSequoiaClient() = 0;
 
     virtual std::vector<std::string> GetDiscoveryServerAddresses() const = 0;
     virtual NDiscoveryClient::IDiscoveryClientPtr CreateDiscoveryClient(
@@ -177,6 +180,9 @@ struct IConnection
 
     using TReconfiguredSignature = void(const TConnectionDynamicConfigPtr& newConfig);
     DECLARE_INTERFACE_SIGNAL(TReconfiguredSignature, Reconfigured);
+
+    virtual NSignature::ISignatureGeneratorPtr GetSignatureGenerator() const = 0;
+    virtual void SetSignatureGenerator(NSignature::ISignatureGeneratorPtr generator) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)

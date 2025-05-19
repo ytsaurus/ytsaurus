@@ -42,10 +42,7 @@ void TTableCollocation::Load(TLoadContext& context)
     Load(context, Type_);
 
     // COMPAT(akozhikhov)
-    if ((context.GetVersion() >= EMasterReign::ReplicationCollocationOptions_24_1 &&
-        context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap) ||
-        context.GetVersion() >= EMasterReign::ReplicationCollocationOptions)
-    {
+    if (context.GetVersion() >= EMasterReign::ReplicationCollocationOptions) {
         Load(context, *ReplicationCollocationOptions_);
     }
 }

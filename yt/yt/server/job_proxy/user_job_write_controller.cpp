@@ -203,7 +203,7 @@ TUserJobWriteController::TUserJobWriteController(IJobHostPtr host)
 
 TUserJobWriteController::~TUserJobWriteController() = default;
 
-void TUserJobWriteController::Init(TCpuInstant ioStartTime)
+void TUserJobWriteController::Init(TInstant ioStartTime)
 {
     YT_LOG_INFO("Opening writers");
 

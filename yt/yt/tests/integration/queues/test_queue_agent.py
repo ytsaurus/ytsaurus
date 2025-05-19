@@ -2403,7 +2403,6 @@ class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedO
         "cypress_synchronizer": {
             "policy": "watching",
             "clusters": ["primary", "remote_0", "remote_1"],
-            "poll_replicated_objects": True,
             "write_replicated_table_mapping": True,
         },
         "queue_agent": {
@@ -2804,7 +2803,6 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
-            "poll_replicated_objects": True,
             "write_replicated_table_mapping": True,
         },
         "queue_agent": {
@@ -2886,11 +2884,10 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
         chaos_replicated_consumer_replica_ids, consumer_replication_card_id = self._create_chaos_replicated_table_base(
             chaos_replicated_consumer,
             chaos_replicated_consumer_replicas,
-            init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA)
-
-        # Register queues and consumers for cypress synchronizer to see them.
-        register_queue_consumer(replicated_queue, replicated_consumer, vital=False)
-        register_queue_consumer(chaos_replicated_queue, chaos_replicated_consumer, vital=False)
+            init_queue_agent_state.CONSUMER_OBJECT_TABLE_SCHEMA,
+            replicated_table_attributes={
+                "treat_as_queue_consumer": True,
+            })
 
         self._wait_for_component_passes()
 
@@ -2924,8 +2921,7 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
                 "replicas": dict(zip(replica_ids, replicas))
             }}
 
-        replicated_table_mapping = list(select_rows("* from [//sys/queue_agents/replicated_table_mapping]"))
-        assert {r["path"]: r["meta"] for r in replicated_table_mapping} == {
+        expected_meta = {
             replicated_queue: build_rt_meta(replicated_queue_replica_ids, replicated_queue_replicas),
             replicated_consumer: build_rt_meta(replicated_consumer_replica_ids, replicated_consumer_replicas),
             chaos_replicated_queue: build_crt_meta(queue_replication_card_id, [], []),
@@ -2935,7 +2931,61 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
                 chaos_replicated_consumer_replicas),
         }
 
-        unregister_queue_consumer(chaos_replicated_queue, chaos_replicated_consumer)
+        def get_replicated_table_mapping():
+            return list(select_rows("* from [//sys/queue_agents/replicated_table_mapping]"))
+
+        initial_replicated_table_mapping = get_replicated_table_mapping()
+        rebuilding_checked = False
+
+        for i in range(2):
+            if i == 1:
+                initial_row_keys = [
+                    {
+                        "cluster": r["cluster"],
+                        "path": r["path"],
+                    }
+                    for r in initial_replicated_table_mapping
+                ]
+
+                fake_row_key = {
+                    "cluster": "primary",  # Must be valid or row would be ignored
+                    "path": "//some/non-existent/path",
+                }
+                fake_row = initial_replicated_table_mapping[0]
+                fake_row.update(fake_row_key)
+
+                # Delete state to check replicated table mapping rebuilding
+
+                # NB(apachee): Deletion might fail due to concurrent writes
+                # NB(apachee): Verify deletion as predicate result to ensure test correctness
+                def try_delete_rows():
+                    delete_rows("//sys/queue_agents/replicated_table_mapping", initial_row_keys)
+                    replicated_table_mapping_row_count = len(get_replicated_table_mapping())
+
+                    print_debug(f"{replicated_table_mapping_row_count=}")
+                    return replicated_table_mapping_row_count == 0
+
+                wait(try_delete_rows, ignore_exceptions=True)
+
+                # Add fake row to check it is removed by cypress synchronizer
+
+                def try_insert_fake_row():
+                    insert_rows("//sys/queue_agents/replicated_table_mapping", [fake_row])
+
+                    return fake_row in get_replicated_table_mapping()
+
+                wait(try_insert_fake_row, ignore_exceptions=True)
+
+                cypress_synchronizer_orchid.wait_fresh_pass()
+
+                rebuilding_checked = True
+
+            actual_meta = {r["path"]: r["meta"] for r in get_replicated_table_mapping()}
+
+            assert actual_meta == expected_meta, f"diff is {self._calculate_diff(actual_meta, expected_meta)}"
+
+        assert rebuilding_checked
+
         remove(chaos_replicated_consumer)
         remove(chaos_replicated_queue)
 
@@ -2982,9 +3032,26 @@ class TestQueueStaticExportBase(TestQueueAgentBase, QueueStaticExportHelpers):
         },
     }
 
+    QUEUE_AGENT_DO_WAIT_FOR_GLOBAL_SYNC_ON_SETUP = True
+
     # NB: We rely on manual flushing in almost all of the static export tests. Override if necessary.
-    def _create_queue(self, *args, **kwargs):
-        return super()._create_queue(*args, dynamic_store_auto_flush_period=kwargs.pop("dynamic_store_auto_flush_period", YsonEntity()), **kwargs)
+    @staticmethod
+    def _create_queue(*args, **kwargs):
+        return TestQueueAgentBase._create_queue(*args, dynamic_store_auto_flush_period=kwargs.pop("dynamic_store_auto_flush_period", YsonEntity()), **kwargs)
+
+    # NB: This method must be kept in sync with _create_queue.
+    @staticmethod
+    def _make_create_queue_batch_request(*args, **kwargs):
+        return TestQueueAgentBase._make_create_queue_batch_request(*args, dynamic_store_auto_flush_period=kwargs.pop("dynamic_store_auto_flush_period", YsonEntity()), **kwargs)
+
+    def setup_method(self, method):
+        super().setup_method(method)
+        self._initialize_active_export_destinations()
+        assert sum([len(i) for i in self.ACTIVE_EXPORT_DESTINATIONS.values()]) == 0
+
+    def teardown_method(self, method):
+        self.remove_all_active_export_destinations()
+        super().teardown_method(method)
 
 
 @pytest.mark.enabled_multidaemon
@@ -3730,13 +3797,13 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self._flush_table("//tmp/q")
 
         self._sleep_until_next_export_instant(period=3)
-        time.sleep(6)
+        time.sleep(12)
 
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
-                "export_period": 3 * 1000,
-                "export_ttl":  6 * 1000,
+                "export_period": 1 * 1000,
+                "export_ttl":  12 * 1000,
             }
         })
 
@@ -3747,8 +3814,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         progress_path = f"{export_dir}/@queue_static_export_progress"
         wait(lambda: exists(progress_path) and get(progress_path).get("tablets", {}).get("0", {}).get("last_chunk", None) == chunk_id)
 
-        # Sleep for 1 second just in case (to make sure first exported table is deleted by ttl)
-        time.sleep(1)
+        # Removal by TTL is not instantaneous
+        wait(lambda: len(ls(export_dir)) == 1, timeout=8)
 
         self._check_export(export_dir, [["bar"] * 2], expected_removed_rows=3)
 
@@ -4011,6 +4078,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 @pytest.mark.enabled_multidaemon
 class TestQueueStaticExportOldImpl(TestQueueStaticExport):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
+
+    ENABLE_MULTIDAEMON = True
 
     # COMPAT(apachee): Override for old queue export impl.
     @authors("apachee")
@@ -4394,6 +4463,7 @@ class TestQueueExporterRetries(TestQueueStaticExportBase):
         assert abs(exporter_orchid_value["retry_index"] - exporter_orchid_value["export_task_invocation_index"]) <= 1
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueExportTaskConfig(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -4462,6 +4532,7 @@ class TestQueueExportTaskConfig(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueExportManager(TestQueueStaticExportBase):
     ENABLE_MULTIDAEMON = True
 
@@ -4475,12 +4546,30 @@ class TestQueueExportManager(TestQueueStaticExportBase):
         },
     })
 
-    @authors("apachee")
-    @pytest.mark.parametrize("export_rate_limit", [5, 10, 20])
-    @pytest.mark.timeout(150)
-    def test_export_rate_limit(self, export_rate_limit):
-        pytest.skip()
+    EXPORT_PERIOD_SECONDS = 1
 
+    def teardown_method(self, method):
+        if hasattr(self, "tx"):
+            try:
+                abort_transaction(self.tx)
+            except Exception as ex:
+                print_debug(f"aborting self.tx failed: {ex}")
+            del self.tx
+
+        super().teardown_method(method)
+
+    @authors("apachee")
+    @pytest.mark.parametrize(
+        "num_exports,num_queues,export_rate_limit",
+        [
+            (3, 25 // 2, 2),
+            (3, 25 // 1, 4),
+            (6, 25 // 1, 8),
+        ]
+    )
+    @pytest.mark.timeout(300)
+    def test_export_rate_limit(self, num_exports, num_queues, export_rate_limit):
+        setup_start = time.time()
         self._apply_dynamic_config_patch({
             "queue_agent": {
                 "queue_export_manager": {
@@ -4489,53 +4578,72 @@ class TestQueueExportManager(TestQueueStaticExportBase):
             },
         })
 
-        num_exports = 5
-        num_queues = 20
-        export_period_seconds = 1
-
         queue_paths = [f"//tmp/q_{i}" for i in range(num_queues)]
         export_dirs = [f"//tmp/export_{i}" for i in range(num_queues)]
 
-        queue_ids = [self._create_queue(queue_path)[1] for queue_path in queue_paths]
-        for queue_id, export_dir in zip(queue_ids, export_dirs):
-            self._create_export_destination(export_dir, queue_id)
+        create_queue_reqs = [self._make_create_queue_batch_request(path=queue_path, mount=False) for queue_path in queue_paths]
 
-        start_insertion = time.time()
+        create_queue_rsps = execute_batch(create_queue_reqs)
+        queue_ids = []
+        for rsp in create_queue_rsps:
+            queue_id = get_batch_output(rsp)["node_id"]
+            queue_ids.append(queue_id)
 
-        for _ in range(num_exports):
-            for queue_path in queue_paths:
-                insert_rows(queue_path, [{"data": "test"}])
-            self._flush_tables(queue_paths)
-            time.sleep(export_period_seconds + 0.5)
+        self._mount_tables(queue_paths)
 
-        finish_insertion = time.time()
+        self._create_export_destinations(export_dirs, queue_ids)
 
-        print_debug(f"row insertion took {finish_insertion - start_insertion} seconds")
+        tx = start_transaction(timeout=300000)
+        self.tx = tx
 
-        tx = start_transaction()
         for export_dir in export_dirs:
-            lock(export_dir, mode="shared", tx=tx, attribute_key="queue_static_exporter")
+            wait(lambda: lock(export_dir, mode="exclusive", tx=tx) is not None, ignore_exceptions=True)
 
+        for export_index in range(num_exports):
+            for queue_path in queue_paths:
+                insert_rows(queue_path, [{"data": f"{queue_path=} - {export_index=}"}])
+            self._flush_tables(queue_paths)
+            time.sleep(self.EXPORT_PERIOD_SECONDS + 0.5)
+
+        get_chunk_id_list_reqs = []
         for queue_path, export_dir in zip(queue_paths, export_dirs):
-            assert len(get(f"{queue_path}/@chunk_ids")) == num_exports
-            set(f"{queue_path}/@static_export_config", {
+            get_chunk_id_list_reqs.append(make_batch_request("get", path=f"{queue_path}/@chunk_ids", return_only_value=True))
+
+        get_chunk_id_list_rsps = execute_batch(get_chunk_id_list_reqs)
+        for rsp in get_chunk_id_list_rsps:
+            assert len(get_batch_output(rsp)) == num_exports
+
+        set_export_config_reqs = []
+        for queue_path, export_dir in zip(queue_paths, export_dirs):
+            set_export_config_reqs.append(make_batch_request("set", path=f"{queue_path}/@static_export_config", input={
                 "default": {
                     "export_directory": export_dir,
-                    "export_period": export_period_seconds * 1000,
+                    "export_period": self.EXPORT_PERIOD_SECONDS * 1000,
                 },
-            })
+            }))
+        set_export_config_rsps = execute_batch(set_export_config_reqs)
+        for rsp in set_export_config_rsps:
+            get_batch_output(rsp)
 
         self._wait_for_global_sync()
+
+        setup_finish = time.time()
+
+        print_debug(f"test_export_rate_limit setup took {setup_finish - setup_start} seconds")
+
+        assert sum([len(ls(export_dir)) for export_dir in export_dirs]) == 0
+
+        # Start exporters by aborting this tx
         abort_transaction(tx)
 
         start = time.time()
 
-        def check_exported_table_count(expected):
-            result = sum(len(ls(export_dir)) for export_dir in export_dirs)
-            print_debug(f"exported table count {result}, expected = {expected}")
-            return result == expected
+        def check_exported_table_count():
+            export_table_count_by_dir = {export_dir: len(ls(export_dir)) for export_dir in export_dirs}
+            print_debug(f"{export_table_count_by_dir=}")
+            return all(i == num_exports for i in export_table_count_by_dir.values())
 
-        wait(lambda: check_exported_table_count(num_queues * num_exports))
+        wait(lambda: check_exported_table_count())
 
         finish = time.time()
         elapsed = finish - start
@@ -4544,7 +4652,7 @@ class TestQueueExportManager(TestQueueStaticExportBase):
         expected_time_elapsed = num_exports * num_queues * expected_time_per_task
         # TODO(apachee): Improve this test to reduce error margins
         expected_relative_error = 0.5
-        print_debug(f"{elapsed=}, {expected_time_elapsed=}, {expected_relative_error=}")
+        print_debug(f"rate limit timings: {elapsed=}, {expected_time_elapsed=}, {expected_relative_error=}")
 
         assert 1 - expected_relative_error <= elapsed / expected_time_elapsed <= 1 + expected_relative_error
 
@@ -4708,6 +4816,8 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
 class TestAutomaticTrimmingWithExportsOldImpl(TestAutomaticTrimmingWithExports):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
+    ENABLE_MULTIDAEMON = True
+
 
 @pytest.mark.enabled_multidaemon
 class TestQueueStaticExportPortals(TestQueueStaticExport):
@@ -4744,6 +4854,8 @@ class TestQueueStaticExportPortals(TestQueueStaticExport):
 @pytest.mark.enabled_multidaemon
 class TestQueueStaticExportPortalsOldImpl(TestQueueStaticExportOldImpl, TestQueueStaticExportPortals):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
+
+    ENABLE_MULTIDAEMON = True
 
 
 @pytest.mark.enabled_multidaemon
@@ -4841,7 +4953,6 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         "cypress_synchronizer": {
             "policy": "watching",
             "clusters": ["primary", "remote_0", "remote_1"],
-            "poll_replicated_objects": True,
             "write_replicated_table_mapping": True,
         },
         "queue_agent": {
@@ -4972,7 +5083,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
             replica_driver = get_driver(cluster=replica["cluster_name"])
             replica_path = replica["replica_path"]
             replica_id = get(f"{replica_path}/@id", driver=replica_driver)
-            self._create_export_destination(export_dir, replica_id, driver=replica_driver)
+            self._create_export_destination(export_dir, replica_id, cluster_name=replica["cluster_name"])
             assert self._get_export_tables_count(replica) == 0
 
             export_config = {
@@ -5063,7 +5174,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         for replica in replicas[1:]:
             cluster_name = replica["cluster_name"]
             replica_driver = get_driver(cluster=cluster_name)
-            self.remove_export_destination(export_dir, driver=replica_driver)
+            self.remove_export_destination(export_dir, cluster_name=replica["cluster_name"])
 
     @authors("apachee")
     @pytest.mark.parametrize("create_queue_consumer_pair", [
@@ -5088,7 +5199,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
             replica_driver = get_driver(cluster=replica["cluster_name"])
             replica_path = replica["replica_path"]
             replica_id = get(f"{replica_path}/@id", driver=replica_driver)
-            self._create_export_destination(export_dir, replica_id, driver=replica_driver)
+            self._create_export_destination(export_dir, replica_id, cluster_name=replica["cluster_name"])
             assert self._get_export_tables_count(replica) == 0
 
             # Register queues and consumers for cypress synchronizer to see them.
@@ -5184,7 +5295,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         for replica in replicas[1:]:
             cluster_name = replica["cluster_name"]
             replica_driver = get_driver(cluster=cluster_name)
-            self.remove_export_destination(export_dir, driver=replica_driver)
+            self.remove_export_destination(export_dir, cluster_name=replica["cluster_name"])
 
     @authors("apachee")
     @pytest.mark.timeout(150)
@@ -5213,7 +5324,7 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
             replica_driver = get_driver(cluster=replica["cluster_name"])
             replica_path = replica["replica_path"]
             replica_id = get(f"{replica_path}/@id", driver=replica_driver)
-            self._create_export_destination(export_dir, replica_id, driver=replica_driver)
+            self._create_export_destination(export_dir, replica_id, cluster_name=replica["cluster_name"])
             assert self._get_export_tables_count(replica) == 0
 
             export_config = {
@@ -5281,10 +5392,14 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
 class TestMultiClusterReplicatedTableObjectsTrimWithExportsOldImpl(TestMultiClusterReplicatedTableObjectsTrimWithExports):
     USE_OLD_QUEUE_EXPORTER_IMPL = True
 
+    ENABLE_MULTIDAEMON = True
+
 
 @pytest.mark.enabled_multidaemon
 class TestControllerInfo(TestQueueAgentBase):
-    CONTROLLER_DELAY_DURATION_SECONDS = 10
+    ENABLE_MULTIDAEMON = True
+
+    CONTROLLER_DELAY_SECONDS = 15
     OLD_PASSES_DISPLAY_LIMIT = 4
 
     DELTA_QUEUE_AGENT_CONFIG = {
@@ -5298,11 +5413,22 @@ class TestControllerInfo(TestQueueAgentBase):
         },
         "queue_agent": {
             "controller": {
-                "controller_delay_duration": CONTROLLER_DELAY_DURATION_SECONDS * 1000,  # 10 seconds
+                "controller_delay": CONTROLLER_DELAY_SECONDS * 1000,
             },
             "inactive_object_display_limit": OLD_PASSES_DISPLAY_LIMIT,
         },
     }
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "delayed_objects": [],
+                },
+            },
+        })
 
     def _parse_inactive_objects(self, inactive_objects: dict[list]):
         result = {}
@@ -5425,6 +5551,7 @@ class TestControllerInfo(TestQueueAgentBase):
         ("queue", _create_queue_and_get_orchid),
         ("consumer", _create_consumer_and_get_orchid),
     ])
+    @pytest.mark.timeout(120)
     def test_bad_object(self, create_object_and_get_orchid, object_name):
         orchid = QueueAgentOrchid()
 
@@ -5432,7 +5559,7 @@ class TestControllerInfo(TestQueueAgentBase):
 
         key_field = f"leading_{object_name}s"
 
-        create_object_and_get_orchid(self, f"//tmp/{object_name}_good")
+        good_object_orchid = create_object_and_get_orchid(self, f"//tmp/{object_name}_good")
         bad_object_path = f"//tmp/{object_name}_bad"
         bad_object_orchid = create_object_and_get_orchid(self, bad_object_path)
 
@@ -5454,19 +5581,21 @@ class TestControllerInfo(TestQueueAgentBase):
                 },
             },
         })
-        # Sleep for next bad object pass to start
-        time.sleep(1)
+
+        pass_index = bad_object_orchid.get_pass_index()
+        wait(lambda: bad_object_orchid.get_pass_index() - pass_index >= 2)
+        good_object_orchid.wait_fresh_pass()
 
         min_ts = get_timestamps()[0]
 
-        time.sleep(self.CONTROLLER_DELAY_DURATION_SECONDS / 2 - 1)
+        time.sleep(self.CONTROLLER_DELAY_SECONDS / 2 - 1)
 
         timestamps = get_timestamps()
         assert min_ts == timestamps[0]
-        assert timestamps[1] - timestamps[0] >= datetime.timedelta(seconds=(self.CONTROLLER_DELAY_DURATION_SECONDS / 2 - time_tolerance_seconds))
+        assert timestamps[1] - timestamps[0] >= datetime.timedelta(seconds=(self.CONTROLLER_DELAY_SECONDS / 2 - time_tolerance_seconds))
 
         wait(lambda: get_timestamps()[0] > min_ts)
-        assert get_timestamps()[0] - min_ts >= datetime.timedelta(seconds=(self.CONTROLLER_DELAY_DURATION_SECONDS - time_tolerance_seconds))
+        assert get_timestamps()[0] - min_ts >= datetime.timedelta(seconds=(self.CONTROLLER_DELAY_SECONDS - time_tolerance_seconds))
 
         set("//sys/queue_agents/config/queue_agent/controller/delayed_objects", [])
         wait(lambda: get(f"{orchid.queue_agent_orchid_path()}/dynamic_config_manager/effective_config/queue_agent/controller/delayed_objects") == [])
@@ -5474,7 +5603,7 @@ class TestControllerInfo(TestQueueAgentBase):
 
         timestamps = get_timestamps()
         assert abs(timestamps[1] - timestamps[0]) <= datetime.timedelta(seconds=(time_tolerance_seconds))
-        time.sleep(self.CONTROLLER_DELAY_DURATION_SECONDS / 2)
+        time.sleep(self.CONTROLLER_DELAY_SECONDS / 2)
         timestamps = get_timestamps()
         assert abs(timestamps[1] - timestamps[0]) <= datetime.timedelta(seconds=(time_tolerance_seconds))
 

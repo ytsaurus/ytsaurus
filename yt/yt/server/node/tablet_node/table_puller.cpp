@@ -1,12 +1,13 @@
 #include "table_puller.h"
 
-#include "alien_cluster_client_cache_base.h"
 #include "alien_cluster_client_cache.h"
+#include "alien_cluster_client_cache_base.h"
 #include "chaos_agent.h"
+#include "config.h"
+#include "private.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
-#include "private.h"
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
@@ -225,9 +226,10 @@ public:
             .WithTag("%v, UpstreamReplicaId: %v",
                 tablet->GetLoggingTag(),
                 ReplicaId_))
+        , ReplicationThrottler_(CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger))
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeInThrottler),
-            CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)
+            ReplicationThrottler_
         }))
         , MemoryTracker_(std::move(memoryTracker))
         , ChaosAgent_(tablet->GetChaosAgent())
@@ -256,6 +258,20 @@ public:
         FiberFuture_.Reset();
     }
 
+    void BuildOrchidYson(NYTree::TFluentMap fluent) override
+    {
+        fluent.Item("table_puller")
+            .BeginMap()
+                .Item("replication_throttler")
+                    .BeginMap()
+                        .Item("limit").Value(ReplicationThrottler_->GetLimit())
+                        .Item("period").Value(ReplicationThrottler_->GetPeriod())
+                        .Item("estimated_overdraft_duration")
+                            .Value(ReplicationThrottler_->GetEstimatedOverdraftDuration())
+                    .EndMap()
+            .EndMap();
+    }
+
 private:
     const TTabletManagerConfigPtr Config_;
     const ITabletSlotPtr Slot_;
@@ -272,6 +288,7 @@ private:
 
     const NLogging::TLogger Logger;
 
+    const IReconfigurableThroughputThrottlerPtr ReplicationThrottler_;
     const IThroughputThrottlerPtr Throttler_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
 
@@ -348,6 +365,21 @@ private:
                 THROW_ERROR_EXCEPTION("No replication card");
             }
 
+            ui64 snapshotEra = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+            if (snapshotEra == InvalidReplicationEra) {
+                YT_LOG_DEBUG("Will not pull rows since replication era is not known yet");
+                return;
+            }
+
+            if (replicationCard->Era < snapshotEra) {
+                // This can happen right after snapshot loading when old replication card is fetched from cache.
+                YT_LOG_DEBUG("Will not pull rows since replication card is outdated "
+                    "(ReplicationCardEra: %v, TabletSnapshotReplicationEra: %v)",
+                    replicationCard->Era,
+                    snapshotEra);
+                return;
+            }
+
             auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
             if (!selfReplica) {
                 THROW_ERROR_EXCEPTION("Table unable to identify self replica in replication card")
@@ -390,6 +422,18 @@ private:
             }
             ReplicationRound_ = replicationRound;
 
+            if (auto pullRowsTransactionId = tabletSnapshot->TabletChaosData->PreparedWritePulledRowsTransactionId.Load()) {
+                YT_LOG_DEBUG("Will not pull rows since previous pull rows transaction is not fully serialized yet (TransactionId: %v)",
+                    pullRowsTransactionId);
+                return;
+            }
+
+            if (auto advanceTransactionId = tabletSnapshot->TabletChaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
+                YT_LOG_DEBUG("Will not pull rows since previous advance transaction is not fully serialized yet (TransactionId: %v)",
+                    advanceTransactionId);
+                return;
+            }
+
             TAsyncSemaphoreGuard configGuard;
             auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();
             if (writeMode == ETabletWriteMode::Pull) {
@@ -403,6 +447,13 @@ private:
 
                 // writeMode might change during reconfiguration so load it again.
                 writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();
+            }
+
+            if (snapshotEra != tabletSnapshot->TabletRuntimeData->ReplicationEra.load()) {
+                YT_LOG_DEBUG("Skipping pull rows iteration since snapshot era has changed (SnapshotEra: %v, ReplicationEra: %v)",
+                    snapshotEra,
+                    tabletSnapshot->TabletRuntimeData->ReplicationEra.load());
+                return;
             }
 
             if (writeMode != ETabletWriteMode::Pull) {

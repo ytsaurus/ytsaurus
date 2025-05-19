@@ -62,10 +62,10 @@ private:
 
         SyncWithUpstream();
 
-        auto requestedPerformanceCounters = FromProto<std::vector<TString>>(
+        auto requestedPerformanceCounters = FromProto<std::vector<std::string>>(
             request->requested_performance_counters());
 
-        static const std::vector<TString> statisticsFieldNames{
+        static const std::vector<std::string> statisticsFieldNames{
             // i64 fields
             "unmerged_row_count",
             "uncompressed_data_size",
@@ -87,7 +87,7 @@ private:
             "overlapping_store_count"
         };
 
-        static const THashMap<TString, TEmaCounter<i64> TTabletPerformanceCounters::*> performanceCounterFields = {
+        static const THashMap<std::string, TEmaCounter<i64> TTabletPerformanceCounters::*> performanceCounterFields = {
             #define XX(name, Name) \
                 {#name, &TTabletPerformanceCounters::Name},
                 ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
@@ -107,7 +107,7 @@ private:
         auto fillStatistics = [] (
             const TTabletStatistics& statistics,
             auto* protoStatistics,
-            const std::vector<TString>& statisticsFieldNames)
+            const std::vector<std::string>& statisticsFieldNames)
         {
             i64 diskSpace = 0;
             for (const auto& [mediumIndex, mediumDiskSpace] : statistics.DiskSpacePerMedium) {
@@ -154,6 +154,11 @@ private:
             ToProto(response->mutable_statistics_field_names(), statisticsFieldNames);
         }
 
+        auto tableIdsToFetchPivotKeys = FromProto<THashSet<NTableClient::TTableId>>(request->table_ids_to_fetch_pivot_keys());
+        if (!tableIdsToFetchPivotKeys.empty() && !statisticsRequested) {
+            THROW_ERROR_EXCEPTION("It is allowed to fetch pivot keys only if statistics are requested");
+        }
+
         const auto& tableManager = Bootstrap_->GetTableManager();
         auto tableIds = FromProto<std::vector<NTableClient::TTableId>>(request->table_ids());
         for (auto tableId : tableIds) {
@@ -174,12 +179,14 @@ private:
 
                 balancingAttributes->set_dynamic(table->IsDynamic());
                 balancingAttributes->set_in_memory_mode(ToProto(table->GetInMemoryMode()));
+                ToProto(balancingAttributes->mutable_upstream_replica_id(), table->GetUpstreamReplicaId());
 
                 auto config = ConvertToYsonString(table->TabletBalancerConfig()).ToString();
                 balancingAttributes->set_tablet_balancer_config(config);
             }
 
             if (statisticsRequested) {
+                std::vector<NTableClient::TLegacyKey> pivotKeys;
                 for (const auto& tabletBase : table->Tablets()) {
                     YT_VERIFY(tabletBase->GetType() == EObjectType::Tablet);
 
@@ -202,15 +209,20 @@ private:
                     auto performanceCounters = tablet->PerformanceCounters();
                     auto* protoPerformanceCounters = protoTablet->mutable_performance_counters();
                     fillPerformanceCounters(requestedFields, performanceCounters, protoPerformanceCounters);
+
+                    pivotKeys.push_back(tablet->GetPivotKey());
+                }
+
+                if (tableIdsToFetchPivotKeys.contains(tableId)) {
+                    ToProto(protoTable->mutable_pivot_keys(), pivotKeys);
                 }
             }
 
             for (const auto& userAttributeKey : request->user_attribute_keys()) {
-                auto attribute = table->FindAttribute(userAttributeKey);
-                if (attribute) {
+                if (auto attribute = table->FindAttribute(userAttributeKey)) {
                     protoTable->add_user_attributes(attribute->ToString());
                 } else {
-                    protoTable->add_user_attributes(TString{});
+                    protoTable->add_user_attributes(TProtobufString());
                 }
             }
         }

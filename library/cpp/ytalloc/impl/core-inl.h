@@ -1772,7 +1772,7 @@ public:
         NThreading::RegisterAtForkHandlers(
             nullptr,
             nullptr,
-            [=] { AfterFork(); });
+            [=, this] { AfterFork(); });
     }
 
     // Returns TThreadState for the current thread; the caller guarantees that this
@@ -2963,7 +2963,7 @@ public:
         }
 
         // (leftBorder, rightBorder]
-        auto moveIntervalToGlobal = [=] (void** leftBorder, void** rightBorder) {
+        auto moveIntervalToGlobal = [=, this] (void** leftBorder, void** rightBorder) {
             while (true) {
                 size_t count = 0;
                 while (count < ChunksPerGroup && rightBorder != leftBorder) {
@@ -4129,9 +4129,9 @@ public:
         : State_(new TState())
     {
         NThreading::RegisterAtForkHandlers(
-            [=] { BeforeFork(); },
-            [=] { AfterForkParent(); },
-            [=] { AfterForkChild(); });
+            [=, this] { BeforeFork(); },
+            [=, this] { AfterForkParent(); },
+            [=, this] { AfterForkChild(); });
     }
 
     virtual ~TBackgroundThreadBase()
@@ -4210,7 +4210,7 @@ protected:
 
         State_->StopFlag = false;
 
-        State_->Thread.emplace([=] {
+        State_->Thread.emplace([=, this] {
             CurrentThreadIsBackground = true;
             ThreadMain();
         });

@@ -51,7 +51,8 @@ public:
 protected:
     const IJobHostPtr Host_;
     const TInstant StartTime_;
-    TCpuInstant IOStartTime_;
+
+    TInstant IOStartTime_;
 
     std::unique_ptr<IJobProfiler> JobProfiler_;
 

@@ -335,6 +335,8 @@ private:
                 if (partitionSnapshot->CumulativeDataWeight) {
                     partitionSnapshot->WriteRate.DataWeight.Update(*partitionSnapshot->CumulativeDataWeight);
                 }
+            } else if (partitionSnapshot->CumulativeDataWeight) {
+                partitionSnapshot->WriteRate.DataWeight.Update(partitionSnapshot->WriteRate.DataWeight.Count);
             }
 
             partitionSnapshot->AvailableDataWeight = OptionalSub(
@@ -553,8 +555,8 @@ private:
             auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), static_cast<TRichYPath>(QueueRow_.Load().Ref));
             if (it != config->DelayedObjects.end()) {
                 // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
-                YT_LOG_WARNING("This pass is delayed since queue is present in \"delayed_objects\" field of dynamic config (DelayDuration: %v)", config->ControllerDelayDuration);
-                TDelayedExecutor::WaitForDuration(config->ControllerDelayDuration);
+                YT_LOG_WARNING("This pass is delayed since queue is present in \"delayed_objects\" field of dynamic config (Delay: %v)", config->ControllerDelay);
+                TDelayedExecutor::WaitForDuration(config->ControllerDelay);
             }
         }
 
@@ -704,8 +706,7 @@ private:
             }
         }
         for (const auto& name : unusedExportNames) {
-            auto it = queueExports.find(name);
-            YT_VERIFY(it != queueExports.end());
+            auto it = GetIteratorOrCrash(queueExports, name);
             it->second->Stop();
 
             queueExports.erase(it);

@@ -25,6 +25,9 @@ bool TryOptimizeGroupByWithUniquePrefix(
     const std::vector<std::string>& prefixReferences,
     const TString& tableName);
 
+//! Adds push_down_group_by hint to join statements where supported.
+bool TryHintPushDownGroupBy(NQueryClient::NAst::TQuery* query);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NQuery

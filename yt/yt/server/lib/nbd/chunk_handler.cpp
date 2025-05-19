@@ -26,11 +26,12 @@ public:
         TChunkBlockDeviceConfigPtr config,
         IInvokerPtr invoker,
         IChannelPtr channel,
+        std::optional<TSessionId> sessionId,
         TLogger logger)
         : Config_(std::move(config))
         , Invoker_(std::move(invoker))
         , Channel_(std::move(channel))
-        , SessionId_(GenerateSessonId())
+        , SessionId_(sessionId.value_or(GenerateSessionId(Config_->MediumIndex)))
         , Proxy_(Channel_)
         , Logger(logger.WithTag("SessionId: %v", SessionId_))
     {
@@ -48,7 +49,7 @@ public:
 
     TFuture<void> Initialize() override
     {
-        auto expected = EState::Empty;
+        auto expected = EState::Uninitizlied;
         if (!State_.compare_exchange_strong(expected, EState::Initializing)) {
             auto error = TError("Can not initialize already initialized chunk handler")
                 << TErrorAttribute("chunk_id", SessionId_.ChunkId)
@@ -101,7 +102,7 @@ public:
             return req->Invoke().AsVoid();
         }))
         .Apply(BIND([this, this_ = MakeStrong(this)] () {
-            State_ = EState::Empty;
+            State_ = EState::Uninitizlied;
         })
         .AsyncVia(Invoker_));
     }
@@ -182,14 +183,6 @@ public:
     }
 
 private:
-    TSessionId GenerateSessonId()
-    {
-        TSessionId sessionId;
-        sessionId.ChunkId = MakeRandomId(EObjectType::NbdChunk, InvalidCellTag);
-        sessionId.MediumIndex = Config_->MediumIndex;
-        return sessionId;
-    }
-
     void KeepSessionAlive()
     {
         YT_LOG_DEBUG("Sending keep alive");
@@ -220,13 +213,13 @@ private:
 
     enum EState
     {
-        Empty,
+        Uninitizlied,
         Initialized,
         Initializing,
         Finalizing
     };
 
-    std::atomic<EState> State_ = EState::Empty;
+    std::atomic<EState> State_ = EState::Uninitizlied;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -235,13 +228,25 @@ IChunkHandlerPtr CreateChunkHandler(
     TChunkBlockDeviceConfigPtr config,
     IInvokerPtr invoker,
     IChannelPtr channel,
+    std::optional<TSessionId> sessionId,
     NLogging::TLogger logger)
 {
     return New<TChunkHandler>(
         std::move(config),
         std::move(invoker),
         std::move(channel),
+        std::move(sessionId),
         std::move(logger));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSessionId GenerateSessionId(int mediumIndex)
+{
+    TSessionId sessionId;
+    sessionId.ChunkId = MakeRandomId(EObjectType::NbdChunk, InvalidCellTag);
+    sessionId.MediumIndex = mediumIndex;
+    return sessionId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

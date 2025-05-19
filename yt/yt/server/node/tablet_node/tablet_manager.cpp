@@ -1,36 +1,37 @@
 #include "tablet_manager.h"
 
 #include "alien_cluster_client_cache.h"
-#include "private.h"
 #include "automaton.h"
+#include "backup_manager.h"
 #include "bootstrap.h"
-#include "sorted_chunk_store.h"
-#include "ordered_chunk_store.h"
-#include "sorted_dynamic_store.h"
-#include "ordered_dynamic_store.h"
+#include "chunk_view_size_fetcher.h"
+#include "config.h"
 #include "hunk_chunk.h"
-#include "replicated_store_manager.h"
-#include "partition.h"
-#include "slot_manager.h"
-#include "sorted_store_manager.h"
+#include "hunk_lock_manager.h"
+#include "ordered_chunk_store.h"
+#include "ordered_dynamic_store.h"
 #include "ordered_store_manager.h"
+#include "partition.h"
+#include "private.h"
+#include "replicated_store_manager.h"
+#include "row_digest_fetcher.h"
+#include "serialize.h"
+#include "slot_manager.h"
+#include "smooth_movement_tracker.h"
+#include "sorted_chunk_store.h"
+#include "sorted_dynamic_store.h"
+#include "sorted_store_manager.h"
 #include "structured_logger.h"
+#include "table_config_manager.h"
+#include "table_puller.h"
+#include "table_replicator.h"
 #include "tablet.h"
-#include "tablet_slot.h"
 #include "tablet_cell_write_manager.h"
+#include "tablet_profiling.h"
+#include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
 #include "transaction.h"
 #include "transaction_manager.h"
-#include "table_config_manager.h"
-#include "table_replicator.h"
-#include "tablet_profiling.h"
-#include "tablet_snapshot_store.h"
-#include "table_puller.h"
-#include "backup_manager.h"
-#include "hunk_lock_manager.h"
-#include "row_digest_fetcher.h"
-#include "chunk_view_size_fetcher.h"
-#include "smooth_movement_tracker.h"
-#include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -266,6 +267,7 @@ public:
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnDynamicStoreAllocated, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetCustomRuntimeData, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnregisterMasterAvenueEndpoint, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraAdvanceReplicationEra, Unretained(this)));
     }
 
     void Initialize() override
@@ -572,6 +574,8 @@ public:
         NHiveServer::TAvenueEndpointId siblingEndpointId) override
     {
         Slot_->UnregisterSiblingTabletAvenue(siblingEndpointId);
+        Slot_->GetTransactionManager()->AbortTransactionsExternalizedToThisCell(
+            GetSiblingAvenueEndpointId(siblingEndpointId));
     }
 
     void RegisterMasterAvenue(
@@ -716,7 +720,7 @@ private:
             return Owner_->Bootstrap_->GetDynamicConfigManager();
         }
 
-        const TString& GetTabletCellBundleName() const final
+        const std::string& GetTabletCellBundleName() const final
         {
             return Owner_->Slot_->GetTabletCellBundleName();
         }
@@ -1081,7 +1085,9 @@ private:
         auto commitOrdering = FromProto<ECommitOrdering>(GET_FROM_ESSENTIAL(commit_ordering));
         bool freeze = request->freeze();
         auto upstreamReplicaId = FromProto<TTableReplicaId>(GET_FROM_ESSENTIAL(upstream_replica_id));
-        auto replicaDescriptors = FromProto<std::vector<TTableReplicaDescriptor>>(request->replicas());
+        auto replicaDescriptors = request->replicatable_content().has_replicas_and_replication_progress()
+            ? FromProto<std::vector<TTableReplicaDescriptor>>(request->replicatable_content().replicas())
+            : FromProto<std::vector<TTableReplicaDescriptor>>(request->replicas_deprecated());
         auto retainedTimestamp = GET_FROM_REPLICATABLE(has_retained_timestamp)
             ? FromProto<TTimestamp>(GET_FROM_REPLICATABLE(retained_timestamp))
             : MinTimestamp;
@@ -1092,7 +1098,12 @@ private:
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
         auto serializationType = FromProto<ETabletTransactionSerializationType>(request->serialization_type());
-        auto mountTime = mutationContext->GetTimestamp();
+
+        // COMPAT(alexelexa)
+        TInstant mountTime;
+        if (mutationContext->Request().Reign >= static_cast<int>(ETabletReign::AddTabletMountTime)) {
+            mountTime = mutationContext->GetTimestamp();
+        }
 
         rawSettings.DropIrrelevantExperiments(
             {
@@ -1223,19 +1234,27 @@ private:
             masterAvenueEndpointId,
             serializationType);
 
-        for (const auto& descriptor : request->replicas()) {
+        for (const auto& descriptor : replicaDescriptors) {
             AddTableReplica(tablet, descriptor);
         }
 
-        if (request->has_replication_progress()) {
-            auto replicationCardId = tablet->GetReplicationCardId();
-            auto progress = FromProto<TReplicationProgress>(request->replication_progress());
-            YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
-                tablet->GetLoggingTag(),
-                replicationCardId,
-                progress);
+        {
+            bool hasReplicationProgress = request->replicatable_content().has_replicas_and_replication_progress()
+                ? request->replicatable_content().has_replication_progress()
+                : request->has_replication_progress_deprecated();
+            if (hasReplicationProgress) {
+                auto replicationCardId = tablet->GetReplicationCardId();
+                auto progress = FromProto<TReplicationProgress>(
+                    request->replicatable_content().has_replicas_and_replication_progress()
+                        ? request->replicatable_content().replication_progress()
+                        : request->replication_progress_deprecated());
+                YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
+                    tablet->GetLoggingTag(),
+                    replicationCardId,
+                    progress);
 
-            tablet->RuntimeData()->ReplicationProgress.Store(New<TRefCountedReplicationProgress>(std::move(progress)));
+                tablet->RuntimeData()->ReplicationProgress.Store(New<TRefCountedReplicationProgress>(std::move(progress)));
+            }
         }
 
         const auto& lockManager = tablet->GetLockManager();
@@ -2999,10 +3018,23 @@ private:
                 tablet->GetState());
         }
 
-        if (chaosData->PreparedWritePulledRowsTransactionId) {
+        if (chaosData->PreparedWritePulledRowsTransactionId.Load()) {
             THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
                 << TErrorAttribute("transaction_id", transaction->GetId())
-                << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId);
+                << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
+        }
+
+        // COMPAT(savrus)
+        int reign = GetCurrentMutationContext()->Request().Reign;
+        if (reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare) ||
+            (reign < static_cast<int>(ETabletReign::Start_25_2) &&
+            reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare_25_1)))
+        {
+            if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
+                THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
+                    << TErrorAttribute("transaction_id", transaction->GetId())
+                    << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
+            }
         }
 
         auto newProgress = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
@@ -3020,7 +3052,7 @@ private:
                 << TErrorAttribute("progress_upper_key", newProgress.UpperKey.Get());
         }
 
-        chaosData->PreparedWritePulledRowsTransactionId = transaction->GetId();
+        chaosData->PreparedWritePulledRowsTransactionId.Store(transaction->GetId());
 
         const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
         tabletCellWriteManager->AddPersistentAffectedTablet(transaction, tablet);
@@ -3069,17 +3101,17 @@ private:
         }
 
         const auto& chaosData = tablet->ChaosData();
-        if (chaosData->PreparedWritePulledRowsTransactionId != transaction->GetId()) {
+        if (chaosData->PreparedWritePulledRowsTransactionId.Load() != transaction->GetId()) {
             YT_LOG_ALERT(
                 "Unexpected write pull rows transaction finalized, ignored "
                 "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
                 transaction->GetId(),
-                chaosData->PreparedWritePulledRowsTransactionId,
+                chaosData->PreparedWritePulledRowsTransactionId.Load(),
                 tablet->GetId());
             return;
         }
 
-        chaosData->PreparedWritePulledRowsTransactionId = NullTransactionId;
+        chaosData->PreparedWritePulledRowsTransactionId.Store(NullTransactionId);
 
         auto replicationRound = chaosData->ReplicationRound.load();
         YT_VERIFY(replicationRound == round);
@@ -3137,12 +3169,11 @@ private:
         }
 
         const auto& chaosData = tablet->ChaosData();
-        auto& expectedTransactionId = chaosData->PreparedWritePulledRowsTransactionId;
-        if (expectedTransactionId != transaction->GetId()) {
+        if (chaosData->PreparedWritePulledRowsTransactionId.Load() != transaction->GetId()) {
             return;
         }
 
-        expectedTransactionId = NullTransactionId;
+        chaosData->PreparedWritePulledRowsTransactionId.Store(NullTransactionId);
 
         YT_LOG_DEBUG("Write pulled rows aborted (TabletId: %v, TransactionId: %v)",
             tabletId,
@@ -3184,12 +3215,26 @@ private:
                 tablet->GetState());
         }
 
-        if (chaosData->PreparedAdvanceReplicationProgressTransactionId) {
+        if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
             THROW_ERROR_EXCEPTION("Another replication progress advance is in progress")
                 << TErrorAttribute("transaction_id", transaction->GetId())
-                << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId);
+                << TErrorAttribute("advance_replication_progress_transaction_id", chaosData->PreparedAdvanceReplicationProgressTransactionId.Load());
         }
-        chaosData->PreparedAdvanceReplicationProgressTransactionId = transaction->GetId();
+
+        // COMPAT(savrus)
+        int reign = GetCurrentMutationContext()->Request().Reign;
+        if (reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare) ||
+            (reign < static_cast<int>(ETabletReign::Start_25_2) &&
+            reign >= static_cast<int>(ETabletReign::CheckChaosTransactionsInPrepare_25_1)))
+        {
+            if (chaosData->PreparedWritePulledRowsTransactionId.Load()) {
+                THROW_ERROR_EXCEPTION("Another pulled rows write is in progress")
+                    << TErrorAttribute("transaction_id", transaction->GetId())
+                    << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId.Load());
+            }
+        }
+
+        chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(transaction->GetId());
 
         const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
         tabletCellWriteManager->AddPersistentAffectedTablet(transaction, tablet);
@@ -3215,19 +3260,29 @@ private:
 
         const auto& chaosData = tablet->ChaosData();
         auto replicationRound = chaosData->ReplicationRound.load();
-        YT_VERIFY(!round || replicationRound == *round);
 
-        if (chaosData->PreparedAdvanceReplicationProgressTransactionId != transaction->GetId()) {
+        if (round && replicationRound != *round) {
             YT_LOG_ALERT(
                 "Unexpected replication progress advance transaction serialized, ignored "
-                "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
+                "(TransactionId: %v, ReplicationRound: %v, ExpectedReplicationRound: %v, TabletId: %v)",
                 transaction->GetId(),
-                chaosData->PreparedAdvanceReplicationProgressTransactionId,
+                *round,
+                replicationRound,
                 tablet->GetId());
             return;
         }
 
-        chaosData->PreparedAdvanceReplicationProgressTransactionId = NullTransactionId;
+        if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load() != transaction->GetId()) {
+            YT_LOG_ALERT(
+                "Unexpected replication progress advance transaction serialized, ignored "
+                "(TransactionId: %v, ExpectedTransactionId: %v, TabletId: %v)",
+                transaction->GetId(),
+                chaosData->PreparedAdvanceReplicationProgressTransactionId.Load(),
+                tablet->GetId());
+            return;
+        }
+
+        chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(NullTransactionId);
 
         auto progress = New<TRefCountedReplicationProgress>(FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress()));
         bool validateStrictAdvance = request->validate_strict_advance();
@@ -3283,17 +3338,40 @@ private:
         }
 
         const auto& chaosData = tablet->ChaosData();
-        auto& expectedTransactionId = chaosData->PreparedAdvanceReplicationProgressTransactionId;
-        if (expectedTransactionId != transaction->GetId()) {
+        if (chaosData->PreparedAdvanceReplicationProgressTransactionId.Load() != transaction->GetId()) {
             return;
         }
 
-        expectedTransactionId = NullTransactionId;
+        chaosData->PreparedAdvanceReplicationProgressTransactionId.Store(NullTransactionId);
 
         YT_LOG_DEBUG(
             "Replication progress advance aborted (TabletId: %v, TransactionId: %v)",
             tabletId,
             transaction->GetId());
+    }
+
+    void HydraAdvanceReplicationEra(
+        TReqAdvanceReplicationEra* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        ui64 newReplicationEra = request->new_replication_era();
+
+        auto* tablet = GetTabletOrThrow(tabletId);
+        if (ui64 era = tablet->RuntimeData()->ReplicationEra.load();
+            era == InvalidReplicationEra || era < newReplicationEra)
+        {
+            tablet->RuntimeData()->ReplicationEra.store(newReplicationEra);
+
+            YT_LOG_DEBUG("Replication era advanced (TabletId: %v, NewReplicationEra: %v, OldReplicationEra: %v)",
+                tabletId,
+                newReplicationEra,
+                era);
+        } else {
+            YT_LOG_ALERT("Trying to advance to older era (TabletId: %v, CurrentReplicationEra: %v, NewReplicationEra: %v)",
+                tabletId,
+                era,
+                newReplicationEra);
+        }
     }
 
     void HydraPrepareReplicateRows(
@@ -3893,6 +3971,60 @@ private:
         return Slot_->GetSimpleHydraManager();
     }
 
+    void AbortAllTransactions(TTablet* tablet) override
+    {
+        if (!IsLeader()) {
+            return;
+        }
+
+        const auto& tabletWriteManager = tablet->GetTabletWriteManager();
+        const auto& transactionManager = GetTransactionManager();
+        const auto& transactionSupervisor = Slot_->GetTransactionSupervisor();
+
+        for (auto transactionId : tabletWriteManager->GetAffectingTransactionIds()) {
+            auto* transaction = transactionManager->FindTransaction(transactionId);
+            if (!transaction) {
+                continue;
+            }
+
+            // Fast path: transaction abort has  already been requested.
+            if (transaction->GetTransientState() == ETransactionState::TransientAbortPrepared) {
+                continue;
+            }
+
+            // Fast path: transaction cannot be aborted, do not issue useless mutations.
+            auto persistentState = transaction->GetPersistentState();
+            if (persistentState == ETransactionState::PersistentCommitPrepared ||
+                persistentState == ETransactionState::CommitPending ||
+                persistentState == ETransactionState::Committed ||
+                persistentState == ETransactionState::Serialized)
+            {
+                continue;
+            }
+
+            YT_LOG_DEBUG("Aborting transaction by out-of-order tablet request "
+                "(%v, TransactionId: %v, PersistentState: %v, TransientState: %v)",
+                tablet->GetLoggingTag(),
+                transactionId,
+                transaction->GetPersistentState(),
+                transaction->GetTransientState());
+
+            auto future = transactionSupervisor->AbortTransaction(transactionId)
+                // TODO(ifsmirnov): remove subscription with excessive logging
+                // after some testing.
+                .Apply(BIND([transactionId, this] (const TError& error) {
+                    if (error.IsOK()) {
+                        YT_LOG_DEBUG("Transaction aborted by out-of-order tablet request (TransactionId: %v)",
+                            transactionId);
+                    } else {
+                        YT_LOG_DEBUG(error, "Error aborting transaction by out-of-order tablet request (TransactionId: %v)",
+                            transactionId);
+                    }
+                }));
+            YT_UNUSED_FUTURE(future);
+        }
+    }
+
     void CheckIfTabletFullyUnlocked(TTablet* tablet)
     {
         if (!IsLeader()) {
@@ -4329,6 +4461,11 @@ private:
                                     .Item(ToString(replicaId))
                                     .Do(BIND(&TTabletManager::BuildReplicaOrchidYson, Unretained(this), replica));
                             });
+                })
+                .Do([tablet] (auto fluent) {
+                    if (auto tablePuller = tablet->GetTablePuller()) {
+                        tablePuller->BuildOrchidYson(fluent);
+                    }
                 })
                 .DoIf(tablet->IsPhysicallySorted(), [&] (auto fluent) {
                     fluent

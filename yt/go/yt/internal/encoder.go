@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"io"
 
+	"golang.org/x/xerrors"
+
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -653,8 +656,64 @@ func (e *Encoder) ReadTable(
 	path ypath.YPath,
 	options *yt.ReadTableOptions,
 ) (r yt.TableReader, err error) {
+	var format any
+	if options != nil && options.Format != nil {
+		format = options.Format
+		skiffFormat, ok := options.Format.(skiff.Format)
+		if !ok {
+			return nil, xerrors.Errorf("unexpected output format: %+v", format)
+		}
+		var columns []string
+		columns, err = columnNames(skiffFormat)
+		if err != nil {
+			return
+		}
+		path, err = ypathWithColumns(path, columns)
+		if err != nil {
+			return
+		}
+	}
 	call := e.newCall(NewReadTableParams(path, options))
+	call.OutputFormat = format
 	return e.InvokeReadRow(ctx, call)
+}
+
+func columnNames(skiffFormat skiff.Format) ([]string, error) {
+	if len(skiffFormat.TableSchemas) != 1 {
+		return nil, xerrors.Errorf("expected 1 table schema in skiff.Format, but got %d", len(skiffFormat.TableSchemas))
+	}
+	tableSkiffSchema, ok := skiffFormat.TableSchemas[0].(*skiff.Schema)
+	if !ok {
+		return nil, xerrors.Errorf(
+			"expected type of table schema in skiff.Format is *skiff.Schema, actual type is %T", skiffFormat.TableSchemas[0],
+		)
+	}
+	var columns []string
+	for _, columnSchema := range tableSkiffSchema.Children {
+		columns = append(columns, columnSchema.Name)
+	}
+	return columns, nil
+}
+
+func ypathWithColumns(path ypath.YPath, columns []string) (ypath.YPath, error) {
+	var rich *ypath.Rich
+	var err error
+	switch p := path.(type) {
+	case ypath.Path:
+		rich, err = ypath.Parse(p.String())
+		if err != nil {
+			return nil, err
+		}
+	case *ypath.Rich:
+		rich = p
+	default:
+		return nil, xerrors.Errorf("unsupported path type: %T", path)
+	}
+
+	if len(rich.Columns) == 0 {
+		rich.SetColumns(columns)
+	}
+	return rich, nil
 }
 
 func marshalKeys(keys []any) ([]byte, error) {

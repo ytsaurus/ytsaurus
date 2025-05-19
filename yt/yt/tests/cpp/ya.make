@@ -4,6 +4,7 @@ RECURSE(
     test_data_node_rpc
     test_distributed_chunk_sessions
     test_hydra
+    test_multiproxy
     test_native_api
     test_rpc_api
     test_sequoia

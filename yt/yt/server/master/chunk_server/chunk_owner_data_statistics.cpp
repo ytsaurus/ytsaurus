@@ -67,11 +67,6 @@ void TChunkOwnerDataStatistics::Load(TLoadContext& context)
     Load(context, RegularDiskSpace);
     Load(context, ErasureDiskSpace);
     Load(context, DataWeight);
-
-    // COMPAT(cherepashka)
-    if (context.GetVersion() < EMasterReign::RemovedDuplicateChunkCountFromSnapshot) {
-        Load<i64>(context);
-    }
 }
 
 void TChunkOwnerDataStatistics::Save(TSerializeNodeContext& context) const

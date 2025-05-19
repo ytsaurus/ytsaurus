@@ -4,8 +4,11 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
+
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/core/misc/checksum.h>
 
@@ -39,7 +42,7 @@ TObjectServiceProxy::TObjectServiceProxy(
         GetDescriptor())
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , CellTag_(cellTag)
-    , ChannelKind_(masterChannelKind)
+    , ChannelKind_(GetEffectiveMasterChannelKind(client->GetNativeConnection(), masterChannelKind))
 { }
 
 TObjectServiceProxy::TObjectServiceProxy(
@@ -52,7 +55,7 @@ TObjectServiceProxy::TObjectServiceProxy(
         GetDescriptor())
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , CellTag_(cellTag)
-    , ChannelKind_(masterChannelKind)
+    , ChannelKind_(GetEffectiveMasterChannelKind(connection, masterChannelKind))
 { }
 
 TObjectServiceProxy::TObjectServiceProxy(
@@ -68,7 +71,7 @@ TObjectServiceProxy::TObjectServiceProxy(
         GetDescriptor())
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , CellTag_(cellTag)
-    , ChannelKind_(masterChannelKind)
+    , ChannelKind_(GetEffectiveMasterChannelKind(connection, masterChannelKind))
 { }
 
 TObjectServiceProxy TObjectServiceProxy::FromDirectMasterChannel(IChannelPtr channel)

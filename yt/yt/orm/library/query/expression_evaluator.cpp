@@ -278,7 +278,7 @@ std::vector<TColumnSchema> CreateColumnsFromPaths(const std::vector<TTypedAttrib
         ValidateAttributeType(type);
         columns.emplace_back(GetFakeTableColumnName(typedPath.Path), type);
     }
-    return std::move(columns);
+    return columns;
 }
 
 } // namespace

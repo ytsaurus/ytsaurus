@@ -1396,13 +1396,6 @@ class TestPortals(YTEnvSetup):
 
 ##################################################################
 
-
-class TestPortalsCypressProxy(TestPortals):
-    NUM_CYPRESS_PROXIES = 1
-
-
-##################################################################
-
 class TestResolveCache(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0

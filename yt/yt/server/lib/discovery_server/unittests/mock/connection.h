@@ -200,7 +200,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NQueueClient::TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -279,6 +279,11 @@ public:
     }
 
     NApi::NNative::IClientPtr CreateNativeClient(const NApi::TClientOptions& /*options*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    NSequoiaClient::ISequoiaClientPtr CreateSequoiaClient() override
     {
         YT_UNIMPLEMENTED();
     }
@@ -403,6 +408,16 @@ public:
     }
 
     NRpc::IChannelPtr CreateChannelByAddress(const std::string& /*address*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    NSignature::ISignatureGeneratorPtr GetSignatureGenerator() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void SetSignatureGenerator(NSignature::ISignatureGeneratorPtr /*generator*/) override
     {
         YT_UNIMPLEMENTED();
     }

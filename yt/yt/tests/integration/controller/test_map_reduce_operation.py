@@ -83,24 +83,21 @@ class TestSchedulerMapReduceCommands(TestSchedulerMapReduceBase):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "sort_operation_options": {
-                "min_uncompressed_block_size": 1
+            "operation_options": {
+                "min_uncompressed_block_size": 1,
+                "spec_template": {
+                    "enable_table_index_if_has_trivial_mapper": True,
+                }
             },
             "map_reduce_operation_options": {
                 "data_balancer": {
                     "tolerance": 1.0,
                 },
-                "min_uncompressed_block_size": 1,
                 "spec_template": {
                     "use_new_sorted_pool": False,
                 }
             },
             "enable_partition_map_job_size_adjustment": True,
-            "operation_options": {
-                "spec_template": {
-                    "enable_table_index_if_has_trivial_mapper": True,
-                }
-            },
         }
     }
 
@@ -3805,24 +3802,21 @@ class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "sort_operation_options": {
-                "min_uncompressed_block_size": 1
+            "operation_options": {
+                "min_uncompressed_block_size": 1,
+                "spec_template": {
+                    "enable_table_index_if_has_trivial_mapper": True,
+                },
             },
             "map_reduce_operation_options": {
                 "data_balancer": {
                     "tolerance": 1.0,
                 },
-                "min_uncompressed_block_size": 1,
                 "spec_template": {
                     "use_new_sorted_pool": True,
                 }
             },
             "enable_partition_map_job_size_adjustment": True,
-            "operation_options": {
-                "spec_template": {
-                    "enable_table_index_if_has_trivial_mapper": True,
-                },
-            },
         }
     }
 

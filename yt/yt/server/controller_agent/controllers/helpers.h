@@ -31,7 +31,7 @@ NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryFromOutputTables(const
 NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryWithAutoMerge(
     const std::vector<TOutputTablePtr>& outputTables,
     const std::vector<bool>& autoMergeEnabled,
-    const std::optional<TString>& intermediateAccountName);
+    const std::optional<std::string>& intermediateAccountName);
 
 NChunkClient::TDataSink BuildDataSinkFromOutputTable(const TOutputTablePtr& outputTable);
 
@@ -106,13 +106,6 @@ void GenerateDockerAuthFromToken(
     const NYTree::IMapNodePtr& secureVault,
     const std::string& authenticatedUser,
     NControllerAgent::NProto::TUserJobSpec* jobSpec);
-
-////////////////////////////////////////////////////////////////////////////////
-
-NYTree::IAttributeDictionaryPtr GetNetworkProject(
-    const NApi::NNative::IClientPtr& client,
-    const std::string& authenticatedUser,
-    TString networkProject);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2371,11 +2371,11 @@ void PatchWriterConfigs(
     const NLogging::TLogger& Logger)
 {
     options->ReplicationFactor = attributes.Get<int>("replication_factor");
-    options->MediumName = attributes.Get<TString>("primary_medium");
+    options->MediumName = attributes.Get<std::string>("primary_medium");
     options->CompressionCodec = tableUploadOptions.CompressionCodec;
     options->ErasureCodec = tableUploadOptions.ErasureCodec;
     options->EnableStripedErasure = tableUploadOptions.EnableStripedErasure;
-    options->Account = attributes.Get<TString>("account");
+    options->Account = attributes.Get<std::string>("account");
     options->ChunksVital = attributes.Get<bool>("vital");
     options->EnableSkynetSharing = attributes.Get<bool>("enable_skynet_sharing", false);
 
@@ -2948,7 +2948,6 @@ public:
         , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
             cookie.PatchInfo.RichPath,
             TransactionId_))
-        , DummySignatureGenerator_(NSignature::CreateDummySignatureGenerator())
     { }
 
     TFuture<void> Open()
@@ -3017,8 +3016,6 @@ private:
     // convert WriteResult_ to the proper type possibly to be signed
     // by rpc proxy later.
     TSignedWriteFragmentResultPtr SignedResult_;
-
-    const NSignature::ISignatureGeneratorPtr DummySignatureGenerator_;
 
     bool FirstRow_ = true;
 
@@ -3146,7 +3143,8 @@ private:
                 << underlyingWriterCloseError;
         }
 
-        SignedResult_ = TSignedWriteFragmentResultPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(WriteResult_).ToString()));
+        const auto& signatureGenerator = Client_->GetNativeConnection()->GetSignatureGenerator();
+        SignedResult_ = TSignedWriteFragmentResultPtr(signatureGenerator->Sign(ConvertToYsonString(WriteResult_).ToString()));
 
         // Log all statistics.
         YT_LOG_DEBUG("Writer data statistics (DataStatistics: %v)", UnderlyingWriter_->GetDataStatistics());

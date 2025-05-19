@@ -598,7 +598,7 @@ class TestNodeDoubleRegistration(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "data_node": {
             "lease_transaction_timeout": 10000,
-            "lease_transaction_ping_period": 10000,
+            "lease_transaction_ping_period": 5000,
             "register_timeout": 10000,
             "incremental_heartbeat_timeout": 10000,
             "full_heartbeat_timeout": 10000,
@@ -655,7 +655,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "data_node": {
             "lease_transaction_timeout": 10000,
-            "lease_transaction_ping_period": 10000,
+            "lease_transaction_ping_period": 5000,
             "register_timeout": 10000,
             "incremental_heartbeat_timeout": 10000,
             "full_heartbeat_timeout": 10000,

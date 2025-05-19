@@ -1107,7 +1107,7 @@ public:
 
     void Mount(
         TTabletOwnerBase* table,
-        const TString& path,
+        const TYPath& path,
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
@@ -2016,7 +2016,7 @@ public:
         ValidateResourceUsageIncrease(
             trunkSourceNode,
             TTabletResources().SetTabletCount(
-                trunkSourceNode->GetTabletResourceUsage().TabletCount),
+                trunkSourceNode->GetTabletResourceUsage().GetTabletCount()),
             account);
     }
 
@@ -2240,7 +2240,7 @@ public:
                     committedReplicationRowIndexes.push_back(replicationRowIndex);
                 }
 
-                TString newReplicaPath = isBackupAction
+                auto newReplicaPath = isBackupAction
                     ? replicaBackupDescriptor->ReplicaPath
                     : replica->GetReplicaPath();
 
@@ -2805,7 +2805,7 @@ public:
         });
     }
 
-    void UpdateExtraMountConfigKeys(std::vector<TString> keys)
+    void UpdateExtraMountConfigKeys(std::vector<std::string> keys)
     {
         for (auto&& key : keys) {
             auto [it, inserted] = MountConfigKeysFromNodes_.insert(std::move(key));
@@ -3272,7 +3272,7 @@ private:
         TTabletOwnerBase* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        const TString& request)
+        TStringBuf request)
     {
         YT_VERIFY(firstTabletIndex >= 0 && firstTabletIndex <= lastTabletIndex && lastTabletIndex < std::ssize(table->Tablets()));
 
@@ -3909,7 +3909,8 @@ private:
             }
 
             tablet->SetInMemoryMode(table->GetInMemoryMode());
-            resourceUsageDelta.TabletStaticMemory += tablet->GetTabletStaticMemorySize();
+            resourceUsageDelta.SetTabletStaticMemory(
+                resourceUsageDelta.GetTabletStaticMemory() + tablet->GetTabletStaticMemorySize());
 
             cell->GossipStatistics().Local() += tablet->GetTabletStatistics();
             table->AccountTabletStatistics(tablet->GetTabletStatistics());
@@ -4062,7 +4063,7 @@ private:
                 auto* replicatedTable = table->As<TReplicatedTableNode>();
                 for (auto replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                     const auto* replicaInfo = tablet->GetReplicaInfo(replica);
-                    PopulateTableReplicaDescriptor(req.add_replicas(), replica, *replicaInfo);
+                    PopulateTableReplicaDescriptor(reqReplicatable.add_replicas(), replica, *replicaInfo);
                 }
             }
 
@@ -4085,8 +4086,11 @@ private:
                     }
                 }
 
-                ToProto(req.mutable_replication_progress(), tablet->ReplicationProgress());
+                ToProto(reqReplicatable.mutable_replication_progress(), tablet->ReplicationProgress());
             }
+
+            // COMPAT(ifsmirnov)
+            reqReplicatable.set_has_replicas_and_replication_progress(true);
 
             auto* chunkList = tablet->GetChunkList();
             const auto& chunkListStatistics = chunkList->Statistics();
@@ -5110,8 +5114,8 @@ private:
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
-            DefaultTabletCellBundle_->ResourceLimits().TabletCount = 100'000;
-            DefaultTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
+            DefaultTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
+            DefaultTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
         }
 
         // sequoia
@@ -5120,8 +5124,8 @@ private:
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
-            SequoiaTabletCellBundle_->ResourceLimits().TabletCount = 100'000;
-            SequoiaTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
+            SequoiaTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
+            SequoiaTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
 
             auto options = SequoiaTabletCellBundle_->GetOptions();
             options->ChangelogAccount = NSecurityClient::SequoiaAccountName;
@@ -6041,7 +6045,7 @@ private:
     {
         YT_VERIFY(Bootstrap_->IsSecondaryMaster());
 
-        auto tableMountConfigKeys = FromProto<std::vector<TString>>(request->table_mount_config_keys());
+        auto tableMountConfigKeys = FromProto<std::vector<std::string>>(request->table_mount_config_keys());
         UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
     }
 
@@ -7772,7 +7776,7 @@ void TTabletManager::ValidateMakeTableStatic(TTableNode* table)
 
 void TTabletManager::Mount(
     TTabletOwnerBase* table,
-    const TString& path,
+    const NYPath::TYPath& path,
     int firstTabletIndex,
     int lastTabletIndex,
     TTabletCellId hintCellId,
@@ -7971,7 +7975,7 @@ TNode* TTabletManager::FindTabletLeaderNode(const TTabletBase* tablet) const
     return Impl_->FindTabletLeaderNode(tablet);
 }
 
-void TTabletManager::UpdateExtraMountConfigKeys(std::vector<TString> keys)
+void TTabletManager::UpdateExtraMountConfigKeys(std::vector<std::string> keys)
 {
     Impl_->UpdateExtraMountConfigKeys(std::move(keys));
 }

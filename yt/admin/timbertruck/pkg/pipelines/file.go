@@ -2,6 +2,7 @@ package pipelines
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -39,14 +40,14 @@ func newDecompressor(filepath string, offset int64) (*decompressor, error) {
 	}
 	fileReader := &ctxReader{ctx: context.Background(), read: ff.ReadContext}
 	decoder, err := zstd.NewReader(fileReader,
-		zstd.WithDecoderMaxMemory(512<<20), // 512 MiB
+		zstd.WithDecoderMaxMemory(256<<20), // 256 MiB
 		zstd.WithDecoderConcurrency(1),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zstd.Decoder: %w", err)
 	}
 	n, err := io.CopyN(io.Discard, decoder, offset)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("failed to skip %d bytes of uncompressed data: %w", offset, err)
 	}
 	if n != offset {
@@ -64,6 +65,9 @@ func (d *decompressor) ReadContext(ctx context.Context, buf []byte) (read int, e
 	d.setCtx(ctx)
 	read, err = d.decoder.Read(buf)
 	d.filePosition += int64(read)
+	if err != nil {
+		err = fmt.Errorf("decompressor: failed to decode (read: %d): %w", read, err)
+	}
 	return
 }
 

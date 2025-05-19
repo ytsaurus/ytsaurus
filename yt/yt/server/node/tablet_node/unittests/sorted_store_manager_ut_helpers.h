@@ -1,6 +1,7 @@
 #include "sorted_dynamic_store_ut_helpers.h"
 #include "sorted_store_helpers.h"
 
+#include <yt/yt/server/node/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/sorted_store_manager.h>
 
 #include <yt/yt/client/table_client/wire_protocol.h>

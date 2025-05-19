@@ -3007,6 +3007,16 @@ void HyperLogLogMerge(void* hll1, void* hll2)
     hll1AtHost->Merge(*hll2AtHost);
 }
 
+void HyperLogLogMergeWithValidation(void* hll1, void* hll2, uint64_t incomingStateLength)
+{
+    THROW_ERROR_EXCEPTION_IF(incomingStateLength != sizeof(THLL),
+        "State size mismatch in hyperloglog, expected: %v, got: %v."
+        "This error potentially signals a misuse of cardinality_merge function",
+        sizeof(THLL),
+        incomingStateLength);
+    HyperLogLogMerge(hll1, hll2);
+}
+
 ui64 HyperLogLogEstimateCardinality(void* hll)
 {
     auto* hllAtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll));
@@ -3411,58 +3421,60 @@ void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TU
 
     writer.OnBeginList();
 
-    const auto* start = ConvertPointerFromWasmToHost(stateAtHost->Data.String);
-    const auto* end = start + *reinterpret_cast<const i64*>(stateAtHost->Data.String);
-    const auto* cursor = start + sizeof(i64);
+    if (stateAtHost->Length != 0) {
+        const auto* start = ConvertPointerFromWasmToHost(stateAtHost->Data.String);
+        const auto* end = start + *reinterpret_cast<const i64*>(stateAtHost->Data.String);
+        const auto* cursor = start + sizeof(i64);
 
-    while (cursor < end) {
-        writer.OnListItem();
+        while (cursor < end) {
+            writer.OnListItem();
 
-        auto type = *reinterpret_cast<const EValueType*>(cursor);
-        cursor += sizeof(EValueType);
+            auto type = *reinterpret_cast<const EValueType*>(cursor);
+            cursor += sizeof(EValueType);
 
-        if (type == EValueType::Null) {
-            writer.OnEntity();
-            continue;
+            if (type == EValueType::Null) {
+                writer.OnEntity();
+                continue;
+            }
+
+            auto data = *reinterpret_cast<const TUnversionedValueData*>(cursor);
+            cursor += sizeof(TUnversionedValueData);
+
+            switch (type) {
+                case EValueType::Int64:
+                    writer.OnInt64Scalar(data.Int64);
+                    break;
+
+                case EValueType::Boolean:
+                    writer.OnBooleanScalar(data.Boolean);
+                    break;
+
+                case EValueType::Uint64:
+                    writer.OnUint64Scalar(data.Uint64);
+                    break;
+
+                case EValueType::Double:
+                    writer.OnDoubleScalar(data.Double);
+                    break;
+
+                case EValueType::String:
+                    writer.OnStringScalar({cursor, data.Uint64});
+                    cursor+=data.Uint64;
+                    break;
+
+                case EValueType::Any:
+                case EValueType::Composite:
+                    writer.OnRaw({cursor, data.Uint64});
+                    cursor+=data.Uint64;
+                    break;
+
+                default:
+                    THROW_ERROR_EXCEPTION("Unsupported element type %Qlv", type);
+            }
         }
 
-        auto data = *reinterpret_cast<const TUnversionedValueData*>(cursor);
-        cursor += sizeof(TUnversionedValueData);
-
-        switch (type) {
-            case EValueType::Int64:
-                writer.OnInt64Scalar(data.Int64);
-                break;
-
-            case EValueType::Boolean:
-                writer.OnBooleanScalar(data.Boolean);
-                break;
-
-            case EValueType::Uint64:
-                writer.OnUint64Scalar(data.Uint64);
-                break;
-
-            case EValueType::Double:
-                writer.OnDoubleScalar(data.Double);
-                break;
-
-            case EValueType::String:
-                writer.OnStringScalar({cursor, data.Uint64});
-                cursor+=data.Uint64;
-                break;
-
-            case EValueType::Any:
-            case EValueType::Composite:
-                writer.OnRaw({cursor, data.Uint64});
-                cursor+=data.Uint64;
-                break;
-
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported element type %Qlv", type);
-        }
+        YT_VERIFY(cursor == end);
     }
-
-    YT_VERIFY(cursor == end);
 
     writer.OnEndList();
 
@@ -4069,7 +4081,8 @@ struct RegisterLLVMRoutine
 
 #define REGISTER_TIME_ROUTINE(routine) \
     REGISTER_ROUTINE(routine); \
-    REGISTER_ROUTINE(routine ## Localtime)
+    REGISTER_ROUTINE(routine ## Localtime); \
+    REGISTER_ROUTINE(routine ## TZ)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4137,6 +4150,7 @@ REGISTER_ROUTINE(StringToDouble);
 REGISTER_ROUTINE(HyperLogLogAllocate);
 REGISTER_ROUTINE(HyperLogLogAdd);
 REGISTER_ROUTINE(HyperLogLogMerge);
+REGISTER_ROUTINE(HyperLogLogMergeWithValidation);
 REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
 REGISTER_ROUTINE(HyperLogLogGetFingerprint);
 REGISTER_ROUTINE(StoredReplicaSetMerge);
@@ -4158,6 +4172,7 @@ REGISTER_TIME_ROUTINE(TimestampFloorMonth);
 REGISTER_TIME_ROUTINE(TimestampFloorQuarter);
 REGISTER_TIME_ROUTINE(TimestampFloorYear);
 REGISTER_ROUTINE(FormatTimestamp);
+REGISTER_ROUTINE(FormatTimestampTZ);
 REGISTER_ROUTINE(ArrayAggFinalize);
 
 REGISTER_ROUTINE(SubqueryExprHelper);

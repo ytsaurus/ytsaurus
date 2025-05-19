@@ -752,8 +752,8 @@ public:
         ESecondaryIndexKind kind,
         TTableId tableId,
         TTableId indexTableId,
-        std::optional<TString> predicate,
-        std::optional<TString> unfoldedColumnName,
+        std::optional<std::string> predicate,
+        std::optional<std::string> unfoldedColumnName,
         TTableSchemaPtr evaluatedColumnsSchema) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1250,10 +1250,10 @@ public:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& chaosManager = Bootstrap_->GetChaosManager();
 
-        using TObjectRevisionMap = THashMap<TString, THashMap<TString, TRevision>>;
+        using TObjectRevisionMap = THashMap<std::string, THashMap<std::string, TRevision>>;
 
         TObjectRevisionMap objectRevisions;
-        auto addToObjectRevisions = [&] <typename T>(const TString& key, const THashSet<T>& nodes) {
+        auto addToObjectRevisions = [&] <typename T>(const std::string& key, const THashSet<T>& nodes) {
             static_assert(
                 std::is_same_v<T, TTableNodeRawPtr> ||
                 std::is_same_v<T, NChaosServer::TChaosReplicatedTableNodeRawPtr>,
@@ -1285,10 +1285,8 @@ public:
                 if (multicellManager->GetCellTag() != cellTag) {
                     YT_LOG_DEBUG("Requesting queue agent objects from secondary cell (CellTag: %v)",
                         cellTag);
-                    auto proxy = CreateObjectServiceReadProxy(
-                        Bootstrap_->GetRootClient(),
-                        NApi::EMasterChannelKind::Follower,
-                        cellTag);
+                    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+                        multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
                     auto req = TYPathProxy::Get("//sys/@queue_agent_object_revisions");
                     asyncResults.push_back(proxy.Execute(req));
                 }
@@ -1734,11 +1732,7 @@ private:
     {
         MasterTableSchemaMap_.LoadKeys(context);
         TableCollocationMap_.LoadKeys(context);
-
-        // COMPAT(sabdenovch)
-        if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
-            SecondaryIndexMap_.LoadKeys(context);
-        }
+        SecondaryIndexMap_.LoadKeys(context);
 
         // COMPAT(sabdenovch)
         NeedToFillTableIdsForSecondaryIndices_ = context.GetVersion() < EMasterReign::SecondaryIndexExternalCellTag;
@@ -1752,25 +1746,17 @@ private:
         MasterTableSchemaMap_.LoadValues(context);
 
         Load(context, StatisticsUpdateRequests_);
-        // COMPAT(danilalexeev)
-        if (context.GetVersion() >= EMasterReign::FixAsyncTableStatisticsUpdate) {
-            Load(context, NodeIdToOngoingStatisticsUpdate_);
-        }
+        Load(context, NodeIdToOngoingStatisticsUpdate_);
+
         TableCollocationMap_.LoadValues(context);
 
-        // COMPAT(sabdenovch)
-        if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
-            SecondaryIndexMap_.LoadValues(context);
-        }
+        SecondaryIndexMap_.LoadValues(context);
 
         Load(context, Queues_);
         Load(context, QueueConsumers_);
 
         // COMPAT(apachee)
-        // DropLegacyClusterNodeMap is the start of 24.2 reigns.
-        if ((context.GetVersion() >= EMasterReign::QueueProducers_24_1 && context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap) ||
-            context.GetVersion() >= EMasterReign::QueueProducers)
-        {
+        if (context.GetVersion() >= EMasterReign::QueueProducers) {
             Load(context, QueueProducers_);
         }
     }

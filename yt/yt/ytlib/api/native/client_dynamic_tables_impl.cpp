@@ -2237,7 +2237,7 @@ std::vector<TTabletActionId> TClient::DoReshardTableAutomatic(
             path);
     }
 
-    auto bundle = attributes->Get<TString>("tablet_cell_bundle");
+    auto bundle = attributes->Get<std::string>("tablet_cell_bundle");
     ValidatePermissionImpl("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Use);
 
     auto req = TTableYPathProxy::ReshardAutomatic(FromObjectId(tableId));
@@ -2384,7 +2384,7 @@ void TClient::DoRestoreTableBackup(
 }
 
 std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
-    const TString& tabletCellBundle,
+    const std::string& tabletCellBundle,
     const std::vector<TYPath>& movableTables,
     const TBalanceTabletCellsOptions& options)
 {
@@ -2427,7 +2427,7 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
                 THROW_ERROR_EXCEPTION("Table %v must be dynamic", path);
             }
 
-            auto actualBundle = attributes->Find<TString>("tablet_cell_bundle");
+            auto actualBundle = attributes->Find<std::string>("tablet_cell_bundle");
             if (!actualBundle || *actualBundle != tabletCellBundle) {
                 THROW_ERROR_EXCEPTION("All tables must be from the tablet cell bundle %Qv", tabletCellBundle);
             }

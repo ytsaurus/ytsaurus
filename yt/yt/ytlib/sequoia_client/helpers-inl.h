@@ -4,6 +4,8 @@
 #include "helpers.h"
 #endif
 
+#include <yt/yt/core/yson/pull_parser.h>
+
 namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,11 +18,54 @@ TErrorOr<T> MaybeWrapSequoiaRetriableError(
         !result.FindMatching(EErrorCode::SequoiaRetriableError) &&
         IsRetriableSequoiaError(result))
     {
-        return TError(EErrorCode::SequoiaRetriableError, "Retriable Sequoia error")
+        return TError(EErrorCode::SequoiaRetriableError, "Sequoia retriable error")
             << std::forward<decltype(result)>(result);
     }
 
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TOnReplica>
+void ParseChunkReplicas(
+    NYson::TYsonStringBuf replicasYson,
+    const TOnReplica& onReplica)
+{
+    using namespace NYson;
+
+    TMemoryInput input(replicasYson.AsStringBuf().data(), replicasYson.AsStringBuf().size());
+    TYsonPullParser parser(&input, EYsonType::Node);
+    TYsonPullParserCursor cursor(&parser);
+
+    cursor.ParseList([&] (NYson::TYsonPullParserCursor* cursor) {
+        TParsedChunkReplica parsedReplica;
+
+        auto consume = [&] (EYsonItemType type, const auto& fillField) {
+            const auto& current = cursor->GetCurrent();
+            if (current.GetType() != type) {
+                THROW_ERROR_EXCEPTION("Invalid YSON item type while parsing Sequoia replicas: expected %Qlv, actual %Qlv",
+                    type,
+                    current.GetType());
+            }
+            fillField(current);
+            cursor->Next();
+        };
+
+        consume(EYsonItemType::BeginList, [] (const TYsonItem&) {});
+        consume(EYsonItemType::StringValue, [&] (const TYsonItem& current) {
+            parsedReplica.LocationUuid = NChunkClient::TChunkLocationUuid::FromString(current.UncheckedAsString());
+        });
+        consume(EYsonItemType::Int64Value, [&] (const TYsonItem& current) {
+            parsedReplica.ReplicaIndex = current.UncheckedAsInt64();
+        });
+        consume(EYsonItemType::Uint64Value, [&] (const TYsonItem& current) {
+            parsedReplica.NodeId = NNodeTrackerClient::TNodeId(current.UncheckedAsUint64());
+        });
+        consume(EYsonItemType::EndList, [] (const TYsonItem&) {});
+
+        onReplica(parsedReplica);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

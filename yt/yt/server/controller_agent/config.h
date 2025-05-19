@@ -260,6 +260,9 @@ struct TSuspiciousJobsOptions
     //! Maximum number of suspicious jobs that are reported in Orchid for each job type.
     i64 MaxOrchidEntryCountPerType;
 
+    //! Minimum CPU limit for jobs that are checked for suspiciousness.
+    NScheduler::TCpuResource MinRequiredCpuLimit;
+
     REGISTER_YSON_STRUCT(TSuspiciousJobsOptions);
 
     static void Register(TRegistrar registrar);
@@ -316,6 +319,9 @@ struct TGpuCheckOptions
 
     //! Command line arguments for the GPU check binary.
     std::vector<std::string> BinaryArgs;
+
+    //! Network project for GPU check container.
+    std::optional<TString> NetworkProject;
 
     REGISTER_YSON_STRUCT(TGpuCheckOptions);
 
@@ -1031,7 +1037,7 @@ struct TControllerAgentConfig
     std::optional<int> IopsThrottlerLimit;
 
     //! Patch for all operation options.
-    NYT::NYTree::INodePtr OperationOptions;
+    NYTree::INodePtr OperationOptions;
 
     //! Specific operation options.
     TMapOperationOptionsPtr MapOperationOptions;
@@ -1045,6 +1051,18 @@ struct TControllerAgentConfig
     TSortOperationOptionsPtr SortOperationOptions;
     TRemoteCopyOperationOptionsPtr RemoteCopyOperationOptions;
     TVanillaOperationOptionsPtr VanillaOperationOptions;
+
+    NYTree::INodePtr MapOperationOptionsNode;
+    NYTree::INodePtr ReduceOperationOptionsNode;
+    NYTree::INodePtr JoinReduceOperationOptionsNode;
+    NYTree::INodePtr EraseOperationOptionsNode;
+    NYTree::INodePtr OrderedMergeOperationOptionsNode;
+    NYTree::INodePtr UnorderedMergeOperationOptionsNode;
+    NYTree::INodePtr SortedMergeOperationOptionsNode;
+    NYTree::INodePtr MapReduceOperationOptionsNode;
+    NYTree::INodePtr SortOperationOptionsNode;
+    NYTree::INodePtr RemoteCopyOperationOptionsNode;
+    NYTree::INodePtr VanillaOperationOptionsNode;
 
     //! Default environment variables set for every job.
     THashMap<TString, TString> Environment;
@@ -1182,13 +1200,13 @@ struct TControllerAgentConfig
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 
     //! List of media that require specifying account and disk space limit.
-    THashSet<TString> ObligatoryAccountMedia;
+    THashSet<std::string> ObligatoryAccountMedia;
 
     //! List of media that are deprecated to be used in disk requests.
-    THashSet<TString> DeprecatedMedia;
+    THashSet<std::string> DeprecatedMedia;
 
     //! The name of the fast medium (SSD) in the communal intermediate account.
-    TString FastIntermediateMedium;
+    std::string FastIntermediateMedium;
 
     //! Per transaction intermediate data weight limit for the fast medium (SSD) in the communal intermediate account.
     i64 FastIntermediateMediumLimit;
@@ -1261,7 +1279,7 @@ struct TControllerAgentConfig
 
 private:
     template <class TOptions>
-    static void UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch);
+    static void BuildOptions(TOptions* options, NYTree::INodePtr optionsNode, NYTree::INodePtr patch);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConfig)

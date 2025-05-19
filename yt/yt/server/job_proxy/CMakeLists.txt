@@ -48,6 +48,7 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   library-profiling-solomon
   library-tracing-jaeger
   yt-library-server_program
+  yt-library-signals
 )
 
 target_sources(yt-server-job_proxy PRIVATE

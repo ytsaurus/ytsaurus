@@ -264,7 +264,7 @@ public: \
         const TRestoreTableBackupOptions& options),
         (manifest, options))
     IMPLEMENT_METHOD(std::vector<NTabletClient::TTabletActionId>, BalanceTabletCells, (
-        const TString& tabletCellBundle,
+        const std::string& tabletCellBundle,
         const std::vector< NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options),
         (tabletCellBundle, movableTables, options))
@@ -527,6 +527,10 @@ public: \
         const TPutFileToCacheOptions& options),
         (path, expectedMD5, options))
 
+    IMPLEMENT_METHOD(TGetCurrentUserResultPtr, GetCurrentUser, (
+        const TGetCurrentUserOptions& options),
+        (options))
+
     IMPLEMENT_METHOD(void, AddMember, (
         const TString& group,
         const TString& member,
@@ -550,8 +554,8 @@ public: \
         const TCheckPermissionByAclOptions& options),
         (user, permission, acl, options))
     IMPLEMENT_METHOD(void, TransferAccountResources, (
-        const TString& srcAccount,
-        const TString& dstAccount,
+        const std::string& srcAccount,
+        const std::string& dstAccount,
         NYTree::INodePtr resourceDelta,
         const TTransferAccountResourcesOptions& options),
         (srcAccount, dstAccount, resourceDelta, options))
@@ -872,11 +876,11 @@ public: \
         (user, passwordSha256, options))
 
     IMPLEMENT_METHOD(NBundleControllerClient::TBundleConfigDescriptorPtr, GetBundleConfig, (
-        const TString& bundleName,
+        const std::string& bundleName,
         const NBundleControllerClient::TGetBundleConfigOptions& options),
         (bundleName, options))
     IMPLEMENT_METHOD(void, SetBundleConfig, (
-        const TString& bundleName,
+        const std::string& bundleName,
         const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig,
         const NBundleControllerClient::TSetBundleConfigOptions& options),
         (bundleName, bundleConfig, options))
@@ -936,13 +940,15 @@ public: \
     IMPLEMENT_METHOD(void, RegisterShuffleChunks, (
         const TShuffleHandlePtr& shuffleHandle,
         const std::vector<NChunkClient::NProto::TChunkSpec>& chunkSpecs,
+        std::optional<int> writerIndex,
         const TRegisterShuffleChunksOptions& options),
-        (shuffleHandle, chunkSpecs, options))
+        (shuffleHandle, chunkSpecs, writerIndex, options))
     IMPLEMENT_METHOD(std::vector<NChunkClient::NProto::TChunkSpec>, FetchShuffleChunks, (
         const TShuffleHandlePtr& shuffleHandle,
         int partitionIndex,
+        std::optional<std::pair<int, int>> writerIndexRange,
         const TFetchShuffleChunksOptions& options),
-        (shuffleHandle, partitionIndex, options))
+        (shuffleHandle, partitionIndex, writerIndexRange, options))
     IMPLEMENT_METHOD(void, ForsakeChaosCoordinator, (
         NHydra::TCellId chaosCellId,
         NHydra::TCellId cordiantorCellId,
@@ -952,11 +958,13 @@ public: \
     TFuture<IRowBatchReaderPtr> CreateShuffleReader(
         const TShuffleHandlePtr& shuffleHandle,
         int partitionIndex,
-        const NTableClient::TTableReaderConfigPtr& config) override;
+        std::optional<std::pair<int, int>> writerIndexRange,
+        const TShuffleReaderOptions& options) override;
     TFuture<IRowBatchWriterPtr> CreateShuffleWriter(
         const TShuffleHandlePtr& shuffleHandle,
         const std::string& partitionColumn,
-        const NTableClient::TTableWriterConfigPtr& config) override;
+        std::optional<int> writerIndex,
+        const TShuffleWriterOptions& options) override;
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -1002,8 +1010,6 @@ private:
     TLazyIntrusivePtr<NQueryClient::IFunctionRegistry> FunctionRegistry_;
     std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
     std::unique_ptr<NBundleController::TBundleControllerServiceProxy> BundleControllerProxy_;
-
-    const NSignature::ISignatureGeneratorPtr DummySignatureGenerator_;
 
     struct TReplicaClient final
     {

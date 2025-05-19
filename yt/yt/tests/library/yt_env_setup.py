@@ -329,11 +329,7 @@ class YTEnvSetup(object):
 
     DELTA_NODE_FLAVORS = []
 
-    DELTA_DRIVER_CONFIG = {
-        "table_writer": {
-            "enable_large_columnar_statistics": True,
-        },
-    }
+    DELTA_DRIVER_CONFIG = {}
     DELTA_DRIVER_LOGGING_CONFIG = {}
     DELTA_RPC_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
@@ -343,114 +339,9 @@ class YTEnvSetup(object):
     DELTA_CHAOS_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
     DELTA_CONTROLLER_AGENT_CONFIG = {}
-    # TODO(ignat): refactor it.
     _DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "enable_table_column_renaming": True,
-            "map_operation_options": {
-                "spec_template": {
-                    "job_io": {
-                        "table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                        "dynamic_table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                    },
-                }
-            },
-            "map_reduce_operation_options": {
-                "spec_template": {
-                    "map_job_io": {
-                        "table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                        "dynamic_table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                    },
-                    "sort_job_io": {
-                        "table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                        "dynamic_table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                    },
-                    "reduce_job_io": {
-                        "table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                        "dynamic_table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                    },
-                }
-            },
-            "sort_operation_options": {
-                "spec_template": {
-                    "merge_job_io": {
-                        "table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                        "dynamic_table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                    },
-                    "partition_job_io": {
-                        "table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                        "dynamic_table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                    },
-                    "sort_job_io": {
-                        "table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                        "dynamic_table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                    },
-                }
-            },
-            "sorted_merge_operation_options": {
-                "spec_template": {
-                    "job_io": {
-                        "table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                        "dynamic_table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                    },
-                },
-            },
-            "unordered_merge_operation_options": {
-                "spec_template": {
-                    "job_io": {
-                        "table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                        "dynamic_table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                    },
-                },
-            },
-            "ordered_merge_operation_options": {
-                "spec_template": {
-                    "job_io": {
-                        "table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                        "dynamic_table_writer": {
-                            "enable_large_columnar_statistics": True,
-                        },
-                    },
-                },
-            },
         },
     }
     DELTA_PROXY_CONFIG = {}
@@ -467,6 +358,8 @@ class YTEnvSetup(object):
     DELTA_CYPRESS_PROXY_CONFIG = {}
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {}
 
+    DELTA_LOCAL_YT_CONFIG = {}
+
     USE_PORTO = False  # Enables use_slot_user_id, use_porto_for_servers, jobs_environment_type="porto"
     USE_SLOT_USER_ID = None  # If set explicitly, overrides USE_PORTO.
     JOB_ENVIRONMENT_TYPE = None  # "porto", "cri"
@@ -480,6 +373,7 @@ class YTEnvSetup(object):
     USE_SEQUOIA = False
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = False
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
+    USE_CYPRESS_TRANSACTION_SERVICE = False
 
     # Ground cluster should be lean by default.
     NUM_MASTERS_GROUND = 1
@@ -710,6 +604,24 @@ class YTEnvSetup(object):
         else:
             enable_legacy_logging_scheme = False
 
+        delta_global_cluster_connection_config = None
+        if cls.get_param("USE_CYPRESS_TRANSACTION_SERVICE", index) or \
+                cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index):
+            delta_global_cluster_connection_config = {
+                "transaction_manager": {
+                    "use_cypress_transaction_service": True,
+                },
+            }
+        if cls._is_ground_cluster(index):
+            if delta_global_cluster_connection_config is None:
+                delta_global_cluster_connection_config = {}
+            delta_global_cluster_connection_config["permission_cache"] = {
+                "expire_after_successful_update_time": 60000,
+                "refresh_time": 60000,
+                "expire_after_failed_update_time": 1000,
+                "expire_after_access_time": 300000,
+            }
+
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,
             jobs_environment_type="porto" if cls.USE_PORTO else cls.JOB_ENVIRONMENT_TYPE,
@@ -746,7 +658,6 @@ class YTEnvSetup(object):
                 cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0),
             cypress_proxy_count=cypress_proxy_count,
             replicated_table_tracker_count=cls.get_param("NUM_REPLICATED_TABLE_TRACKERS", index),
-            fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
             primary_cell_tag=primary_cell_tag,
@@ -768,15 +679,9 @@ class YTEnvSetup(object):
             wait_for_dynamic_config=cls.WAIT_FOR_DYNAMIC_CONFIG,
             enable_chyt_http_proxies=cls.get_param("ENABLE_CHYT_HTTP_PROXIES", index),
             enable_chyt_https_proxies=cls.get_param("ENABLE_CHYT_HTTPS_PROXIES", index),
-            delta_global_cluster_connection_config={
-                "permission_cache": {
-                    "expire_after_successful_update_time": 60000,
-                    "refresh_time": 60000,
-                    "expire_after_failed_update_time": 1000,
-                    "expire_after_access_time": 300000,
-                },
-            } if cls._is_ground_cluster(index) else None,
+            delta_global_cluster_connection_config=delta_global_cluster_connection_config,
             enable_multidaemon=enable_multidaemon,
+            **cls.get_param("DELTA_LOCAL_YT_CONFIG", index),
         )
 
         if yt_config.jobs_environment_type == "porto" and not porto_available():
@@ -786,6 +691,32 @@ class YTEnvSetup(object):
             yt_config.cri_endpoint = find_cri_endpoint()
             if yt_config.cri_endpoint is None:
                 pytest.skip("CRI endpoint not found")
+
+        # NB: all Sequoia-related flags should be set before other components
+        # start.
+        if cls.get_param("USE_SEQUOIA", index):
+            def modify_master_dynamic_configs_func(config, ytserver_version):
+                update_inplace(config, {
+                    "sequoia_manager": {
+                        "enable": True,
+                    },
+                })
+
+                if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index):
+                    update_inplace(config, {
+                        "sequoia_manager": {
+                            "enable_cypress_transactions_in_sequoia": True,
+                        },
+                        "transaction_manager": {
+                            "enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases": True,
+                            "forbid_transaction_actions_for_cypress_transactions": True,
+                        },
+                    })
+
+                return config
+
+        else:
+            modify_master_dynamic_configs_func = None
 
         instance = YTInstance(
             path,
@@ -801,6 +732,7 @@ class YTEnvSetup(object):
                 str(index)),
             external_bin_path=cls.bin_path,
             modify_driver_logging_config_func=modify_driver_logging_config_func,
+            modify_master_dynamic_configs_func=modify_master_dynamic_configs_func,
         )
 
         instance._cluster_name = cls.get_cluster_name(index)
@@ -910,22 +842,14 @@ class YTEnvSetup(object):
         return True
 
     @classmethod
-    def _setup_cluster_configuration(cls, index, clusters):
+    def _setup_cluster_configuration(cls, index, clusters, client):
         cluster_name = cls.get_cluster_name(index)
 
-        driver = yt_commands.get_driver(cluster=cluster_name)
-        if driver is None:
-            return
-
-        requests = [
-            yt_commands.make_batch_request("set", path="//sys/@cluster_name", input=cluster_name),
-            yt_commands.make_batch_request("set", path="//sys/clusters", input=clusters),
-            yt_commands.make_batch_request("set", path="//sys/@cluster_connection",
-                                           input=clusters[cluster_name])
-        ]
-        responses = yt_commands.execute_batch(requests, driver=driver)
-        for response in responses:
-            yt_commands.raise_batch_error(response)
+        batch_client = client.create_batch_client(raise_errors=True)
+        client.set("//sys/@cluster_name", cluster_name)
+        client.set("//sys/clusters", clusters)
+        client.set("//sys/@cluster_connection", clusters[cluster_name])
+        batch_client.commit_batch()
 
     @classmethod
     def start_envs(cls):
@@ -935,6 +859,8 @@ class YTEnvSetup(object):
                 cluster_index = original_cluster_index + cls.get_ground_index_offset()
                 cluster_path = os.path.join(cls.path_to_run, cls.get_cluster_name(cluster_index))
                 cls.ground_envs.append(cls.create_yt_cluster_instance(cluster_index, cluster_path))
+            else:
+                cls.ground_envs.append(None)
 
         # Primary cluster instantiation.
         cls.Env = cls.create_yt_cluster_instance(0, cls.primary_cluster_path)
@@ -964,35 +890,55 @@ class YTEnvSetup(object):
 
         yt_commands.is_multicell = cls.is_multicell()
         yt_commands.path_to_run_tests = cls.path_to_run
-
         cls.combined_envs = cluster_envs + cls.ground_envs
+
+        if len(cls.Env.configs["master"]) > 0:
+            clusters = {
+                instance._cluster_name: instance.get_cluster_configuration()["cluster_connection"]
+                for instance in cls.combined_envs if instance is not None
+            }
+        else:
+            clusters = None
+
+        def on_masters_started(cluster_index, client):
+            if clusters is not None:
+                cls._setup_cluster_configuration(cluster_index, clusters, client)
+            if cluster_index == 0:
+                cls.on_masters_started()
+
+        # Ground clusters must be initialized before primary cluster's scheduler
+        # is started.
+        yt_commands.init_drivers(cls.ground_envs)
+        for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
+            if not cls.get_param("USE_SEQUOIA", cluster_index):
+                continue
+            env = cls.ground_envs[cluster_index]
+            assert env is not None
+            ground_cluster_index = cluster_index + cls.get_ground_index_offset()
+            env.start(on_masters_started_func=lambda client: on_masters_started(ground_cluster_index, client))
+        yt_commands.wait_drivers()
+
+        for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
+            if cls.get_param("USE_SEQUOIA", cluster_index):
+                cls._setup_sequoia_tables(cluster_index)
+
         yt_commands.init_drivers(cls.combined_envs)
 
-        for env in cls.ground_envs:
-            env.start()
+        cls.Env.start(on_masters_started_func=lambda client: on_masters_started(0, client))
 
-        cls.Env.start(on_masters_started_func=cls.on_masters_started)
-
-        for env in cls.remote_envs:
-            env.start()
+        for cluster_index in range(1, cls.NUM_REMOTE_CLUSTERS + 1):
+            env = cls.combined_envs[cluster_index]
+            env.start(on_masters_started_func=lambda client: on_masters_started(cluster_index, client))
 
         yt_commands.wait_drivers()
 
         for env in cls.combined_envs:
+            if env is None:
+                continue
             liveness_checker = Checker(lambda: env.check_liveness(callback_func=emergency_exit_within_tests))
             liveness_checker.daemon = True
             liveness_checker.start()
             cls.liveness_checkers.append(liveness_checker)
-
-        if len(cls.Env.configs["master"]) > 0:
-            clusters = {}
-            for instance in cls.combined_envs:
-                clusters[instance._cluster_name] = instance.get_cluster_configuration()["cluster_connection"]
-
-            for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
-                if cls.USE_SEQUOIA:
-                    cls._setup_cluster_configuration(cluster_index + cls.get_ground_index_offset(), clusters)
-                cls._setup_cluster_configuration(cluster_index, clusters)
 
         # TODO(babenko): wait for cluster sync
         if cls.remote_envs:
@@ -1001,11 +947,6 @@ class YTEnvSetup(object):
         if yt_commands.is_multicell and not cls.DEFER_SECONDARY_CELL_START:
             yt_commands.remove("//sys/operations")
             yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 11})
-
-        if cls.USE_SEQUOIA:
-            for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
-                if cls.get_param("USE_SEQUOIA", cluster_index):
-                    cls._setup_sequoia_tables(cluster_index)
 
         if cls.USE_DYNAMIC_TABLES:
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
@@ -1053,15 +994,12 @@ class YTEnvSetup(object):
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000, driver=ground_driver)
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_static_memory", 4 * (2**30), driver=ground_driver)
 
-        yt.logger.error(cluster_index)
         config = cls.combined_envs[cluster_index].get_cluster_configuration()["master"]
-        yt.logger.error(config)
 
         def get_table_paths(descriptor):
             table_path = descriptor.get_default_path()
             if "chunk_refresh_queue" in table_path:
                 cell_tags = [config["primary_cell_tag"]] + config["secondary_cell_tags"]
-                yt.logger.error(cell_tags)
                 return ["{}_{}".format(table_path, cell_tag) for cell_tag in cell_tags]
             return [table_path]
 
@@ -1092,7 +1030,10 @@ class YTEnvSetup(object):
         yt_commands.set(f"{response_keeper_path}/@mount_config/max_data_ttl", 1000, driver=ground_driver)
 
         for table_path in get_table_paths(DESCRIPTORS.chunk_refresh_queue):
-            yt_commands.sync_reshard_table(table_path, 60, driver=ground_driver)
+            yt_commands.reshard_table(table_path, 60, driver=ground_driver)
+
+        for table_path in get_table_paths(DESCRIPTORS.chunk_refresh_queue):
+            wait(lambda: yt_commands.get(f"{table_path}/@tablet_state", driver=ground_driver) != "transient")
 
         for descriptor in DESCRIPTORS.as_dict().values():
             for table_path in get_table_paths(descriptor):
@@ -1195,11 +1136,13 @@ class YTEnvSetup(object):
             configs["multi"]["daemons"][f"master_cache_{index}"]["config"] = configs["master_cache"][index]
 
         for index, config in enumerate(configs["controller_agent"]):
-            delta_config = cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
-            config = update_inplace(
-                update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG),
-                delta_config,
-            )
+            config = update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG)
+            if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index):
+                config = update_inplace(config, {
+                    "set_committed_attribute_via_transaction_action": False,
+                    "commit_operation_cypress_node_changes_via_system_transaction": True,
+                })
+            config = update_inplace(config, cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index))
             configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_controller_agent_config(configs["controller_agent"][index], cluster_index)
             configs["multi"]["daemons"][f"controller_agent_{index}"]["config"] = configs["controller_agent"][index]
@@ -1301,12 +1244,7 @@ class YTEnvSetup(object):
             if cls._is_ground_cluster(cluster_index):
                 return config
 
-            ground_list_index = 0
-            for index in range(cluster_index):
-                if cls.get_param("USE_SEQUOIA", index):
-                    ground_list_index += 1
-
-            ground_timestamp_provider = cls.ground_envs[ground_list_index].configs["master"][0]["cluster_connection"]["timestamp_provider"]
+            ground_timestamp_provider = cls.ground_envs[cluster_index].configs["master"][0]["cluster_connection"]["timestamp_provider"]
             if "timestamp_provider" in config:
                 config["timestamp_provider"] = ground_timestamp_provider
             if "cluster_connection" in config:
@@ -1362,6 +1300,9 @@ class YTEnvSetup(object):
                 self.setup_cluster(method, cluster_index + self.get_ground_index_offset())
 
         for env in self.combined_envs:
+            if env is None:
+                continue
+
             env.restore_default_node_dynamic_config()
             env.restore_default_bundle_dynamic_config()
 
@@ -1598,6 +1539,9 @@ class YTEnvSetup(object):
         yt_commands._zombie_responses[:] = []
 
         for cluster_index, env in enumerate(self.ground_envs + [self.Env] + self.remote_envs):
+            if env is None:
+                continue
+
             env.check_liveness(callback_func=emergency_exit_within_tests)
 
             # COMPAT(danilalexeev)
@@ -2130,7 +2074,7 @@ class YTEnvSetup(object):
                 config,
                 driver=driver)
 
-            instances = yt_commands.ls("//sys/tablet_balancer/instances")
+            instances = yt_commands.ls("//sys/tablet_balancer/instances", driver=driver)
 
             self._wait_for_dynamic_config("//sys/tablet_balancer/instances", config, instances, driver=driver)
 

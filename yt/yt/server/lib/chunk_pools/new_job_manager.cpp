@@ -31,7 +31,7 @@ void TNewJobStub::AddDataSlice(const TLegacyDataSlicePtr& dataSlice, IChunkPoolI
     int streamIndex = dataSlice->GetInputStreamIndex();
     int rangeIndex = dataSlice->GetRangeIndex();
     auto& stripe = GetStripe(streamIndex, rangeIndex, isPrimary);
-    stripe->DataSlices.emplace_back(dataSlice);
+    stripe->DataSlices.push_back(dataSlice);
     if (cookie != IChunkPoolInput::NullCookie) {
         InputCookies_.emplace_back(cookie);
     }

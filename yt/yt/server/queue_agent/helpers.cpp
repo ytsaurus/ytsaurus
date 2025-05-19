@@ -261,4 +261,16 @@ TString TrimProfilingTagValue(const TString& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::string EnumValueToPluralForm(EObjectKind value, bool lowercase)
+{
+    // NB(apachee): "s" is suffix for plural form and %v, %lv are singular forms of #value.
+    if (lowercase) {
+        return Format("%lvs", value);
+    } else {
+        return Format("%vs", value);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueueAgent

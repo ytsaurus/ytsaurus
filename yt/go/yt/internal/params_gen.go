@@ -449,6 +449,10 @@ func writeReadTableOptions(w *yson.Writer, o *yt.ReadTableOptions) {
 	w.Any(o.Unordered)
 	w.MapKeyString("table_reader")
 	w.Any(o.TableReader)
+	if o.Format != nil {
+		w.MapKeyString("output_format")
+		w.Any(o.Format)
+	}
 	if o.ControlAttributes != nil {
 		w.MapKeyString("control_attributes")
 		w.Any(o.ControlAttributes)

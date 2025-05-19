@@ -35,6 +35,7 @@ GO_TEST_SRCS(
     operations_test.go
     ordered_tables_test.go
     replicated_tables_test.go
+    skiff_test.go
     smart_read_test.go
     tables_test.go
     table_backup_test.go

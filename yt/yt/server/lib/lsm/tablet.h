@@ -19,7 +19,7 @@ class TTablet
 public:
     DEFINE_BYVAL_RW_PROPERTY(TTabletId, Id);
     DEFINE_BYVAL_RW_PROPERTY(TTabletCellId, CellId);
-    DEFINE_BYREF_RW_PROPERTY(TString, TabletCellBundle);
+    DEFINE_BYREF_RW_PROPERTY(std::string, TabletCellBundle);
     DEFINE_BYVAL_RW_PROPERTY(bool, PhysicallySorted);
     DEFINE_BYVAL_RW_PROPERTY(bool, Mounted);
     DEFINE_BYVAL_RW_PROPERTY(TTableMountConfigPtr, MountConfig);

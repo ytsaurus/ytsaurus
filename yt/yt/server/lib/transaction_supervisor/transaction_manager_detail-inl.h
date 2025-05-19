@@ -28,8 +28,6 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     // We don't need to run abort tx actions for transient prepare.
     auto rememberPreparedTransactionActionCount = options.Persistent;
 
-    // COMPAT(kvk1920): |PreparedActionCount| should never be |nullopt|
-    // yet it could stay |nullopt| until abort if no RunPrepareTransactionActions was called.
     if (rememberPreparedTransactionActionCount) {
         transaction->SetPreparedActionCount(0);
     }
@@ -95,7 +93,8 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(
 template <class TTransaction>
 void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(
     TTransaction* transaction,
-    const TTransactionAbortOptions& options)
+    const TTransactionAbortOptions& options,
+    bool requireLegacyBehavior)
 {
     // See RunPrepareTransactionActions().
     if (transaction->Actions().empty()) {
@@ -120,15 +119,16 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(
     };
 
     // COMPAT(kvk1920)
-    if (!transaction->GetPreparedActionCount().has_value()) {
-        // Prepare phase was finished before update to current version so we
-        // don't know how many tx actions were prepared. Fallback to legacy
-        // behavior.
+    if (!transaction->GetPreparedActionCount().has_value() && requireLegacyBehavior) {
+        // Previous versions treated |nullopt| as "run all abort actions".The
+        // target state is to run nothing (i.e. |nullopt| is semantically equal
+        // to 0). This optional<int> should be just int but it cannot be just
+        // changed to int due to compatibility reasons.
         for (const auto& action : transaction->Actions()) {
             runAbort(action);
         }
     } else {
-        for (int i = *transaction->GetPreparedActionCount() - 1; i >= 0; --i) {
+        for (int i = transaction->GetPreparedActionCount().value_or(0) - 1; i >= 0; --i) {
             runAbort(transaction->Actions()[i]);
         }
     }
