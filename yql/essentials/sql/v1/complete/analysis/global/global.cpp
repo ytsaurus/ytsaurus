@@ -35,7 +35,11 @@ namespace NSQLComplete {
         }
 
         TGlobalContext Analyze(TCompletionInput input) override {
-            auto* sqlQuery = Parse(input.Text);
+            SQLv1::Sql_queryContext* sqlQuery = Parse(input.Text);
+            Y_ENSURE(sqlQuery);
+
+            Cerr << "Tree:\n"
+                 << sqlQuery->toStringTree(&Parser_) << Endl;
 
             TGlobalContext ctx;
 
