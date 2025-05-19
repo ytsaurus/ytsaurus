@@ -17,9 +17,6 @@ namespace NSQLComplete {
         TMaybe<TObject> Object;
     };
 
-    struct TEnvironment {
-    };
-
     class IGlobalAnalysis {
     public:
         using TPtr = THolder<IGlobalAnalysis>;
