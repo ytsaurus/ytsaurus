@@ -32,7 +32,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = LeaseManagerLogger;
+constinit const auto Logger = LeaseManagerLogger;
 
 class TLeaseManager;
 

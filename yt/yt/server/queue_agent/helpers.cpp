@@ -26,7 +26,7 @@ using namespace NTabletClient;
 using namespace NQueueClient;
 using namespace NYTree;
 
-static constexpr auto& Logger = QueueAgentLogger;
+constinit const auto Logger = QueueAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

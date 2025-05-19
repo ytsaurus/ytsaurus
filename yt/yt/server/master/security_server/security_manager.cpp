@@ -116,7 +116,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SecurityServerLogger;
+constinit const auto Logger = SecurityServerLogger;
 static TFlsSlot<TUser*> AuthenticatedUserSlot;
 
 namespace {

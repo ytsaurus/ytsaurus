@@ -31,7 +31,7 @@ using Porto::EError;
 
 #ifdef _linux_
 
-static constexpr auto& Logger = ContainersLogger;
+constinit const auto Logger = ContainersLogger;
 static constexpr auto RetryInterval = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////

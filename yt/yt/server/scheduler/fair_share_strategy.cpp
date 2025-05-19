@@ -58,7 +58,7 @@ public:
         : Config_(std::move(config))
         , Host_(host)
         , FeasibleInvokers_(std::move(feasibleInvokers))
-        , Logger(StrategyLogger)
+        , Logger(StrategyLogger())
     {
         // TODO(eshcherbin): Use BIND_NO_PROPAGATE for all periodic executors.
         FairShareProfilingExecutor_ = New<TPeriodicExecutor>(

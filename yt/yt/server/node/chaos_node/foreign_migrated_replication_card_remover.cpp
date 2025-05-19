@@ -34,7 +34,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChaosNodeLogger;
+constinit const auto Logger = ChaosNodeLogger;
 
 static constexpr int MigratedReplicatedCardTtlRemoveBatchSize = 128;
 

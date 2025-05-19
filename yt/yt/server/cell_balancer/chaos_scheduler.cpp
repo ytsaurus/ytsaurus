@@ -11,7 +11,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = BundleControllerLogger;
+constinit const auto Logger = BundleControllerLogger;
 
 static const std::string BetaAreaName = "beta";
 static const std::string DefaultAreaName = "default";

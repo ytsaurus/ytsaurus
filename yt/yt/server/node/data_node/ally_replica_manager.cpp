@@ -49,7 +49,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = DataNodeLogger;
+constinit const auto Logger = DataNodeLogger;
 constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 constexpr auto QueueFlushPeriod = TDuration::Seconds(1);
 

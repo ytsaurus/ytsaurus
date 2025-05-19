@@ -64,7 +64,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = QueryClientLogger;
+constinit const auto Logger = QueryClientLogger;
 
 struct TQueryUdfTag
 { };

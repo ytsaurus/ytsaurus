@@ -80,7 +80,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 static const std::string BusXferThreadPoolName = "BusXfer";
 static const std::string CompressionThreadPoolName = "Compression";

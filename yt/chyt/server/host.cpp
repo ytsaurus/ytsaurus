@@ -84,7 +84,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ClickHouseYtLogger;
+constinit const auto Logger = ClickHouseYtLogger;
 
 static const std::vector<std::string> DiscoveryAttributes{
     "host",

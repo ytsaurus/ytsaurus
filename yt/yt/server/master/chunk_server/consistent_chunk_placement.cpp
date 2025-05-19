@@ -26,7 +26,7 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 static const int MaxNodeAddressWithSuffixLength = 100;
 

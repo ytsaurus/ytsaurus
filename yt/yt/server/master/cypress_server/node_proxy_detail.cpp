@@ -94,7 +94,7 @@ using namespace NServer;
 
 namespace {
 
-static constexpr auto& Logger = CypressServerLogger;
+constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
