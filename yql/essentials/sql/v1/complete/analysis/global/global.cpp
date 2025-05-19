@@ -42,7 +42,7 @@ namespace NSQLComplete {
             Parser_.setErrorHandler(std::make_shared<TErrorStrategy>());
         }
 
-        TGlobalContext Analyze(TCompletionInput input, const TEnvironment& /* env */) override {
+        TGlobalContext Analyze(TCompletionInput input) override {
             SQLv1::Sql_queryContext* sqlQuery = Parse(input.Text);
             Y_ENSURE(sqlQuery);
 
@@ -75,9 +75,9 @@ namespace NSQLComplete {
 
     class TGlobalAnalysis: public IGlobalAnalysis {
     public:
-        TGlobalContext Analyze(TCompletionInput input, const TEnvironment& env) override {
+        TGlobalContext Analyze(TCompletionInput input) override {
             const bool isAnsiLexer = IsAnsiQuery(TString(input.Text));
-            return GetSpecialized(isAnsiLexer).Analyze(std::move(input), env);
+            return GetSpecialized(isAnsiLexer).Analyze(std::move(input));
         }
 
     private:

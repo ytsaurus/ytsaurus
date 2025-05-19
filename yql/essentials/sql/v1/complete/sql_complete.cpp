@@ -41,8 +41,7 @@ namespace NSQLComplete {
             TLocalSyntaxContext local = SyntaxAnalysis_->Analyze(input);
             auto keywords = local.Keywords;
 
-            TEnvironment env = {};
-            TGlobalContext global = GlobalAnalysis_->Analyze(input, env);
+            TGlobalContext global = GlobalAnalysis_->Analyze(input);
 
             TNameRequest request = NameRequestFrom(input, local, global);
             if (request.IsEmpty()) {
@@ -68,58 +67,58 @@ namespace NSQLComplete {
 
         TNameRequest NameRequestFrom(
             TCompletionInput input,
-            const TLocalSyntaxContext& local,
+            const TLocalSyntaxContext& context,
             const TGlobalContext& global) const {
             TNameRequest request = {
-                .Prefix = TString(GetCompletedToken(input, local.EditRange).Content),
+                .Prefix = TString(GetCompletedToken(input, context.EditRange).Content),
                 .Limit = Configuration_.Limit,
             };
 
-            for (const auto& [first, _] : local.Keywords) {
+            for (const auto& [first, _] : context.Keywords) {
                 request.Keywords.emplace_back(first);
             }
 
-            if (local.Pragma) {
+            if (context.Pragma) {
                 TPragmaName::TConstraints constraints;
-                constraints.Namespace = local.Pragma->Namespace;
+                constraints.Namespace = context.Pragma->Namespace;
                 request.Constraints.Pragma = std::move(constraints);
             }
 
-            if (local.Type) {
+            if (context.Type) {
                 request.Constraints.Type = TTypeName::TConstraints();
             }
 
-            if (local.Function) {
+            if (context.Function) {
                 TFunctionName::TConstraints constraints;
-                constraints.Namespace = local.Function->Namespace;
+                constraints.Namespace = context.Function->Namespace;
                 request.Constraints.Function = std::move(constraints);
             }
 
-            if (local.Hint) {
+            if (context.Hint) {
                 THintName::TConstraints constraints;
-                constraints.Statement = local.Hint->StatementKind;
+                constraints.Statement = context.Hint->StatementKind;
                 request.Constraints.Hint = std::move(constraints);
             }
 
-            if (local.Object) {
+            if (context.Object) {
                 request.Constraints.Object = TObjectNameConstraints();
-                request.Constraints.Object->Kinds = local.Object->Kinds;
-                request.Prefix = local.Object->Path;
+                request.Constraints.Object->Kinds = context.Object->Kinds;
+                request.Prefix = context.Object->Path;
             }
 
-            if (local.Object && global.Object) {
+            if (context.Object && global.Object) {
                 request.Constraints.Object->Provider = global.Object->Provider;
                 request.Constraints.Object->Cluster = global.Object->Cluster;
             }
 
-            if (local.Object && local.Object->HasCluster()) {
-                request.Constraints.Object->Provider = local.Object->Provider;
-                request.Constraints.Object->Cluster = local.Object->Cluster;
+            if (context.Object && context.Object->HasCluster()) {
+                request.Constraints.Object->Provider = context.Object->Provider;
+                request.Constraints.Object->Cluster = context.Object->Cluster;
             }
 
-            if (local.Cluster) {
+            if (context.Cluster) {
                 TClusterName::TConstraints constraints;
-                constraints.Namespace = local.Cluster->Provider;
+                constraints.Namespace = context.Cluster->Provider;
                 request.Constraints.Cluster = std::move(constraints);
             }
 
