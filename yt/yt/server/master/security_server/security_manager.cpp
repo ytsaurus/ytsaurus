@@ -3409,8 +3409,8 @@ private:
 
             auto usage = node->GetDeltaResourceUsage();
             auto tabletResourceUsage = node->GetTabletResourceUsage();
-            usage.SetTabletCount(tabletResourceUsage.TabletCount);
-            usage.SetTabletStaticMemory(tabletResourceUsage.TabletStaticMemory);
+            usage.SetTabletCount(tabletResourceUsage.GetTabletCount());
+            usage.SetTabletStaticMemory(tabletResourceUsage.GetTabletStaticMemory());
             usage.DetailedMasterMemory() = TDetailedMasterMemory();
             usage.SetChunkCount(0);
             usage.ClearDiskSpace();
