@@ -678,7 +678,7 @@ class TRpcProxyFormatTest
 
 TEST_F(TRpcProxyFormatTest, FordiddenFormat_YT_20098)
 {
-    TString userName = "foo";
+    std::string userName = "foo";
     if (!WaitFor(Client_->NodeExists("//sys/users/" + userName)).ValueOrThrow()) {
         TCreateObjectOptions options;
         auto attributes = CreateEphemeralAttributes();

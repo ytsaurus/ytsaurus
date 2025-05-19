@@ -33,7 +33,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(EOperationType, Type);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, Spec);
     DEFINE_BYVAL_RO_PROPERTY(TInstant, StartTime);
-    DEFINE_BYVAL_RO_PROPERTY(TString, AuthenticatedUser);
+    DEFINE_BYVAL_RO_PROPERTY(std::string, AuthenticatedUser);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
     DEFINE_BYVAL_RW_PROPERTY(NSecurityClient::TSerializableAccessControlList, Acl);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, AcoName);

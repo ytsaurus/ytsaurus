@@ -175,7 +175,7 @@ THashSet<TString> GetUserSubjects(const std::string& user, const IClientPtr& cli
 ESecurityAction CheckAccessControl(
     const std::string& user,
     const std::optional<TYsonString>& accessControlObjects,
-    const TString& queryAuthor,
+    const std::string& queryAuthor,
     const IClientPtr& client,
     EPermission permission)
 {
@@ -219,7 +219,7 @@ void ThrowAccessDeniedException(
     EPermission permission,
     const std::string& user,
     const std::optional<TYsonString>& accessControlObjects,
-    const TString& queryAuthor)
+    const std::string& queryAuthor)
 {
     THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AuthorizationError,
         "Access denied to query %v due to missing %Qv permission",
@@ -700,8 +700,7 @@ void TQueryTrackerProxy::StartQuery(
                 .Query = query,
                 .Files = ConvertToYsonString(options.Files),
                 .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
-                // TODO(babenko): switch to std::string
-                .User = TString(user),
+                .User = user,
                 .AccessControlObjects = ConvertToYsonString(accessControlObjects),
                 .StartTime = startTime,
                 .State = EQueryState::Draft,
@@ -724,8 +723,7 @@ void TQueryTrackerProxy::StartQuery(
             TFinishedQueryByStartTime newRecord{
                 .Key = {.MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
                 .Engine = engine,
-                // TODO(babenko): switch to std::string
-                .User = TString(user),
+                .User = user,
                 .AccessControlObjects = ConvertToYsonString(accessControlObjects),
                 .State = EQueryState::Draft,
                 .FilterFactors = filterFactors,
@@ -742,8 +740,7 @@ void TQueryTrackerProxy::StartQuery(
             static_assert(TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 6);
 
             TFinishedQueryByUserAndStartTime newRecord{
-                // TODO(babenko): switch to std::string
-                .Key = {.User = TString(user), .MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
+                .Key = {.User = user, .MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
                 .Engine = engine,
                 .State = EQueryState::Draft,
                 .FilterFactors = filterFactors,
@@ -766,8 +763,7 @@ void TQueryTrackerProxy::StartQuery(
                     TFinishedQueryByAcoAndStartTime newRecord{
                         .Key = {.AccessControlObject = aco, .MinusStartTime = -i64(startTime.MicroSeconds()), .QueryId = queryId},
                         .Engine = engine,
-                        // TODO(babenko): switch to std::string
-                        .User = TString(user),
+                        .User = user,
                         .State = EQueryState::Draft,
                         .FilterFactors = filterFactors,
                     };
@@ -787,8 +783,7 @@ void TQueryTrackerProxy::StartQuery(
             .Query = query,
             .Files = ConvertToYsonString(options.Files),
             .Settings = options.Settings ? ConvertToYsonString(options.Settings) : EmptyMap,
-            // TODO(babenko): switch to std::string
-            .User = TString(user),
+            .User = user,
             .AccessControlObjects = ConvertToYsonString(accessControlObjects),
             .StartTime = TInstant::Now(),
             .State = EQueryState::Pending,

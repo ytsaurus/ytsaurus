@@ -237,9 +237,9 @@ public:
         return VoidFuture;
     }
 
-    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
     {
-        static THashMap<TString, TString> stub;
+        static const THashMap<std::string, TString> stub;
         return stub;
     }
 
@@ -431,9 +431,9 @@ public:
     void ReleaseSlotIndex(const TString& /*treeId*/) override
     { }
 
-    TString GetAuthenticatedUser() const override
+    std::string GetAuthenticatedUser() const override
     {
-        return "root";
+        return NSecurityClient::RootUserName;
     }
 
     TOperationId GetId() const override

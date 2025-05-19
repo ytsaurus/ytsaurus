@@ -860,13 +860,13 @@ const NYPath::TYPath& TUserObject::GetPath() const
     return Path.GetPath();
 }
 
-TString TUserObject::GetObjectIdPath() const
+TYPath TUserObject::GetObjectIdPath() const
 {
     YT_VERIFY(IsPrepared());
     return FromObjectId(ObjectId);
 }
 
-TString TUserObject::GetObjectIdPathIfAvailable() const
+TYPath TUserObject::GetObjectIdPathIfAvailable() const
 {
     return ObjectId ? FromObjectId(ObjectId) : Path.GetPath();
 }

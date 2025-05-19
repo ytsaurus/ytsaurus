@@ -140,7 +140,7 @@ struct IOperationStrategyHost
     virtual void SetSlotIndex(const TString& treeId, int index) = 0;
     virtual void ReleaseSlotIndex(const TString& treeId) = 0;
 
-    virtual TString GetAuthenticatedUser() const = 0;
+    virtual std::string GetAuthenticatedUser() const = 0;
 
     virtual TOperationId GetId() const = 0;
 
@@ -315,7 +315,7 @@ public:
     TInstant GetStartTime() const override;
 
     //! Returns operation authenticated user.
-    TString GetAuthenticatedUser() const override;
+    std::string GetAuthenticatedUser() const override;
 
     //! Returns strategy operation spec.
     TStrategyOperationSpecPtr GetStrategySpec() const override;
@@ -474,7 +474,7 @@ private:
     const TOperationId Id_;
     const EOperationType Type_;
     const TInstant StartTime_;
-    const TString AuthenticatedUser_;
+    const std::string AuthenticatedUser_;
     const NYson::TYsonString SpecString_;
     const NYson::TYsonString TrimmedAnnotations_;
     const std::optional<TBriefVanillaTaskSpecMap> BriefVanillaTaskSpecs_;

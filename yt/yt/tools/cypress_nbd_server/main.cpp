@@ -78,7 +78,7 @@ DEFINE_REFCOUNTED_TYPE(TCypressFileBlockDeviceConfig)
 struct TConfig
     : public NYTree::TYsonStruct
 {
-    TString ClusterUser;
+    std::string ClusterUser;
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
     TNbdServerConfigPtr NbdServer;
     THashMap<TString, TCypressFileBlockDeviceConfigPtr> FileSystemBlockDevices;

@@ -588,7 +588,7 @@ protected:
     // Used only in trunk node.
     bool DefaultConfigured_ = true;
     bool EphemeralInDefaultParentPool_ = false;
-    std::optional<TString> UserName_;
+    std::optional<std::string> UserName_;
     NObjectClient::TObjectId ObjectId_;
 
     // Used in preupdate.
@@ -639,8 +639,8 @@ public:
     void SetDefaultConfig();
     void SetObjectId(NObjectClient::TObjectId objectId);
 
-    void SetUserName(const std::optional<TString>& userName);
-    const std::optional<TString>& GetUserName() const;
+    void SetUserName(const std::optional<std::string>& userName);
+    const std::optional<std::string>& GetUserName() const;
 
     int GetMaxOperationCount() const override;
     int GetMaxRunningOperationCount() const override;
@@ -768,7 +768,7 @@ protected:
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
 
     // Used only in trunk version.
-    TString UserName_;
+    std::string UserName_;
 
     // Used for accumulated usage logging.
     EOperationType Type_;
@@ -847,7 +847,7 @@ public:
     void SetSchedulingTagFilter(TSchedulingTagFilter schedulingTagFilter);
     const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
-    TString GetUserName() const;
+    std::string GetUserName() const;
     EOperationType GetOperationType() const;
     const NYson::TYsonString& GetTrimmedAnnotations() const;
 
