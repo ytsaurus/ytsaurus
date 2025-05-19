@@ -262,23 +262,23 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType ValueType, bool Scan = true>
+template <EValueType ValueType, bool Scan, bool UnpackValue>
 class TDirectRleStringUnversionedValueExtractor
     : public TRleValueExtractorBase<Scan>
-    , public TDirectStringValueExtractorBase<ValueType, Scan, true>
+    , public TDirectStringValueExtractorBase<ValueType, Scan, UnpackValue>
 {
 public:
     TDirectRleStringUnversionedValueExtractor(
         TRef data,
         const NProto::TSegmentMeta& meta)
-        : TDirectStringValueExtractorBase<ValueType, Scan, true>(meta)
+        : TDirectStringValueExtractorBase<ValueType, Scan, UnpackValue>(meta)
     {
         const char* ptr = data.Begin();
 
         RowIndexReader_ = TRowIndexReader(reinterpret_cast<const ui64*>(ptr));
         ptr += RowIndexReader_.GetByteSize();
 
-        ptr = TDirectStringValueExtractorBase<ValueType, Scan, true>::InitDirectReader(ptr, data.End());
+        ptr = TDirectStringValueExtractorBase<ValueType, Scan, UnpackValue>::InitDirectReader(ptr, data.End());
 
         YT_VERIFY(ptr == data.End());
     }
@@ -320,29 +320,29 @@ public:
 private:
     using TRleValueExtractorBase<Scan>::RowIndexReader_;
     using typename TRleValueExtractorBase<Scan>::TRowIndexReader;
-    using TDirectStringValueExtractorBase<ValueType, Scan, true>::OffsetReader_;
-    using TDirectStringValueExtractorBase<ValueType, Scan, true>::NullBitmap_;
-    using TDirectStringValueExtractorBase<ValueType, Scan, true>::StringMeta_;
-    using TDirectStringValueExtractorBase<ValueType, Scan, true>::StringData_;
+    using TDirectStringValueExtractorBase<ValueType, Scan, UnpackValue>::OffsetReader_;
+    using TDirectStringValueExtractorBase<ValueType, Scan, UnpackValue>::NullBitmap_;
+    using TDirectStringValueExtractorBase<ValueType, Scan, UnpackValue>::StringMeta_;
+    using TDirectStringValueExtractorBase<ValueType, Scan, UnpackValue>::StringData_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType ValueType, bool Scan = true>
+template <EValueType ValueType, bool Scan, bool UnpackValue>
 class TDictionaryRleStringUnversionedValueExtractor
     : public TRleValueExtractorBase<Scan>
-    , public TDictionaryStringValueExtractorBase<ValueType, Scan, true>
+    , public TDictionaryStringValueExtractorBase<ValueType, Scan, UnpackValue>
 {
 public:
     TDictionaryRleStringUnversionedValueExtractor(
         TRef data,
         const NProto::TSegmentMeta& meta)
-        : TDictionaryStringValueExtractorBase<ValueType, Scan, true>(meta)
+        : TDictionaryStringValueExtractorBase<ValueType, Scan, UnpackValue>(meta)
     {
         const char* ptr = data.Begin();
         RowIndexReader_ = TRowIndexReader(reinterpret_cast<const ui64*>(ptr));
         ptr += RowIndexReader_.GetByteSize();
-        ptr = TDictionaryStringValueExtractorBase<ValueType, Scan, true>::InitDictionaryReader(ptr, data.End());
+        ptr = TDictionaryStringValueExtractorBase<ValueType, Scan, UnpackValue>::InitDictionaryReader(ptr, data.End());
         YT_VERIFY(ptr == data.End());
     }
 
@@ -387,18 +387,18 @@ public:
 private:
     using TRleValueExtractorBase<Scan>::RowIndexReader_;
     using typename TRleValueExtractorBase<Scan>::TRowIndexReader;
-    using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::IndexReader_;
-    using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::OffsetReader_;
-    using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::StringMeta_;
-    using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::StringData_;
-    using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::DictionaryId_;
+    using TDictionaryStringValueExtractorBase<ValueType, Scan, UnpackValue>::IndexReader_;
+    using TDictionaryStringValueExtractorBase<ValueType, Scan, UnpackValue>::OffsetReader_;
+    using TDictionaryStringValueExtractorBase<ValueType, Scan, UnpackValue>::StringMeta_;
+    using TDictionaryStringValueExtractorBase<ValueType, Scan, UnpackValue>::StringData_;
+    using TDictionaryStringValueExtractorBase<ValueType, Scan, UnpackValue>::DictionaryId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType ValueType, bool Scan>
+template <EValueType ValueType, bool Scan, bool UnpackValue>
 class TDictionaryDenseStringUnversionedValueExtractor
-    : public TDictionaryStringValueExtractorBase<ValueType, Scan, true>
+    : public TDictionaryStringValueExtractorBase<ValueType, Scan, UnpackValue>
 {
 public:
     TDictionaryDenseStringUnversionedValueExtractor(
@@ -442,7 +442,7 @@ public:
     }
 
 private:
-    using TBase = TDictionaryStringValueExtractorBase<ValueType, Scan, true>;
+    using TBase = TDictionaryStringValueExtractorBase<ValueType, Scan, UnpackValue>;
     using TBase::IndexReader_;
     using TBase::OffsetReader_;
     using TBase::StringMeta_;
@@ -452,9 +452,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType ValueType, bool Scan>
+template <EValueType ValueType, bool Scan, bool UnpackValue>
 class TDirectDenseStringUnversionedValueExtractor
-    : public TDirectStringValueExtractorBase<ValueType, Scan, true>
+    : public TDirectStringValueExtractorBase<ValueType, Scan, UnpackValue>
 {
 public:
     TDirectDenseStringUnversionedValueExtractor(
@@ -495,7 +495,7 @@ public:
     }
 
 private:
-    using TBase = TDirectStringValueExtractorBase<ValueType, Scan, true>;
+    using TBase = TDirectStringValueExtractorBase<ValueType, Scan, UnpackValue>;
     using TBase::OffsetReader_;
     using TBase::NullBitmap_;
     using TBase::StringMeta_;
@@ -581,12 +581,14 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedCompositeColumnReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <EValueType ValueType>
+template <EValueType ValueType, bool UnpackValue>
 class TUnversionedStringColumnReader
     : public TUnversionedColumnReaderBase
 {
 public:
     using TUnversionedColumnReaderBase::TUnversionedColumnReaderBase;
+
+    static_assert(ValueType == EValueType::Any || !UnpackValue);
 
     std::pair<i64, i64> GetEqualRange(
         const TUnversionedValue& value,
@@ -612,35 +614,35 @@ private:
     {
         using TDirectDenseScanReader = TDenseUnversionedSegmentReader<
             ValueType,
-            TDirectDenseStringUnversionedValueExtractor<ValueType, true>>;
+            TDirectDenseStringUnversionedValueExtractor<ValueType, true, UnpackValue>>;
 
         using TDirectDenseLookupReader = TDenseUnversionedSegmentReader<
             ValueType,
-            TDirectDenseStringUnversionedValueExtractor<ValueType, false>>;
+            TDirectDenseStringUnversionedValueExtractor<ValueType, false, UnpackValue>>;
 
         using TDictionaryDenseScanReader = TDenseUnversionedSegmentReader<
             ValueType,
-            TDictionaryDenseStringUnversionedValueExtractor<ValueType, true>>;
+            TDictionaryDenseStringUnversionedValueExtractor<ValueType, true, UnpackValue>>;
 
         using TDictionaryDenseLookupReader = TDenseUnversionedSegmentReader<
             ValueType,
-            TDictionaryDenseStringUnversionedValueExtractor<ValueType, false>>;
+            TDictionaryDenseStringUnversionedValueExtractor<ValueType, false, UnpackValue>>;
 
         using TDirectRleScanReader = TRleUnversionedSegmentReader<
             ValueType,
-            TDirectRleStringUnversionedValueExtractor<ValueType, true>>;
+            TDirectRleStringUnversionedValueExtractor<ValueType, true, UnpackValue>>;
 
         using TDirectRleLookupReader = TRleUnversionedSegmentReader<
             ValueType,
-            TDirectRleStringUnversionedValueExtractor<ValueType, false>>;
+            TDirectRleStringUnversionedValueExtractor<ValueType, false, UnpackValue>>;
 
         using TDictionaryRleScanReader = TRleUnversionedSegmentReader<
             ValueType,
-            TDictionaryRleStringUnversionedValueExtractor<ValueType, true>>;
+            TDictionaryRleStringUnversionedValueExtractor<ValueType, true, UnpackValue>>;
 
         using TDictionaryRleLookupReader = TRleUnversionedSegmentReader<
             ValueType,
-            TDictionaryRleStringUnversionedValueExtractor<ValueType, false>>;
+            TDictionaryRleStringUnversionedValueExtractor<ValueType, false, UnpackValue>>;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
         auto segmentType = FromProto<EUnversionedStringSegmentType>(meta.type());
@@ -688,7 +690,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedStringColumnReader(
     std::optional<ESortOrder> sortOrder,
     const TColumnSchema& columnSchema)
 {
-    return std::make_unique<TUnversionedStringColumnReader<EValueType::String>>(
+    return std::make_unique<TUnversionedStringColumnReader<EValueType::String, /*UnpackValue*/ false>>(
         columnMeta,
         columnIndex,
         columnId,
@@ -701,14 +703,24 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedAnyColumnReader(
     int columnIndex,
     int columnId,
     std::optional<ESortOrder> sortOrder,
-    const TColumnSchema& columnSchema)
+    const TColumnSchema& columnSchema,
+    bool decodeAny)
 {
-    return std::make_unique<TUnversionedStringColumnReader<EValueType::Any>>(
-        columnMeta,
-        columnIndex,
-        columnId,
-        sortOrder,
-        columnSchema);
+    if (decodeAny) {
+        return std::make_unique<TUnversionedStringColumnReader<EValueType::Any, /*UnpackValue*/ true>>(
+            columnMeta,
+            columnIndex,
+            columnId,
+            sortOrder,
+            columnSchema);
+    } else {
+        return std::make_unique<TUnversionedStringColumnReader<EValueType::Any, /*UnpackValue*/ false>>(
+            columnMeta,
+            columnIndex,
+            columnId,
+            sortOrder,
+            columnSchema);
+    }
 }
 
 std::unique_ptr<IUnversionedColumnReader> CreateUnversionedCompositeColumnReader(
@@ -718,7 +730,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedCompositeColumnReader
     std::optional<ESortOrder> sortOrder,
     const TColumnSchema& columnSchema)
 {
-    return std::make_unique<TUnversionedStringColumnReader<EValueType::Composite>>(
+    return std::make_unique<TUnversionedStringColumnReader<EValueType::Composite, /*UnpackValue*/ false>>(
         columnMeta,
         columnIndex,
         columnId,
