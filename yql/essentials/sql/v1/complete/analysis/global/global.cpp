@@ -34,12 +34,23 @@ namespace NSQLComplete {
             Parser_.removeErrorListeners();
         }
 
-        TGlobalContext Analyze(TCompletionInput input) override {
+        TGlobalContext Analyze(TCompletionInput input, const TEnvironment& env) override {
             SQLv1::Sql_queryContext* sqlQuery = Parse(input.Text);
             Y_ENSURE(sqlQuery);
 
+            Cerr << "Input:\n"
+                 << input.Text << Endl;
+
             Cerr << "Tree:\n"
-                 << sqlQuery->toStringTree(&Parser_) << Endl;
+                 << sqlQuery->toStringTree(&Parser_, true) << Endl;
+
+            antlr4::ParserRuleContext* enclosing = EnclosingParseTree(sqlQuery, env.CursorTokenIndex);
+            if (!enclosing) {
+                enclosing = sqlQuery;
+            }
+
+            Cerr << "Enclosing:\n"
+                 << enclosing->toStringTree(&Parser_, true) << Endl;
 
             TGlobalContext ctx;
 
@@ -63,15 +74,15 @@ namespace NSQLComplete {
 
         antlr4::ANTLRInputStream Chars_;
         G::TLexer Lexer_;
-        antlr4::BufferedTokenStream Tokens_;
+        antlr4::CommonTokenStream Tokens_;
         TDefaultYQLGrammar::TParser Parser_;
     };
 
     class TGlobalAnalysis: public IGlobalAnalysis {
     public:
-        TGlobalContext Analyze(TCompletionInput input) override {
+        TGlobalContext Analyze(TCompletionInput input, const TEnvironment& env) override {
             const bool isAnsiLexer = IsAnsiQuery(TString(input.Text));
-            return GetSpecialized(isAnsiLexer).Analyze(std::move(input));
+            return GetSpecialized(isAnsiLexer).Analyze(std::move(input), env);
         }
 
     private:

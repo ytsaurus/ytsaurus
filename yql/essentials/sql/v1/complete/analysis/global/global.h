@@ -17,12 +17,16 @@ namespace NSQLComplete {
         TMaybe<TObject> Object;
     };
 
+    struct TEnvironment {
+        size_t CursorTokenIndex;
+    };
+
     class IGlobalAnalysis {
     public:
         using TPtr = THolder<IGlobalAnalysis>;
 
         virtual ~IGlobalAnalysis() = default;
-        virtual TGlobalContext Analyze(TCompletionInput input) = 0;
+        virtual TGlobalContext Analyze(TCompletionInput input, const TEnvironment& env) = 0;
     };
 
     IGlobalAnalysis::TPtr MakeGlobalAnalysis();

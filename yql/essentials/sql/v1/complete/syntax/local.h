@@ -56,6 +56,7 @@ namespace NSQLComplete {
         TMaybe<TObject> Object;
         TMaybe<TCluster> Cluster;
         TEditRange EditRange;
+        size_t CursorTokenIndex = 0;
     };
 
     class ILocalSyntaxAnalysis {

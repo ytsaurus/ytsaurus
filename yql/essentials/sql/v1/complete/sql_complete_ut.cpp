@@ -639,11 +639,13 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {ClusterName, "yt:saurus"},
                 {Keyword, "ANY"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(
-                Complete(
-                    engine,
-                    "USE example; DEFINE ACTION $a() AS USE yt:saurus; FROM #; END DEFINE;"),
-                expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, R"(
+                USE example; 
+                DEFINE ACTION $hello() AS 
+                    USE yt:saurus;
+                    SELECT * FROM #;
+                END DEFINE;
+            )"), expected);
         }
         {
             TVector<TCandidate> expected = {
