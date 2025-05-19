@@ -744,6 +744,18 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     return result;
 }
 
+void TOperationControllerBase::ValidateCookieGroupSize()
+{
+    if (GetOffloadingPoolTrees().size() > 1) {
+        for (const auto& userJobSpec : GetUserJobSpecs()) {
+            if (userJobSpec->CookieGroupSize > 1) {
+                THROW_ERROR_EXCEPTION("Cannot combine offloading pool trees and cookie_group_size")
+                    << TErrorAttribute("task_title", userJobSpec->TaskTitle);
+            }
+        }
+    }
+}
+
 void TOperationControllerBase::ValidateSecureVault()
 {
     if (!SecureVault_) {
@@ -763,6 +775,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
         Spec_->Title);
 
     auto initializeAction = BIND([this_ = MakeStrong(this), this] {
+        ValidateCookieGroupSize();
         ValidateSecureVault();
         InitializeClients();
         InitializeInputTransactions();
