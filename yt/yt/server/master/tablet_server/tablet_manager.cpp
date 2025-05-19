@@ -4063,7 +4063,7 @@ private:
                 auto* replicatedTable = table->As<TReplicatedTableNode>();
                 for (auto replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                     const auto* replicaInfo = tablet->GetReplicaInfo(replica);
-                    PopulateTableReplicaDescriptor(req.add_replicas(), replica, *replicaInfo);
+                    PopulateTableReplicaDescriptor(reqReplicatable.add_replicas(), replica, *replicaInfo);
                 }
             }
 
@@ -4086,8 +4086,11 @@ private:
                     }
                 }
 
-                ToProto(req.mutable_replication_progress(), tablet->ReplicationProgress());
+                ToProto(reqReplicatable.mutable_replication_progress(), tablet->ReplicationProgress());
             }
+
+            // COMPAT(ifsmirnov)
+            reqReplicatable.set_has_replicas_and_replication_progress(true);
 
             auto* chunkList = tablet->GetChunkList();
             const auto& chunkListStatistics = chunkList->Statistics();

@@ -1085,7 +1085,9 @@ private:
         auto commitOrdering = FromProto<ECommitOrdering>(GET_FROM_ESSENTIAL(commit_ordering));
         bool freeze = request->freeze();
         auto upstreamReplicaId = FromProto<TTableReplicaId>(GET_FROM_ESSENTIAL(upstream_replica_id));
-        auto replicaDescriptors = FromProto<std::vector<TTableReplicaDescriptor>>(request->replicas());
+        auto replicaDescriptors = request->replicatable_content().has_replicas_and_replication_progress()
+            ? FromProto<std::vector<TTableReplicaDescriptor>>(request->replicatable_content().replicas())
+            : FromProto<std::vector<TTableReplicaDescriptor>>(request->replicas_deprecated());
         auto retainedTimestamp = GET_FROM_REPLICATABLE(has_retained_timestamp)
             ? FromProto<TTimestamp>(GET_FROM_REPLICATABLE(retained_timestamp))
             : MinTimestamp;
@@ -1232,19 +1234,27 @@ private:
             masterAvenueEndpointId,
             serializationType);
 
-        for (const auto& descriptor : request->replicas()) {
+        for (const auto& descriptor : replicaDescriptors) {
             AddTableReplica(tablet, descriptor);
         }
 
-        if (request->has_replication_progress()) {
-            auto replicationCardId = tablet->GetReplicationCardId();
-            auto progress = FromProto<TReplicationProgress>(request->replication_progress());
-            YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
-                tablet->GetLoggingTag(),
-                replicationCardId,
-                progress);
+        {
+            bool hasReplicationProgress = request->replicatable_content().has_replicas_and_replication_progress()
+                ? request->replicatable_content().has_replication_progress()
+                : request->has_replication_progress_deprecated();
+            if (hasReplicationProgress) {
+                auto replicationCardId = tablet->GetReplicationCardId();
+                auto progress = FromProto<TReplicationProgress>(
+                    request->replicatable_content().has_replicas_and_replication_progress()
+                        ? request->replicatable_content().replication_progress()
+                        : request->replication_progress_deprecated());
+                YT_LOG_DEBUG("Tablet bound for chaos replication (%v, ReplicationCardId: %v, ReplicationProgress: %v)",
+                    tablet->GetLoggingTag(),
+                    replicationCardId,
+                    progress);
 
-            tablet->RuntimeData()->ReplicationProgress.Store(New<TRefCountedReplicationProgress>(std::move(progress)));
+                tablet->RuntimeData()->ReplicationProgress.Store(New<TRefCountedReplicationProgress>(std::move(progress)));
+            }
         }
 
         const auto& lockManager = tablet->GetLockManager();
