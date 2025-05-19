@@ -67,6 +67,7 @@ message TRspStartQuery
     // wire-encoded schema + schemaful rowset attachment.
     repeated NYT.NProto.TError rowset_errors = 3;
     repeated bool incomplete = 4;
+    repeated bytes full_result = 5; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////
