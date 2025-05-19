@@ -211,7 +211,9 @@ public:
 
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
             if (joblet->CookieGroupInfo.OutputIndex) {
-                jobSpec->MutableExtension(TJobSpecExt::job_spec_ext)->clear_extensions();
+                auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
+                RemoveProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(jobSpecExt->mutable_extensions());
+                RemoveProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(jobSpecExt->mutable_extensions());
             } else {
                 AddSequentialInputSpec(jobSpec, joblet);
                 AddOutputTableSpecs(jobSpec, joblet);
