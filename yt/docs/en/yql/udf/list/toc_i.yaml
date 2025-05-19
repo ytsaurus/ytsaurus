@@ -1,11 +1,10 @@
 items:
-- name: Обзор
+- name: Overview
   href: index.md
 - { name: AugurTokenizer,         href: augurtokenizer.md,           when: audience == "internal"   }
 - { name: BertModels,             href: bert_models.md,              when: audience == "internal"   }
 - { name: BlenderFactorStorage,   href: blender_factor_storage.md,   when: audience == "internal"   }
 - { name: CatBoost,               href: catboost.md,                 when: audience == "internal"   }
-- { name: ClickHouse,             href: clickhouse.md                          }
 - { name: Compress и Decompress,  href: compress_decompress.md                 }
 - { name: DateTime,               href: datetime.md                            }
 - { name: Digest,                 href: digest.md                              }
