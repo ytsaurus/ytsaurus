@@ -106,9 +106,9 @@ namespace NSQLComplete {
                 request.Prefix = context.Object->Path;
             }
 
-            if (context.Object && global.Object) {
-                request.Constraints.Object->Provider = global.Object->Provider;
-                request.Constraints.Object->Cluster = global.Object->Cluster;
+            if (context.Object && global.Use) {
+                request.Constraints.Object->Provider = global.Use->Provider;
+                request.Constraints.Object->Cluster = global.Use->Cluster;
             }
 
             if (context.Object && context.Object->HasCluster()) {

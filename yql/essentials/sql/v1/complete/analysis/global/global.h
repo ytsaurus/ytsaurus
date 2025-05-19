@@ -8,13 +8,13 @@
 
 namespace NSQLComplete {
 
-    struct TGlobalContext {
-        struct TObject {
-            TString Provider;
-            TString Cluster;
-        };
+    struct TUseContext {
+        TString Provider;
+        TString Cluster;
+    };
 
-        TMaybe<TObject> Object;
+    struct TGlobalContext {
+        TMaybe<TUseContext> Use;
     };
 
     class IGlobalAnalysis {
