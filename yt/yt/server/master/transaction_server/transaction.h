@@ -74,13 +74,12 @@ private:
 
 class TBulkInsertState
 {
-    using TCellTagToLockableTables = THashMap<NObjectClient::TCellTag, std::vector<NTableClient::TTableId>>;
-
 public:
     explicit TBulkInsertState(TTransaction* transaction);
 
     // LockableDynamicTables used only on coordinator to ensure, that dynamic tables were locked before commit
     // and throw NeedLockDynamicTablesBeforeCommit if not.
+    using TCellTagToLockableTables = THashMap<NObjectClient::TCellTag, std::vector<NTableClient::TTableId>>;
     DEFINE_BYREF_RW_PROPERTY(TCellTagToLockableTables, LockableDynamicTables);
     // LockedDynamicTables used only on external cell to lock/unlock dynamic tables.
     DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNodeRawPtr>, LockedDynamicTables);
@@ -113,7 +112,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
-    : public NTransactionSupervisor::TTransactionBase<NObjectServer::TObject>
+    : public NTransactionSupervisor::TTransactionBase<
+        NObjectServer::TObject,
+        NCellMaster::TSaveContext,
+        NCellMaster::TLoadContext
+    >
     , public TRefTracked<TTransaction>
 {
 public:
@@ -183,7 +186,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTracing::TTraceContextPtr, TraceContext);
 
 public:
-    using TTransactionBase::TTransactionBase;
     explicit TTransaction(TTransactionId id, bool upload = false);
 
     bool IsUpload() const;
@@ -219,7 +221,9 @@ public:
     // COMPAT(h0pless)
     void IncreaseRecursiveLockCount(int delta = 1);
 
-    void AttachLock(NCypressServer::TLock* lock, const NObjectServer::IObjectManagerPtr& objectManager);
+    void AttachLock(
+        NCypressServer::TLock* lock,
+        const NObjectServer::IObjectManagerPtr& objectManager);
     void DetachLock(
         NCypressServer::TLock* lock,
         const NObjectServer::IObjectManagerPtr& objectManager,
@@ -237,16 +241,19 @@ public:
     //! Can be confused with IsSequiaTransaction().
     bool IsSequoia() const = delete;
 
-private:
-    void IncrementRecursiveLockCount();
-    void DecrementRecursiveLockCount();
+protected:
+    virtual IActionStateFactory* GetActionStateFactory() override;
 
+private:
     bool Upload_ = false;
     int RecursiveLockCount_ = 0;
 
     int SuccessorTransactionLeaseCount_ = 0;
 
     ETransactionLeasesState LeasesState_ = ETransactionLeasesState::Active;
+
+    void IncrementRecursiveLockCount();
+    void DecrementRecursiveLockCount();
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TTransaction)

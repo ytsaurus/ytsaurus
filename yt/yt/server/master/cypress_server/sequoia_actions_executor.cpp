@@ -5,6 +5,7 @@
 #include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/cypress_server/helpers.h>
 
@@ -49,10 +50,9 @@ public:
     void Initialize() override
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->RegisterTransactionActionHandlers<TReqCreateNode>({
+        transactionManager->RegisterTransactionActionHandlers<TReqCreateNode, TCreateNodeActionState>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareCreateNode, Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitCreateNode, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraAbortCreateNode, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqAttachChild>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAttachChild, Unretained(this)),
@@ -72,10 +72,9 @@ public:
         transactionManager->RegisterTransactionActionHandlers<TReqMultisetAttributes>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitMultisetAttributes, Unretained(this)),
         });
-        transactionManager->RegisterTransactionActionHandlers<TReqCloneNode>({
+        transactionManager->RegisterTransactionActionHandlers<TReqCloneNode, TCloneNodeActionState>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareCloneNode, Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitCloneNode, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraAbortCloneNode, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqLockNode>({
             .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareAndCommitLockNode, Unretained(this)),
@@ -137,25 +136,43 @@ private:
         }
     }
 
-    void CommitSequoiaNodeCreation(TCypressNode* node)
+    void CommitSequoiaNodeCreation(TCypressNodePtr&& node)
     {
+        auto* currentNode = node.Get();
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        const auto& handler = cypressManager->GetHandler(node);
-        handler->SetReachable(node);
+        const auto& handler = cypressManager->GetHandler(currentNode);
+        handler->SetReachable(currentNode);
 
         while (true) {
-            VerifySequoiaNode(node);
+            VerifySequoiaNode(currentNode);
 
-            YT_VERIFY(node->MutableSequoiaProperties()->BeingCreated);
-            node->MutableSequoiaProperties()->BeingCreated = false;
+            YT_VERIFY(std::exchange(currentNode->MutableSequoiaProperties()->BeingCreated, false));
 
-            if (node->IsTrunk()) {
+            if (currentNode->IsTrunk()) {
                 break;
             }
 
-            node = node->GetOriginator();
+            currentNode = currentNode->GetOriginator();
+        }
+
+        if (node->IsTrunk()) {
+            Y_UNUSED(node.Release());
+        } else {
+            // TCypressNodePtr dtor will release the ref.
         }
     }
+
+    struct TCreateNodeActionState
+    {
+        TCypressNodePtr Node;
+
+        void Persist(const NCellMaster::TPersistenceContext& context)
+        {
+            using NYT::Persist;
+            Persist(context, Node);
+        }
+    };
 
     // NB: Sequoia node has to be created in prepare phase since we cannot
     // guarantee that object id will not be used between prepare and commit.
@@ -163,9 +180,12 @@ private:
     // Sequoia tx is committed: AttachChild for created subtree's root is
     // executed via "late prepare" after prepares on all participants are
     // succeeded.
+    // TODO(kvk1920): implement proper UnstageNode() and use it here.
+    // See YT-14219.
     void HydraPrepareCreateNode(
         TTransaction* /*transaction*/,
         NProto::TReqCreateNode* request,
+        TCreateNodeActionState* state,
         const TTransactionPrepareOptions& options)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -205,14 +225,14 @@ private:
             securityManager->GetSysAccount(),
             /*options*/ {});
 
-        auto* trunkNode = nodeFactory->CreateNode(
+        Y_UNUSED(nodeFactory->CreateNode(
             type,
             nodeId,
             /*inheritedAttributes*/ nullptr,
-            explicitAttributes.Get())
-            ->GetTrunkNode();
-
+            explicitAttributes.Get()));
         auto* node = cypressManager->GetNode({nodeId, cypressTransactionId});
+        // This takes a strong reference for the newly-created node.
+        state->Node.Assign(node);
 
         PrepareSequoiaNodeCreation(
             node,
@@ -220,46 +240,18 @@ private:
             /*key*/ NYPath::DirNameAndBaseName(request->path()).second,
             /*path*/ request->path());
 
-        // A branched trunk node is additionally referenced at the time of
-        // commit if it becomes reachable.
-        if (!cypressTransaction) {
-            Bootstrap_->GetObjectManager()->RefObject(trunkNode);
-        }
-
         nodeFactory->Commit();
     }
 
     void HydraCommitCreateNode(
         TTransaction* /*transaction*/,
-        NProto::TReqCreateNode* request,
+        NProto::TReqCreateNode* /*request*/,
+        TCreateNodeActionState* state,
         const TTransactionCommitOptions& /*options*/)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        auto nodeId = FromProto<TNodeId>(request->node_id());
-        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
-
-        auto* node = Bootstrap_->GetCypressManager()->GetNode(TVersionedNodeId{nodeId, cypressTransactionId});
-        CommitSequoiaNodeCreation(node);
-    }
-
-    void HydraAbortCreateNode(
-        TTransaction* /*transaction*/,
-        NProto::TReqCreateNode* request,
-        const TTransactionAbortOptions& /*options*/)
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        auto nodeId = FromProto<TNodeId>(request->node_id());
-        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
-
-        auto* node = Bootstrap_->GetCypressManager()->FindNode(TVersionedNodeId(nodeId));
-        if (node && !cypressTransactionId) {
-            Bootstrap_->GetObjectManager()->UnrefObject(node);
-        }
-
-        // TODO(kvk1920): implement proper UnstageNode() and use it here.
-        // See YT-14219.
+        CommitSequoiaNodeCreation(std::move(state->Node));
     }
 
     void HydraPrepareAttachChild(
@@ -613,10 +605,24 @@ private:
             innerRequest);
     }
 
+    struct TCloneNodeActionState
+    {
+        TWeakObjectPtr<TCypressNode> TrunkSourceNode;
+        TCypressNodePtr DestinationNode;
+
+        void Persist(const NCellMaster::TPersistenceContext& context)
+        {
+            using NYT::Persist;
+            Persist(context, TrunkSourceNode);
+            Persist(context, DestinationNode);
+        }
+    };
+
     // NB: See PrepareCreateNode.
     void HydraPrepareCloneNode(
         TTransaction* /*transaction*/,
         TReqCloneNode* request,
+        TCloneNodeActionState* state,
         const TTransactionPrepareOptions& options)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -629,7 +635,8 @@ private:
 
         // TODO(h0pless): Think about throwing an error if this cell is not sequoia_node_host anymore.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* trunkSourceNode = cypressManager->GetNodeOrThrow({sourceNodeId, NullTransactionId});
+        auto* trunkSourceNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(sourceNodeId));
+        state->TrunkSourceNode.Assign(trunkSourceNode);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId
@@ -665,82 +672,35 @@ private:
 
         // TODO(cherepashka): after inherited attributes are supported, implement copyable-inherited attributes.
         auto emptyInheritedAttributes = CreateEphemeralAttributes();
-
         auto* sourceNode = cypressManager->GetVersionedNode(trunkSourceNode, cypressTransaction);
-        auto* clonedNode = nodeFactory->CloneNode(sourceNode, mode, emptyInheritedAttributes.Get(), destinationNodeId);
+        auto* destinationNode = nodeFactory->CloneNode(sourceNode, mode, emptyInheritedAttributes.Get(), destinationNodeId);
+        state->DestinationNode.Assign(destinationNode);
 
         PrepareSequoiaNodeCreation(
-            clonedNode,
+            destinationNode,
             destinationParentId,
             NYPath::DirNameAndBaseName(request->dst_path()).second,
             request->dst_path());
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        if (!cypressTransaction) {
-            objectManager->RefObject(clonedNode->GetTrunkNode());
-        }
-
         nodeFactory->Commit();
-
-        objectManager->WeakRefObject(trunkSourceNode);
     }
 
     void HydraCommitCloneNode(
         TTransaction* /*transaction*/,
-        NProto::TReqCloneNode* request,
+        NProto::TReqCloneNode* /*request*/,
+        TCloneNodeActionState* state,
         const TTransactionCommitOptions& /*options*/)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        auto sourceNodeId = FromProto<TNodeId>(request->src_id());
-        auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
-        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
-        auto* trunkSourceNode = cypressManager->GetNode({sourceNodeId, NullTransactionId});
-
         // TODO(danilalexeev): Sequoia transaction has to lock |sourceNodeId| to conflict
         // with an expired nodes removal.
-        if (IsObjectAlive(trunkSourceNode)) {
+        if (auto* trunkSourceNode = state->TrunkSourceNode.Get(); IsObjectAlive(trunkSourceNode)) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
             MaybeTouchNode(cypressManager, trunkSourceNode);
         }
 
-        objectManager->WeakUnrefObject(trunkSourceNode);
-
-        auto* destinationNode = cypressManager->GetNode(TVersionedNodeId(destinationNodeId, cypressTransactionId));
-
-        if (!IsObjectAlive(destinationNode->GetTrunkNode())) {
-            YT_LOG_ALERT("Cloned Sequoia node was zombified before its cloning is committed (NodeId: %v)",
-                destinationNodeId);
-            return;
-        }
-
-        CommitSequoiaNodeCreation(destinationNode);
-    }
-
-    void HydraAbortCloneNode(
-        TTransaction* /*transaction*/,
-        NProto::TReqCloneNode* request,
-        const TTransactionAbortOptions& /*options*/)
-    {
-        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-
-        auto sourceNodeId = FromProto<TNodeId>(request->src_id());
-        auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
-        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
-        if (auto* sourceNode = cypressManager->FindNode(TVersionedNodeId(sourceNodeId))) {
-            objectManager->WeakUnrefObject(sourceNode);
-        }
-
-        auto* destinationNode = cypressManager->FindNode(TVersionedNodeId(destinationNodeId));
-        if (destinationNode && !cypressTransactionId) {
-            objectManager->UnrefObject(destinationNode);
-        }
+        CommitSequoiaNodeCreation(std::move(state->DestinationNode));
     }
 
     void HydraPrepareAndCommitLockNode(

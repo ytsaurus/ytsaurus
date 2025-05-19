@@ -164,7 +164,11 @@ private:
 class TTransactionManager
     : public TMasterAutomatonPart
     , public ITransactionManager
-    , public TTransactionManagerBase<TTransaction>
+    , public TTransactionManagerBase<
+        TTransaction,
+        NCellMaster::TSaveContext,
+        NCellMaster::TLoadContext
+    >
 {
 public:
     //! Raised when a new transaction is started.
@@ -190,9 +194,9 @@ public:
             Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
             TransactionServerLogger()))
     {
-        TransactionServerProfiler().AddProducer("", BufferedProducer_);
-
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
+
+        TransactionServerProfiler().AddProducer("", BufferedProducer_);
 
         Logger = TransactionServerLogger();
 
@@ -1328,11 +1332,17 @@ public:
         object->ImportRefObject();
     }
 
-    void DoRegisterTransactionActionHandlers(
-        TTransactionActionDescriptor<TTransaction> descriptor) override
+    using ITransactionManager::RegisterTransactionActionHandlers;
+
+    void RegisterTransactionActionHandlers(TTypeErasedTransactionActionDescriptor descriptor) override
     {
-        TTransactionManagerBase<TTransaction>::DoRegisterTransactionActionHandlers(
+        TTransactionManagerBase::RegisterTransactionActionHandlers(
             std::move(descriptor));
+    }
+
+    ITransactionActionStateFactory* GetTransactionActionStateFactory() override
+    {
+        return this;
     }
 
     void ExportObject(
@@ -2187,7 +2197,6 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-
     // This should become a mutation used to create system transactions only.
     void HydraStartTransaction(
         const TCtxStartTransactionPtr& context,
@@ -2428,11 +2437,11 @@ private:
 
         for (const auto& protoData : request->actions()) {
             auto data = FromProto<TTransactionActionData>(protoData);
-            transaction->Actions().push_back(data);
+            auto& action = transaction->Actions().emplace_back(std::move(data));
 
             YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
-                data.Type);
+                action.Type);
         }
     }
 
