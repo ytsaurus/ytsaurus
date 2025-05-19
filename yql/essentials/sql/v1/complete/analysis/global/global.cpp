@@ -8,6 +8,13 @@
 
 namespace NSQLComplete {
 
+    class TErrorStrategy: public antlr4::DefaultErrorStrategy {
+    public:
+        antlr4::Token* singleTokenDeletion(antlr4::Parser* /* recognizer */) override {
+            return nullptr;
+        }
+    };
+
     template <bool IsAnsiLexer>
     class TSpecializedGlobalAnalysis: public IGlobalAnalysis {
     public:
@@ -32,19 +39,27 @@ namespace NSQLComplete {
         {
             Lexer_.removeErrorListeners();
             Parser_.removeErrorListeners();
+            Parser_.setErrorHandler(std::make_shared<TErrorStrategy>());
         }
 
-        TGlobalContext Analyze(TCompletionInput input, const TEnvironment& env) override {
+        TGlobalContext Analyze(TCompletionInput input, const TEnvironment& /* env */) override {
             SQLv1::Sql_queryContext* sqlQuery = Parse(input.Text);
             Y_ENSURE(sqlQuery);
 
             Cerr << "Input:\n"
                  << input.Text << Endl;
 
+            Cerr << "Input.Position:\n"
+                 << input.CursorPosition << Endl;
+
+            Cerr << "Input.Size:\n"
+                 << input.Text.size() << Endl;
+
             Cerr << "Tree:\n"
                  << sqlQuery->toStringTree(&Parser_, true) << Endl;
 
-            antlr4::ParserRuleContext* enclosing = EnclosingParseTree(sqlQuery, env.CursorTokenIndex);
+            antlr4::tree::ParseTree* enclosing = EnclosingParseTree(
+                sqlQuery, &Tokens_, input.CursorPosition);
             if (!enclosing) {
                 enclosing = sqlQuery;
             }

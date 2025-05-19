@@ -17,6 +17,9 @@ namespace NSQLComplete {
     using NALADefaultAntlr4::SQLv1Antlr4BaseListener;
     using NALADefaultAntlr4::SQLv1Antlr4BaseVisitor;
 
-    antlr4::ParserRuleContext* EnclosingParseTree(antlr4::ParserRuleContext* root, size_t cursorTokenIndex);
+    antlr4::tree::ParseTree* EnclosingParseTree(
+        antlr4::tree::ParseTree* root,
+        antlr4::TokenStream* tokens,
+        ssize_t cursorPosition);
 
 } // namespace NSQLComplete

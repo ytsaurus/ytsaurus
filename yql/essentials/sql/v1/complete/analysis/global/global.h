@@ -18,7 +18,6 @@ namespace NSQLComplete {
     };
 
     struct TEnvironment {
-        size_t CursorTokenIndex;
     };
 
     class IGlobalAnalysis {

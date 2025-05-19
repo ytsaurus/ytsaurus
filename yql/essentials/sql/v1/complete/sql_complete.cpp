@@ -41,9 +41,7 @@ namespace NSQLComplete {
             TLocalSyntaxContext local = SyntaxAnalysis_->Analyze(input);
             auto keywords = local.Keywords;
 
-            TEnvironment env = {
-                .CursorTokenIndex = local.CursorTokenIndex,
-            };
+            TEnvironment env = {};
             TGlobalContext global = GlobalAnalysis_->Analyze(input, env);
 
             TNameRequest request = NameRequestFrom(input, local, global);

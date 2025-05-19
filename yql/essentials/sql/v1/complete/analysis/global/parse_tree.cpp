@@ -1,34 +1,38 @@
 #include "parse_tree.h"
 
+#include <util/generic/yexception.h>
 #include <util/generic/ylimits.h>
 #include <util/stream/output.h>
 #include <util/system/compiler.h>
 
 namespace NSQLComplete {
 
-    antlr4::ParserRuleContext* EnclosingParseTree(antlr4::ParserRuleContext* root, size_t cursorTokenIndex) {
+    antlr4::tree::ParseTree* EnclosingParseTree(
+        antlr4::tree::ParseTree* root,
+        antlr4::TokenStream* tokens,
+        ssize_t cursorPosition) {
         if (root == nullptr) {
             return nullptr;
         }
 
-        size_t start = root->getStart()->getStartIndex();
-
-        size_t stop = start;
-        if (auto* token = root->getStop()) {
-            stop = token->getStopIndex();
+        auto tokenIndexes = root->getSourceInterval();
+        if (tokenIndexes.b == -1) {
+            tokenIndexes.b = 0;
         }
 
-        Cerr << "Checking " << cursorTokenIndex
-             << " in [" << start << ", " << stop << "]" << Endl;
+        antlr4::misc::Interval interval(
+            tokens->get(tokenIndexes.a)->getStartIndex(),
+            tokens->get(tokenIndexes.b)->getStopIndex());
 
-        if (cursorTokenIndex < start || stop < cursorTokenIndex) {
+        if (cursorPosition < interval.a || interval.b < cursorPosition) {
             return nullptr;
         }
 
-        for (auto* child : root->children) {
+        for (antlr4::tree::ParseTree* child : root->children) {
             if (auto* ctx = EnclosingParseTree(
-                    dynamic_cast<antlr4::ParserRuleContext*>(child),
-                    cursorTokenIndex)) {
+                    child,
+                    tokens,
+                    cursorPosition)) {
                 return ctx;
             }
         }

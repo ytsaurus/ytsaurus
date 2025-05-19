@@ -75,8 +75,6 @@ namespace NSQLComplete {
             result.EditRange = EditRange(context);
             result.EditRange.Begin += statement_position;
 
-            result.CursorTokenIndex = CursorTokenIndex(context);
-
             if (auto enclosing = context.Enclosing()) {
                 if (enclosing->IsLiteral()) {
                     return result;
