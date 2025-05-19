@@ -81,6 +81,8 @@ class LocalYtConfig(object):
     public_ca_cert_key = attr.ib(None)
     rpc_cert = attr.ib(None)
     rpc_cert_key = attr.ib(None)
+    rpc_client_cert = attr.ib(None)
+    rpc_client_cert_key = attr.ib(None)
     https_cert = attr.ib(None)
     https_cert_key = attr.ib(None)
     public_rpc_cert = attr.ib(None)

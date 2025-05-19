@@ -325,7 +325,7 @@ class YTEnvSetup(object):
     ENABLE_STATIC_DROP_COLUMN = True
     ENABLE_DYNAMIC_DROP_COLUMN = True
     ENABLE_ALLOW_SECONDARY_INDICES = True
-    ENABLE_TLS = False
+    ENABLE_TLS = None
 
     JOB_PROXY_LOGGING = {"mode": "per_job_directory"}
 
@@ -617,6 +617,10 @@ class YTEnvSetup(object):
         if os.environ.get("YT_DISABLE_MULTIDAEMON"):
             enable_multidaemon = False
 
+        enable_tls = cls.ENABLE_TLS
+        if enable_tls is None and bool(os.environ.get("YT_ENABLE_TLS")):
+            enable_tls = True
+
         job_proxy_logging = cls.get_param("JOB_PROXY_LOGGING", index)
         # COMPAT(pogorelov): drop after migrating compat tests in 25.1
         if "node" in cls.ARTIFACT_COMPONENTS.get("24_2", []):
@@ -710,7 +714,7 @@ class YTEnvSetup(object):
             enable_resource_tracking=cls.get_param("ENABLE_RESOURCE_TRACKING", index),
             enable_tvm_only_proxies=cls.get_param("ENABLE_TVM_ONLY_PROXIES", index),
             mock_tvm_id=(1000 + index if use_native_auth else None),
-            enable_tls=cls.ENABLE_TLS,
+            enable_tls=enable_tls,
             enable_legacy_logging_scheme=enable_legacy_logging_scheme,
             wait_for_dynamic_config=cls.WAIT_FOR_DYNAMIC_CONFIG,
             enable_chyt_http_proxies=cls.get_param("ENABLE_CHYT_HTTP_PROXIES", index),
