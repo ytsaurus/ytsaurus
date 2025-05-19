@@ -3958,7 +3958,6 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("suspicious").Value(joblet->Suspicious)
         .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
         .Item("cookie_group_info").Value(joblet->CookieGroupInfo)
-        .Item("main_job_id").Value(joblet->CookieGroupInfo.MainJobId)
         .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
         .Item("has_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Speculative])
         .Item("has_probing_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Probing])
@@ -3966,7 +3965,6 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("speculative").Value(joblet->CompetitionType == EJobCompetitionType::Speculative)
         .Item("task_name").Value(joblet->TaskName)
         .Item("job_cookie").Value(joblet->OutputCookie)
-        .Item("job_cookie_group_index").Value(joblet->CookieGroupInfo.OutputIndex)
         .DoIf(joblet->UserJobMonitoringDescriptor.has_value(), [&] (TFluentMap fluent) {
             fluent.Item("monitoring_descriptor").Value(ToString(*joblet->UserJobMonitoringDescriptor));
         })

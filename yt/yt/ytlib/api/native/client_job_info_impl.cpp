@@ -2024,7 +2024,7 @@ static void ParseJobsFromControllerAgentResponse(
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
         auto failContextSize = jobMap->GetChildValueOrDefault<i64>("fail_context_size", 0);
-        auto mainJobId = jobMap->GetChildValueOrDefault<TJobId>("main_job_id", {});
+        auto mainJobId = jobMap->GetChildValueOrThrow<IMapNodePtr>("cookie_group_info")->GetChildValueOrDefault<TJobId>("main_job_id", {});
         auto jobCompetitionId = jobMap->GetChildValueOrThrow<TJobId>("job_competition_id");
         auto hasCompetitors = jobMap->GetChildValueOrThrow<bool>("has_competitors");
         auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
