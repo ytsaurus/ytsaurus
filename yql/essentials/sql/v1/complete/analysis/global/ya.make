@@ -2,7 +2,6 @@ LIBRARY()
 
 SRCS(
     global.cpp
-    parse_tree.cpp
     use.cpp
 )
 

@@ -624,8 +624,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
         {
             TVector<TCandidate> expected = {
-                {TableName, "`people`"},
-                {FolderName, "`yql/`"},
+                {TableName, "`maxim`"},
                 {ClusterName, "example"},
                 {ClusterName, "yt:saurus"},
                 {Keyword, "ANY"},

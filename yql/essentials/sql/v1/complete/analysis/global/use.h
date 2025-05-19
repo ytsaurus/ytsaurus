@@ -11,8 +11,12 @@ namespace NSQLComplete {
     struct TUseContext {
         TString Provider;
         TString Cluster;
+        size_t Depth = 0;
     };
 
-    TMaybe<TUseContext> FindUseStatement(SQLv1::Sql_queryContext* ctx);
+    TMaybe<TUseContext> FindUseStatement(
+        SQLv1::Sql_queryContext* ctx,
+        antlr4::TokenStream* tokens,
+        size_t cursorPosition);
 
 } // namespace NSQLComplete

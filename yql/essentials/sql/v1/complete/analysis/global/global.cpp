@@ -46,30 +46,9 @@ namespace NSQLComplete {
             SQLv1::Sql_queryContext* sqlQuery = Parse(input.Text);
             Y_ENSURE(sqlQuery);
 
-            Cerr << "Input:\n"
-                 << input.Text << Endl;
-
-            Cerr << "Input.Position:\n"
-                 << input.CursorPosition << Endl;
-
-            Cerr << "Input.Size:\n"
-                 << input.Text.size() << Endl;
-
-            Cerr << "Tree:\n"
-                 << sqlQuery->toStringTree(&Parser_, true) << Endl;
-
-            antlr4::tree::ParseTree* enclosing = EnclosingParseTree(
-                sqlQuery, &Tokens_, input.CursorPosition);
-            if (!enclosing) {
-                enclosing = sqlQuery;
-            }
-
-            Cerr << "Enclosing:\n"
-                 << enclosing->toStringTree(&Parser_, true) << Endl;
-
             TGlobalContext ctx;
 
-            if (auto use = FindUseStatement(sqlQuery)) {
+            if (auto use = FindUseStatement(sqlQuery, &Tokens_, input.CursorPosition)) {
                 ctx.Object = TGlobalContext::TObject();
                 ctx.Object->Provider = use->Provider;
                 ctx.Object->Cluster = use->Cluster;
