@@ -281,7 +281,7 @@ private:
         int ReadQuorum_ = -1;
         int WriteQuorum_ = -1;
         std::string Account_;
-        TString PrimaryMedium_;
+        std::string PrimaryMedium_;
 
         TObjectId ObjectId_;
         TCellTag NativeCellTag_ = InvalidCellTag;

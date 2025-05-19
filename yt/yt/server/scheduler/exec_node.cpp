@@ -56,7 +56,7 @@ TExecNodeDescriptorPtr TExecNode::BuildExecDescriptor() const
         SchedulingOptions_);
 }
 
-void TExecNode::SetIOWeights(const THashMap<TString, double>& mediumToWeight)
+void TExecNode::SetIOWeights(const THashMap<std::string, double>& mediumToWeight)
 {
     // NB: Surely, something smarter than this should be done with individual medium weights here.
     IOWeight_ = 0.0;

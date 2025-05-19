@@ -792,7 +792,7 @@ struct TDiskRequestConfig
     //! Limit for disk inodes.
     std::optional<i64> InodeCount;
 
-    std::optional<TString> MediumName;
+    std::optional<std::string> MediumName;
     std::optional<int> MediumIndex;
     std::optional<std::string> Account;
 

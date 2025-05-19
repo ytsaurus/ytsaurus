@@ -111,7 +111,7 @@ struct IUserSlot
 
     virtual TString GetSandboxPath(ESandboxKind sandbox) const = 0;
 
-    virtual TString GetMediumName() const = 0;
+    virtual std::string GetMediumName() const = 0;
 
     virtual TString GetJobProxyUnixDomainSocketPath() const = 0;
 

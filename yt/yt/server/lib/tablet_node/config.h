@@ -439,7 +439,7 @@ DEFINE_REFCOUNTED_TYPE(THunkStoreWriterConfig)
 struct THunkStoreWriterOptions
     : public NJournalClient::TJournalHunkChunkWriterOptions
 {
-    TString MediumName;
+    std::string MediumName;
     std::string Account;
 
     REGISTER_YSON_STRUCT(THunkStoreWriterOptions);
