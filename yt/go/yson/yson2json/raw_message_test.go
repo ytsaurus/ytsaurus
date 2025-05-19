@@ -74,6 +74,10 @@ func TestRawMessage_MarshalYSON(t *testing.T) {
 }}`,
 			Output: `{schema=<strict=%true;>[{name=id;"type_v3"=int64;};{name=val;"type_v3"=utf8;};];}`,
 		},
+		{
+			Input:  `{}`,
+			Output: `{}`,
+		},
 	} {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			m := RawMessage{
