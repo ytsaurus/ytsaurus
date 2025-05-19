@@ -1199,7 +1199,7 @@ private:
         }
         ClusterDirectory_->SubscribeOnClusterUpdated(
             BIND_NO_PROPAGATE([tvmService] (const std::string& name, INodePtr nativeConnectionConfig) {
-                static constexpr auto& Logger = TvmSynchronizerLogger;
+                const auto& Logger = TvmSynchronizerLogger();
 
                 NNative::TConnectionDynamicConfigPtr config;
                 try {

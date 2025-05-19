@@ -119,7 +119,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SchedulerLogger;
+constinit const auto Logger = SchedulerLogger;
 
 static const TString UnknownTreeId = "<unknown>";
 

@@ -19,7 +19,7 @@ using namespace NBundleControllerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = BundleControllerLogger;
+constinit const auto Logger = BundleControllerLogger;
 static const std::string DefaultDataCenterName = "default";
 
 ////////////////////////////////////////////////////////////////////////////////

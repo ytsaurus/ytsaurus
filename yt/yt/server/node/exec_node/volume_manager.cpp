@@ -109,7 +109,7 @@ using NControllerAgent::ELayerFilesystem;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 static const TString MountSuffix = "mount";

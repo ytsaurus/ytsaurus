@@ -54,7 +54,7 @@ using NTransactionClient::TReadTimestampRange;
 
 struct TTabletReaderPoolTag { };
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 static constexpr TDuration DefaultMaxOverdraftDuration = TDuration::Minutes(1);
 

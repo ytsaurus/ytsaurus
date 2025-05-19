@@ -57,7 +57,7 @@ namespace NYT::NClickHouseServer {
 
 using namespace NConcurrency;
 
-static constexpr auto& Logger = ClickHouseYtLogger;
+constinit const auto Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

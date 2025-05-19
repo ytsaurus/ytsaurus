@@ -34,7 +34,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = BundleControllerLogger;
+constinit const auto Logger = BundleControllerLogger;
 static const TYPath TabletCellBundlesPath("//sys/tablet_cell_bundles");
 static const TYPath ChaosCellBundlesPath("//sys/chaos_cell_bundles");
 

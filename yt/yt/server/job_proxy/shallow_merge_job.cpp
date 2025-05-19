@@ -53,7 +53,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = JobProxyLogger;
+constinit const auto Logger = JobProxyLogger;
 
 constexpr auto ShallowMergeStatisticsUpdatePeriod = TDuration::Seconds(1);
 

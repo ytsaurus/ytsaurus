@@ -29,7 +29,7 @@
 
 namespace NYT::NJobProxy {
 
-static constexpr auto& Logger = JobProxyLogger;
+constinit const auto Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

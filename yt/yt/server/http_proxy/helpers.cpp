@@ -23,7 +23,7 @@ using namespace NConcurrency;
 using namespace NHttp;
 using namespace NYTree;
 
-static constexpr auto& Logger = HttpProxyLogger;
+constinit const auto Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

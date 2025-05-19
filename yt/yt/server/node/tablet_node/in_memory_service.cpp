@@ -34,7 +34,7 @@ using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NTabletClient;
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

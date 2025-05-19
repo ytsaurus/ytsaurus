@@ -34,7 +34,7 @@ using namespace NHiveClient;
 using namespace NSecurityClient;
 using namespace NLogging;
 
-static constexpr auto& Logger = YqlAgentLogger;
+constinit const auto Logger = YqlAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
