@@ -396,17 +396,6 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCoreEpilogue(
     securityManager->ResetAccount(branchedNode);
 
     securityManager->UpdateMasterMemoryUsage(originatingNode);
-
-    if (originatingNode->IsSequoia() && originatingNode->IsNative()) {
-        if (branchedNode->MutableSequoiaProperties()->Tombstone) {
-            if (originatingNode->IsTrunk()) {
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                objectManager->UnrefObject(originatingNode);
-            } else {
-                originatingNode->MutableSequoiaProperties()->Tombstone = true;
-            }
-        }
-    }
 }
 
 TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(

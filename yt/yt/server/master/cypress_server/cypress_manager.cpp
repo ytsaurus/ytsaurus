@@ -4112,6 +4112,31 @@ private:
             YT_LOG_DEBUG("Node snapshot destroyed (NodeId: %v)", branchedNodeId);
         }
 
+        if (originatingNode &&
+            originatingNode->IsSequoia() &&
+            originatingNode->IsNative())
+        {
+            if (branchedNode->MutableSequoiaProperties()->Tombstone) {
+                originatingNode->MutableSequoiaProperties()->Tombstone = true;
+
+                if (originatingNode->GetReachable()) {
+                    handler->SetUnreachable(originatingNode);
+
+                    if (originatingNode->IsTrunk()) {
+                        objectManager->UnrefObject(originatingNode);
+                    }
+                }
+                originatingNode = nullptr;
+            } else if (!originatingNode->GetReachable()) {
+                handler->SetReachable(originatingNode);
+
+                // See #TSequoiaActionsExecutor::HydraPrepareCreateNode.
+                if (originatingNode->IsTrunk()) {
+                    objectManager->RefObject(originatingNode);
+                }
+            }
+        }
+
         // Drop the implicit reference to the trunk.
         objectManager->UnrefObject(trunkNode);
 
@@ -4120,17 +4145,7 @@ private:
 
         YT_LOG_DEBUG("Branched node removed (NodeId: %v)", branchedNodeId);
 
-        if (originatingNode &&
-            originatingNode->IsTrunk() &&
-            originatingNode->IsSequoia() &&
-            originatingNode->IsNative() &&
-            originatingNode->MutableSequoiaProperties()->Tombstone)
-        {
-            objectManager->UnrefObject(originatingNode);
-            return nullptr;
-        } else {
-            return originatingNode;
-        }
+        return originatingNode;
     }
 
     //! Returns originating node.

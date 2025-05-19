@@ -517,10 +517,7 @@ TEST_F(TSequoiaTest, TestTransactionAbortConflict)
         .ThrowOnError();
 
     for (auto nodeId : createdNodes) {
-        // TODO(danilalexeev): change to EXPECT_FALSE when uncommitted Cypress
-        // node leak will be fixed in Sequoia.
-
-        EXPECT_TRUE(WaitFor(Client_->NodeExists(FromObjectId(nodeId)))
+        EXPECT_FALSE(WaitFor(Client_->NodeExists(FromObjectId(nodeId)))
             .ValueOrThrow());
     }
 }

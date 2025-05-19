@@ -407,6 +407,8 @@ private:
 
         EmplaceOrCrash(ScionNodes_, scionNodeId, scionNode);
 
+        typeHandler->SetReachable(scionNode);
+
         YT_LOG_DEBUG("Scion created "
             "(RootstockNodeId: %v, ScionNodeId: %v)",
             rootstockNodeId,
