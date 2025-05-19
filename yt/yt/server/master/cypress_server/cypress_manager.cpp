@@ -4131,6 +4131,7 @@ private:
 
         TCypressNode* originatingNode = nullptr;
 
+        bool branchedNodeReachable = branchedNode->GetReachable();
         MaybeSetUnreachable(handler, branchedNode);
 
         if (!isSnapshotBranch) {
@@ -4170,6 +4171,7 @@ private:
                 }
                 originatingNode = nullptr;
             } else if (!originatingNode->GetReachable()) {
+                YT_VERIFY(branchedNodeReachable);
                 handler->SetReachable(originatingNode);
 
                 // See #TSequoiaActionsExecutor::HydraPrepareCreateNode.

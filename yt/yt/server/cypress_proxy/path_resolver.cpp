@@ -282,7 +282,7 @@ TResolveIterationResult ResolveByObjectId(
     // But while we don't have any way to bypass Sequoia resolve we use "exists"
     // verb in tests to check object existence in master.
     // TODO(kvk1920): design some way to bypass Sequoia resolve.
-    if (method == "Exists") {
+    if (method == "Exists" || method == "Get") {
         return TForwardToMaster{std::move(path)};
     }
 
