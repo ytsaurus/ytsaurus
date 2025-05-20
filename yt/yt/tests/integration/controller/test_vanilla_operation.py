@@ -469,6 +469,30 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert sorted_dicts(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
 
     @authors("max42")
+    def test_table_output_distributed(self):
+        create("table", "//tmp/t")
+        vanilla(
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 1,
+                        "output_table_paths": ["//tmp/t"],
+                        "format": "yson",
+                        "command": """if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then echo '{a=1}'; fi""",
+                        "cookie_group_size": 2,
+                    },
+                    "task_b": {
+                        "job_count": 1,
+                        "output_table_paths": ["//tmp/t"],
+                        "format": "json",
+                        "command": 'echo "{\\"a\\": 2}"',
+                    },
+                }
+            }
+        )
+        assert sorted_dicts(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
+
+    @authors("max42")
     def test_attribute_validation_for_duplicated_output_tables(self):
         create("table", "//tmp/t")
         with pytest.raises(YtError):
