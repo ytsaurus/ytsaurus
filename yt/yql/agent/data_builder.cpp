@@ -359,13 +359,15 @@ void TDataBuilder::OnPg(TMaybe<TStringBuf> value, bool /*isUtf8*/)
     }
 }
 
-void TDataBuilder::AddBeginOptional() {
+void TDataBuilder::AddBeginOptional()
+{
     if (OptionalLevels_.top() > 1) {
         BeginList();
     }
 }
 
-void TDataBuilder::AddEndOptional() {
+void TDataBuilder::AddEndOptional()
+{
     if (OptionalLevels_.top() > 1) {
         EndList();
     }
