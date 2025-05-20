@@ -508,7 +508,12 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, "pr");
         }
         {
-            TVector<TCandidate> expected = {};
+            TVector<TCandidate> expected = {
+                {FolderName, ".sys/"},
+                {FolderName, "local/"},
+                {FolderName, "prod/"},
+                {FolderName, "test/"},
+            };
             UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "SELECT * FROM `#"), expected);
         }
         {
