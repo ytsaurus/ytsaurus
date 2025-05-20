@@ -286,6 +286,12 @@ private:
         movementData.SetLastStageChangeTime(GetCurrentMutationContext()->GetTimestamp());
         movementData.SetSiblingMountRevision(targetMountRevision);
 
+        auto& runtimeData = tablet->RuntimeData()->SmoothMovementData;
+        runtimeData.Role = ESmoothMovementRole::Source;
+        YT_VERIFY(runtimeData.IsActiveServant.load());
+        runtimeData.SiblingServantCellId.Store(targetCellId);
+        runtimeData.SiblingServantMountRevision.store(targetMountRevision);
+
         auto selfEndpointId = FromProto<TAvenueEndpointId>(request->source_avenue_endpoint_id());
         auto siblingEndpointId = GetSiblingAvenueEndpointId(selfEndpointId);
         movementData.SetSiblingAvenueEndpointId(siblingEndpointId);
@@ -397,6 +403,8 @@ private:
             return;
         }
 
+        YT_VERIFY(tablet->SmoothMovementData().GetRole() == ESmoothMovementRole::Target);
+
         auto masterEndpointId = FromProto<TAvenueEndpointId>(request->master_avenue_endpoint_id());
         auto mailboxCookie = FromProto<TPersistentMailboxStateCookie>(request->master_mailbox_cookie());
 
@@ -408,13 +416,13 @@ private:
 
         tablet->SetMasterAvenueEndpointId(masterEndpointId);
         Host_->RegisterMasterAvenue(tabletId, masterEndpointId, std::move(mailboxCookie));
+        YT_VERIFY(!tablet->RuntimeData()->SmoothMovementData.IsActiveServant.load());
+        tablet->RuntimeData()->SmoothMovementData.IsActiveServant.store(true);
 
         ChangeSmoothMovementStage(
             tablet,
             ESmoothMovementStage::ServantSwitchRequested,
             ESmoothMovementStage::ServantSwitched);
-
-        tablet->RuntimeData()->SmoothMovementData.IsActiveServant.store(true);
 
         if (auto& promise = tablet->SmoothMovementData().TargetActivationPromise()) {
             YT_LOG_DEBUG("Setting target servant activation promise (%v)",
@@ -558,15 +566,9 @@ private:
                     ToProto(req.mutable_tablet_id(), tablet->GetId());
                     req.set_mount_revision(ToProto(movementData.GetSiblingMountRevision()));
 
-                    {
-                        auto& runtimeData = tablet->RuntimeData()->SmoothMovementData;
-                        runtimeData.SiblingServantCellId.Store(movementData.GetSiblingCellId());
-                        runtimeData.SiblingServantMountRevision.store(movementData.GetSiblingMountRevision());
-                        runtimeData.IsActiveServant.store(false);
-                    }
-
                     auto masterEndpointId = tablet->GetMasterAvenueEndpointId();
                     tablet->SetMasterAvenueEndpointId({});
+                    tablet->RuntimeData()->SmoothMovementData.IsActiveServant.store(false);
 
                     ToProto(req.mutable_master_avenue_endpoint_id(), masterEndpointId);
                     auto mailboxCookie = Host_->UnregisterMasterAvenue(masterEndpointId);
@@ -630,7 +632,9 @@ private:
 
                 Host_->UnregisterSiblingTabletAvenue(
                     movementData.GetSiblingAvenueEndpointId());
+
                 movementData = {};
+                tablet->RuntimeData()->SmoothMovementData.Reset();
 
                 break;
             }
@@ -682,7 +686,9 @@ private:
 
         Host_->UnregisterSiblingTabletAvenue(
             movementData.GetSiblingAvenueEndpointId());
+
         movementData = {};
+        tablet->RuntimeData()->SmoothMovementData.Reset();
 
         NTabletServer::NProto::TReqReportSmoothMovementAborted rsp;
         ToProto(rsp.mutable_tablet_id(), tablet->GetId());
