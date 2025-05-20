@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "tablet_profiling.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
 

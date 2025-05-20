@@ -141,16 +141,15 @@ struct TTabletErrors
 
 struct TRuntimeSmoothMovementData
 {
-    std::atomic<bool> IsActiveServant;
-
-    // The following fields are filled only at the source servant when it becomes non-active.
-    // They are needed to redirect clients to the target servant. Note that target->source
-    // redirection never happens.
+    std::atomic<ESmoothMovementRole> Role;
+    std::atomic<bool> IsActiveServant = true;
     NThreading::TAtomicObject<TCellId> SiblingServantCellId;
     std::atomic<NHydra::TRevision> SiblingServantMountRevision;
 
     // Will be set when the target servant becomes active.
     TFuture<void> TargetActivationFuture;
+
+    void Reset();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
