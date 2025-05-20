@@ -28,7 +28,8 @@ namespace NYT::NTabletNode {
     XX(write_error,                                 WriteError)
 
 #define ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX) \
-    XX(lookup_cpu_time,                         LookupCpuTime)
+    XX(lookup_cpu_time,                         LookupCpuTime) \
+    XX(select_cpu_time,                         SelectCpuTime)
 
 struct TTabletPerformanceCounters
 {

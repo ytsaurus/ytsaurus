@@ -469,6 +469,7 @@ class TestStatisticsReporterBase:
                     make_struct("lookup_error"),
                     make_struct("write_error"),
                     make_struct("lookup_cpu_time"),
+                    make_struct("select_cpu_time"),
                     {"name": "uncompressed_data_size", "type_v3": "int64"},
                     {"name": "compressed_data_size", "type_v3": "int64"},
                 ],
@@ -525,3 +526,42 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
         wait(lambda: len(lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])) == 1)
+
+    @pytest.mark.parametrize('execution_number', range(30))
+    @authors("sabdenovch")
+    def test_select_cpu_performance_counters(self, execution_number):
+        statistics_path = "//tmp/statistics_reporter_table"
+        self._setup_statistics_reporter(statistics_path)
+
+        self._create_simple_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [100], [200]])
+
+        sync_mount_table("//tmp/t")
+        values = ("aaa", "bbb", "ccc")
+        insert_rows("//tmp/t", [{"key": i, "value": values[i // 100]} for i in range(300)])
+
+        table_id = get("//tmp/t/@id")
+        tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
+
+        for _ in range(20):
+            select_rows("* from [//tmp/t] where value = \"bbb\"")
+
+        def get_select_cpu_time_rate(table_id, tablet_id):
+            response = lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])
+            if len(response) == 0:
+                return 0
+            return response[0]["select_cpu_time"]["rate_10m"]
+
+        for tablet_id in tablet_ids:
+            wait(lambda: get_select_cpu_time_rate(table_id, tablet_id) > 0)
+
+        a_cpu = get_select_cpu_time_rate(table_id, tablet_ids[0])
+        b_cpu = get_select_cpu_time_rate(table_id, tablet_ids[1])
+        c_cpu = get_select_cpu_time_rate(table_id, tablet_ids[2])
+
+        assert a_cpu > 0
+        assert b_cpu > 0
+        assert c_cpu > 0
+
+        # CPU usage of the second tablet must be substantially higher
+        assert b_cpu > ((a_cpu + c_cpu) / 2) * 1.5
