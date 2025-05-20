@@ -3570,7 +3570,9 @@ private:
         std::vector<TChunk*> announceReplicaRequests;
         for (const auto& chunkInfo : addedReplicas) {
             if (chunkInfo.caused_by_medium_change()) {
-                auto* chunk = FindChunk(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                auto* chunk = FindChunk(chunkIdWithIndex.Id);
+
                 if (IsObjectAlive(chunk)) {
                     if (chunk->IsBlob()) {
                         ScheduleEndorsement(chunk);
