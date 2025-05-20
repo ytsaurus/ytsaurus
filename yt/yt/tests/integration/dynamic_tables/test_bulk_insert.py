@@ -1443,6 +1443,55 @@ class TestBulkInsert(DynamicTablesBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
+class TestBulkInsertLockConfirmation(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 8
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+    ENABLE_BULK_INSERT = True
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "dynamic_table_lock_checking_attempt_count_limit": 3,
+            "dynamic_table_lock_checking_interval_duration_min": 200,
+            "dynamic_table_lock_checking_interval_duration_max": 500,
+        },
+    }
+
+    @authors("dave11ar")
+    def test_dynamic_tables_lock_confirmation(self):
+        cell_id = sync_create_cells(1)[0]
+
+        input_table = "//tmp/t_input"
+        output_table = "//tmp/t_ouput"
+
+        create("table", input_table)
+        write_table(input_table, [{"key": 0, "value": "v"}])
+
+        create_dynamic_table(
+            output_table,
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}
+            ],
+        )
+
+        sync_mount_table(output_table)
+
+        # Cell should not confirm lock, so we make it failed.
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "garbage")
+
+        wait(lambda: get(f"#{cell_id}/@health") == "failed")
+
+        with raises_yt_error("Could not lock output dynamic tables"):
+            map(in_=input_table, out=output_table, command="cat")
+
+
+##################################################################
+
+
 @authors("ifsmirnov")
 @pytest.mark.enabled_multidaemon
 class TestUnversionedUpdateFormat(DynamicTablesBase):
@@ -2275,9 +2324,11 @@ class TestUnversionedUpdateFormatMirroredTx(TestUnversionedUpdateFormatShardedTx
         }
     }
 
+
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicTablesLockingProtocol(DynamicTablesBase):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -2286,17 +2337,49 @@ class TestDynamicTablesLockingProtocol(DynamicTablesBase):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestBulkInsertDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsert):
     pass
 
 
+@pytest.mark.enabled_multidaemon
+class TestBulkInsertDynamicTablesLockingProtocolLockConfirmation(TestDynamicTablesLockingProtocol, TestBulkInsertLockConfirmation):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "bulk_insert_lock_checker": {
+                    "invocation_count": 3,
+                    "min_backoff": 200,
+                    "max_backoff": 500,
+                }
+            }
+        },
+        "controller_agent": {
+            "register_lockable_dynamic_tables": True,
+        },
+    }
+
+
+@pytest.mark.enabled_multidaemon
 class TestBulkInsertMulticellDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsertMulticell):
     pass
 
 
-class TestUnversionedUpdateFormatRpcProxyDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestUnversionedUpdateFormatRpcProxy):
+@pytest.mark.enabled_multidaemon
+class TestBulkInsertShardedTxCTxSDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsertShardedTxCTxS):
     pass
 
 
-class TestUnversionedUpdateFormatMirroredTxDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestUnversionedUpdateFormatMirroredTx):
+@pytest.mark.enabled_multidaemon
+class TestBulkInsertMirroredTxDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsertMirroredTx):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "commit_operation_cypress_node_changes_via_system_transaction": True,
+        "controller_agent": {
+            "register_lockable_dynamic_tables": True,
+        }
+    }
+
+
+@pytest.mark.enabled_multidaemon
+class TestUnversionedUpdateFormatDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestUnversionedUpdateFormat):
     pass
