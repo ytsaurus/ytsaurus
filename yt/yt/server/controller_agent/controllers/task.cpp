@@ -636,7 +636,7 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation)
     // The order here is very important: we want to prioritize jobs on incomplete groups over new groups.
     if (DistributedJobManager_.GetPendingJobCount() != 0) {
         auto [cookie, index] = DistributedJobManager_.PeekJobCandidate();
-        result.CompetitionType = EJobCompetitionType::Multi;
+        result.CompetitionType = EJobCompetitionType::Distributed;
         result.OutputCookie = cookie;
         result.OutputIndex = index;
     } else if (TaskHost_->IsTreeProbing(allocation.TreeId)) {
@@ -675,7 +675,7 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
     // The order here is very important: we want to prioritize jobs on incomplete groups over new groups.
     if (DistributedJobManager_.GetPendingJobCount() != 0) {
         auto [cookie, index] = DistributedJobManager_.PeekJobCandidate();
-        result.CompetitionType = EJobCompetitionType::Multi;
+        result.CompetitionType = EJobCompetitionType::Distributed;
         result.OutputCookie = cookie;
         result.OutputIndex = index;
     } else if (auto previousJobCompetitionType = allocation.LastJobInfo->CompetitionType;
@@ -1063,7 +1063,7 @@ bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
 
 void TTask::BuildTaskYson(TFluentMap fluent) const
 {
-    static const std::vector<TString> jobManagerNames = {"speculative", "probing", "experiment", "multi"};
+    static const std::vector<TString> jobManagerNames = {"speculative", "probing", "experiment", "distributed"};
     YT_VERIFY(jobManagerNames.size() == JobManagers_.size());
 
     fluent
