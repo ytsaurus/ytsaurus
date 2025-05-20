@@ -112,6 +112,10 @@ struct ITransactionManager
     //! Returns the full list of transactions, including transient and persistent.
     virtual std::vector<TTransaction*> GetTransactions() = 0;
 
+    //! Forcefully aborts all transactions externalized to this cell with a certain token.
+    virtual void AbortTransactionsExternalizedToThisCell(
+        TTransactionExternalizationToken token) = 0;
+
     //! Schedules a mutation that creates a given transaction (if missing) and
     //! registers a set of actions.
     virtual TFuture<void> RegisterTransactionActions(
