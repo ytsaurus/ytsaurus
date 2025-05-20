@@ -263,6 +263,10 @@ protected:
             YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
+            if (jobSpec->HasExtension(TReduceJobSpecExt::reduce_job_spec_ext)) {
+                jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext)->set_disable_sorted_input(true);
+                jobSpec->MutableExtension(NControllerAgent::NProto::TJobSpecExt::job_spec_ext)->clear_foreign_input_table_specs();
+            }
             BuildInputOutputJobSpec(joblet, jobSpec);
         }
 
