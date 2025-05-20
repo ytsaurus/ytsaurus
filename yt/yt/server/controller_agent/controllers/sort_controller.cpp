@@ -1074,6 +1074,9 @@ protected:
                     auto* reduceJobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
                     jobSpecExt->set_partition_tag(partitionTag);
                     reduceJobSpecExt->set_partition_tag(partitionTag);
+                    if (joblet->CookieGroupInfo.OutputIndex > 0) {
+                        reduceJobSpecExt->set_disable_sorted_input(true);
+                    }
                 } else {
                     auto* sortJobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
                     jobSpecExt->set_partition_tag(partitionTag);

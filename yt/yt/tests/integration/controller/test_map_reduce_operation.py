@@ -433,6 +433,21 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
             spec={"reducer": {"format": "dsv"}, "ordered": ordered},
         )
 
+    @authors("faucct")
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_many_output_tables_distributed(self, ordered):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
+        write_table("//tmp/t_in", {"line": "some_data"})
+        map_reduce(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out1", "//tmp/t_out2"],
+            sort_by="line",
+            reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
+            spec={"reducer": {"format": "dsv", "cookie_group_size": 2}, "ordered": ordered},
+        )
+
     @authors("coteeq")
     @pytest.mark.parametrize("op_type,mapper_tables", [
         ("map", None),
@@ -1381,6 +1396,23 @@ print("x={0}\ty={1}".format(x, y))
             reducer_command="cat",
             sort_by=[{"name": "key", "sort_order": sort_order}],
             spec={"mapper": {"cpu_limit": 1}, "reduce_combiner": {"cpu_limit": 1}},
+        )
+
+        assert_items_equal(read_table("//tmp/t_in"), read_table("//tmp/t_out"))
+
+    @authors("faucct")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_commandless_user_job_spec_distributed(self, sort_order):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        for i in range(50):
+            write_table("<append=%true>//tmp/t_in", [{"key": i}])
+        map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
+            sort_by=[{"name": "key", "sort_order": sort_order}],
+            spec={"mapper": {"cpu_limit": 1}, "reduce_combiner": {"cpu_limit": 1, "cookie_group_size": 2}},
         )
 
         assert_items_equal(read_table("//tmp/t_in"), read_table("//tmp/t_out"))
