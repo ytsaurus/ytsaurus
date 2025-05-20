@@ -282,6 +282,17 @@ class TestMutations(ClickHouseTestBase):
             assert_items_equal(read_table("//tmp/t_out", verbose=False), rows + rows)
             assert get("//tmp/t_out/@chunk_count") == 10
 
+            write_table("//tmp/t_out", [])
+
+            distributed_multithread_settings = {
+                "parallel_distributed_insert_select": 1,
+                "max_insert_threads": 2
+            }
+            clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`",
+                              settings=distributed_multithread_settings)
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
+            assert get("//tmp/t_out/@chunk_count") == 5
+
             clique.make_query("insert into `<append=%false>//tmp/t_out` select * from `//tmp/t_in`",
                               settings={"parallel_distributed_insert_select": 1})
             assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
@@ -391,6 +402,10 @@ class TestMutations(ClickHouseTestBase):
 
             clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in_sorted`")
             assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
+            assert get("//tmp/t_out/@chunk_count") == threads_count
+
+            clique.make_query('create table "//tmp/new_table" engine=YtTable() as (select * from "//tmp/t_in")')
+            assert_items_equal(read_table("//tmp/new_table", verbose=False), rows)
             assert get("//tmp/t_out/@chunk_count") == threads_count
 
     @authors("gudqeit")
