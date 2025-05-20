@@ -47,7 +47,7 @@ private:
 
     // NB: Nodes that have both expiration time and expiration timeout may appear twice here.
     TCypressNodeExpirationMap ExpirationMap_;
-    THashSet<TCypressNode*> ExpiredNodes_;
+    THashSet<TCypressNode*> ScheduledForRemovalNodes_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
