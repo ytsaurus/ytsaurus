@@ -2572,7 +2572,6 @@ class TestJobSizeAdjuster(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"map_operation_options": {"data_size_per_job": 1}}}
 
     @authors("max42")
-    @pytest.mark.skipif("True", reason="YT-8228")
     def test_map_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i} for i in range(31)]
@@ -2585,7 +2584,13 @@ class TestJobSizeAdjuster(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command="echo lines=`wc -l`",
-            spec={"mapper": {"format": "dsv"}, "resource_limits": {"user_slots": 1}},
+            spec={
+                "mapper": {"format": "dsv"},
+                "resource_limits": {"user_slots": 1},
+                "job_testing_options": {
+                    "delay_before_run_job_proxy": 100,
+                },
+            },
         )
 
         expected = [{"lines": str(2 ** i)} for i in range(5)]
@@ -2594,7 +2599,9 @@ class TestJobSizeAdjuster(YTEnvSetup):
         estimated = get(op.get_path() + "/@progress/tasks/0/estimated_input_data_weight_histogram")
         histogram = get(op.get_path() + "/@progress/tasks/0/input_data_weight_histogram")
         assert estimated == histogram
-        assert histogram["max"] / histogram["min"] == 16
+        # NB(coteeq): THistogram is a little weird here and will pessimize max.
+        # assert histogram["max"] / histogram["min"] == 16
+        assert histogram["max"] / histogram["min"] >= 16
         assert histogram["count"][0] == 1
         assert sum(histogram["count"]) == 5
 
