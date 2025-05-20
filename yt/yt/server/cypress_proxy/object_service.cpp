@@ -458,7 +458,8 @@ private:
             }
 
             Subrequests_[index].Target = ERequestTarget::None;
-            ReplyOnSubrequest(index, std::move(subresponseMessage));
+            auto revision = FromProto<NHydra::TRevision>(subresponse.revision());
+            ReplyOnSubrequest(index, std::move(subresponseMessage), revision);
         }
 
         // See comment about backoff alarm in ytlib/object_client/object_service_proxy.cpp
@@ -636,7 +637,10 @@ private:
         RpcContext_->Reply(error);
     }
 
-    void ReplyOnSubrequest(int subrequestIndex, TSharedRefArray subresponseMessage)
+    void ReplyOnSubrequest(
+        int subrequestIndex,
+        TSharedRefArray subresponseMessage,
+        NHydra::TRevision revision = NHydra::NullRevision)
     {
         // Caller is responsible for marking subrequest as executed.
         YT_VERIFY(Subrequests_[subrequestIndex].Target == ERequestTarget::None);
@@ -646,6 +650,10 @@ private:
         auto* subresponseInfo = response.add_subresponses();
         subresponseInfo->set_index(subrequestIndex);
         subresponseInfo->set_part_count(subresponseMessage.Size());
+       if (revision != NHydra::NullRevision) {
+            subresponseInfo->set_revision(ToProto(revision));
+        }
+        response.add_revisions(ToProto(revision));
         response.Attachments().insert(
             response.Attachments().end(),
             subresponseMessage.Begin(),
