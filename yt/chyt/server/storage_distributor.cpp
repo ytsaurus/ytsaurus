@@ -1019,6 +1019,8 @@ public:
 
         bool overwrite = !path.GetAppend(/*defaultValue*/ true);
 
+        auto* queryContext = GetQueryContext(context);
+
         if (context->getSettingsRef().max_insert_threads > 1) {
             if (table->Dynamic) {
                 THROW_ERROR_EXCEPTION("Parallel write is not supported for dynamic tables, set max_insert_threads = 1");
@@ -1029,6 +1031,9 @@ public:
             if (overwrite) {
                 // Can't erase table like in distributedWrite because of INSERT INTO t FROM (SELECT * FROM t) case.
                 THROW_ERROR_EXCEPTION("Parallel overwriting is not supported, set max_insert_threads = 1");
+            }
+            if (queryContext->QueryKind == EQueryKind::InitialQuery) {
+                queryContext->InitializeQueryWriteTransaction();
             }
         }
 
@@ -1042,20 +1047,23 @@ public:
             table->Schema,
             dataTypes);
 
+        // All sinks are created in InterpreterInsertQuery::buildInsertSelectPipeline before using pipe.
+        ++queryContext->WriteSinkCount;
+
         // Callback to commit write transaction and invalidate cached object attributes after the query is completed.
-        auto finalCallback = [context, path = path.GetPath()] () {
-            auto* queryContext = GetQueryContext(context);
+        auto finalCallback = [queryContext, path = path.GetPath()] () {
+            if (queryContext->WriteSinkCount.fetch_sub(1) == 1) {
+                queryContext->CommitWriteTransaction();
 
-            queryContext->CommitWriteTransaction();
+                auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
+                if (queryContext->QueryKind == EQueryKind::SecondaryQuery) {
+                    // Write in secondary query means distributed insert select.
+                    // In this case we should only invalidate local cache to avoid quadratic number of rpc requests.
+                    invalidateMode = std::min(invalidateMode, EInvalidateCacheMode::Local);
+                }
 
-            auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
-            if (queryContext->QueryKind == EQueryKind::SecondaryQuery) {
-                // Write in secondary query means distributed insert select.
-                // In this case we should only invalidate local cache to avoid quadratic number of rpc requests.
-                invalidateMode = std::min(invalidateMode, EInvalidateCacheMode::Local);
+                InvalidateCache(queryContext, {path}, invalidateMode);
             }
-
-            InvalidateCache(queryContext, {path}, invalidateMode);
         };
 
         DB::SinkToStoragePtr outputSink;
@@ -1071,7 +1079,6 @@ public:
                 std::move(finalCallback),
                 QueryContext_->Logger);
         } else {
-            auto* queryContext = GetQueryContext(context);
             // Set append if it is not set.
             path.SetAppend(path.GetAppend(true /*defaultValue*/));
             outputSink = CreateSinkToStaticTable(
