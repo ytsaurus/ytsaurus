@@ -41,7 +41,7 @@ using NCypressClient::NProto::TReqCreateRootstock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CypressServerLogger;
+constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -406,6 +406,8 @@ private:
         scionNode->SetRootstockId(rootstockNodeId);
 
         EmplaceOrCrash(ScionNodes_, scionNodeId, scionNode);
+
+        typeHandler->SetReachable(scionNode);
 
         YT_LOG_DEBUG("Scion created "
             "(RootstockNodeId: %v, ScionNodeId: %v)",

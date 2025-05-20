@@ -6,13 +6,6 @@ namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTransactionActionData::Persist(const TStreamPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, Type);
-    Persist(context, Value);
-}
-
 void ToProto(NProto::TTransactionActionData* protoData, const TTransactionActionData& data)
 {
     protoData->set_action_type(data.Type);

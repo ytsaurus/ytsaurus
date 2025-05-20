@@ -12,7 +12,7 @@ namespace NYT::NTabletNode {
 
 struct THedgingUnit
 {
-    std::optional<TString> UserTag;
+    std::optional<std::string> UserTag;
     bool HunkChunk;
 
     bool operator == (const THedgingUnit& other) const;

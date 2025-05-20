@@ -32,7 +32,11 @@ DEFINE_BIT_ENUM(ESerializationStatus,
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
-    : public NTransactionSupervisor::TTransactionBase<TObjectBase>
+    : public NTransactionSupervisor::TTransactionBase<
+        TObjectBase,
+        TSaveContext,
+        TLoadContext
+    >
     , public TRefTracked<TTransaction>
 {
 public:
@@ -81,9 +85,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TGuid, ExternalizationToken);
 
 public:
-    explicit TTransaction(TTransactionId id);
-
-    virtual ~TTransaction() = default;
+    using TTransactionBase::TTransactionBase;
 
     void Save(TSaveContext& context) const;
     void Load(TLoadContext& context);
@@ -93,6 +95,8 @@ public:
     void ResetFinished();
 
     TTimestamp GetPersistentPrepareTimestamp() const;
+
+    bool WasDefinitelyPrepared() const;
 
     THashSet<TTabletId> GetAffectedTabletIds() const;
 

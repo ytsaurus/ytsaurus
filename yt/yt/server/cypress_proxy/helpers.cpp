@@ -153,7 +153,7 @@ std::vector<TTransactionId> ParsePrerequisiteTransactionIds(const NRpc::NProto::
     return prerequisiteTransactionIds;
 }
 
-void ValidatePrerequisites(
+void ValidatePrerequisiteTransactions(
     const ISequoiaClientPtr& sequoiaClient,
     const std::vector<TTransactionId>& prerequisiteTransactionIds)
 {
@@ -171,10 +171,10 @@ void ValidatePrerequisites(
         transactionKeys.push_back({.TransactionId = transactionId});
     }
 
-    auto resultOrError = WaitFor(sequoiaClient->LookupRows(transactionKeys));
-    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Failed to check prerequisite transactions")
+    auto transactionRowsOrError = WaitFor(sequoiaClient->LookupRows(transactionKeys));
+    THROW_ERROR_EXCEPTION_IF_FAILED(transactionRowsOrError, "Failed to check prerequisite transactions")
 
-    auto transactionRows = resultOrError.Value();
+    auto transactionRows = transactionRowsOrError.Value();
     for (const auto& [key, row] : Zip(transactionKeys, transactionRows)) {
         if (!row.has_value()) {
             THROW_ERROR_EXCEPTION(

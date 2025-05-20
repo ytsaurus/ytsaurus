@@ -177,7 +177,7 @@ using TTabletResources = NTabletServer::TTabletResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletServerLogger;
+constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2016,7 +2016,7 @@ public:
         ValidateResourceUsageIncrease(
             trunkSourceNode,
             TTabletResources().SetTabletCount(
-                trunkSourceNode->GetTabletResourceUsage().TabletCount),
+                trunkSourceNode->GetTabletResourceUsage().GetTabletCount()),
             account);
     }
 
@@ -3909,7 +3909,8 @@ private:
             }
 
             tablet->SetInMemoryMode(table->GetInMemoryMode());
-            resourceUsageDelta.TabletStaticMemory += tablet->GetTabletStaticMemorySize();
+            resourceUsageDelta.SetTabletStaticMemory(
+                resourceUsageDelta.GetTabletStaticMemory() + tablet->GetTabletStaticMemorySize());
 
             cell->GossipStatistics().Local() += tablet->GetTabletStatistics();
             table->AccountTabletStatistics(tablet->GetTabletStatistics());
@@ -4062,7 +4063,7 @@ private:
                 auto* replicatedTable = table->As<TReplicatedTableNode>();
                 for (auto replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                     const auto* replicaInfo = tablet->GetReplicaInfo(replica);
-                    PopulateTableReplicaDescriptor(req.add_replicas(), replica, *replicaInfo);
+                    PopulateTableReplicaDescriptor(reqReplicatable.add_replicas(), replica, *replicaInfo);
                 }
             }
 
@@ -4085,8 +4086,11 @@ private:
                     }
                 }
 
-                ToProto(req.mutable_replication_progress(), tablet->ReplicationProgress());
+                ToProto(reqReplicatable.mutable_replication_progress(), tablet->ReplicationProgress());
             }
+
+            // COMPAT(ifsmirnov)
+            reqReplicatable.set_has_replicas_and_replication_progress(true);
 
             auto* chunkList = tablet->GetChunkList();
             const auto& chunkListStatistics = chunkList->Statistics();
@@ -4902,7 +4906,7 @@ private:
         Load(context, LocalMountConfigKeys_);
 
         // Update mount config keys whenever the reign changes.
-        FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(GetCurrentReign());
+        FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(NCellMaster::GetCurrentReign());
 
         ForbidAvenuesDuringMigration_ = context.GetVersion() < EMasterReign::NoAvenuesDuringMigrationTo24_2;
     }
@@ -5110,8 +5114,8 @@ private:
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
-            DefaultTabletCellBundle_->ResourceLimits().TabletCount = 100'000;
-            DefaultTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
+            DefaultTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
+            DefaultTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
         }
 
         // sequoia
@@ -5120,8 +5124,8 @@ private:
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
-            SequoiaTabletCellBundle_->ResourceLimits().TabletCount = 100'000;
-            SequoiaTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
+            SequoiaTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
+            SequoiaTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
 
             auto options = SequoiaTabletCellBundle_->GetOptions();
             options->ChangelogAccount = NSecurityClient::SequoiaAccountName;

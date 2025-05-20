@@ -195,7 +195,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3569,7 +3569,9 @@ private:
         std::vector<TChunk*> announceReplicaRequests;
         for (const auto& chunkInfo : addedReplicas) {
             if (chunkInfo.caused_by_medium_change()) {
-                auto* chunk = FindChunk(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                auto* chunk = FindChunk(chunkIdWithIndex.Id);
+
                 if (IsObjectAlive(chunk)) {
                     if (chunk->IsBlob()) {
                         ScheduleEndorsement(chunk);
@@ -6425,6 +6427,8 @@ private:
         responseFutures.reserve(channels.size());
         for (const auto& channel : channels) {
             auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
+            // TODO(nadya02): Set the correct timeout here.
+            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
             auto req = TYPathProxy::Get("//sys/local_lost_vital_chunks/@count");
             responseFutures.push_back(proxy.Execute(req));
         }

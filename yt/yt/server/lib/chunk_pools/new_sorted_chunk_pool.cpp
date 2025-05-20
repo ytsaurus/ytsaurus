@@ -693,11 +693,12 @@ private:
         // We create new job size constraints by incorporating the new desired data size per job
         // into the old job size constraints.
         auto jobSizeConstraints = CreateExplicitJobSizeConstraints(
-            false /*canAdjustDataSizePerJob*/,
-            false /*isExplicitJobCount*/,
-            splitJobCount /*jobCount*/,
+            /*canAdjustDataSizePerJob*/ false,
+            /*isExplicitJobCount*/ false,
+            /*jobCount*/ splitJobCount,
             dataWeightPerJob,
-            std::numeric_limits<i64>::max() / 4,
+            /*primaryDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
+            JobSizeConstraints_->GetCompressedDataSizePerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
@@ -706,7 +707,7 @@ private:
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->GetBatchRowCount(),
             JobSizeConstraints_->GetForeignSliceDataWeight(),
-            std::nullopt /*samplingRate*/);
+            /*samplingRate*/ std::nullopt);
 
         // Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.

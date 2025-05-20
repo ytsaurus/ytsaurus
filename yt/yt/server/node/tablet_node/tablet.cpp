@@ -2,6 +2,7 @@
 
 #include "automaton.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "compression_dictionary_manager.h"
 #include "distributed_throttler_manager.h"
 #include "hedging_manager_registry.h"
@@ -14,9 +15,9 @@
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "tablet_manager.h"
-#include "tablet_snapshot_store.h"
-#include "tablet_slot.h"
 #include "tablet_profiling.h"
+#include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -89,7 +90,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -909,6 +910,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, DynamicStoreIdRequested_);
     Save(context, ReservedDynamicStoreIdCount_);
     Save(context, SchemaId_);
+    Save(context, RuntimeData_->ReplicationEra.load());
     TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Acquire());
     Save(context, ChaosData_->ReplicationRound);
     Save(context, ChaosData_->CurrentReplicationRowIndexes.Load());
@@ -1075,6 +1077,13 @@ void TTablet::Load(TLoadContext& context)
     }
 
     Load(context, SchemaId_);
+
+    // COMPAT(osidorkin)
+    if ((context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent) ||
+        (context.GetVersion() < ETabletReign::Start_25_2 &&
+            context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent_25_1)) {
+        RuntimeData_->ReplicationEra.store(Load<TReplicationEra>(context));
+    }
 
     TRefCountedReplicationProgressPtr replicationProgress;
     TNullableIntrusivePtrSerializer<>::Load(context, replicationProgress);

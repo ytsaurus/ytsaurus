@@ -147,9 +147,9 @@ public:
     void ReleaseSlotIndex(const TString& /*treeId*/) override
     { }
 
-    TString GetAuthenticatedUser() const override
+    std::string GetAuthenticatedUser() const override
     {
-        return "root";
+        return NSecurityClient::RootUserName;
     }
 
     TOperationId GetId() const override

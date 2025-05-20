@@ -1,8 +1,10 @@
 #include "smooth_movement_tracker.h"
 
 #include "automaton.h"
+#include "config.h"
 #include "store_manager.h"
 #include "tablet.h"
+#include "transaction_manager.h"
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -11,8 +13,6 @@
 #include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/persistent_mailbox_state_cookie.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 namespace NYT::NTabletNode {
 
@@ -283,6 +283,7 @@ private:
         movementData.SetRole(ESmoothMovementRole::Source);
         movementData.SetSiblingCellId(targetCellId);
         movementData.SetStage(ESmoothMovementStage::TargetAllocated);
+        movementData.SetLastStageChangeTime(GetCurrentMutationContext()->GetTimestamp());
         movementData.SetSiblingMountRevision(targetMountRevision);
 
         auto selfEndpointId = FromProto<TAvenueEndpointId>(request->source_avenue_endpoint_id());
@@ -489,6 +490,16 @@ private:
         YT_VERIFY(HasHydraContext());
 
         auto& movementData = tablet->SmoothMovementData();
+
+        if (newStage == ESmoothMovementStage::WaitingForLocksBeforeActivation ||
+            newStage == ESmoothMovementStage::WaitingForLocksBeforeSwitch)
+        {
+            YT_LOG_DEBUG("Tablet approaches smooth movement barrier, aborting all "
+                "affecting transactions (%v, Stage: %v)",
+                tablet->GetLoggingTag(),
+                newStage);
+            Host_->AbortAllTransactions(tablet);
+        }
 
         switch (newStage) {
             case ESmoothMovementStage::WaitingForLocksBeforeActivation:

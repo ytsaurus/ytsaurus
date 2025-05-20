@@ -10,6 +10,7 @@
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
+#include <yt/yt/server/node/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/tablet_cell_snapshot_validator.h>
 
@@ -44,7 +45,7 @@ using namespace NTransactionSupervisor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CellarNodeLogger;
+constinit const auto Logger = CellarNodeLogger;
 static YT_DEFINE_GLOBAL(const NLogging::TLogger, DryRunLogger, "DryRun");
 
 ////////////////////////////////////////////////////////////////////////////////

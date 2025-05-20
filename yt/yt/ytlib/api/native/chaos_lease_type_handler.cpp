@@ -39,6 +39,8 @@ private:
     {
         auto channel = Client_->GetChaosChannelByCellId(GetChaosCellId(chaosLeaseId));
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
         auto req = proxy.GetChaosLease();
         ToProto(req->mutable_chaos_lease_id(), chaosLeaseId);
 
@@ -62,6 +64,8 @@ private:
 
         auto channel = Client_->GetChaosChannelByCellId(chaosCellId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
         auto req = proxy.CreateChaosLease();
         Client_->SetMutationId(req, options);
@@ -78,6 +82,8 @@ private:
     {
         auto channel = Client_->GetChaosChannelByCellId(GetChaosCellId(chaosLeaseId));
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
         auto req = proxy.RemoveChaosLease();
         Client_->SetMutationId(req, options);

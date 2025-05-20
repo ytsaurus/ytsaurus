@@ -30,7 +30,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
 
-static constexpr auto& Logger = ClickHouseYtLogger;
+constinit const auto Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

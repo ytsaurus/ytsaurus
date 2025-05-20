@@ -94,7 +94,7 @@ using namespace NServer;
 
 namespace {
 
-static constexpr auto& Logger = CypressServerLogger;
+constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -377,14 +377,15 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     auto req = TYPathProxy::Get(FromObjectId(GetId()) + "/@" + key);
     AddCellTagToSyncWith(req, GetId());
     SetTransactionId(req, transactionId);
+    SetAllowResolveFromSequoiaObject(&req->Header(), true);
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto channel = multicellManager->GetMasterChannelOrThrow(externalCellTag, NHydra::EPeerKind::Follower);
+    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(channel));
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
 
-    auto proxy = CreateObjectServiceReadProxy(
-        Bootstrap_->GetClusterConnection(),
-        NApi::EMasterChannelKind::Follower,
-        externalCellTag);
     auto batchReq = proxy.ExecuteBatch();
     SetAuthenticationIdentity(batchReq, NRpc::TAuthenticationIdentity(user->GetName()));
     batchReq->AddRequest(std::move(req));
@@ -2170,13 +2171,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
     // the node has been locked under current transaction in LockCopySource.
     auto* node = GetThisImpl();
 
-    // Using this instead of YT_VERIFY, as suggested in the relevant PR.
-    if (node->GetTransaction() != Transaction_) {
-        YT_LOG_ALERT("Inconsistent locking during copy detected (NodeId: %v, ExpectedTransaction:%v)",
-            node->GetVersionedId(),
-            Transaction_);
-        THROW_ERROR_EXCEPTION("Inconsistent locking during copy detected");
-    }
+    YT_LOG_ALERT_AND_THROW_UNLESS(node->GetTransaction() == Transaction_,
+        "Inconsistent locking during copy detected (NodeId: %v, ExpectedTransactionId: %v)",
+        node->GetVersionedId(),
+        GetObjectId(Transaction_));
 
     auto iterateOverAttributeDeltaDuringInheritance = [] (
         const TConstInheritedAttributeDictionaryPtr& inheritedAttributes,
@@ -2258,17 +2256,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, AssembleTreeCopy)
     DeclareMutating();
     ValidateTransaction();
 
-    bool force = request->force();
     bool inplace = request->inplace();
+    // Other fields are logged in CopyCore.
+    context->SetIncrementalRequestInfo("Inplace: %v", inplace);
+
     bool preserveModificationTime = request->preserve_modification_time();
     bool preserveAcl = request->preserve_acl();
-    context->SetIncrementalRequestInfo(
-        "RootNodeId: %v, Force: %v, Inplace: %v, PreserveModificationTime: %v, PreserveAcl: %v",
-        GetVersionedId(),
-        force,
-        inplace,
-        preserveModificationTime,
-        preserveAcl);
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     auto rootNodeId = FromProto<TNodeId>(request->root_node_id());
@@ -2290,6 +2283,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, AssembleTreeCopy)
             if (!preserveAcl) {
                 // Acls are always preserved during materialization.
                 trunkNode->Acd().ClearEntries();
+                trunkNode->Acd().SetInherit(true);
             }
 
             if (!preserveModificationTime) {
@@ -3546,9 +3540,20 @@ void TSequoiaMapNodeProxy::ListSelf(
 
 int TSequoiaMapNodeProxy::GetChildCount() const
 {
-    const auto* node = GetThisImpl();
-    const auto* mapNode = node->As<TSequoiaMapNode>();
-    return mapNode->KeyToChild().size();
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto originators = cypressManager->GetNodeOriginators(Transaction_, TrunkNode_);
+
+    int result = 0;
+    for (const auto* node : originators) {
+        const auto* mapNode = node->As<TSequoiaMapNode>();
+        result += mapNode->ChildCountDelta();
+
+        if (mapNode->GetLockMode() == ELockMode::Snapshot) {
+            break;
+        }
+    }
+
+    return result;
 }
 
 void TSequoiaMapNodeProxy::Clear()
@@ -3601,6 +3606,8 @@ void TListNodeProxy::Clear()
     SetModified(EModificationType::Content);
 }
 
+// TODO(h0pless): Combine GetChildCount for Sequoia and Cypress into a single method
+// when removing code related to list nodes.
 int TListNodeProxy::GetChildCount() const
 {
     const auto* impl = GetThisImpl();

@@ -3593,29 +3593,29 @@ std::optional<TPersistentOperationSchedulingSegmentState> TFairShareTreeAllocati
 
 void TFairShareTreeAllocationScheduler::UpdateSsdPriorityPreemptionMedia()
 {
-    THashSet<int> media;
-    std::vector<TString> unknownNames;
+    THashSet<int> mediaIndexes;
+    std::vector<std::string> unknownMediaNames;
     for (const auto& mediumName : Config_->SsdPriorityPreemption->MediumNames) {
         if (auto mediumIndex = StrategyHost_->FindMediumIndexByName(mediumName)) {
-            media.insert(*mediumIndex);
+            mediaIndexes.insert(*mediumIndex);
         } else {
-            unknownNames.push_back(mediumName);
+            unknownMediaNames.push_back(mediumName);
         }
     }
 
-    if (unknownNames.empty()) {
-        if (SsdPriorityPreemptionMedia_ != media) {
+    if (unknownMediaNames.empty()) {
+        if (SsdPriorityPreemptionMedia_ != mediaIndexes) {
             YT_LOG_INFO("Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: %v, NewSsdPriorityPreemptionMedia: %v)",
                 SsdPriorityPreemptionMedia_,
-                media);
+                mediaIndexes);
 
-            SsdPriorityPreemptionMedia_.emplace(std::move(media));
+            SsdPriorityPreemptionMedia_.emplace(std::move(mediaIndexes));
 
             StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdateSsdPriorityPreemptionMedia, TError());
         }
     } else {
         auto error = TError("Config contains unknown SSD priority preemption media")
-            << TErrorAttribute("unknown_medium_names", std::move(unknownNames));
+            << TErrorAttribute("unknown_medium_names", std::move(unknownMediaNames));
         StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdateSsdPriorityPreemptionMedia, error);
     }
 }

@@ -37,6 +37,13 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetCurrentUserResultPtr TClient::DoGetCurrentUser(const TGetCurrentUserOptions& /*options*/)
+{
+    auto result = New<TGetCurrentUserResult>();
+    result->User = Options_.GetAuthenticatedUser();
+    return result;
+}
+
 TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     const std::optional<std::string>& user,
     EPermission permission,

@@ -1,12 +1,11 @@
 #include "ordered_dynamic_store.h"
 
-#include "hunk_lock_manager.h"
-#include "tablet.h"
 #include "automaton.h"
+#include "config.h"
+#include "hunk_lock_manager.h"
 #include "hunks_serialization.h"
 #include "serialize.h"
-
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include "tablet.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 

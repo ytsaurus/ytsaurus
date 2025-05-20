@@ -23,10 +23,9 @@
 
 #include <yt/yt/core/misc/atomic_ptr.h>
 #include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/profiling/sensor.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -255,7 +254,7 @@ public:
     i64 GetCoalescedReadMaxGapSize() const;
 
     //! Returns the medium name.
-    TString GetMediumName() const;
+    std::string GetMediumName() const;
 
     //! Sets medium descriptor.
     //! #onInitialize indicates whether this method called before any data node heartbeat or on heartbeat response.
@@ -513,6 +512,8 @@ public:
 
     //! Returns size of requests queue.
     i64 GetRequestedQueueSize() const;
+
+    TError GetLocationDisableError() const;
 
 protected:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;

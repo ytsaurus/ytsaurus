@@ -58,7 +58,7 @@ public:
         : Config_(std::move(config))
         , Host_(host)
         , FeasibleInvokers_(std::move(feasibleInvokers))
-        , Logger(StrategyLogger)
+        , Logger(StrategyLogger())
     {
         // TODO(eshcherbin): Use BIND_NO_PROPAGATE for all periodic executors.
         FairShareProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -463,7 +463,7 @@ public:
         LastTemplatePoolTreeConfigMapYson_ = ConvertToYsonString(templatePoolTreeConfigMap);
     }
 
-    TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    TError UpdateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 

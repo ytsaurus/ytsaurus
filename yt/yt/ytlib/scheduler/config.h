@@ -767,8 +767,14 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NP
 struct TNbdDiskConfig
     : public NYTree::TYsonStruct
 {
-    //! Address of data node that hosts NBD chunk.
+    //! Params to connect to chosen data nodes.
+    TDuration DataNodeRpcTimeout;
     std::optional<std::string> DataNodeAddress;
+
+    //! Params to get suitable data nodes from master.
+    TDuration MasterRpcTimeout;
+    int MinDataNodesCount;
+    int MaxDataNodesCount;
 
     REGISTER_YSON_STRUCT(TNbdDiskConfig);
 
@@ -786,7 +792,7 @@ struct TDiskRequestConfig
     //! Limit for disk inodes.
     std::optional<i64> InodeCount;
 
-    std::optional<TString> MediumName;
+    std::optional<std::string> MediumName;
     std::optional<int> MediumIndex;
     std::optional<std::string> Account;
 
@@ -1517,6 +1523,8 @@ DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
 struct TGangOptions
     : public NYTree::TYsonStruct
 {
+    std::optional<int> Size;
+
     REGISTER_YSON_STRUCT(TGangOptions);
 
     static void Register(TRegistrar registrar);
@@ -1623,11 +1631,14 @@ DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
 struct TSimpleOperationSpecBase
     : public TOperationSpecBase
 {
-    //! During sorted merge the scheduler tries to ensure that large connected
-    //! groups of chunks are partitioned into tasks of this or smaller size.
-    //! This number, however, is merely an estimate, i.e. some tasks may still
-    //! be larger.
+    //! During sorted merge, the controller tries to ensure that large, connected
+    //! groups of chunks are partitioned into tasks of this size or greater.
+    //! However, this number is merely an estimate; some tasks may still be
+    //! smaller or significantly larger in some cases.
     std::optional<i64> DataWeightPerJob;
+
+    //! Recomendation for job input compressed data size.
+    std::optional<i64> CompressedDataSizePerJob;
 
     std::optional<int> JobCount;
     std::optional<int> MaxJobCount;

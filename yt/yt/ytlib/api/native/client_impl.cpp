@@ -162,7 +162,6 @@ TClient::TClient(
         Connection_->GetConfig()->FunctionRegistryCache,
         MakeWeak(this),
         Connection_->GetInvoker()))
-    , DummySignatureGenerator_(NSignature::CreateDummySignatureGenerator())
 {
     if (!Options_.User) {
         THROW_ERROR_EXCEPTION("Native connection requires non-null \"user\" parameter");

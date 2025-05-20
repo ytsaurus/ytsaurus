@@ -241,7 +241,7 @@ struct TFairShareStrategySsdPriorityPreemptionConfig
 
     TSchedulingTagFilter NodeTagFilter;
 
-    std::vector<TString> MediumNames;
+    std::vector<std::string> MediumNames;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySsdPriorityPreemptionConfig);
 

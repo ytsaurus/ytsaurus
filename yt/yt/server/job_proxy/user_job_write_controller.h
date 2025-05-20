@@ -21,7 +21,7 @@ public:
     explicit TUserJobWriteController(IJobHostPtr host);
     ~TUserJobWriteController();
 
-    void Init(TCpuInstant ioStartTime);
+    void Init(TInstant ioStartTime);
 
     std::vector<IProfilingMultiChunkWriterPtr> GetWriters() const;
     int GetOutputStreamCount() const;

@@ -23,11 +23,11 @@ using namespace NConcurrency;
 using namespace NHttp;
 using namespace NYTree;
 
-static constexpr auto& Logger = HttpProxyLogger;
+constinit const auto Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::string> GatherHeader(const THeadersPtr& headers, const TString& headerName)
+std::optional<std::string> GatherHeader(const THeadersPtr& headers, const std::string& headerName)
 {
     if (auto singleHeader = headers->Find(headerName)) {
         return *singleHeader;
@@ -40,16 +40,20 @@ std::optional<std::string> GatherHeader(const THeadersPtr& headers, const TStrin
                 << TErrorAttribute("header_name", headerName);
         }
 
-        auto key = headerName + ToString(i);
-        if (auto part = headers->Find(key)) {
-            buffer += *part;
-            continue;
+        {
+            auto key = Format("%v%v", headerName, i);
+            if (auto part = headers->Find(key)) {
+                buffer += *part;
+                continue;
+            }
         }
 
-        key = headerName + "-" + ToString(i);
-        if (auto part = headers->Find(key)) {
-            buffer += *part;
-            continue;
+        {
+            auto key = Format("%v-%v", headerName, i);
+            if (auto part = headers->Find(key)) {
+                buffer += *part;
+                continue;
+            }
         }
 
         if (i == 0) {

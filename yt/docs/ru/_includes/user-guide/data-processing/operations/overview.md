@@ -177,9 +177,9 @@
 Для любой операции можно указать атрибут `cluster` на одной или нескольких входных таблицах. Это приведет к тому, что данные будут прочитаны с указанного кластера.
 Название кластера нужно указывать точно такое же, как для операций RemoteCopy.
 {% if audience == "internal" %}
- Например, чтобы читать с кластера Арнольд, нужно указать `<cluster=arnold>//path/to/table` или `arnold://path/to/table` (см. также [RichYPath](../../../user-guide/storage/ypath.md#rich_ypath)).
+ Например, чтобы читать с кластера Арнольд, нужно указать `<cluster=arnold>//path/to/table` или `arnold://path/to/table` (см. также [RichYPath](../../../../user-guide/storage/ypath.md#rich_ypath)).
 {% else %}
- Например, чтобы читать с кластера `my-cluster`, нужно указать `<cluster=my-cluster>//path/to/table` или `my-cluster://path/to/table` качестве входной таблицы (см. также [RichYPath](../../../user-guide/storage/ypath.md#rich_ypath)).
+ Например, чтобы читать с кластера `my-cluster`, нужно указать `<cluster=my-cluster>//path/to/table` или `my-cluster://path/to/table` качестве входной таблицы (см. также [RichYPath](../../../../user-guide/storage/ypath.md#rich_ypath)).
  Для того, чтобы кластер мог быть использован в качестве входного, он должен быть добавлен администратором в `//sys/clusters`.
 {% endif %}
 

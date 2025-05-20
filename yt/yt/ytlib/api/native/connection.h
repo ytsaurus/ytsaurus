@@ -124,7 +124,7 @@ struct IConnection
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
     virtual NRpc::IChannelPtr FindQueueAgentChannel(TStringBuf stage) const = 0;
-    virtual const NQueueClient::TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
+    virtual const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
 
     virtual std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(const TString& stage) const = 0;
 
@@ -180,6 +180,9 @@ struct IConnection
 
     using TReconfiguredSignature = void(const TConnectionDynamicConfigPtr& newConfig);
     DECLARE_INTERFACE_SIGNAL(TReconfiguredSignature, Reconfigured);
+
+    virtual NSignature::ISignatureGeneratorPtr GetSignatureGenerator() const = 0;
+    virtual void SetSignatureGenerator(NSignature::ISignatureGeneratorPtr generator) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)

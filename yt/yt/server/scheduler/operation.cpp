@@ -39,7 +39,7 @@ using NYT::ToProto;
 
 constexpr int MaxAnnotationValueLength = 128;
 
-static constexpr auto& Logger = SchedulerLogger;
+constinit const auto Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,7 +161,7 @@ TInstant TOperation::GetStartTime() const
     return StartTime_;
 }
 
-TString TOperation::GetAuthenticatedUser() const
+std::string TOperation::GetAuthenticatedUser() const
 {
     return AuthenticatedUser_;
 }

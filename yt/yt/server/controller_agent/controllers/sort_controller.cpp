@@ -4602,7 +4602,7 @@ private:
         }
     }
 
-    void CustomizeJoblet(const TJobletPtr& joblet) override
+    void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& /*allocation*/) override
     {
         switch (joblet->JobType) {
             case EJobType::PartitionMap:

@@ -37,7 +37,7 @@ struct TSlotLocationConfig
     //! Reserve subtracted from disk capacity.
     i64 DiskUsageWatermark;
 
-    TString MediumName;
+    std::string MediumName;
 
     //! Enforce disk space limits using disk quota.
     bool EnableDiskQuota;
@@ -117,7 +117,7 @@ struct TSlotManagerConfig
     TDuration SlotLocationStatisticsUpdatePeriod;
 
     //! Default medium used to run jobs without disk requests.
-    TString DefaultMediumName;
+    std::string DefaultMediumName;
 
     TSlotManagerTestingConfigPtr Testing;
 

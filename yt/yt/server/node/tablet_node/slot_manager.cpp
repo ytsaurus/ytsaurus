@@ -1,18 +1,17 @@
 #include "slot_manager.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "private.h"
 #include "slot_provider.h"
-#include "tablet_slot.h"
 #include "structured_logger.h"
+#include "tablet_slot.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -40,7 +39,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

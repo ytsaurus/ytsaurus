@@ -39,7 +39,7 @@ struct TCountingFilterAttributes
 
 using TCountByPoolTree = THashMap<TString, i64>;
 using TCountByPool = THashMap<TString, i64>;
-using TCountByUser = THashMap<TString, i64>;
+using TCountByUser = THashMap<std::string, i64>;
 using TCountByType = TEnumIndexedArray<NScheduler::EOperationType, i64>;
 using TCountByState = TEnumIndexedArray<NScheduler::EOperationState, i64>;
 

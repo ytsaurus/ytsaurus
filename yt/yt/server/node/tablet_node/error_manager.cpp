@@ -1,12 +1,12 @@
 #include "error_manager.h"
+
 #include "bootstrap.h"
+#include "config.h"
 #include "tablet.h"
 #include "tablet_snapshot_store.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/core/concurrency/fls.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -151,7 +151,7 @@ public:
         DeduplicationCache_->SetExpirationTimeout(config->DeduplicationCacheTimeout);
     }
 
-    void HandleError(const TError& error, const TString& method) override
+    void HandleError(const TError& error, const std::string& method) override
     {
         auto context = *Context;
 

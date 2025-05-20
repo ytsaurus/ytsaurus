@@ -433,7 +433,7 @@ TSequoiaSessionPtr TSequoiaSession::Start(
     // Best effort pre-check for mutating requests before starting execution of master commit sessions,
     // doesn't guarantee that prerequisite transactions will be alive during execution on master.
     if (dynamicConfig->ObjectService->EnableFastPathPrerequisiteTransactionCheck) {
-        ValidatePrerequisites(sequoiaClient, cypressPrerequisiteTransactionIds);
+        ValidatePrerequisiteTransactions(sequoiaClient, cypressPrerequisiteTransactionIds);
     }
 
     auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(sequoiaClient, ESequoiaTransactionType::CypressModification, cypressPrerequisiteTransactionIds))

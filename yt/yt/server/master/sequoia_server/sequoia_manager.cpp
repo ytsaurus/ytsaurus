@@ -35,7 +35,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SequoiaServerLogger;
+constinit const auto Logger = SequoiaServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +52,7 @@ public:
 
     virtual void StartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request)
     {
-        YT_ASSERT_THREAD_AFFINITY(Automaton);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // There is a common problem: if user got OK response on his request
         // there is no any guarantees that 2PC transaction was actually
@@ -77,17 +77,17 @@ public:
     }
 
 private:
-    DECLARE_THREAD_AFFINITY_SLOT(Automaton);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void ValidateWritePrerequisites(const std::vector<TTransactionId>& prerequisiteTransactionIds) const
     {
-        YT_ASSERT_THREAD_AFFINITY(Automaton);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        // Fast path.
         if (!Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases) {
             return;
         }
 
-        // Fast path.
         if (prerequisiteTransactionIds.empty()) {
             return;
         }
@@ -155,7 +155,11 @@ private:
 
         for (const auto& protoData : request->actions()) {
             auto data = FromProto<TTransactionActionData>(protoData);
-            transaction->Actions().push_back(data);
+            auto& action = transaction->Actions().emplace_back(std::move(data));
+
+            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
+                transactionId,
+                action.Type);
         }
 
         transaction->SetAuthenticationIdentity(std::move(identity));

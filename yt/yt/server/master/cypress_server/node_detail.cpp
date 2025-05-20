@@ -38,7 +38,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CypressServerLogger;
+constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -396,17 +396,6 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCoreEpilogue(
     securityManager->ResetAccount(branchedNode);
 
     securityManager->UpdateMasterMemoryUsage(originatingNode);
-
-    if (originatingNode->IsSequoia() && originatingNode->IsNative()) {
-        if (branchedNode->MutableSequoiaProperties()->Tombstone) {
-            if (originatingNode->IsTrunk()) {
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                objectManager->UnrefObject(originatingNode);
-            } else {
-                originatingNode->MutableSequoiaProperties()->Tombstone = true;
-            }
-        }
-    }
 }
 
 TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
@@ -453,9 +442,7 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     // Copy ACD.
     if (factory->ShouldPreserveAcl(mode)) {
         clonedTrunkNode->Acd().SetInherit(sourceNode->Acd().Inherit());
-        for (const auto& ace : sourceNode->Acd().Acl().Entries) {
-            clonedTrunkNode->Acd().AddEntry(ace);
-        }
+        clonedTrunkNode->Acd().SetEntries(sourceNode->Acd().Acl());
     }
 
     // Copy builtin attributes.

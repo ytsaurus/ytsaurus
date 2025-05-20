@@ -7,6 +7,7 @@ SRCS(
     api_service.cpp
     config.cpp
     format_row_stream.cpp
+    multiconnection_client_cache.cpp
     multiproxy_access_validator.cpp
     profilers.cpp
     helpers.cpp

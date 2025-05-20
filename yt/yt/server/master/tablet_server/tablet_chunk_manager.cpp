@@ -57,7 +57,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletServerLogger;
+constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -840,7 +840,7 @@ public:
             hunkChunksToDetach,
             table->IsPhysicallySorted()
                 ? EChunkDetachPolicy::SortedTablet
-                : EChunkDetachPolicy::OrderedTabletPrefix);
+                : EChunkDetachPolicy::OrderedTabletHunk);
 
         // Unstage just attached chunks.
         for (auto chunk : chunksToAttach) {
@@ -1059,9 +1059,13 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (policy == EChunkDetachPolicy::OrderedTabletPrefix ||
-            policy == EChunkDetachPolicy::OrderedTabletSuffix)
+            policy == EChunkDetachPolicy::OrderedTabletSuffix ||
+            policy == EChunkDetachPolicy::OrderedTabletHunk)
         {
-            chunkManager->DetachFromChunkList(tablet->GetChunkList(), chunkTrees, policy);
+            auto* chunkList = policy == EChunkDetachPolicy::OrderedTabletHunk
+                ? tablet->GetHunkChunkList()
+                : tablet->GetChunkList();
+            chunkManager->DetachFromChunkList(chunkList, chunkTrees, policy);
             return;
         }
 

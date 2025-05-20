@@ -1,8 +1,9 @@
 #include "store_rotator.h"
 
-#include "tablet.h"
-#include "store.h"
+#include "config.h"
 #include "partition.h"
+#include "store.h"
+#include "tablet.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/private.h>
@@ -19,7 +20,7 @@ using namespace NTabletNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = NTabletNode::TabletNodeLogger;
+constinit const auto Logger = NTabletNode::TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,19 +62,14 @@ public:
     {
         BackendState_ = state;
 
-        const auto& dynamicConfig = BackendState_.TabletNodeDynamicConfig->StoreFlusher;
-        const auto& config = BackendState_.TabletNodeConfig;
-        MinForcedFlushDataSize_ = dynamicConfig->MinForcedFlushDataSize.value_or(
-            config->StoreFlusher->MinForcedFlushDataSize);
-
         BundleMemoryDigests_.clear();
         ForcedRotationCandidates_.clear();
         SavedTablets_.clear();
         MemoryDigest_ = {};
 
-        ForcedRotationMemoryRatio_ =
-            dynamicConfig->ForcedRotationMemoryRatio.value_or(
-                config->ForcedRotationMemoryRatio);
+        const auto& config = BackendState_.TabletNodeConfig;
+        MinForcedFlushDataSize_ = config->MinForcedFlushDataSize;
+        ForcedRotationMemoryRatio_ = config->ForcedRotationMemoryRatio;
     }
 
     TLsmActionBatch BuildLsmActions(

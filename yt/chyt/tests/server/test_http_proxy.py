@@ -55,7 +55,7 @@ def _generate_session_id() -> str:
 
 
 class TestClickHouseHttpProxy(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
 
     ENABLE_TLS = True
     ENABLE_CHYT_HTTPS_PROXIES = True

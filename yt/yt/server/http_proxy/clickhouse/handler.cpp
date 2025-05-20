@@ -286,7 +286,7 @@ private:
     struct TUserAndToken
     {
         std::string User;
-        TString Token;
+        std::string Token;
     };
 
     TErrorOr<TUserAndToken> ParseUserAndTokenFromAuthorizationHeader(TStringBuf authorization) const
@@ -307,7 +307,9 @@ private:
             if (userAndToken.size() == 2) {
                 result = TUserAndToken{.User=std::move(userAndToken[0]), .Token=std::move(userAndToken[1])};
             } else {
-                return TError("Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected (CredentialsDecoded: %v)", credentialsDecoded);
+                return TError(
+                    "Wrong 'Basic' authorization header format; 'default:<oauth-token>' encoded with base64 expected (CredentialsDecoded: %v)",
+                    credentialsDecoded);
             }
 
         } else {

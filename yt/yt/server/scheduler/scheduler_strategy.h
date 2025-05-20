@@ -57,8 +57,8 @@ struct ISchedulerStrategyHost
     virtual void SerializeResources(const TJobResourcesWithQuota& resources, NYson::IYsonConsumer* consumer) const = 0;
     virtual void SerializeDiskQuota(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const = 0;
 
-    virtual std::optional<int> FindMediumIndexByName(const TString& mediumName) const = 0;
-    virtual const TString& GetMediumNameByIndex(int mediumIndex) const = 0;
+    virtual std::optional<int> FindMediumIndexByName(const std::string& mediumName) const = 0;
+    virtual const std::string& GetMediumNameByIndex(int mediumIndex) const = 0;
 
     virtual TInstant GetConnectionTime() const = 0;
 
@@ -98,7 +98,7 @@ struct ISchedulerStrategyHost
 
     virtual TFuture<void> UpdateLastMeteringLogTime(TInstant time) = 0;
 
-    virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const = 0;
+    virtual const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -261,7 +261,7 @@ struct ISchedulerStrategy
 
     virtual void UpdatePoolTrees(const NYson::TYsonString& poolTreesYson) = 0;
 
-    virtual TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
+    virtual TError UpdateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) = 0;
 
     //! Initializes persistent strategy state.
     virtual void InitPersistentState(const TPersistentStrategyStatePtr& persistentStrategyState) = 0;

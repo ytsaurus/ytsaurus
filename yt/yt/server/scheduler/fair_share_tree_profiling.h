@@ -65,7 +65,7 @@ private:
     struct TOperationUserProfilingTag
     {
         TString PoolId;
-        TString UserName;
+        std::string UserName;
         std::optional<TString> CustomTag;
 
         bool operator==(const TOperationUserProfilingTag& other) const = default;

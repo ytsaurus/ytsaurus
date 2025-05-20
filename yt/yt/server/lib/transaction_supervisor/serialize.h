@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/server/lib/hydra/serialize.h>
 
 namespace NYT::NTransactionSupervisor {

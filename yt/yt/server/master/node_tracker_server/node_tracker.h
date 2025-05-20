@@ -258,6 +258,11 @@ public:
     virtual std::optional<NNodeTrackerClient::TAggregatedNodeStatistics> GetDataCenterNodeStatistics(
         const TDataCenter* dataCenter) = 0;
 
+    //! Returns cluster node statistics, aggregated over all nodes with a given flavor within a given data center.
+    virtual std::optional<NNodeTrackerClient::TAggregatedNodeStatistics> GetDataCenterFlavoredNodeStatistics(
+        const TDataCenter* dataCenter,
+        ENodeFlavor flavor) = 0;
+
     //! Returns the number of nodes with ENodeState::Online aggregated state.
     virtual int GetOnlineNodeCount() = 0;
 

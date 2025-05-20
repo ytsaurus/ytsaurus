@@ -78,7 +78,7 @@ using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -222,7 +222,8 @@ public:
             auto layerBlockCache = CreateClientBlockCache(
                 blockCacheConfig,
                 EBlockType::CompressedData,
-                GetNullMemoryUsageTracker());
+                GetNullMemoryUsageTracker(),
+                ExecNodeProfiler().WithPrefix("/layer_block_cache"));
 
             LayerReaderHost_ = New<TChunkReaderHost>(
                 client,

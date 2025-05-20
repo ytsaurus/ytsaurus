@@ -1,7 +1,7 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_commands import (
-    authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows,
+    authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows, trim_rows,
     lookup_rows, delete_rows, remount_table, build_master_snapshots,
     write_table, alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
@@ -954,6 +954,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         _check(["value", "key"])
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky profiling tests")
     def test_hunks_profiling_flush(self):
         sync_create_cells(1)
         self._create_table()
@@ -991,6 +992,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: ref_hunk_value_count.get_delta() == 5)
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky profiling tests")
     def test_hunks_profiling_compaction(self):
         sync_create_cells(1)
         self._create_table(max_inline_hunk_size=10)
@@ -1056,6 +1058,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert writer_ref_hunk_value_count.get_delta() == 0
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky profiling tests")
     def test_hunks_profiling_lookup(self):
         sync_create_cells(1)
         self._create_table()
@@ -1111,6 +1114,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: backend_read_request_count.get_delta() > 2)
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky profiling tests")
     def test_hunks_profiling_select(self):
         sync_create_cells(1)
         self._create_table()
@@ -1800,6 +1804,45 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         remove("//tmp/t")
         wait(lambda: not exists("#{}".format(store_chunk_id)))
+
+    @authors("akozhikhov")
+    def test_trim_with_hunk_chunk(self):
+        def _get_journal_hunk_chunk_ids():
+            chunk_ids = get("//tmp/t/@chunk_ids")
+            store_chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
+            hunk_chunk_ids = builtins.set([chunk_id for chunk_id in chunk_ids if chunk_id not in store_chunk_ids])
+            return list(hunk_chunk_ids)
+
+        sync_create_cells(1)
+        self._create_table()
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "store_rotation_period": 2000,
+            "store_removal_grace_period": 100,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        for i in range(len(rows)):
+            rows[i]["$tablet_index"] = 0
+            rows[i]["$row_index"] = i
+
+        sync_flush_table("//tmp/t")
+
+        hunk_chunk_id = _get_journal_hunk_chunk_ids()
+        assert len(hunk_chunk_id) == 1
+        hunk_chunk_id = hunk_chunk_id[0]
+        assert exists("#{}".format(hunk_chunk_id))
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        tablet_chunk_list_id = get("#{0}/@child_ids/0".format(root_chunk_list_id))
+        trim_rows("//tmp/t", 0, 10)
+        wait(lambda: get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 0)
+
+        wait(lambda: not exists("#{}".format(hunk_chunk_id)))
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])

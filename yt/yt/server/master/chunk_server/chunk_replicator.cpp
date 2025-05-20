@@ -99,7 +99,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2931,9 +2931,9 @@ void TChunkReplicator::OnCheckEnabledPrimary()
 
 void TChunkReplicator::OnCheckEnabledSecondary()
 {
-    auto proxy = CreateObjectServiceReadProxy(
-        Bootstrap_->GetRootClient(),
-        NApi::EMasterChannelKind::Leader);
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+        multicellManager->GetMasterChannelOrThrow(PrimaryMasterCellTagSentinel, NHydra::EPeerKind::Leader));
 
     auto [enabledRsp, faultyStorageDCsRsp] = WaitFor(proxy.ExecuteMany(
         TYPathProxy::Get("//sys/@chunk_replicator_enabled"),

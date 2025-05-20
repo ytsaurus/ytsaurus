@@ -7,6 +7,7 @@ type MetricsOpts struct {
 	tags       map[string]string
 	timestamp  *time.Time
 	memOnly    bool
+	rated      bool
 }
 
 type MetricOpt func(*MetricsOpts)
@@ -32,5 +33,11 @@ func WithTimestamp(t time.Time) func(*MetricsOpts) {
 func WithMemOnly() func(*MetricsOpts) {
 	return func(m *MetricsOpts) {
 		m.memOnly = true
+	}
+}
+
+func WithRated(rated bool) func(*MetricsOpts) {
+	return func(m *MetricsOpts) {
+		m.rated = rated
 	}
 }

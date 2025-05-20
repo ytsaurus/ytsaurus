@@ -27,7 +27,7 @@ namespace NYT::NContainers {
 using namespace NConcurrency;
 using namespace NProfiling;
 
-static constexpr auto& Logger = ContainersLogger;
+constinit const auto Logger = ContainersLogger;
 
 #ifdef _linux_
 

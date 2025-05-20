@@ -31,7 +31,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TransactionServerLogger;
+constinit const auto Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -220,7 +220,6 @@ void TTransaction::TExportEntry::Persist(const NCellMaster::TPersistenceContext&
 
 TTransaction::TTransaction(TTransactionId id, bool upload)
     : TTransactionBase(id)
-    , Parent_(nullptr)
     , StartTime_(TInstant::Zero())
     , Acd_(this)
     , Upload_(upload)
@@ -498,6 +497,13 @@ void TTransaction::SetSuccessorTransactionLeaseCount(int newLeaseCount)
 int TTransaction::GetSuccessorTransactionLeaseCount() const
 {
     return SuccessorTransactionLeaseCount_;
+}
+
+auto TTransaction::GetActionStateFactory() -> IActionStateFactory*
+{
+    return GetBootstrap()
+        ->GetTransactionManager()
+        ->GetTransactionActionStateFactory();
 }
 
 namespace {

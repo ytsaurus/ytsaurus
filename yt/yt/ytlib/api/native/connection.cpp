@@ -88,6 +88,8 @@
 
 #include <yt/yt/client/sequoia_client/public.h>
 
+#include <yt/yt/client/signature/generator.h>
+
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -110,8 +112,7 @@
 
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/lazy_ptr.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -132,6 +133,7 @@ using namespace NQueryTrackerClient;
 using namespace NQueueClient;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NSignature;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
@@ -200,6 +202,8 @@ public:
         , DownedCellTracker_(New<TDownedCellTracker>(Config_.Acquire()->DownedCellTracker))
         , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
+        // NB(pavook): we can't hurt anybody by generating fake signatures.
+        , SignatureGenerator_(GetDummySignatureGenerator())
     { }
 
     void Initialize()
@@ -259,7 +263,7 @@ public:
             GetNetworks());
 
         InitializeQueueAgentChannels();
-        QueueConsumerRegistrationManager_ = New<TQueueConsumerRegistrationManager>(
+        QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
             config->QueueAgent->QueueConsumerRegistrationManager,
             this,
             GetInvoker(),
@@ -642,7 +646,7 @@ public:
         return it->second;
     }
 
-    const TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
     {
         return QueueConsumerRegistrationManager_;
     }
@@ -966,7 +970,7 @@ private:
     IChannelPtr BundleControllerChannel_;
 
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
-    TQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
+    IQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;
     ITableMountCachePtr TableMountCache_;
@@ -1009,6 +1013,8 @@ private:
     std::atomic<bool> Terminated_ = false;
 
     std::string ShuffleServiceAddress_;
+
+    ISignatureGeneratorPtr SignatureGenerator_;
 
     void ConfigureMasterCells()
     {
@@ -1057,7 +1063,7 @@ private:
                     .BeginMap()
                         .Item("channel_attributes").Value(TimestampProviderChannel_->GetEndpointAttributes())
                     .EndMap()
-                .Item("queue_consumer_registration_manager").Do(std::bind(&TQueueConsumerRegistrationManager::BuildOrchid, QueueConsumerRegistrationManager_, _1))
+                .Item("queue_consumer_registration_manager").Do(std::bind(&IQueueConsumerRegistrationManager::BuildOrchid, QueueConsumerRegistrationManager_, _1))
             .EndMap();
     }
 
@@ -1193,7 +1199,7 @@ private:
         }
         ClusterDirectory_->SubscribeOnClusterUpdated(
             BIND_NO_PROPAGATE([tvmService] (const std::string& name, INodePtr nativeConnectionConfig) {
-                static constexpr auto& Logger = TvmSynchronizerLogger;
+                const auto& Logger = TvmSynchronizerLogger();
 
                 NNative::TConnectionDynamicConfigPtr config;
                 try {
@@ -1294,6 +1300,16 @@ private:
     IChannelPtr CreateChannelByAddress(const std::string& address) override
     {
         return ChannelFactory_->CreateChannel(address);
+    }
+
+    ISignatureGeneratorPtr GetSignatureGenerator() const override
+    {
+        return SignatureGenerator_;
+    }
+
+    void SetSignatureGenerator(ISignatureGeneratorPtr signatureGenerator) override
+    {
+        SignatureGenerator_ = std::move(signatureGenerator);
     }
 };
 

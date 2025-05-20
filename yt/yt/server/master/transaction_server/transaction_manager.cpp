@@ -164,7 +164,11 @@ private:
 class TTransactionManager
     : public TMasterAutomatonPart
     , public ITransactionManager
-    , public TTransactionManagerBase<TTransaction>
+    , public TTransactionManagerBase<
+        TTransaction,
+        NCellMaster::TSaveContext,
+        NCellMaster::TLoadContext
+    >
 {
 public:
     //! Raised when a new transaction is started.
@@ -190,9 +194,9 @@ public:
             Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
             TransactionServerLogger()))
     {
-        TransactionServerProfiler().AddProducer("", BufferedProducer_);
-
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
+
+        TransactionServerProfiler().AddProducer("", BufferedProducer_);
 
         Logger = TransactionServerLogger();
 
@@ -1328,11 +1332,17 @@ public:
         object->ImportRefObject();
     }
 
-    void DoRegisterTransactionActionHandlers(
-        TTransactionActionDescriptor<TTransaction> descriptor) override
+    using ITransactionManager::RegisterTransactionActionHandlers;
+
+    void RegisterTransactionActionHandlers(TTypeErasedTransactionActionDescriptor descriptor) override
     {
-        TTransactionManagerBase<TTransaction>::DoRegisterTransactionActionHandlers(
+        TTransactionManagerBase::RegisterTransactionActionHandlers(
             std::move(descriptor));
+    }
+
+    ITransactionActionStateFactory* GetTransactionActionStateFactory() override
+    {
+        return this;
     }
 
     void ExportObject(
@@ -1545,7 +1555,22 @@ public:
 
         TTransactionContextGuard guard(Bootstrap_, transaction);
 
-        RunPrepareTransactionActions(transaction, options);
+        if (transaction->IsSequoiaTransaction()) {
+            try {
+                RunPrepareTransactionActions(transaction, options);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    NSequoiaClient::EErrorCode::TransactionActionFailedOnMasterCell,
+                    "Prepare action for Sequoia transaction %v failed on master participant %v",
+                    transaction->GetId(),
+                    Bootstrap_->GetCellId())
+                    << TErrorAttribute("sequoia_transaction_id", transaction->GetId())
+                    << TErrorAttribute("master_cell_id", Bootstrap_->GetCellId())
+                    << ex;
+            }
+        } else {
+            RunPrepareTransactionActions(transaction, options);
+        }
 
         if (persistent) {
             transaction->SetPersistentState(ETransactionState::PersistentCommitPrepared);
@@ -2106,7 +2131,7 @@ public:
         }
     }
 
-    TEntityMap<TTransaction>* MutableTransactionMap() override
+    TMutableEntityMap<TTransaction>* MutableTransactionMap() override
     {
         return &TransactionMap_;
     }
@@ -2171,7 +2196,6 @@ private:
     bool FixExportedObjectsRefs_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
 
     // This should become a mutation used to create system transactions only.
     void HydraStartTransaction(
@@ -2413,11 +2437,11 @@ private:
 
         for (const auto& protoData : request->actions()) {
             auto data = FromProto<TTransactionActionData>(protoData);
-            transaction->Actions().push_back(data);
+            auto& action = transaction->Actions().emplace_back(std::move(data));
 
             YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
-                data.Type);
+                action.Type);
         }
     }
 

@@ -36,7 +36,7 @@ public:
             peer->HydraManager_,
             peer->GetAutomatonInvoker(),
             TPeerServiceProxy::GetDescriptor(),
-            HydraStressTestLogger,
+            HydraStressTestLogger(),
             CreateHydraManagerUpstreamSynchronizer(peer->HydraManager_))
         , Peer_(peer)
     {

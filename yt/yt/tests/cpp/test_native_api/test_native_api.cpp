@@ -959,12 +959,13 @@ protected:
 
         auto columnId = writer->GetNameTable()->GetIdOrRegisterName("key");
         std::vector<TUnversionedRow> rows;
+        auto rowBuffer = New<TRowBuffer>();
 
         for (auto i = 0; i < valueCount; ++i) {
             TUnversionedRowBuilder rowBuilder;
             // Same value to allow sequential concatinations for sorted table.
             rowBuilder.AddValue(MakeUnversionedInt64Value(10, columnId));
-            rows.push_back(rowBuilder.GetRow());
+            rows.push_back(rowBuffer->CaptureRow(rowBuilder.GetRow()));
         }
 
         YT_VERIFY(writer->Write(rows));

@@ -84,7 +84,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TableServerLogger;
+constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1285,10 +1285,8 @@ public:
                 if (multicellManager->GetCellTag() != cellTag) {
                     YT_LOG_DEBUG("Requesting queue agent objects from secondary cell (CellTag: %v)",
                         cellTag);
-                    auto proxy = CreateObjectServiceReadProxy(
-                        Bootstrap_->GetRootClient(),
-                        NApi::EMasterChannelKind::Follower,
-                        cellTag);
+                    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+                        multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
                     auto req = TYPathProxy::Get("//sys/@queue_agent_object_revisions");
                     asyncResults.push_back(proxy.Execute(req));
                 }

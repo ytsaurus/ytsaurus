@@ -57,7 +57,7 @@ struct TRemoteWriterOptions
     : public virtual TMemoryTrackedWriterOptions
 {
     bool AllowAllocatingNewTargetNodes;
-    TString MediumName;
+    std::string MediumName;
     TPlacementId PlacementId;
 
     REGISTER_YSON_STRUCT(TRemoteWriterOptions);

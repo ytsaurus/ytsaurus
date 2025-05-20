@@ -40,7 +40,7 @@ func newDecompressor(filepath string, offset int64) (*decompressor, error) {
 	}
 	fileReader := &ctxReader{ctx: context.Background(), read: ff.ReadContext}
 	decoder, err := zstd.NewReader(fileReader,
-		zstd.WithDecoderMaxMemory(512<<20), // 512 MiB
+		zstd.WithDecoderMaxMemory(256<<20), // 256 MiB
 		zstd.WithDecoderConcurrency(1),
 	)
 	if err != nil {

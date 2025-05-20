@@ -58,6 +58,9 @@ DEFINE_ENUM(ESnapshotVersion,
     ((NewUnorderedChunkPoolSlicing)          (301718))
     // 25.2 starts here
     ((BumpTo_25_2)                           (301800))
+    ((CompressedDataSizePerJob)              (301801))
+    ((DropSolidFromChunkStripe)              (301802))
+    ((GangRanks)                             (301803))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

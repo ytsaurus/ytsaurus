@@ -179,6 +179,7 @@ private:
 
                 balancingAttributes->set_dynamic(table->IsDynamic());
                 balancingAttributes->set_in_memory_mode(ToProto(table->GetInMemoryMode()));
+                ToProto(balancingAttributes->mutable_upstream_replica_id(), table->GetUpstreamReplicaId());
 
                 auto config = ConvertToYsonString(table->TabletBalancerConfig()).ToString();
                 balancingAttributes->set_tablet_balancer_config(config);

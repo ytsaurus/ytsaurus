@@ -8,20 +8,17 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
-{% cut "**0.13.27**" %}
+{% cut "**0.13.28**" %}
 
-**Release date:** 2025-04-18
+**Release date:** 2025-04-30
 
 
-### Features
-* Active users of dynamic tables APIs are encouraged to use RPC proxies
-* Support using /api/v4/discover_proxies handler instead of /hosts
+## Features
 
-### Fixes
-* Error on getting `impersonation_user` setting from configuration
+- Turn on `redirect_stdout_to_stderr` by default
+- Add password strength validation in `set_user_password` request
 
 {% endcut %}
-
 
 {% cut "**0.13.27**" %}
 
@@ -85,7 +82,7 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 * Drop python2 related code in `_py_runner.py`
 * Add `python_requires=">=3.8"` to package setup
 * Do not request all attributes in operation exists check
-* Fix handling request timeout of `start_operation` command 
+* Fix handling request timeout of `start_operation` command
 
 {% endcut %}
 
@@ -205,7 +202,7 @@ Thanks to multiple outside contributors for the active participation in Python S
 **Release date:** 2024-06-26
 
 
-Features: 
+Features:
   - Support profiles in configuration file
   - Add versioned select
   - Add enum.StrEnum and enum.IntEnum support for yt_dataclasses

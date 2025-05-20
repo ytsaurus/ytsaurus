@@ -72,7 +72,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = KafkaProxyLogger;
+constinit const auto Logger = KafkaProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,6 +114,7 @@ public:
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoSaslAuthenticate, Unretained(this)));
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoProduce, Unretained(this)));
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoListOffsets, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoCreateTopics, Unretained(this)));
     }
 
     void Start() override
@@ -514,6 +515,11 @@ private:
                 .ApiKey = static_cast<int>(ERequestType::Produce),
                 .MinVersion = 0,
                 .MaxVersion = 8,
+            },
+            TRspApiKey{
+                .ApiKey = static_cast<int>(ERequestType::CreateTopics),
+                .MinVersion = 2,
+                .MaxVersion = 2,
             },
             /*
             // TODO(nadya73): Support it later.
@@ -1129,6 +1135,81 @@ private:
                     partitionResponse.Offset = tabletInfos[partitionOffset].TotalRowCount;
                 } else {
                     partitionResponse.ErrorCode = NKafka::EErrorCode::InvalidTimestamp;
+                }
+            }
+        }
+
+        return response;
+    }
+
+    DEFINE_KAFKA_HANDLER(CreateTopics)
+    {
+        YT_LOG_DEBUG("Start to handle CreateTopics request (TopicsCount: %v)", request.Topics.size());
+
+        auto connectionState = GetConnectionState(connectionId);
+
+        auto userName = GetUserName(connectionId);
+        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(userName));
+
+        TRspCreateTopics response;
+        response.Topics.reserve(request.Topics.size());
+
+        for (const auto& topic : request.Topics) {
+            auto& topicResponse = response.Topics.emplace_back();
+            topicResponse.Name = topic.Name;
+
+            auto path = TRichYPath::Parse(GetQueuePath(topic.Name));
+
+            static const auto kafkaSchema = NKafka::NRecords::TKafkaMessageDescriptor::Get()->GetSchema()->ToCreate();
+
+            // TODO(nadya73): Add `cumulative_data_weight` and `timestamp` in the queue schema.
+            TCreateNodeOptions options;
+            options.Recursive = true;
+            options.IgnoreExisting = true;
+            options.Attributes = CreateEphemeralAttributes();
+            options.Attributes->Set("dynamic", true);
+            options.Attributes->Set("schema", *kafkaSchema);
+            if (topic.NumPartitions > 0) {
+                options.Attributes->Set("tablet_count", topic.NumPartitions);
+            } else {
+                // TODO(nadya73): Fix me.
+                options.Attributes->Set("tablet_count", topic.Assignments.size());
+            }
+            if (topic.ReplicationFactor > 0) {
+                options.Attributes->Set("replication_factor", topic.ReplicationFactor);
+            }
+
+            // TODO(nadya73): Handle Configs field too.
+
+            auto createResultOrError = WaitFor(client->CreateNode(path.GetPath(), EObjectType::Table, options));
+
+            if (!createResultOrError.IsOK()) {
+                YT_LOG_DEBUG(createResultOrError,
+                    "Failed to create queue (Topic: %v, QueuePath: %v)",
+                    topic.Name,
+                    path);
+
+                topicResponse.ErrorMessage = "Failed to create queue";
+                if (createResultOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
+                    topicResponse.ErrorCode = NKafka::EErrorCode::TopicAuthorizationFailed;
+                } else {
+                    topicResponse.ErrorCode = NKafka::EErrorCode::UnknownServerError;
+                }
+                continue;
+            }
+
+            auto mountResultOrError = WaitFor(client->MountTable(path.GetPath()));
+            if (!mountResultOrError.IsOK()) {
+                YT_LOG_DEBUG(mountResultOrError,
+                    "Failed to mount topic (Topic: %v, QueuePath: %v)",
+                    topic.Name,
+                    path);
+
+                topicResponse.ErrorMessage = "Failed to mount queue";
+                if (createResultOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
+                    topicResponse.ErrorCode = NKafka::EErrorCode::TopicAuthorizationFailed;
+                } else {
+                    topicResponse.ErrorCode = NKafka::EErrorCode::UnknownServerError;
                 }
             }
         }

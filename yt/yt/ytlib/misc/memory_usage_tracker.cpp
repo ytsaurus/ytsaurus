@@ -10,8 +10,6 @@
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
-
 #include <algorithm>
 
 namespace NYT {

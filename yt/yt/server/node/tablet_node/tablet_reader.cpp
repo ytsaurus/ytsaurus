@@ -1,12 +1,13 @@
 #include "tablet_reader.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "partition.h"
 #include "private.h"
+#include "sorted_chunk_store.h"
 #include "store.h"
 #include "tablet.h"
 #include "tablet_slot.h"
-#include "sorted_chunk_store.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -53,7 +54,7 @@ using NTransactionClient::TReadTimestampRange;
 
 struct TTabletReaderPoolTag { };
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 static constexpr TDuration DefaultMaxOverdraftDuration = TDuration::Minutes(1);
 

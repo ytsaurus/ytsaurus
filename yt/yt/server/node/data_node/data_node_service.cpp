@@ -950,7 +950,7 @@ private:
         if (GetDynamicConfig()->PropagateCachedBlockInfosToProbing) {
             auto cachedBlocks = Bootstrap_->GetBlockCache()->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData);
             for (const auto& blockInfo : cachedBlocks) {
-                TProbeBlockSetBlockInfo* protoBlockInfo = response->add_cached_blocks();
+                auto* protoBlockInfo = response->add_cached_blocks();
                 protoBlockInfo->set_block_index(blockInfo.BlockIndex);
                 protoBlockInfo->set_block_size(blockInfo.BlockSize);
                 cachedBlockSize += blockInfo.BlockSize;

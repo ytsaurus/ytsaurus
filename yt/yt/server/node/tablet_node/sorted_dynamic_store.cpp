@@ -1,11 +1,10 @@
 #include "sorted_dynamic_store.h"
 
 #include "automaton.h"
+#include "config.h"
+#include "serialize.h"
 #include "tablet.h"
 #include "transaction.h"
-#include "serialize.h"
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>

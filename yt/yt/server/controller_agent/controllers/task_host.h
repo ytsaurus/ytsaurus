@@ -64,7 +64,7 @@ struct ITaskHost
      *  \note Invoker affinity: JobSpecBuildInvoker.
      */
     virtual void CustomizeJobSpec(const TJobletPtr& joblet, NControllerAgent::NProto::TJobSpec* jobSpec) const = 0;
-    virtual void CustomizeJoblet(const TJobletPtr& joblet) = 0;
+    virtual void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& allocation) = 0;
 
     virtual void AddValueToEstimatedHistogram(const TJobletPtr& joblet) = 0;
     virtual void RemoveValueFromEstimatedHistogram(const TJobletPtr& joblet) = 0;

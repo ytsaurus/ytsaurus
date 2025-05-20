@@ -50,7 +50,7 @@ struct IMasterConnector
 
     // Called by master connectors after fatal error during communication with master.
     // It resets master connector state and re-registers node at master.
-    virtual void ResetAndRegisterAtMaster(bool firstTime = false) = 0;
+    virtual void ResetAndRegisterAtMaster(ERegistrationReason reason) = 0;
 
     //! Returns the channel used for communication with a leader of a given cell.
     /*!

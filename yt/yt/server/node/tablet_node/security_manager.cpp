@@ -1,9 +1,9 @@
 #include "security_manager.h"
+
 #include "bootstrap.h"
+#include "config.h"
 #include "private.h"
 #include "tablet.h"
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -23,7 +23,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -284,7 +284,7 @@ TSecurityManager::~TSecurityManager() = default;
 
 TFuture<void> TSecurityManager::CheckResourceLimits(
     const std::string& account,
-    const TString& mediumName,
+    const std::string& mediumName,
     const std::optional<std::string>& tabletCellBundle,
     EInMemoryMode inMemoryMode)
 {

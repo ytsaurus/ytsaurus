@@ -84,9 +84,15 @@ struct ITransactionManager
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
-        TGuid externalizationToken = {}) = 0;
+        TTransactionExternalizationToken externalizationToken = {}) = 0;
 
     virtual void PerRowSerialized(TTransaction* transaction) = 0;
+
+    //! Finds a transaction by id and/or externalization token.
+    //! Either transient or persistent transaction may be returned.
+    virtual TTransaction* FindTransaction(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken token = {}) = 0;
 
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.
@@ -97,7 +103,9 @@ struct ITransactionManager
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.
     //! Fails if a transient instance is found or no transaction is found.
-    virtual TTransaction* GetPersistentTransaction(TTransactionId transactionId) = 0;
+    virtual TTransaction* GetPersistentTransaction(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken token = {}) = 0;
 
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.
@@ -109,6 +117,10 @@ struct ITransactionManager
     //! Returns the full list of transactions, including transient and persistent.
     virtual std::vector<TTransaction*> GetTransactions() = 0;
 
+    //! Forcefully aborts all transactions externalized to this cell with a certain token.
+    virtual void AbortTransactionsExternalizedToThisCell(
+        TTransactionExternalizationToken token) = 0;
+
     //! Schedules a mutation that creates a given transaction (if missing) and
     //! registers a set of actions.
     virtual TFuture<void> RegisterTransactionActions(
@@ -118,12 +130,11 @@ struct ITransactionManager
         TTransactionSignature signature,
         ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions) = 0;
 
-    template <class TProto>
-    void RegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction, TProto> descriptor);
-
     virtual void RegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTransactionActionDescriptor<TTransaction> descriptor) = 0;
+        TTypeErasedTransactionActionDescriptor descriptor) = 0;
+    template <class TProto, class TState = void>
+    void RegisterTransactionActionHandlers(
+        TTypedTransactionActionDescriptor<TProto, TState> descriptor);
 
     //! Increases transaction commit signature.
     // NB: After incrementing transaction may become committed and destroyed.

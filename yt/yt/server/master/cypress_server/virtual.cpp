@@ -362,6 +362,8 @@ TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchRemoteItems(
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
         multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+    // TODO(nadya02): Set the correct timeout here.
+    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetUser(user->GetName());
 
@@ -371,6 +373,7 @@ TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchRemoteItems(
     for (const auto& item : items) {
         auto req = TYPathProxy::Get(FromObjectId(item) + "/@");
         ToProto(req->mutable_attributes(), attributeFilter);
+        SetAllowResolveFromSequoiaObject(req, true);
 
         batchReq->AddRequest(req);
     }
@@ -718,6 +721,8 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
         multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+    // TODO(nadya02): Set the correct timeout here.
+    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetSuppressUpstreamSync(true);
 
@@ -822,6 +827,8 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
         multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+    // TODO(nadya02): Set the correct timeout here.
+    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetUser(user->GetName());
 

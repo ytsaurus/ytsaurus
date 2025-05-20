@@ -1,8 +1,8 @@
 # PROCESS
 
-Преобразовать входную таблицу с помощью UDF на C++, Python или JavaScript или [лямбда функции](expressions.md#lambda), которая применяется последовательно к каждой строке входа и имеет возможность для каждой строки входа создать ноль, одну или несколько строк результата (аналог Map в терминах MapReduce).
+Преобразовать входную таблицу с помощью UDF на [C++](../udf/cpp.md), [Python](../udf/python.md){% if audience == "internal" %}, [JavaScript](../udf/javascript.md){% endif %} или [лямбда функции](expressions.md#lambda), которая применяется последовательно к каждой строке входа и имеет возможность для каждой строки входа создать ноль, одну или несколько строк результата (аналог Map в терминах MapReduce).
 
-Таблица по имени ищется в базе данных, заданной оператором [USE](use.md).
+Таблица ищется по имени в базе данных, заданной оператором [USE](use.md).
 
 В параметрах вызова функции после ключевого слова `USING` явно указывается, значения из каких колонок и в каком порядке передавать для каждой строки входа.
 
@@ -39,14 +39,14 @@
 
 После `USING` в `PROCESS` можно опционально указать `ASSUME ORDER BY` со списком столбцов. Результат такого `PROCESS` будет считаться сортированным, но без выполнения фактической сортировки. Проверка сортированности осуществляется на этапе исполнения запроса. Поддерживается задание порядка сортировки с помощью ключевых слов `ASC` (по возрастанию) и `DESC` (по убыванию). Выражения в `ASSUME ORDER BY` не поддерживается.
 
-**Примеры:**
+## Примеры
 
-``` yql
+```yql
 PROCESS my_table
 USING MyUdf::MyProcessor(value)
 ```
 
-``` yql
+```yql
 $udfScript = @@
 def MyFunc(my_list):
     return [(int(x.key) % 2, x) for x in my_list]
@@ -64,7 +64,7 @@ SELECT * FROM $i;
 SELECT * FROM $j;
 ```
 
-``` yql
+```yql
 $udfScript = @@
 def MyFunc(stream):
     for r in stream:
@@ -78,10 +78,3 @@ $udf = Python::MyFunc(Callable<(Stream<Variant<Struct<...>, Struct<...>>>) -> St
 
 PROCESS my_table1, my_table2 USING $udf(TableRows());
 ```
-
-
-
-
-<!--{## TODO: более реалистичный пример с обработкой ошибок, DISCARD/Ensure ##}-->
-
-<!--[Пример из tutorial](https://cluster-name.yql/Tutorial/yt_23_Embedded_streaming)-->

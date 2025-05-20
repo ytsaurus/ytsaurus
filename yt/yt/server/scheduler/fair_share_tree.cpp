@@ -896,7 +896,7 @@ public:
         return {LastPoolsNodeUpdateError_, true};
     }
 
-    TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    TError ValidateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1324,7 +1324,7 @@ private:
 
     std::optional<TInstant> LastFairShareUpdateTime_;
 
-    THashMap<TString, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
+    THashMap<std::string, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
 
     THashMap<TString, THashSet<int>> PoolToSpareSlotIndices_;
     THashMap<TString, int> PoolToMinUnusedSlotIndex_;
@@ -1983,7 +1983,7 @@ private:
             parent->GetId());
     }
 
-    TSchedulerPoolElementPtr GetOrCreatePool(const TPoolName& poolName, TString userName)
+    TSchedulerPoolElementPtr GetOrCreatePool(const TPoolName& poolName, std::string userName)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2299,7 +2299,7 @@ private:
         return RootElement_;
     }
 
-    void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    void ActualizeEphemeralPoolParents(const THashMap<std::string, TString>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 

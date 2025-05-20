@@ -1,8 +1,10 @@
 #include "meta.h"
 
+#include <contrib/ydb/core/base/appdata.h>
 #include <contrib/ydb/core/formats/arrow/arrow_filter.h>
-#include <contrib/ydb/core/tx/columnshard/engines/scheme/index_info.h>
+#include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/core/tx/columnshard/blobs_action/common/const.h>
+#include <contrib/ydb/core/tx/columnshard/engines/scheme/index_info.h>
 
 #include <contrib/ydb/library/actors/core/log.h>
 
@@ -40,7 +42,12 @@ NKikimrTxColumnShard::TIndexPortionMeta TPortionMeta::SerializeToProto() const {
             break;
     }
 
-    portionMeta.SetPrimaryKeyBorders(ReplaceKeyEdges.SerializePayloadToString());
+    portionMeta.MutablePrimaryKeyBordersV1()->SetFirst(FirstPKRow.GetData());
+    portionMeta.MutablePrimaryKeyBordersV1()->SetLast(LastPKRow.GetData());
+    if (!HasAppData() || AppDataVerified().ColumnShardConfig.GetPortionMetaV0Usage()) {
+        portionMeta.SetPrimaryKeyBorders(
+            NArrow::TFirstLastSpecialKeys(FirstPKRow.GetData(), LastPKRow.GetData(), PKSchema).SerializePayloadToString());
+    }
 
     RecordSnapshotMin.SerializeToProto(*portionMeta.MutableRecordSnapshotMin());
     RecordSnapshotMax.SerializeToProto(*portionMeta.MutableRecordSnapshotMax());
@@ -72,4 +79,4 @@ TString TPortionAddress::DebugString() const {
     return TStringBuilder() << "(path_id=" << PathId << ";portion_id=" << PortionId << ")";
 }
 
-}
+}   // namespace NKikimr::NOlap

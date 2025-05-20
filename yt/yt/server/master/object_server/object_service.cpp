@@ -688,11 +688,12 @@ private:
         auto originalRequestId = FromProto<TRequestId>(request.original_request_id());
 
         RpcContext_->SetRequestInfo("SubrequestCount: %v, SuppressUpstreamSync: %v, "
-            "SuppressTransactionCoordinatorSync: %v, OriginalRequestId: %v",
+            "SuppressTransactionCoordinatorSync: %v, OriginalRequestId: %v, AllowResolveFromSequoiaObject: %v",
             TotalSubrequestCount_,
             GetSuppressUpstreamSync(RpcContext_),
             GetSuppressTransactionCoordinatorSync(RpcContext_),
-            originalRequestId);
+            originalRequestId,
+            GetAllowResolveFromSequoiaObject(RpcContext_->GetRequestHeader()));
 
         if (TotalSubrequestCount_ == 0) {
             Reply();
@@ -1493,6 +1494,8 @@ private:
                 try {
                     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
                         multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
+                    // TODO(nadya02): Set the correct timeout here.
+                    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
                     auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                     batchReq->SetOriginalRequestId(RequestId_);
                     auto reserved = false;

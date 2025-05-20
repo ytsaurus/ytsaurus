@@ -30,13 +30,13 @@
 
 #include <yt/yt/core/logging/fluent_log.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 #include <yt/yt/core/rpc/authenticator.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/ytree/fluent.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <util/random/random.h>
 
@@ -232,9 +232,11 @@ bool TContext::TryParseUser()
         return true;
     }
 
-    if (Api_->IsUserBannedInCache(authenticatedUser)) {
+    try {
+        Api_->ValidateUser(authenticatedUser);
+    } catch (const std::exception& ex) {
         Response_->SetStatus(EStatusCode::Forbidden);
-        ReplyError(TError("User %Qv is banned", authenticatedUser));
+        ReplyError(TError("User validation failed") << ex);
         return false;
     }
 
@@ -314,7 +316,7 @@ bool TContext::TryGetHeaderFormat()
 
 bool TContext::TryGetInputFormat()
 {
-    static const TString YtHeaderName = "X-YT-Input-Format";
+    static const std::string YtHeaderName = "X-YT-Input-Format";
     std::optional<TString> ytHeader;
     try {
         ytHeader = GatherHeader(Request_->GetHeaders(), YtHeaderName);
@@ -339,7 +341,7 @@ bool TContext::TryGetInputCompression()
 {
     auto header = Request_->GetHeaders()->Find("Content-Encoding");
     if (header) {
-        auto compression = StripString(*header);
+        auto compression = StripString(TString(*header));
         if (!IsContentEncodingSupported(compression)) {
             Response_->SetStatus(EStatusCode::UnsupportedMediaType);
             ReplyError(TError{"Unsupported Content-Encoding"});
@@ -1035,10 +1037,7 @@ void TContext::Finalize()
     } else if (!Response_->AreHeadersFlushed()) {
         Response_->GetHeaders()->Remove("Trailer");
 
-        if (Error_.FindMatching(NSecurityClient::EErrorCode::UserBanned)) {
-            Response_->SetStatus(EStatusCode::Forbidden);
-            Api_->PutUserIntoBanCache(DriverRequest_.AuthenticatedUser);
-        } else if (!Error_.IsOK()) {
+        if (!Error_.IsOK()) {
             Response_->SetStatus(EStatusCode::BadRequest);
         }
         // TODO(prime@): More error codes.

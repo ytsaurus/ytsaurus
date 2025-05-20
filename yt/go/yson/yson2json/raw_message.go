@@ -48,6 +48,7 @@ func (m RawMessage) MarshalYSON(w *yson.Writer) error {
 
 	var mapKey bool
 	var inMap []bool
+	var maybeValueWithAttributes bool
 
 	isInMap := func() bool {
 		return len(inMap) != 0 && inMap[len(inMap)-1]
@@ -101,12 +102,25 @@ func (m RawMessage) MarshalYSON(w *yson.Writer) error {
 				w.EndList()
 				inMap = inMap[:len(inMap)-1]
 			case '{':
-				key, err := parseStringToken(d)
-				if err != nil {
-					return fmt.Errorf("failed to parse map key: %w", err)
+				maybeValueWithAttributes = true
+				inMap = append(inMap, true)
+			case '}':
+				if maybeValueWithAttributes {
+					maybeValueWithAttributes = false
+					w.BeginMap()
 				}
-				if key == valueKey || key == attributesKey {
-					valueWithAttrs, err := parseValueWithAttributes(d, key)
+				w.EndMap()
+				inMap = inMap[:len(inMap)-1]
+			default:
+				panic("invalid delim")
+			}
+
+		case string:
+			if maybeValueWithAttributes {
+				if v == valueKey || v == attributesKey {
+					inMap = inMap[:len(inMap)-1]
+					mapKey = false
+					valueWithAttrs, err := parseValueWithAttributes(d, v)
 					if err != nil {
 						return fmt.Errorf("failed to parse value with attributes: %w", err)
 					}
@@ -118,19 +132,12 @@ func (m RawMessage) MarshalYSON(w *yson.Writer) error {
 					}
 				} else {
 					w.BeginMap()
-					inMap = append(inMap, true)
 					mapKey = true
-					w.MapKeyString(key)
+					w.MapKeyString(v)
 				}
-			case '}':
-				w.EndMap()
-				inMap = inMap[:len(inMap)-1]
-			default:
-				panic("invalid delim")
-			}
 
-		case string:
-			if mapKey {
+				maybeValueWithAttributes = false
+			} else if mapKey {
 				w.MapKeyString(v)
 			} else {
 				w.String(v)

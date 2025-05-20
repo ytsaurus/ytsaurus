@@ -1241,12 +1241,12 @@ bool TSchedulerPoolElement::IsEphemeralInDefaultParentPool() const
     return EphemeralInDefaultParentPool_;
 }
 
-void TSchedulerPoolElement::SetUserName(const std::optional<TString>& userName)
+void TSchedulerPoolElement::SetUserName(const std::optional<std::string>& userName)
 {
     UserName_ = userName;
 }
 
-const std::optional<TString>& TSchedulerPoolElement::GetUserName() const
+const std::optional<std::string>& TSchedulerPoolElement::GetUserName() const
 {
     return UserName_;
 }
@@ -2080,7 +2080,7 @@ int TSchedulerOperationElement::GetSlotIndex() const
     return SlotIndex_;
 }
 
-TString TSchedulerOperationElement::GetUserName() const
+std::string TSchedulerOperationElement::GetUserName() const
 {
     return UserName_;
 }

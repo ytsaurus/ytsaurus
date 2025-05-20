@@ -793,7 +793,7 @@ public:
         result.StartTime = attributes.Get<TInstant>("start_time");
         result.FinishTime = attributes.Get<TInstant>("finish_time");
         result.State = attributes.Get<EOperationState>("state");
-        result.AuthenticatedUser = attributes.Get<TString>("authenticated_user");
+        result.AuthenticatedUser = attributes.Get<std::string>("authenticated_user");
         result.OperationType = attributes.Get<EOperationType>("operation_type");
         result.Progress = attributes.FindYson("progress");
         result.BriefProgress = attributes.FindYson("brief_progress");
@@ -1140,7 +1140,7 @@ private:
 
         int retainedCount = 0;
         int enqueuedForArchivationCount = 0;
-        THashMap<TString, int> operationCountPerUser;
+        THashMap<std::string, int> operationCountPerUser;
 
         auto canArchive = [&] (const auto& request) {
             if (retainedCount >= Config_->HardRetainedOperationCount) {

@@ -808,7 +808,7 @@ TDiskStatistics TSlotLocation::GetDiskStatistics(int slotIndex) const
     return it == DiskStatisticsPerSlot_.end() ? TDiskStatistics{} : it->second;
 }
 
-TString TSlotLocation::GetMediumName() const
+std::string TSlotLocation::GetMediumName() const
 {
     return Config_->MediumName;
 }

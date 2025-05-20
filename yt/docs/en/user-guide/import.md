@@ -2,7 +2,7 @@
 
 Importing data into {{product-name}} from external systems is performed with SPYT.
 
-This document contains instructions for using the `import.py` script. This script imports data from Hadoop, Hive, or from database systems that support the JDBC protocol.
+This document contains instructions for using the [`import.py`](https://github.com/ytsaurus/ytsaurus/blob/main/connectors/import.py) script. This script imports data from Hadoop, Hive, or from database systems that support the JDBC protocol.
 
 To import data from other systems not supported by `import.py` (for example, from S3 or MongoDB), you can directly use SPYT, reading from the external system via the corresponding Spark Data Source.
 

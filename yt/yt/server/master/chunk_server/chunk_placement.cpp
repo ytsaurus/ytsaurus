@@ -35,7 +35,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -449,7 +449,7 @@ void TChunkPlacement::CheckFaultyDataCentersOnPrimaryMaster()
 
         auto dataCenterIsEnabled = !oldFaultyStorageDataCenters.contains(dataCenter);
 
-        auto dataCenterStatistics = nodeTracker->GetDataCenterNodeStatistics(dataCenter);
+        auto dataCenterStatistics = nodeTracker->GetDataCenterFlavoredNodeStatistics(dataCenter, ENodeFlavor::Data);
         if (!dataCenterStatistics) {
             auto error = TError("Storage data center %Qv doesn't have statistics",
                 dataCenterName);

@@ -119,7 +119,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SchedulerLogger;
+constinit const auto Logger = SchedulerLogger;
 
 static const TString UnknownTreeId = "<unknown>";
 
@@ -1562,7 +1562,7 @@ public:
             now);
     }
 
-    std::optional<int> FindMediumIndexByName(const TString& mediumName) const override
+    std::optional<int> FindMediumIndexByName(const std::string& mediumName) const override
     {
         const auto& mediumDirectory = Bootstrap_
             ->GetClient()
@@ -1572,7 +1572,7 @@ public:
         return descriptor ? std::optional(descriptor->Index) : std::nullopt;
     }
 
-    const TString& GetMediumNameByIndex(int mediumIndex) const override
+    const std::string& GetMediumNameByIndex(int mediumIndex) const override
     {
         const auto& mediumDirectory = Bootstrap_
             ->GetClient()
@@ -1854,7 +1854,7 @@ private:
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
 
-    THashMap<TString, TString> UserToDefaultPoolMap_;
+    THashMap<std::string, TString> UserToDefaultPoolMap_;
 
     TExperimentAssigner ExperimentsAssigner_;
     TError LastExperimentAssignmentError_;
@@ -2513,7 +2513,7 @@ private:
 
         auto future =
             BIND([userToDefaultPoolMapYson = TYsonString(rspOrError.Value()->value())] {
-                return ConvertTo<THashMap<TString, TString>>(userToDefaultPoolMapYson);
+                return ConvertTo<THashMap<std::string, TString>>(userToDefaultPoolMapYson);
             })
             .AsyncVia(GetBackgroundInvoker())
             .Run();
@@ -3671,7 +3671,7 @@ private:
         for (const auto& [operationId, operation] : IdToOperation_) {
             builder.AppendString(operation->GetSuspiciousJobs().AsStringBuf());
         }
-        return TYsonString(builder.Flush(), EYsonType::MapFragment);
+        return TYsonString(TString(builder.Flush()), EYsonType::MapFragment);
     }
 
     void BuildStaticOrchid(IYsonConsumer* consumer)
@@ -4084,7 +4084,7 @@ private:
         return result;
     }
 
-    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
     {
         return UserToDefaultPoolMap_;
     }

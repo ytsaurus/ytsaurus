@@ -617,6 +617,32 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/a", "//tmp/b/c/d/@e", recursive=True)
         assert not exists("//tmp/b/c/d")
 
+    @authors("h0pless")
+    def test_child_count(self):
+        topmost_tx = start_transaction()
+        parent_tx = start_transaction(tx=topmost_tx)
+        child_tx = start_transaction(tx=parent_tx)
+        uncle_tx = start_transaction(tx=topmost_tx)
+
+        create("map_node", "//tmp/map_node")
+        create("map_node", "//tmp/map_node/child", tx=topmost_tx)
+        create("map_node", "//tmp/map_node/other_child", tx=parent_tx)
+        create("map_node", "//tmp/map_node/child", tx=child_tx, force=True)
+        create("map_node", "//tmp/map_node/nephew", tx=uncle_tx)
+
+        assert get("//tmp/map_node/@count") == 0
+        assert get("//tmp/map_node/@count", tx=topmost_tx) == 1
+        assert get("//tmp/map_node/@count", tx=parent_tx) == 2
+        assert get("//tmp/map_node/@count", tx=child_tx) == 2
+        assert get("//tmp/map_node/@count", tx=uncle_tx) == 2
+
+        remove("//tmp/map_node/other_child", tx=child_tx)
+        assert get("//tmp/map_node/@count") == 0
+        assert get("//tmp/map_node/@count", tx=topmost_tx) == 1
+        assert get("//tmp/map_node/@count", tx=parent_tx) == 2
+        assert get("//tmp/map_node/@count", tx=child_tx) == 1
+        assert get("//tmp/map_node/@count", tx=uncle_tx) == 2
+
     @authors("babenko", "ignat")
     def test_copy_tx1(self):
         tx = start_transaction()
@@ -4222,6 +4248,63 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/map_node/table/@compression_codec", tx=tx) == "zstd_17"
         create("table", "//tmp/map_node/table", tx=tx, force=True)
         assert get("//tmp/map_node/table/@compression_codec", tx=tx) == "zstd_17"
+
+    @authors("danilalexeev")
+    def test_node_reachability_basic(self):
+        assert get("//tmp/@reachable")
+
+        set("//tmp/n", 1)
+        assert get("//tmp/n/@reachable")
+
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        map_id = create("map_node", "//tmp/m", tx=tx2)
+        assert not get(f"#{map_id}/@reachable")
+        assert not get(f"#{map_id}/@reachable", tx=tx1)
+        assert get("//tmp/m/@reachable", tx=tx2)
+
+        commit_transaction(tx2)
+        assert not get(f"#{map_id}/@reachable")
+        assert get("//tmp/m/@reachable", tx=tx1)
+
+        commit_transaction(tx1)
+        assert get(f"#{map_id}/@reachable")
+
+    @authors("kvk1920")
+    def test_access_uncommitted_node(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        m = create("map_node", "//tmp/m", tx=tx2)
+
+        assert exists(f"#{m}", tx=tx2)
+        assert exists(f"#{m}", tx=tx1)
+        assert exists(f"#{m}")
+
+        assert m == get(f"#{m}/@id", tx=tx2)
+        assert m == get(f"#{m}/@id", tx=tx1)
+        assert m == get(f"#{m}/@id")
+
+        commit_transaction(tx2)
+
+        with raises_yt_error(f"No such transaction {tx2}"):
+            exists(f"#{m}", tx=tx2)
+        assert exists(f"#{m}", tx=tx1)
+        assert exists(f"#{m}")
+
+        with raises_yt_error(f"No such transaction {tx2}"):
+            get(f"#{m}/@id", tx=tx2)
+        assert m == get(f"#{m}/@id", tx=tx1)
+        assert m == get(f"#{m}/@id")
+
+    @authors("danilalexeev")
+    def test_nodes_do_not_leak_yt_24997(self):
+        tx = start_transaction()
+        table_id = create("map_node", "//tmp/t", tx=tx)
+        abort_transaction(tx)
+        gc_collect()
+        assert not exists(f"#{table_id}")
 
 
 ##################################################################

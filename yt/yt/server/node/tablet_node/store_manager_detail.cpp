@@ -1,13 +1,15 @@
 #include "store_manager_detail.h"
+
+#include "config.h"
+#include "hunk_chunk.h"
+#include "in_memory_manager.h"
 #include "private.h"
+#include "serialize.h"
+#include "store.h"
+#include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_slot.h"
-#include "store.h"
-#include "hunk_chunk.h"
-#include "structured_logger.h"
-#include "in_memory_manager.h"
 #include "transaction.h"
-#include "serialize.h"
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 

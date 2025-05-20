@@ -2260,7 +2260,7 @@ void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::
         });
 }
 
-std::vector<TDevice> TJob::GetGpuDevices()
+std::vector<TDevice> TJob::GetGpuDevices() const
 {
     auto gpuSlots = GetGpuSlots();
 
@@ -2345,24 +2345,9 @@ void TJob::RunWithWorkspaceBuilder()
         .DockerImage = DockerImage_,
         .DockerAuth = BuildDockerAuthConfig(),
 
-        .NeedGpuCheck = NeedsGpuCheck(),
-        .GpuCheckSetupCommands = UserJobSpec_ && !GpuCheckVolumeLayerArtifactKeys_.empty()
-            ? Bootstrap_->GetGpuManager()->GetSetupCommands()
-            : std::vector<TShellCommandConfigPtr>(),
-        .GpuCheckBinaryPath = UserJobSpec_
-            ? std::make_optional(UserJobSpec_->gpu_check_binary_path())
+        .GpuCheckOptions = NeedsGpuCheck()
+            ? std::make_optional(GetGpuCheckOptions())
             : std::nullopt,
-        .GpuCheckBinaryArgs = UserJobSpec_
-            ? std::make_optional(FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()))
-            : std::optional<std::vector<TString>>(),
-        .GpuCheckNetworkAttributes = UserJobSpec_ && UserJobSpec_->has_gpu_check_network_project()
-            ? std::make_optional(BuildNetworkAttributes(FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->gpu_check_network_project())))
-            : std::nullopt,
-        .GpuCheckEnvironment = UserJobSpec_
-            ? std::make_optional(FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()))
-            : std::nullopt,
-        .GpuCheckType = EGpuCheckType::Preliminary,
-        .GpuDevices = devices,
     };
 
     auto workspaceBuilder = GetUserSlot()->CreateJobWorkspaceBuilder(
@@ -2629,21 +2614,10 @@ void TJob::OnJobProxyFinished(const TError& error)
                 // COMPAT(ignat)
                 : MakeWritableRootFS(),
             .CommandUser = CommonConfig_->SetupCommandUser,
-
-            .SetupCommands = GpuCheckVolume_
-                ? Bootstrap_->GetGpuManager()->GetSetupCommands()
-                : std::vector<TShellCommandConfigPtr>(),
-
-            .GpuCheckBinaryPath = UserJobSpec_->gpu_check_binary_path(),
-            .GpuCheckBinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
-            .GpuCheckNetworkAttributes = UserJobSpec_->has_gpu_check_network_project()
-                ? std::make_optional(BuildNetworkAttributes(FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->gpu_check_network_project())))
-                : std::nullopt,
-            .GpuCheckEnvironment = FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()),
-            .GpuCheckType = EGpuCheckType::Extra,
+            .Type = EGpuCheckType::Extra,
+            .Options = GetGpuCheckOptions(),
             .CurrentStartIndex = SetupCommandCount_,
             .TestExtraGpuCheckCommandFailure = Bootstrap_->GetGpuManager()->ShouldTestExtraGpuCheckCommandFailure(),
-            .GpuDevices = GetGpuDevices(),
         };
 
         auto checker = New<TJobGpuChecker>(std::move(context), Logger);
@@ -2975,7 +2949,7 @@ std::vector<TBind> TJob::GetRootFSBinds()
     return binds;
 }
 
-TNetworkAttributes TJob::BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject)
+TNetworkAttributes TJob::BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject) const
 {
     if (ResolvedNodeAddresses_.empty()) {
         THROW_ERROR_EXCEPTION("No IPv6 node addresses were resolved");
@@ -3400,13 +3374,20 @@ void TJob::InitializeSandboxNbdRootVolumeData()
     YT_VERIFY(UserJobSpec_->disk_request().has_medium_index());
 
     SandboxNbdRootVolumeData_ = TSandboxNbdRootVolumeData{
-        .NbdDiskSize = UserJobSpec_->disk_request().disk_space(),
-        .NbdDiskMediumIndex = UserJobSpec_->disk_request().medium_index(),
+        .Size = UserJobSpec_->disk_request().disk_space(),
+        .MediumIndex = UserJobSpec_->disk_request().medium_index(),
     };
 
-    if (UserJobSpec_->disk_request().nbd_disk().has_data_node_address()) {
-        SandboxNbdRootVolumeData_->NbdDiskDataNodeAddress = UserJobSpec_->disk_request().nbd_disk().data_node_address();
+    const auto& nbdDisk = UserJobSpec_->disk_request().nbd_disk();
+
+    if (nbdDisk.has_data_node_address()) {
+        SandboxNbdRootVolumeData_->DataNodeAddress = nbdDisk.data_node_address();
     }
+
+    SandboxNbdRootVolumeData_->DataNodeRpcTimeout = FromProto<TDuration>(nbdDisk.data_node_rpc_timeout());
+    SandboxNbdRootVolumeData_->MasterRpcTimeout = FromProto<TDuration>(nbdDisk.master_rpc_timeout());
+    SandboxNbdRootVolumeData_->MinDataNodesCount = FromProto<int>(nbdDisk.min_data_nodes_count());
+    SandboxNbdRootVolumeData_->MaxDataNodesCount = FromProto<int>(nbdDisk.max_data_nodes_count());
 }
 
 THashSet<TString> TJob::InitializeNbdExportIds()
@@ -3459,7 +3440,7 @@ THashSet<TString> TJob::InitializeNbdExportIds()
         EmplaceOrCrash(nbdExportIds, nbdExportId);
         ++nbdExportCount;
 
-        SandboxNbdRootVolumeData_->NbdExportId = nbdExportId;
+        SandboxNbdRootVolumeData_->ExportId = nbdExportId;
     }
 
     return nbdExportIds;
@@ -4330,6 +4311,23 @@ bool TJob::NeedsGpuCheck() const
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path();
+}
+
+TGpuCheckOptions TJob::GetGpuCheckOptions() const
+{
+    YT_VERIFY(NeedsGpuCheck());
+
+    return TGpuCheckOptions{
+        .BinaryPath = UserJobSpec_->gpu_check_binary_path(),
+        .BinaryArgs = FromProto<std::vector<TString>>(UserJobSpec_->gpu_check_binary_args()),
+        .NetworkAttributes = UserJobSpec_->has_gpu_check_network_project()
+            ? std::make_optional(BuildNetworkAttributes(FromProto<NControllerAgent::TNetworkProject>(UserJobSpec_->gpu_check_network_project())))
+            : std::nullopt,
+        .Environment = FromProto<THashMap<TString, TString>>(UserJobSpec_->gpu_check_environment()),
+        .Devices = GetGpuDevices(),
+        .SetupCommands = Bootstrap_->GetGpuManager()->GetSetupCommands(),
+        .InfinibandCluster = Bootstrap_->GetConfig()->CypressAnnotations->FindChildValue<TString>(InfinibandClusterNameKey),
+    };
 }
 
 i64 TJob::GetJobProxyHeartbeatEpoch() const

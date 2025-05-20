@@ -520,6 +520,8 @@ private:
         const auto& masterCellDirectory = connection->GetMasterCellDirectory();
         const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(nakedMasterChannel);
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
         auto masterRequest = proxy.Execute();
 

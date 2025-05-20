@@ -280,8 +280,8 @@ private:
         int ReplicaCount_ = -1;
         int ReadQuorum_ = -1;
         int WriteQuorum_ = -1;
-        TString Account_;
-        TString PrimaryMedium_;
+        std::string Account_;
+        std::string PrimaryMedium_;
 
         TObjectId ObjectId_;
         TCellTag NativeCellTag_ = InvalidCellTag;

@@ -1,9 +1,9 @@
 #include "table_config_manager.h"
+
 #include "bootstrap.h"
+#include "config.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
