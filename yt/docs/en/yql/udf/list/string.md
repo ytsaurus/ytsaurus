@@ -1,154 +1,161 @@
 # String
+
 Functions for ASCII strings:
 
-**List of functions**
+## List of functions
 
-* ```String::Base64Encode(string:String{Flags:AutoMap}) -> String```
-* ```String::Base64Decode(string:String) -> String?```
-* ```String::Base64StrictDecode(string:String) -> String?```
-* ```String::EscapeC(string:String{Flags:AutoMap}) -> String```
-* ```String::UnescapeC(string:String{Flags:AutoMap}) -> String```
-* ```String::HexEncode(string:String{Flags:AutoMap}) -> String```
-* ```String::HexDecode(string:String) -> String?```
-* ```String::EncodeHtml(string:String{Flags:AutoMap}) -> String```
-* ```String::DecodeHtml(string:String{Flags:AutoMap}) -> String```
-* ```String::CgiEscape(string:String{Flags:AutoMap}) -> String```
-* ```String::CgiUnescape(string:String{Flags:AutoMap}) -> String```
+* `String::Base64Encode(String{Flags:AutoMap}) -> String`
 
-   Codes or decodes the string as specified.
+* `String::Base64Decode(String) -> String?`
 
-**Example**
+* `String::Base64StrictDecode(String) -> String?`
 
-```sql
-SELECT String::Base64Encode("YQL"); -- "WVFM"
-```
+* `String::EscapeC(String{Flags:AutoMap}) -> String`
 
-* ```String::Strip(string:String{Flags:AutoMap}) -> String```
+* `String::UnescapeC(String{Flags:AutoMap}) -> String`
 
-   Cuts the outermost white spaces off the string.
+* `String::HexEncode(String{Flags:AutoMap}) -> String`
 
-**Example**
+* `String::HexDecode(String) -> String?`
 
-```sql
-SELECT String::Strip("YQL ");       -- "YQL"
-```
+* `String::EncodeHtml(String{Flags:AutoMap}) -> String`
 
-* ```String::Collapse(string:String{Flags:AutoMap}) -> String```
+* `String::DecodeHtml(String{Flags:AutoMap}) -> String`
 
-   Replaces multiple white spaces within the string with singles.
+* `String::CgiEscape(String{Flags:AutoMap}) -> String`
 
-* ```String::CollapseText(string:String{Flags:AutoMap}, limit:Uint64) -> String```
+* `String::CgiUnescape(String{Flags:AutoMap}) -> String`
 
-   Shortens text to a specified size by adding three dots.
+* `String::Strip(String{Flags:AutoMap}) -> String`
 
-* ```String::Contains(string:String?, substring:String) -> Bool```
+* `String::Collapse(String{Flags:AutoMap}) -> String`
 
-   Checks the string for a substring.
+* `String::CollapseText(String{Flags:AutoMap}, Uint64) -> String`
 
-* ```String::Find(string:String{Flags:AutoMap}, String, [Uint64?]) -> Int64``` — Outdated: use built-in `Find` function
-* ```String::ReverseFind(string:String{Flags:AutoMap}, String, [Uint64?]) -> Int64``` — Outdated: use built-in `RFind` function
-* ```String::Substring(string:String{Flags:AutoMap}, [Uint64?, Uint64?]) -> String``` — Outdated: use built-in `Substring`function
-* ```String::HasPrefix(string:String?, prefix:String) -> Bool``` — Outdated: use built-in `StartsWith` function
-* ```String::StartsWith(string:String?, prefix:String) -> Bool``` — Outdated: use built-in `StartsWith` function
-* ```String::HasSuffix(string:String?, suffix:String) -> Bool``` — Outdated: use built-in `EndsWith` function
-* ```String::EndsWith(string:String?, suffix:String) -> Bool``` — Outdated: use built-in `EndsWith` function
-* ```String::Reverse(string:String?) -> String?``` - Outdated: use [Unicode::Reverse](unicode.md)
+* `String::AsciiEqualsIgnoreCase(String?, String) -> Bool` Added in the version [2025.02](../../changelog/2025.02.md#string-module)
 
-   Using outdated functions is not recommended.
+* `String::Contains(String?, String) -> Bool`
 
-* ```String::HasPrefixIgnoreCase(string:String?, prefix:String) -> Bool```
-* ```String::StartsWithIgnoreCase(string:String?, prefix:String) -> Bool```
-* ```String::HasSuffixIgnoreCase(string:String?, suffix:String) -> Bool```
-* ```String::EndsWithIgnoreCase(string:String?, suffix:String) -> Bool```
+* `String::AsciiContainsIgnoreCase(String?, String) -> Bool` Added in the version [2025.02](../../changelog/2025.02.md#string-module)
 
-   Check the string for a prefix or suffix without considering character case.
+* `String::Find(String{Flags:AutoMap}, String, [Uint64?]) -> Int64`: Returns the first position found or -1. The optional argument is the offset from the beginning of the string.
 
-* ```String::AsciiToLower(string:String{Flags:AutoMap}) -> String``` — replaces only Latin characters. If working with other alphabets, see Unicode::ToLower
-* ```String::AsciiToUpper(string:String{Flags:AutoMap}) -> String``` — replaces only Latin characters. If working with other alphabets, see Unicode::ToUpper
-* ```String::AsciiToTitle(string:String{Flags:AutoMap}) -> String``` — replaces only Latin characters. If working with other alphabets, see Unicode::ToTitle
+* `String::ReverseFind(String{Flags:AutoMap}, String, [Uint64?]) -> Int64`: Returns the last position found or -1. The optional argument is the offset from the beginning of the string.
 
-   Reduces ASCII character case in the string to upper, lower, or title case.
+* `String::AsciiStartsWithIgnoreCase(String?, String) -> Bool` Added in the version [2025.02](../../changelog/2025.02.md#string-module)
 
-* ```String::SplitToList(string:String?, delimeter:String, [ DelimeterString:Bool?, SkipEmpty:Bool?, Limit:Uint64? ]) -> List<String>```
+* `String::HasPrefix(String?, String) -> Bool`
 
-   Splits the string into substrings with a separator.
-   ```string``` -- source string
-   ```delimeter``` -- separator
-   Named parameters:
-   - DelimeterString:Bool? — treating a delimiter as a string (true, by default) or a set of characters "any of" (false)
-   - SkipEmpty:Bool? - whether to skip empty strings in the result, is false by default
-   - Limit:Uint64? - Limits the number of fetched components (unlimited by default); if the limit is exceeded, the raw suffix of the source string is returned in the last item
+* `String::HasPrefixIgnoreCase(String?, String) -> Bool` Removed in the version [2025.02](../../changelog/2025.02.md#string-module)
 
-**Example**
+* `String::StartsWith(String?, String) -> Bool`
 
-```sql
-SELECT String::SplitToList("1,2,3,4,5,6,7", ",", 3 as Limit); -- ["1", "2", "3", "4,5,6,7"]
-```
+* `String::StartsWithIgnoreCase(String?, String) -> Bool` Removed in the version [2025.02](../../changelog/2025.02.md#string-module)
 
-* ```String::JoinFromList(strings:List<String>{Flags:AutoMap}, separator:String) -> String```
+* `String::AsciiEndsWithIgnoreCase(String?, String) -> Bool` Added in the version [2025.02](../../changelog/2025.02.md#string-module)
 
-   Concatenates the list of separator-delimited strings into a single string.
+* `String::HasSuffix(String?, String) -> Bool`
 
-* ```String::ToByteList(string:String) -> List<Byte>```
+* `String::HasSuffixIgnoreCase(String?, String) -> Bool` Removed in the version [2025.02](../../changelog/2025.02.md#string-module)
 
-   Splits the string into a list of bytes.
+* `String::EndsWith(String?, String) -> Bool`
 
-* ```String::FromByteList(bytes:List<Uint8>) -> String```
+* `String::EndsWithIgnoreCase(String?, String) -> Bool` Removed in the version [2025.02](../../changelog/2025.02.md#string-module)
 
-   Gathers the list of bytes into a string.
+* `String::Substring(String{Flags:AutoMap}, [Uint64?, Uint64?]) -> String`
 
-* ```String::ReplaceAll(input:String{Flags:AutoMap}, find:String, replacement:String) -> String```
-* ```String::ReplaceFirst(input:String{Flags:AutoMap}, find:String, replacement:String) -> String```
-* ```String::ReplaceLast(input:String{Flags:AutoMap}, find:String, replacement:String) -> String```
+* `String::AsciiToLower(String{Flags:AutoMap}) -> String`: Changes only Latin characters. For working with other alphabets, see Unicode::ToLower
 
-   Replaces all/first/last occurrence(s) of the ```find``` string in ```input``` with ```replacement```.
+* `String::AsciiToUpper(String{Flags:AutoMap}) -> String`: Changes only Latin characters. For working with other alphabets, see Unicode::ToUpper
 
-* ```String::RemoveAll(input:String{Flags:AutoMap}, symbols:String) -> String ```
-* ```String::RemoveFirst(input:String{Flags:AutoMap}, symbols:String) -> String ```
-* ```String::RemoveLast(input:String{Flags:AutoMap}, symbols:String) -> String ```
+* `String::AsciiToTitle(String{Flags:AutoMap}) -> String`: Changes only Latin characters. For working with other alphabets, see Unicode::ToTitle
 
-   Removes all/first/last occurrence(s) of a character in a set of ```symbols``` from ```input```. The second argument is interpreted as an unordered set of characters to be deleted.
+* `String::SplitToList( String?, String, [ DelimeterString:Bool?, SkipEmpty:Bool?, Limit:Uint64? ]) -> List<String>`
 
-* ```String::IsAscii(string:String{Flags:AutoMap}) -> Bool```
+  The first argument is the source string
+  The second argument is a delimiter
+  The third argument includes the following parameters:
 
-   Checks whether the string is a valid ASCII sequence.
+  - DelimeterString:Bool? — treating a delimiter as a string (true, by default) or a set of characters "any of" (false)
+  - SkipEmpty:Bool? — whether to skip empty strings in the result, is false by default
+  - Limit:Uint64? — Limits the number of fetched components (unlimited by default); if the limit is exceeded, the raw suffix of the source string is returned in the last item
 
-* ```String::IsAsciiSpace(string:String{Flags:AutoMap}) -> Bool```
-* ```String::IsAsciiUpper(string:String{Flags:AutoMap}) -> Bool```
-* ```String::IsAsciiLower(string:String{Flags:AutoMap}) -> Bool```
-* ```String::IsAsciiAlpha(string:String{Flags:AutoMap}) -> Bool```
-* ```String::IsAsciiAlnum(string:String{Flags:AutoMap}) -> Bool```
-* ```String::IsAsciiHex(string:String{Flags:AutoMap}) -> Bool```
+* `String::JoinFromList(List<String>{Flags:AutoMap}, String) -> String`
 
-   Checks whether the ASCII string satisfies the specified condition.
+* `String::ToByteList(List<String>{Flags:AutoMap}) -> List<Byte>`
 
-* ```String::LevensteinDistance(stringOne:String{Flags:AutoMap}, stringTwo:String{Flags:AutoMap}) -> Uint64```
+* `String::FromByteList(List<Uint8>) -> String`
 
-   Calculates the Levenshtein distance for the passed strings.
+* `String::ReplaceAll(String{Flags:AutoMap}, String, String) -> String`: Arguments: input, find, replacement
 
-* ```String::LeftPad(string:String{Flags:AutoMap}, size:Uint64, filler:[String?]) -> String```
-* ```String::RightPad(string:String{Flags:AutoMap}, size:Uint64, filler:[String?]) -> String```
+* `String::ReplaceFirst(String{Flags:AutoMap}, String, String) -> String`: Arguments: input, find, replacement
 
-   Aligns text to a specified size by adding the specified character or white spaces.
+* `String::ReplaceLast(String{Flags:AutoMap}, String, String) -> String`: Arguments: input, find, replacement
 
-* ```String::Hex(value:Uint64{Flags:AutoMap}) -> String```
-* ```String::SHex(value:Int64{Flags:AutoMap}) -> String```
-* ```String::Bin(value:Uint64{Flags:AutoMap}) -> String```
-* ```String::SBin(value:Int64{Flags:AutoMap}) -> String```
-* ```String::HexText(string:String{Flags:AutoMap}) -> String```
-* ```String::BinText(string:String{Flags:AutoMap}) -> String```
-* ```String::HumanReadableDuration(value:Uint64{Flags:AutoMap}) -> String```
-* ```String::HumanReadableQuantity(value:Uint64{Flags:AutoMap}) -> String```
-* ```String::HumanReadableBytes(value:Uint64{Flags:AutoMap}) -> String```
-* ```String::Prec(Double{Flags:AutoMap}, digits:Uint64) -> String ```
+* `String::RemoveAll(String{Flags:AutoMap}, String) -> String`: The second argument is interpreted as an unordered set of characters to delete
 
-   Prints out the value as specified.
+* `String::RemoveFirst(String{Flags:AutoMap}, String) -> String`: An unordered set of characters in the second argument, only the first encountered character from set is deleted
+
+* `String::RemoveLast(String{Flags:AutoMap}, String) -> String`: An unordered set of characters in the second argument, only the last encountered character from the set is deleted
+
+* `String::ReverseBytes(String{Flags:AutoMap}) -> String` - Added in the version [2025.02](../../changelog/2025.02.md#string-module)
+  Reverses a string, treating it as a byte sequence.
+
+* `String::ReverseBits(String{Flags:AutoMap}) -> String` - Added in the version [2025.02](../../changelog/2025.02.md#string-module)
+  Reverses a string, treating it as a bit sequence.
+
+* `String::IsAscii(String{Flags:AutoMap}) -> Bool`
+
+* `String::IsAsciiSpace(String{Flags:AutoMap}) -> Bool`
+
+* `String::IsAsciiUpper(String{Flags:AutoMap}) -> Bool`
+
+* `String::IsAsciiLower(String{Flags:AutoMap}) -> Bool`
+
+* `String::IsAsciiAlpha(String{Flags:AutoMap}) -> Bool`
+
+* `String::IsAsciiAlnum(String{Flags:AutoMap}) -> Bool`
+
+* `String::IsAsciiHex(String{Flags:AutoMap}) -> Bool`
+
+* `String::LevensteinDistance(String{Flags:AutoMap}, String{Flags:AutoMap}) -> Uint64`
+
+* `String::LeftPad(String{Flags:AutoMap}, Uint64, [String?]) -> String`
+
+* `String::RightPad(String{Flags:AutoMap}, Uint64) -> String`
+
+* `String::Hex(Uint64{Flags:AutoMap}) -> String`
+
+* `String::SHex(Int64{Flags:AutoMap}) -> String`
+
+* `String::Bin(Uint64{Flags:AutoMap}) -> String`
+
+* `String::SBin(Int64{Flags:AutoMap}) -> String`
+
+* `String::HexText(String{Flags:AutoMap}) -> String`
+
+* `String::BinText(String{Flags:AutoMap}) -> String`
+
+* `String::HumanReadableDuration(Uint64{Flags:AutoMap}) -> String`
+
+* `String::HumanReadableQuantity(Uint64{Flags:AutoMap}) -> String`
+
+* `String::HumanReadableBytes(Uint64{Flags:AutoMap}) -> String`
+
+* `String::Prec(Double{Flags:AutoMap}, Uint64) -> String`
+
+* `String::Reverse(String?) -> String?` Removed in the version [2025.02](../../changelog/2025.02.md#string-module)
 
 {% note alert %}
 
-The functions from the String library don't support Cyrillic and can only work with ASCII characters. Use functions from [Unicode](unicode.md) to work with UTF-8-coded strings.
+The functions from the String library don't support Cyrillic and can only work with ASCII characters. To work with UTF-8 encoded strings, use functions from [Unicode](unicode.md).
 
 {% endnote %}
 
+## Examples
 
-The String library is based on Arcadia's `util/string/` and `TString`.
+```yql
+SELECT String::Base64Encode("YQL"); -- "WVFM"
+SELECT String::Strip("YQL ");       -- "YQL"
+SELECT String::SplitToList("1,2,3,4,5,6,7", ",", 3 as Limit); -- ["1", "2", "3", "4,5,6,7"]
+```
