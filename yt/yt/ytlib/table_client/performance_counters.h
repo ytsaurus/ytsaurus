@@ -64,6 +64,7 @@ struct TTabletPerformanceCounters
     TPerformanceCountersEma LookupError;
     TPerformanceCountersEma WriteError;
     TPerformanceCountersEma LookupCpuTime;
+    TPerformanceCountersEma SelectCpuTime;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
