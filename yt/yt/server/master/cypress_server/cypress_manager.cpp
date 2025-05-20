@@ -4551,6 +4551,7 @@ private:
                     "removal is canceled (NodeId: %v, Path: %v)",
                     nodeId,
                     path);
+                ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
                 continue;
             }
 

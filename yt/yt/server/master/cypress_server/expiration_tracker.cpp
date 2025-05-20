@@ -54,13 +54,11 @@ void TExpirationTracker::Start()
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-    THashSet<TCypressNode*> expiredNodes;
-    expiredNodes.swap(ExpiredNodes_);
+    auto previouslyScheduledForRemovalNodes = std::exchange(ScheduledForRemovalNodes_, {});
 
-    YT_LOG_INFO("Started registering node expiration (Count: %v)",
-        expiredNodes.size());
+    YT_LOG_INFO("Started registering node expiration (Count: %v)", previouslyScheduledForRemovalNodes.size());
 
-    for (auto* trunkNode : expiredNodes) {
+    for (auto* trunkNode : previouslyScheduledForRemovalNodes) {
         if (trunkNode->GetExpirationTimeIterator()) {
             UnregisterNodeExpirationTime(trunkNode);
         }
@@ -108,7 +106,7 @@ void TExpirationTracker::Clear()
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     ExpirationMap_.clear();
-    ExpiredNodes_.clear();
+    ScheduledForRemovalNodes_.clear();
 }
 
 void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNode* trunkNode, std::optional<TInstant> oldExpirationTime)
@@ -220,7 +218,7 @@ void TExpirationTracker::OnNodeDestroyed(TCypressNode* trunkNode)
     }
 
     // NB: Typically missing.
-    ExpiredNodes_.erase(trunkNode);
+    ScheduledForRemovalNodes_.erase(trunkNode);
 }
 
 void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
@@ -242,26 +240,36 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
     // when merging branches, or be removed on its own.
     if (!trunkNode->GetReachable()) {
         // NB: Typically missing at followers.
-        ExpiredNodes_.erase(trunkNode);
+        ScheduledForRemovalNodes_.erase(trunkNode);
         return;
     }
 
     if (trunkNode->TryGetExpirationTime() && !trunkNode->GetExpirationTimeIterator()) {
         // NB: Typically missing at followers.
-        ExpiredNodes_.erase(trunkNode);
+        ScheduledForRemovalNodes_.erase(trunkNode);
 
         // NB: Time(out) iterators differ on the leader and followers. Avoid relying
         // on them when updating persistent state. The use of |TInstant::Now()| is ok.
-        RegisterNodeExpirationTime(trunkNode, TInstant::Now() + GetDynamicConfig()->ExpirationBackoffTime);
+        auto now = TInstant::Now();
+        auto newExpirationTime = trunkNode->GetExpirationTime() > now
+            // Expiration time was updated concurrently.
+            ? trunkNode->GetExpirationTime()
+            : now + GetDynamicConfig()->ExpirationBackoffTime;
+        RegisterNodeExpirationTime(trunkNode, newExpirationTime);
     }
 
     if (trunkNode->TryGetExpirationTimeout() && !trunkNode->GetExpirationTimeoutIterator()) {
         // NB: Typically missing at followers.
-        ExpiredNodes_.erase(trunkNode);
+        ScheduledForRemovalNodes_.erase(trunkNode);
 
         if (!IsNodeLocked(trunkNode)) {
             // This is transient, |TInstant::Now()| is ok.
-            RegisterNodeExpirationTimeout(trunkNode, TInstant::Now());
+            auto now = TInstant::Now();
+            auto touchTimeOverride = trunkNode->GetTouchTime() + trunkNode->GetExpirationTimeout() > now
+                // Either expiration timeout or touch time was updated concurrently.
+                ? std::nullopt
+                : std::optional(now);
+            RegisterNodeExpirationTimeout(trunkNode, touchTimeOverride);
         } // Else expiration will be rescheduled on lock release.
     }
 
@@ -278,7 +286,7 @@ void TExpirationTracker::RegisterNodeExpirationTime(TCypressNode* trunkNode, TIn
 {
     YT_ASSERT(!trunkNode->GetExpirationTimeIterator());
 
-    if (!ExpiredNodes_.contains(trunkNode)) {
+    if (!ScheduledForRemovalNodes_.contains(trunkNode)) {
         auto it = ExpirationMap_.emplace(expirationTime, trunkNode);
         trunkNode->SetExpirationTimeIterator(it);
     }
@@ -290,7 +298,7 @@ void TExpirationTracker::RegisterNodeExpirationTimeout(
 {
     YT_ASSERT(!trunkNode->GetExpirationTimeoutIterator());
 
-    if (!ExpiredNodes_.contains(trunkNode)) {
+    if (!ScheduledForRemovalNodes_.contains(trunkNode)) {
         auto touchTime = touchTimeOverride.value_or(trunkNode->GetTouchTime());
         YT_VERIFY(touchTime);
         auto expirationTimeout = trunkNode->GetExpirationTimeout();
@@ -362,8 +370,8 @@ void TExpirationTracker::CollectAndRemoveExpiredNodes(TInstant checkTime)
             break;
         }
 
-        // See comment for TShard::ExpirationMap.
-        if (!ExpiredNodes_.contains(trunkNode)) {
+        // See comment for ExpirationMap.
+        if (!ScheduledForRemovalNodes_.contains(trunkNode)) {
             if (!isSequoia.has_value()) {
                 isSequoia = trunkNode->IsSequoia();
             }
@@ -375,7 +383,7 @@ void TExpirationTracker::CollectAndRemoveExpiredNodes(TInstant checkTime)
             }
 
             if (IsObjectAlive(trunkNode)) {
-                InsertOrCrash(ExpiredNodes_, trunkNode);
+                InsertOrCrash(ScheduledForRemovalNodes_, trunkNode);
                 expiredTrunkNodes.push_back(trunkNode);
             }
         }
