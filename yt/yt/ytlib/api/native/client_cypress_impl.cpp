@@ -697,14 +697,14 @@ protected:
             SchemaIdToSchema_.size());
     }
 
-    void CalculateInheritedAttributes(const TYPath& srcPath)
+    void CalculateInheritedAttributes()
     {
         YT_LOG_DEBUG("Calculating attributes inherited during copy");
 
         auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
 
         auto batchReq = proxy.ExecuteBatch();
-        auto req = TCypressYPathProxy::CalculateInheritedAttributes(srcPath);
+        auto req = TCypressYPathProxy::CalculateInheritedAttributes(FromObjectId(SrcNodeId_));
 
         ToProto(req->mutable_dst_attributes(), *DstInheritableAttributes_);
         SetTransactionId(req, Transaction_->GetId());
@@ -712,7 +712,7 @@ protected:
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
-            "Error calculating inherited attributes for %v", srcPath);
+            "Error calculating inherited attributes for %v", FromObjectId(SrcNodeId_));
 
         const auto& batchRsp = batchRspOrError.Value();
         auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspCalculateInheritedAttributes>(0);
@@ -1066,7 +1066,7 @@ public:
 
             LockCopySource(Options_, true);
             GetSerializedNodes(Options_);
-            CalculateInheritedAttributes(SrcPath_);
+            CalculateInheritedAttributes();
         }
 
         SyncExternalCellsWithSourceNodeCell();
@@ -1142,7 +1142,7 @@ public:
 
             LockCopySource(GetOptions(), false);
             GetSerializedNodes(GetOptions());
-            CalculateInheritedAttributes(Path_);
+            CalculateInheritedAttributes();
         }
 
         SyncExternalCellsWithSourceNodeCell();
