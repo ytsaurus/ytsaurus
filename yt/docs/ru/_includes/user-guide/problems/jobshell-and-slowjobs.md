@@ -147,7 +147,7 @@ spec={"acl": [{"permissions": ["read", "manage"], "subjects": ["user1", "user2"]
 "owners" = ["user1", "user2"];
 ```
 
-Если вам захочется поменять `owners` какого-то Job Shell уже запущенной операции, можно воспользоваться командой [update_operation_parameters](../../api/commands.md#update_operation_parameters--update_operation_parameters), указав новый список `owners` конкретного Job Shell:
+Если вам захочется поменять `owners` какого-то Job Shell уже запущенной операции, можно воспользоваться командой [update_operation_parameters](../../../api/commands.md#update_operation_parameters--update_operation_parameters), указав новый список `owners` конкретного Job Shell:
 
 ```yson
 PARAMETERS {"operation_id" = "<op-id>"; "parameters" = {"options_per_job_shell" = {"shell_name": {"owners": ["user3"]}}}}

@@ -104,7 +104,7 @@ protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
 
 ### Operation options
 
-When using `spark-launch-yt` to configure a cluster, `--params '{"operation_spec"={...};}` is available as an option. [List of all operations options](../../operations/operations-options.md).
+When using `spark-launch-yt` to configure a cluster, `--params '{"operation_spec"={...};}` is available as an option. [List of all operations options](../../../../../user-guide/data-processing/spyt/operations/operations-options.md).
 It will be useful if you need to change the standard operation settings, for example, to increase the number of failed jobs past which the operation is considered failed.
 
 ```bash
