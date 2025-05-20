@@ -196,6 +196,15 @@ static const auto DefaultCsrfTokenTtl = TDuration::Days(7);
 struct TBlackboxCookieAuthenticatorConfig
     : public virtual NYTree::TYsonStruct
 {
+    // If set to true, sessguard cookie is checked.
+    bool EnableSessguard;
+    // List of regexes to match Origin header agains.
+    // Sessguard cookie can be checked only against requests with this origins.
+    std::vector<NRe2::TRe2Ptr> SessguardOriginPatterns;
+    // Size of the cache keeping results of checking origin
+    // headers against SessguardOriginPatterns.
+    int SessguardOriginCacheSize;
+
     TString Domain;
 
     std::optional<TString> CsrfSecret;
