@@ -130,6 +130,15 @@ void TCachingOAuthTokenAuthenticatorConfig::Register(TRegistrar /*registrar*/)
 
 void TBlackboxCookieAuthenticatorConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("enable_sessguard", &TThis::EnableSessguard)
+        .Default(false);
+
+    registrar.Parameter("sessguard_origin_patterns", &TThis::SessguardOriginPatterns)
+        .Default();
+
+    registrar.Parameter("sessguard_origin_cache_size", &TThis::SessguardOriginCacheSize)
+        .Default(4_KB);
+
     registrar.Parameter("domain", &TThis::Domain)
         .Default("yt.yandex-team.ru");
 
