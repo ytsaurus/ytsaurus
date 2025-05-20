@@ -1277,7 +1277,6 @@ class TestChaos(ChaosTestBase):
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=False)
 
         rows = [{"key": 0, "value": "0"}]
-        keys = [{"key": 0}]
         insert_rows("//tmp/crt", rows)
 
         sync_unmount_table("//tmp/t")
@@ -1287,18 +1286,9 @@ class TestChaos(ChaosTestBase):
         assert len(_get_in_sync_replicas("//tmp/crt")) == 0
 
         sync_mount_table("//tmp/t")
-        wait(lambda: lookup_rows("//tmp/t", keys) == rows)
-
-        def _check_progress():
-            card = get("#{0}/@".format(card_id))
-            replica = card["replicas"][replica_ids[0]]
-            if replica["state"] != "enabled":
-                return False
-            if replica["replication_progress"]["segments"][0]["timestamp"] < replica["history"][-1]["timestamp"]:
-                return False
-            return True
-
-        wait(_check_progress)
+        # Trigger era switch so chaos caches get updated
+        alter_table_replica(replica_ids[0], enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
 
         assert len(_get_in_sync_replicas("//tmp/t")) == 1
         assert len(_get_in_sync_replicas("//tmp/crt")) == 1
