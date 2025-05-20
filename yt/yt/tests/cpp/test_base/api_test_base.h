@@ -32,6 +32,8 @@ protected:
     static void WaitUntil(
         std::function<bool()> predicate,
         const TString& errorMessage);
+
+    static void AbortCypressTransactions();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

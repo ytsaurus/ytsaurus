@@ -2,8 +2,10 @@
 #include "private.h"
 
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
+#include <yt/yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/yt/client/api/config.h>
 #include <yt/yt/client/api/rowset.h>
@@ -109,6 +111,8 @@ void TApiTestBase::TearDownTestCase()
             testSuite->name());
     }
 
+    AbortCypressTransactions();
+
     Client_.Reset();
     Connection_.Reset();
 }
@@ -151,6 +155,53 @@ void TApiTestBase::WaitUntilEqual(const TYPath& path, const TString& expected)
         Format("%Qv is not %Qv", path, expected));
 }
 
+
+void TApiTestBase::AbortCypressTransactions()
+{
+    YT_LOG_DEBUG("Aborting Cypress transactions");
+
+    auto transactions = ConvertToNode(WaitFor(Client_->ListNode("//sys/transactions", NApi::TListNodeOptions{
+        .Attributes = {"cypress_transaction"},
+    }))
+        .ValueOrThrow())
+        ->AsList();
+
+    std::vector<TFuture<void>> abortFutures;
+    for (const auto& txNode : transactions->GetChildren()) {
+        auto tx = txNode->AsString();
+        if (tx->Attributes().Get("cypress_transaction", false)) {
+            NApi::TTransactionAbortOptions abortOptions = {};
+            abortOptions.Force = true;
+            abortFutures.push_back(Client_
+                ->AttachTransaction(ConvertTo<TTransactionId>(tx->GetValue()))
+                ->Abort(abortOptions));
+        }
+    }
+
+    WaitFor(AllSet(abortFutures).AsVoid())
+        .ThrowOnError();
+
+    for (int transactionIndex : std::views::iota(0, std::ssize(abortFutures))) {
+        auto value = abortFutures[transactionIndex].TryGet();
+        YT_VERIFY(value.has_value());
+
+        auto transactionId = transactions->FindChild(transactionIndex)->GetValue<std::string>();
+
+        if (value->IsOK()) {
+            YT_LOG_DEBUG(
+                "Cypress transaction aborted (TransactionId: %v)",
+                transactionId);
+        } else {
+            YT_LOG_DEBUG(
+                "Failed to abort Cypress transaction (TransactionId: %v, Error: %v)",
+                transactionId,
+                value->GetMessage());
+        }
+    }
+
+    YT_LOG_DEBUG("All Cypress transactions aborted (TransactionCount: %v)", abortFutures.size());
+}
+
 NApi::IConnectionPtr TApiTestBase::Connection_;
 NApi::IClientPtr TApiTestBase::Client_;
 std::string TApiTestBase::ClusterName_;
@@ -159,9 +210,15 @@ std::string TApiTestBase::ClusterName_;
 
 void TDynamicTablesTestBase::TearDownTestCase()
 {
+    auto baseTearDown = Finally([] {
+        TApiTestBase::TearDownTestCase();
+    });
+
     if (Table_) {
         SyncUnmountTable(Table_);
     }
+
+    AbortCypressTransactions();
 
     WaitFor(Client_->RemoveNode(TYPath("//tmp/*")))
         .ThrowOnError();
@@ -172,8 +229,6 @@ void TDynamicTablesTestBase::TearDownTestCase()
 
     WaitFor(Client_->SetNode(TYPath("//sys/accounts/tmp/@resource_limits/tablet_count"), ConvertToYsonString(0)))
         .ThrowOnError();
-
-    TApiTestBase::TearDownTestCase();
 }
 
 void TDynamicTablesTestBase::SetUpTestCase()
