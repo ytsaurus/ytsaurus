@@ -370,7 +370,9 @@ TThrottlerManager::TThrottlerManager(
     , Logger(std::move(options.Logger))
     , ClusterThrottlersConfigUpdater_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
-        BIND(&TThrottlerManager::TryUpdateClusterThrottlersConfig, MakeWeak(this))))
+        BIND(&TThrottlerManager::TryUpdateClusterThrottlersConfig, MakeWeak(this)),
+        // Default period will be updated once config has been retrieved.
+        TDuration::Seconds(10)))
 {
     if (ClusterNodeConfig_->EnableFairThrottler) {
         Throttlers_[EExecNodeThrottlerKind::JobIn] = Bootstrap_->GetInThrottler("job_in");
@@ -396,13 +398,13 @@ TThrottlerManager::TThrottlerManager(
             Throttlers_[kind] = std::move(throttler);
         }
     }
-
-    ClusterThrottlersConfigUpdater_->Start();
-    ClusterThrottlersConfigUpdater_->ScheduleOutOfBand();
 }
 
 TFuture<void> TThrottlerManager::Start()
 {
+    ClusterThrottlersConfigUpdater_->Start();
+    ClusterThrottlersConfigUpdater_->ScheduleOutOfBand();
+
     return ClusterThrottlersConfigInitializedPromise_.ToFuture();
 }
 
