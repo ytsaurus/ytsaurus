@@ -75,8 +75,9 @@ public:
     }
 
     #define XX(name, args) \
-        if (GroundClientReadyPromise_.IsSet()) { \
+        if (auto optionalError = GroundClientReadyPromise_.TryGet()) { \
             try { \
+                optionalError->ThrowOnError(); \
                 return Do ## name args; \
             } catch (const std::exception& ex) { \
                 return MakeFuture<decltype(Do ## name args)::TValueType>(TError(ex)); \
@@ -84,6 +85,7 @@ public:
         } \
         return GroundClientReadyPromise_ \
             .ToFuture() \
+            .ToUncancelable() \
             .Apply(BIND([=, this, this_ = MakeStrong(this)] { \
                 return Do ## name args; \
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
