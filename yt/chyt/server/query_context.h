@@ -98,6 +98,9 @@ public:
     //! Level of the query in an execution tree.
     int QueryDepth = 0;
 
+    //! Number of write sinks created for insert query.
+    std::atomic<int> WriteSinkCount = 0;
+
     NTableClient::TRowBufferPtr RowBuffer;
 
     TQuerySettingsPtr Settings;
