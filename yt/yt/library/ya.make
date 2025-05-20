@@ -14,6 +14,7 @@ RECURSE(
     dns_over_rpc
     dynamic_config
     fusion
+    gpu
     undumpable
     erasure
     error_skeleton
