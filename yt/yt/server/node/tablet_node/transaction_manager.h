@@ -81,7 +81,13 @@ struct ITransactionManager
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
-        TGuid externalizationToken = {}) = 0;
+        TTransactionExternalizationToken externalizationToken = {}) = 0;
+
+    //! Finds a transaction by id and/or externalization token.
+    //! Either transient or persistent transaction may be returned.
+    virtual TTransaction* FindTransaction(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken token = {}) = 0;
 
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.
@@ -92,7 +98,9 @@ struct ITransactionManager
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.
     //! Fails if a transient instance is found or no transaction is found.
-    virtual TTransaction* GetPersistentTransaction(TTransactionId transactionId) = 0;
+    virtual TTransaction* GetPersistentTransaction(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken token = {}) = 0;
 
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.

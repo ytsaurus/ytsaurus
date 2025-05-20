@@ -122,6 +122,9 @@ void TTestingTableMountConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("simulated_store_preload_delay", &TThis::SimulatedStorePreloadDelay)
         .Default();
+
+    registrar.Parameter("write_response_delay", &TThis::WriteResponseDelay)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

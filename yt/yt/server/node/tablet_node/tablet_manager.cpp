@@ -4048,6 +4048,60 @@ private:
         return Slot_->GetSimpleHydraManager();
     }
 
+    void AbortAllTransactions(TTablet* tablet) override
+    {
+        if (!IsLeader()) {
+            return;
+        }
+
+        const auto& tabletWriteManager = tablet->GetTabletWriteManager();
+        const auto& transactionManager = GetTransactionManager();
+        const auto& transactionSupervisor = Slot_->GetTransactionSupervisor();
+
+        for (auto transactionId : tabletWriteManager->GetAffectingTransactionIds()) {
+            auto* transaction = transactionManager->FindTransaction(transactionId);
+            if (!transaction) {
+                continue;
+            }
+
+            // Fast path: transaction abort has  already been requested.
+            if (transaction->GetTransientState() == ETransactionState::TransientAbortPrepared) {
+                continue;
+            }
+
+            // Fast path: transaction cannot be aborted, do not issue useless mutations.
+            auto persistentState = transaction->GetPersistentState();
+            if (persistentState == ETransactionState::PersistentCommitPrepared ||
+                persistentState == ETransactionState::CommitPending ||
+                persistentState == ETransactionState::Committed ||
+                persistentState == ETransactionState::Serialized)
+            {
+                continue;
+            }
+
+            YT_LOG_DEBUG("Aborting transaction by out-of-order tablet request "
+                "(%v, TransactionId: %v, PersistentState: %v, TransientState: %v)",
+                tablet->GetLoggingTag(),
+                transactionId,
+                transaction->GetPersistentState(),
+                transaction->GetTransientState());
+
+            auto future = transactionSupervisor->AbortTransaction(transactionId)
+                // TODO(ifsmirnov): remove subscription with excessive logging
+                // after some testing.
+                .Apply(BIND([transactionId, this] (const TError& error) {
+                    if (error.IsOK()) {
+                        YT_LOG_DEBUG("Transaction aborted by out-of-order tablet request (TransactionId: %v)",
+                            transactionId);
+                    } else {
+                        YT_LOG_DEBUG(error, "Error aborting transaction by out-of-order tablet request (TransactionId: %v)",
+                            transactionId);
+                    }
+                }));
+            YT_UNUSED_FUTURE(future);
+        }
+    }
+
     void CheckIfTabletFullyUnlocked(TTablet* tablet)
     {
         if (!IsLeader()) {

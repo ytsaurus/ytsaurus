@@ -13,6 +13,8 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
+#include <yt/yt/server/lib/hive/helpers.h>
+
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
@@ -23,15 +25,16 @@
 namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
+using namespace NConcurrency;
+using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
-using namespace NYson;
 using namespace NYTree;
-using namespace NConcurrency;
-using namespace NServer;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -566,6 +569,18 @@ public:
         return !TransactionIdToPersistentWriteState_.empty();
     }
 
+    THashSet<TTransactionId> GetAffectingTransactionIds() const override
+    {
+        THashSet<TTransactionId> result;
+        for (const auto& [transactionId, _] : TransactionIdToTransientWriteState_) {
+            result.insert(transactionId);
+        }
+        for (const auto& [transactionId, _] : TransactionIdToPersistentWriteState_) {
+            result.insert(transactionId);
+        }
+        return result;
+    }
+
     void StartEpoch() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -575,10 +590,14 @@ public:
             return;
         }
 
+        auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
+            ? GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId())
+            : TTransactionExternalizationToken{};
+
         const auto& transactionManager = Host_->GetTransactionManager();
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
             if (writeState->RowsPrepared) {
-                auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
+                auto* transaction = transactionManager->GetPersistentTransaction(transactionId, externalizationToken);
                 InsertPreparedTransactionToBarrier(transaction, writeState);
             }
         }
@@ -654,9 +673,13 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
+            ? GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId())
+            : TTransactionExternalizationToken{};
+
         const auto& transactionManager = Host_->GetTransactionManager();
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
-            auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
+            auto* transaction = transactionManager->GetPersistentTransaction(transactionId, externalizationToken);
 
             for (const auto& writeRecord : writeState->LockedWriteLog) {
                 LockRows(transaction, writeRecord);

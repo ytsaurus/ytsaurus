@@ -173,6 +173,8 @@ public:
     TDuration SimulatedTabletSnapshotDelay;
     TDuration SimulatedStorePreloadDelay;
 
+    TDuration WriteResponseDelay;
+
     REGISTER_YSON_STRUCT_LITE(TTestingTableMountConfig);
 
     static void Register(TRegistrar registrar);

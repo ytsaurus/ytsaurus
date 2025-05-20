@@ -152,12 +152,20 @@ public:
         return PersistentTransactionMap_.Find(transactionId);
     }
 
-    TTransaction* GetPersistentTransaction(TTransactionId transactionId) override
+    TTransaction* GetPersistentTransaction(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken token = {}) override
     {
-        return PersistentTransactionMap_.Get(transactionId);
+        if (token) {
+            return ExternalizedTransactionMap_.Get({transactionId, token});
+        } else {
+            return PersistentTransactionMap_.Get(transactionId);
+        }
     }
 
-    TTransaction* GetPersistentTransactionOrThrow(TTransactionId transactionId, TGuid externalizationToken = {})
+    TTransaction* GetPersistentTransactionOrThrow(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken externalizationToken = {})
     {
         TTransaction* transaction = nullptr;
 
@@ -178,7 +186,9 @@ public:
         THROW_ERROR error;
     }
 
-    TTransaction* FindTransaction(TTransactionId transactionId, TGuid externalizationToken = {})
+    TTransaction* FindTransaction(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken externalizationToken = {}) override
     {
         if (externalizationToken) {
             if (auto* transaction = ExternalizedTransactionMap_.Find({transactionId, externalizationToken})) {
@@ -196,7 +206,9 @@ public:
         return nullptr;
     }
 
-    TTransaction* GetTransactionOrThrow(TTransactionId transactionId, TGuid externalizationToken = {})
+    TTransaction* GetTransactionOrThrow(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken externalizationToken = {})
     {
         auto* transaction = FindTransaction(transactionId, externalizationToken);
         if (!transaction) {
@@ -220,7 +232,7 @@ public:
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
-        TGuid externalizationToken = {}) override
+        TTransactionExternalizationToken externalizationToken = {}) override
     {
         YT_VERIFY(!externalizationToken || !transient);
 
@@ -366,7 +378,7 @@ public:
 
     void PrepareTransactionCommit(
         TTransactionId transactionId,
-        TGuid externalizationToken,
+        TTransactionExternalizationToken externalizationToken,
         const TTransactionPrepareOptions& options)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -497,7 +509,7 @@ public:
 
     void CommitTransaction(
         TTransactionId transactionId,
-        TGuid externalizationToken,
+        TTransactionExternalizationToken externalizationToken,
         const NTransactionSupervisor::TTransactionCommitOptions& options)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -626,7 +638,7 @@ public:
 
     void AbortTransaction(
         TTransactionId transactionId,
-        TGuid externalizationToken,
+        TTransactionExternalizationToken externalizationToken,
         const NTransactionSupervisor::TTransactionAbortOptions& options)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -825,15 +837,27 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        auto dumpTransaction = [&] (TFluentMap fluent, const std::pair<TTransactionId, TTransaction*>& pair) {
+        auto dumpTransaction = [&] (TFluentMap fluent, const auto& pair) {
             auto* transaction = pair.second;
             fluent
-                .Item(ToString(transaction->GetId())).BeginMap()
+                .Item(FormatTransactionId(transaction->GetId(), transaction->GetExternalizationToken())).BeginMap()
                     .Item("transient").Value(transaction->GetTransient())
                     .Item("timeout").Value(transaction->GetTimeout())
                     .Item("state").Value(transaction->GetTransientState())
                     .Item("start_timestamp").Value(transaction->GetStartTimestamp())
                     .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
+                    .DoIf(transaction->IsExternalizedFromThisCell(), [&] (auto fluent) {
+                        fluent
+                            .Item("externalizer_tablets").DoListFor(
+                                transaction->ExternalizerTablets(),
+                                [] (auto fluent, const auto& pair) {
+                                    fluent
+                                        .Item().BeginMap()
+                                            .Item("tablet_id").Value(pair.first)
+                                            .Item("externalization_token").Value(pair.second)
+                                        .EndMap();
+                                });
+                    })
                     // Omit CommitTimestamp, it's typically null.
                     // TODO: Tablets.
                 .EndMap();
@@ -842,10 +866,13 @@ private:
             .BeginMap()
                 .DoFor(TransientTransactionMap_, dumpTransaction)
                 .DoFor(PersistentTransactionMap_, dumpTransaction)
+                .DoFor(ExternalizedTransactionMap_, dumpTransaction)
             .EndMap();
     }
 
-    TString FormatTransactionId(TTransactionId transactionId, TGuid externalizationToken)
+    TString FormatTransactionId(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken externalizationToken)
     {
         if (externalizationToken) {
             return Format("%v@%v", transactionId, externalizationToken);
@@ -1163,7 +1190,7 @@ private:
     void HydraRegisterTransactionActions(NTabletClient::NProto::TReqRegisterTransactionActions* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto externalizationToken = FromProto<TGuid>(request->externalization_token());
+        auto externalizationToken = FromProto<TTransactionExternalizationToken>(request->externalization_token());
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto signature = request->signature();
@@ -1298,7 +1325,7 @@ private:
     void HydraPrepareExternalizedTransaction(NProto::TReqPrepareExternalizedTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto externalizationToken = FromProto<TGuid>(request->externalization_token());
+        auto externalizationToken = FromProto<TTransactionExternalizationToken>(request->externalization_token());
         auto options = FromProto<TTransactionPrepareOptions>(request->options());
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
@@ -1325,7 +1352,7 @@ private:
     void HydraCommitExternalizedTransaction(NProto::TReqCommitExternalizedTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto externalizationToken = FromProto<TGuid>(request->externalization_token());
+        auto externalizationToken = FromProto<TTransactionExternalizationToken>(request->externalization_token());
         auto options = FromProto<TTransactionCommitOptions>(request->options());
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
@@ -1347,7 +1374,7 @@ private:
     void HydraAbortExternalizedTransaction(NProto::TReqAbortExternalizedTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto externalizationToken = FromProto<TGuid>(request->externalization_token());
+        auto externalizationToken = FromProto<TTransactionExternalizationToken>(request->externalization_token());
         auto options = FromProto<TTransactionAbortOptions>(request->options());
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
