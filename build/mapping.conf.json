@@ -1,5 +1,8 @@
 {
     "bottles": {},
+    "extensions": {
+        "registry_endpoint": "https://devtools-registry.s3.yandex.net"
+    },
     "resources": {
         "6277415836": "{registry_endpoint}/6277415836",
         "2214720943": "{registry_endpoint}/2214720943",
