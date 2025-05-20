@@ -104,7 +104,7 @@ protected void doRun(String[] args, SparkSession spark, CompoundClient yt) {
 
 ### Настройки операций
 
-При использовании `spark-launch-yt` для настройки кластера доступна опция `--params '{"operation_spec"={...};}`. [Список всех поддерживаемых опций](../../operations/operations-options.md).
+При использовании `spark-launch-yt` для настройки кластера доступна опция `--params '{"operation_spec"={...};}`. [Список всех поддерживаемых опций](../../../../../user-guide/data-processing/operations/operations-options.md).
 Это будет полезно, если необходимо изменить стандартные настройки операции например для увеличения количество failed джобов, после которого операция считается failed.
 
 ```bash
@@ -114,12 +114,12 @@ spark-launch-yt \
   --params '{"operation_spec"={"max_failed_job_count"=100;owners=[...]};}'
 ```
 
-### Обновление версии python 
+### Обновление версии python
 
 Существуют два способа обновления версии python:
 1. Установить необходимую версию python:
-   1. Установить необходимую версию python на exeс nodes 
-   2. Добавит версию python `//home/spark/conf/global` и путь к новому интерпретатору. 
+   1. Установить необходимую версию python на exeс nodes
+   2. Добавит версию python `//home/spark/conf/global` и путь к новому интерпретатору.
    3. После этого в spark-submit-yt будет возможность использовать его. Параметр `--python-version`
 2. Собрать свой образ с необходимой версией python
 

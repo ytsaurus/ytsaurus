@@ -50,7 +50,7 @@
 
 Создание очереди ничем не отличается от создания обычной упорядоченной динамической таблицы.
 
-Для наибольшей полноты графиков/статистик рекомендуется добавлять в схему таблицы колонки [`$timestamp`](ordered-dynamic-tables.md#timestamp_column) и [`$cumulative_data_weight`](ordered-dynamic-tables.md#cumulative_data_weight_column).
+Для наибольшей полноты графиков/статистик рекомендуется добавлять в схему таблицы колонки [$timestamp](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md#timestamp_column) и [$cumulative_data_weight](../../../user-guide/dynamic-tables/ordered-dynamic-tables.md#cumulative_data_weight_column).
 
 Проверить, что автоматика подцепила очередь, можно по появлению вкладки **Queue** на странице объекта динамической таблицы.
 
