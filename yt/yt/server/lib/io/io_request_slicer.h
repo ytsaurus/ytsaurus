@@ -18,7 +18,7 @@ struct TSlicedReadRequest
 class TIORequestSlicer
 {
 public:
-    TIORequestSlicer(i64 desiredSize, i64 minSize);
+    TIORequestSlicer(i64 desiredSize, i64 minSize, bool enableSlicing);
 
     std::vector<TSlicedReadRequest> Slice(TReadRequest request, const TSharedMutableRef& buffer) const;
 
@@ -32,18 +32,7 @@ private:
 private:
     const i64 DesiredRequestSize_;
     const i64 MinRequestSize_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDummyRequestSlicer
-{
-public:
-    TDummyRequestSlicer(i64 desiredSize, i64 minSize);
-
-    std::array<TSlicedReadRequest, 1> Slice(TReadRequest request, TSharedMutableRef buffer) const;
-    std::array<TWriteRequest, 1> Slice(TWriteRequest request) const;
-    std::array<TFlushFileRangeRequest, 1> Slice(TFlushFileRangeRequest request) const;
+    const bool EnableSlicing_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
