@@ -70,52 +70,6 @@ private:
         }))
             .ThrowOnError();
     }
-
-    static void AbortCypressTransactions()
-    {
-        YT_LOG_DEBUG("Aborting Cypress transactions");
-
-        auto transactions = ConvertToNode(WaitFor(Client_->ListNode("//sys/transactions", NApi::TListNodeOptions{
-            .Attributes = {"cypress_transaction"},
-        }))
-            .ValueOrThrow())
-            ->AsList();
-
-        std::vector<TFuture<void>> abortFutures;
-        for (const auto& txNode : transactions->GetChildren()) {
-            auto tx = txNode->AsString();
-            if (tx->Attributes().Get("cypress_transaction", false)) {
-                NApi::TTransactionAbortOptions abortOptions = {};
-                abortOptions.Force = true;
-                abortFutures.push_back(Client_
-                    ->AttachTransaction(ConvertTo<TTransactionId>(tx->GetValue()))
-                    ->Abort(abortOptions));
-            }
-        }
-
-        WaitFor(AllSet(abortFutures).AsVoid())
-            .ThrowOnError();
-
-        for (int transactionIndex : std::views::iota(0, std::ssize(abortFutures))) {
-            auto value = abortFutures[transactionIndex].TryGet();
-            YT_VERIFY(value.has_value());
-
-            auto transactionId = transactions->FindChild(transactionIndex)->GetValue<std::string>();
-
-            if (value->IsOK()) {
-                YT_LOG_DEBUG(
-                    "Cypress transaction aborted (TransactionId: %v)",
-                    transactionId);
-            } else {
-                YT_LOG_DEBUG(
-                    "Failed to abort Cypress transaction (TransactionId: %v, Error: %v)",
-                    transactionId,
-                    value->GetMessage());
-            }
-        }
-
-        YT_LOG_DEBUG("All Cypress transactions aborted (TransactionCount: %v)", abortFutures.size());
-    }
 };
 
 TString Prettify(const TYsonString& yson)
