@@ -2154,11 +2154,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
     // the node has been locked under current transaction in LockCopySource.
     auto* node = GetThisImpl();
 
-    // Using this instead of YT_VERIFY, as suggested in the relevant PR.
     if (node->GetTransaction() != Transaction_) {
-        YT_LOG_ALERT("Inconsistent locking during copy detected (NodeId: %v, ExpectedTransaction:%v)",
+        YT_LOG_ALERT("Inconsistent locking during copy detected (NodeId: %v, ExpectedTransactionId: %v)",
             node->GetVersionedId(),
-            Transaction_);
+            GetObjectId(Transaction_));
         THROW_ERROR_EXCEPTION("Inconsistent locking during copy detected");
     }
 
