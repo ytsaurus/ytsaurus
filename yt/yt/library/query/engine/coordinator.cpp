@@ -306,6 +306,8 @@ TQueryStatistics CoordinateAndExecute(
         if (subqueryStatisticsOrError.IsOK()) {
             auto subqueryStatistics = std::move(subqueryStatisticsOrError).ValueOrThrow();
             queryStatistics.AddInnerStatistics(std::move(subqueryStatistics));
+        } else {
+            queryStatistics.AddInnerStatistics({});
         }
     }
 

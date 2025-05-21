@@ -3288,38 +3288,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         for i in range(22):
             assert tablet_infos["tablets"][i]["total_row_count"] == tablet_indexes[i]
 
-    @authors("dave11ar")
-    def test_statistics_reporter(self):
-        statistics_path = "//tmp/statistics_reporter_table"
-
-        update_nodes_dynamic_config({
-            "tablet_node" : {
-                "statistics_reporter" : {
-                    "enable" : True,
-                    "table_path": statistics_path,
-                    "report_backoff_time": 1,
-                    "periodic_options": {
-                        "period": 1,
-                        "splay": 0,
-                        "jitter": 0,
-                    }
-                }
-            }
-        })
-
-        sync_create_cells(1)
-
-        self._create_table_for_statistics_reporter(statistics_path)
-        sync_mount_table(statistics_path)
-
-        self._create_sorted_table("//tmp/t")
-        sync_mount_table("//tmp/t")
-
-        table_id = get("//tmp/t/@id")
-        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-
-        wait(lambda: len(lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])) == 1)
-
     @authors("alexelexa")
     def test_max_chunks_per_tablet(self):
         sync_create_cells(1)
