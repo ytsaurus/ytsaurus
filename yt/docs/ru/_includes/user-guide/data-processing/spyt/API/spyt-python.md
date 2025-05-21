@@ -4,7 +4,7 @@
 
 1. Напишите код.
 2. Выложите код и зависимости в {{product-name}}. Основной файл `.py` и зависимости в `.py`, `.zip` или `.egg`.
-3. Соберите испольняемый бинарный файл и выложите его в {{product-name}} (Spark 3.2.2+).
+3. Соберите исполняемый бинарный файл и выложите его в {{product-name}} (Spark 3.2.2+).
 4. Запустите команду `spark-submit-yt` (для запуска во внутреннем standalone кластере) или `spark-submit` (для запуска напрямую в {{product-name}}, доступно с версии SPYT 1.76.0).
 
 ## Особенности запуска задач напрямую в {{product-name}} { #submit }
@@ -22,6 +22,49 @@ spark.stop()
 ```
 
 Это связано с тем, что функции `with spark_session()` и `spyt.connect()` обращаются к discovery-path, который создаётся в Кипарисе при запуске standalone кластера. В данном способе discovery-path не используется, так как внутренний кластер не создаётся.
+
+## Запуск задач напрямую в {{product-name}} в кластерном режиме { #submit-cluster }
+
+```python
+from spyt.submit import direct_submit
+
+# method return YT operation id for driver, throw an exception if spin failed
+operation_id = direct_submit(
+    yt_proxy="yt_proxy_address",             # YT proxy address as string
+    num_executors=3,                         # Number of Spark executors
+    main_file="main.py",  		             # Main .py or .jar file for Spark job
+    deploy_mode="cluster",                   # 'cluster' or 'client', default 'cluster'
+    pool=pool,                               # (Optional) YT pool for the job
+    spark_base_args=spark_base_args,         # (Optional) List of extra Spark submit arguments
+    job_args=job_args,                       # (Optional) Arguments passed to main application
+    spark_conf=spark_conf,                   # Spark configuration dictionary
+    timeout_sec=10                           # Submit timeout in seconds (default: 30)
+)
+
+# than you can monitor your operation, eg.
+
+while True:
+    current_state = yt_client.get_operation_state(operation_id)
+    logging.info(f"Operation: {operation_id}, State: {current_state}")
+    if current_state.is_finished():
+        break
+    time.sleep(1)
+```
+
+## Запуск задач напрямую в {{product-name}} в клиентском режиме { #submit-client }
+
+```python
+import spyt
+from pyspark import SparkConf
+
+conf = SparkConf()
+...
+
+with spyt.direct_spark_session("yt_proxy_address", conf) as spark:
+        df = spark.read.yt(path)
+        ...
+
+```
 
 ## Запуск без зависимостей  { #simple }
 
