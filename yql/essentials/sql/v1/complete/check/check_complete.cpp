@@ -111,12 +111,13 @@ namespace NSQLComplete {
     bool CheckComplete(TStringBuf query, TString& error) try {
         constexpr size_t Seed = 97651231;
         constexpr size_t Attempts = 8;
+        constexpr size_t MaxAttempts = 128;
 
         SetRandomSeed(Seed);
 
         auto engine = MakeSqlCompletionEngineUT();
 
-        for (size_t i = 0; i < Attempts;) {
+        for (size_t i = 0, j = 0; i < Attempts && j < MaxAttempts; ++j) {
             size_t pos = RandomNumber<size_t>(query.size() + 1);
             if (pos < query.size() && IsUTF8ContinuationByte(query.at(pos))) {
                 continue;
