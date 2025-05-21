@@ -35,14 +35,18 @@ namespace NSQLComplete {
             const TEnvironment* Env_;
         };
 
+        TMaybe<TValue> EvaluateG(antlr4::ParserRuleContext* ctx, const TEnvironment& env) {
+            std::any any = TVisitor(&env).visit(ctx);
+            if (!any.has_value()) {
+                return Nothing();
+            }
+            return std::any_cast<TValue>(any);
+        }
+
     } // namespace
 
-    TMaybe<TValue> Evaluate(antlr4::ParserRuleContext* ctx, const TEnvironment& env) {
-        std::any any = TVisitor(&env).visit(ctx);
-        if (!any.has_value()) {
-            return Nothing();
-        }
-        return std::any_cast<TValue>(any);
+    TMaybe<TValue> Evaluate(SQLv1::Bind_parameterContext* ctx, const TEnvironment& env) {
+        return EvaluateG(ctx, env);
     }
 
 } // namespace NSQLComplete

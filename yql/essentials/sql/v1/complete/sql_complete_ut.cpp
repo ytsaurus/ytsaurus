@@ -126,8 +126,8 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         return MakeSqlCompletionEngine(std::move(lexer), std::move(service));
     }
 
-    TVector<TCandidate> Complete(ISqlCompletionEngine::TPtr& engine, TString sharped) {
-        return engine->CompleteAsync(SharpedInput(sharped)).GetValueSync().Candidates;
+    TVector<TCandidate> Complete(ISqlCompletionEngine::TPtr& engine, TString sharped, TEnvironment env = {}) {
+        return engine->CompleteAsync(SharpedInput(sharped), std::move(env)).GetValueSync().Candidates;
     }
 
     TVector<TCandidate> CompleteTop(size_t limit, ISqlCompletionEngine::TPtr& engine, TString sharped) {
@@ -193,6 +193,41 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         };
         auto engine = MakeSqlCompletionEngineUT();
         UNIT_ASSERT_VALUES_EQUAL(Complete(engine, "USE "), expected);
+    }
+
+    Y_UNIT_TEST(UseClusterResultion) {
+        auto engine = MakeSqlCompletionEngineUT();
+        {
+            TVector<TCandidate> expected = {
+                {TableName, "`maxim`"},
+                {ClusterName, "example"},
+                {ClusterName, "yt:saurus"},
+                {Keyword, "ANY"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(
+                Complete(
+                    engine,
+                    "USE yt:$cluster_name; SELECT * FROM ",
+                    {.Bindings = {{"cluster_name", "saurus"}}}),
+                expected);
+        }
+        {
+            TVector<TCandidate> expected = {
+                {FolderName, "`.sys/`"},
+                {FolderName, "`local/`"},
+                {FolderName, "`prod/`"},
+                {FolderName, "`test/`"},
+                {ClusterName, "example"},
+                {ClusterName, "yt:saurus"},
+                {Keyword, "ANY"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(
+                Complete(
+                    engine,
+                    "USE yt:$cluster_name; SELECT * FROM ",
+                    {.Bindings = {}}),
+                expected);
+        }
     }
 
     Y_UNIT_TEST(Alter) {
