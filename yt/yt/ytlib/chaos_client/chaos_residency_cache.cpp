@@ -690,7 +690,7 @@ IChaosResidencyCachePtr CreateChaosResidencyCache(
         chaosCacheChannelConfig->Addresses->empty();
 
     if (chaosChannelConfigAddressesInvalid) {
-        auto& Logger = logger;
+        const auto& Logger = logger;
         YT_LOG_WARNING(
             "Chaos cache channel addresses are present but empty, "
             "falling back to master cache variant of chaos residency cache");
