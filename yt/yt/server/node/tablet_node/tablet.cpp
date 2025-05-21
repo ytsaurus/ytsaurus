@@ -187,6 +187,16 @@ TRefCountedReplicationProgress& TRefCountedReplicationProgress::operator=(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRuntimeSmoothMovementData::Reset()
+{
+    Role.store(ESmoothMovementRole::None);
+    IsActiveServant.store(true);
+    SiblingServantCellId.Store(NullObjectId);
+    SiblingServantMountRevision.store(TRevision{});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<TTabletSnapshot::TPartitionListIterator, TTabletSnapshot::TPartitionListIterator>
 TTabletSnapshot::GetIntersectingPartitions(
     const TLegacyKey& lowerBound,
@@ -327,7 +337,16 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
         auto siblingCellId = smoothMovementData.SiblingServantCellId.Load();
         auto siblingMountRevision = smoothMovementData.SiblingServantMountRevision.load();
 
-        if (siblingCellId && siblingMountRevision) {
+        if (!siblingCellId || !siblingMountRevision) {
+            // This may happen if movement finishes concurrently with the request.
+            if (smoothMovementData.IsActiveServant.load()) {
+                return;
+            } else {
+                THROW_ERROR error;
+            }
+        }
+
+        if (smoothMovementData.Role.load() == ESmoothMovementRole::Source) {
             error <<= TErrorAttribute("sibling_servant_cell_id", siblingCellId);
             error <<= TErrorAttribute("sibling_servant_mount_revision", siblingMountRevision);
 
@@ -349,6 +368,14 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
                 .ThrowOnError();
             YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
                 LoggingTag);
+
+            // Not a YT_VERIFY since the violation of this condition is not critical
+            // and should not fail the process.
+            YT_ASSERT(smoothMovementData.IsActiveServant.load());
+        }
+
+        if (!smoothMovementData.IsActiveServant.load()) {
+            THROW_ERROR error;
         }
     }
 }
@@ -1133,17 +1160,16 @@ void TTablet::Load(TLoadContext& context)
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
 
-    if (IsActiveServant()) {
-        RuntimeData_->SmoothMovementData.IsActiveServant.store(true);
-    } else {
-        RuntimeData_->SmoothMovementData.IsActiveServant.store(false);
+    if (SmoothMovementData_.GetRole() != ESmoothMovementRole::None) {
+        auto& runtimeData = RuntimeData_->SmoothMovementData;
+        runtimeData.SiblingServantMountRevision.store(
+            SmoothMovementData_.GetSiblingMountRevision());
+        runtimeData.SiblingServantCellId.Store(
+            SmoothMovementData_.GetSiblingCellId());
+        runtimeData.Role.store(SmoothMovementData_.GetRole());
+        RuntimeData_->SmoothMovementData.IsActiveServant.store(IsActiveServant());
 
-        if (SmoothMovementData_.GetRole() == ESmoothMovementRole::Source) {
-            RuntimeData_->SmoothMovementData.SiblingServantMountRevision.store(
-                SmoothMovementData_.GetSiblingMountRevision());
-            RuntimeData_->SmoothMovementData.SiblingServantCellId.Store(
-                SmoothMovementData_.GetSiblingCellId());
-        } else {
+        if (SmoothMovementData_.GetRole() == ESmoothMovementRole::Target) {
             InitializeTargetServantActivationFuture();
         }
     }

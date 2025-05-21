@@ -1093,7 +1093,7 @@ private:
             : MinTimestamp;
         const auto& mountHint = request->mount_hint();
         auto cumulativeDataWeight = GET_FROM_REPLICATABLE(cumulative_data_weight);
-        bool isSmoothMoveTarget = request->has_movement_source_cell_id();
+        bool isSmoothMovementTarget = request->has_movement_source_cell_id();
         auto customRuntimeData = request->has_replicatable_content() && request->replicatable_content().has_custom_runtime_data()
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
@@ -1159,7 +1159,7 @@ private:
 
         SetTableConfigErrors(tablet, configErrors);
 
-        if (tablet->IsPhysicallyOrdered() && !isSmoothMoveTarget) {
+        if (tablet->IsPhysicallyOrdered() && !isSmoothMovementTarget) {
             tablet->SetTrimmedRowCount(GET_FROM_REPLICATABLE(trimmed_row_count));
         }
 
@@ -1169,7 +1169,7 @@ private:
         storeManager->Mount(
             TRange(GET_FROM_REPLICATABLE(stores)),
             TRange(GET_FROM_REPLICATABLE(hunk_chunks)),
-            /*createDynamicStore*/ !freeze && !isSmoothMoveTarget,
+            /*createDynamicStore*/ !freeze && !isSmoothMovementTarget,
             mountHint);
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
@@ -1180,28 +1180,37 @@ private:
             tablet->SetCompressionDictionaryRebuildBackoffTime(policy, TInstant::Now());
         }
 
-        if (isSmoothMoveTarget) {
+        if (isSmoothMovementTarget) {
             // Smooth movement target is being allocated.
 
             auto siblingCellId = FromProto<TTabletCellId>(
                 request->movement_source_cell_id());
-
             auto siblingEndpointId = FromProto<TAvenueEndpointId>(
                 request->movement_source_avenue_endpoint_id());
+            auto siblingMountRevision = FromProto<TRevision>(
+                request->movement_source_mount_revision());
 
             auto& movementData = tablet->SmoothMovementData();
             movementData.SetSiblingCellId(siblingCellId);
             movementData.SetRole(ESmoothMovementRole::Target);
             movementData.SetStage(ESmoothMovementStage::TargetAllocated);
-            movementData.SetSiblingMountRevision(
-                FromProto<TRevision>(request->movement_source_mount_revision()));
+            movementData.SetSiblingMountRevision(siblingMountRevision);
 
             movementData.SetSiblingAvenueEndpointId(siblingEndpointId);
             Slot_->RegisterSiblingTabletAvenue(siblingEndpointId, siblingCellId);
 
+            auto& runtimeData = tablet->RuntimeData()->SmoothMovementData;
+            runtimeData.Role.store(ESmoothMovementRole::Target);
+            runtimeData.IsActiveServant.store(false);
+            runtimeData.SiblingServantCellId.Store(siblingCellId);
+            runtimeData.SiblingServantMountRevision.store(
+                siblingMountRevision);
+
             tablet->InitializeTargetServantActivationFuture();
 
             YT_VERIFY(!masterAvenueEndpointId);
+        } else {
+            tablet->RuntimeData()->SmoothMovementData.IsActiveServant.store(true);
         }
 
         if (masterAvenueEndpointId) {
@@ -1277,7 +1286,7 @@ private:
         tablet->GetStructuredLogger()->OnFullHeartbeat();
 
         if (!IsRecovery()) {
-            if (!isSmoothMoveTarget) {
+            if (!isSmoothMovementTarget) {
                 StartTabletEpoch(tablet);
             }
         }
