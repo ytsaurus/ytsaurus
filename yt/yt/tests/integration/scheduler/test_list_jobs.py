@@ -1296,7 +1296,7 @@ class TestListJobs(TestListJobsCommon):
 
         wait_for_cells()
 
-        assert len(list_jobs(op.id)["state_counts"]) == 2
+        wait(lambda: len(list_jobs(op.id)["state_counts"]) == 2)
         state_counts = list_jobs(op.id)["state_counts"]
         assert frozenset(state_counts.keys()) == frozenset(["aborted", "completed"])
 
