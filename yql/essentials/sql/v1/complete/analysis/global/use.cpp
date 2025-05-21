@@ -6,10 +6,15 @@ namespace NSQLComplete {
 
         class TVisitor: public SQLv1Antlr4BaseVisitor {
         public:
-            TVisitor(antlr4::TokenStream* tokens, size_t cursorPosition)
+            TVisitor(
+                antlr4::TokenStream* tokens, 
+                size_t cursorPosition,
+                const TEnvironment* env)
                 : Tokens_(tokens)
                 , CursorPosition_(cursorPosition)
+                , Env_(env)
             {
+                Y_UNUSED(Env_);
             }
 
             std::any visitSql_stmt_core(SQLv1::Sql_stmt_coreContext* ctx) override {
@@ -78,6 +83,7 @@ namespace NSQLComplete {
 
             antlr4::TokenStream* Tokens_;
             size_t CursorPosition_;
+            const TEnvironment* Env_;
         };
 
     } // namespace
@@ -85,8 +91,9 @@ namespace NSQLComplete {
     TMaybe<TUseContext> FindUseStatement(
         SQLv1::Sql_queryContext* ctx,
         antlr4::TokenStream* tokens,
-        size_t cursorPosition) {
-        std::any result = TVisitor(tokens, cursorPosition).visit(ctx);
+        size_t cursorPosition, 
+        const TEnvironment& env) {
+        std::any result = TVisitor(tokens, cursorPosition, &env).visit(ctx);
         if (!result.has_value()) {
             return Nothing();
         }
