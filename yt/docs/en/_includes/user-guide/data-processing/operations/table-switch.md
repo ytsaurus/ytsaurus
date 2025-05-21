@@ -2,7 +2,7 @@
 
 Operations can have several input and output tables. This section describes how to switch reading between them.
 
-You can get data about which table an entry came from, and select which table to send it to, in the operation's [Map](../../../../user-guide/data-processing/operations/map.md) and [Reduce](../../../user-guide/data-processing/operations/reduce.md) user code. This is done using **[descriptors](#descriptors)** or **[table switches](#switches)**.
+You can get data about which table an entry came from, and select which table to send it to, in the operation's [Map](../../../../user-guide/data-processing/operations/map.md) and [Reduce](../../../../user-guide/data-processing/operations/reduce.md) user code. This is done using **[descriptors](#descriptors)** or **[table switches](#switches)**.
 
 {% note info "Note" %}
 
@@ -37,7 +37,7 @@ When there are multiple output tables, the numbering rules are used. The formula
 
 The correspondence between descriptor numbers and output tables can be changed while working with a job, by using **table switches**.
 
-The schema of configuring switches for input tables can be read in the [Input/output settings](../../../user-guide/storage/io-configuration.md).
+The schema of configuring switches for input tables can be read in the [Input/output settings](../../../../user-guide/storage/io-configuration.md).
 
 The switches form depends on the format of output data.
 
