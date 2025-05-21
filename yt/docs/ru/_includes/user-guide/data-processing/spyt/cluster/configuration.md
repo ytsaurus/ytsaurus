@@ -1,35 +1,8 @@
 # Конфигурации
 
-Список всех поддерживаемых опций Spark содержится в [документации](https://spark.apache.org/docs/latest/configuration.html).
+Список всех поддерживаемых опций Spark содержится в документации на соответствующую версию Spark, которую вы используете. Описание конфигурационных параметров для последней релизной версии Spark доступно [на этой странице](https://spark.apache.org/docs/latest/configuration.html).
 
-## Основные опции { #main }
-
-Большинство опций доступны начиная с версии 1.23.0, если не указано иное.
-
-| **Имя** | **Значение по умолчанию** | **Описание** |
-| ------------------- | --------------- | ------------------------------------------------------------ |
-| `spark.yt.write.batchSize` | `500000` | Размер данных, отправляемых через одну операцию `WriteTable` |
-| `spark.yt.write.miniBatchSize` | `1000` | Размер блока данных, отправляемого в `WriteTable` |
-| `spark.yt.write.timeout` | `60 seconds` | Ограничение на ожидание записи одного блока данных |
-| `spark.yt.write.typeV3.enabled` (`spark.yt.write.writingTypeV3.enabled` до 1.75.2) | `true` | Запись таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1` |
-| `spark.yt.read.vectorized.capacity` | `1000` | Максимальное количество строк в батче при чтении через `wire` протокол |
-| `spark.yt.read.arrow.enabled` | `true` | Использовать `arrow` формат для чтения данных (если это возможно) |
-| `spark.hadoop.yt.timeout` | `300 seconds` | Таймаут на чтение из {{product-name}} |
-| `spark.yt.read.typeV3.enabled` (`spark.yt.read.parsingTypeV3.enabled` до 1.75.2) | `true` | Чтение таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1` |
-| `spark.yt.read.keyColumnsFilterPushdown.enabled` | `true` | Использовать фильтры Spark-запроса для выборочного чтения из {{product-name}} |
-| `spark.yt.read.keyColumnsFilterPushdown.union.enabled` | `false` | Объединять все фильтры в непрерывный диапазон при выборочном чтении |
-| `spark.yt.read.keyColumnsFilterPushdown.ytPathCount.limit` | `100` | Максимальное количество диапазонов таблицы при выборочном чтении |
-| `spark.yt.transaction.timeout` | `5 minutes` | Таймаут на транзакцию записывающей операции |
-| `spark.yt.transaction.pingInterval` | `30 seconds` | Периодичность пингования транзакции записывающей операции |
-| `spark.yt.globalTransaction.enabled` | `false` | Использовать [глобальную транзакцию](../../../../../user-guide/data-processing/spyt/read-transaction.md) |
-| `spark.yt.globalTransaction.id` | `None` | Идентификатор глобальной транзакции |
-| `spark.yt.globalTransaction.timeout` | `5 minutes` | Таймаут глобальной транзакции |
-| `spark.hadoop.yt.user` | - | Имя пользователя {{product-name}} |
-| `spark.hadoop.yt.token` | - | Токен пользователя {{product-name}} |
-| `spark.yt.read.ytPartitioning.enabled` | `true` | Использовать партиционирование таблиц средствами {{product-name}} |
-| `spark.yt.read.planOptimization.enabled` | `false` | Оптимизировать агрегации и джойны на сортированных входных данных |
-| `spark.yt.read.keyPartitioningSortedTables.enabled` | `true` | Использовать партиционирование по ключам для сортированных таблиц, необходимо для оптимизации планов |
-| `spark.yt.read.keyPartitioningSortedTables.unionLimit` | `1` | Максимальное количество объединений партиций при переходе от чтения по индексам к чтению по ключам |
+Список дополнительных опций, относящихся к SPYT, приведен [в справочнике](../../../../../user-guide/data-processing/spyt/thesaurus/configuration.md).
 
 ## Оптимизация агрегаций и джойнов
 
