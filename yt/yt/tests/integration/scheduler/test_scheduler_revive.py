@@ -1158,18 +1158,13 @@ class TestSchedulerReviveForVanilla(OperationReviveBase):
 
 class TestSchedulerReviveForMapMirroredTx(TestSchedulerReviveForMap):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
 
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
+    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
+    # supported in native client.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
 
 ################################################################################

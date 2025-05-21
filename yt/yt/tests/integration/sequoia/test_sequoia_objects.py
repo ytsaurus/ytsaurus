@@ -643,18 +643,7 @@ class TestSequoiaObjects(YTEnvSetup):
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_SECONDARY_MASTER_CELLS = 3
-
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            },
-        },
-    }
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},

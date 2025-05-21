@@ -41,8 +41,6 @@ struct TTransactionManagerConfig
     //! transaction start.
     TDuration DefaultTransactionTimeout;
 
-    bool UseCypressTransactionService;
-
     TPingBatcherConfigPtr PingBatcher;
 
     TExponentialBackoffOptions BulkInsertLockChecker;

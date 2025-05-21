@@ -373,7 +373,6 @@ class YTEnvSetup(object):
     USE_SEQUOIA = False
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = False
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
-    USE_CYPRESS_TRANSACTION_SERVICE = False
     ENABLE_GROUND_TABLE_MOUNT_CACHE = True
 
     # Ground cluster should be lean by default.
@@ -606,21 +605,14 @@ class YTEnvSetup(object):
             enable_legacy_logging_scheme = False
 
         delta_global_cluster_connection_config = None
-        if cls.get_param("USE_CYPRESS_TRANSACTION_SERVICE", index) or \
-                cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index):
-            delta_global_cluster_connection_config = {
-                "transaction_manager": {
-                    "use_cypress_transaction_service": True,
-                },
-            }
         if cls._is_ground_cluster(index):
-            if delta_global_cluster_connection_config is None:
-                delta_global_cluster_connection_config = {}
-            delta_global_cluster_connection_config["permission_cache"] = {
-                "expire_after_successful_update_time": 60000,
-                "refresh_time": 60000,
-                "expire_after_failed_update_time": 1000,
-                "expire_after_access_time": 300000,
+            delta_global_cluster_connection_config = {
+                "permission_cache": {
+                    "expire_after_successful_update_time": 60000,
+                    "refresh_time": 60000,
+                    "expire_after_failed_update_time": 1000,
+                    "expire_after_access_time": 300000,
+                }
             }
             if cls.get_param("ENABLE_GROUND_TABLE_MOUNT_CACHE", index):
                 delta_global_cluster_connection_config["table_mount_cache"] = {

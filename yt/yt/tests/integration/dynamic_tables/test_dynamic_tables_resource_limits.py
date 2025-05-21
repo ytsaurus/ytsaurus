@@ -588,32 +588,22 @@ class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPo
 
 
 @pytest.mark.enabled_multidaemon
-class TestDynamicTablesResourceLimitsShardedTxCTxS(TestDynamicTablesResourceLimitsShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestDynamicTablesResourceLimitsMirroredTx(TestDynamicTablesResourceLimitsShardedTxCTxS):
+class TestDynamicTablesResourceLimitsMirroredTx(TestDynamicTablesResourceLimitsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+
+    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
+    # supported in native client.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "commit_operation_cypress_node_changes_via_system_transaction": True,
     }
 
     def setup_method(self, method):
-        super(TestDynamicTablesResourceLimitsShardedTxCTxS, self).setup_method(method)
+        super(TestDynamicTablesResourceLimitsMirroredTx, self).setup_method(method)
         set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
 
 
@@ -976,26 +966,16 @@ class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
 
 
 @pytest.mark.enabled_multidaemon
-class TestPerBundleAccountingShardedTxCTxS(TestPerBundleAccountingShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestPerBundleAccountingMirroredTx(TestPerBundleAccountingShardedTxCTxS):
+class TestPerBundleAccountingMirroredTx(TestPerBundleAccountingShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 2
+
+    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
+    # supported in native client.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "commit_operation_cypress_node_changes_via_system_transaction": True,
@@ -1008,5 +988,5 @@ class TestPerBundleAccountingMirroredTx(TestPerBundleAccountingShardedTxCTxS):
     }
 
     def setup_method(self, method):
-        super(TestPerBundleAccountingShardedTxCTxS, self).setup_method(method)
+        super(TestPerBundleAccountingMirroredTx, self).setup_method(method)
         set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)

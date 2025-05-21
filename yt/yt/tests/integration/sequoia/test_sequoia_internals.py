@@ -613,17 +613,10 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         "13": {"roles": ["chunk_host", "cypress_node_host"]}
     }
 
-    # COMPAT(kvk1920): Remove when `use_cypress_transaction_service` become `true` by default.
+    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
+    # supported in native client.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            },
-        },
-    }
 
     def _check_transaction_not_exists(self, tx):
         assert not exists(f"#{tx}")
@@ -1114,18 +1107,10 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
 
-    # COMPAT(kvk1920): remove when `use_cypress_transaction_service` become
-    # `true` by default.
+    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
+    # supported in native client.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            },
-        },
-    }
 
     # Creates node and returns its ID. For rootstock returns corresponding
     # scion's ID.
