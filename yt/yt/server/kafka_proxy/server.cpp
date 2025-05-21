@@ -31,6 +31,8 @@
 #include <yt/yt/library/auth_server/credentials.h>
 #include <yt/yt/library/auth_server/token_authenticator.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/bus/server.h>
@@ -411,6 +413,31 @@ private:
         return *userName;
     }
 
+    TString GetQueuePath(const TString& inputTopicName) const
+    {
+        std::string outputTopicName = inputTopicName;
+
+        for (const auto& transformation : Config_->TopicNameTransformations) {
+            if (!transformation->MatchPattern) {
+                YT_LOG_WARNING("There is a topic name transformation without specified match pattern, it will be ignored");
+                continue;
+            }
+
+            int regexReplacementCount = RE2::GlobalReplace(
+                &outputTopicName,
+                *transformation->MatchPattern,
+                transformation->Replacement);
+
+            YT_LOG_DEBUG(
+                "Topic name transformation applied (TopicName: %v -> %v, RegexReplacementCount: %v)",
+                inputTopicName,
+                outputTopicName,
+                regexReplacementCount);
+        }
+
+        return TString(outputTopicName);
+    }
+
     DEFINE_KAFKA_HANDLER(ApiVersions)
     {
         YT_LOG_DEBUG("Start to handle ApiVersions request (ClientSoftwareName: %v)",
@@ -644,7 +671,7 @@ private:
 
         response.Topics.reserve(request.Topics.size());
         for (const auto& topic : request.Topics) {
-            auto path = TRichYPath::Parse(topic.Topic);
+            auto path = TRichYPath::Parse(GetQueuePath(topic.Topic));
             auto tableInfo = WaitFor(NativeConnection_->GetTableMountCache()->GetTableInfo(path.GetPath()))
                 .ValueOrThrow();
 
@@ -831,7 +858,7 @@ private:
         auto consumerPath = TRichYPath::Parse(request.GroupId);
 
         for (const auto& topic : request.Topics) {
-            auto queuePath = TRichYPath::Parse(topic.Name);
+            auto queuePath = TRichYPath::Parse(GetQueuePath(topic.Name));
             for (const auto& partition : topic.Partitions) {
                 auto advanceResultOrError = WaitFor(transaction->AdvanceQueueConsumer(
                     consumerPath, queuePath, partition.PartitionIndex, /*oldOffset*/ std::nullopt, partition.CommittedOffset, TAdvanceQueueConsumerOptions{}));
@@ -893,7 +920,7 @@ private:
             topicResponse.Partitions.reserve(topic.PartitionIndexes.size());
 
             // TODO(nadya73): add CollectPartitions in IConsumerClient too.
-            auto subConsumerClient = consumerClient->GetSubConsumerClient(client, TCrossClusterReference::FromString(topic.Name));
+            auto subConsumerClient = consumerClient->GetSubConsumerClient(client, TCrossClusterReference::FromString(GetQueuePath(topic.Name)));
             auto partitionsOrError = WaitFor(subConsumerClient->CollectPartitions(topic.PartitionIndexes));
 
             if (!partitionsOrError.IsOK()) {
@@ -946,7 +973,7 @@ private:
                     return static_cast<int>(partition.Partition);
                 });
 
-            auto path = TRichYPath::Parse(topic.Topic);
+            auto path = TRichYPath::Parse(GetQueuePath(topic.Topic));
             auto tabletInfos = WaitFor(client->GetTabletInfos(path.GetPath(), tabletIndexes))
                 .ValueOrThrow();
 
@@ -957,7 +984,7 @@ private:
                 topicPartitionResponse.PartitionIndex = partition.Partition;
 
                 auto rowsetOrError = WaitFor(client->PullQueue(
-                    topic.Topic,
+                    path,
                     partition.FetchOffset,
                     partition.Partition,
                     TQueueRowBatchReadOptions{.MaxDataWeight = partition.PartitionMaxBytes}));
@@ -993,7 +1020,7 @@ private:
             topicResponse.Name = topic.Name;
             topicResponse.PartitionResponses.reserve(topic.PartitionData.size());
 
-            auto path = TRichYPath::Parse(topic.Name);
+            auto path = TRichYPath::Parse(GetQueuePath(topic.Name));
 
             auto fillError = [&](NKafka::EErrorCode errorCode = NKafka::EErrorCode::UnknownServerError) {
                 for (const auto& partition : topic.PartitionData) {
@@ -1006,8 +1033,9 @@ private:
             auto transactionOrError = WaitFor(client->StartTransaction(ETransactionType::Tablet));
             if (!transactionOrError.IsOK()) {
                 YT_LOG_DEBUG(transactionOrError,
-                    "Failed to produce rows (Topic: %v)",
-                    topic.Name);
+                    "Failed to produce rows (Topic: %v, QueuePath: %v)",
+                    topic.Name,
+                    path);
                 fillError();
                 continue;
             }
@@ -1038,8 +1066,9 @@ private:
 
             if (!commitResultOrError.IsOK()) {
                 YT_LOG_DEBUG(commitResultOrError,
-                    "Failed to produce rows (Topic: %v)",
-                    topic.Name);
+                    "Failed to produce rows (Topic: %v, QueuePath: %v)",
+                    topic.Name,
+                    path);
 
                 if (commitResultOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
                     fillError(NKafka::EErrorCode::TopicAuthorizationFailed);
@@ -1084,7 +1113,7 @@ private:
                     return static_cast<int>(partition.PartitionIndex);
                 });
 
-            auto path = TRichYPath::Parse(topic.Name);
+            auto path = TRichYPath::Parse(GetQueuePath(topic.Name));
             auto tabletInfos = WaitFor(client->GetTabletInfos(path.GetPath(), tabletIndexes))
                 .ValueOrThrow();
 
