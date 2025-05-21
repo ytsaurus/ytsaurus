@@ -3,7 +3,7 @@
     preset=full;
     mixins=[medium];
     timeout=10800;
-    transaction_title="Iterative stress test for Odin";
+    transaction_title="Iterative sorted tables stress test for Odin";
     expiration_timeout=36000;
     spec={
         sorted={
