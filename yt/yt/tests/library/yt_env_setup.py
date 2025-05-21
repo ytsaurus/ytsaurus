@@ -374,6 +374,7 @@ class YTEnvSetup(object):
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = False
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
     USE_CYPRESS_TRANSACTION_SERVICE = False
+    ENABLE_GROUND_TABLE_MOUNT_CACHE = True
 
     # Ground cluster should be lean by default.
     NUM_MASTERS_GROUND = 1
@@ -621,6 +622,13 @@ class YTEnvSetup(object):
                 "expire_after_failed_update_time": 1000,
                 "expire_after_access_time": 300000,
             }
+            if cls.get_param("ENABLE_GROUND_TABLE_MOUNT_CACHE", index):
+                delta_global_cluster_connection_config["table_mount_cache"] = {
+                    "expire_after_successful_update_time": 60000,
+                    "refresh_time": 60000,
+                    "expire_after_failed_update_time": 1000,
+                    "expire_after_access_time": 300000,
+                }
 
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,

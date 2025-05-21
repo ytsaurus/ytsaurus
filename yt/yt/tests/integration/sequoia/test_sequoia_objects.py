@@ -80,6 +80,9 @@ class TestSequoiaReplicas(YTEnvSetup):
         }
     }
 
+    # It doesn't works with table unmounts.
+    ENABLE_GROUND_TABLE_MOUNT_CACHE = False
+
     def _is_purgatory_empty(self):
         total_purgatory_size = 0
         secondary_masters = get("//sys/secondary_masters")
