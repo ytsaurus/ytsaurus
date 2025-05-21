@@ -18,7 +18,7 @@ namespace NSQLComplete {
             INameService::TPtr names,
             ISqlCompletionEngine::TConfiguration configuration)
             : Configuration_(std::move(configuration))
-            , SyntaxAnalysis_(MakeLocalSyntaxAnalysis(lexer, configuration.IgnoredRules))
+            , SyntaxAnalysis_(MakeLocalSyntaxAnalysis(lexer, Configuration_.IgnoredRules))
             , GlobalAnalysis_(MakeGlobalAnalysis())
             , Names_(std::move(names))
         {

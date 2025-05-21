@@ -1176,4 +1176,32 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
     }
 
+    Y_UNIT_TEST(IgnoredRules) {
+        TNameSet names;
+        TFrequencyData frequency;
+        auto service = MakeStaticNameService(names, MakeDefaultRanking(frequency));
+
+        ISqlCompletionEngine::TConfiguration config = {
+            .IgnoredRules = {
+                "create_table_stmt",
+                "update_stmt",
+                "delete_stmt",
+                "rollback_stmt",
+                "alter_table_stmt",
+                "alter_external_table_stmt",
+            },
+        };
+
+        auto engine = MakeSqlCompletionEngine(
+            MakePureLexerSupplier(), std::move(service), std::move(config));
+
+        TVector<TCandidate> empty;
+        UNIT_ASSERT_EQUAL(Complete(engine, {"UPDA"}).size(), 0);
+        UNIT_ASSERT_EQUAL(Complete(engine, {"DELE"}).size(), 0);
+        UNIT_ASSERT_EQUAL(Complete(engine, {"ROLL"}).size(), 0);
+
+        UNIT_ASSERT_UNEQUAL(Complete(engine, {"INSE"}).size(), 0);
+        UNIT_ASSERT_UNEQUAL(Complete(engine, {"SELE"}).size(), 0);
+    }
+
 } // Y_UNIT_TEST_SUITE(SqlCompleteTests)
