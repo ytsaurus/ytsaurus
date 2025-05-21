@@ -758,6 +758,18 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDisallowRemoteOperationsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("allowed_users", &TThis::AllowedUsers)
+        .Default();
+    registrar.Parameter("allowed_clusters", &TThis::AllowedClusters)
+        .Default();
+    registrar.Parameter("allowed_for_everyone_clusters", &TThis::AllowedForEveryoneClusters)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TControllerAgentConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -1346,6 +1358,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_id_unequal_to_allocation_id", &TThis::JobIdUnequalToAllocationId)
         .Default(false);
+
+    registrar.Parameter("disallow_remote_operations", &TThis::DisallowRemoteOperations)
+        .DefaultNew();
 
     registrar.Parameter("enable_merge_schemas_during_schema_infer", &TThis::EnableMergeSchemasDuringSchemaInfer)
         .Default(false);

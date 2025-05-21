@@ -9,10 +9,12 @@ from yt_commands import (
     authors,
     copy,
     create,
+    create_user,
     get,
     get_job,
     exists,
     join_reduce,
+    raises_yt_error,
     read_table,
     release_breakpoint,
     remove,
@@ -70,6 +72,10 @@ class TestSchedulerRemoteOperationCommandsBase(YTEnvSetup):
                     "use_remote_master_caches": True,
                 },
             },
+            "disallow_remote_operations": {
+                "allowed_users": ["root"],
+                "allowed_clusters": ["remote_0"],
+            }
         },
     }
 
@@ -648,6 +654,57 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
         assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts((data1 + data2) * n_chunks)
         assert not get("//tmp/t_out/@sorted")
 
+    @authors("coteeq")
+    def test_disallow(self):
+        create_user("user-not-allowed")
+        with raises_yt_error("not allowed to start operations"):
+            map(
+                in_=self.to_remote_path("//tmp/t"),
+                out_="//tmp/out",
+                authenticated_user="user-not-allowed",
+                command="cat"
+            )
+
+        with raises_yt_error("not allowed to be an input remote cluster"):
+            map(
+                # NB: Cluster 'not-allowed' does not need to exist
+                in_="""<cluster="not-allowed">//tmp/t""",
+                out_="//tmp/out",
+                command="cat"
+            )
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteOperationCommandsBase):
+    ENABLE_MULTIDAEMON = True
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "remote_copy_operation_options": {
+                "spec_template": {
+                    "use_remote_master_caches": True,
+                },
+            },
+            "disallow_remote_operations": {
+                "allowed_for_everyone_clusters": ["remote_0"],
+            }
+        },
+    }
+
+    @authors("renadeen")
+    def test_simple(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        create("table", "//tmp/t2")
+
+        map(
+            in_=self.to_remote_path("//tmp/t1"),
+            out="//tmp/t2",
+            command="cat",
+        )
+
+        assert read_table("//tmp/t2") == []
+        assert not get("//tmp/t2/@sorted")
+
 
 class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOperationCommandsBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
@@ -679,6 +736,10 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
                     "use_remote_master_caches": True,
                 },
             },
+            "disallow_remote_operations": {
+                "allowed_users": ["root"],
+                "allowed_clusters": ["remote_0"],
+            }
         },
     }
 
