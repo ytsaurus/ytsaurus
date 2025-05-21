@@ -40,7 +40,7 @@ df.write
 
 ## transaction
 
-Reading from a [transaction](../../../../../user-guide/storage/transactions.md). For more details, see [Reading and writing within a transaction](../read-transaction.md).
+Reading from a [transaction](../../../../../user-guide/storage/transactions.md). For more details, see [Reading and writing within a transaction](../../../../../user-guide/data-processing/spyt/read-transaction.md).
 
 Scala example:
 

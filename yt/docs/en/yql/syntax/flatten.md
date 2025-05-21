@@ -65,7 +65,7 @@ This conversion can be convenient in the following cases:
 
 ## Applying FLATTEN BY to YSON {#flatten-by-apply-yson}
 
-To apply `FLATTEN BY` to YSON, you first need to transform it into one of the container types discussed above. For instance, you can do this using the [UDF module of the same name](../udf/list/YSON.md) from the list of presets.
+To apply `FLATTEN BY` to YSON, you first need to transform it into one of the container types discussed above. For instance, you can do this using the [UDF module of the same name](../udf/list/yson.md) from the list of presets.
 
 
 ## Specifying the container type {#flatten-by-specific-type}
