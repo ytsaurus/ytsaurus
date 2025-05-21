@@ -988,7 +988,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<ShuffleHandle> startShuffle(StartShuffle req) {
         return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.START_SHUFFLE.createRequestBuilder(rpcOptions)),
-                response -> new ShuffleHandle(response.body().getShuffleHandle())
+                response -> new ShuffleHandle(response.body().getSignedShuffleHandle())
         ));
     }
 

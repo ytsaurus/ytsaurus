@@ -6993,9 +6993,11 @@ private:
                     parentTransactionId,
                     std::move(options));
             },
-            [] (const auto& context, const auto& shuffleHandle) {
+            [] (const auto& context, const auto& signedShuffleHandle) {
                 auto* response = &context->Response();
-                response->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
+                response->set_signed_shuffle_handle(ConvertToYsonString(signedShuffleHandle).ToString());
+                // TODO(pavook): friendly YSON wrapper.
+                auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
                 context->SetResponseInfo("TransactionId: %v", shuffleHandle->TransactionId);
             });
     }
@@ -7004,7 +7006,10 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+        auto signedShuffleHandle = ConvertTo<TSignedShuffleHandlePtr>(TYsonStringBuf(request->signed_shuffle_handle()));
+
+        // TODO(pavook): friendly YSON wrappers without double-conversions.
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
 
         std::optional<std::pair<int, int>> writerIndexRange;
         if (request->has_writer_index_range()) {
@@ -7051,7 +7056,7 @@ private:
             : New<TTableReaderConfig>();
 
         auto reader = WaitFor(client->CreateShuffleReader(
-            shuffleHandle,
+            std::move(signedShuffleHandle),
             request->partition_index(),
             writerIndexRange,
             options))
@@ -7089,7 +7094,10 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+        auto signedShuffleHandle = ConvertTo<TSignedShuffleHandlePtr>(TYsonStringBuf(request->signed_shuffle_handle()));
+
+        // TODO(pavook): friendly YSON helpers without double conversions.
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
 
         auto partitionColumn = request->partition_column();
 
@@ -7123,7 +7131,7 @@ private:
         }
 
         auto writer = WaitFor(
-            client->CreateShuffleWriter(shuffleHandle, partitionColumn, writerIndex, options))
+            client->CreateShuffleWriter(std::move(signedShuffleHandle), partitionColumn, writerIndex, options))
             .ValueOrThrow();
 
         auto decoder = CreateWireRowStreamDecoder(writer->GetNameTable());

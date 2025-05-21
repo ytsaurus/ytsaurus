@@ -15,6 +15,9 @@
 #include <yt/yt/client/api/row_batch_reader.h>
 #include <yt/yt/client/api/row_batch_writer.h>
 
+#include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/signature.h>
+
 #include <yt/yt/client/table_client/name_table.h>
 
 namespace NYT::NApi::NNative {
@@ -115,7 +118,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TShuffleHandlePtr TClient::DoStartShuffle(
+TSignedShuffleHandlePtr TClient::DoStartShuffle(
     const std::string& account,
     int partitionCount,
     TTransactionId parentTransactionId,
@@ -140,7 +143,8 @@ TShuffleHandlePtr TClient::DoStartShuffle(
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
 
-    return ConvertTo<TShuffleHandlePtr>(TYsonString(rsp->shuffle_handle()));
+    const auto& signatureGenerator = GetNativeConnection()->GetSignatureGenerator();
+    return TSignedShuffleHandlePtr(signatureGenerator->Sign(rsp->shuffle_handle()));
 }
 
 void TClient::DoRegisterShuffleChunks(
@@ -197,11 +201,13 @@ std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
-    const TShuffleHandlePtr& shuffleHandle,
+    const TSignedShuffleHandlePtr& signedShuffleHandle,
     int partitionIndex,
     std::optional<std::pair<int, int>> writerIndexRange,
     const TShuffleReaderOptions& options)
 {
+    // TODO(pavook): friendly YSON wrapper.
+    auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
     return FetchShuffleChunks(
         shuffleHandle,
         partitionIndex,
@@ -245,11 +251,14 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
 }
 
 TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
-    const TShuffleHandlePtr& shuffleHandle,
+    const TSignedShuffleHandlePtr& signedShuffleHandle,
     const std::string& partitionColumn,
     std::optional<int> writerIndex,
     const TShuffleWriterOptions& options)
 {
+    // TODO(pavook): friendly YSON wrapper.
+    auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(signedShuffleHandle.Underlying()->Payload()));
+
     // The partition column index must be preserved for the partitioner.
     // However, the row is partitioned after the row value ids are mapped to
     // the chunk name table. As a result, the partition column id may differ

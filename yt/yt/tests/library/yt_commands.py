@@ -1316,13 +1316,13 @@ def write_shuffle_data(shuffle_handle, partition_column, value, is_raw=False, **
         value = yson.dumps(value, yson_type="list_fragment")
     input_stream = BytesIO(value)
 
-    kwargs["shuffle_handle"] = shuffle_handle
+    kwargs["signed_shuffle_handle"] = shuffle_handle
     kwargs["partition_column"] = partition_column
     execute_command("write_shuffle_data", kwargs, input_stream=input_stream)
 
 
 def read_shuffle_data(shuffle_handle, partition_index, **kwargs):
-    kwargs["shuffle_handle"] = shuffle_handle
+    kwargs["signed_shuffle_handle"] = shuffle_handle
     kwargs["partition_index"] = partition_index
     return execute_command_with_output_format("read_shuffle_data", kwargs)
 
