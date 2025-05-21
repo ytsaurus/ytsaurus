@@ -1177,9 +1177,18 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
     }
 
     Y_UNIT_TEST(IgnoredRules) {
+        auto lexer = MakePureLexerSupplier();
+
         TNameSet names;
         TFrequencyData frequency;
         auto service = MakeStaticNameService(names, MakeDefaultRanking(frequency));
+
+        {
+            auto engine = MakeSqlCompletionEngine(lexer, service);
+            UNIT_ASSERT_UNEQUAL(Complete(engine, {"UPDA"}).size(), 0);
+            UNIT_ASSERT_UNEQUAL(Complete(engine, {"DELE"}).size(), 0);
+            UNIT_ASSERT_UNEQUAL(Complete(engine, {"ROLL"}).size(), 0);
+        }
 
         ISqlCompletionEngine::TConfiguration config = {
             .IgnoredRules = {
@@ -1191,11 +1200,8 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 "alter_external_table_stmt",
             },
         };
+        auto engine = MakeSqlCompletionEngine(lexer, std::move(service), config);
 
-        auto engine = MakeSqlCompletionEngine(
-            MakePureLexerSupplier(), std::move(service), std::move(config));
-
-        TVector<TCandidate> empty;
         UNIT_ASSERT_EQUAL(Complete(engine, {"UPDA"}).size(), 0);
         UNIT_ASSERT_EQUAL(Complete(engine, {"DELE"}).size(), 0);
         UNIT_ASSERT_EQUAL(Complete(engine, {"ROLL"}).size(), 0);
