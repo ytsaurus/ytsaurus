@@ -8,6 +8,7 @@
 
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
+#include <util/generic/hash_set.h>
 
 namespace NSQLComplete {
 
@@ -46,6 +47,7 @@ namespace NSQLComplete {
 
         struct TConfiguration {
             size_t Limit = 256;
+            THashSet<TString> IgnoredRules;
         };
 
         virtual ~ISqlCompletionEngine() = default;
