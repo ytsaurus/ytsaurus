@@ -30,7 +30,8 @@ DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestSpec)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestStatus)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequest)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestState)
-DECLARE_REFCOUNTED_STRUCT(TInstanceAnnotations)
+DECLARE_REFCOUNTED_STRUCT(TBundleControllerInstanceAnnotations)
+DECLARE_REFCOUNTED_STRUCT(TCypressAnnotations)
 DECLARE_REFCOUNTED_STRUCT(TTabletNodeInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletNodeMemoryStatistics)
 DECLARE_REFCOUNTED_STRUCT(TMemoryCategory)
@@ -641,7 +642,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInstanceAnnotations
+struct TBundleControllerInstanceAnnotations
     : public NYTree::TYsonStruct
 {
     std::string YPCluster;
@@ -655,12 +656,26 @@ struct TInstanceAnnotations
 
     std::optional<std::string> DataCenter;
 
-    REGISTER_YSON_STRUCT(TInstanceAnnotations);
+    REGISTER_YSON_STRUCT(TBundleControllerInstanceAnnotations);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TInstanceAnnotations)
+DEFINE_REFCOUNTED_TYPE(TBundleControllerInstanceAnnotations)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCypressAnnotations
+    : public NYTree::TYsonStruct
+{
+    std::optional<std::string> PodId;
+
+    REGISTER_YSON_STRUCT(TCypressAnnotations);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressAnnotations)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -748,7 +763,8 @@ struct TTabletNodeInfo
     std::string State;
     THashSet<std::string> Tags;
     THashSet<std::string> UserTags;
-    TInstanceAnnotationsPtr Annotations;
+    TBundleControllerInstanceAnnotationsPtr BundleControllerAnnotations;
+    TCypressAnnotationsPtr CypressAnnotations;
     std::vector<TTabletSlotPtr> TabletSlots;
     THashMap<std::string, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
     TInstant LastSeenTime;
@@ -781,7 +797,8 @@ struct TRpcProxyInfo
 {
     bool Banned;
     std::string Role;
-    TInstanceAnnotationsPtr Annotations;
+    TBundleControllerInstanceAnnotationsPtr BundleControllerAnnotations;
+    TCypressAnnotationsPtr CypressAnnotations;
     THashMap<std::string, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
     TInstant ModificationTime;
 
