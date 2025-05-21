@@ -12,30 +12,64 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(unittests)
-
-add_library(yt-library-gpu)
+add_executable(library-gpu-unittest)
 
 
-target_compile_options(yt-library-gpu PRIVATE
+target_compile_options(library-gpu-unittest PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
 )
 
-target_link_libraries(yt-library-gpu PUBLIC
+target_link_libraries(library-gpu-unittest PUBLIC
   contrib-libs-cxxsupp
   yutil
-  yt-library-process
-  yt-yt-core
-  core-rpc-grpc
-  cpp-protobuf-interop
+  cpp-testing-gtest
+  cpp-testing-gtest_main
+  yt-library-gpu
+  yt-core-test_framework
 )
 
-target_sources(yt-library-gpu PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/gpu_info_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/nv_manager_gpu_info_provider.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/gpu/nvidia_smi_gpu_info_provider.cpp
+target_allocator(library-gpu-unittest
+  system_allocator
 )
 
+target_link_options(library-gpu-unittest PRIVATE
+  -Wl,-platform_version,macos,11.0,11.0
+  -fPIC
+  -fPIC
+  -framework
+  CoreFoundation
+)
+
+
+add_test(
+  NAME
+  library-gpu-unittest
+  COMMAND
+  library-gpu-unittest
+)
+
+set_property(
+  TEST
+  library-gpu-unittest
+  PROPERTY
+  LABELS
+  SMALL
+)
+
+set_property(
+  TEST
+  library-gpu-unittest
+  PROPERTY
+  ENVIRONMENT
+)
+
+vcs_info(library-gpu-unittest)
+
+set_property(
+  TEST
+  library-gpu-unittest
+  PROPERTY
+  PROCESSORS
+  1
+)
