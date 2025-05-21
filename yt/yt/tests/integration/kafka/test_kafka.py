@@ -429,7 +429,7 @@ class TestKafkaProxy(KafkaProxyBase):
 
         def generic_queue_message(row):
             return {
-                "key": "",
+                "key": None,
                 "value": row,
             }
 
