@@ -90,6 +90,7 @@ def get_dynamic_master_config():
 
             "data_node_tracker": {
                 "enable_per_location_full_heartbeats": True,
+                "enable_chunk_replicas_throttling_in_heartbeats": True,
             },
         },
 
