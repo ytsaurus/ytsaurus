@@ -82,9 +82,9 @@ std::optional<NScheduler::TJobShellInfo> TOperation::GetJobShellInfo(const TStri
 TAccessControlRule TOperation::GetAccessControlRule() const
 {
     if (AcoName_) {
-        return *AcoName_;
+        return TAccessControlRule(*AcoName_);
     } else {
-        return Acl_;
+        return TAccessControlRule(Acl_);
     }
 }
 

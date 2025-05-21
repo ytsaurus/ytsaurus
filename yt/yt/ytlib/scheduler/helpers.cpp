@@ -527,14 +527,12 @@ void ValidateOperationAccessByAco(
     const NNative::IClientPtr& client,
     const TLogger& logger)
 {
-    auto acoPath = GetOperationsAcoPrincipalPath(acoName);
-
     auto authenticatedUser = user.value_or(GetCurrentAuthenticationIdentity().User);
 
     std::vector<TFuture<TCheckPermissionResponse>> futures;
     for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
         if (Any(permission & permissionSet)) {
-            futures.push_back(client->CheckPermission(authenticatedUser, acoPath, permission));
+            futures.push_back(client->CheckPermission(authenticatedUser, GetOperationsAcoPrincipalPath(acoName), permission));
         }
     }
 
@@ -547,7 +545,7 @@ void ValidateOperationAccessByAco(
         jobId,
         permissionSet,
         results,
-        acoPath,
+        TAccessControlRule(acoName),
         logger);
 }
 
@@ -595,7 +593,7 @@ void ValidateOperationAccessByAcl(
         jobId,
         permissionSet,
         results,
-        acl,
+        TAccessControlRule(acl),
         logger);
 }
 

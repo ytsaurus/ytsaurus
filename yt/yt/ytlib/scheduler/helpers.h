@@ -125,8 +125,8 @@ public:
     TAccessControlRule& operator=(const TAccessControlRule&) = default;
     TAccessControlRule& operator=(TAccessControlRule&&) = default;
 
-    TAccessControlRule(NSecurityClient::TSerializableAccessControlList acl);
-    TAccessControlRule(TString acoName);
+    explicit TAccessControlRule(NSecurityClient::TSerializableAccessControlList acl);
+    explicit TAccessControlRule(TString acoName);
 
     bool IsAcoName() const;
     bool IsAcl() const;
