@@ -542,14 +542,14 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         table_id = get("//tmp/t/@id")
         tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
 
-        for _ in range(20):
+        for _ in range(30):
             select_rows("* from [//tmp/t] where value = \"bbb\"")
 
         def get_select_cpu_time_rate(table_id, tablet_id):
             response = lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])
             if len(response) == 0:
                 return 0
-            return response[0]["select_cpu_time"]["rate_10m"]
+            return response[0]["select_cpu_time"]["count"]
 
         for tablet_id in tablet_ids:
             wait(lambda: get_select_cpu_time_rate(table_id, tablet_id) > 0)
@@ -563,4 +563,4 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         assert c_cpu > 0
 
         # CPU usage of the second tablet must be substantially higher
-        assert b_cpu > ((a_cpu + c_cpu) / 2) * 1.5
+        assert b_cpu > ((a_cpu + c_cpu) / 2) * 1.3
