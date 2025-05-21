@@ -61,6 +61,7 @@ public:
     void LogStructuredRequest();
     void SetupTracing();
     void SetupMemoryUsageTracker();
+    void SetupUpdateCpuExecutor();
     void AddHeaders();
 
     void SetEnrichedError(const TError& error);
@@ -75,6 +76,7 @@ private:
     const TApiPtr Api_;
     const NHttp::IRequestPtr Request_;
     const NHttp::IResponseWriterPtr Response_;
+
     NConcurrency::TPeriodicExecutorPtr UpdateCpuExecutor_;
 
     NLogging::TLogger Logger;
@@ -138,7 +140,7 @@ private:
     void AllocateTestData(const NTracing::TTraceContextPtr& traceContext);
 
     IInvokerPtr GetCompressionInvoker() const;
-    void UpdateCumulativeCpuAndProfile(const NTracing::TTraceContextPtr& traceContext);
+    void UpdateCumulativeCpuAndProfile(const NTracing::TTraceContextPtr& traceContext, const std::string& authenticatedUser, const TString& commandName);
 };
 
 DEFINE_REFCOUNTED_TYPE(TContext)
