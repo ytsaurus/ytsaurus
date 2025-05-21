@@ -42,6 +42,10 @@ namespace NSQLComplete {
             return index;
         }
 
+        const std::vector<std::string>& GetAllRules() const override {
+            return Parser_->getRuleNames();
+        }
+
     private:
         static THolder<antlr4::Parser> MakeDummyParser() {
             return MakeHolder<NALADefaultAntlr4::SQLv1Antlr4Parser>(nullptr);

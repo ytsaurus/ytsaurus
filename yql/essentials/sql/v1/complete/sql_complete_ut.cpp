@@ -1,5 +1,6 @@
 #include "sql_complete.h"
 
+#include <yql/essentials/sql/v1/complete/syntax/grammar.h>
 #include <yql/essentials/sql/v1/complete/name/cluster/static/discovery.h>
 #include <yql/essentials/sql/v1/complete/name/object/dispatch/schema.h>
 #include <yql/essentials/sql/v1/complete/name/object/simple/schema.h>
@@ -1188,24 +1189,42 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             UNIT_ASSERT_UNEQUAL(Complete(engine, {"UPDA"}).size(), 0);
             UNIT_ASSERT_UNEQUAL(Complete(engine, {"DELE"}).size(), 0);
             UNIT_ASSERT_UNEQUAL(Complete(engine, {"ROLL"}).size(), 0);
+            UNIT_ASSERT_UNEQUAL(Complete(engine, {"INSE"}).size(), 0);
+            UNIT_ASSERT_UNEQUAL(Complete(engine, {"SELE"}).size(), 0);
         }
 
-        ISqlCompletionEngine::TConfiguration config = {
-            .IgnoredRules = {
-                "create_table_stmt",
-                "update_stmt",
-                "delete_stmt",
-                "rollback_stmt",
-                "alter_table_stmt",
-                "alter_external_table_stmt",
-            },
+        std::unordered_set<std::string> whitelist = {
+            "lambda_stmt",
+            "sql_stmt",
+            "pragma_stmt",
+            "select_stmt",
+            "named_nodes_stmt",
+            "drop_table_stmt",
+            "use_stmt",
+            "into_table_stmt",
+            "commit_stmt",
+            "declare_stmt",
+            "import_stmt",
+            "export_stmt",
+            "do_stmt",
+            "define_action_or_subquery_stmt",
+            "if_stmt",
+            "for_stmt",
+            "values_stmt",
         };
+
+        ISqlCompletionEngine::TConfiguration config;
+        for (const std::string& name : GetSqlGrammar().GetAllRules()) {
+            if (name.ends_with("_stmt") && !whitelist.contains(name)) {
+                config.IgnoredRules.emplace(name);
+            }
+        }
+
         auto engine = MakeSqlCompletionEngine(lexer, std::move(service), config);
 
         UNIT_ASSERT_EQUAL(Complete(engine, {"UPDA"}).size(), 0);
         UNIT_ASSERT_EQUAL(Complete(engine, {"DELE"}).size(), 0);
         UNIT_ASSERT_EQUAL(Complete(engine, {"ROLL"}).size(), 0);
-
         UNIT_ASSERT_UNEQUAL(Complete(engine, {"INSE"}).size(), 0);
         UNIT_ASSERT_UNEQUAL(Complete(engine, {"SELE"}).size(), 0);
     }
