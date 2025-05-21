@@ -1193,33 +1193,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             UNIT_ASSERT_UNEQUAL(Complete(engine, {"SELE"}).size(), 0);
         }
 
-        std::unordered_set<std::string> whitelist = {
-            "lambda_stmt",
-            "sql_stmt",
-            "pragma_stmt",
-            "select_stmt",
-            "named_nodes_stmt",
-            "drop_table_stmt",
-            "use_stmt",
-            "into_table_stmt",
-            "commit_stmt",
-            "declare_stmt",
-            "import_stmt",
-            "export_stmt",
-            "do_stmt",
-            "define_action_or_subquery_stmt",
-            "if_stmt",
-            "for_stmt",
-            "values_stmt",
-        };
-
-        ISqlCompletionEngine::TConfiguration config;
-        for (const std::string& name : GetSqlGrammar().GetAllRules()) {
-            if (name.ends_with("_stmt") && !whitelist.contains(name)) {
-                config.IgnoredRules.emplace(name);
-            }
-        }
-
+        auto config = MakeYTConfiguration();
         auto engine = MakeSqlCompletionEngine(lexer, std::move(service), config);
 
         UNIT_ASSERT_EQUAL(Complete(engine, {"UPDA"}).size(), 0);
