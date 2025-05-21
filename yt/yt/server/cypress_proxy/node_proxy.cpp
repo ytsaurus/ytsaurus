@@ -1051,14 +1051,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     auto revision = nodeLocked
         ? node->Attributes().Get<NHydra::TRevision>(revisionAttribute)
         : NHydra::NullRevision;
+    auto nativeCellTag = CellTagFromId(Id_);
     auto externalCellTag = node
         ->Attributes()
         .Find<TCellTag>(externalCellTagAttribute)
-        .value_or(CellTagFromId(Id_));
+        .value_or(nativeCellTag);
 
-    auto externalTransactionId = externalCellTag == CellTagFromId(Id_)
+    auto externalTransactionId = externalCellTag == nativeCellTag
         ? SequoiaSession_->GetCurrentCypressTransactionId()
-        : MakeExternalizedTransactionId(SequoiaSession_->GetCurrentCypressTransactionId(), externalCellTag);
+        : MakeExternalizedTransactionId(SequoiaSession_->GetCurrentCypressTransactionId(), nativeCellTag);
 
     ToProto(response->mutable_lock_id(), lockId);
     ToProto(response->mutable_node_id(), Id_);
