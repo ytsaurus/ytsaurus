@@ -527,9 +527,8 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
 
         wait(lambda: len(lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])) == 1)
 
-    @pytest.mark.parametrize('execution_number', range(30))
     @authors("sabdenovch")
-    def test_select_cpu_performance_counters(self, execution_number):
+    def test_select_cpu_performance_counters(self):
         statistics_path = "//tmp/statistics_reporter_table"
         self._setup_statistics_reporter(statistics_path)
 
