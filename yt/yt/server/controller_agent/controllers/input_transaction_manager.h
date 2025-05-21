@@ -84,6 +84,7 @@ public:
         //             for a job.
         bool forceStartLocalTransaction,
         NTransactionClient::TTransactionId userTransactionId,
+        const std::string& authenticatedUser,
         TControllerAgentConfigPtr config,
         NLogging::TLogger logger);
 
