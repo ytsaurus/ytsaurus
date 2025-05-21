@@ -46,7 +46,7 @@ dynamic memory almost always means that write throughput is too large.
                 description=tablet_dynamic_hint)
             .cell("Tablet static memory", memory_usage("tablet_static"))
         .row()
-            .cell("Query memory usage", TabNode("yt.cluster_node.memory_usage.used").value("category", "query"))
+            .cell("Query memory usage", memory_usage("query"))
             .cell("Tracked memory usage", TabNode("yt.cluster_node.memory_usage.total_used"))
         .row()
             .cell("Process memory usage (rss)", TabNodeMemory("yt.resource_tracker.memory_usage.rss"))
