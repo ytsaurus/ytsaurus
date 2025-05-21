@@ -4224,7 +4224,6 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/map_node/table/@compression_codec", tx=tx) == "zstd_17"
 
     @authors("danilalexeev")
-    @not_implemented_in_sequoia
     def test_node_reachability_basic(self):
         assert get("//tmp/@reachable")
 
@@ -4245,6 +4244,41 @@ class TestCypress(YTEnvSetup):
 
         commit_transaction(tx1)
         assert get(f"#{map_id}/@reachable")
+
+    @authors("kvk1920")
+    def test_access_uncommitted_node(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        m = create("map_node", "//tmp/m", tx=tx2)
+
+        assert exists(f"#{m}", tx=tx2)
+        assert exists(f"#{m}", tx=tx1)
+        assert exists(f"#{m}")
+
+        assert m == get(f"#{m}/@id", tx=tx2)
+        assert m == get(f"#{m}/@id", tx=tx1)
+        assert m == get(f"#{m}/@id")
+
+        commit_transaction(tx2)
+
+        with raises_yt_error(f"No such transaction {tx2}"):
+            exists(f"#{m}", tx=tx2)
+        assert exists(f"#{m}", tx=tx1)
+        assert exists(f"#{m}")
+
+        with raises_yt_error(f"No such transaction {tx2}"):
+            get(f"#{m}/@id", tx=tx2)
+        assert m == get(f"#{m}/@id", tx=tx1)
+        assert m == get(f"#{m}/@id")
+
+    @authors("danilalexeev")
+    def test_nodes_do_not_leak_yt_24997(self):
+        tx = start_transaction()
+        table_id = create("map_node", "//tmp/t", tx=tx)
+        abort_transaction(tx)
+        gc_collect()
+        assert not exists(f"#{table_id}")
 
 
 ##################################################################
