@@ -213,9 +213,9 @@ TFuture<TOperationPtr> TOperation::GetStarted()
 TAccessControlRule TOperation::GetAccessControlRule() const
 {
     if (RuntimeParameters_->AcoName) {
-        return *RuntimeParameters_->AcoName;
+        return TAccessControlRule(*RuntimeParameters_->AcoName);
     } else {
-        return RuntimeParameters_->Acl;
+        return TAccessControlRule(RuntimeParameters_->Acl);
     }
 }
 
