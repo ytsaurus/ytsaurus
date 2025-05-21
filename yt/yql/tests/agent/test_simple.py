@@ -228,6 +228,17 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
                "Yson": [7, 'str', -3.14]
                }])
 
+    @authors("a-romanov")
+    def test_double_optional(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            $list = ["abc"u, null];
+            select $list, $list[0], $list[1], $list[2],
+            (just($list[0]), just($list[1]), just($list[2])),
+            {$list[0], $list[1], $list[2]};
+        """, [{'column0': ['abc', None], 'column1': ['abc'], 'column2': [None], 'column3': None,
+               'column4': [[['abc']], [[None]], [None]],
+               'column5': [[None, None], [[None], None], [['abc'], None]]}])
+
 
 class TestYqlAgentBan(TestQueriesYqlBase):
     NUM_YQL_AGENTS = 1
