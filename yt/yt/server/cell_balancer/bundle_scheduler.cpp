@@ -55,11 +55,13 @@ bool IsAllocationCompleted(const auto& requestInfo)
     return requestInfo->Status && requestInfo->Status->State == "COMPLETED";
 }
 
-std::string GetPodIdForInstance(const std::string& name)
+std::string GetPodIdForInstance(const TCypressAnnotationsPtr& cypressAnnotations, const std::string& name)
 {
-    // TODO(capone212): Get pod_id from node Cypress annotations.
+    if (cypressAnnotations && cypressAnnotations->PodId) {
+        return *cypressAnnotations->PodId;
+    }
 
-    // For now we get PodId in a bit hacky way:
+    // Fallback to the old hacky way for compatibility:
     // we expect PodId to be prefix of fqdn before the first dot.
     auto endPos = name.find(".");
     if (endPos == std::string::npos && name.starts_with("localhost")) {
@@ -373,7 +375,7 @@ private:
 
         for (const auto& instanceName : adapter->GetAliveInstances(dataCenterName)) {
             const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
-            const auto& instanceResource = instanceInfo->Annotations->Resource;
+            const auto& instanceResource = instanceInfo->BundleControllerAnnotations->Resource;
 
             if (*instanceResource != *targetResource) {
                 YT_LOG_WARNING("Instance resource is outdated "
@@ -412,7 +414,8 @@ private:
     {
         std::vector<std::string> knownPodIds;
         for (const auto& instanceName : adapter->GetInstances(dataCenterName)) {
-            knownPodIds.push_back(GetPodIdForInstance(instanceName));
+            const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
+            knownPodIds.push_back(GetPodIdForInstance(instanceInfo->CypressAnnotations, instanceName));
         }
 
         for (const auto& [allocationId, state] : adapter->AllocationsState()) {
@@ -438,8 +441,20 @@ private:
             knownPodIds.push_back(state->PodIdTemplate);
         }
 
-        for (const auto& [_, state] : adapter->DeallocationsState()) {
-            knownPodIds.push_back(GetPodIdForInstance(state->InstanceName));
+        for (const auto& [id, state] : adapter->DeallocationsState()) {
+            auto deallocationRequest = GetOrDefault(input.DeallocationRequests, id, nullptr);
+            if (deallocationRequest) {
+                knownPodIds.push_back(deallocationRequest->Spec->PodId);
+                continue;
+            }
+
+            auto instanceInfo = adapter->FindInstanceInfo(state->InstanceName, input);
+            if (instanceInfo) {
+                knownPodIds.push_back(GetPodIdForInstance(instanceInfo->CypressAnnotations, state->InstanceName));
+                continue;
+            }
+
+            // Neither deallocation request nor instance info found, so it probably can be ignored here.
         }
 
         auto clusterShortName = input.Config->Cluster;
@@ -621,7 +636,7 @@ private:
             instanceName);
 
         const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
-        const auto& currentAnnotations = instanceInfo->Annotations;
+        const auto& currentAnnotations = instanceInfo->BundleControllerAnnotations;
         YT_VERIFY(currentAnnotations->AllocatedForBundle == spareBundleName);
         auto newAnnotations = NYTree::CloneYsonStruct(currentAnnotations);
         newAnnotations->AllocatedForBundle = bundleName;
@@ -677,12 +692,12 @@ private:
         const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
         const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
         auto spareBundleName = GetSpareBundleName(zoneInfo);
-        const auto& annotations = adapter->GetInstanceInfo(instanceName, input)->Annotations;
+        const auto& bundleControllerAnnotations = adapter->GetInstanceInfo(instanceName, input)->BundleControllerAnnotations;
 
         YT_LOG_DEBUG("Tracking existing deallocation (DeallocationId: %v, InstanceName: %v, AllocatedFor: %v, BundleName: %v, Strategy: %v)",
             deallocationId,
             instanceName,
-            annotations->AllocatedForBundle,
+            bundleControllerAnnotations->AllocatedForBundle,
             bundleName,
             DeallocationStrategyReturnToSpareBundle);
 
@@ -690,10 +705,10 @@ private:
             return true;
         }
 
-        if (annotations->AllocatedForBundle != spareBundleName) {
-            YT_VERIFY(annotations->AllocatedForBundle.empty());
+        if (bundleControllerAnnotations->AllocatedForBundle != spareBundleName) {
+            YT_VERIFY(bundleControllerAnnotations->AllocatedForBundle.empty());
 
-            auto newAnnotations = NYTree::CloneYsonStruct(annotations);
+            auto newAnnotations = NYTree::CloneYsonStruct(bundleControllerAnnotations);
             newAnnotations->AllocatedForBundle = spareBundleName;
             adapter->SetInstanceAnnotations(instanceName, newAnnotations, mutations);
 
@@ -718,9 +733,9 @@ private:
         // Validating node tags
         const auto& instanceName = deallocationState->InstanceName;
         const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
-        const auto& instanceAnnotations = instanceInfo->Annotations;
+        const auto& bundleControllerAnnotations = instanceInfo->BundleControllerAnnotations;
 
-        if (!deallocationState->HulkRequestCreated && instanceAnnotations->YPCluster.empty()) {
+        if (!deallocationState->HulkRequestCreated && bundleControllerAnnotations->YPCluster.empty()) {
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "invalid_instance_tags",
                 .BundleName = bundleName,
@@ -871,14 +886,15 @@ private:
         TSchedulerMutations* mutations)
     {
         const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
-        const auto& instanceAnnotations = instanceInfo->Annotations;
-        YT_VERIFY(instanceAnnotations->DeallocationStrategy.empty() ||
-            instanceAnnotations->DeallocationStrategy == DeallocationStrategyHulkRequest);
+        const auto& bundleControllerAnnotations = instanceInfo->BundleControllerAnnotations;
+        const auto& cypressAnnotations = instanceInfo->CypressAnnotations;
+        YT_VERIFY(bundleControllerAnnotations->DeallocationStrategy.empty() ||
+            bundleControllerAnnotations->DeallocationStrategy == DeallocationStrategyHulkRequest);
 
         auto request = mutations->NewMutation<TDeallocationRequest>();
         auto& spec = request->Spec;
-        spec->YPCluster = instanceAnnotations->YPCluster;
-        spec->PodId = GetPodIdForInstance(instanceName);
+        spec->YPCluster = bundleControllerAnnotations->YPCluster;
+        spec->PodId = GetPodIdForInstance(cypressAnnotations, instanceName);
         spec->InstanceRole = adapter->GetInstanceRole();
         mutations->NewDeallocations[deallocationId] = request;
     }
@@ -937,7 +953,7 @@ private:
             deallocationState->CreationTime = TInstant::Now();
             deallocationState->InstanceName = instanceName;
             deallocationState->DataCenter = dataCenterName;
-            deallocationState->Strategy = instanceInfo->Annotations->DeallocationStrategy;
+            deallocationState->Strategy = instanceInfo->BundleControllerAnnotations->DeallocationStrategy;
 
             if (deallocationState->Strategy.empty()) {
                 if (input.Config->HasInstanceAllocatorService) {
@@ -990,8 +1006,8 @@ TSchedulerInputState::TBundleToInstanceMapping MapBundlesToInstances(const TColl
     TSchedulerInputState::TBundleToInstanceMapping result;
 
     for (const auto& [instanceName, instanceInfo] : collection) {
-        auto dataCenter = instanceInfo->Annotations->DataCenter.value_or(DefaultDataCenterName);
-        auto bundleName = instanceInfo->Annotations->AllocatedForBundle;
+        auto dataCenter = instanceInfo->BundleControllerAnnotations->DataCenter.value_or(DefaultDataCenterName);
+        auto bundleName = instanceInfo->BundleControllerAnnotations->AllocatedForBundle;
 
         if (!bundleName.empty()) {
             result[bundleName][dataCenter].push_back(instanceName);
@@ -1023,15 +1039,15 @@ TSchedulerInputState::TZoneToInstanceMap MapZonesToInstances(
 
     TSchedulerInputState::TZoneToInstanceMap result;
     for (const auto& [instanceName, instanceInfo] : collection) {
-        if (!instanceInfo->Annotations->Allocated) {
+        if (!instanceInfo->BundleControllerAnnotations->Allocated) {
             continue;
         }
-        auto it = nannyServiceToZone.find(instanceInfo->Annotations->NannyService);
+        auto it = nannyServiceToZone.find(instanceInfo->BundleControllerAnnotations->NannyService);
         if (it == nannyServiceToZone.end()) {
             continue;
         }
         const auto& zoneName = it->second;
-        const auto& dataCenterName = instanceInfo->Annotations->DataCenter.value_or(DefaultDataCenterName);
+        const auto& dataCenterName = instanceInfo->BundleControllerAnnotations->DataCenter.value_or(DefaultDataCenterName);
         result[zoneName].PerDataCenter[dataCenterName].push_back(instanceName);
     }
 
@@ -1059,7 +1075,7 @@ THashMap<std::string, TDataCenterRackInfo> MapZonesToRacks(
                     continue;
                 }
 
-                if (nodeInfo->Annotations->AllocatedForBundle == spareBundleName) {
+                if (nodeInfo->BundleControllerAnnotations->AllocatedForBundle == spareBundleName) {
                     ++dataCenterRacks.RackToSpareInstances[nodeInfo->Rack];
                 } else {
                     ++dataCenterRacks.RackToBundleInstances[nodeInfo->Rack];
@@ -1126,13 +1142,13 @@ THashMap<std::string, std::string> MapPodIdToInstanceName(const TSchedulerInputS
 {
     THashMap<std::string, std::string> result;
 
-    for (const auto& [nodeName, _] : input.TabletNodes) {
-        auto podId = GetPodIdForInstance(nodeName);
+    for (const auto& [nodeName, instanceInfo] : input.TabletNodes) {
+        auto podId = GetPodIdForInstance(instanceInfo->CypressAnnotations, nodeName);
         result[podId] = nodeName;
     }
 
-    for (const auto& [proxyName, _] : input.RpcProxies) {
-        auto podId = GetPodIdForInstance(proxyName);
+    for (const auto& [proxyName, instanceInfo] : input.RpcProxies) {
+        auto podId = GetPodIdForInstance(instanceInfo->CypressAnnotations, proxyName);
         result[podId] = proxyName;
     }
 
@@ -1233,7 +1249,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
     {
         for (const auto& instanceName : aliveNames) {
             const auto& instanceInfo = GetOrCrash(instancesInfo, instanceName);
-            const auto& resource = instanceInfo->Annotations->Resource;
+            const auto& resource = instanceInfo->BundleControllerAnnotations->Resource;
             target->Vcpu += resource->Vcpu;
             target->Memory += resource->Memory;
             ++countBySize[GetInstanceSize(resource)];
@@ -1322,7 +1338,7 @@ THashMap<std::string, THashSet<std::string>> GetAliveNodes(
     for (const auto& [dataCenterName, dataCenterNodes] : bundleNodes) {
         for (const auto& nodeName : dataCenterNodes) {
             const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-            if (!nodeInfo->Annotations->Allocated || nodeInfo->Banned) {
+            if (!nodeInfo->BundleControllerAnnotations->Allocated || nodeInfo->Banned) {
                 continue;
             }
 
@@ -1370,7 +1386,7 @@ THashMap<std::string, THashSet<std::string>> GetAliveProxies(
     for (const auto& [dataCenterName, dataCenterProxies] : bundleProxies) {
         for (const auto& proxyName : dataCenterProxies) {
             const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-            if (!proxyInfo->Annotations->Allocated || proxyInfo->Banned) {
+            if (!proxyInfo->BundleControllerAnnotations->Allocated || proxyInfo->Banned) {
                 continue;
             }
 
@@ -1872,7 +1888,7 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
 
                 YT_LOG_DEBUG("Node is offline (NodeName: %v, NannyService: %v, Banned: %v, LastSeen: %v)",
                     nodeName,
-                    nodeInfo->Annotations->NannyService,
+                    nodeInfo->BundleControllerAnnotations->NannyService,
                     nodeInfo->Banned,
                     nodeInfo->LastSeenTime);
 
@@ -1892,7 +1908,7 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
 
                 YT_LOG_DEBUG("Proxy is offline (ProxyName: %v, NannyService: %v)",
                     proxyName,
-                    proxyInfo->Annotations->NannyService);
+                    proxyInfo->BundleControllerAnnotations->NannyService);
 
                 ++zoneOfflineProxyCount[std::pair(zoneName, dataCenterName)];
             }
@@ -1931,16 +1947,16 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
     return result;
 }
 
-TInstanceAnnotationsPtr GetInstanceAnnotationsToSet(
+TBundleControllerInstanceAnnotationsPtr GetBundleControllerInstanceAnnotationsToSet(
     const std::string& bundleName,
     const std::string& dataCenterName,
     const TAllocationRequestPtr& allocationInfo,
-    const TInstanceAnnotationsPtr& annotations)
+    const TBundleControllerInstanceAnnotationsPtr& bundleControllerAnnotations)
 {
-    if (!annotations->AllocatedForBundle.empty() && annotations->Allocated) {
+    if (!bundleControllerAnnotations->AllocatedForBundle.empty() && bundleControllerAnnotations->Allocated) {
         return {};
     }
-    auto result = NYTree::CloneYsonStruct(annotations);
+    auto result = NYTree::CloneYsonStruct(bundleControllerAnnotations);
     result->YPCluster = allocationInfo->Spec->YPCluster;
     result->NannyService = allocationInfo->Spec->NannyService;
     result->AllocatedForBundle = bundleName;
@@ -1995,7 +2011,7 @@ public:
     {
         auto dataCenterPredicate = [&] (const auto& pair) {
             const auto& nodeInfo = GetOrCrash(input.TabletNodes, pair.first);
-            return nodeInfo->Annotations->DataCenter == dataCenterName;
+            return nodeInfo->BundleControllerAnnotations->DataCenter == dataCenterName;
         };
 
         const auto& assignments = State_->BundleNodeAssignments;
@@ -2157,14 +2173,19 @@ public:
         return State_->NodeDeallocations;
     }
 
+    TTabletNodeInfoPtr FindInstanceInfo(const std::string& instanceName, const TSchedulerInputState& input)
+    {
+        return GetOrDefault(input.TabletNodes, instanceName, nullptr);
+    }
+
     const TTabletNodeInfoPtr& GetInstanceInfo(const std::string& instanceName, const TSchedulerInputState& input)
     {
         return GetOrCrash(input.TabletNodes, instanceName);
     }
 
-    void SetInstanceAnnotations(const std::string& instanceName, TInstanceAnnotationsPtr annotations, TSchedulerMutations* mutations)
+    void SetInstanceAnnotations(const std::string& instanceName, TBundleControllerInstanceAnnotationsPtr bundleControllerAnnotations, TSchedulerMutations* mutations)
     {
-        mutations->ChangeNodeAnnotations[instanceName] = mutations->WrapMutation(std::move(annotations));
+        mutations->ChangeNodeAnnotations[instanceName] = mutations->WrapMutation(std::move(bundleControllerAnnotations));
     }
 
     bool IsInstanceReadyToBeDeallocated(
@@ -2229,9 +2250,9 @@ public:
             return false;
         }
 
-        const auto& annotations = nodeInfo->Annotations;
+        const auto& bundleControllerAnnotations = nodeInfo->BundleControllerAnnotations;
 
-        if (auto changed = GetInstanceAnnotationsToSet(bundleName, dataCenterName, allocationInfo, annotations)) {
+        if (auto changed = GetBundleControllerInstanceAnnotationsToSet(bundleName, dataCenterName, allocationInfo, bundleControllerAnnotations)) {
             YT_LOG_DEBUG("Setting node annotations (BundleName: %v, NodeName: %v, Annotations: %v)",
                 bundleName,
                 nodeName,
@@ -2240,9 +2261,9 @@ public:
             return false;
         }
 
-        if (annotations->AllocatedForBundle != bundleName) {
+        if (bundleControllerAnnotations->AllocatedForBundle != bundleName) {
             YT_LOG_WARNING("Inconsistent allocation state (AnnotationsBundleName: %v, ActualBundleName: %v, NodeName: %v)",
-                annotations->AllocatedForBundle,
+                bundleControllerAnnotations->AllocatedForBundle,
                 bundleName,
                 nodeName);
 
@@ -2250,7 +2271,7 @@ public:
                 .Id = "inconsistent_allocation_state",
                 .BundleName = bundleName,
                 .Description = Format("Inconsistent allocation state: Node annotation bundle name %v, actual bundle name %v.",
-                    annotations->AllocatedForBundle,
+                    bundleControllerAnnotations->AllocatedForBundle,
                     bundleName)
             });
 
@@ -2274,9 +2295,9 @@ public:
         YT_VERIFY(!strategy.empty());
 
         const auto& instanceInfo = GetInstanceInfo(nodeName, input);
-        const auto& annotations = instanceInfo->Annotations;
-        if (strategy != DeallocationStrategyReturnToSpareBundle && (!annotations->AllocatedForBundle.empty() || annotations->Allocated)) {
-            auto newAnnotations = New<TInstanceAnnotations>();
+        const auto& bundleControllerAnnotations = instanceInfo->BundleControllerAnnotations;
+        if (strategy != DeallocationStrategyReturnToSpareBundle && (!bundleControllerAnnotations->AllocatedForBundle.empty() || bundleControllerAnnotations->Allocated)) {
+            auto newAnnotations = New<TBundleControllerInstanceAnnotations>();
             newAnnotations->DeallocatedAt = TInstant::Now();
             newAnnotations->DeallocationStrategy = strategy;
             mutations->ChangeNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
@@ -2285,8 +2306,8 @@ public:
 
         // Prevent node from applying wrong node config and from setting
         // wrong node tag filters.
-        if (strategy == DeallocationStrategyReturnToSpareBundle && annotations->AllocatedForBundle == bundleName) {
-            auto newAnnotations = NYTree::CloneYsonStruct(annotations);
+        if (strategy == DeallocationStrategyReturnToSpareBundle && bundleControllerAnnotations->AllocatedForBundle == bundleName) {
+            auto newAnnotations = NYTree::CloneYsonStruct(bundleControllerAnnotations);
             newAnnotations->AllocatedForBundle = "";
             mutations->ChangeNodeAnnotations[nodeName] = mutations->WrapMutation(newAnnotations);
             return false;
@@ -2353,7 +2374,7 @@ public:
 
         for (auto nodeName : aliveDataCenterNodes) {
             const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
-            const auto& instanceResource = nodeInfo->Annotations->Resource;
+            const auto& instanceResource = nodeInfo->BundleControllerAnnotations->Resource;
 
             nodesOrder.push_back(TNodeRemoveOrder{
                 .MaintenanceIsNotRequested = nodeInfo->CmsMaintenanceRequests.empty(),
@@ -2528,14 +2549,19 @@ public:
         return State_->ProxyDeallocations;
     }
 
+    TRpcProxyInfoPtr FindInstanceInfo(const std::string& instanceName, const TSchedulerInputState& input)
+    {
+        return GetOrDefault(input.RpcProxies, instanceName, nullptr);
+    }
+
     const TRpcProxyInfoPtr& GetInstanceInfo(const std::string& instanceName, const TSchedulerInputState& input)
     {
         return GetOrCrash(input.RpcProxies, instanceName);
     }
 
-    void SetInstanceAnnotations(const std::string& instanceName, TInstanceAnnotationsPtr annotations, TSchedulerMutations* mutations)
+    void SetInstanceAnnotations(const std::string& instanceName, TBundleControllerInstanceAnnotationsPtr bundleControllerAnnotations, TSchedulerMutations* mutations)
     {
-        mutations->ChangedProxyAnnotations[instanceName] = mutations->WrapMutation(std::move(annotations));
+        mutations->ChangedProxyAnnotations[instanceName] = mutations->WrapMutation(std::move(bundleControllerAnnotations));
     }
 
     bool IsInstanceReadyToBeDeallocated(
@@ -2574,8 +2600,9 @@ public:
             return false;
         }
 
-        const auto& annotations = proxyInfo->Annotations;
-        if (auto changed = GetInstanceAnnotationsToSet(bundleName, dataCenterName, allocationInfo, annotations)) {
+        const auto& bundleControllerAnnotations = proxyInfo->BundleControllerAnnotations;
+
+        if (auto changed = GetBundleControllerInstanceAnnotationsToSet(bundleName, dataCenterName, allocationInfo, bundleControllerAnnotations)) {
             YT_LOG_DEBUG("Setting proxy annotations (BundleName: %v, NodeName: %v, Annotations: %v)",
                 bundleName,
                 proxyName,
@@ -2584,9 +2611,9 @@ public:
             return false;
         }
 
-        if (annotations->AllocatedForBundle != bundleName) {
+        if (bundleControllerAnnotations->AllocatedForBundle != bundleName) {
             YT_LOG_WARNING("Inconsistent allocation state (AnnotationsBundleName: %v, ActualBundleName: %v, ProxyName: %v)",
-                annotations->AllocatedForBundle,
+                bundleControllerAnnotations->AllocatedForBundle,
                 bundleName,
                 proxyName);
 
@@ -2610,17 +2637,17 @@ public:
         YT_VERIFY(!strategy.empty());
 
         const auto& instanceInfo = GetInstanceInfo(proxyName, input);
-        const auto& annotations = instanceInfo->Annotations;
-        if (strategy != DeallocationStrategyReturnToSpareBundle && (!annotations->AllocatedForBundle.empty() || annotations->Allocated)) {
-            auto newAnnotations = New<TInstanceAnnotations>();
+        const auto& bundleControllerAnnotations = instanceInfo->BundleControllerAnnotations;
+        if (strategy != DeallocationStrategyReturnToSpareBundle && (!bundleControllerAnnotations->AllocatedForBundle.empty() || bundleControllerAnnotations->Allocated)) {
+            auto newAnnotations = New<TBundleControllerInstanceAnnotations>();
             newAnnotations->DeallocatedAt = TInstant::Now();
             newAnnotations->DeallocationStrategy = strategy;
             mutations->ChangedProxyAnnotations[proxyName] = mutations->WrapMutation(newAnnotations);
             return false;
         }
 
-        if (strategy == DeallocationStrategyReturnToSpareBundle && annotations->AllocatedForBundle == bundleName) {
-            auto newAnnotations = NYTree::CloneYsonStruct(annotations);
+        if (strategy == DeallocationStrategyReturnToSpareBundle && bundleControllerAnnotations->AllocatedForBundle == bundleName) {
+            auto newAnnotations = NYTree::CloneYsonStruct(bundleControllerAnnotations);
             newAnnotations->AllocatedForBundle = "";
             mutations->ChangedProxyAnnotations[proxyName] = mutations->WrapMutation(newAnnotations);
             return false;
@@ -2679,7 +2706,7 @@ public:
 
         for (const auto& proxyName : aliveProxies) {
             const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-            const auto& instanceResource = proxyInfo->Annotations->Resource;
+            const auto& instanceResource = proxyInfo->BundleControllerAnnotations->Resource;
 
             proxyOrder.push_back(TProxyRemoveOrder{
                 .MaintenanceIsNotRequested = proxyInfo->CmsMaintenanceRequests.empty(),
@@ -2729,15 +2756,15 @@ THashSet<std::string> ScanForObsoleteCypressNodes(const TSchedulerInputState& in
     auto now = TInstant::Now();
 
     for (const auto& [instanceName, instanceInfo] : instanceMap) {
-        auto annotations = instanceInfo->Annotations;
-        if (annotations->Allocated ||  !annotations->DeallocatedAt) {
+        auto bundleControllerAnnotations = instanceInfo->BundleControllerAnnotations;
+        if (bundleControllerAnnotations->Allocated ||  !bundleControllerAnnotations->DeallocatedAt) {
             continue;
         }
-        if (annotations->DeallocationStrategy != DeallocationStrategyHulkRequest) {
+        if (bundleControllerAnnotations->DeallocationStrategy != DeallocationStrategyHulkRequest) {
             continue;
         }
 
-        if (now - *annotations->DeallocatedAt < obsoleteThreshold) {
+        if (now - *bundleControllerAnnotations->DeallocatedAt < obsoleteThreshold) {
             continue;
         }
 
@@ -3253,14 +3280,14 @@ void TrimNetworkInfo(TSchedulerInputState* input)
     }
 
     for (const auto& [_, nodeInfo] : input->TabletNodes) {
-        if (nodeInfo->Annotations && nodeInfo->Annotations->Resource) {
-            nodeInfo->Annotations->Resource->ResetNet();
+        if (nodeInfo->BundleControllerAnnotations && nodeInfo->BundleControllerAnnotations->Resource) {
+            nodeInfo->BundleControllerAnnotations->Resource->ResetNet();
         }
     }
 
     for (const auto& [_, proxyInfo] : input->RpcProxies) {
-        if (proxyInfo->Annotations && proxyInfo->Annotations->Resource) {
-            proxyInfo->Annotations->Resource->ResetNet();
+        if (proxyInfo->BundleControllerAnnotations && proxyInfo->BundleControllerAnnotations->Resource) {
+            proxyInfo->BundleControllerAnnotations->Resource->ResetNet();
         }
     }
 
