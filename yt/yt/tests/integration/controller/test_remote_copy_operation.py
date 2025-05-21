@@ -31,6 +31,7 @@ import pytest
 from functools import partial
 import time
 import builtins
+from math import ceil
 
 HUNK_COMPATIBLE_CHUNK_FORMATS = [
     "table_versioned_simple",
@@ -1955,6 +1956,61 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
         wait(lambda: len(self._get_chunk_ids("//tmp/t2", "hunk")) == 0)
 
         self._check_all_read_methods("//tmp/t1", "//tmp/t2", keys, rows, source_driver=self.remote_driver, dest_driver=None)
+
+    @authors("coteeq")
+    def test_sorted_table_constraints(self):
+        sync_create_cells(1)
+        sync_create_cells(1, driver=self.remote_driver)
+
+        schema = [
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+        ]
+        self._create_sorted_table("//tmp/t1", schema=schema, driver=self.remote_driver)
+        self._create_sorted_table("//tmp/t2", schema=schema)
+
+        row_count = 5
+        rows = [{"key": "a" * 19 + str(i), "value": "a" * 20} for i in range(row_count)]
+
+        set("//tmp/t1/@enable_compaction_and_partitioning", False, driver=self.remote_driver)
+        sync_reshard_table("//tmp/t1", [[], [rows[3]["key"]]], driver=self.remote_driver)
+
+        set("//tmp/t2/@enable_compaction_and_partitioning", False)
+        sync_reshard_table("//tmp/t2", [[], [rows[3]["key"]]])
+
+        sync_mount_table("//tmp/t1", driver=self.remote_driver)
+
+        for row in rows:
+            insert_rows("//tmp/t1", [row], driver=self.remote_driver)
+            sync_flush_table("//tmp/t1", driver=self.remote_driver)
+
+        assert len(self._get_chunk_ids("//tmp/t1", "hunk", driver=self.remote_driver)) == 5
+
+        sync_unmount_table("//tmp/t1", driver=self.remote_driver)
+
+        # This is exactly data weight of two rows, but still smaller than 5x data weight of hunk chunk.
+        # Unfortunately, regular chunks will report data_weight _with_ size of hunk values,
+        # so their slicing will look at virtual data size of the whole row.
+        data_weight_per_job = 82
+        hunk_job_count = ceil(sum(len(row["value"]) for row in rows) / data_weight_per_job)
+        regular_job_count = ceil(sum(len(row["value"]) + len(row["key"]) + 1 for row in rows) / data_weight_per_job)
+
+        op = remote_copy(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "data_weight_per_job": data_weight_per_job,
+            }
+        )
+
+        def get_job_count(task_name):
+            tasks = get(op.get_path() + "/@progress/tasks")
+            task = [task for task in tasks if task["task_name"] == task_name][0]
+            return task["job_counter"]["completed"]["total"]
+
+        assert hunk_job_count == get_job_count("hunk_remote_copy")
+        assert regular_job_count == get_job_count("remote_copy")
 
     @authors("alexelexa")
     def test_no_hunks_in_static_table(self):

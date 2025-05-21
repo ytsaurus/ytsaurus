@@ -147,6 +147,15 @@ bool TInputChunkBase::IsHunk() const
     return ChunkFormat_ == EChunkFormat::HunkDefault;
 }
 
+bool TInputChunkBase::RowCountIsMeaningless() const
+{
+    // NB: Hunk and file chunks have no rows (well, they do not hold tabular data),
+    // but their size statistics (data weight, (un)compressed data size)
+    // are still accurate. So we do not want to apply selectivity factors, which
+    // will inevitably yield poor results because of zero row count.
+    return IsHunk() || IsFile();
+}
+
 bool TInputChunkBase::IsUnavailable(EChunkAvailabilityPolicy policy) const
 {
     if (IsDynamicStore()) {
@@ -345,10 +354,8 @@ double TInputChunk::GetDataWeightSelectivityFactor() const
 
 i64 TInputChunk::GetDataWeight() const
 {
-    if (IsFile()) {
-        // NB(coteeq): Files do not have rows, but they are somewhat equivalent to one giant string,
-        //             so let's define file's data weight as its uncompressed size.
-        return TotalUncompressedDataSize_;
+    if (RowCountIsMeaningless()) {
+        return TotalDataWeight_;
     }
 
     return std::max<i64>(
@@ -358,7 +365,7 @@ i64 TInputChunk::GetDataWeight() const
 
 i64 TInputChunk::GetUncompressedDataSize() const
 {
-    if (IsFile()) {
+    if (RowCountIsMeaningless()) {
         return TotalUncompressedDataSize_;
     }
     return ApplySelectivityFactors(TotalUncompressedDataSize_, /*applyReadSizeSelectivityFactors*/ true);
@@ -366,7 +373,7 @@ i64 TInputChunk::GetUncompressedDataSize() const
 
 i64 TInputChunk::GetCompressedDataSize() const
 {
-    if (IsFile()) {
+    if (RowCountIsMeaningless()) {
         return CompressedDataSize_;
     }
     return ApplySelectivityFactors(CompressedDataSize_, /*applyReadSizeSelectivityFactors*/ true);

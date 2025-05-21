@@ -110,9 +110,17 @@ protected:
                 // Unsubscribe is done in destructor.
                 SubscribeToClusterNetworkBandwidthAvailabilityUpdated(clusterName);
             }
+        }
 
-            auto options = controller->GetOrderedChunkPoolOptions();
-            ChunkPool_ = CreateOrderedChunkPool(options, controller->GetInputStreamDirectory());
+        void InitializeChunkPool()
+        {
+            auto options = Controller_->GetOrderedChunkPoolOptions(GetTitle());
+            ChunkPool_ = CreateOrderedChunkPool(options, Controller_->GetInputStreamDirectory());
+        }
+
+        TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override
+        {
+            return CamelCaseToUnderscoreCase(GetTitle());
         }
 
         IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
@@ -723,20 +731,28 @@ private:
         FinishPreparation();
     }
 
+    template <class TTask>
+    TIntrusivePtr<TTask> CreateTask()
+    {
+        auto task = New<TTask>(this);
+        task->InitializeChunkPool();
+        return task;
+    }
+
     void CreateTasks()
     {
         for (const auto& table : InputManager_->GetInputTables()) {
             CollectHunkChunkIdsByType(table, GetPtr(HunkChunkIds_), GetPtr(CompressionDictionaryIds_));
         }
 
-        MainTask_ = New<TRemoteCopyTask>(this);
+        MainTask_ = CreateTask<TRemoteCopyTask>();
         if (!HunkChunkIds_.empty() || !CompressionDictionaryIds_.empty()) {
-            HunkTask_ = New<TRemoteCopyHunkTask>(this);
+            HunkTask_ = CreateTask<TRemoteCopyHunkTask>();
             MainTask_->AddDependency(HunkTask_);
         }
 
         if (!CompressionDictionaryIds_.empty()) {
-            CompressionDictionaryTask_ = New<TRemoteCopyCompressionDictionaryTask>(this);
+            CompressionDictionaryTask_ = CreateTask<TRemoteCopyCompressionDictionaryTask>();
 
             YT_VERIFY(HunkTask_);
             HunkTask_->AddDependency(CompressionDictionaryTask_);
@@ -750,7 +766,7 @@ private:
         MainTask_->FinishInitialization();
     }
 
-    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions()
+    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions(const std::string& name)
     {
         TOrderedChunkPoolOptions chunkPoolOptions;
         chunkPoolOptions.MaxTotalSliceCount = Config_->MaxTotalSliceCount;
@@ -760,7 +776,7 @@ private:
         chunkPoolOptions.BuildOutputOrder = true;
         chunkPoolOptions.ShouldSliceByRowIndices = false;
         chunkPoolOptions.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInOrderedPool;
-        chunkPoolOptions.Logger = Logger().WithTag("Name: Root");
+        chunkPoolOptions.Logger = Logger().WithTag("Name: %v", name);
         return chunkPoolOptions;
     }
 
