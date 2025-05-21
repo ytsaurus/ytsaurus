@@ -669,9 +669,10 @@ private:
     IChunkPoolOutput::TCookie EndJob()
     {
         if (CurrentJob()->GetSliceCount() > 0) {
+            auto jobIndex = JobIndex_++;
             if (Sampler_.Sample()) {
                 YT_LOG_DEBUG("Ordered job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataWeight: %v, RowCount: %v, SliceCount: %v)",
-                    JobIndex_,
+                    jobIndex,
                     BuiltJobCount_,
                     CurrentJob()->GetPrimaryDataWeight(),
                     CurrentJob()->GetPrimaryRowCount(),
@@ -685,7 +686,7 @@ private:
                     THROW_ERROR_EXCEPTION(NChunkPools::EErrorCode::DataSliceLimitExceeded, "Total number of data slices in ordered pool is too large")
                         << TErrorAttribute("actual_total_slice_count", GetDataSliceCounter()->GetTotal())
                         << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount_)
-                        << TErrorAttribute("current_job_count", JobIndex_);
+                        << TErrorAttribute("current_job_count", jobIndex);
                 }
 
                 CurrentJob()->Finalize();
@@ -700,14 +701,13 @@ private:
                 return cookie;
             } else {
                 YT_LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
-                    JobIndex_,
+                    jobIndex,
                     BuiltJobCount_,
                     CurrentJob()->GetPrimaryDataWeight(),
                     CurrentJob()->GetPrimaryRowCount(),
                     CurrentJob()->GetPrimarySliceCount());
                 CurrentJob().reset();
             }
-            ++JobIndex_;
         }
         return IChunkPoolOutput::NullCookie;
     }
