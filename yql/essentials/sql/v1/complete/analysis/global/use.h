@@ -13,7 +13,6 @@ namespace NSQLComplete {
         SQLv1::Sql_queryContext* ctx,
         antlr4::TokenStream* tokens,
         size_t cursorPosition,
-        const TEnvironment& env
-    );
+        const TEnvironment& env);
 
 } // namespace NSQLComplete

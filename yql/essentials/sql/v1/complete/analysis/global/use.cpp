@@ -1,5 +1,7 @@
 #include "use.h"
 
+#include "evaluate.h"
+
 namespace NSQLComplete {
 
     namespace {
@@ -7,14 +9,13 @@ namespace NSQLComplete {
         class TVisitor: public SQLv1Antlr4BaseVisitor {
         public:
             TVisitor(
-                antlr4::TokenStream* tokens, 
+                antlr4::TokenStream* tokens,
                 size_t cursorPosition,
                 const TEnvironment* env)
                 : Tokens_(tokens)
                 , CursorPosition_(cursorPosition)
                 , Env_(env)
             {
-                Y_UNUSED(Env_);
             }
 
             std::any visitSql_stmt_core(SQLv1::Sql_stmt_coreContext* ctx) override {
@@ -38,7 +39,9 @@ namespace NSQLComplete {
                 }
 
                 if (SQLv1::Pure_column_or_namedContext* ctx = expr->pure_column_or_named()) {
-                    cluster = ctx->getText();
+                    if (auto id = GetId(ctx)) {
+                        cluster = std::move(*id);
+                    }
                 }
 
                 if (cluster.empty()) {
@@ -81,6 +84,32 @@ namespace NSQLComplete {
                 return antlr4::misc::Interval(CursorPosition_, CursorPosition_);
             }
 
+            TMaybe<TString> GetId(SQLv1::Pure_column_or_namedContext* ctx) const {
+                if (auto* x = ctx->bind_parameter()) {
+                    return GetId(x);
+                } else if (auto* x = ctx->an_id()) {
+                    return x->getText();
+                } else {
+                    Y_ABORT("You should change implementation according grammar changes");
+                }
+            }
+
+            TMaybe<TString> GetId(SQLv1::Bind_parameterContext* ctx) const {
+                auto value = Evaluate(ctx, *Env_);
+                if (value.Empty()) {
+                    return Nothing();
+                }
+
+                return std::visit([](auto&& arg) -> TMaybe<TString> {
+                    using T = std::decay_t<decltype(arg)>;
+                    if constexpr (std::is_same_v<T, TString>) {
+                        return arg;
+                    } else {
+                        return Nothing();
+                    }
+                }, *value);
+            }
+
             antlr4::TokenStream* Tokens_;
             size_t CursorPosition_;
             const TEnvironment* Env_;
@@ -91,7 +120,7 @@ namespace NSQLComplete {
     TMaybe<TUseContext> FindUseStatement(
         SQLv1::Sql_queryContext* ctx,
         antlr4::TokenStream* tokens,
-        size_t cursorPosition, 
+        size_t cursorPosition,
         const TEnvironment& env) {
         std::any result = TVisitor(tokens, cursorPosition, &env).visit(ctx);
         if (!result.has_value()) {

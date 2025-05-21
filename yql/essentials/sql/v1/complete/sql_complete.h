@@ -51,7 +51,7 @@ namespace NSQLComplete {
 
         virtual ~ISqlCompletionEngine() = default;
         virtual TCompletion Complete(TCompletionInput input) = 0; // TODO(YQL-19747): migrate YDB CLI to CompleteAsync
-        virtual NThreading::TFuture<TCompletion> 
+        virtual NThreading::TFuture<TCompletion>
         CompleteAsync(TCompletionInput input, TEnvironment env = {}) = 0;
     };
 
