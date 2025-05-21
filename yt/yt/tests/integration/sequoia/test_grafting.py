@@ -193,17 +193,10 @@ class TestSequoiaSymlinks(YTEnvSetup):
         },
     }
 
-    # COMPAT(kvk1920): Remove when `use_cypress_transaction_service` become `true` by default.
+    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
+    # supported in native client.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            },
-        },
-    }
 
     def setup_method(self, method):
         super().setup_method(method)

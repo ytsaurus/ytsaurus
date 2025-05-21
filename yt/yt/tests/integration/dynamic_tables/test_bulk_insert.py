@@ -2241,26 +2241,16 @@ class TestBulkInsertShardedTx(TestBulkInsertPortal):
 
 
 @pytest.mark.enabled_multidaemon
-class TestBulkInsertShardedTxCTxS(TestBulkInsertShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestBulkInsertMirroredTx(TestBulkInsertShardedTxCTxS):
+class TestBulkInsertMirroredTx(TestBulkInsertShardedTx):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+
+    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
+    # supported in native client.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "commit_operation_cypress_node_changes_via_system_transaction": True,
@@ -2294,25 +2284,15 @@ class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
 
 
 @pytest.mark.enabled_multidaemon
-class TestUnversionedUpdateFormatShardedTxCTxS(TestUnversionedUpdateFormatShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestUnversionedUpdateFormatMirroredTx(TestUnversionedUpdateFormatShardedTxCTxS):
+class TestUnversionedUpdateFormatMirroredTx(TestUnversionedUpdateFormatShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+
+    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
+    # supported in native client.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "commit_operation_cypress_node_changes_via_system_transaction": True,
@@ -2366,7 +2346,7 @@ class TestBulkInsertMulticellDynamicTablesLockingProtocol(TestDynamicTablesLocki
 
 
 @pytest.mark.enabled_multidaemon
-class TestBulkInsertShardedTxCTxSDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsertShardedTxCTxS):
+class TestBulkInsertShardedTxDynamicTablesLockingProtocol(TestDynamicTablesLockingProtocol, TestBulkInsertShardedTx):
     pass
 
 

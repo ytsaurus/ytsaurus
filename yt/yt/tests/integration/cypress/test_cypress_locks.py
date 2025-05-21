@@ -1680,26 +1680,16 @@ class TestCypressLocksShardedTx(TestCypressLocksMulticell):
 
 
 @pytest.mark.enabled_multidaemon
-class TestCypressLocksShardedTxCTxS(TestCypressLocksShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
+class TestCypressLocksMirroredTx(TestCypressLocksShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 8
+
+    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
+    # supported in native client.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
     _SUPRESSED_MESSAGES = [
         "Retrieving TVM service ticket",

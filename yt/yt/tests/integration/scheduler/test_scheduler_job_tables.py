@@ -657,24 +657,15 @@ class TestStderrTableShardedTx(TestStderrTable):
     }
 
 
-class TestStderrTableShardedTxCTxS(TestStderrTableShardedTx):
-    ENABLE_MULTIDAEMON = False  # There are component restarts
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-class TestStderrTableMirroredTx(TestStderrTableShardedTxCTxS):
+class TestStderrTableMirroredTx(TestStderrTableShardedTx):
     ENABLE_MULTIDAEMON = False  # There are component restarts
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+
+    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
+    # supported in native client.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "commit_operation_cypress_node_changes_via_system_transaction": True,

@@ -318,16 +318,10 @@ class TestFilesSequoia(TestFiles):
         "12": {"roles": ["chunk_host"]},
     }
 
+    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
+    # implemented in native client.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
 
 
 ##################################################################

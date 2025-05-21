@@ -19,5 +19,4 @@
     };
     DRIVER_BACKEND = native;
     NUM_RPC_PROXIES = 1;
-    USE_CYPRESS_TRANSACTION_SERVICE = %true;
 }
