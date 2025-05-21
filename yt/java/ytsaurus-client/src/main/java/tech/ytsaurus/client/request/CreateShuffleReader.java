@@ -30,7 +30,7 @@ public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder
     }
 
     public void writeTo(TReqReadShuffleData.Builder builder) {
-        builder.setShuffleHandle(handle.getPayload());
+        builder.setSignedShuffleHandle(handle.getPayload());
         builder.setPartitionIndex(partitionIndex);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();

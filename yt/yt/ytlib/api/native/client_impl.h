@@ -931,7 +931,7 @@ public: \
         const TFlowExecuteOptions& options),
         (pipelinePath, command, argument, options))
 
-    IMPLEMENT_METHOD(TShuffleHandlePtr, StartShuffle, (
+    IMPLEMENT_METHOD(TSignedShuffleHandlePtr, StartShuffle, (
         const std::string& account,
         int partitionCount,
         NObjectClient::TTransactionId parentTransactionId,
@@ -956,12 +956,12 @@ public: \
         (chaosCellId, cordiantorCellId, options))
 
     TFuture<IRowBatchReaderPtr> CreateShuffleReader(
-        const TShuffleHandlePtr& shuffleHandle,
+        const TSignedShuffleHandlePtr& signedShuffleHandle,
         int partitionIndex,
         std::optional<std::pair<int, int>> writerIndexRange,
         const TShuffleReaderOptions& options) override;
     TFuture<IRowBatchWriterPtr> CreateShuffleWriter(
-        const TShuffleHandlePtr& shuffleHandle,
+        const TSignedShuffleHandlePtr& signedShuffleHandle,
         const std::string& partitionColumn,
         std::optional<int> writerIndex,
         const TShuffleWriterOptions& options) override;

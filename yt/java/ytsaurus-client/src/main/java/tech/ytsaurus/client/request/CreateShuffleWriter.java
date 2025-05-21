@@ -47,7 +47,7 @@ public class CreateShuffleWriter extends RequestBase<CreateShuffleWriter.Builder
     }
 
     public void writeTo(TReqWriteShuffleData.Builder builder) {
-        builder.setShuffleHandle(handle.getPayload());
+        builder.setSignedShuffleHandle(handle.getPayload());
         builder.setPartitionColumn(partitionColumn);
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
