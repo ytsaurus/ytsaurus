@@ -5,10 +5,11 @@ items:
 - { name: BertModels,             href: bert_models.md,              when: audience == "internal"   }
 - { name: BlenderFactorStorage,   href: blender_factor_storage.md,   when: audience == "internal"   }
 - { name: CatBoost,               href: catboost.md,                 when: audience == "internal"   }
-- { name: ClickHouse,             href: clickhouse.md                          }
-- { name: Compress и Decompress,  href: compress_decompress.md                 }
-- { name: DateTime,               href: datetime.md                            }
-- { name: Digest,                 href: digest.md                              }
+- { name: ClickHouse,             href: clickhouse.md                                               }
+- { name: Compress и Decompress,  href: compress_decompress.md                                      }
+- { name: DateTime,               href: datetime.md                                                 }
+- { name: Digest,                 href: digest.md                                                   }
+- { name: Geo,                    href: geo.md,                       when: audience == "internal"  }
 - { name: Dsv,                    href: dsv.md                                 }
 - { name: Histogram,              href: histogram.md                           }
 - { name: Hyperscan,              href: hyperscan.md                           }
