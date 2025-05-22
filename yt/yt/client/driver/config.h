@@ -39,6 +39,9 @@ public:
 
     std::optional<TString> Token;
 
+    //! Target cluster for multiproxy mode.
+    std::optional<std::string> MultiproxyTargetCluster;
+
     TAsyncExpiringCacheConfigPtr ProxyDiscoveryCache;
 
     bool EnableInternalCommands;
@@ -58,4 +61,3 @@ DEFINE_REFCOUNTED_TYPE(TDriverConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDriver
-

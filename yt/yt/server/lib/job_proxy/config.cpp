@@ -341,7 +341,10 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("tvm_bridge", &TThis::TvmBridge)
         .Default();
 
-    registrar.Parameter("api_service", &TThis::ApiService)
+    registrar.Parameter("job_proxy_api_service_static", &TThis::JobProxyApiServiceStatic)
+        .DefaultNew();
+
+    registrar.Parameter("job_proxy_api_service", &TThis::JobProxyApiService)
         .DefaultNew();
 
     registrar.Parameter("statistics_output_table_count_limit", &TThis::StatisticsOutputTableCountLimit)
@@ -457,6 +460,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("memory_profile_dump_path", &TThis::MemoryProfileDumpPath)
         .Alias("heap_dump_directory")
         .Default();
+
+    registrar.Parameter("job_proxy_api_service", &TThis::JobProxyApiService)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

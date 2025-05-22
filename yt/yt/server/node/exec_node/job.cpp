@@ -3265,6 +3265,8 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             tcmallocConfig->HeapSizeLimit->MemoryProfileDumpFilenameSuffix = ToString(GetId());
             tcmallocConfig->HeapSizeLimit->DumpMemoryProfileOnViolation = true;
         }
+
+        proxyInternalConfig->JobProxyApiService = proxyDynamicConfig->JobProxyApiService;
     }
 
     proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);

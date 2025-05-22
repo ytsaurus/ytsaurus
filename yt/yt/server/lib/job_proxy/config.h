@@ -447,7 +447,8 @@ public:
 
     std::optional<i64> SlotContainerMemoryLimit;
 
-    NYT::NRpcProxy::TApiServiceConfigPtr ApiService;
+    NYT::NRpcProxy::TApiServiceConfigPtr JobProxyApiServiceStatic;
+    NYT::NRpcProxy::TApiServiceDynamicConfigPtr JobProxyApiService;
 
     std::optional<int> StatisticsOutputTableCountLimit;
 
@@ -524,6 +525,8 @@ public:
     i64 AdaptiveRowCountUpperBound;
 
     std::optional<TString> MemoryProfileDumpPath;
+
+    NRpcProxy::TApiServiceDynamicConfigPtr JobProxyApiService;
 
     REGISTER_YSON_STRUCT(TJobProxyDynamicConfig);
 
