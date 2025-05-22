@@ -1193,7 +1193,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             UNIT_ASSERT_UNEQUAL(Complete(engine, {"SELE"}).size(), 0);
         }
 
-        auto config = MakeYTConfiguration();
+        auto config = MakeYQLConfiguration();
         auto engine = MakeSqlCompletionEngine(lexer, std::move(service), config);
 
         UNIT_ASSERT_EQUAL(Complete(engine, {"UPDA"}).size(), 0);

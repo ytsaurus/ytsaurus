@@ -59,7 +59,7 @@ namespace NSQLComplete {
 
     ISqlCompletionEngine::TConfiguration MakeYDBConfiguration();
 
-    ISqlCompletionEngine::TConfiguration MakeYTConfiguration();
+    ISqlCompletionEngine::TConfiguration MakeYQLConfiguration();
 
     ISqlCompletionEngine::TPtr MakeSqlCompletionEngine(
         TLexerSupplier lexer,

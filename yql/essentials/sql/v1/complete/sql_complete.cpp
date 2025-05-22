@@ -218,7 +218,7 @@ namespace NSQLComplete {
         return {};
     }
 
-    ISqlCompletionEngine::TConfiguration MakeYTConfiguration() {
+    ISqlCompletionEngine::TConfiguration MakeYQLConfiguration() {
         std::unordered_set<std::string> whitelist = {
             "lambda_stmt",
             "sql_stmt",
