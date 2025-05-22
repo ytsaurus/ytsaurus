@@ -9,6 +9,7 @@ items:
 - { name: Compress и Decompress,  href: compress_decompress.md                 }
 - { name: DateTime,               href: datetime.md                            }
 - { name: Digest,                 href: digest.md                              }
+- { name: Dsv,                    href: dsv.md                                 }
 - { name: Histogram,              href: histogram.md                           }
 - { name: Hyperscan,              href: hyperscan.md                           }
 - { name: Ip,                     href: ip.md                                  }
