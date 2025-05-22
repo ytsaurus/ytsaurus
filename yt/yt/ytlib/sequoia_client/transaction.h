@@ -124,8 +124,8 @@ namespace NDetail {
 TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr client,
     ESequoiaTransactionType type,
-    NApi::NNative::IClientPtr nativeRootClient,
-    NApi::NNative::IClientPtr groundRootClient,
+    NApi::NNative::IClientPtr localClient,
+    NApi::NNative::IClientPtr groundClient,
     const std::vector<NObjectClient::TTransactionId>& cypressPrerequisiteTransactionIds,
     const NApi::TTransactionStartOptions& options,
     const TSequoiaTransactionSequencingOptions& sequencingOptions);
