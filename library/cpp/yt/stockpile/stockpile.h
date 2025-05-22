@@ -33,6 +33,7 @@ struct TStockpileOptions
     static constexpr EStockpileStrategy DefaultStrategy = EStockpileStrategy::FixedBreaks;
     EStockpileStrategy Strategy = DefaultStrategy;
 
+    static constexpr TDuration PeriodQuantum = TDuration::MilliSeconds(10);
     static constexpr TDuration DefaultPeriod = TDuration::MilliSeconds(10);
     TDuration Period = DefaultPeriod;
 };
