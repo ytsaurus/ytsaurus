@@ -33,6 +33,8 @@ void TChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_erasure_replicas_per_rack", &TThis::MaxErasureReplicasPerRack)
         .GreaterThan(0)
         .Default(std::numeric_limits<int>::max());
+    registrar.Parameter("packing_max_erasure_replicas_per_rack_stabilization_window", &TThis::DynamicMaxErasureReplicasPerRackStabilizationWindow)
+        .Default(TDuration::Max());
     registrar.Parameter("max_erasure_journal_replicas_per_rack", &TThis::MaxErasureJournalReplicasPerRack)
         .GreaterThan(0)
         .Default(std::numeric_limits<int>::max());
