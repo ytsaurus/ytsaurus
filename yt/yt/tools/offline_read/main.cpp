@@ -393,6 +393,10 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
     if (maybeHunkChunkMetasExt) {
         PrintHunkChunkMetasExt(*maybeHunkChunkMetasExt);
     }
+
+    if (miscExt.has_compression_dictionary_id()) {
+        Cout << "  Compression dictionary id: " << ToString(FromProto<TGuid>(miscExt.compression_dictionary_id())) << Endl;
+    }
 }
 
 void PrintMeta(const IIOEnginePtr& ioEngine, const std::vector<TString>& chunkFileNames)
