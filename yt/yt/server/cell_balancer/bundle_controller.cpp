@@ -217,7 +217,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        if (!dryRun && !IsLeader()) {
+        if (!dryRun && !IsLeader() && !ignoreGlobalDisabledSwitch) {
             ClearState();
 
             YT_LOG_DEBUG("Bundle Controller is not leading");
@@ -232,7 +232,7 @@ private:
     {
         try {
             YT_PROFILE_TIMING("/bundle_controller/scan_bundles") {
-                if (!dryRun) {
+                if (!dryRun && !ignoreGlobalDisabledSwitch) {
                     LinkOrchidService();
                     LinkBundleControllerService();
                 }
