@@ -98,6 +98,8 @@ private:
     TInitialRowMap InitialRowMap_;
     TResultingRowMap ResultingRowMap_;
 
+    TSharedRangeHolderPtr Holder_;
+
     bool CanSkipLookup_ = false;
 
     void SetInitialAndResultingRows(TSharedRange<NTableClient::TUnversionedRow> lookedUpRows);
@@ -334,6 +336,8 @@ TFuture<void> TSecondaryIndexModifier::LookupRows()
 
 void TSecondaryIndexModifier::SetInitialAndResultingRows(TSharedRange<NTableClient::TUnversionedRow> lookedUpRows)
 {
+    Holder_ = lookedUpRows.GetHolder();
+
     int keyColumnCount = TableMountInfo_->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
     int columnCount = std::ssize(PositionToIdMapping_);
     auto evaluator = ColumnEvaluatorCache_->Find(ResultingSchema_);
