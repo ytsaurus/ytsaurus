@@ -165,6 +165,7 @@ DEFINE_ENUM(EMasterReign,
     ((AutomaticCellMapMigration)                                    (2928))  // danilalexeev
     ((ReplicaDataInReplicatableTabletContent)                       (2929))  // ifsmirnov
     ((TransactionActionStates)                                      (2930))  // babenko
+    ((SupportTzTypes)                                               (2931))  // nadya02
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
