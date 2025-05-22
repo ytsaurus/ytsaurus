@@ -310,7 +310,7 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
         .QueryTrackerStage = rpcResponse.query_tracker_stage(),
         .ClusterName = rpcResponse.cluster_name(),
         .SupportedFeatures = TYsonString(rpcResponse.supported_features()),
-        .AccessControlObjects = FromProto<std::vector<TString>>(rpcResponse.access_control_objects()),
+        .AccessControlObjects = FromProto<std::vector<std::string>>(rpcResponse.access_control_objects()),
         .Clusters = FromProto<std::vector<std::string>>(rpcResponse.clusters()),
     };
 }

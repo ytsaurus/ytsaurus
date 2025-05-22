@@ -381,15 +381,15 @@ TError GetUserTransactionAbortedError(TTransactionId transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetOperationsAcoPrincipalPath(const TString& acoName)
+NYPath::TYPath GetOperationsAcoPrincipalPath(TStringBuf acoName)
 {
     static constexpr TStringBuf OperationsAccessControlObjectPrincipalPath = "//sys/access_control_object_namespaces/operations/%v/principal";
-    return Format(OperationsAccessControlObjectPrincipalPath, acoName);
+    return Format(OperationsAccessControlObjectPrincipalPath, ToYPathLiteral(acoName));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const TString& acoName)
+TYsonString GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const std::string& acoName)
 {
     TGetNodeOptions getNodeOptions;
     getNodeOptions.ReadFrom = EMasterChannelKind::LocalCache;
@@ -405,13 +405,13 @@ TAccessControlRule::TAccessControlRule(TSerializableAccessControlList acl)
     : AccessControlRule_(std::move(acl))
 { }
 
-TAccessControlRule::TAccessControlRule(TString acoName)
+TAccessControlRule::TAccessControlRule(std::string acoName)
     : AccessControlRule_(std::move(acoName))
 { }
 
 bool TAccessControlRule::IsAcoName() const
 {
-    return std::holds_alternative<TString>(AccessControlRule_);
+    return std::holds_alternative<std::string>(AccessControlRule_);
 }
 
 bool TAccessControlRule::IsAcl() const
@@ -419,12 +419,12 @@ bool TAccessControlRule::IsAcl() const
     return !IsAcoName();
 }
 
-TString TAccessControlRule::GetAcoName() const
+std::string TAccessControlRule::GetAcoName() const
 {
-    return std::get<TString>(AccessControlRule_);
+    return std::get<std::string>(AccessControlRule_);
 }
 
-void TAccessControlRule::SetAcoName(TString aco)
+void TAccessControlRule::SetAcoName(std::string aco)
 {
     AccessControlRule_ = std::move(aco);
 }
@@ -523,7 +523,7 @@ void ValidateOperationAccessByAco(
     TOperationId operationId,
     TJobId jobId,
     EPermissionSet permissionSet,
-    const TString& acoName,
+    const std::string& acoName,
     const NNative::IClientPtr& client,
     const TLogger& logger)
 {

@@ -289,7 +289,7 @@ types:
       # Key.
 
       - cpp_name: AccessControlObject
-        cpp_type: TString
+        cpp_type: std::string
         column_name: access_control_object
         column_type: String
         sort_order: Ascending
