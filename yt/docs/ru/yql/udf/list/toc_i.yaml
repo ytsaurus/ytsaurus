@@ -9,8 +9,8 @@ items:
 - { name: Compress и Decompress,  href: compress_decompress.md                                      }
 - { name: DateTime,               href: datetime.md                                                 }
 - { name: Digest,                 href: digest.md                                                   }
-- { name: Geo,                    href: geo.md,                       when: audience == "internal"  }
-- { name: Dsv,                    href: dsv.md                                 }
+- { name: Dsv,                    href: dsv.md                                                      }
+- { name: Geo,                    href: geo.md,                      when: audience == "internal"   }
 - { name: Geobase,                href: geobase.md,                   when: audience == "internal"   }
 - { name: Histogram,              href: histogram.md                           }
 - { name: Hyperscan,              href: hyperscan.md                           }
