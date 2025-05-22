@@ -29,9 +29,13 @@ $bla3 = (select iws.i_brand_id brand_id
 
 $cross_items = (select i_item_sk ss_item_sk
  from item cross join
- (select * from
- $bla1 bla1 left semi join $bla2 bla2 on (bla1.brand_id = bla2.brand_id and bla1.class_id = bla2.class_id and bla1.category_id = bla2.category_id)
-            left semi join $bla3 bla3 on (bla1.brand_id = bla3.brand_id and bla1.class_id = bla3.class_id and bla1.category_id = bla3.category_id)
+ (select
+    bla1.brand_id as brand_id,
+    bla1.class_id as class_id,
+    bla1.category_id as category_id
+  from any $bla1 bla1
+  join any $bla2 bla2 on Pickle(bla1.brand_id) = Pickle(bla2.brand_id) and Pickle(bla1.class_id) = Pickle(bla2.class_id) and Pickle(bla1.category_id) = Pickle(bla2.category_id)
+  join any $bla3 bla3 on Pickle(bla1.brand_id) = Pickle(bla3.brand_id) and Pickle(bla1.class_id) = Pickle(bla3.class_id) and Pickle(bla1.category_id) = Pickle(bla3.category_id)
  ) x
  where i_brand_id = brand_id
       and i_class_id = class_id
