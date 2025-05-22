@@ -163,7 +163,7 @@ public:
     void MergeStatistics(const TStatistics& statistics);
     template <class T>
     void SetRuntimeVariable(const TString& key, const T& value);
-    void AddSecondaryQueryId(TQueryId id);
+    void AddSecondaryQueryId(TQueryId id, DB::UInt64 totalRows = 0, DB::UInt64 totalBytes = 0);
 
     class TStatisticsTimerGuard;
     TStatisticsTimerGuard CreateStatisticsTimerGuard(NYPath::TYPath path);
