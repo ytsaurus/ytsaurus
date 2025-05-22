@@ -96,7 +96,11 @@ def prepare_attributes(spec):
         if spec.sorted.enable_hash_chunk_index_for_lookup:
             attributes["mount_config"]["enable_hash_chunk_index_for_lookup"] = True
         if spec.sorted.enable_value_dictionary_compression:
-            attributes["mount_config"]["value_dictionary_compression"] = {"enable": True}
+            attributes["mount_config"]["value_dictionary_compression"] = {
+                "enable": True,
+                "column_dictionary_size": 256,
+                "max_processed_chunk_count": 2
+            }
 
     return attributes
 
