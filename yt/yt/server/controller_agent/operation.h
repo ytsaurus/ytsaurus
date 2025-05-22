@@ -36,7 +36,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(std::string, AuthenticatedUser);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IMapNodePtr, SecureVault);
     DEFINE_BYVAL_RW_PROPERTY(NSecurityClient::TSerializableAccessControlList, Acl);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, AcoName);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<std::string>, AcoName);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
     DEFINE_BYREF_RO_PROPERTY(NScheduler::TPoolTreeControllerSettingsMap, PoolTreeControllerSettingsMap);
     DEFINE_BYVAL_RO_PROPERTY(NScheduler::TControllerEpoch, ControllerEpoch);
@@ -45,7 +45,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(IOperationControllerHostPtr, Host);
     DEFINE_BYREF_RO_PROPERTY(std::vector<NScheduler::TExperimentAssignmentPtr>, ExperimentAssignments);
     DEFINE_BYVAL_RW_PROPERTY(NScheduler::TJobShellOptionsMap, OptionsPerJobShell);
-
     DEFINE_BYVAL_RW_PROPERTY(NYTree::INodePtr, OptionsPatch);
 
 public:

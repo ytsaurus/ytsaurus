@@ -1078,7 +1078,7 @@ struct TOperationSpecBase
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
 
     //! ACO name in the "operations" namespace.
-    std::optional<TString> AcoName;
+    std::optional<std::string> AcoName;
 
     //! Add the "read" and "manage" rights for the authenticated_user to |Acl|.
     std::optional<bool> AddAuthenticatedUserToAcl;
@@ -2168,7 +2168,7 @@ struct TOperationRuntimeParameters
     // to be able to revive old operations.
     std::vector<std::string> Owners;
     NSecurityClient::TSerializableAccessControlList Acl;
-    std::optional<TString> AcoName;
+    std::optional<std::string> AcoName;
     TJobShellOptionsMap OptionsPerJobShell;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
     TBooleanFormula SchedulingTagFilter;
@@ -2213,7 +2213,7 @@ struct TOperationRuntimeParametersUpdate
     std::optional<double> Weight;
     std::optional<TString> Pool;
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
-    std::optional<TString> AcoName;
+    std::optional<std::string> AcoName;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
     std::optional<TBooleanFormula> SchedulingTagFilter;
     TJobShellOptionsUpdateMap OptionsPerJobShell;

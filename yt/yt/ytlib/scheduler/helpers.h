@@ -106,11 +106,13 @@ TError GetUserTransactionAbortedError(NObjectClient::TTransactionId transactionI
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetOperationsAcoPrincipalPath(const TString& acoName);
+NYPath::TYPath GetOperationsAcoPrincipalPath(TStringBuf acoName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYson::TYsonString GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const TString& acoName);
+NYson::TYsonString GetAclFromAcoName(
+    const NApi::NNative::IClientPtr& client,
+    const std::string& acoName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,13 +128,13 @@ public:
     TAccessControlRule& operator=(TAccessControlRule&&) = default;
 
     explicit TAccessControlRule(NSecurityClient::TSerializableAccessControlList acl);
-    explicit TAccessControlRule(TString acoName);
+    explicit TAccessControlRule(std::string acoName);
 
     bool IsAcoName() const;
     bool IsAcl() const;
 
-    TString GetAcoName() const;
-    void SetAcoName(TString aco);
+    std::string GetAcoName() const;
+    void SetAcoName(std::string aco);
 
     NSecurityClient::TSerializableAccessControlList GetAcl() const;
     void SetAcl(NSecurityClient::TSerializableAccessControlList acl);
@@ -142,7 +144,7 @@ public:
     TString GetAclString() const;
 
 private:
-    std::variant<NSecurityClient::TSerializableAccessControlList, TString> AccessControlRule_;
+    std::variant<NSecurityClient::TSerializableAccessControlList, std::string> AccessControlRule_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,7 +154,7 @@ void ValidateOperationAccessByAco(
     TOperationId operationId,
     TJobId jobId,
     NYTree::EPermissionSet permissionSet,
-    const TString& acoName,
+    const std::string& acoName,
     const NApi::NNative::IClientPtr& client,
     const NLogging::TLogger& logger);
 
@@ -202,7 +204,7 @@ struct TAllocationBriefInfo
     NScheduler::TAllocationId AllocationId;
     NJobTrackerClient::TOperationId OperationId;
     std::optional<NSecurityClient::TSerializableAccessControlList> OperationAcl;
-    std::optional<TString> OperationAcoName;
+    std::optional<std::string> OperationAcoName;
     NControllerAgent::TControllerAgentDescriptor ControllerAgentDescriptor;
     NNodeTrackerClient::TNodeDescriptor NodeDescriptor;
 };
