@@ -854,13 +854,14 @@ class YTEnvSetup(object):
     @classmethod
     def start_envs(cls):
         # Ground clusters instantiation.
-        for original_cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
-            if cls.get_param("USE_SEQUOIA", original_cluster_index):
-                cluster_index = original_cluster_index + cls.get_ground_index_offset()
-                cluster_path = os.path.join(cls.path_to_run, cls.get_cluster_name(cluster_index))
-                cls.ground_envs.append(cls.create_yt_cluster_instance(cluster_index, cluster_path))
-            else:
-                cls.ground_envs.append(None)
+        if any(cls.get_param("USE_SEQUOIA", index) for index in range(cls.NUM_REMOTE_CLUSTERS + 1)):
+            for original_cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
+                if cls.get_param("USE_SEQUOIA", original_cluster_index):
+                    cluster_index = original_cluster_index + cls.get_ground_index_offset()
+                    cluster_path = os.path.join(cls.path_to_run, cls.get_cluster_name(cluster_index))
+                    cls.ground_envs.append(cls.create_yt_cluster_instance(cluster_index, cluster_path))
+                else:
+                    cls.ground_envs.append(None)
 
         # Primary cluster instantiation.
         cls.Env = cls.create_yt_cluster_instance(0, cls.primary_cluster_path)
@@ -935,7 +936,7 @@ class YTEnvSetup(object):
         for env in cls.combined_envs:
             if env is None:
                 continue
-            liveness_checker = Checker(lambda: env.check_liveness(callback_func=emergency_exit_within_tests))
+            liveness_checker = Checker(lambda env=env: env.check_liveness(callback_func=emergency_exit_within_tests))
             liveness_checker.daemon = True
             liveness_checker.start()
             cls.liveness_checkers.append(liveness_checker)
