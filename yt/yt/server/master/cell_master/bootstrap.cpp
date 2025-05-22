@@ -5,6 +5,7 @@
 #include "config_manager.h"
 #include "disk_space_sensor_producer.h"
 #include "epoch_history_manager.h"
+#include "hive_profiling_manager.h"
 #include "hydra_facade.h"
 #include "master_hydra_service.h"
 #include "multicell_manager.h"
@@ -876,6 +877,8 @@ void TBootstrap::DoInitialize()
         CreateMulticellUpstreamSynchronizer(this),
         NativeAuthenticator_);
 
+    HiveProfilingManager_ = CreateHiveProfilingManager(this);
+
     std::vector<std::string> addresses;
     addresses.reserve(localCellConfig->Peers.size());
     for (const auto& peer : localCellConfig->Peers) {
@@ -1003,6 +1006,7 @@ void TBootstrap::DoInitialize()
     GraftingManager_->Initialize();
     MulticellStatisticsCollector_->Initialize();
     SequoiaActionsExecutor_->Initialize();
+    HiveProfilingManager_->Initialize();
 
     // NB: Keep Config Manager initialization last and prevent
     // new automaton parts registration after its initialization.
