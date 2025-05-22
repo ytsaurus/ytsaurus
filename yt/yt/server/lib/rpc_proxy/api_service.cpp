@@ -4057,7 +4057,7 @@ private:
         if (request->has_syntax_version()) {
             options.SyntaxVersion = request->syntax_version();
         }
-        if (request->has_syntax_version()) {
+        if (request->has_expression_builder_version()) {
             options.ExpressionBuilderVersion = request->expression_builder_version();
         }
         if (request->has_execution_backend()) {

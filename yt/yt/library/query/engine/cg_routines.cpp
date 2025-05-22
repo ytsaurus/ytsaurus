@@ -2446,8 +2446,9 @@ DEFINE_YPATH_GET_ANY
             return; \
         } \
         NYson::TToken token; \
+        NYson::TStatelessLexer lexer; \
         auto anyString = anyValue->AsStringBuf(); \
-        NYson::ParseToken(anyString, &token); \
+        lexer.ParseToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::TYPE) { \
             STATEMENT_OK \
         } else { \
@@ -2466,8 +2467,9 @@ DEFINE_YPATH_GET_ANY
             return; \
         } \
         NYson::TToken token; \
+        NYson::TStatelessLexer lexer; \
         auto anyString = anyValue->AsStringBuf(); \
-        NYson::ParseToken(anyString, &token); \
+        lexer.ParseToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
             MakePositionIndependent ## TYPE ## Value(ConvertPointerFromWasmToHost(result), token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
@@ -2963,8 +2965,9 @@ extern "C" void NumericToString(
             return; \
         } \
         NYson::TToken token; \
+        NYson::TStatelessLexer lexer; \
         auto valueString = TStringBuf(ConvertPointerFromWasmToHost(valueAtHost->Data.String, valueAtHost->Length), valueAtHost->Length); \
-        NYson::ParseToken(valueString, &token); \
+        lexer.ParseToken(valueString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
             *resultAtHost = MakeUnversioned ## TYPE ## Value(token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
