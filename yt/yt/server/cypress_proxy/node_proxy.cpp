@@ -1555,6 +1555,15 @@ private:
 
         NYPath::TTokenizer tokenizer(path);
         tokenizer.Advance();
+
+        if (tokenizer.GetType() == NYPath::ETokenType::Asterisk) {
+            tokenizer.Advance();
+            tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+            SequoiaSession_->ClearSubtree(Path_, AccessTrackingOptions_);
+            FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ true);
+            return;
+        }
+
         tokenizer.Expect(NYPath::ETokenType::Literal);
 
         // There is no composite node type other than Sequoia map node. If we
