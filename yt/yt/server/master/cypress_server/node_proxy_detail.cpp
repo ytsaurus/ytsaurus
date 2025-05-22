@@ -2261,6 +2261,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, AssembleTreeCopy)
     // This node is needed for access log evaluation down the line.
     auto* rootNode = cypressManager->GetNode({rootNodeId, Transaction_->GetId()});
 
+    const auto& cypressManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->CypressManager;
     auto assembleTreeCopy = [&] (ICypressNodeFactory* /*factory*/, IAttributeDictionary* /*inheritedAttributes*/) {
         auto shard = TrunkNode_->GetShard();
         auto finishAttachingNode = [&] (TCypressNode* node) {
@@ -2273,6 +2274,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, AssembleTreeCopy)
             if (!preserveAcl) {
                 // Acls are always preserved during materialization.
                 trunkNode->Acd().ClearEntries();
+                if (cypressManagerConfig->ResetInheritAclFlagDuringCrossCellCopy) {
+                    trunkNode->Acd().SetInherit(true);
+                }
             }
 
             if (!preserveModificationTime) {

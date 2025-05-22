@@ -123,6 +123,10 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_preserve_acl_during_move", &TThis::EnablePreserveAclDuringMove)
         .Default(true);
 
+    registrar.Parameter("reset_inherit_acl_flag_during_cross_cell_copy", &TThis::ResetInheritAclFlagDuringCrossCellCopy)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Parameter("max_attribute_filter_size_to_log", &TThis::MaxAttributeFilterSizeToLog)
         .Default(20)
         .GreaterThan(0)

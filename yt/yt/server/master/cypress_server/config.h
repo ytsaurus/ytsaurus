@@ -95,6 +95,9 @@ public:
     // COMPAT(koloshmet)
     bool EnablePreserveAclDuringMove;
 
+    // COMPAT(h0pless)
+    bool ResetInheritAclFlagDuringCrossCellCopy;
+
     i64 MaxAttributeFilterSizeToLog;
 
     // COMPAT(h0pless)
