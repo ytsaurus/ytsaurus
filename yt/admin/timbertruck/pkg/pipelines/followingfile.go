@@ -88,3 +88,8 @@ func (f *FollowingFile) Stop() {
 func (f *FollowingFile) Close() error {
 	return f.file.Close()
 }
+
+func (f *FollowingFile) seekBack(offset int) error {
+	_, err := f.file.Seek(int64(-offset), io.SeekCurrent)
+	return err
+}
