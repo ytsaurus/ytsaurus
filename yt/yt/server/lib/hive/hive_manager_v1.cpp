@@ -289,6 +289,9 @@ public:
             edgesToFreeze);
     }
 
+    void OnProfiling(const std::function<bool(TCellId)>& /*cellIdFilter*/) override
+    { }
+
     bool TryRemoveCellMailbox(TCellId cellId) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);

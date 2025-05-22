@@ -353,13 +353,13 @@ class TestMasterCellsSyncDelayed(TestMasterCellsSync):
 ##################################################################
 
 @pytest.mark.enabled_multidaemon
-class TestMasterHiveSync(YTEnvSetup):
+class TestMasterHiveProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_MASTERS = 1
 
     @authors("h0pless")
-    def test_master_hive_metrics(self):
+    def test_master_hive_sync(self):
         primary_cell_id = get("//sys/@primary_cell_id")
         secondary_cell_id = get("//sys/@cluster_connection/secondary_masters/0/cell_id")
 
@@ -370,3 +370,28 @@ class TestMasterHiveSync(YTEnvSetup):
 
         # Some syncs always happen, so no need to do anything.
         wait(lambda: value_counter.get() > 0, ignore_exceptions=True)
+
+    @authors("koloshmet")
+    def test_master_hive_queues(self):
+        set("//sys/@config/cell_master/hive_profiling_period", 500)
+
+        primary_cell_id = get("//sys/@primary_cell_id")
+        secondary_cell_id = get("//sys/@cluster_connection/secondary_masters/0/cell_id")
+
+        primary_master_address = ls("//sys/primary_masters")[0]
+
+        secondary_cell_ids = ls("//sys/secondary_masters")
+        secondary_master_address = ls("//sys/secondary_masters/" + secondary_cell_ids[0])[0]
+
+        profiler_primary = profiler_factory().at_primary_master(primary_master_address)
+        primary_value_counter = profiler_primary.counter(
+            "hive/outcoming_messages_queue_size",
+            {"cell_id": primary_cell_id, "target_cell_id": secondary_cell_id})
+
+        profiler_secondary = profiler_factory().at_secondary_master(secondary_cell_ids[0], secondary_master_address)
+        secondary_value_counter = profiler_secondary.counter(
+            "hive/outcoming_messages_queue_size",
+            {"cell_id": secondary_cell_id, "target_cell_id": primary_cell_id})
+
+        wait(lambda: primary_value_counter.get() > 0, ignore_exceptions=True)
+        wait(lambda: secondary_value_counter.get() > 0, ignore_exceptions=True)

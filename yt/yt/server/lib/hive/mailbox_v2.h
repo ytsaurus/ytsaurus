@@ -167,6 +167,7 @@ struct TCellMailboxRuntimeData
     NConcurrency::TDelayedExecutorCookie PostBatchingCookie;
 
     const NProfiling::TTimeGauge SyncTimeGauge;
+    const NProfiling::TGauge OutcomingMessageQueueSizeGauge;
 
     //! Avenues that are known to be bound to this cell at the moment.
     THashSet<TAvenueMailboxRuntimeDataPtr> RegisteredAvenues;

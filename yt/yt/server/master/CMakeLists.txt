@@ -88,6 +88,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/disk_space_sensor_producer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/epoch_history_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/hydra_facade.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/hive_profiling_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_hydra_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multi_phase_cell_sync_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_manager.cpp
