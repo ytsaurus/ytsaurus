@@ -89,6 +89,8 @@ private:
     TInitialRowMap InitialRowMap_;
     TResultingRowMap ResultingRowMap_;
 
+    TSharedRangeHolderPtr Holder_;
+
     void SetInitialAndResultingRows(TSharedRange<NTableClient::TUnversionedRow> lookedUpRows);
 
     TFuture<TSharedRange<TRowModification>> ProduceModificationsForIndex(int index) const;
@@ -270,6 +272,8 @@ TFuture<void> TSecondaryIndexModifier::LookupRows()
 
 void TSecondaryIndexModifier::SetInitialAndResultingRows(TSharedRange<NTableClient::TUnversionedRow> lookedUpRows)
 {
+    Holder_ = lookedUpRows.GetHolder();
+
     int keyColumnCount = TableMountInfo_->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
     for (auto initialRow : lookedUpRows) {
         auto key = TKey(initialRow.FirstNElements(keyColumnCount));
