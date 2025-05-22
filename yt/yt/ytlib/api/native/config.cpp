@@ -97,8 +97,10 @@ void TSequoiaConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("ground_cluster_name", &TThis::GroundClusterName)
         .Default();
+    registrar.Parameter("ground_cluster_connection_update_period", &TThis::GroundClusterConnectionUpdatePeriod)
+        .Default(TDuration::Seconds(5));
 
-    registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
+        registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
         .Default("//sys/sequoia");
 
     registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)

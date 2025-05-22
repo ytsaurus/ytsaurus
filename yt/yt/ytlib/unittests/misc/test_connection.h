@@ -219,7 +219,7 @@ public:
     TConnectionDynamicConfigPtr GetConfig() const override;
     NRpc::IChannelPtr CreateChannelByAddress(const std::string& address) override;
     IClientPtr CreateNativeClient(const TClientOptions& options) override;
-    NSequoiaClient::ISequoiaClientPtr CreateSequoiaClient() override;
+    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override;
     const NRpc::IChannelFactoryPtr& GetChannelFactory() override;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() override;
 

@@ -93,7 +93,8 @@ DEFINE_REFCOUNTED_TYPE(ISequoiaClient)
 
 ISequoiaClientPtr CreateSequoiaClient(
     NApi::NNative::TSequoiaConnectionConfigPtr config,
-    NApi::NNative::IClientPtr nativeClient);
+    NApi::NNative::IClientPtr localClient,
+    TFuture<NApi::NNative::IClientPtr> groundClientFuture);
 
 ////////////////////////////////////////////////////////////////////////////////
 
