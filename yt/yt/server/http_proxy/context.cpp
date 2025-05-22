@@ -77,15 +77,9 @@ TContext::TContext(
     : Api_(std::move(api))
     , Request_(std::move(request))
     , Response_(std::move(response))
-    , UpdateCpuExecutor_ (New<TPeriodicExecutor>(
-        GetCurrentInvoker(),
-        BIND(&TContext::UpdateCumulativeCpuAndProfile, MakeWeak(this), TTraceContextPtr(TryGetCurrentTraceContext())),
-        Api_->GetConfig()->CpuUpdatePeriod))
     , Logger(HttpProxyLogger().WithTag("RequestId: %v", Request_->GetRequestId()))
 {
     DriverRequest_.Id = RandomNumber<ui64>();
-
-    UpdateCpuExecutor_->Start();
 }
 
 bool TContext::TryPrepare()
@@ -859,6 +853,21 @@ void TContext::ProcessFormatsInParameters()
     }
 }
 
+void TContext::SetupUpdateCpuExecutor()
+{
+    UpdateCpuExecutor_ = New<TPeriodicExecutor>(
+        GetCurrentInvoker(),
+        BIND(
+            &TContext::UpdateCumulativeCpuAndProfile,
+            MakeWeak(this),
+            TTraceContextPtr(TryGetCurrentTraceContext()),
+            DriverRequest_.AuthenticatedUser,
+            DriverRequest_.CommandName),
+        Api_->GetConfig()->CpuUpdatePeriod);
+
+    UpdateCpuExecutor_->Start();
+}
+
 void TContext::FinishPrepare()
 {
     CaptureParameters();
@@ -872,6 +881,7 @@ void TContext::FinishPrepare()
     SetupTracing();
     SetupUserMemoryLimits();
     SetupMemoryUsageTracker();
+    SetupUpdateCpuExecutor();
     AddHeaders();
     PrepareFinished_ = true;
 
@@ -1007,7 +1017,11 @@ void TContext::Finalize()
         YT_LOG_DEBUG("Stopping periodic executor that sends keep-alive frames");
         Y_UNUSED(WaitFor(SendKeepAliveExecutor_->Stop()));
     }
-    Y_UNUSED(WaitFor(UpdateCpuExecutor_->Stop()));
+
+    if (UpdateCpuExecutor_) {
+        YT_LOG_DEBUG("Stopping periodic executor that updates and profiles cumulative cpu");
+        Y_UNUSED(WaitFor(UpdateCpuExecutor_->Stop()));
+    }
 
     if (EnableRequestBodyWorkaround(Request_)) {
         try {
@@ -1196,14 +1210,17 @@ IInvokerPtr TContext::GetCompressionInvoker() const
         : Api_->GetPoller()->GetInvoker();
 }
 
-void TContext::UpdateCumulativeCpuAndProfile(const TTraceContextPtr& traceContext)
+void TContext::UpdateCumulativeCpuAndProfile(
+    const TTraceContextPtr& traceContext,
+    const std::string& authenticatedUser,
+    const TString& commandName)
 {
     if (traceContext) {
         auto currentCpuTime = traceContext->GetElapsedTime();
 
         Api_->IncrementCpuProfilingCounter(
-            DriverRequest_.AuthenticatedUser,
-            DriverRequest_.CommandName,
+            authenticatedUser,
+            commandName,
             currentCpuTime - ProfiledCpuTime_);
 
         ProfiledCpuTime_ = currentCpuTime;
