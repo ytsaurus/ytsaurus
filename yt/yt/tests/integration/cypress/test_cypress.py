@@ -433,7 +433,6 @@ class TestCypress(YTEnvSetup):
         assert get(b"//tmp/json_out", is_raw=True, output_format="json") == b'{"list":[1,2,{"string":"this"}]}'
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_map_remove_all1(self):
         # remove items from map
         set("//tmp/map", {"a": "b", "c": "d"}, force=True)
@@ -443,15 +442,15 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/map/@count") == 0
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_map_remove_all2(self):
         set("//tmp/map", {"a": 1}, force=True)
         tx = start_transaction()
         set("//tmp/map", {"b": 2}, tx=tx, force=True)
-        # TODO(kvk1920): implement remove(/*).
         remove("//tmp/map/*", tx=tx)
         assert get("//tmp/map", tx=tx) == {}
         assert get("//tmp/map/@count", tx=tx) == 0
+        assert get("//tmp/map") == {"a": 1}
+        assert get("//tmp/map/@count") == 1
         commit_transaction(tx)
         assert get("//tmp/map") == {}
         assert get("//tmp/map/@count") == 0
