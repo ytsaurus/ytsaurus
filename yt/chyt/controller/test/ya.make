@@ -8,4 +8,5 @@ RECURSE(
     cli
     helpers
     integration
+    unittest
 )

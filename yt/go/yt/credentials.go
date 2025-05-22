@@ -31,11 +31,27 @@ type TokenCredentials struct {
 	Token string
 }
 
+type BearerCredentials struct {
+	Token string
+}
+
 func (c *TokenCredentials) Set(r *http.Request) {
 	r.Header.Add("Authorization", "OAuth "+c.Token)
 }
 
 func (c *TokenCredentials) SetExtension(req *rpc.TRequestHeader) {
+	_ = proto.SetExtension(
+		req,
+		rpc.E_TCredentialsExt_CredentialsExt,
+		&rpc.TCredentialsExt{Token: &c.Token},
+	)
+}
+
+func (c *BearerCredentials) Set(r *http.Request) {
+	r.Header.Add("Authorization", "Bearer "+c.Token)
+}
+
+func (c *BearerCredentials) SetExtension(req *rpc.TRequestHeader) {
 	_ = proto.SetExtension(
 		req,
 		rpc.E_TCredentialsExt_CredentialsExt,
