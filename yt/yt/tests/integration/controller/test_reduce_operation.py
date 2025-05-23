@@ -950,9 +950,12 @@ echo {v = 2} >&7
 
         job_ids = op.list_jobs()
         assert len(job_ids) == 2
-        stderr_bytes = op.read_stderr(job_ids[0])
+        stderrs_bytes = {binascii.hexlify(op.read_stderr(job_id)) for job_id in job_ids}
 
-        assert binascii.hexlify(stderr_bytes) == b"010000006100000000feffffff010000006200000000010000006200000000"
+        assert stderrs_bytes == {
+            b"010000006100000000feffffff010000006200000000010000006200000000",
+            binascii.hexlify("HI\n".encode()),
+        }
 
         assert not get("//tmp/out/@sorted")
 
