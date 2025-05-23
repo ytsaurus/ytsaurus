@@ -270,6 +270,19 @@ public:
         }
     }
 
+    void InterruptJob(TJobId jobId, EInterruptionReason interruptionReason, TDuration interruptionTimeout) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (auto job = FindJob(jobId)) {
+            Bootstrap_->GetJobInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), job = std::move(job), interruptionReason, interruptionTimeout] {
+                YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+                DoInterruptJob(job, interruptionReason, interruptionTimeout);
+            }));
+        }
+    }
+
     void PrepareAgentHeartbeatRequest(
         const TControllerAgentConnectorPool::TControllerAgentConnector::TReqHeartbeatPtr& request,
         const TAgentHeartbeatContextPtr& context) override
@@ -1249,7 +1262,7 @@ private:
                     jobId,
                     interruptionReason);
 
-                InterruptJob(
+                DoInterruptJob(
                     job,
                     interruptionReason,
                     timeout);
@@ -1669,7 +1682,7 @@ private:
         job->GetAllocation()->AbortJob(std::move(abortionError), graceful, requestNewJob);
     }
 
-    void InterruptJob(const TJobPtr& job, EInterruptionReason interruptionReason, TDuration interruptionTimeout)
+    void DoInterruptJob(const TJobPtr& job, EInterruptionReason interruptionReason, TDuration interruptionTimeout)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1900,7 +1913,7 @@ private:
         for (const auto& job : GetJobs()) {
             try {
                 YT_LOG_DEBUG(error, "Trying to interrupt job (JobId: %v)", job->GetId());
-                InterruptJob(
+                DoInterruptJob(
                     job,
                     EInterruptionReason::JobsDisabledOnNode,
                     GetDynamicConfig()->DisabledJobsInterruptionTimeout);

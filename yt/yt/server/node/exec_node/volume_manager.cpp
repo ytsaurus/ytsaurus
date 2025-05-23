@@ -2,6 +2,7 @@
 
 #include "bootstrap.h"
 #include "chunk_cache.h"
+#include "job_controller.h"
 #include "helpers.h"
 #include "private.h"
 
@@ -61,6 +62,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/scheduler/public.h>
+
 #include <yt/yt/core/bus/tcp/client.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -98,6 +101,7 @@ using namespace NDataNode;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NProfiling;
+using namespace NScheduler;
 using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
@@ -353,8 +357,20 @@ struct TCreateNbdVolumeOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPrepareNbdVolumeOptions
+{
+    std::optional<TJobId> JobId;
+
+    TArtifactKey ArtifactKey;
+    IImageReaderPtr ImageReader;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPrepareNbdRootVolumeOptions
 {
+    std::optional<TJobId> JobId;
+
     i64 Size;
     int MediumIndex;
     EFilesystemType Filesystem;
@@ -2900,26 +2916,27 @@ public:
 
     TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>& artifactKeys,
-        const TArtifactDownloadOptions& downloadOptions,
-        const TUserSandboxOptions& options) override
+        const TVolumePreparationOptions& options) override
     {
         YT_VERIFY(!artifactKeys.empty());
 
         auto tag = TGuid::Create();
 
+        const auto& userSandboxOptions = options.UserSandboxOptions;
+
         YT_LOG_DEBUG("Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v, HasSandboxRootVolumeData: %v)",
             tag,
             artifactKeys.size(),
-            options.VirtualSandboxData.has_value(),
-            options.SandboxNbdRootVolumeData.has_value());
+            userSandboxOptions.VirtualSandboxData.has_value(),
+            userSandboxOptions.SandboxNbdRootVolumeData.has_value());
 
         if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->ThrowOnPrepareVolume) {
             auto error = TError(NExecNode::EErrorCode::RootVolumePreparationFailed, "Throw on prepare volume");
             YT_LOG_DEBUG(error, "Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v, HasSandboxRootVolumeData: %v)",
                 tag,
                 artifactKeys.size(),
-                options.VirtualSandboxData.has_value(),
-                options.SandboxNbdRootVolumeData.has_value());
+                userSandboxOptions.VirtualSandboxData.has_value(),
+                userSandboxOptions.SandboxNbdRootVolumeData.has_value());
             THROW_ERROR(error);
         }
 
@@ -2932,27 +2949,30 @@ public:
                     artifactKey);
                 overlayDataFutures.push_back(PrepareNbdVolume(
                     tag,
-                    artifactKey,
-                    std::move(reader)));
+                    TPrepareNbdVolumeOptions{
+                        options.JobId,
+                        artifactKey,
+                        std::move(reader)
+                    }));
             } else if (FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS) {
                 overlayDataFutures.push_back(PrepareSquashFSVolume(
                     tag,
                     artifactKey,
-                    downloadOptions));
+                    options.ArtifactDownloadOptions));
             } else {
                 overlayDataFutures.push_back(PrepareLayer(
                     tag,
                     artifactKey,
-                    downloadOptions));
+                    options.ArtifactDownloadOptions));
             }
         }
 
-        if (options.VirtualSandboxData) {
+        if (userSandboxOptions.VirtualSandboxData) {
             TArtifactKey virtualArtifactKey;
 
             virtualArtifactKey.set_access_method(ToProto(NControllerAgent::ELayerAccessMethod::Nbd));
             virtualArtifactKey.set_filesystem(ToProto(NControllerAgent::ELayerFilesystem::SquashFS));
-            virtualArtifactKey.set_nbd_export_id(options.VirtualSandboxData->NbdExportId);
+            virtualArtifactKey.set_nbd_export_id(userSandboxOptions.VirtualSandboxData->NbdExportId);
 
             NChunkClient::NProto::TDataSource* dataSource = virtualArtifactKey.mutable_data_source();
             dataSource->set_type(ToProto(NChunkClient::EDataSourceType::File));
@@ -2960,43 +2980,52 @@ public:
 
             overlayDataFutures.push_back(PrepareNbdVolume(
                 tag,
-                virtualArtifactKey,
-                options.VirtualSandboxData->Reader));
+                TPrepareNbdVolumeOptions{
+                    options.JobId,
+                    virtualArtifactKey,
+                    userSandboxOptions.VirtualSandboxData->Reader
+                }));
         }
 
-        if (options.SandboxNbdRootVolumeData) {
-            auto future = PrepareNbdSession(*options.SandboxNbdRootVolumeData).Apply(BIND([&] (const TErrorOr<std::optional<std::tuple<IChannelPtr, TSessionId>>>& rspOrError) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+        if (userSandboxOptions.SandboxNbdRootVolumeData) {
+            auto future = PrepareNbdSession(*userSandboxOptions.SandboxNbdRootVolumeData).Apply(BIND(
+                [
+                    this,
+                    this_ = MakeStrong(this),
+                    tag = tag,
+                    jobId = options.JobId,
+                    data = *userSandboxOptions.SandboxNbdRootVolumeData
+                ] (const TErrorOr<std::optional<std::tuple<IChannelPtr, TSessionId>>>& rspOrError) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
 
-                const auto& data = *options.SandboxNbdRootVolumeData;
+                    const auto& response = rspOrError.Value();
+                    if (!response) {
+                        THROW_ERROR_EXCEPTION("Could not find suitable data node to host NBD disk")
+                            << TErrorAttribute("medium_index", data.MediumIndex)
+                            << TErrorAttribute("size", data.Size)
+                            << TErrorAttribute("fs_type", data.FsType);
+                    }
 
-                const auto& response = rspOrError.Value();
-                if (!response) {
-                    THROW_ERROR_EXCEPTION("Could not find suitable data node to host NBD disk")
-                        << TErrorAttribute("medium_index", data.MediumIndex)
-                        << TErrorAttribute("size", data.Size)
-                        << TErrorAttribute("fs_type", data.FsType);
-                }
+                    const auto& [channel, sessionId] = *response;
 
-                const auto& [channel, sessionId] = *response;
+                    YT_LOG_DEBUG("Prepared NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, ExportId: %v)",
+                        sessionId,
+                        data.MediumIndex,
+                        data.Size,
+                        data.FsType,
+                        data.ExportId);
 
-                YT_LOG_DEBUG("Prepared NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, ExportId: %v)",
-                    sessionId,
-                    data.MediumIndex,
-                    data.Size,
-                    data.FsType,
-                    data.ExportId);
-
-                return PrepareNbdRootVolume(
-                    tag,
-                    {
-                        .Size = options.SandboxNbdRootVolumeData->Size,
-                        .MediumIndex = options.SandboxNbdRootVolumeData->MediumIndex,
-                        .Filesystem = options.SandboxNbdRootVolumeData->FsType,
-                        .ExportId = options.SandboxNbdRootVolumeData->ExportId,
-                        .DataNodeChannel = channel,
-                        .SessionId = sessionId,
-                    });
+                    return PrepareNbdRootVolume(
+                        tag,
+                        TPrepareNbdRootVolumeOptions{
+                            .JobId = jobId,
+                            .Size = data.Size,
+                            .MediumIndex = data.MediumIndex,
+                            .Filesystem = data.FsType,
+                            .ExportId = data.ExportId,
+                            .DataNodeChannel = channel,
+                            .SessionId = sessionId,
+                        });
             }));
 
             overlayDataFutures.push_back(std::move(future));
@@ -3013,7 +3042,7 @@ public:
                     tag,
                     std::move(tagSet),
                     std::move(volumeCreateTimeGuard),
-                    options,
+                    userSandboxOptions,
                     overlayDataArray);
             }).AsyncVia(GetCurrentInvoker()))
             .ToImmediatelyCancelable()
@@ -3057,11 +3086,13 @@ private:
     //! Create NBD exports (devices) prior to creating NBD volumes.
     TFuture<void> PrepareNbdExport(
         TGuid tag,
-        NProfiling::TTagSet tagSet,
-        const TArtifactKey& layer,
-        IImageReaderPtr reader)
+        TTagSet tagSet,
+        const TPrepareNbdVolumeOptions& options)
     {
         auto future = VoidFuture;
+
+        const auto& layer = options.ArtifactKey;
+
         try {
             THROW_ERROR_EXCEPTION_IF(!layer.has_filesystem(),
                 "NBD layer %v does not have filesystem",
@@ -3092,9 +3123,19 @@ private:
             auto device = CreateFileSystemBlockDevice(
                 layer.nbd_export_id(),
                 std::move(config),
-                std::move(reader),
+                options.ImageReader,
                 nbdServer->GetInvoker(),
                 nbdServer->GetLogger());
+
+            if (options.JobId) {
+                device->SubscribeShouldStopUsingDevice(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this), jobId = *options.JobId, interruptedJob = false]() mutable {
+                    // Interrupt job only once.
+                    if (!interruptedJob) {
+                        interruptedJob = true;
+                        Bootstrap_->GetJobController()->InterruptJob(jobId, EInterruptionReason::Unknown, TDuration::Zero());
+                    }
+                }));
+            }
 
             auto initializeFuture = device->Initialize();
             nbdServer->RegisterDevice(layer.nbd_export_id(), std::move(device));
@@ -3151,6 +3192,16 @@ private:
                 options.DataNodeChannel,
                 options.SessionId,
                 nbdServer->GetLogger());
+
+            if (options.JobId) {
+                device->SubscribeShouldStopUsingDevice(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this), jobId = *options.JobId, interruptedJob = false]() mutable {
+                    // Interrupt job only once.
+                    if (!interruptedJob) {
+                        interruptedJob = true;
+                        Bootstrap_->GetJobController()->InterruptJob(jobId, EInterruptionReason::Unknown, TDuration::Zero());
+                    }
+                }));
+            }
 
             auto initializeFuture = device->Initialize();
             nbdServer->RegisterDevice(options.ExportId, std::move(device));
@@ -3228,10 +3279,10 @@ private:
     //! Create NBD volume.
     TFuture<TOverlayData> PrepareNbdVolume(
         TGuid tag,
-        const TArtifactKey& artifactKey,
-        IImageReaderPtr reader)
+        const TPrepareNbdVolumeOptions& options)
     {
-        YT_VERIFY(reader);
+        YT_VERIFY(options.ImageReader);
+        const auto& artifactKey = options.ArtifactKey;
 
         YT_LOG_DEBUG("Prepare NBD volume (Tag: %v, ExportId: %v, Path: %v)",
             tag,
@@ -3246,7 +3297,7 @@ private:
         TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
-        return PrepareNbdExport(tag, tagSet, artifactKey, reader)
+        return PrepareNbdExport(tag, tagSet, options)
             .Apply(BIND(
                 &TPortoVolumeManager::CreateNbdVolume,
                 MakeStrong(this),

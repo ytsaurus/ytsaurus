@@ -104,7 +104,7 @@ public:
         return Reader_->GetPath();
     }
 
-    virtual TFuture<TSharedRef> Read(
+    virtual TFuture<TReadResponse> Read(
         i64 offset,
         i64 length,
         const TReadOptions& /*options*/) override
@@ -121,16 +121,16 @@ public:
                     TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_errors").Increment(1);
                 }
 
-                return result.ValueOrThrow();
+                return TReadResponse(result.ValueOrThrow(), false);
             }));
     }
 
-    virtual TFuture<void> Write(
+    virtual TFuture<TWriteResponse> Write(
         i64 /*offset*/,
         const TSharedRef& /*data*/,
         const TWriteOptions& /*options*/) override
     {
-        return MakeFuture(TError("Writes are not supported"));
+        return MakeFuture<TWriteResponse>(TError("Writes are not supported"));
     }
 
     TFuture<void> Flush() override

@@ -534,7 +534,7 @@ private:
 
             Device_->Read(offset, length, {.Cookie = cookie})
                 .Subscribe(
-                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TSharedRef>& result) {
+                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TReadResponse>& result) {
                         NHPTimer::STime nowTime = startTime;
                         double durationSeconds = NHPTimer::GetTimePassed(&nowTime);
 
@@ -544,15 +544,21 @@ private:
                                 durationSeconds);
 
                             Device_->SetError(result);
+
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
+                        const auto& response = result.Value();
+                        if (response.ShouldStopUsingDevice) {
+                            Device_->OnShouldStopUsingDevice();
+                        }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x, Duration: %v)",
+                        YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x, ShouldStopUsingDevice: %v, Duration: %v)",
                             cookie,
+                            response.ShouldStopUsingDevice,
                             durationSeconds);
 
-                        const auto& payload = result.Value();
+                        const auto& payload = response.Data;
                         YT_VERIFY(payload.size() == length);
                         WriteServerResponse(EServerError::NBD_OK, cookie, payload);
                     }));
@@ -629,22 +635,29 @@ private:
 
             Device_->Write(offset, payload, options)
                 .Subscribe(
-                    BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TWriteResponse>& result) {
                         NHPTimer::STime nowTime = startTime;
                         double durationSeconds = NHPTimer::GetTimePassed(&nowTime);
 
-                        if (!error.IsOK()) {
-                            YT_LOG_WARNING(error, "NBD_CMD_WRITE request failed (Cookie: %x, Duration: %v)",
+                        if (!result.IsOK()) {
+                            YT_LOG_WARNING(result, "NBD_CMD_WRITE request failed (Cookie: %x, Duration: %v)",
                                 cookie,
                                 durationSeconds);
 
-                            Device_->SetError(error);
+                            Device_->SetError(result);
+
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_WRITE request (Cookie: %x, Duration: %v)",
+                        const auto& response = result.Value();
+                        if (response.ShouldStopUsingDevice) {
+                            Device_->OnShouldStopUsingDevice();
+                        }
+
+                        YT_LOG_DEBUG("Finished serving NBD_CMD_WRITE request (Cookie: %x, ShouldStopUsingDevice: %v, Duration: %v)",
                             cookie,
+                            response.ShouldStopUsingDevice,
                             durationSeconds);
 
                         WriteServerResponse(EServerError::NBD_OK, cookie);

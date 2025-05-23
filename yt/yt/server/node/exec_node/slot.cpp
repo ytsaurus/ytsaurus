@@ -305,8 +305,7 @@ public:
 
     TFuture<IVolumePtr> PrepareRootVolume(
         const std::vector<TArtifactKey>& layers,
-        const TArtifactDownloadOptions& downloadOptions,
-        const TUserSandboxOptions& options) override
+        const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -320,13 +319,13 @@ public:
             /*actionName*/ "PrepareRootVolume",
             /*uncancelable*/ false,
             [&] {
-                return VolumeManager_->PrepareVolume(layers, downloadOptions, options);
+                return VolumeManager_->PrepareVolume(layers, options);
             });
     }
 
     TFuture<IVolumePtr> PrepareGpuCheckVolume(
         const std::vector<TArtifactKey>& layers,
-        const TArtifactDownloadOptions& downloadOptions) override
+        const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -340,7 +339,7 @@ public:
             /*actionName*/ "PrepareGpuCheckVolume",
             /*uncancelable*/ false,
             [&] {
-                return VolumeManager_->PrepareVolume(layers, downloadOptions, TUserSandboxOptions{});
+                return VolumeManager_->PrepareVolume(layers, options);
             });
     }
 
