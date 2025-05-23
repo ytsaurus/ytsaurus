@@ -52,7 +52,7 @@ struct TSequoiaTransactionActionSequencer
 
 static const TSequoiaTransactionActionSequencer TransactionActionSequencer;
 
-static const TSequoiaTransactionSequencingOptions SequencingOptions = {
+static const TSequoiaTransactionOptions SequoiaTransactionOptionsTemplate = {
     .TransactionActionSequencer = &TransactionActionSequencer,
     .RequestPriorities = TSequoiaTransactionRequestPriorities{
         .DatalessLockRow = 100,
@@ -60,6 +60,7 @@ static const TSequoiaTransactionSequencingOptions SequencingOptions = {
         .WriteRow = 400,
         .DeleteRow = 300,
     },
+    .SequenceTabletCommitSessions = true,
 };
 
 } // namespace
@@ -70,7 +71,9 @@ TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
     const TTransactionStartOptions& options)
 {
-    return sequoiaClient->StartTransaction(type, options, cypressPrerequisiteTransactionIds, SequencingOptions);
+    auto sequoiaTransactionOptions = SequoiaTransactionOptionsTemplate;
+    sequoiaTransactionOptions.CypressPrerequisiteTransactionIds = cypressPrerequisiteTransactionIds;
+    return sequoiaClient->StartTransaction(type, options, sequoiaTransactionOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

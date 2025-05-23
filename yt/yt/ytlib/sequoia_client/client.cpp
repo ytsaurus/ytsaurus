@@ -98,11 +98,10 @@ public:
 
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
         ESequoiaTransactionType type,
-        const NApi::TTransactionStartOptions& options,
-        const std::vector<NObjectClient::TTransactionId>& cypressPrerequisiteTransactionIds,
-        const TSequoiaTransactionSequencingOptions& sequencingOptions) override
+        const NApi::TTransactionStartOptions& transactionStartOptions,
+        const TSequoiaTransactionOptions& sequoiaTransactionOptions) override
     {
-        XX(StartTransaction, (type, options, cypressPrerequisiteTransactionIds, sequencingOptions))
+        XX(StartTransaction, (type, transactionStartOptions, sequoiaTransactionOptions))
     }
 
 #undef XX
@@ -203,18 +202,16 @@ private:
 
     TFuture<ISequoiaTransactionPtr> DoStartTransaction(
         ESequoiaTransactionType type,
-        const NApi::TTransactionStartOptions& options,
-        const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
-        const TSequoiaTransactionSequencingOptions& sequencingOptions)
+        const NApi::TTransactionStartOptions& transactionStartOptions,
+        const TSequoiaTransactionOptions& sequoiaTransactionOptions)
     {
         return NDetail::StartSequoiaTransaction(
             this,
             type,
             LocalClient_,
             GetGroundClientOrThrow(),
-            cypressPrerequisiteTransactionIds,
-            options,
-            sequencingOptions);
+            transactionStartOptions,
+            sequoiaTransactionOptions);
     }
 };
 
