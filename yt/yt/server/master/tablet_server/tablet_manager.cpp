@@ -4906,7 +4906,7 @@ private:
         Load(context, LocalMountConfigKeys_);
 
         // Update mount config keys whenever the reign changes.
-        FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(GetCurrentReign());
+        FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(NCellMaster::GetCurrentReign());
 
         ForbidAvenuesDuringMigration_ = context.GetVersion() < EMasterReign::NoAvenuesDuringMigrationTo24_2;
     }

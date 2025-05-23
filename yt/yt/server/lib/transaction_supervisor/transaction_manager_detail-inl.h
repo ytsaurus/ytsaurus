@@ -12,16 +12,16 @@ namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TTransaction>
-void TTransactionManagerBase<TTransaction>::DoRegisterTransactionActionHandlers(
-    TTransactionActionDescriptor<TTransaction> handlers)
+template <class TTransaction, class TSaveContext, class TLoadContext>
+void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RegisterTransactionActionHandlers(
+    TTypeErasedTransactionActionDescriptor<TTransaction, TSaveContext, TLoadContext> descriptor)
 {
-    auto type = handlers.Type();
-    EmplaceOrCrash(ActionHandlerMap_, type, std::move(handlers));
+    auto type = descriptor.Type();
+    EmplaceOrCrash(ActionDescriptorMap_, type, std::move(descriptor));
 }
 
-template <class TTransaction>
-void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
+template <class TTransaction, class TSaveContext, class TLoadContext>
+void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunPrepareTransactionActions(
     TTransaction* transaction,
     const TTransactionPrepareOptions& options)
 {
@@ -42,14 +42,17 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
 
     TTransactionActionGuard transactionActionGuard;
 
-    for (const auto& action : transaction->Actions()) {
+    for (int index = 0; index < std::ssize(transaction->Actions()); ++index) {
+        auto& action = transaction->Actions()[index];
         try {
-            auto it = ActionHandlerMap_.find(action.Type);
-            if (it == ActionHandlerMap_.end()) {
+            auto it = ActionDescriptorMap_.find(action.Type);
+            if (it == ActionDescriptorMap_.end()) {
                 THROW_ERROR_EXCEPTION("Action %Qv is not registered",
                     action.Type);
             }
-            it->second.Prepare(transaction, action.Value, options);
+            const auto& descriptor = it->second;
+            auto* state = GetOrCreateTransactionActionState(&action, descriptor);
+            descriptor.Prepare(transaction, action.Value, state, options);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Prepare action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
@@ -63,8 +66,8 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
     }
 }
 
-template <class TTransaction>
-void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(
+template <class TTransaction, class TSaveContext, class TLoadContext>
+void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunCommitTransactionActions(
     TTransaction* transaction,
     const TTransactionCommitOptions& options)
 {
@@ -74,14 +77,17 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(
     }
 
     TTransactionActionGuard transactionActionGuard;
-    for (const auto& action : transaction->Actions()) {
+    for (int index = 0; index < std::ssize(transaction->Actions()); ++index) {
+        auto& action = transaction->Actions()[index];
         try {
-            auto it = ActionHandlerMap_.find(action.Type);
-            if (it == ActionHandlerMap_.end()) {
+            auto it = ActionDescriptorMap_.find(action.Type);
+            if (it == ActionDescriptorMap_.end()) {
                 THROW_ERROR_EXCEPTION("Action %Qv is not registered",
                     action.Type);
             }
-            it->second.Commit(transaction, action.Value, options);
+            const auto& descriptor = it->second;
+            auto* state = GetOrCreateTransactionActionState(&action, descriptor);
+            descriptor.Commit(transaction, action.Value, state, options);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Commit action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
@@ -90,8 +96,8 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(
     }
 }
 
-template <class TTransaction>
-void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(
+template <class TTransaction, class TSaveContext, class TLoadContext>
+void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunAbortTransactionActions(
     TTransaction* transaction,
     const TTransactionAbortOptions& options,
     bool requireLegacyBehavior)
@@ -103,14 +109,17 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(
 
     TTransactionActionGuard transactionActionGuard;
 
-    auto runAbort = [&] (const TTransactionActionData& action) {
+    auto runAbort = [&] (int index) {
+        auto& action = transaction->Actions()[index];
         try {
-            auto it = ActionHandlerMap_.find(action.Type);
-            if (it == ActionHandlerMap_.end()) {
+            auto it = ActionDescriptorMap_.find(action.Type);
+            if (it == ActionDescriptorMap_.end()) {
                 THROW_ERROR_EXCEPTION("Action %Qv is not registered",
                     action.Type);
             }
-            it->second.Abort(transaction, action.Value, options);
+            const auto& descriptor = it->second;
+            auto* state = GetOrCreateTransactionActionState(&action, descriptor);
+            descriptor.Abort(transaction, action.Value, state, options);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Abort action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
@@ -124,30 +133,55 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(
         // target state is to run nothing (i.e. |nullopt| is semantically equal
         // to 0). This optional<int> should be just int but it cannot be just
         // changed to int due to compatibility reasons.
-        for (const auto& action : transaction->Actions()) {
-            runAbort(action);
+        for (int index = 0; index < std::ssize(transaction->Actions()); ++index) {
+            runAbort(index);
         }
     } else {
-        for (int i = transaction->GetPreparedActionCount().value_or(0) - 1; i >= 0; --i) {
-            runAbort(transaction->Actions()[i]);
+        for (int index = transaction->GetPreparedActionCount().value_or(0) - 1; index >= 0; --index) {
+            runAbort(index);
         }
     }
 }
 
-template <class TTransaction>
-void TTransactionManagerBase<TTransaction>::RunSerializeTransactionActions(TTransaction* transaction)
+template <class TTransaction, class TSaveContext, class TLoadContext>
+void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunSerializeTransactionActions(TTransaction* transaction)
 {
-    for (const auto& action : transaction->Actions()) {
+    for (int index = 0; index < std::ssize(transaction->Actions()); ++index) {
+        auto& action = transaction->Actions()[index];
         try {
-            if (auto it = ActionHandlerMap_.find(action.Type); it != ActionHandlerMap_.end()) {
-                it->second.Serialize(transaction, action.Value);
+            auto it = ActionDescriptorMap_.find(action.Type);
+            if (it == ActionDescriptorMap_.end()) {
+                return;
             }
+            const auto& descriptor = it->second;
+            auto* state = GetOrCreateTransactionActionState(&action, descriptor);
+            descriptor.Serialize(transaction, action.Value, state);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Serialize action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
                 action.Type);
         }
     }
+}
+
+template <class TTransaction, class TSaveContext, class TLoadContext>
+auto TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::GetOrCreateTransactionActionState(
+    typename TTransaction::TAction* action,
+    const TTransactionActionDescriptor& descriptor)
+    -> ITransactionActionState*
+{
+    if (!action->State) {
+        action->State = descriptor.CreateState();
+    }
+    return action->State.get();
+}
+
+template <class TTransaction, class TSaveContext, class TLoadContext>
+auto TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::CreateTransactionActionState(TStringBuf type)
+    -> std::unique_ptr<ITransactionActionState>
+{
+    const auto& descriptor = GetOrCrash(ActionDescriptorMap_, type);
+    return descriptor.CreateState();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

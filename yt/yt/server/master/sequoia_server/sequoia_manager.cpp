@@ -155,7 +155,11 @@ private:
 
         for (const auto& protoData : request->actions()) {
             auto data = FromProto<TTransactionActionData>(protoData);
-            transaction->Actions().push_back(data);
+            auto& action = transaction->Actions().emplace_back(std::move(data));
+
+            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
+                transactionId,
+                action.Type);
         }
 
         transaction->SetAuthenticationIdentity(std::move(identity));

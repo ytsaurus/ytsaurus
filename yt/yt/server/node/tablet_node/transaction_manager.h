@@ -130,12 +130,11 @@ struct ITransactionManager
         TTransactionSignature signature,
         ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions) = 0;
 
-    template <class TProto>
-    void RegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction, TProto> descriptor);
-
     virtual void RegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTransactionActionDescriptor<TTransaction> descriptor) = 0;
+        TTypeErasedTransactionActionDescriptor descriptor) = 0;
+    template <class TProto, class TState = void>
+    void RegisterTransactionActionHandlers(
+        TTypedTransactionActionDescriptor<TProto, TState> descriptor);
 
     //! Increases transaction commit signature.
     // NB: After incrementing transaction may become committed and destroyed.
