@@ -25,6 +25,7 @@ import os
 import re
 import socket
 import sys
+import time
 from copy import deepcopy
 
 try:
@@ -168,6 +169,7 @@ def yt_env_multicluster_v4(request):
     client_1.remove("//sys/clusters/second", recursive=True)
     client_2.remove("//sys/clusters/first", recursive=True)
 
+    time.sleep(2)
     wait(lambda: client_1.exists("//sys/clusters/{}".format(client_2.config["proxy"]["url"])))
     wait(lambda: client_2.exists("//sys/clusters/{}".format(client_1.config["proxy"]["url"])))
 
