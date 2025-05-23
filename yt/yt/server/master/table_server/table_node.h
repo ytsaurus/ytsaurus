@@ -12,7 +12,6 @@
 #include <yt/yt/server/master/tablet_server/public.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_owner_base.h>
-#include <yt/yt/server/master/tablet_server/tablet_resources.h>
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 

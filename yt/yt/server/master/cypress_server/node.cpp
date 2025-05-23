@@ -7,6 +7,8 @@
 
 #include <yt/yt/server/master/security_server/account.h>
 
+#include <yt/yt/server/master/tablet_server/tablet_resources.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/master/object_server/object.h>
