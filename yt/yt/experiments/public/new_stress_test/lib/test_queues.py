@@ -282,3 +282,5 @@ def test_queues(base_path, spec, attributes, args):
         logger.info("Checking stuff for %s", registry.base)
         check_tablet_sizes(registry.base, registry.tablet_size, current_tablet_count)
         check_trimmed_rows(registry.base, tablet_trimmed_row_count, current_tablet_count)
+
+    yt.unregister_queue_consumer(registry.base, registry.consumer)
