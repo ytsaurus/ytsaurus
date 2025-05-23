@@ -678,12 +678,7 @@ private:
             auto incarnationId = FromProto<NScheduler::TIncarnationId>(
                 startInfoProto.controller_agent_descriptor().incarnation_id());
 
-            std::optional<NScheduler::TAllocationAttributes> allocationAttributes;
-            if (GetDynamicConfig()->DisableLegacyAllocationPreparation) {
-                YT_VERIFY(startInfoProto.has_allocation_attributes());
-                auto& attributes = allocationAttributes.emplace();
-                FromProto(&attributes, startInfoProto.allocation_attributes());
-            }
+            auto allocationAttributes = FromProto<NScheduler::TAllocationAttributes>(startInfoProto.allocation_attributes());
 
             const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
             auto agentDescriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
