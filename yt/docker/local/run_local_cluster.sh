@@ -30,6 +30,7 @@ extra_yt_docker_opts=''
 yt_fqdn=''
 init_operations_archive=false
 disable_query_tracker=false
+enable_shuffle_service=false
 
 network_name=yt_local_cluster_network
 ui_network=$network_name
@@ -72,6 +73,7 @@ Usage: $script_name [-h|--help]
                     [--run-prometheus]
                     [--prometheus-port port]
                     [--disable-query-tracker]
+                    [--enable-shuffle-service]
                     [--stop]
 
   --cluster-name: Sets name of cluster '//sys/@cluster_name' (default: $cluster_name)
@@ -99,6 +101,7 @@ Usage: $script_name [-h|--help]
   --init-operations-archive: Initialize operations archive, the option is required to keep more details of operations
   --run-prometheus: Run prometheus and collect metrics
   --prometheus-port: Sets the prometheus port on docker host (default: $prometheus_port)
+  --enable-shuffle-service: Enables shuffle service in rpc proxy
   --stop: Run 'docker stop ${ui_container_name} ${yt_container_name}' and exit
 EOF
     exit 0
@@ -213,6 +216,10 @@ while [[ $# -gt 0 ]]; do
         disable_query_tracker=true
         shift 1
         ;;
+    --enable-shuffle-service)
+        enable_shuffle_service=true
+        shift 1
+        ;;
     -h | --help)
         print_usage
         shift
@@ -305,6 +312,10 @@ fi
 
 if [ "${disable_query_tracker}" != "true" ]; then
     params="$params -c {name=query-tracker} -c {name=yql-agent;config={ui_origin=\"$(printf '%q' "${docker_hostname}:${interface_port}")\";path=\"/usr/bin\";count=1;artifacts_path=\"/usr/bin\"}}"
+fi
+
+if [ "${enable_shuffle_service}" == true ]; then
+    params="$params --rpc-proxy-config {enable_shuffle_service=true;}"
 fi
 
 set +e
