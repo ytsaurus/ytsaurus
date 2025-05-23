@@ -726,7 +726,6 @@ def get_dynamic_node_config():
                         "job_prepare_time_limit": 60000,
                     },
                     "unknown_operation_jobs_removal_delay": 5000,
-                    "disable_legacy_allocation_preparation": True,
                 },
                 "controller_agent_connector": {
                     "total_confirmation_backoff_strategy": {

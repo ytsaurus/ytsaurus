@@ -638,13 +638,6 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
         .Alias("waiting_jobs_timeout")
         .Default(TDuration::Seconds(30));
 
-    // COMPAT(arkady-e1ppa): This option can be set to false when
-    // sched and CA are updated to the fitting version of 24.1
-    // which has protocol version 28 in controller_agent_tracker_serive_proxy.h.
-    // Remove when everyone is 24.2.
-    registrar.Parameter("disable_legacy_allocation_preparation", &TThis::DisableLegacyAllocationPreparation)
-        .Default(false);
-
     registrar.Parameter("cpu_overdraft_timeout", &TThis::CpuOverdraftTimeout)
         .Default(TDuration::Minutes(10));
 

@@ -561,9 +561,6 @@ struct TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
     TDuration WaitingForResourcesTimeout;
-    // COMPAT(arkady-e1ppa): Remove when CA&Sched are update to
-    // a proper version of 24.1/24.2
-    bool DisableLegacyAllocationPreparation;
 
     TDuration CpuOverdraftTimeout;
 
