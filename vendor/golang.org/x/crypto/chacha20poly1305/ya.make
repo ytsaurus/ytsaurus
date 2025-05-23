@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.33.0)
+VERSION(v0.36.0)
 
 SRCS(
     chacha20poly1305.go
@@ -23,6 +23,12 @@ IF (ARCH_X86_64)
 ENDIF()
 
 IF (ARCH_ARM64)
+    SRCS(
+        chacha20poly1305_noasm.go
+    )
+ENDIF()
+
+IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
     SRCS(
         chacha20poly1305_noasm.go
     )
