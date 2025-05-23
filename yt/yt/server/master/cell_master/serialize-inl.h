@@ -127,18 +127,19 @@ struct TRawNonversionedObjectPtrSerializer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TNonversionedObjectPtrSerializer
+template <class TRawSerializer>
+struct TObjectPtrSerializer
 {
     template <class C1, class C2, class T>
     static void Save(C1& context, const NObjectServer::TObjectPtr<T, C2>& object)
     {
-        SaveWith<TRawNonversionedObjectPtrSerializer>(context, object.GetUnsafe());
+        SaveWith<TRawSerializer>(context, object.GetUnsafe());
     }
 
     template <class C1, class C2, class T>
     static void Load(C1& context, NObjectServer::TObjectPtr<T, C2>& object)
     {
-        auto* rawObject = LoadWith<TRawNonversionedObjectPtrSerializer, T*>(context);
+        auto* rawObject = LoadWith<TRawSerializer, T*>(context);
         object.Assign(rawObject, NObjectServer::TObjectPtrLoadTag());
     }
 };
@@ -179,24 +180,6 @@ struct TRawVersionedObjectPtrSerializer
     static void Load(C& context, NObjectServer::TRawObjectPtr<T>& object)
     {
         object = LoadWith<TRawVersionedObjectPtrSerializer, T*>(context);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TStrongVersionedObjectPtrSerializer
-{
-    template <class C, class T>
-    static void Save(C& context, const NObjectServer::TStrongObjectPtr<T>& object)
-    {
-        SaveWith<TRawVersionedObjectPtrSerializer>(context, object.GetUnsafe());
-    }
-
-    template <class C, class T>
-    static void Load(C& context, NObjectServer::TStrongObjectPtr<T>& object)
-    {
-        auto* rawObject = LoadWith<TRawVersionedObjectPtrSerializer, T*>(context);
-        object.Assign(rawObject, NObjectServer::TObjectPtrLoadTag());
     }
 };
 
@@ -312,15 +295,15 @@ template <class T, class C1, class C2>
         (!std::derived_from<T, NCypressServer::TCypressNode>)
 struct TSerializerTraits<NObjectServer::TObjectPtr<T, C1>, C2>
 {
-    using TSerializer = NCellMaster::TNonversionedObjectPtrSerializer;
+    using TSerializer = NCellMaster::TObjectPtrSerializer<NCellMaster::TRawNonversionedObjectPtrSerializer>;
     using TComparer = NObjectServer::TObjectIdComparer;
 };
 
-template <class T, class C>
+template <class T, class C1, class C2>
     requires std::derived_from<T, NCypressServer::TCypressNode>
-struct TSerializerTraits<NObjectServer::TStrongObjectPtr<T>, C>
+struct TSerializerTraits<NObjectServer::TObjectPtr<T, C1>, C2>
 {
-    using TSerializer = NCellMaster::TStrongVersionedObjectPtrSerializer;
+    using TSerializer = NCellMaster::TObjectPtrSerializer<NCellMaster::TRawVersionedObjectPtrSerializer>;
     using TComparer = NCypressServer::TCypressNodeIdComparer;
 };
 

@@ -390,6 +390,7 @@ public:
     void Assign(T* ptr) noexcept;
     void Assign(T* ptr, TObjectPtrLoadTag) noexcept;
     void Reset() noexcept;
+    T* Release() noexcept;
 
     T* operator->() const noexcept;
 
