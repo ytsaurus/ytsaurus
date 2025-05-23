@@ -124,7 +124,7 @@ private:
     std::string GetClusterName()
     {
         TGetNodeOptions options;
-        options.ReadFrom = EMasterChannelKind::LocalCache;
+        options.ReadFrom = EMasterChannelKind::ClientSideCache;
         auto yson = WaitFor(Client_->GetNode("//sys/@cluster_name", options))
             .ValueOrThrow();
         return ConvertTo<TString>(yson);

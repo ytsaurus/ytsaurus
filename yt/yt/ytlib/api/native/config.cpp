@@ -417,7 +417,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
 
     registrar.Parameter("read_operations_archive_state_from", &TThis::ReadOperationsArchiveStateFrom)
-        .Default(EMasterChannelKind::LocalCache);
+        .Default(EMasterChannelKind::ClientSideCache);
 
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;

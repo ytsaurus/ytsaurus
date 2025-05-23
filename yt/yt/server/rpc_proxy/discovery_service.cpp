@@ -335,7 +335,7 @@ private:
     void UpdateProxies()
     {
         TMasterReadOptions options{
-            .ReadFrom = EMasterChannelKind::LocalCache,
+            .ReadFrom = EMasterChannelKind::ClientSideCache,
             .ExpireAfterSuccessfulUpdateTime = Config_->DiscoveryService->ProxyUpdatePeriod,
             .ExpireAfterFailedUpdateTime = Config_->DiscoveryService->ProxyUpdatePeriod,
             .CacheStickyGroupSize = 1
