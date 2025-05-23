@@ -15,7 +15,9 @@ from yt_commands import (
     create_user, create_proxy_role, issue_token, make_ace,
     create_access_control_object_namespace, create_access_control_object,
     with_breakpoint, wait_breakpoint, print_debug, raises_yt_error,
-    read_table, write_table, add_member, Operation, discover_proxies)
+    read_table, write_table, add_member, Operation, discover_proxies,
+    start_transaction,
+)
 
 from yt.common import YtResponseError, YtError
 import yt.packages.requests as requests
@@ -1789,7 +1791,7 @@ def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, 
     return result
 
 
-class TestHttpProxySignaturesKeyCreation(TestHttpProxySignaturesBase):
+class TestHttpProxySignatures(TestHttpProxySignaturesBase):
     @authors("pavook")
     @pytest.mark.timeout(60)
     def test_public_key_appears(self):
@@ -1819,6 +1821,52 @@ class TestHttpProxySignaturesKeyCreation(TestHttpProxySignaturesBase):
         with raises_yt_error("Signature validation failed"):
             self._execute_command("GET", "read_table_partition", {"cookie": cookie}, user="user2")
 
+    @authors("pavook")
+    @pytest.mark.timeout(60)
+    def test_distributed_write_with_modified_cookie(self):
+        table_path = "//tmp/distributed_table"
+        modified_path = "//tmp/pwntributed_table"
+        assert len(table_path) == len(modified_path)
+
+        create("table", table_path, schema=[{"name": "v1", "type": "string", "sort_order": "ascending"}])
+        res = self._execute_command(
+            "POST",
+            "start_distributed_write_session",
+            {"path": table_path})
+
+        assert bytes(table_path, "utf-8") in res.content
+        yson_res = yson.loads(res.content.replace(bytes(table_path, "utf-8"), bytes(modified_path, "utf-8")))
+        session = yson_res["session"]
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("POST", "finish_distributed_write_session", {"session": session, "results": []})
+
+    @authors("pavook")
+    def disabled_test_shuffle_with_modified_handle(self):  # TODO(pavook): enable when shuffle is supported via HTTP.
+        account = "intermediate"
+        modified_account = "pwnedmediate"
+        assert len(account) == len(modified_account)
+
+        parent_transaction = start_transaction(timeout=60000)
+        res = self._execute_command("POST", "start_shuffle", {
+            "account": account,
+            "partition_count": 1,
+            "parent_transaction_id": parent_transaction,
+        })
+
+        shuffle_handle = res.content
+        assert bytes(account, "utf-8") in shuffle_handle
+        modified_handle = shuffle_handle.replace(bytes(account, "utf-8"), bytes(modified_account, "utf-8"))
+        rows = [{"key": 0, "value": 1}]
+        yson_rows = yson.dumps(rows, yson_type="list_fragment")
+
+        self._execute_command("POST", "write_shuffle_data", {"signed_shuffle_handle": shuffle_handle}, data=yson_rows)
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("POST", "write_shuffle_data", {"signed_shuffle_handle": modified_handle}, data=yson_rows)
+
+        assert yson.loads(self._execute_command("GET", "read_shuffle_data").content, yson_type="list_fragment") == yson_rows
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("GET", "read_shuffle_data").content
+
 
 class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
     DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {
@@ -1833,25 +1881,6 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
     @pytest.mark.timeout(60)
     def test_public_key_rotates(self):
         wait(lambda: len(ls(self.KEYS_PATH)) > 1)
-
-
-class TestHttpProxyDistributedWrite(TestHttpProxySignaturesBase):
-    TABLE_PATH = "//tmp/distributed_table"
-
-    @authors("pavook")
-    @pytest.mark.timeout(60)
-    def test_cookie_modification(self):
-        create("table", self.TABLE_PATH, schema=[{"name": "v1", "type": "string", "sort_order": "ascending"}])
-        res = self._execute_command(
-            "POST",
-            "start_distributed_write_session",
-            {"path": self.TABLE_PATH})
-
-        PWN_PATH = b"//tmp/pwned"
-        yson_res = yson.loads(res.content.replace(bytes(self.TABLE_PATH[:len(PWN_PATH)], "utf-8"), PWN_PATH))
-        session = yson_res["session"]
-        with raises_yt_error("Signature validation failed"):
-            self._execute_command("POST", "finish_distributed_write_session", {"session": session, "results": []})
 
 
 class TestHttpsProxy(HttpProxyTestBase):
