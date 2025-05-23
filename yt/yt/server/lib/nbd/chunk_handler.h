@@ -21,8 +21,8 @@ struct IChunkHandler
 {
     virtual TFuture<void> Initialize() = 0;
     virtual TFuture<void> Finalize() = 0;
-    virtual TFuture<TSharedRef> Read(i64 offset, i64 length, const TReadOptions& options) = 0;
-    virtual TFuture<void> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) = 0;
+    virtual TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) = 0;
+    virtual TFuture<TWriteResponse> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkHandler)
@@ -30,6 +30,7 @@ DEFINE_REFCOUNTED_TYPE(IChunkHandler)
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkHandlerPtr CreateChunkHandler(
+    IBlockDevice* blockDevice,
     TChunkBlockDeviceConfigPtr config,
     IInvokerPtr invoker,
     NRpc::IChannelPtr channel,

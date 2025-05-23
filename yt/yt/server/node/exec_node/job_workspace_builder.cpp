@@ -432,10 +432,14 @@ private:
                 UpdateArtifactStatistics(layerSize, slot->IsLayerCached(layer));
             }
 
+            TVolumePreparationOptions options;
+            options.JobId = Context_.Job->GetId();
+            options.ArtifactDownloadOptions = Context_.ArtifactDownloadOptions;
+            options.UserSandboxOptions = Context_.UserSandboxOptions;
+
             return slot->PrepareRootVolume(
                 layerArtifactKeys,
-                Context_.ArtifactDownloadOptions,
-                Context_.UserSandboxOptions)
+                options)
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
                     if (!volumeOrError.IsOK()) {
                         YT_LOG_WARNING(volumeOrError, "Failed to prepare root volume");
@@ -477,9 +481,13 @@ private:
                 UpdateArtifactStatistics(layerSize, slot->IsLayerCached(layer));
             }
 
+            TVolumePreparationOptions options;
+            options.JobId = Context_.Job->GetId();
+            options.ArtifactDownloadOptions = Context_.ArtifactDownloadOptions;
+
             return slot->PrepareGpuCheckVolume(
                 layerArtifactKeys,
-                Context_.ArtifactDownloadOptions)
+                options)
                 .Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<IVolumePtr>& volumeOrError) {
                     if (!volumeOrError.IsOK()) {
                         YT_LOG_WARNING(volumeOrError, "Failed to prepare GPU check volume");

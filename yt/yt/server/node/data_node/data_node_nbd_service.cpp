@@ -134,11 +134,13 @@ private:
         .AsyncVia(Bootstrap_->GetStorageLightInvoker()));
 
         response->set_cookie(cookie);
-        response->set_close_session(session->GetStoreLocation()->IsSick());
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %x",
+        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
             sessionId,
-            cookie);
+            cookie,
+            shouldCloseSession);
 
         context->ReplyFrom(future);
     }
@@ -161,12 +163,14 @@ private:
         auto session = GetSessionOrThrow(sessionId);
         auto future = session->Write(offset, blocks[0], cookie);
 
-        request->set_cookie(cookie);
-        response->set_close_session(session->GetStoreLocation()->IsSick());
+        response->set_cookie(cookie);
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %x",
+        context->SetResponseInfo("SessionId: %v, Cookie: %x ShouldCloseSession: %v",
             sessionId,
-            cookie);
+            cookie,
+            shouldCloseSession);
 
         context->ReplyFrom(future.AsVoid());
     }
@@ -181,7 +185,13 @@ private:
         auto session = GetSessionOrThrow(sessionId);
         session->Ping();
 
-        response->set_close_session(session->GetStoreLocation()->IsSick());
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_should_close_session(shouldCloseSession);
+
+        context->SetResponseInfo("SessionId: %v, ShouldCloseSession: %v",
+            sessionId,
+            shouldCloseSession);
+
         context->Reply();
     }
 
@@ -189,6 +199,12 @@ private:
     {
         return DynamicPointerCast<TNbdSession>(
             Bootstrap_->GetSessionManager()->GetSessionOrThrow(sessionId.ChunkId));
+    }
+
+    bool ShouldCloseSession(const ISessionPtr& session)
+    {
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        return session->GetStoreLocation()->IsSick() || sessionManager->GetDisableWriteSessions();
     }
 };
 
