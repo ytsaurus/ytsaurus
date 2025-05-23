@@ -164,7 +164,7 @@ private:
 
         YT_LOG_INFO("Requesting query tracker state version");
         TGetNodeOptions options;
-        options.ReadFrom = EMasterChannelKind::MasterCache;
+        options.ReadFrom = EMasterChannelKind::MasterSideCache;
         auto asyncResult = StateClient_->GetNode(StateRoot_ + "/@version", options);
         auto rspOrError = WaitFor(asyncResult);
         if (!rspOrError.IsOK()) {

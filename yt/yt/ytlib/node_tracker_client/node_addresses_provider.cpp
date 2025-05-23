@@ -47,7 +47,7 @@ EMasterChannelKind GetChannelKind(ENodeRole nodeRole)
 {
     switch (nodeRole) {
         case ENodeRole::MasterCache:
-            return EMasterChannelKind::MasterCache;
+            return EMasterChannelKind::MasterSideCache;
         case ENodeRole::TimestampProvider:
             return EMasterChannelKind::Cache;
         default:

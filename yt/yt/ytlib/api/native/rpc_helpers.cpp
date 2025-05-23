@@ -20,8 +20,8 @@ bool IsCachingEnabled(
         case EMasterChannelKind::Leader:
         case EMasterChannelKind::Follower:
             return false;
-        case EMasterChannelKind::LocalCache:
-        case EMasterChannelKind::MasterCache:
+        case EMasterChannelKind::ClientSideCache:
+        case EMasterChannelKind::MasterSideCache:
             return true;
         case EMasterChannelKind::Cache:
             return connection->GetMasterCellDirectory()->IsMasterCacheConfigured();

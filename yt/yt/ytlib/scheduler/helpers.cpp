@@ -392,7 +392,7 @@ NYPath::TYPath GetOperationsAcoPrincipalPath(TStringBuf acoName)
 TYsonString GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const std::string& acoName)
 {
     TGetNodeOptions getNodeOptions;
-    getNodeOptions.ReadFrom = EMasterChannelKind::LocalCache;
+    getNodeOptions.ReadFrom = EMasterChannelKind::ClientSideCache;
     return NConcurrency::WaitFor(
         client->GetNode(
             GetOperationsAcoPrincipalPath(acoName) + "/@acl"))

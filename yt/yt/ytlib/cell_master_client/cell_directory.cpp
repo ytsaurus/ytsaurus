@@ -502,7 +502,7 @@ private:
 
         InitMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader);
         InitMasterChannel(EMasterChannelKind::Follower, config, EPeerKind::Follower);
-        InitMasterChannel(EMasterChannelKind::MasterCache, config, EPeerKind::Follower);
+        InitMasterChannel(EMasterChannelKind::MasterSideCache, config, EPeerKind::Follower);
 
         auto masterCacheConfig = BuildMasterCacheConfig(config);
         if (Config_->MasterCache && Config_->MasterCache->EnableMasterCacheDiscovery) {
@@ -528,7 +528,7 @@ private:
             /*authenticator*/ nullptr);
         EmplaceOrCrash(CachingObjectServices_, cellTag, cachingObjectService);
         RpcServer_->RegisterService(cachingObjectService);
-        CellWrappedChannelMap_[cellTag][EMasterChannelKind::LocalCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
+        CellWrappedChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
     }
 
     void InitMasterChannel(
