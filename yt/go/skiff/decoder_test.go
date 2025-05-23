@@ -119,8 +119,9 @@ func TestDecoder(t *testing.T) {
 	require.True(t, decoder.Next())
 
 	expected := map[string]any{
-		"first": int64(6),
-		"third": "foobar",
+		"first":  int64(6),
+		"second": nil,
+		"third":  "foobar",
 	}
 
 	var i any

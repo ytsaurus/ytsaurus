@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
@@ -19,32 +20,35 @@ import (
 )
 
 type tableRow struct {
-	Boolean      bool             `yson:"boolean"`
-	String       string           `yson:"string"`
-	Bytes        []byte           `yson:"bytes"`
-	Int8         int8             `yson:"int8"`
-	Int16        int16            `yson:"int16"`
-	Int32        int32            `yson:"int32"`
-	Int64        int64            `yson:"int64"`
-	Uint8        uint8            `yson:"uint8"`
-	Uint16       uint16           `yson:"uint16"`
-	Uint32       uint32           `yson:"uint32"`
-	Uint64       uint64           `yson:"uint64"`
-	Float32      float32          `yson:"float32"`
-	Float64      float64          `yson:"float64"`
-	Int          int              `yson:"int"`
-	Uint         uint             `yson:"uint"`
-	List         []string         `yson:"list"`
-	Map          map[string]any   `yson:"map"`
-	Struct       someStruct       `yson:"struct"`
-	YSONRawValue yson.RawValue    `yson:"yson_raw_value"`
-	YSONDuration yson.Duration    `yson:"yson_duration"`
-	Date         schema.Date      `yson:"date"`
-	Datetime     schema.Datetime  `yson:"datetime"`
-	Timestamp    schema.Timestamp `yson:"timestamp"`
-	Interval     schema.Interval  `yson:"interval"`
-	IgnoredField string           `yson:"-"`
-	Any          any              `yson:"any"`
+	Boolean           bool             `yson:"boolean"`
+	String            string           `yson:"string"`
+	Bytes             []byte           `yson:"bytes"`
+	Int8              int8             `yson:"int8"`
+	Int16             int16            `yson:"int16"`
+	Int32             int32            `yson:"int32"`
+	Int64             int64            `yson:"int64"`
+	Uint8             uint8            `yson:"uint8"`
+	Uint16            uint16           `yson:"uint16"`
+	Uint32            uint32           `yson:"uint32"`
+	Uint64            uint64           `yson:"uint64"`
+	Float32           float32          `yson:"float32"`
+	Float64           float64          `yson:"float64"`
+	Int               int              `yson:"int"`
+	Uint              uint             `yson:"uint"`
+	List              []string         `yson:"list"`
+	Map               map[string]any   `yson:"map"`
+	Struct            someStruct       `yson:"struct"`
+	YSONRawValue      yson.RawValue    `yson:"yson_raw_value"`
+	YSONDuration      yson.Duration    `yson:"yson_duration"`
+	Date              schema.Date      `yson:"date"`
+	Datetime          schema.Datetime  `yson:"datetime"`
+	Timestamp         schema.Timestamp `yson:"timestamp"`
+	Interval          schema.Interval  `yson:"interval"`
+	IgnoredField      string           `yson:"-"`
+	Any               any              `yson:"any"`
+	OptionalString    *string          `yson:"optional_string"`
+	EmptyInt8         *int8            `yson:"empty_int8"`
+	MapStringToIntPtr map[string]*int  `yson:"map_string_to_int_ptr"`
 }
 
 type someStruct struct {
@@ -81,6 +85,9 @@ func (tr *tableRow) Init() {
 	tr.Interval = mustNoError(schema.NewInterval(3 * time.Hour))
 	tr.IgnoredField = "ignored field"
 	tr.Any = "any value"
+	tr.OptionalString = ptr.T("optional-string")
+	tr.EmptyInt8 = nil
+	tr.MapStringToIntPtr = map[string]*int{"one": ptr.T(1), "two": nil}
 }
 
 func (tr *tableRow) EqualTo(other tableRow) bool {
@@ -106,7 +113,9 @@ func (tr *tableRow) EqualTo(other tableRow) bool {
 		!assert.ObjectsAreEqual(tr.Timestamp, other.Timestamp) ||
 		!assert.ObjectsAreEqual(tr.Interval, other.Interval) ||
 		!assert.ObjectsAreEqual(tr.IgnoredField, other.IgnoredField) ||
-		!assert.ObjectsAreEqual(tr.Any, other.Any) {
+		!assert.ObjectsAreEqual(tr.Any, other.Any) ||
+		!assert.ObjectsAreEqual(tr.OptionalString, other.OptionalString) ||
+		!assert.ObjectsAreEqual(tr.EmptyInt8, other.EmptyInt8) {
 		return false
 	}
 
@@ -121,9 +130,17 @@ func (tr *tableRow) EqualTo(other tableRow) bool {
 	if len(tr.Map) != len(other.Map) {
 		return false
 	}
-
 	for k, v := range tr.Map {
 		if otherValue, ok := other.Map[k]; !ok || !assert.ObjectsAreEqualValues(v, otherValue) {
+			return false
+		}
+	}
+
+	if len(tr.MapStringToIntPtr) != len(other.MapStringToIntPtr) {
+		return false
+	}
+	for k, v := range tr.MapStringToIntPtr {
+		if otherValue, ok := other.MapStringToIntPtr[k]; !ok || !assert.ObjectsAreEqualValues(v, otherValue) {
 			return false
 		}
 	}
@@ -176,9 +193,9 @@ func (s *Suite) TestSkiffReadTableStruct(ctx context.Context, t *testing.T, yc y
 	for i := range tableRows {
 		tableRows[i].Init()
 	}
-	writeRows(ctx, t, yc, testTable, tableRows)
+	mustWriteRowsYSON(ctx, t, yc, testTable, tableRows)
 
-	readTableRows := mustReadRowsFormat[tableRow](t, ctx, yc, testTable, skiff.MustInferFormat(&tableRow{}))
+	readTableRows := mustReadRowsFormat[tableRow](ctx, t, yc, testTable, skiff.MustInferFormat(&tableRow{}))
 
 	var expectedTableRows []tableRow
 	for _, row := range tableRows {
@@ -200,10 +217,10 @@ func (s *Suite) TestSkiffReadTableMap(ctx context.Context, t *testing.T, yc yt.C
 	for i := range tableRows {
 		tableRows[i].Init()
 	}
-	writeRows(ctx, t, yc, testTable, tableRows)
+	mustWriteRowsYSON(ctx, t, yc, testTable, tableRows)
 
-	ysonReadRows := mustReadRowsFormat[map[string]any](t, ctx, yc, testTable, nil)
-	skiffReadRows := mustReadRowsFormat[map[string]any](t, ctx, yc, testTable, skiff.MustInferFormat(&tableRow{}))
+	ysonReadRows := mustReadRowsYSON[map[string]any](ctx, t, yc, testTable)
+	skiffReadRows := mustReadRowsFormat[map[string]any](ctx, t, yc, testTable, skiff.MustInferFormat(&tableRow{}))
 
 	require.Equal(t, len(ysonReadRows), len(skiffReadRows))
 	for i := range skiffReadRows {
@@ -240,10 +257,10 @@ func (s *Suite) TestSkiffReadTableCompatibleStructs(ctx context.Context, t *test
 		firstTableRows[i] = firstStruct{Int8: 10, String: "str1"}
 	}
 	firstTestTable := s.TmpPath()
-	writeRows(ctx, t, yc, firstTestTable, firstTableRows)
+	mustWriteRowsYSON(ctx, t, yc, firstTestTable, firstTableRows)
 
-	secondStructReadRows := mustReadRowsFormat[secondStruct](t, ctx, yc, firstTestTable, skiff.MustInferFormat(&secondStruct{}))
-	secondStructFirstFormatReadRows := mustReadRowsFormat[secondStruct](t, ctx, yc, firstTestTable, skiff.MustInferFormat(&firstStruct{}))
+	secondStructReadRows := mustReadRowsFormat[secondStruct](ctx, t, yc, firstTestTable, skiff.MustInferFormat(&secondStruct{}))
+	secondStructFirstFormatReadRows := mustReadRowsFormat[secondStruct](ctx, t, yc, firstTestTable, skiff.MustInferFormat(&firstStruct{}))
 
 	for i := range secondStructReadRows {
 		require.Equal(t, secondStruct{Int32: int32(firstTableRows[i].Int8)}, secondStructReadRows[i])
@@ -255,9 +272,9 @@ func (s *Suite) TestSkiffReadTableCompatibleStructs(ctx context.Context, t *test
 		secondTableRows[i] = secondStruct{Int32: 20}
 	}
 	secondTestTable := s.TmpPath()
-	writeRows(ctx, t, yc, secondTestTable, secondTableRows)
+	mustWriteRowsYSON(ctx, t, yc, secondTestTable, secondTableRows)
 
-	firstStructSecondFormatReadRows := mustReadRowsFormat[firstStruct](t, ctx, yc, secondTestTable, skiff.MustInferFormat(&secondStruct{}))
+	firstStructSecondFormatReadRows := mustReadRowsFormat[firstStruct](ctx, t, yc, secondTestTable, skiff.MustInferFormat(&secondStruct{}))
 
 	for i := range firstStructSecondFormatReadRows {
 		require.Equal(t, firstStruct{Int8: int8(secondTableRows[i].Int32)}, firstStructSecondFormatReadRows[i])
@@ -279,7 +296,7 @@ func (s *Suite) TestSkiffReadTableIncompatibleStructs(ctx context.Context, t *te
 		tableRows[i] = firstStruct{Int: 1000}
 	}
 	testTable := s.TmpPath()
-	writeRows(ctx, t, yc, testTable, tableRows)
+	mustWriteRowsYSON(ctx, t, yc, testTable, tableRows)
 
 	_, err := readRowsFormat[secondStruct](ctx, yc, testTable, skiff.MustInferFormat(&firstStruct{}))
 	require.Error(t, err)
@@ -301,27 +318,40 @@ func (s *Suite) TestSkiffReadTableIntegerOverflow(ctx context.Context, t *testin
 		tableRows[i] = int32Struct{Int: math.MaxInt32}
 	}
 	testTable := s.TmpPath()
-	writeRows(ctx, t, yc, testTable, tableRows)
+	mustWriteRowsYSON(ctx, t, yc, testTable, tableRows)
 
 	_, err := readRowsFormat[int8Struct](ctx, yc, testTable, skiff.MustInferFormat(&int32Struct{}))
 	require.Error(t, err)
 	require.ErrorContains(t, err, fmt.Sprintf("value %d overflows type int8", math.MaxInt32))
 }
 
-func writeRows[T any](ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.Path, rows []T) {
-	_, err := yt.CreateTable(ctx, yc, testTable, yt.WithSchema(schema.MustInfer(rows[0])))
-	require.NoError(t, err)
-
-	w, err := yc.WriteTable(ctx, testTable, nil)
-	require.NoError(t, err)
-
-	for i := range rows {
-		require.NoError(t, w.Write(rows[i]))
-	}
-	require.NoError(t, w.Commit())
+func mustWriteRowsYSON[T any](ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.Path, rows []T) {
+	require.NoError(t, writeRowsFormat(ctx, t, yc, testTable, rows))
 }
 
-func mustReadRowsFormat[T any](t *testing.T, ctx context.Context, yc yt.Client, testTable ypath.YPath, format any) []T {
+func writeRowsFormat[T any](ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.Path, rows []T) error {
+	if _, err := yt.CreateTable(ctx, yc, testTable, yt.WithSchema(schema.MustInfer(rows[0]))); err != nil {
+		return err
+	}
+
+	w, err := yc.WriteTable(ctx, testTable, &yt.WriteTableOptions{})
+	if err != nil {
+		return err
+	}
+
+	for i := range rows {
+		if err := w.Write(rows[i]); err != nil {
+			return err
+		}
+	}
+	return w.Commit()
+}
+
+func mustReadRowsYSON[T any](ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.YPath) []T {
+	return mustReadRowsFormat[T](ctx, t, yc, testTable, nil)
+}
+
+func mustReadRowsFormat[T any](ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.YPath, format any) []T {
 	rows, err := readRowsFormat[T](ctx, yc, testTable, format)
 	require.NoError(t, err)
 	return rows
