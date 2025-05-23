@@ -10,6 +10,7 @@ from yt_commands import (
 from yt.test_helpers import assert_items_equal
 from yt_helpers import profiler_factory
 
+from copy import deepcopy
 from random import shuffle, choice
 
 import pytest
@@ -17,7 +18,6 @@ import string
 
 
 ##################################################################
-
 
 @pytest.mark.enabled_multidaemon
 class TestShuffleService(YTEnvSetup):
@@ -31,6 +31,17 @@ class TestShuffleService(YTEnvSetup):
 
     DELTA_RPC_PROXY_CONFIG = {
         "enable_shuffle_service": True,
+        "signature_generation": {
+            "generator": {},
+            "cypress_key_writer": {
+                "owner_id": "test"
+            },
+            "key_rotator": {},
+        },
+        "signature_validation": {
+            "validator": {},
+            "cypress_key_reader": {},
+        }
     }
 
     STORE_LOCATION_COUNT = 2
@@ -292,3 +303,25 @@ class TestShuffleService(YTEnvSetup):
 
         with raises_yt_error("Writer index must be set"):
             write_shuffle_data(shuffle_handle, "partition_id", rows[0], overwrite_existing_writer_data=True)
+
+    @authors("pavook")
+    def test_shuffle_read_with_modified_handle(self):
+        account = "intermediate"
+        modified_account = "pwnedmediate"  # same length
+
+        parent_transaction = start_transaction(timeout=60000)
+        shuffle_handle = start_shuffle(account, partition_count=1, parent_transaction_id=parent_transaction, parse_yson=False)
+
+        assert account in shuffle_handle["payload"]
+        modified_handle = deepcopy(shuffle_handle)
+        modified_handle["payload"] = shuffle_handle["payload"].replace(account, modified_account)
+
+        rows = [{"key": 0, "value": 1}]
+        write_shuffle_data(shuffle_handle, "key", rows)
+
+        with raises_yt_error("Signature validation failed"):
+            write_shuffle_data(modified_handle, "key", rows)
+
+        assert read_shuffle_data(shuffle_handle, 0) == rows
+        with raises_yt_error("Signature validation failed"):
+            read_shuffle_data(modified_handle, 0)

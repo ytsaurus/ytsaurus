@@ -7011,6 +7011,14 @@ private:
         // TODO(pavook): friendly YSON wrappers without double-conversions.
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
 
+        auto isValid = WaitFor(ValidateSignature(signedShuffleHandle.Underlying()))
+            .ValueOrThrow();
+
+        if (!isValid) {
+            THROW_ERROR_EXCEPTION("Signature validation failed for shuffle handle")
+                << TErrorAttribute("shuffle_handle", shuffleHandle);
+        }
+
         std::optional<std::pair<int, int>> writerIndexRange;
         if (request->has_writer_index_range()) {
             auto writerIndexBegin = request->writer_index_range().has_begin()
@@ -7098,6 +7106,14 @@ private:
 
         // TODO(pavook): friendly YSON helpers without double conversions.
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
+
+        auto isValid = WaitFor(ValidateSignature(signedShuffleHandle.Underlying()))
+            .ValueOrThrow();
+
+        if (!isValid) {
+            THROW_ERROR_EXCEPTION("Signature validation failed for shuffle handle")
+                << TErrorAttribute("shuffle_handle", shuffleHandle);
+        }
 
         auto partitionColumn = request->partition_column();
 
