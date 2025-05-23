@@ -103,6 +103,8 @@ struct IJobController
 
     virtual std::optional<int> GetOperationsArchiveVersion() const = 0;
 
+    virtual void InterruptJob(TJobId jobId, NScheduler::EInterruptionReason interruptionReason, TDuration interruptionTimeout) = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(TJobPtr), JobFinished);
     DECLARE_INTERFACE_SIGNAL(void(TJobId), JobCompletelyRemoved);
     DECLARE_INTERFACE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);

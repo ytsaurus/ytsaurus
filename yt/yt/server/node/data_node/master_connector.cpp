@@ -1383,7 +1383,7 @@ private:
         statistics->set_full(full);
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        statistics->set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User));
+        statistics->set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User) + sessionManager->GetSessionCount(ESessionType::Nbd));
         statistics->set_total_replication_session_count(sessionManager->GetSessionCount(ESessionType::Replication));
         statistics->set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
     }

@@ -38,11 +38,15 @@ struct TTmpfsVolume
     i64 Size;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TVirtualSandboxData
 {
     TString NbdExportId;
     NNbd::IImageReaderPtr Reader;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Data necessary to create NBD root volume.
 struct TSandboxNbdRootVolumeData
@@ -65,6 +69,8 @@ struct TSandboxNbdRootVolumeData
     int MaxDataNodesCount;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(ignat): refactor this class and its usages.
 // For example: it looks weird as an agrument in PrepareVolume in TVolumeManager,
 // and some of the options is irrelevant for TVolumeManager..
@@ -80,6 +86,26 @@ struct TUserSandboxOptions
 
     TCallback<void(const TError&)> DiskOverdraftCallback;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TArtifactDownloadOptions
+{
+    NChunkClient::TTrafficMeterPtr TrafficMeter;
+
+    std::vector<TString> WorkloadDescriptorAnnotations;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TVolumePreparationOptions
+{
+    std::optional<TJobId> JobId;
+    TUserSandboxOptions UserSandboxOptions;
+    TArtifactDownloadOptions ArtifactDownloadOptions;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 extern const TString ProxyConfigFileName;
 
