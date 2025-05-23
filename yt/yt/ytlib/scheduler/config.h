@@ -1423,7 +1423,8 @@ struct TUserJobSpec
     //! Command line arguments for the GPU check binary.
     std::optional<std::vector<TString>> GpuCheckBinaryArgs;
 
-    int CookieGroupSize; //! Job replicas processing the cookie.
+    //! Job replicas processing the cookie.
+    int CookieGroupSize;
 
     //! Force running speculative job after this timeout. Has higher priority than `JobSpeculationTimeout`
     //! from TOperationBaseSpec.
