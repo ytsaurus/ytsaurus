@@ -246,6 +246,9 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
     batch_processor.add_acl("//sys", {"action": "allow", "subjects": ["admins"], "permissions": ["write", "remove", "administer", "mount"]})
     batch_processor.set("//sys/@inherit_acl", "false")
 
+    # NB: subjects with write permission considered in base acl for operations.
+    batch_processor.add_acl("//sys/operations", {"action": "allow", "subjects": ["admins"], "permissions": ["write"]})
+
     batch_processor.add_acl("//sys/accounts/sys", {"action": "allow", "subjects": ["root", "admins"], "permissions": ["use"]})
 
     batch_processor.add_acl("//sys/tokens", {"action": "allow", "subjects": ["admins"], "permissions": ["read", "write", "remove"]})
