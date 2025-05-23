@@ -11,7 +11,7 @@ History Server может входить как в состав внутренн
 
 ## Запуск отдельного History Server-а { #shs-launch-yt }
 
-Основные параметры команды `shs-launch-yt` являются подмножеством параметров команды [spark-launch-yt](../../../../user-guide/data-processing/spyt/cluster/cluster-start.md#spark-launch-yt-params), релевантные для запуска History Server. Пример запуска History Server-а:
+Основные параметры команды `shs-launch-yt` являются подмножеством параметров команды [spark-launch-yt](../../../../../user-guide/data-processing/spyt/cluster/cluster-start.md#spark-launch-yt-params), релевантные для запуска History Server. Пример запуска History Server-а:
 
 ```bash
 $ shs-launch-yt --proxy <proxy address> --discovery-path <discovery path>
