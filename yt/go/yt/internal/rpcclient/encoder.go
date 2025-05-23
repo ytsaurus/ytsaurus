@@ -2112,6 +2112,43 @@ func (e *Encoder) ListJobs(
 	return
 }
 
+func (e *Encoder) GetJob(
+	ctx context.Context,
+	opID yt.OperationID,
+	jobID yt.JobID,
+	opts *yt.GetJobOptions,
+) (r *yt.JobStatus, err error) {
+	if opts == nil {
+		opts = &yt.GetJobOptions{}
+	}
+
+	req := &rpc_proxy.TReqGetJob{
+		OperationIdOrAlias: &rpc_proxy.TReqGetJob_OperationId{
+			OperationId: convertGUID(guid.GUID(opID)),
+		},
+		JobId:      convertGUID(guid.GUID(jobID)),
+		Attributes: convertAttributeFilter(opts.Attributes),
+	}
+
+	call := e.newCall(MethodGetJob, NewGetJobRequest(req), nil)
+
+	var rsp rpc_proxy.TRspGetJob
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	r, err = makeGetJobResult(&rsp)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
+	}
+
+	if r != nil {
+		r.ID = jobID
+	}
+	return
+}
+
 func (e *Encoder) GetJobStderr(
 	ctx context.Context,
 	opID yt.OperationID,

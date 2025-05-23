@@ -572,6 +572,20 @@ func (e *Encoder) ListJobs(
 	return
 }
 
+func (e *Encoder) GetJob(
+	ctx context.Context,
+	opID yt.OperationID,
+	jobID yt.JobID,
+	options *yt.GetJobOptions,
+) (r *yt.JobStatus, err error) {
+	call := e.newCall(NewGetJobParams(opID, jobID, options))
+	err = e.do(ctx, call, GetJobResultDecoder(&r))
+	if r != nil {
+		r.ID = jobID
+	}
+	return
+}
+
 func (e *Encoder) GetJobStderr(
 	ctx context.Context,
 	opID yt.OperationID,

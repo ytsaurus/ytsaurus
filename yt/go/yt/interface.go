@@ -626,6 +626,10 @@ type ListJobsOptions struct {
 	DataSource               *JobDataSource `http:"data_source,omitnil"`
 }
 
+type GetJobOptions struct {
+	Attributes []string `http:"attributes,omitnil"`
+}
+
 type JobStatus struct {
 	ID              JobID              `yson:"id"`
 	Type            string             `yson:"type"`
@@ -805,6 +809,15 @@ type LowLevelSchedulerClient interface {
 		opID OperationID,
 		options *ListJobsOptions,
 	) (r *ListJobsResult, err error)
+
+	// http:verb:"get_job"
+	// http:params:"operation_id","job_id"
+	GetJob(
+		ctx context.Context,
+		opID OperationID,
+		jobID JobID,
+		options *GetJobOptions,
+	) (status *JobStatus, err error)
 
 	// http:verb:"get_job_stderr"
 	// http:params:"operation_id","job_id"
