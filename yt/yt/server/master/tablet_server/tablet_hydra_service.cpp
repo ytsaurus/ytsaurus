@@ -154,6 +154,11 @@ private:
             ToProto(response->mutable_statistics_field_names(), statisticsFieldNames);
         }
 
+        auto tableIdsToFetchPivotKeys = FromProto<THashSet<NTableClient::TTableId>>(request->table_ids_to_fetch_pivot_keys());
+        if (!tableIdsToFetchPivotKeys.empty() && !statisticsRequested) {
+            THROW_ERROR_EXCEPTION("It is allowed to fetch pivot keys only if statistics are requested");
+        }
+
         const auto& tableManager = Bootstrap_->GetTableManager();
         auto tableIds = FromProto<std::vector<NTableClient::TTableId>>(request->table_ids());
         for (auto tableId : tableIds) {
@@ -180,6 +185,7 @@ private:
             }
 
             if (statisticsRequested) {
+                std::vector<NTableClient::TLegacyKey> pivotKeys;
                 for (const auto& tabletBase : table->Tablets()) {
                     YT_VERIFY(tabletBase->GetType() == EObjectType::Tablet);
 
@@ -202,6 +208,12 @@ private:
                     auto performanceCounters = tablet->PerformanceCounters();
                     auto* protoPerformanceCounters = protoTablet->mutable_performance_counters();
                     fillPerformanceCounters(requestedFields, performanceCounters, protoPerformanceCounters);
+
+                    pivotKeys.push_back(tablet->GetPivotKey());
+                }
+
+                if (tableIdsToFetchPivotKeys.contains(tableId)) {
+                    ToProto(protoTable->mutable_pivot_keys(), pivotKeys);
                 }
             }
 
