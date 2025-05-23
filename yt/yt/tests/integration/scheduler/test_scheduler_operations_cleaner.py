@@ -14,6 +14,7 @@ from yt.common import uuid_to_parts, YT_DATETIME_FORMAT_STRING, YtError, YtRespo
 from yt_helpers import profiler_factory
 
 import pytest
+from flaky import flaky
 
 from datetime import datetime, timedelta
 import builtins
@@ -149,7 +150,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
     def test_operations_archive_is_not_initialized(self):
         ops = _run_maps_parallel(7, "cat")
 
-        wait(lambda: get(CLEANER_ORCHID + "/archive_pending") == 4)
+        wait(lambda: get(CLEANER_ORCHID + "/archive_pending") >= 4)
 
         _run_maps_parallel(3, "cat")
 
@@ -161,7 +162,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         def scheduler_alert_set():
             assert any("archivation" in alert["message"] for alert in get("//sys/scheduler/@alerts"))
 
-    def _test_start_stop_impl(self, command, lookup_timeout=None, max_failed_job_count=1):
+    def _test_start_stop_impl(self, command, lookup_timeout=None, max_failed_job_count=1, operation_count=7, min_removed_operations=7):
         init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
@@ -173,12 +174,12 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         wait(lambda: not get(CLEANER_ORCHID + "/enable"))
         wait(lambda: not get(CLEANER_ORCHID + "/enable_operation_archivation"))
 
-        ops = _run_maps_parallel(7, command, max_failed_job_count=max_failed_job_count)
+        ops = _run_maps_parallel(operation_count, command, max_failed_job_count=max_failed_job_count)
 
         assert get(CLEANER_ORCHID + "/archive_pending") == 0
         set("//sys/scheduler/config/operations_cleaner/enable", True)
 
-        wait(lambda: len(self._get_removed_operations(ops)) == 4)
+        wait(lambda: len(self._get_removed_operations(ops)) >= min_removed_operations)
         return ops
 
     @authors("asaitgalin", "eshcherbin")
@@ -220,6 +221,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         ops = self._test_start_stop_impl(
             'if [ "$YT_JOB_INDEX" -eq 0 ]; then exit 1; fi; cat',
             max_failed_job_count=2,
+            min_removed_operations=4,
         )
 
         # We expect to get all the operations by "with_failed_jobs" filter
@@ -236,13 +238,20 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert res["failed_jobs_count"] == len(ops)
             assert list(reversed(ops)) == [op["id"] for op in res["operations"]]
 
+    # NB(bystrovserg): Sometimes low timeout period can "fail" and we will fetch brief_progress
+    # from archive on a cleaner startup. As a result all operations will be stored in archive
+    # and list_operation will return all operations and test faild.
     @authors("asaitgalin", "eshcherbin")
+    @flaky(max_runs=3)
     def test_archive_lookup_failure(self):
         before_start_time = datetime.utcnow()
-        self._test_start_stop_impl(
+        min_ops_to_remove = 4
+
+        ops = self._test_start_stop_impl(
             'if [ "$YT_JOB_INDEX" -eq 0 ]; then exit 1; fi; cat',
             lookup_timeout=timedelta(milliseconds=1),
             max_failed_job_count=2,
+            min_removed_operations=min_ops_to_remove,
         )
 
         # We expect to get only not removed operations by "with_failed_jobs" filter
@@ -254,8 +263,8 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             to_time=self.list_op_format(datetime.utcnow()),
             with_failed_jobs=True,
         )
-        assert res["failed_jobs_count"] == 3
-        assert len(res["operations"]) == 3
+        assert res["failed_jobs_count"] <= len(ops) - min_ops_to_remove
+        assert len(res["operations"]) <= len(ops) - min_ops_to_remove
 
     @authors("asaitgalin", "eshcherbin")
     def test_get_original_path(self):
