@@ -338,6 +338,7 @@ func (d *Decoder) decodeMap(ops []fieldOp, value any) error {
 	for _, op := range ops {
 		if op.optional {
 			if d.r.readUint8() == 0 {
+				v.SetMapIndex(reflect.ValueOf(op.schemaName), reflect.New(mapValueType).Elem())
 				continue
 			}
 		}
