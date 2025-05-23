@@ -953,7 +953,10 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return SequoiaClient_
-            ->StartTransaction(TransactionType)
+            ->StartTransaction(
+                TransactionType,
+                /*transactionStartOptions*/ {},
+                /*sequoiaTransactionOptions*/ {.SequenceTabletCommitSessions = true})
             .ApplyUnique(
                 BIND(&TSequoiaMutation::OnSequoiaTransactionStarted, MakeStrong(this))
                     .AsyncVia(Invoker_));

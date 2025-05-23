@@ -119,16 +119,14 @@ public:
         ESequoiaTransactionType type,
         IClientPtr localClient,
         IClientPtr groundClient,
-        const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
-        const TSequoiaTransactionSequencingOptions& sequencingOptions)
+        const TSequoiaTransactionOptions& sequoiaTransactionOptions)
         : SequoiaClient_(std::move(sequoiaClient))
         , Type_(type)
         , LocalClient_(std::move(localClient))
         , GroundClient_(std::move(groundClient))
         , SerializedInvoker_(CreateSerializedInvoker(
             LocalClient_->GetConnection()->GetInvoker()))
-        , SequencingOptions_(sequencingOptions)
-        , CypressPrerequisiteTransactionIds_(cypressPrerequisiteTransactionIds)
+        , SequoiaTransactionOptions_(sequoiaTransactionOptions)
         , Logger(SequoiaClient_->GetLogger())
     { }
 
@@ -393,8 +391,7 @@ private:
     const NApi::NNative::IClientPtr LocalClient_;
     const NApi::NNative::IClientPtr GroundClient_;
     const IInvokerPtr SerializedInvoker_;
-    const TSequoiaTransactionSequencingOptions SequencingOptions_;
-    const std::vector<TTransactionId> CypressPrerequisiteTransactionIds_;
+    const TSequoiaTransactionOptions SequoiaTransactionOptions_;
 
     TLogger Logger;
 
@@ -529,7 +526,7 @@ private:
 
         YT_LOG_DEBUG("Transaction started (StartTimestamp: %v, PrerequisiteTransactionIds: %v)",
             Transaction_->GetStartTimestamp(),
-            CypressPrerequisiteTransactionIds_);
+            SequoiaTransactionOptions_.CypressPrerequisiteTransactionIds);
 
         return MakeStrong(this);
     }
@@ -548,7 +545,7 @@ private:
 
     void SortRequests()
     {
-        if (const auto* sequencer = SequencingOptions_.TransactionActionSequencer) {
+        if (const auto* sequencer = SequoiaTransactionOptions_.TransactionActionSequencer) {
             for (auto& [_, masterCellCommitSession] : MasterCellCommitSessions_) {
                 auto& actions = masterCellCommitSession->TransactionActions;
                 SortBy(actions, [&] (const TTransactionActionData& actionData) {
@@ -557,7 +554,7 @@ private:
             }
         }
 
-        if (const auto& priorities = SequencingOptions_.RequestPriorities) {
+        if (const auto& priorities = SequoiaTransactionOptions_.RequestPriorities) {
             for (auto& [_, session] : TableCommitSessions_) {
                 auto& requests = session->Requests;
                 SortBy(requests, [&] (const TRequest& request) {
@@ -870,7 +867,7 @@ private:
             }
             WriteAuthenticationIdentityToProto(req->mutable_identity(), session->UserIdentity);
             req->set_sequoia_reign(NYT::ToProto(GetCurrentSequoiaReign()));
-            ToProto(req->mutable_prerequisite_transaction_ids(), CypressPrerequisiteTransactionIds_);
+            ToProto(req->mutable_prerequisite_transaction_ids(), SequoiaTransactionOptions_.CypressPrerequisiteTransactionIds);
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -884,8 +881,18 @@ private:
 
         std::vector<TFuture<void>> futures;
         futures.reserve(TabletCommitSessions_.size());
-        for (const auto& [tabletId, tabletCommitSession] : TabletCommitSessions_) {
-            futures.push_back(tabletCommitSession->Invoke());
+        if (SequoiaTransactionOptions_.SequenceTabletCommitSessions) {
+            for (const auto& [tabletId, tabletCommitSession] : SortHashMapByKeys(TabletCommitSessions_)) {
+                auto previousFuture = futures.empty() ? VoidFuture : futures.back();
+                futures.push_back(previousFuture.Apply(
+                    BIND([session = tabletCommitSession] (const TError& /*error*/) {
+                        return session->Invoke();
+                    })));
+            }
+        } else {
+            for (const auto& [tabletId, tabletCommitSession] : TabletCommitSessions_) {
+                futures.push_back(tabletCommitSession->Invoke());
+            }
         }
 
         return AllSucceeded(std::move(futures));
@@ -926,20 +933,19 @@ namespace NDetail {
 TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr sequoiaClient,
     ESequoiaTransactionType type,
+
     IClientPtr localClient,
     IClientPtr groundClient,
-    const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
-    const TTransactionStartOptions& options,
-    const TSequoiaTransactionSequencingOptions& sequencingOptions)
+    const TTransactionStartOptions& transactionStartOptions,
+    const TSequoiaTransactionOptions& sequoiaTransactionOptions)
 {
     auto transaction = New<TSequoiaTransaction>(
         std::move(sequoiaClient),
         type,
-        std::move(localClient),
-        std::move(groundClient),
-        cypressPrerequisiteTransactionIds,
-        sequencingOptions);
-    return transaction->Start(options);
+    std::move(localClient),
+    std::move(groundClient),
+        sequoiaTransactionOptions);
+    return transaction->Start(transactionStartOptions);
 }
 
 } // namespace NDetail

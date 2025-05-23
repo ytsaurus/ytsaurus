@@ -112,8 +112,8 @@ TEST_F(TSequoiaTest, TestCreateMapNode)
 
 TEST_F(TSequoiaTest, TestRowLockConflict)
 {
-    constexpr static int ThreadCount = 3;
-    constexpr static int RequestCount = 15;
+    constexpr static int ThreadCount = 5;
+    constexpr static int RequestCount = 25;
 
     WaitFor(Client_->CreateNode("//sequoia/map", EObjectType::MapNode))
         .ValueOrThrow();
@@ -223,7 +223,7 @@ TEST_F(TSequoiaTest, CypressTransactionSimple)
 
 TEST_F(TSequoiaTest, ConcurrentCommitTx)
 {
-    constexpr auto ChildCount = 3;
+    constexpr auto ChildCount = 4;
     constexpr auto LevelCount = 4;
 
     auto barrierPromise = NewPromise<void>();
@@ -426,7 +426,7 @@ TEST_F(TSequoiaTest, TestTransactionAbortConflict)
 
     NApi::ITransactionPtr currentTransaction;
     std::string currentPath = "//sequoia";
-    for (int i = 0; i < 15; ++i) {
+    for (int i = 0; i < 20; ++i) {
         currentPath += Format("/level%v", i);
         NApi::TTransactionStartOptions startTransactionOptions;
         if (currentTransaction) {
@@ -442,7 +442,7 @@ TEST_F(TSequoiaTest, TestTransactionAbortConflict)
                 .ValueOrThrow());
     }
 
-    auto threadPool = CreateThreadPool(3, "ConcurrentAbortTx");
+    auto threadPool = CreateThreadPool(5, "ConcurrentAbortTx");
     auto barrierPromise = NewPromise<void>();
     std::vector<TFuture<void>> resultFutures;
     for (auto tx : transactions) {
