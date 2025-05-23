@@ -155,7 +155,10 @@ private:
         }
 
         try {
-            return ConvertTo<double>(rspOrError.Value());
+            auto weight = ConvertTo<double>(rspOrError.Value());
+            THROW_ERROR_EXCEPTION_IF(!std::isfinite(weight) || weight <= 0,
+                "Weight must be a finite positive number");
+            return weight;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Error parsing pool weight retrieved from Cypress, assuming default (Pool: %v)",
                 poolName);
