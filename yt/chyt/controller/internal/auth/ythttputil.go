@@ -30,33 +30,29 @@ func ContextRequester(ctx context.Context) (requester string, ok bool) {
 	return
 }
 
-func GetCredentialsFromHeader(r *http.Request) (yt.Credentials, error) {
+func GetTokenFromHeader(r *http.Request) (string, error) {
 	const oauthPrefix = "OAuth "
-	const bearerPrefix = "Bearer "
 
 	authorization := r.Header.Get("Authorization")
 	if authorization == "" {
-		return nil, yterrors.Err("client is missing credentials")
+		return "", yterrors.Err("client is missing credentials")
 	}
 
-	if strings.HasPrefix(authorization, oauthPrefix) {
-		token := strings.TrimSpace(authorization[len(oauthPrefix):])
-		return &yt.TokenCredentials{Token: token}, nil
-	} else if strings.HasPrefix(authorization, bearerPrefix) {
-		token := strings.TrimSpace(authorization[len(bearerPrefix):])
-		return &yt.BearerCredentials{Token: token}, nil
-	} else {
-		return nil, yterrors.Err("invalid authorization header format")
+	if !strings.HasPrefix(authorization, oauthPrefix) {
+		return "", yterrors.Err("invalid authorization header format")
 	}
+
+	token := strings.TrimSpace(authorization[len(oauthPrefix):])
+	return token, nil
 }
 
 func GetCredentials(r *http.Request) (yt.Credentials, error) {
 	if r.Header.Get("Authorization") != "" {
-		credentials, err := GetCredentialsFromHeader(r)
+		token, err := GetTokenFromHeader(r)
 		if err != nil {
 			return nil, err
 		}
-		return credentials, nil
+		return &yt.TokenCredentials{Token: token}, nil
 	}
 
 	if cookie, err := r.Cookie(yt.YTCypressCookie); err == nil {
