@@ -145,13 +145,12 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                     unresolvedPathSuffix);
             }
             return TResolveResult{
-                TYPath(unresolvedPathSuffix),
-                TLocalObjectPayload{
+                .UnresolvedPathSuffix = TYPath(unresolvedPathSuffix),
+                .Payload = TLocalObjectPayload{
                     trunkObject,
                     GetTransaction()
                 },
-                false,
-                resolveDepth,
+                .ResolveDepth = resolveDepth,
             };
         };
 
@@ -161,26 +160,6 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
         auto* currentNode = currentObject->As<TCypressNode>();
         canCacheResolve &= currentNode->CanCacheResolve();
-
-        auto redirectToSequoia = [&] {
-            auto* rootstockNode = currentNode->As<TRootstockNode>();
-            auto rootstockNodePath = cypressManager->GetNodePath(
-                rootstockNode->GetTrunkNode(),
-                GetTransaction());
-            return TResolveResult{
-                TYPath(unresolvedPathSuffix),
-                TSequoiaRedirectPayload{
-                    .RootstockNodeId = rootstockNode->GetId(),
-                    .RootstockPath = rootstockNodePath,
-                },
-                canCacheResolve,
-                resolveDepth
-            };
-        };
-
-        if (currentNode->GetType() == EObjectType::Rootstock && !ampersandSkipped) {
-            return redirectToSequoia();
-        }
 
         TResolveCacheNodePtr currentCacheNode;
         if (options.PopulateResolveCache) {
@@ -285,17 +264,28 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                 portalEntrance->GetExitCellTag());
 
             return TResolveResult{
-                TYPath(unresolvedPathSuffix),
-                TRemoteObjectPayload{portalExitNodeId},
-                canCacheResolve,
-                resolveDepth
+                .UnresolvedPathSuffix = TYPath(unresolvedPathSuffix),
+                .Payload = TRemoteObjectRedirectPayload{.ObjectId = portalExitNodeId},
+                .CanCacheResolve = canCacheResolve,
+                .ResolveDepth = resolveDepth,
             };
         } else if (currentNode->GetType() == EObjectType::Rootstock) {
             if (ampersandSkipped) {
                 return makeCurrentLocalObjectResult();
             }
 
-            return redirectToSequoia();
+            const auto* rootstock = currentNode->As<TRootstockNode>();
+            auto rootstockPath = cypressManager->GetNodePath(currentNode, nullptr);
+
+            return TResolveResult{
+                .UnresolvedPathSuffix = TYPath(unresolvedPathSuffix),
+                .Payload = TSequoiaRedirectPayload{
+                    .RootstockNodeId = rootstock->GetId(),
+                    .RootstockPath = std::move(rootstockPath),
+                },
+                .CanCacheResolve = canCacheResolve,
+                .ResolveDepth = resolveDepth,
+            };
         } else {
             return makeCurrentLocalObjectResult();
         }
@@ -345,7 +335,7 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot(
             if (treatCypressRootAsRemoteOnSecondaryMaster) {
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
-                return TRemoteObjectPayload{
+                return TRemoteObjectRedirectPayload{
                     .ObjectId = MakeWellKnownId(EObjectType::MapNode, multicellManager->GetPrimaryCellTag()),
                     .ResolveDepth = options.InitialResolveDepth,
                 };
@@ -390,10 +380,7 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot(
                 !options.AllowResolveFromSequoiaObject &&
                 !NSequoiaClient::IsMethodShouldBeHandledByMaster(Method_))
             {
-                return TSequoiaRedirectPayload{
-                    .RootstockNodeId = TNodeId{},
-                    .RootstockPath = "",
-                };
+                return TSequoiaRedirectPayload{};
             }
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -402,7 +389,7 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot(
                 !ampersandSkipped &&
                 !IsAlienType(TypeFromId(objectId)))
             {
-                return TRemoteObjectPayload{objectId};
+                return TRemoteObjectRedirectPayload{.ObjectId = objectId};
             }
 
             MaybeApplyNativeTransactionExternalizationCompat(objectId);
@@ -475,6 +462,34 @@ void TPathResolver::MaybeApplyNativeTransactionExternalizationCompat(TObjectId o
             Transaction_ = replicatedTransaction;
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TPathResolver::TResolvePayload& payload,
+    TStringBuf /*spec*/)
+{
+    Visit(payload,
+        [&] (const TPathResolver::TLocalObjectPayload& typedPayload) {
+            builder->AppendFormat("{ObjectId: %v, TransactionId: %v}",
+                GetObjectId(typedPayload.Object),
+                GetObjectId(typedPayload.Transaction));
+        },
+        [&] (const TPathResolver::TRemoteObjectRedirectPayload& typedPayload) {
+            builder->AppendFormat("{ObjectId: %v, ResolveDepth: %v}",
+                typedPayload.ObjectId,
+                typedPayload.ResolveDepth);
+        },
+        [&] (const TPathResolver::TSequoiaRedirectPayload& typedPayload) {
+            builder->AppendFormat("{RootstockNodeId: %v, RootstockPath: %v}",
+                typedPayload.RootstockNodeId,
+                typedPayload.RootstockPath);
+        },
+        [&] (const TPathResolver::TMissingObjectPayload& /*typedPayload*/) {
+            builder->AppendFormat("{}");
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
