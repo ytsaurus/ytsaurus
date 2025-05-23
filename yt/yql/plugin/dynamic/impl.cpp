@@ -43,6 +43,7 @@ TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOpt
         .OperationAttributes = TYsonString(TStringBuf(bridgeOptions->OperationAttributes, bridgeOptions->OperationAttributesLength)),
         .Libraries = libraries,
         .YTTokenPath = TString(bridgeOptions->YTTokenPath),
+        .UIOrigin = TString(bridgeOptions->UIOrigin),
         .LogBackend = std::move(*reinterpret_cast<THolder<TLogBackend>*>(bridgeOptions->LogBackend)),
     };
     auto nativePlugin = CreateYqlPlugin(std::move(options));

@@ -239,6 +239,7 @@ public:
             .OperationAttributes = ConvertToYsonString(Config_->OperationAttributes),
             .Libraries = ConvertToYsonString(Config_->Libraries),
             .YTTokenPath = Config_->YTTokenPath,
+            .UIOrigin = Config_->UIOrigin,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
         };

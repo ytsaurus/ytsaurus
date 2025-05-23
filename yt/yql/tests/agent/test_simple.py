@@ -4,7 +4,8 @@ from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_u
 
 from yt_commands import (authors, create, create_user, sync_mount_table,
                          write_table, insert_rows, alter_table, raises_yt_error,
-                         write_file, create_pool, wait, get, set, ls)
+                         write_file, create_pool, wait, get, set, ls, list_operations,
+                         get_operation)
 
 from yt_env_setup import YTEnvSetup
 
@@ -55,6 +56,22 @@ class TestQueriesYqlBase(YTEnvSetup):
                 if "pending" in stage and stage["pending"] > 0 :
                     return True
         return False
+
+
+class TestGetOperationLink(TestQueriesYqlBase):
+    @authors("mpereskokova")
+    def test_operation_link(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+        query = start_query("yql", 'select a+1 as result from primary.`//tmp/t`')
+        query.track()
+
+        op = list_operations()["operations"][0]["id"]
+        op_url = get_operation(op)["runtime_parameters"]["annotations"]["description"]["yql_op_url"]
+        assert str(op_url) == f"https://ui.test.ru/primary/queries/{query.id}"
 
 
 class TestMetrics(TestQueriesYqlBase):
