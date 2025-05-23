@@ -29,6 +29,7 @@
 #include "tablet_type_handler.h"
 #include "replicated_table_tracker.h"
 
+#include <yt/yt/server/master/cell_master/alert_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -279,6 +280,11 @@ public:
         cellManager->SubscribeAfterSnapshotLoaded(BIND_NO_PROPAGATE(&TImpl::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));
         cellManager->SubscribeCellBundleDestroyed(BIND_NO_PROPAGATE(&TImpl::OnTabletCellBundleDestroyed, MakeWeak(this)));
         cellManager->SubscribeCellDecommissionStarted(BIND_NO_PROPAGATE(&TImpl::OnTabletCellDecommissionStarted, MakeWeak(this)));
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            Bootstrap_->GetAlertManager()->RegisterAlertSource(
+                BIND_NO_PROPAGATE(&TImpl::GetAlerts, MakeStrong(this)));
+        }
 
         TabletService_->Initialize();
     }
@@ -2934,6 +2940,9 @@ private:
     // COMPAT(ifsmirnov)
     bool ForbidAvenuesDuringMigration_ = false;
 
+    // COMPAT(ifsmirnov)
+    bool InternalizeBundleResourceQuotaAttribute_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -4909,6 +4918,9 @@ private:
         FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(NCellMaster::GetCurrentReign());
 
         ForbidAvenuesDuringMigration_ = context.GetVersion() < EMasterReign::NoAvenuesDuringMigrationTo24_2;
+
+        // COMPAT(ifsmirnov)
+        InternalizeBundleResourceQuotaAttribute_ = context.GetVersion() < EMasterReign::ResourceQuotaAttributeForBundles;
     }
 
     void RecomputeHunkResourceUsage()
@@ -4966,6 +4978,7 @@ private:
         RecomputeHunkResourceUsage_ = false;
         FillMountConfigKeys_ = false;
         ForbidAvenuesDuringMigration_ = false;
+        InternalizeBundleResourceQuotaAttribute_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -5014,6 +5027,53 @@ private:
                     YT_LOG_FATAL("Tablets mounted with avenues are not allowed during this migration "
                         "(TabletId: %v)",
                         id);
+                }
+            }
+        }
+
+        if (InternalizeBundleResourceQuotaAttribute_) {
+            const auto& cellManager = Bootstrap_->GetTamedCellManager();
+            for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
+                YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
+                auto* bundle = bundleBase->As<TTabletCellBundle>();
+
+                TYsonString resourceQuotaAttribute;
+
+                if (auto* attribute = bundle->FindAttribute("resource_quota")) {
+                    resourceQuotaAttribute = *attribute;
+                    YT_VERIFY(bundle->GetMutableAttributes()->TryRemove("resource_quota"));
+                } else {
+                    continue;
+                }
+
+                auto resourceQuotaNode = ConvertToNode(resourceQuotaAttribute);
+
+                try {
+                    auto resourceQuota = ConvertTo<TTabletCellBundleQuota>(
+                        *resourceQuotaNode);
+                    static_cast<TTabletCellBundleQuota&>(bundle->ResourceLimits())
+                        = resourceQuota;
+
+                    auto schemafulNode = ConvertToNode(resourceQuota);
+                    if (!AreNodesEqual(resourceQuotaNode, schemafulNode)) {
+                        THROW_ERROR_EXCEPTION("Unrecognized fields found")
+                            << TErrorAttribute(
+                                "original_resource_quota",
+                                ConvertToYsonString(resourceQuotaNode, EYsonFormat::Text))
+                            << TErrorAttribute(
+                                "converted_resource_quota",
+                                ConvertToYsonString(schemafulNode, EYsonFormat::Text));
+
+                    }
+                } catch (const std::exception& ex) {
+                    // QWFP alert
+                    YT_LOG_INFO(ex, "Failed to internalize \"resource_quota\" attribute "
+                        "(BundleName: %v, ResourceQuota: %v)",
+                        bundle->GetName(),
+                        ConvertToYsonString(*resourceQuotaNode, EYsonFormat::Text));
+                    bundle->GetMutableAttributes()->Set(
+                        "resource_quota_backup_after_failed_migration",
+                        resourceQuotaAttribute);
                 }
             }
         }
@@ -7622,6 +7682,38 @@ private:
                 cypressManager->GetNodePath(trunkNode->GetTrunkNode(), trunkNode->GetTransaction()))
                 << ex;
         }
+    }
+
+    std::vector<TError> GetAlerts()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        std::vector<TError> result;
+
+        // COMPAT(ifsmirnov): EMasterReign::ResourceQuotaAttributeForBundles
+        {
+            std::vector<std::string> badBundles;
+
+            const auto& cellManager = Bootstrap_->GetTamedCellManager();
+            for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
+                YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
+                auto* bundle = bundleBase->As<TTabletCellBundle>();
+
+                if (bundle->FindAttribute("resource_quota_backup_after_failed_migration")) {
+                    badBundles.push_back(bundle->GetName());
+                }
+            }
+
+            if (!badBundles.empty()) {
+                result.push_back(TError(
+                    "Failed to internalize \"resource_quota\" attribute for tablet cell bundles %v, "
+                    "see the old value in the \"resource_quota_backup_after_failed_migration\" "
+                    "attribute, fix the issue manually and remove it",
+                    badBundles));
+            }
+        }
+
+        return result;
     }
 
     static void PopulateTableReplicaDescriptor(TTableReplicaDescriptor* descriptor, const TTableReplica* replica, const TTableReplicaInfo& info)

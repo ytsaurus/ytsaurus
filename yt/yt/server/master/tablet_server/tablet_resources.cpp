@@ -10,21 +10,15 @@ namespace NYT::NTabletServer {
 
 using namespace NYTree;
 using namespace NSecurityServer;
+using namespace NCellMaster;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletResources::Save(NCellMaster::TSaveContext& context) const
+void TTabletResources::Persist(const NCellMaster::TPersistenceContext& context)
 {
-    using NYT::Save;
-    Save(context, TabletCount_);
-    Save(context, TabletStaticMemory_);
-}
-
-void TTabletResources::Load(NCellMaster::TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, TabletCount_);
-    Load(context, TabletStaticMemory_);
+    using NYT::Persist;
+    Persist(context, TabletCount_);
+    Persist(context, TabletStaticMemory_);
 }
 
 void Serialize(const TTabletResources& tabletResources, NYTree::TFluentMap& fluent)
@@ -52,6 +46,93 @@ void Deserialize(TTabletResources& tabletResources, const NYTree::INodePtr& node
         .SetTabletStaticMemory(GetOptionalNonNegativeI64ChildOrThrow(map, "tablet_static_memory"));
 
     tabletResources = result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTabletCellBundleQuota::Persist(const NCellMaster::TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, Cpu_);
+    Persist(context, Memory_);
+    Persist(context, NetBytes_);
+}
+
+void Serialize(const TTabletCellBundleQuota& resources, NYTree::TFluentMap& fluent)
+{
+    fluent
+        .OptionalItem("cpu", resources.GetCpu())
+        .OptionalItem("memory", resources.GetMemory())
+        .OptionalItem("net_bytes", resources.GetNetBytes());
+}
+
+void Serialize(const TTabletCellBundleQuota& resources, NYson::IYsonConsumer* consumer)
+{
+    auto fluent = BuildYsonFluently(consumer)
+        .BeginMap();
+    Serialize(resources, fluent);
+    fluent
+        .EndMap();
+}
+
+void Deserialize(TTabletCellBundleQuota& resources, const NYTree::INodePtr& node)
+{
+    auto getField = [] (const NYTree::IMapNodePtr& mapNode, const std::string& key)
+        -> std::optional<i64>
+    {
+        auto fieldNode = mapNode->FindChild(key);
+        if (!fieldNode) {
+            return {};
+        }
+
+        auto result = fieldNode->AsInt64()->GetValue();
+        if (result < 0) {
+            THROW_ERROR_EXCEPTION("%Qv cannot be negative, found %v", key, result);
+        }
+        return result;
+    };
+
+    auto map = node->AsMap();
+
+    auto result = TTabletCellBundleQuota()
+        .SetCpu(getField(map, "cpu"))
+        .SetMemory(getField(map, "memory"))
+        .SetNetBytes(getField(map, "net_bytes"));
+
+    resources = result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTabletCellBundleResources::Persist(const NCellMaster::TPersistenceContext& context)
+{
+    TTabletResources::Persist(context);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::ResourceQuotaAttributeForBundles) {
+        TTabletCellBundleQuota::Persist(context);
+    }
+}
+
+void Serialize(const TTabletCellBundleResources& resources, NYTree::TFluentMap& fluent)
+{
+    Serialize(static_cast<const TTabletResources&>(resources), fluent);
+    Serialize(static_cast<const TTabletCellBundleQuota&>(resources), fluent);
+}
+
+void Serialize(const TTabletCellBundleResources& resources, NYson::IYsonConsumer* consumer)
+{
+    auto fluent = BuildYsonFluently(consumer)
+        .BeginMap();
+    Serialize(resources, fluent);
+    fluent
+        .EndMap();
+}
+
+void Deserialize(TTabletCellBundleResources& resources, const NYTree::INodePtr& node)
+{
+    Deserialize(static_cast<TTabletResources&>(resources), node);
+    Deserialize(static_cast<TTabletCellBundleQuota&>(resources), node);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
