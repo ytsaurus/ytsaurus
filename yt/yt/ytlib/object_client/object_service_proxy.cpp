@@ -334,6 +334,7 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecu
 {
     InFlightSubbatchIndexToGlobalIndex_.reserve(SubbatchSize_);
     SetBalancingHeader();
+    SetMulticellSyncHeader();
     FullResponsePromise_ = NewPromise<TRspExecuteBatchPtr>();
     PushDownPrerequisites();
     InvokeNextBatch();
