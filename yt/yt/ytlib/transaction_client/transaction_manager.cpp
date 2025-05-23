@@ -993,7 +993,7 @@ private:
         auto connection = connectionOrError.Value();
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
 
-        if (options.StartCypressTransaction && Owner_->Config_.Acquire()->UseCypressTransactionService) {
+        if (options.StartCypressTransaction) {
             TCypressTransactionServiceProxy proxy(channel);
             auto req = proxy.StartTransaction();
 
@@ -1121,7 +1121,7 @@ private:
 
     bool ShouldUseCypressTransactionService()
     {
-        return IsCypressTransactionType(TypeFromId(Id_)) && Owner_->Config_.Acquire()->UseCypressTransactionService;
+        return IsCypressTransactionType(TypeFromId(Id_));
     }
 
     TFuture<TTransactionCommitResult> DoCommitAtomic(const TTransactionCommitOptions& options)

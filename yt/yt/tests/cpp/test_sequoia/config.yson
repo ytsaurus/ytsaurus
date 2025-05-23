@@ -19,13 +19,6 @@
 
     NUM_RPC_PROXIES = 2;
     ENABLE_RPC_PROXY = %true;
-    DELTA_RPC_PROXY_CONFIG = {
-        cluster_connection = {
-            transaction_manager = {
-                use_cypress_transaction_service = %true;
-            };
-        };
-    };
 
     NUM_HTTP_PROXIES = 0;
     ENABLE_HTTP_PROXY = %false;

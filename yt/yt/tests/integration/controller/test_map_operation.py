@@ -2423,29 +2423,19 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
 
 
 @pytest.mark.enabled_multidaemon
-class TestSchedulerMapCommandsShardedTxCTxS(TestSchedulerMapCommandsShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTxCTxS):
+class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 24
 
+    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
+    # supported in native client.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
     def setup_method(self, method):
-        super(TestSchedulerMapCommandsShardedTxCTxS, self).setup_method(method)
+        super(TestSchedulerMapCommandsShardedTx, self).setup_method(method)
         set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
         update_controller_agent_config(
             "set_committed_attribute_via_transaction_action",

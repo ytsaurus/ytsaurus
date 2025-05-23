@@ -1389,7 +1389,7 @@ TEST_F(TPingTransactionsTest, MaxBatchSize)
     auto startOptions = TTransactionStartOptions{
         .Timeout = TDuration::Days(365),
         .Ping = false,
-        .StartCypressTransaction = false,
+        .StartCypressTransaction = false, // TODO(gryzlov-ad): add tests for Cypress transactions.
     };
     auto tx1 = WaitFor(Client_->StartTransaction(ETransactionType::Master, startOptions))
         .ValueOrThrow();
@@ -1420,7 +1420,7 @@ TEST_F(TPingTransactionsTest, Reconfigure)
     auto startOptions = TTransactionStartOptions{
         .Timeout = TDuration::Days(365),
         .Ping = false,
-        .StartCypressTransaction = false,
+        .StartCypressTransaction = false, // TODO(gryzlov-ad): add tests for Cypress transactions.
     };
     auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Master, startOptions))
         .ValueOrThrow();
