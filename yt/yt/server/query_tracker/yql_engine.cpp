@@ -43,7 +43,7 @@ class TYqlSettings
     : public TYsonStruct
 {
 public:
-    std::optional<TString> Stage;
+    std::optional<std::string> Stage;
     EExecuteMode ExecuteMode;
 
     REGISTER_YSON_STRUCT(TYqlSettings);

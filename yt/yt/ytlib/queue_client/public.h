@@ -15,7 +15,7 @@ DECLARE_REFCOUNTED_STRUCT(TQueueAgentConnectionConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueAgentDynamicStateConfig)
 DECLARE_REFCOUNTED_STRUCT(TQueueConsumerRegistrationManagerConfig)
 
-inline const TString ProductionStage = "production";
+inline const std::string ProductionStage = "production";
 
 ////////////////////////////////////////////////////////////////////////////////
 

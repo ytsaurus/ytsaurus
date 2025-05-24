@@ -45,7 +45,7 @@ DEFINE_REFCOUNTED_TYPE(TEngineConfigBase)
 struct TYqlEngineConfig
     : public TEngineConfigBase
 {
-    TString Stage;
+    std::string Stage;
     TDuration QueryProgressGetPeriod;
     TDuration StartQueryAttemptPeriod;
 

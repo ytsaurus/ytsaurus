@@ -168,14 +168,14 @@ public:
     MOCK_METHOD(const NChunkClient::TMediumDirectorySynchronizerPtr&, GetMediumDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NNodeTrackerClient::INodeDirectorySynchronizerPtr&, GetNodeDirectorySynchronizer, (), (override));
     MOCK_METHOD(const NChunkClient::IChunkReplicaCachePtr&, GetChunkReplicaCache, (), (override));
-    MOCK_METHOD((std::pair<IClientPtr, NYPath::TYPath>), GetQueryTrackerStage, (const TString&), (override));
-    MOCK_METHOD(NRpc::IChannelPtr, GetQueryTrackerChannelOrThrow, (const TString&), (override));
+    MOCK_METHOD((std::pair<IClientPtr, NYPath::TYPath>), GetQueryTrackerStage, (TStringBuf), (override));
+    MOCK_METHOD(NRpc::IChannelPtr, GetQueryTrackerChannelOrThrow, (TStringBuf), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellId, (NObjectClient::TCellId, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCellTag, (NObjectClient::TCellTag, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetChaosChannelByCardId, (NChaosClient::TReplicationCardId, NHydra::EPeerKind), (override));
     MOCK_METHOD(NRpc::IChannelPtr, FindQueueAgentChannel, (TStringBuf), (const, override));
     MOCK_METHOD(const NQueueClient::IQueueConsumerRegistrationManagerPtr&, GetQueueConsumerRegistrationManager, (), (const, override));
-    MOCK_METHOD((std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr>), GetYqlAgentChannelProviderOrThrow, (const TString&), (const, override));
+    MOCK_METHOD((std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr>), GetYqlAgentChannelProviderOrThrow, (TStringBuf), (const, override));
     MOCK_METHOD(const NTabletClient::ITableMountCachePtr&, GetTableMountCache, (), (override));
     MOCK_METHOD(const NChaosClient::IReplicationCardCachePtr&, GetReplicationCardCache, (), (override));
     MOCK_METHOD(const NChaosClient::IChaosResidencyCachePtr&, GetChaosResidencyCache, (), (override));
