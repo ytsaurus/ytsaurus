@@ -3083,6 +3083,24 @@ private:
         LayerCache_->BuildOrchid(fluent);
     }
 
+    TClosure MakeJobInterrupter(TJobId jobId)
+    {
+        return BIND_NO_PROPAGATE([
+                this,
+                this_ = MakeStrong(this),
+                jobId,
+                jobInterrupted = std::make_unique<std::atomic<bool>>(false)
+            ] () mutable {
+                // Interrupt job only once.
+                if (!jobInterrupted->exchange(true)) {
+                    Bootstrap_->GetJobController()->InterruptJob(
+                        jobId,
+                        EInterruptionReason::NbdDeviceStopping,
+                        TDuration::Zero());
+                }
+            });
+    }
+
     //! Create NBD exports (devices) prior to creating NBD volumes.
     TFuture<void> PrepareNbdExport(
         TGuid tag,
@@ -3128,13 +3146,7 @@ private:
                 nbdServer->GetLogger());
 
             if (options.JobId) {
-                device->SubscribeShouldStopUsingDevice(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this), jobId = *options.JobId, interruptedJob = false]() mutable {
-                    // Interrupt job only once.
-                    if (!interruptedJob) {
-                        interruptedJob = true;
-                        Bootstrap_->GetJobController()->InterruptJob(jobId, EInterruptionReason::Unknown, TDuration::Zero());
-                    }
-                }));
+                device->SubscribeShouldStopUsingDevice(MakeJobInterrupter(*options.JobId));
             }
 
             auto initializeFuture = device->Initialize();
@@ -3194,13 +3206,7 @@ private:
                 nbdServer->GetLogger());
 
             if (options.JobId) {
-                device->SubscribeShouldStopUsingDevice(BIND_NO_PROPAGATE([this, this_ = MakeStrong(this), jobId = *options.JobId, interruptedJob = false]() mutable {
-                    // Interrupt job only once.
-                    if (!interruptedJob) {
-                        interruptedJob = true;
-                        Bootstrap_->GetJobController()->InterruptJob(jobId, EInterruptionReason::Unknown, TDuration::Zero());
-                    }
-                }));
+                device->SubscribeShouldStopUsingDevice(MakeJobInterrupter(*options.JobId));
             }
 
             auto initializeFuture = device->Initialize();
