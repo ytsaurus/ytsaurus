@@ -651,14 +651,15 @@ public:
         return QueueConsumerRegistrationManager_;
     }
 
-    std::pair<IRoamingChannelProviderPtr, TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(const TString& stage) const override
+    std::pair<IRoamingChannelProviderPtr, TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(TStringBuf stage) const override
     {
         auto clusterConnection = MakeStrong(this);
         auto clusterStage = stage;
         if (auto semicolonPosition = stage.find(":"); semicolonPosition != TString::npos) {
             auto cluster = stage.substr(0, semicolonPosition);
             clusterStage = stage.substr(semicolonPosition + 1);
-            clusterConnection = DynamicPointerCast<TConnection>(GetClusterDirectory()->GetConnectionOrThrow(cluster));
+            // TODO(babenko): migrate to TStringBuf
+            clusterConnection = DynamicPointerCast<TConnection>(GetClusterDirectory()->GetConnectionOrThrow(std::string(cluster)));
             YT_VERIFY(clusterConnection);
         }
         auto config = clusterConnection->Config_.Acquire();
@@ -1261,7 +1262,7 @@ private:
             }));
     }
 
-    std::pair<IClientPtr, TQueryTrackerStageConfigPtr> FindQueryTrackerStage(const TString& stage)
+    std::pair<IClientPtr, TQueryTrackerStageConfigPtr> FindQueryTrackerStage(TStringBuf stage)
     {
         auto findStage = [&stage, this] (const std::string& cluster) -> std::pair<IClientPtr, TQueryTrackerStageConfigPtr> {
             auto clusterConnection = FindRemoteConnection(MakeStrong(this), cluster);
@@ -1301,13 +1302,13 @@ private:
     }
 
     //! Returns a pair consisting of the client for the Query Tracker cluster and the path to the Query Tracker root in Cypress.
-    std::pair<IClientPtr, TString> GetQueryTrackerStage(const TString& stage) override
+    std::pair<IClientPtr, TYPath> GetQueryTrackerStage(TStringBuf stage) override
     {
         auto resultStage = FindQueryTrackerStage(stage);
         return {resultStage.first, resultStage.second->Root};
     }
 
-    IChannelPtr GetQueryTrackerChannelOrThrow(const TString& stage) override
+    IChannelPtr GetQueryTrackerChannelOrThrow(TStringBuf stage) override
     {
         return CreateQueryTrackerChannel(FindQueryTrackerStage(stage).second->Channel);
     }

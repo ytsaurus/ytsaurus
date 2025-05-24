@@ -86,8 +86,8 @@ struct IConnection
 
     virtual const NChunkClient::IChunkReplicaCachePtr& GetChunkReplicaCache() = 0;
 
-    virtual std::pair<IClientPtr, NYPath::TYPath> GetQueryTrackerStage(const TString& stage) = 0;
-    virtual NRpc::IChannelPtr GetQueryTrackerChannelOrThrow(const TString& stage) = 0;
+    virtual std::pair<IClientPtr, NYPath::TYPath> GetQueryTrackerStage(TStringBuf stage) = 0;
+    virtual NRpc::IChannelPtr GetQueryTrackerChannelOrThrow(TStringBuf stage) = 0;
 
     virtual const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() = 0;
 
@@ -126,7 +126,7 @@ struct IConnection
     virtual NRpc::IChannelPtr FindQueueAgentChannel(TStringBuf stage) const = 0;
     virtual const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
 
-    virtual std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(const TString& stage) const = 0;
+    virtual std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(TStringBuf stage) const = 0;
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() = 0;

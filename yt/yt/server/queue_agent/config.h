@@ -86,7 +86,7 @@ struct TQueueAgentConfig
 
     //! Identifies a family of queue agents.
     //! Each queue agent only handles queues and consumers with the corresponding attribute set to its own stage.
-    TString Stage;
+    std::string Stage;
 
     REGISTER_YSON_STRUCT(TQueueAgentConfig);
 
