@@ -228,10 +228,24 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/list") == get("//tmp/old_list")
 
         set("//tmp/old_list/end", 123)
-        assert get("//tmp/old_list", [1, 2, "string", 123])
+        assert get("//tmp/old_list") == [1, 2, "string", 123]
 
         remove("//tmp/another_old_list")
         assert not exists("//tmp/another_old_list")
+
+    @authors("kvk1920")
+    @not_implemented_in_sequoia
+    def test_non_recursive_attribute_set(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", True)
+
+        create_user("u")
+        create("map_node", "//tmp/m1")
+
+        with raises_yt_error("Node //tmp/m1 has no child with key \"m2\""):
+            set("//tmp/m1/m2/@acl", [make_ace("allow", ["u"], ["read", "write"])])
+
+        set("//tmp/m1/m2", {})
+        set("//tmp/m1/m2/@acl", [make_ace("allow", ["u"], ["read", "write"])])
 
     @authors("babenko", "ignat")
     def test_list_command(self):
