@@ -141,12 +141,10 @@ TPathResolver::TResolveResult ResolvePath(
     if (result.CanCacheResolve) {
         options.PopulateResolveCache = true;
         auto populateResult = resolver.Resolve(options);
-        YT_ASSERT(std::holds_alternative<TPathResolver::TRemoteObjectPayload>(populateResult.Payload));
-        auto& payload = std::get<TPathResolver::TRemoteObjectPayload>(populateResult.Payload);
-        YT_LOG_DEBUG("Resolve cache populated (Path: %v, RemoteObjectId: %v, UnresolvedPathSuffix: %v)",
+        YT_LOG_DEBUG("Resolve cache populated (Path: %v, UnresolvedPathSuffix: %v, Payload: %v)",
             path,
-            payload.ObjectId,
-            populateResult.UnresolvedPathSuffix);
+            populateResult.UnresolvedPathSuffix,
+            populateResult.Payload);
     }
     return result;
 }
@@ -483,7 +481,7 @@ public:
         for (int index = 0; index < forwardedYPathExt->additional_paths_size(); ++index) {
             const auto& additionalPath = forwardedYPathExt->additional_paths(index);
             auto additionalResolveResult = ResolvePath(Bootstrap_, additionalPath, context);
-            const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&additionalResolveResult.Payload);
+            const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectRedirectPayload>(&additionalResolveResult.Payload);
             if (!additionalPayload || CellTagFromId(additionalPayload->ObjectId) != ForwardedCellTag_) {
                 TError error(
                     NObjectClient::EErrorCode::CrossCellAdditionalPath,
@@ -524,14 +522,14 @@ public:
                 const auto& prerequisitePath = prerequisite->path();
                 auto prerequisiteResolveResult = ResolvePath(Bootstrap_, prerequisitePath, context);
                 // TODO(cherepashka): Unite std::get_if with Visit below after 25.1.
-                const auto* prerequisitePayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&prerequisiteResolveResult.Payload);
+                const auto* prerequisitePayload = std::get_if<TPathResolver::TRemoteObjectRedirectPayload>(&prerequisiteResolveResult.Payload);
                 if (Bootstrap_->GetDynamicConfig()->ObjectManager->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
                     auto optionalPrerequisiteObjectId = Visit(
                         prerequisiteResolveResult.Payload,
                         [] (const TPathResolver::TLocalObjectPayload& payload) {
                             return std::make_optional(payload.Object->GetId());
                         },
-                        [] (const TPathResolver::TRemoteObjectPayload& payload) {
+                        [] (const TPathResolver::TRemoteObjectRedirectPayload& payload) {
                             return std::make_optional(payload.ObjectId);
                         },
                         [] (...) -> std::optional<TObjectId> {
@@ -789,7 +787,7 @@ private:
 
                 return objectManager->GetProxy(targetPayload.Object, targetPayload.Transaction);
             },
-            [&] (const TPathResolver::TRemoteObjectPayload& payload) -> IYPathServicePtr  {
+            [&] (const TPathResolver::TRemoteObjectRedirectPayload& payload) -> IYPathServicePtr  {
                 return objectManager->CreateRemoteProxy(payload.ObjectId, payload.ResolveDepth);
             },
             [&] (const TPathResolver::TMissingObjectPayload& /*payload*/) -> IYPathServicePtr {
@@ -798,6 +796,7 @@ private:
             [&] (const TPathResolver::TSequoiaRedirectPayload& payload) -> IYPathServicePtr {
                 THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::RequestInvolvesSequoia,
                     "Request involves Sequoia shard")
+                    << TErrorAttribute("path", targetPath)
                     << TErrorAttribute("rootstock_node_id", payload.RootstockNodeId)
                     << TErrorAttribute("rootstock_path", payload.RootstockPath);
             });
@@ -1796,7 +1795,7 @@ TObjectId TObjectManager::ResolvePathToObjectId(
         [] (const TPathResolver::TLocalObjectPayload& payload) {
             return std::make_optional(payload.Object->GetId());
         },
-        [] (const TPathResolver::TRemoteObjectPayload& payload) {
+        [] (const TPathResolver::TRemoteObjectRedirectPayload& payload) {
             return std::make_optional(payload.ObjectId);
         },
         [] (...) -> std::optional<TObjectId> {

@@ -10,7 +10,7 @@ class TRootstockNode
     : public TCypressNode
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TObjectId, ScionId);
+    DEFINE_BYVAL_RW_PROPERTY(TNodeId, ScionId);
 
 public:
     using TCypressNode::TCypressNode;
