@@ -12,7 +12,7 @@ class THuggingfaceClient
 {
 public:
     THuggingfaceClient(
-        const std::optional<TString>& token,
+        const std::optional<std::string>& token,
         NConcurrency::IPollerPtr poller,
         const std::optional<TString>& urlOverride = std::nullopt); // For tests only.
 
@@ -24,7 +24,7 @@ private:
     static constexpr int MaxRedirectCount = 10;
 
     const TString Url_;
-    const std::optional<TString> Token_;
+    const std::optional<std::string> Token_;
     const NHttp::IClientPtr Client_;
 
     std::vector<TString> ParseParquetFileUrls(TStringBuf data);

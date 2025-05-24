@@ -25,7 +25,7 @@ using namespace NYTree;
 constexpr TStringBuf CypressTokenPrefixRegex = "ytct-[0-9a-f]{4}-";
 constexpr int CypressTokenPrefixLength = 10; // "ytct-abcd-"
 
-static TString GenerateToken()
+static std::string GenerateToken()
 {
     constexpr int TokenBodyBytesLength = 16;
     constexpr int TokenPrefixBytesLength = 2;
@@ -100,7 +100,7 @@ TIssueTokenResult TClient::DoIssueToken(
 
 TIssueTokenResult TClient::DoIssueSpecificTemporaryToken(
     const std::string& user,
-    const TString& token,
+    const std::string& token,
     const IAttributeDictionaryPtr& attributes,
     const TIssueTemporaryTokenOptions& options)
 {
@@ -129,7 +129,7 @@ TIssueTokenResult TClient::DoIssueTemporaryToken(
 
 TIssueTokenResult TClient::DoIssueTokenImpl(
     const std::string& user,
-    const TString& token,
+    const std::string& token,
     const IAttributeDictionaryPtr& attributes,
     const TIssueTokenOptions& options)
 {
@@ -196,7 +196,7 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
 
 void TClient::DoRefreshTemporaryToken(
     const std::string& user,
-    const TString& token,
+    const std::string& token,
     const TRefreshTemporaryTokenOptions& options)
 {
     auto tokenHash = GetSha256HexDigestLowerCase(token);
