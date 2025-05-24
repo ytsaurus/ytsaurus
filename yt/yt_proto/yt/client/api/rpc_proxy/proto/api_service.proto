@@ -2489,6 +2489,8 @@ message TReqListJobs
 
     optional NYT.NYTree.NProto.TAttributeFilter attributes = 27;
 
+    optional NYT.NProto.TGuid main_job_id = 28;
+
     optional TMasterReadOptions master_read_options = 102;
 }
 
@@ -3251,6 +3253,8 @@ message TJob
     optional NNodeTrackerClient.NProto.TAddressMap addresses = 33;
     optional bytes events = 34; // YSON
     optional bytes statistics = 35; // YSON
+    optional uint64 job_cookie_group_index = 36;
+    optional NYT.NProto.TGuid main_job_id = 37;
 }
 
 message TListJobsStatistics

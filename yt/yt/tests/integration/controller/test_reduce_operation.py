@@ -921,6 +921,44 @@ echo {v = 2} >&7
 
         assert not get("//tmp/out/@sorted")
 
+    @authors("faucct")
+    def test_distributed_reduce(self):
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+
+        write_table(
+            "//tmp/in",
+            [
+                {"key": "a", "value": ""},
+                {"key": "b", "value": ""},
+                {"key": "b", "value": ""},
+            ],
+            sorted_by=["key"],
+        )
+
+        op = reduce(
+            in_="//tmp/in",
+            out="//tmp/out",
+            command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat 1>&2; else echo HI>&2; fi',
+            reduce_by=["key"],
+            spec={
+                "job_io": {"control_attributes": {"enable_key_switch": "true"}},
+                "reducer": {"format": yson.loads(b"<lenval=true>yamr"), "cookie_group_size": 2},
+                "job_count": 1,
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 2
+        stderrs_bytes = {binascii.hexlify(op.read_stderr(job_id)) for job_id in job_ids}
+
+        assert stderrs_bytes == {
+            b"010000006100000000feffffff010000006200000000010000006200000000",
+            binascii.hexlify("HI\n".encode()),
+        }
+
+        assert not get("//tmp/out/@sorted")
+
     @authors("monster", "klyachin")
     def test_key_switch_yson(self):
         create("table", "//tmp/in")
