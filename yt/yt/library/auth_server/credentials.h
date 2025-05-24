@@ -8,7 +8,7 @@ namespace NYT::NAuth {
 
 struct TTokenCredentials
 {
-    TString Token;
+    std::string Token;
     NNet::TNetworkAddress UserIP;
 
     bool operator==(const TTokenCredentials&) const = default;

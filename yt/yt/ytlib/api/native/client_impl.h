@@ -849,7 +849,7 @@ public: \
         (user, passwordSha256, options))
     IMPLEMENT_METHOD(TIssueTokenResult, IssueSpecificTemporaryToken, (
         const std::string& user,
-        const TString& token,
+        const std::string& token,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTemporaryTokenOptions& options),
         (user, token, attributes, options))
@@ -860,7 +860,7 @@ public: \
         (user, attributes, options))
     IMPLEMENT_METHOD(void, RefreshTemporaryToken, (
         const std::string& user,
-        const TString& token,
+        const std::string& token,
         const TRefreshTemporaryTokenOptions& options),
         (user, token, options))
     IMPLEMENT_METHOD(void, RevokeToken, (
@@ -1473,7 +1473,7 @@ private:
 
     TIssueTokenResult DoIssueTokenImpl(
         const std::string& user,
-        const TString& token,
+        const std::string& token,
         const NYTree::IAttributeDictionaryPtr& attributes,
         const TIssueTokenOptions& options);
 

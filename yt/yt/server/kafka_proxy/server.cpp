@@ -596,7 +596,7 @@ private:
             return parts;
         };
 
-        TString token;
+        std::string token;
         std::optional<TString> expectedUserName;
 
         if (*connectionState->SaslMechanism == OAuthBearerSaslMechanism) {

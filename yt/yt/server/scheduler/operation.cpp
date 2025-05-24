@@ -627,7 +627,7 @@ bool TOperation::AddSecureVaultEntry(const TString& key, const INodePtr& value)
     return SecureVault_->AddChild(key, value);
 }
 
-void TOperation::SetTemporaryToken(const TString& token, const TNodeId& nodeId)
+void TOperation::SetTemporaryToken(const std::string& token, const TNodeId& nodeId)
 {
     YT_VERIFY(State_ == EOperationState::Starting);
     YT_VERIFY(Spec_->IssueTemporaryToken);

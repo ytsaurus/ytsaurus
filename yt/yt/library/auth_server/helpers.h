@@ -59,12 +59,12 @@ void Serialize(const THashedCredentials& hashedCredentials, NYson::IYsonConsumer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString SignCsrfToken(
+std::string SignCsrfToken(
     const std::string& userId,
     const TString& key,
     TInstant now);
 TError CheckCsrfToken(
-    const TString& csrfToken,
+    const std::string& csrfToken,
     const std::string& userId,
     const TString& key,
     TInstant expirationTime);
