@@ -1619,7 +1619,7 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                             "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
                         },
                         "test_options": {
-                            # Sleep for two timeouts prior to performing block device read
+                            # Sleep for a number of timeouts prior to performing block device read
                             "block_device_sleep_before_read": 3 * io_timeout,
                         },
                     },
@@ -1630,12 +1630,22 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
+        # Wait for node to restart
         wait_for_nodes()
 
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
+        nodes = ls("//sys/data_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
 
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "online")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+
+        # Create input table
+        create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        create("table", "//tmp/t_out")
 
         with pytest.raises(YtError):
             map(
