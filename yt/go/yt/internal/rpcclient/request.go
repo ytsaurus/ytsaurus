@@ -811,6 +811,26 @@ func (r ListJobsRequest) Path() (string, bool) {
 	return "", false
 }
 
+type GetJobRequest struct {
+	*rpc_proxy.TReqGetJob
+}
+
+func NewGetJobRequest(r *rpc_proxy.TReqGetJob) *GetJobRequest {
+	return &GetJobRequest{TReqGetJob: r}
+}
+
+func (r GetJobRequest) Log() []log.Field {
+	return []log.Field{
+		log.Any("opID", r.GetOperationId()),
+		log.String("alias", r.GetOperationAlias()),
+		log.Any("jobID", r.GetJobId()),
+	}
+}
+
+func (r GetJobRequest) Path() (string, bool) {
+	return "", false
+}
+
 type GetJobStderrRequest struct {
 	*rpc_proxy.TReqGetJobStderr
 }
