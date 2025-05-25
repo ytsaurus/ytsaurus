@@ -208,7 +208,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 Complete(
                     engine,
                     "USE yt:$cluster_name; SELECT * FROM ",
-                    {.Bindings = {{"cluster_name", "saurus"}}}),
+                    {.Parameters = {{"cluster_name", "saurus"}}}),
                 expected);
         }
         {
@@ -225,7 +225,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 Complete(
                     engine,
                     "USE yt:$cluster_name; SELECT * FROM ",
-                    {.Bindings = {}}),
+                    {.Parameters = {}}),
                 expected);
         }
     }

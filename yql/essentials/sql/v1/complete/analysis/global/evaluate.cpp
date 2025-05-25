@@ -13,10 +13,14 @@ namespace NSQLComplete {
 
             std::any visitBind_parameter(SQLv1::Bind_parameterContext* ctx) override {
                 std::string id = GetId(ctx);
-                if (const TValue* value = Env_->Bindings.FindPtr(id)) {
-                    return *value;
+                if (const NYT::TNode* node = Env_->Parameters.FindPtr(id)) {
+                    return *node;
                 }
-                return {};
+                return defaultResult();
+            }
+
+            std::any defaultResult() override {
+                return NYT::TNode();
             }
 
         private:
@@ -35,17 +39,13 @@ namespace NSQLComplete {
             const TEnvironment* Env_;
         };
 
-        TMaybe<TValue> EvaluateG(antlr4::ParserRuleContext* ctx, const TEnvironment& env) {
-            std::any any = TVisitor(&env).visit(ctx);
-            if (!any.has_value()) {
-                return Nothing();
-            }
-            return std::any_cast<TValue>(any);
+        NYT::TNode EvaluateG(antlr4::ParserRuleContext* ctx, const TEnvironment& env) {
+            return std::any_cast<NYT::TNode>(TVisitor(&env).visit(ctx));
         }
 
     } // namespace
 
-    TMaybe<TValue> Evaluate(SQLv1::Bind_parameterContext* ctx, const TEnvironment& env) {
+    NYT::TNode Evaluate(SQLv1::Bind_parameterContext* ctx, const TEnvironment& env) {
         return EvaluateG(ctx, env);
     }
 

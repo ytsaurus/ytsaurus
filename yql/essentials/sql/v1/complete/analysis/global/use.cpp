@@ -95,19 +95,11 @@ namespace NSQLComplete {
             }
 
             TMaybe<TString> GetId(SQLv1::Bind_parameterContext* ctx) const {
-                auto value = Evaluate(ctx, *Env_);
-                if (value.Empty()) {
+                NYT::TNode node = Evaluate(ctx, *Env_);
+                if (!node.HasValue() || !node.IsString()) {
                     return Nothing();
                 }
-
-                return std::visit([](auto&& arg) -> TMaybe<TString> {
-                    using T = std::decay_t<decltype(arg)>;
-                    if constexpr (std::is_same_v<T, TString>) {
-                        return arg;
-                    } else {
-                        return Nothing();
-                    }
-                }, *value);
+                return node.AsString();
             }
 
             antlr4::TokenStream* Tokens_;
