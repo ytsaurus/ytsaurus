@@ -89,6 +89,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/sequoia/helpers.h>
+
 #include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
 
 #include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
@@ -1461,6 +1463,12 @@ public:
 
         // See SerializeNodeCore.
         auto type = Load<EObjectType>(*context);
+        if (context->GetMaterializeAsSequoiaNode()) {
+            type = MaybeConvertToSequoiaType(type);
+        } else if (!context->GetMaterializeAsSequoiaNode()) {
+            type = MaybeConvertToCypressType(type);
+        }
+
         ValidateCreatedNodeTypePermission(type);
 
         auto externalCellTag = Load<TCellTag>(*context);

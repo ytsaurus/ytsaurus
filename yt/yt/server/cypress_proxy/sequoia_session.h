@@ -2,9 +2,12 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
+
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/client/api/client_common.h>
+#include <yt/yt/client/api/cypress_client.h>
 
 #include <yt/yt/client/table_client/schema.h>
 
@@ -212,6 +215,21 @@ public:
         NCypressClient::TNodeId parentId,
         const NApi::TSuppressableAccessTrackingOptions& options);
 
+    //! Generates ID, registers tx action. Does _not_ modify Sequoia tables.
+    NCypressClient::TNodeId MaterializeNodeOnMaster(
+        NObjectClient::NProto::TReqMaterializeNode* originalRequest,
+        NObjectClient::TCellTag cellTagHint,
+        NObjectClient::EObjectType type,
+        NCypressClient::TNodeId existingNodeId);
+
+    void AssembleTreeCopy(
+        NCypressClient::TNodeId nodeId,
+        NCypressClient::TNodeId parentId,
+        NSequoiaClient::TAbsoluteYPath path,
+        bool preserveAcl,
+        bool preserveModificationTime,
+        THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildInfo);
+
     // Map-node's children accessors.
 
     //! Selects children from "child_node" Sequoia table.
@@ -267,7 +285,8 @@ public:
     //! Used only to implement "lock" verb (and mustn't be used in other verbs).
     //! Acquires shared S-lock in "node_id_to_path" table.
     //! Requires late prepare on cell which owns |nodeId|.
-    NCypressClient::TLockId LockNode(
+    //! Lock is considered to be explicit.
+    NCypressClient::TLockId LockNodeExplicitly(
         NCypressClient::TNodeId nodeId,
         NCypressClient::ELockMode lockMode,
         const std::optional<std::string>& childKey,
@@ -275,7 +294,18 @@ public:
         NTransactionClient::TTimestamp timestamp,
         bool waitable);
 
+    //! Used in implementations of verbs that require implicit locks
+    //! but don't have a dedicated master transaction action.
+    //! Lock is considered to be implicit.
+    void LockNodeImplicitly(
+        NCypressClient::TNodeId nodeId,
+        NCypressClient::ELockMode lockMode,
+        const std::optional<std::string>& childKey,
+        const std::optional<std::string>& attributeKey);
+
     void UnlockNode(NCypressClient::TNodeId nodeId, bool snapshot);
+
+    void ValidateTransactionPresence();
 
 private:
     IBootstrap* const Bootstrap_;

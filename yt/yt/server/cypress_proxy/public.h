@@ -48,10 +48,18 @@ DECLARE_REFCOUNTED_STRUCT(ISequoiaResponseKeeper)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCypressResolveResult;
+
+// This means that the request was originally sent to a master service that
+// doesn't use resolve. This is typical of requests that are concerned either
+// with "master as a whole" (e.g. SetMaintennance) or requests that try to
+// avoid tasking the master with resolving paths to objects (e.g. VectorizedRead).
+struct TMasterResolveResult;
+
 struct TSequoiaResolveResult;
 
 using TResolveResult = std::variant<
     TCypressResolveResult,
+    TMasterResolveResult,
     TSequoiaResolveResult
 >;
 

@@ -2,6 +2,7 @@
 
 #include "node_detail.h"
 #include "shard.h"
+#include "private.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
 
@@ -247,7 +248,8 @@ void TCypressNode::CheckInvariants(TBootstrap* bootstrap) const
     TObject::CheckInvariants(bootstrap);
 
     if (IsSequoia() && IsNative()) {
-        YT_VERIFY(MutableSequoiaProperties() && ImmutableSequoiaProperties());
+        YT_VERIFY(MutableSequoiaProperties());
+        YT_VERIFY(MutableSequoiaProperties()->BeingCreated || ImmutableSequoiaProperties());
     } else {
         // TODO(aleksandra-zh)
         if (GetType() != EObjectType::Link) {
@@ -364,7 +366,8 @@ void TCypressNode::LoadEctoplasm(TStreamLoadContext& context)
 
 void TCypressNode::VerifySequoia() const
 {
-    YT_VERIFY(IsSequoia() && ImmutableSequoiaProperties() && MutableSequoiaProperties());
+    YT_VERIFY(IsSequoia() && MutableSequoiaProperties());
+    YT_VERIFY(MutableSequoiaProperties()->BeingCreated || ImmutableSequoiaProperties());
 }
 
 TCypressNode::TImmutableSequoiaProperties::TImmutableSequoiaProperties(

@@ -13,4 +13,10 @@ TError CheckLockRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NObjectClient::EObjectType MaybeConvertToSequoiaType(NObjectClient::EObjectType originalType);
+
+NObjectClient::EObjectType MaybeConvertToCypressType(NObjectClient::EObjectType originalType);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSequoiaServer

@@ -10,7 +10,15 @@ message TReqHeartbeat
     optional string version = 3;
 }
 
+message TSequoiaRelevantLimits
+{
+    required int32 max_copiable_subtree_size = 1;
+}
+
 message TRspHeartbeat
-{ }
+{
+    optional uint64 master_reign = 1;
+    optional TSequoiaRelevantLimits limits = 2;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

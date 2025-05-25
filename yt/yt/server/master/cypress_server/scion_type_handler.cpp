@@ -51,21 +51,24 @@ private:
             graftingManager->OnScionDestroyed(node);
         }
 
-        TCypressNodeTypeHandlerBase::DoDestroy(node);
+        TSequoiaMapNodeTypeHandlerImpl::DoDestroy(node);
     }
 
     void DoSerializeNode(
-        TScionNode* /*node*/,
-        TSerializeNodeContext* /*context*/) override
+        TScionNode* node,
+        TSerializeNodeContext* context) override
     {
-        THROW_ERROR_EXCEPTION("Cross-cell copying of scions is not supported");
+        // NB: Scions _must_ be snapshot-wise compatible with sequoia map nodes
+        // due to type erasure in TNontemplateCypressNodeTypeHandlerBase::SerializeNodeCore.
+        TSequoiaMapNodeTypeHandlerImpl::DoSerializeNode(node, context);
     }
 
     void DoMaterializeNode(
         TScionNode* /*trunkNode*/,
         TMaterializeNodeContext* /*context*/) override
     {
-        THROW_ERROR_EXCEPTION("Cross-cell copying of scions is not supported");
+        // Should not actually happen.
+        THROW_ERROR_EXCEPTION("Scions cannot be materialized during cross-cell cloning");
     }
 };
 

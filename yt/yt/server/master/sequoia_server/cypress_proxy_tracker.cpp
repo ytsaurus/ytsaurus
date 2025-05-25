@@ -14,6 +14,7 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 
+#include <yt/yt/server/master/cypress_server/config.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
 #include <yt/yt/server/lib/sequoia/proto/cypress_proxy_tracker.pb.h>
@@ -251,6 +252,10 @@ private:
 
         CheckSequoiaReign(*request, response)
             .ThrowOnError();
+
+        response->set_master_reign(ToProto(GetCurrentReign()));
+        auto maxCopiableSubtreeSize = Bootstrap_->GetDynamicConfig()->CypressManager->CrossCellCopyMaxSubtreeSize;
+        response->mutable_limits()->set_max_copiable_subtree_size(maxCopiableSubtreeSize);
     }
 
     void ZombifyCypressProxy(TCypressProxyObject* proxyObject) noexcept override

@@ -4,6 +4,7 @@
 
 #include "bootstrap.h"
 #include "helpers.h"
+#include "master_proxy.h"
 #include "node_proxy.h"
 #include "node_proxy_base.h"
 #include "path_resolver.h"
@@ -193,7 +194,7 @@ public:
         const TSequoiaSessionPtr& session,
         const TResolveResult& resolveResult) override
     {
-        static_assert(std::variant_size<std::decay_t<decltype(resolveResult)>>() == 2);
+        static_assert(std::variant_size<std::decay_t<decltype(resolveResult)>>() == 3);
 
         INodeProxyPtr proxy;
         if (const auto* cypressResolveResult = std::get_if<TCypressResolveResult>(&resolveResult)) {
@@ -242,6 +243,8 @@ public:
                 default:
                     return EInvokeResult::ForwardToMaster;
             }
+        } else if (std::holds_alternative<TMasterResolveResult>(resolveResult)) {
+            proxy = CreateMasterProxy(Bootstrap_, session);
         } else {
             const auto& sequoiaResolveResult = std::get<TSequoiaResolveResult>(resolveResult);
             proxy = CreateNodeProxy(Bootstrap_, session, sequoiaResolveResult);

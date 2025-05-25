@@ -1071,8 +1071,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_move_force4(self):
-        error_message = "//tmp is not a local object" if self.ENABLE_TMP_ROOTSTOCK else "Node / cannot be replaced"
-        with raises_yt_error(error_message):
+        with raises_yt_error("Node / cannot be replaced"):
             copy("//tmp", "/", force=True)
 
     @authors("babenko")

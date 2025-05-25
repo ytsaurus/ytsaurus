@@ -786,6 +786,9 @@ private:
             [&] (const TCypressResolveResult& cypressResolveResult) {
                 newPath = cypressResolveResult.Path.Underlying();
             },
+            [&] (const TMasterResolveResult& /*masterResolveResult*/) {
+                // NB: Path is currently unused in master requests.
+            },
             [&] (const TSequoiaResolveResult& sequoiaResolveResult) {
                 subrequest->ResolvedNodeId = sequoiaResolveResult.Id;
 
@@ -858,6 +861,7 @@ private:
             resolveResult = ResolvePath(
                 session,
                 originalTargetPath,
+                subrequest->RequestHeader->service(),
                 subrequest->RequestHeader->method());
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Subrequest resolve failed (SubrequestIndex: %v)",
