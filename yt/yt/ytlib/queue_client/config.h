@@ -117,4 +117,16 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueueProducerSystemMeta
+    : public NYTree::TYsonStructLite
+{
+    std::optional<NRpc::TMutationId> MutationId;
+
+    REGISTER_YSON_STRUCT_LITE(TQueueProducerSystemMeta);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueueClient

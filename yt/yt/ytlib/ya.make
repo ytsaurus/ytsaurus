@@ -695,6 +695,7 @@ GENERATE_YT_RECORD(
     OUTPUT_INCLUDES
         yt/yt/client/queue_client/public.h
         yt/yt/core/yson/string.h
+        yt/yt/ytlib/queue_client/config.h
 )
 
 GENERATE_YT_RECORD(
