@@ -98,7 +98,9 @@ private:
     TInitialRowMap InitialRowMap_;
     TResultingRowMap ResultingRowMap_;
 
-    TSharedRangeHolderPtr Holder_;
+    // We only store this range to keep ownership of the underlying row data.
+    // Rows themselves are not used.
+    TSharedRange<NTableClient::TUnversionedRow> LookedUpRows_;
 
     bool CanSkipLookup_ = false;
 
@@ -336,13 +338,13 @@ TFuture<void> TSecondaryIndexModifier::LookupRows()
 
 void TSecondaryIndexModifier::SetInitialAndResultingRows(TSharedRange<NTableClient::TUnversionedRow> lookedUpRows)
 {
-    Holder_ = lookedUpRows.GetHolder();
+    LookedUpRows_ = std::move(lookedUpRows);
 
     int keyColumnCount = TableMountInfo_->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
     int columnCount = std::ssize(PositionToIdMapping_);
     auto evaluator = ColumnEvaluatorCache_->Find(ResultingSchema_);
 
-    for (auto initialRow : lookedUpRows) {
+    for (auto initialRow : LookedUpRows_) {
         auto key = TKey(initialRow.FirstNElements(keyColumnCount));
         auto mutableRow = RowBuffer_->AllocateUnversioned(columnCount);
 
@@ -524,7 +526,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceFullSync
         }
     }
 
-    return MakeFuture(MakeSharedRange(std::move(secondaryModifications), RowBuffer_));
+    return MakeFuture(MakeSharedRange(std::move(secondaryModifications), MakeStrong(this)));
 }
 
 TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldingModifications(
@@ -631,7 +633,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
         }
     }
 
-    return MakeFuture(MakeSharedRange(std::move(secondaryModifications), RowBuffer_));
+    return MakeFuture(MakeSharedRange(std::move(secondaryModifications), MakeStrong(this)));
 }
 
 TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUniqueModifications(
