@@ -12,6 +12,7 @@
     XX(AccessCounter, access_counter) \
     XX(AccessTime, access_time) \
     XX(Account, account) \
+    XX(AccountId, account_id) \
     XX(AccountResourceUsageLeaseIds, account_resource_usage_lease_ids) \
     XX(AccountStatistics, account_statistics) \
     XX(Acl, acl) \

@@ -305,7 +305,7 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto accountId = FromProto<TAccountId>(request->account_id());
-        auto* account = securityManager->GetAccountOrThrow(accountId);
+        auto* account = securityManager->GetAccount(accountId);
 
         auto explicitAttributes = FromProto(request->explicit_node_attributes());
 

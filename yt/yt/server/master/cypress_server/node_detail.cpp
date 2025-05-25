@@ -148,6 +148,8 @@ void TNontemplateCypressNodeTypeHandlerBase::SerializeNodeCore(
     auto erasedType = node->GetType();
     if (erasedType == EObjectType::PortalExit) {
         erasedType = EObjectType::MapNode;
+    } else if (erasedType == EObjectType::Scion) {
+        erasedType = EObjectType::SequoiaMapNode;
     }
 
     // These are loaded in TCypressManager::TNodeFactory::MaterializeNode.
@@ -181,6 +183,24 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
     TMaterializeNodeContext* context,
     ICypressNodeFactory* factory)
 {
+    auto sourceAccount = Load<TAccountRawPtr>(*context);
+    auto sourceResourceUsage = Load<TClusterResources>(*context);
+    auto sourceAcd = Load<TAccessControlDescriptor>(*context);
+    auto opaque = Load<bool>(*context);
+    auto optionalAnnotation = Load<std::optional<std::string>>(*context);
+    auto creationTime = Load<TInstant>(*context);
+    auto modificationTime = Load<TInstant>(*context);
+    auto expirationTime = Load<std::optional<TInstant>>(*context);
+    auto expirationTimeout = Load<std::optional<TDuration>>(*context);
+    auto keyToAttribute = Load<std::vector<std::pair<std::string, TYsonString>>>(*context);
+
+    auto* clonedAccount = factory->GetClonedNodeAccount(sourceAccount);
+    factory->ValidateClonedAccount(
+        context->GetMode(),
+        sourceAccount,
+        sourceResourceUsage,
+        clonedAccount);
+
     // See SerializeNodeCore.
    TCypressNode* trunkNode = nullptr;
     if (auto targetNodeId = context->GetInplaceLoadTargetNodeId()) {
@@ -193,19 +213,11 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
         trunkNode = cypressManager->GetNodeOrThrow({targetNodeId, NullTransactionId});
     } else {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto clonedId = objectManager->GenerateId(GetObjectType());
+        auto clonedId = context->GetHintId()
+            ? context->GetHintId()
+            : objectManager->GenerateId(GetObjectType());
         trunkNode = factory->InstantiateNode(clonedId, context->GetExternalCellTag());
     }
-
-    auto sourceAccount = Load<TAccountRawPtr>(*context);
-    auto sourceResourceUsage = Load<TClusterResources>(*context);
-
-    auto* clonedAccount = factory->GetClonedNodeAccount(sourceAccount);
-    factory->ValidateClonedAccount(
-        context->GetMode(),
-        sourceAccount,
-        sourceResourceUsage,
-        clonedAccount);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->SetAccount(
@@ -213,7 +225,6 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
         clonedAccount,
         /*transaction*/ nullptr);
 
-    auto sourceAcd = Load<TAccessControlDescriptor>(*context);
     if (factory->ShouldPreserveAcl(context->GetMode()) && trunkNode->GetType() != EObjectType::PortalExit) {
         trunkNode->Acd().SetInherit(sourceAcd.Inherit());
         trunkNode->Acd().SetEntries(sourceAcd.Acl());
@@ -228,44 +239,38 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
     }
 
     // Copy opaque.
-    auto opaque = Load<bool>(*context);
     trunkNode->SetOpaque(opaque);
 
     // Copy annotation.
-    if (auto optionalAnnotation = Load<std::optional<std::string>>(*context)) {
+    if (optionalAnnotation) {
         trunkNode->SetAnnotation(std::move(*optionalAnnotation));
     } else {
         trunkNode->RemoveAnnotation();
     }
 
     // Copy creation time.
-    auto creationTime = Load<TInstant>(*context);
     if (factory->ShouldPreserveCreationTime()) {
         trunkNode->SetCreationTime(creationTime);
     }
 
     // Copy modification time.
-    auto modificationTime = Load<TInstant>(*context);
     if (factory->ShouldPreserveModificationTime()) {
         trunkNode->SetModificationTime(modificationTime);
     }
 
     // Copy expiration time.
-    auto expirationTime = Load<std::optional<TInstant>>(*context);
     if (factory->ShouldPreserveExpirationTime() && expirationTime) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetExpirationTime(trunkNode, expirationTime);
     }
 
     // Copy expiration timeout.
-    auto expirationTimeout = Load<std::optional<TDuration>>(*context);
     if (factory->ShouldPreserveExpirationTimeout() && expirationTimeout) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetExpirationTimeout(trunkNode, expirationTimeout);
     }
 
     // Copy attributes directly to suppress validation.
-    auto keyToAttribute = Load<std::vector<std::pair<std::string, TYsonString>>>(*context);
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = trunkNode->GetMutableAttributes();
         const auto& ysonInternRegistry = Bootstrap_->GetYsonInternRegistry();
@@ -1048,8 +1053,8 @@ void TCypressMapNodeTypeHandlerImpl<TImpl>::DoMaterializeNode(
 
     size_t size = TSizeSerializer::Load(*context);
     for (size_t index = 0; index < size; ++index) {
-        auto key = Load<std::string>(*context);
-        auto childId = Load<TNodeId>(*context);
+        auto key = Load<TKeyToCypressNodeId::key_type>(*context);
+        auto childId = Load<TKeyToCypressNodeId::mapped_type>(*context);
         context->RegisterChild(std::move(key), childId);
     }
 }
@@ -1060,15 +1065,6 @@ template class TCypressMapNodeTypeHandlerImpl<TPortalExitNode>;
 template class TCypressMapNodeTypeHandlerImpl<NMaintenanceTrackerServer::TClusterProxyNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-[[noreturn]] void ThrowSequoiaNodeCloningNotImplemented()
-{
-    THROW_ERROR_EXCEPTION("Sequoia node cloning is not implemented yet");
-}
-
-} // namespace
 
 template <class TImpl>
 EObjectType TSequoiaMapNodeTypeHandlerImpl<TImpl>::GetObjectType() const
@@ -1230,18 +1226,43 @@ bool TSequoiaMapNodeTypeHandlerImpl<TImpl>::HasBranchedChangesImpl(
 
 template <class TImpl>
 void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoSerializeNode(
-    TImpl* /*node*/,
-    TSerializeNodeContext* /*context*/)
+    TImpl* node,
+    TSerializeNodeContext* context)
 {
-    ThrowSequoiaNodeCloningNotImplemented();
+    TBase::DoSerializeNode(node, context);
+
+    using NYT::Save;
+
+    const auto& cypressManager = this->GetBootstrap()->GetCypressManager();
+    TKeyToCypressNodeId keyToChildMapStorage;
+    const auto& keyToChildIdMap = GetMapNodeChildMap(
+        cypressManager,
+        node->GetTrunkNode()->template As<TImpl>(),
+        node->GetTransaction(),
+        &keyToChildMapStorage);
+
+    TSizeSerializer::Save(*context, keyToChildIdMap.size());
+    for (const auto& [key, childId] : SortHashMapByKeys(keyToChildIdMap)) {
+        Save(*context, key);
+        Save(*context, childId);
+    }
 }
 
 template <class TImpl>
 void TSequoiaMapNodeTypeHandlerImpl<TImpl>::DoMaterializeNode(
-    TImpl* /*trunkNode*/,
-    TMaterializeNodeContext* /*context*/)
+    TImpl* trunkNode,
+    TMaterializeNodeContext* context)
 {
-    ThrowSequoiaNodeCloningNotImplemented();
+    TBase::DoMaterializeNode(trunkNode, context);
+
+    using NYT::Load;
+
+    size_t size = TSizeSerializer::Load(*context);
+    for (size_t index = 0; index < size; ++index) {
+        auto key = Load<TKeyToCypressNodeId::key_type>(*context);
+        auto childId = Load<TKeyToCypressNodeId::mapped_type>(*context);
+        context->RegisterChild(std::move(key), childId);
+    }
 }
 
 // Explicit instantiations.
@@ -1416,7 +1437,7 @@ void TListNodeTypeHandler::DoMaterializeNode(
     TListNode* trunkNode,
     TMaterializeNodeContext* /*context*/)
 {
-    YT_LOG_ALERT("Recieved EndCopy command for list node, despite BeginCopy being disabled for this type (ListNodeId: %v)",
+    YT_LOG_ALERT("Received EndCopy command for list node, despite BeginCopy being disabled for this type (ListNodeId: %v)",
         trunkNode->GetId());
     THROW_ERROR_EXCEPTION("List nodes are deprecated and do not support cross-cell copying");
 }

@@ -67,9 +67,13 @@ TMaterializeNodeContext::TMaterializeNodeContext(
     TBootstrap* bootstrap,
     ENodeCloneMode mode,
     TRef data,
+    TNodeId hintId,
+    bool materializeAsSequoiaNode,
     NTableServer::TMasterTableSchemaId schemaId,
     TNodeId inplaceLoadTargetNodeId)
     : TEntityStreamLoadContext(&Stream_)
+    , MaterializeAsSequoiaNode_(materializeAsSequoiaNode)
+    , HintId_(hintId)
     , Mode_(mode)
     , InplaceLoadTargetNodeId_(inplaceLoadTargetNodeId)
     , Bootstrap_(bootstrap)
@@ -86,7 +90,7 @@ TSubject* TMaterializeNodeContext::GetObject(TObjectId id)
 template <>
 TAccount* TMaterializeNodeContext::GetObject(TObjectId id)
 {
-    return Bootstrap_->GetSecurityManager()->GetAccountOrThrow(id);
+    return Bootstrap_->GetSecurityManager()->GetAccountOrThrow(id, /*activeLifeStageOnly*/ false);
 }
 
 template <>

@@ -36,4 +36,30 @@ TError CheckLockRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EObjectType MaybeConvertToSequoiaType(EObjectType originalType)
+{
+    if (originalType == EObjectType::MapNode) {
+        return EObjectType::SequoiaMapNode;
+    }
+    if (originalType == EObjectType::Link) {
+        return EObjectType::SequoiaLink;
+    }
+
+    return originalType;
+}
+
+EObjectType MaybeConvertToCypressType(EObjectType originalType)
+{
+    if (originalType == EObjectType::SequoiaMapNode) {
+        return EObjectType::MapNode;
+    }
+    if (originalType == EObjectType::SequoiaLink) {
+        return EObjectType::Link;
+    }
+
+    return originalType;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSequoiaServer

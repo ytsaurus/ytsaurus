@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
+#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
+
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -59,6 +61,20 @@ NCypressClient::TNodeId CopyNode(
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
+void MaterializeNodeOnMaster(
+    NCypressClient::TVersionedNodeId nodeId,
+    NObjectClient::NProto::TReqMaterializeNode* originalRequest,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
+
+void MaterializeNodeInSequoia(
+    NCypressClient::TVersionedNodeId nodeId,
+    NCypressClient::TNodeId parentId,
+    NSequoiaClient::TAbsoluteYPathBuf path,
+    bool preserveAcl,
+    bool preserveModificationTime,
+    const TProgenitorTransactionCache& progenitorTransactionCache,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
+
 //! Removes node but not detaches it from its parent.
 void RemoveNode(
     NCypressClient::TVersionedNodeId nodeId,
@@ -88,13 +104,20 @@ void DetachChild(
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
-NCypressClient::TLockId LockNodeInMaster(
+NCypressClient::TLockId ExplicitlyLockNodeInMaster(
     NCypressClient::TVersionedNodeId nodeId,
     NCypressClient::ELockMode lockMode,
     const std::optional<std::string>& childKey,
     const std::optional<std::string>& attributeKey,
     NTransactionClient::TTimestamp timestamp,
     bool waitable,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
+
+void ImplicitlyLockNodeInMaster(
+    NCypressClient::TVersionedNodeId nodeId,
+    NCypressClient::ELockMode lockMode,
+    const std::optional<std::string>& childKey,
+    const std::optional<std::string>& attributeKey,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 void UnlockNodeInMaster(

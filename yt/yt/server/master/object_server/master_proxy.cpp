@@ -41,8 +41,6 @@
 
 #include <yt/yt/ytlib/election/config.h>
 
-#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
-
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/yt/core/misc/range_formatters.h>
@@ -480,19 +478,24 @@ private:
         // and storing them in a vector is costly.
         context->SetRequestInfo("TransactionId: %v, SchemaCount: %v, OldSchemaIds: %v",
             transactionId,
-            request->schema_id_to_schema_mapping_size(),
+            request->schema_descriptors_size(),
             std::views::transform(
-                request->schema_id_to_schema_mapping(),
+                request->schema_descriptors(),
                 [] (const auto& entry) {
                     return FromProto<TMasterTableSchemaId>(entry.schema_id());
                 }));
 
+        if (request->sequoia_destination()) {
+            THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::RequestInvolvesSequoia,
+                "Request to materialize prerequisites is marked as Sequoia");
+        }
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->GetTransactionOrThrow(transactionId);
 
-        response->mutable_updated_schema_id_mapping()->Reserve(request->schema_id_to_schema_mapping_size());
+        response->mutable_old_to_new_schema_id()->Reserve(request->schema_descriptors_size());
         const auto& tableManager = Bootstrap_->GetTableManager();
-        for (auto entry : request->schema_id_to_schema_mapping()) {
+        for (auto entry : request->schema_descriptors()) {
             auto oldSchemaId = FromProto<TMasterTableSchemaId>(entry.schema_id());
             // Out of love for paranoia.
             YT_VERIFY(oldSchemaId);
@@ -502,14 +505,14 @@ private:
             // NB: Schema lifetime is managed by cross-cell copy transaction.
             auto masterTableSchema = tableManager->GetOrCreateNativeMasterTableSchema(schema, transaction);
 
-            auto* rspEntry = response->add_updated_schema_id_mapping();
+            auto* rspEntry = response->add_old_to_new_schema_id();
             ToProto(rspEntry->mutable_old_schema_id(), oldSchemaId);
             ToProto(rspEntry->mutable_new_schema_id(), masterTableSchema->GetId());
         }
 
         context->SetResponseInfo("SchemaIdMapping: %v",
             MakeShrunkFormattableView(
-                response->updated_schema_id_mapping(),
+                response->old_to_new_schema_id(),
                 [] (
                     TStringBuilderBase* builder,
                     const auto& entry
@@ -526,6 +529,13 @@ private:
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, MaterializeNode)
     {
         DeclareMutating();
+
+        // COMPAT(h0pless): IntroduceCypressToSequoiaCopy.
+        // Remove this once "AllowBypassMasterResolve" option is used everywhere.
+        if (request->sequoia_destination()) {
+            THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::RequestInvolvesSequoia,
+                "Received direct request to materialize Sequoia node in Cypress");
+        }
 
         auto transactionId = NCypressClient::GetTransactionId(context);
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -568,7 +578,7 @@ private:
         TAccount* account = nullptr;
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         if (newAccountId) {
-            account = securityManager->GetAccountOrThrow(*newAccountId);
+            account = securityManager->GetAccountOrThrow(*newAccountId, /*activeLifeStageOnly*/ true);
             const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->ValidateObjectLifeStage(account);
         }
@@ -595,6 +605,8 @@ private:
             Bootstrap_,
             mode,
             TRef::FromString(serializedNode.data()),
+            /*hintNodeId*/ NullObjectId,
+            /*materializeAsSequoiaNode*/ false,
             FromProto<TMasterTableSchemaId>(serializedNode.schema_id()),
             existingNodeId);
 
