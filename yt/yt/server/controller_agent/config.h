@@ -1278,8 +1278,6 @@ struct TControllerAgentConfig
     //! How many initial successive job aborts are needed to fail operation.
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
 
-    bool JobIdUnequalToAllocationId;
-
     TDisallowRemoteOperationsConfigPtr DisallowRemoteOperations;
 
     bool EnableMergeSchemasDuringSchemaInfer;
