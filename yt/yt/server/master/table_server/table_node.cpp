@@ -263,6 +263,7 @@ const TTableNode* TTableNode::GetTrunkNode() const
 
 void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
 {
+    const auto& tableManager = context.Bootstrap->GetTableManager();
     if (IsDynamic()) {
         // NB: EndUpload may (and eventually will) stop sending schema info.
         auto contextMode = context.SchemaMode;
@@ -276,8 +277,8 @@ void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
                 GetTransaction()->GetId(),
                 SchemaMode_,
                 context.SchemaMode,
-                GetSchema()->AsCompactTableSchema(),
-                context.TableSchema->AsCompactTableSchema());
+                tableManager->GetHeavyTableSchemaSync(GetSchema()),
+                tableManager->GetHeavyTableSchemaSync(context.TableSchema));
         }
     }
 
@@ -286,7 +287,6 @@ void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
     }
 
     if (context.TableSchema) {
-        const auto& tableManager = context.Bootstrap->GetTableManager();
         tableManager->SetTableSchema(this, context.TableSchema);
     }
 }
@@ -739,7 +739,8 @@ void TTableNode::ValidateReshard(
             }
 
             // Validate pivot keys against table schema.
-            auto heavySchema = GetSchema()->AsHeavyTableSchema();
+            const auto& tableManager = bootstrap->GetTableManager();
+            auto heavySchema = tableManager->GetHeavyTableSchemaSync(GetSchema());
             for (const auto& pivotKey : pivotKeys) {
                 ValidatePivotKey(pivotKey, *heavySchema);
             }

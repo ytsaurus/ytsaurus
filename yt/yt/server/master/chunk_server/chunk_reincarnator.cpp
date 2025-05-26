@@ -21,6 +21,7 @@
 #include <yt/yt/server/master/node_tracker_server/node_directory_builder.h>
 
 #include <yt/yt/server/master/table_server/helpers.h>
+#include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 #include <yt/yt/server/master/transaction_server/transaction_rotator.h>
@@ -1151,10 +1152,10 @@ private:
 
             if (oldChunk->Schema() && oldChunk->Schema() != newChunk->Schema()) {
                 YT_LOG_ALERT(
-                    "Reincarnated chunk has a different schema (NewChunkId: %v, NewSchema: %v, OldSchema: %v)",
+                    "Reincarnated chunk has a different schema (NewChunkId: %v, NewSchemaId: %v, OldSchemaId: %v)",
                     newChunk->GetId(),
-                    newChunk->Schema()->AsHeavyTableSchema(),
-                    oldChunk->Schema()->AsHeavyTableSchema());
+                    newChunk->Schema()->GetId(),
+                    oldChunk->Schema().Get()->GetId());
                 OnReincarnationFinished(EReincarnationResult::GenericPermanentFailure);
                 continue;
             }

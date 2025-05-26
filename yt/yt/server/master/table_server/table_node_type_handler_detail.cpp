@@ -634,7 +634,8 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const std
 template <class TImpl>
 std::optional<std::vector<std::string>> TTableNodeTypeHandlerBase<TImpl>::DoListColumns(TImpl* node) const
 {
-    auto schema = node->GetSchema()->AsHeavyTableSchema();
+    const auto& tableManager = GetBootstrap()->GetTableManager();
+    auto schema = tableManager->GetHeavyTableSchemaSync(node->GetSchema());
 
     std::vector<std::string> result;
     result.reserve(schema->Columns().size());

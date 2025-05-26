@@ -402,6 +402,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/table_node_type_handler_detail.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/table_node_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/table_node.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/table_server/table_schema_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/backup_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/balancing_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/tablet_server/chaos_helpers.cpp
