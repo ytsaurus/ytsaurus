@@ -2123,10 +2123,10 @@ private:
             }
 
             std::vector<std::vector<TBlockWithCookie>> subrequests;
-            size_t totalElements = blocks.size();
+            int totalElements = blocks.size();
             int chunkSize = totalElements / batchCount;
             int remainder = totalElements % batchCount;
-            size_t start = 0;
+            int start = 0;
 
             for (int i = 0; i < batchCount; ++i) {
                 size_t end = start + chunkSize + (i < remainder ? 1 : 0);
@@ -2356,7 +2356,6 @@ private:
         }
 
         auto channel = MakePeersChannel(primaryPeer, backupPeer, hedgingOptions);
-
         YT_VERIFY(channel);
 
         const auto& primaryAddress = primaryPeer.Address;
@@ -2388,7 +2387,7 @@ private:
                 .BackupPeer = backupPeer,
             },
             // If hedging is enabled, then get block batching is not allowed.
-            hedgingOptions.has_value());
+            hedgingOptions.has_value() /*hedgingEnabled*/);
 
         SetSessionFuture(getBlockSetResponseFuture.As<void>());
         return getBlockSetResponseFuture
