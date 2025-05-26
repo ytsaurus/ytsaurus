@@ -1,13 +1,13 @@
 # Pire
 
-**List of functions**
+## List of functions
 
-* ```Pire::Grep(pattern:String) -> (string:String?) -> Bool```
-* ```Pire::Match(pattern:String) -> (string:String?) -> Bool```
-* ```Pire::MultiGrep(pattern:String) -> (string:String?) -> Tuple<Bool, Bool, ...>```
-* ```Pire::MultiMatch(pattern:String) -> (string:String?) -> Tuple<Bool, Bool, ...>```
-* ```Pire::Capture(pattern:String) -> (string:String?) -> String?```
-* ```Pire::Replace(pattern:String) -> (string:String?, replacement:String) -> String?```
+* `Pire::Grep(pattern:String) -> (string:String?) -> Bool`
+* `Pire::Match(pattern:String) -> (string:String?) -> Bool`
+* `Pire::MultiGrep(pattern:String) -> (string:String?) -> Tuple<Bool, Bool, ...>`
+* `Pire::MultiMatch(pattern:String) -> (string:String?) -> Tuple<Bool, Bool, ...>`
+* `Pire::Capture(pattern:String) -> (string:String?) -> String?`
+* `Pire::Replace(pattern:String) -> (string:String?, replacement:String) -> String?`
 
 One of the options to match regular expressions in YQL is to use [Pire](https://github.com/yandex/pire) (Perl Incompatible Regular Expressions). This is a very fast regular expression library developed by Yandex. At the lower level, it parses the input string once without backtracking and uses 5 instructions per character (both for x86 and x86_64).
 
@@ -24,7 +24,7 @@ To enable Unicode mode, you can include one non-ASCII character in the regular e
 
 To avoid compiling a regular expression at each table row, wrap the function call by a [named expression](../../syntax/expressions.md#named-nodes):
 
-```sql
+```yql
 $re = Pire::Grep("\\d+"); -- create a callable value to test the specific regular expression
 SELECT * FROM table WHERE $re(key); -- use the value to filter a table
 ```
@@ -37,9 +37,9 @@ When escaping special characters in a regular expression, be sure to use the sec
 
 You can enable the case-insensitive mode by specifying, at the beginning of the regular expression, the flag `(?i)`.
 
-**Examples**
+### Examples
 
-```sql
+```yql
 $value = "xaaxaaxaa";
 $match = Pire::Match("a.*");
 $grep = Pire::Grep("axa");
@@ -84,9 +84,9 @@ Use the MultiGrep/MultiMatch functions to optimize the query execution speed. Be
 
    When you call MultiGrep/MultiMatch, regular expressions are passed one per line using [multiline string literals](../../syntax/expressions.md#multiline-string-literals):
 
-**Examples**
+### Examples
 
-```sql
+```yql
 $multi_match = Pire::MultiMatch(@@a.*
 .*x.*
 .*axa.*@@);
