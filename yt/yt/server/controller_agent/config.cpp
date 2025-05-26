@@ -1358,9 +1358,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_job_aborts_until_operation_failure", &TThis::MaxJobAbortsUntilOperationFailure)
         .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 1000}, {EAbortReason::NbdErrors, 10}}));
 
-    registrar.Parameter("job_id_unequal_to_allocation_id", &TThis::JobIdUnequalToAllocationId)
-        .Default(false);
-
     registrar.Parameter("disallow_remote_operations", &TThis::DisallowRemoteOperations)
         .DefaultNew();
 

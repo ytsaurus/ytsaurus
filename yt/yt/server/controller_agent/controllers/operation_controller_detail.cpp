@@ -5874,29 +5874,27 @@ std::expected<TJobId, EScheduleFailReason> TOperationControllerBase::GenerateJob
 {
     auto jobIdGuid = previousJobId ? previousJobId.Underlying() : allocationId.Underlying();
 
-    if (Config_->JobIdUnequalToAllocationId || previousJobId) {
-        int currentJobCount = jobIdGuid.Parts32[0] >> 24;
+    int currentJobCount = jobIdGuid.Parts32[0] >> 24;
 
-        jobIdGuid.Parts32[0] += 1 << 24;
+    jobIdGuid.Parts32[0] += 1 << 24;
 
-        if (jobIdGuid.Parts32[0] >> 24 == 0 ||
-            currentJobCount >= Config_->AllocationJobCountLimit.value_or(
-                std::numeric_limits<decltype(Config_->AllocationJobCountLimit)::value_type>::max()))
-        {
-            YT_LOG_DEBUG(
-                "Allocation job count reached limit (JobCount: %v, AllocationId: %v, PreviousJobId: %v)",
-                currentJobCount,
-                allocationId,
-                previousJobId);
-            return std::unexpected(EScheduleFailReason::AllocationJobCountReachedLimit);
-        }
-
+    if (jobIdGuid.Parts32[0] >> 24 == 0 ||
+        currentJobCount >= Config_->AllocationJobCountLimit.value_or(
+            std::numeric_limits<decltype(Config_->AllocationJobCountLimit)::value_type>::max()))
+    {
         YT_LOG_DEBUG(
-            "Generating new job id (JobId: %v, AllocationId: %v, PreviousJobId: %v)",
-            jobIdGuid,
+            "Allocation job count reached limit (JobCount: %v, AllocationId: %v, PreviousJobId: %v)",
+            currentJobCount,
             allocationId,
             previousJobId);
+        return std::unexpected(EScheduleFailReason::AllocationJobCountReachedLimit);
     }
+
+    YT_LOG_DEBUG(
+        "Generating new job id (JobId: %v, AllocationId: %v, PreviousJobId: %v)",
+        jobIdGuid,
+        allocationId,
+        previousJobId);
 
     return TJobId(jobIdGuid);
 }
