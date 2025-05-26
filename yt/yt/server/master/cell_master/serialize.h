@@ -147,7 +147,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropChunkMergerCompats)                                       (2910))  // cherepashka
     ((SecondaryIndexEvaluated)                                      (2911))  // sabdenovch
     ((ResetHunkMediaOnBranchedNodes)                                (2912))  // shakurov
-    ((PerChunkReplicaDataNodeRegistrationTrottling)                 (2913))  // cherepashka
+    ((PerChunkReplicaDataNodeRegistrationThrottling)                (2913))  // cherepashka
     ((MissingObjectErrorAttribute)                                  (2914))  // kvk1920
     ((FixAttributeInheritanceInCreateVerb)                          (2915))  // h0pless
     ((FixLastSeenReplicas)                                          (2916))  // kvk1920
