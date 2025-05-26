@@ -746,7 +746,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
 
 void TOperationControllerBase::ValidateCookieGroupSize()
 {
-    if (GetOffloadingPoolTrees().size() > 1) {
+    if (PoolTreeControllerSettingsMap_.size() > 1) {
         for (const auto& userJobSpec : GetUserJobSpecs()) {
             if (userJobSpec->CookieGroupSize > 1) {
                 THROW_ERROR_EXCEPTION("Cannot combine offloading pool trees and cookie_group_size")
