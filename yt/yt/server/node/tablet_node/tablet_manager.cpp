@@ -1492,6 +1492,12 @@ private:
                 StopTableReplicaEpoch(&replicaInfo);
                 StartTableReplicaEpoch(tablet, &replicaInfo);
             }
+
+            if (auto replicationCardId = tablet->GetReplicationCardId()) {
+                StopChaosReplicaEpoch(tablet);
+                RemoveChaosAgent(tablet);
+                StartChaosReplicaEpoch(tablet, replicationCardId);
+            }
         }
     }
 
@@ -4389,6 +4395,12 @@ private:
             CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
             Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletReplication),
             Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::ChaosReplicationIncoming)));
+    }
+
+    void RemoveChaosAgent(TTablet* tablet)
+    {
+        tablet->SetChaosAgent(nullptr);
+        tablet->SetTablePuller(nullptr);
     }
 
     void StartChaosReplicaEpoch(TTablet* tablet, TReplicationCardId replicationCardId)
