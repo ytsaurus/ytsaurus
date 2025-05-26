@@ -24,6 +24,7 @@
 #include <util/generic/hash_set.h>
 #include <util/generic/string.h>
 #include <util/string/escape.h>
+#include <util/string/split.h>
 
 #include <google/protobuf/message.h>
 #include <google/protobuf/descriptor.h>
@@ -92,9 +93,11 @@ static void ExtractQuery(TPosOutput& out, const google::protobuf::Message& node)
     }
 }
 
-bool TestComplete(const TString& query) {
+bool TestComplete(
+    const TString& query, 
+    THashMap<TString, TVector<TString>> tablesByCluster) {
     TString error;
-    if (!NSQLComplete::CheckComplete(query, error)) {
+    if (!NSQLComplete::CheckComplete(query, std::move(tablesByCluster), error)) {
         Cerr << error << Endl;
         return false;
     }
@@ -208,7 +211,7 @@ int BuildAST(int argc, char* argv[]) {
     clusterMapping["pg_catalog"] = NYql::PgProviderName;
     clusterMapping["information_schema"] = NYql::PgProviderName;
 
-    THashMap<TString, TString> tables;
+    THashMap<TString, TVector<TString>> tablesByCluster;
     THashSet<TString> flags;
 
     opts.AddLongOption('o', "output", "save output to file").RequiredArgument("file").StoreResult(&outFileName);
@@ -223,7 +226,29 @@ int BuildAST(int argc, char* argv[]) {
     opts.AddLongOption("pg", "use pg_query parser").NoArgument();
     opts.AddLongOption('a', "ann", "print Yql annotations").NoArgument();
     opts.AddLongOption('C', "cluster", "set cluster to service mapping").RequiredArgument("name@service").Handler(new TStoreMappingFunctor(&clusterMapping));
-    opts.AddLongOption('T', "table", "set table to filename mapping").RequiredArgument("table@path").Handler(new TStoreMappingFunctor(&tables));
+
+    opts.AddLongOption('T', "table", "set table to filename mapping")
+        .RequiredArgument("table@file")
+        .KVHandler([&](TString table, TString file) {
+            TVector<TString> words;
+            Split(table, ".", words);
+
+            if (file.empty() || words.size() != 3 ||
+                words[0].empty() || words[1].empty() || words[2].empty()) {
+                ythrow yexception()
+                    << "Incorrect table mapping '" << table
+                    << "', expected form provider.cluster.table_name@file, "
+                    << "e.g. yt.plato.Input@input.txt";
+            }
+
+            const TString& provider = words[0];
+            const TString& cluster = words[1];
+            const TString& tableName = words[2];
+
+            Y_UNUSED(provider);
+            tablesByCluster[cluster].emplace_back(tableName);
+        }, '@');
+
     opts.AddLongOption('R', "replace", "replace Output table with each statement result").NoArgument();
     opts.AddLongOption("sqllogictest", "input files are in sqllogictest format").NoArgument();
     opts.AddLongOption("syntax-version", "SQL syntax version").StoreResult(&syntaxVersion).DefaultValue(1);
@@ -406,7 +431,7 @@ int BuildAST(int argc, char* argv[]) {
             }
 
             if (res.Has("test-complete") && syntaxVersion == 1 && !hasError && parseRes.Root) {
-                hasError = !TestComplete(query);
+                hasError = !TestComplete(query, std::move(tablesByCluster));
             }
 
             if (hasError) {
