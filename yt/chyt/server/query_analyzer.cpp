@@ -1155,7 +1155,8 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
     DB::Scalars scalars;
 
     for (int index = 0; index < YtTableCount_; ++index) {
-        auto tableExpressionNode = TableExpressions_[index];
+        YT_VERIFY(TableExpressionPtrs_[index]);
+        auto& tableExpressionNode = *TableExpressionPtrs_[index];
 
         std::vector<TChunkStripePtr> stripes;
         for (const auto& subquery : threadSubqueries) {

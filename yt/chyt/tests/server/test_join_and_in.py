@@ -832,6 +832,32 @@ class TestJoinAndIn(ClickHouseTestBase):
                 {"a": 2, "b": 3},
                 {"a": 2, "b": 4}]
 
+    # CHYT-1300
+    @authors("buyval01")
+    @pytest.mark.timeout(0)
+    def test_global_join_missing_aliases(self):
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t1", [{"a": 1}, {"a": 2}])
+        write_table("<append=%true>//tmp/t1", [{"a": 3}, {"a": 4}])
+
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "b", "type": "int64"}]})
+        write_table("//tmp/t2", [{"b": -1}, {"b": -2}])
+        write_table("<append=%true>//tmp/t2", [{"b": 1}, {"b": 4}])
+
+        with Clique(1) as clique:
+            query = '''
+                        SELECT a, b
+                        FROM(
+                            select t1.a, t2.b
+                            from "//tmp/t1" t1
+                            GLOBAL INNER JOIN "//tmp/t2" t2 ON t1.a = t2.b
+                        )
+                    '''
+            assert clique.make_query(query) == [
+                {"a": 1, "b": 1},
+                {"a": 4, "b": 4},
+            ]
+
 
 class TestJoinAndInStress(ClickHouseTestBase):
     @authors("max42")
