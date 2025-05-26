@@ -2252,7 +2252,7 @@ public:
                 if (cookie.IsActive()) {
                     cookie.EndInsert(layer);
                 } else {
-                    YT_LOG_DEBUG("Failed to insert cached porto layer (LayerId: %v, ArtifactPath: %v)",
+                    YT_LOG_DEBUG("Failed to insert cached Porto layer (LayerId: %v, ArtifactPath: %v)",
                         layerMeta.Id,
                         layerMeta.artifact_key().data_source().path());
                 }
