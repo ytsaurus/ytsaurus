@@ -1,6 +1,6 @@
 // Package yson implements encoding and decoding of YSON.
 //
-// See https://wiki.yandex-team.ru/yt/userdoc/yson/ for introduction to YSON.
+// See https://ytsaurus.tech/docs/en/user-guide/storage/yson for introduction to YSON.
 //
 // Package provides interface similar to encoding/json package.
 //
