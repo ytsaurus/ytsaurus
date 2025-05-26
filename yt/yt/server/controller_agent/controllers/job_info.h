@@ -125,7 +125,7 @@ struct TJoblet
         TJobId MainJobId;
         int OutputIndex = 0;
 
-        void Persist(const TPersistenceContext& context);
+        PHOENIX_DECLARE_TYPE(TCookieGroupInfo, 0x2301c8d7);
     };
     TCookieGroupInfo CookieGroupInfo;
 
