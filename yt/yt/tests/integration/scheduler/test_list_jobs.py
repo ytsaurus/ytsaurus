@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, CONTROLLER_AGENTS
 
 from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint,
-    release_breakpoint, with_breakpoint, create, get, create_tmpdir,
+    release_breakpoint, with_breakpoint, create, get, set, create_tmpdir,
     create_pool, insert_rows, select_rows, lookup_rows, write_table,
     map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
@@ -11,7 +11,8 @@ from yt_commands import (
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
 
-from yt_operations_archive_helpers import get_allocation_id_from_archive, get_job_from_archive
+from yt_operations_archive_helpers import (
+    get_allocation_id_from_archive, get_job_from_archive, update_job_in_archive)
 
 import yt_error_codes
 
@@ -140,6 +141,10 @@ class TestListJobsBase(YTEnvSetup):
                 "max_repeat_delay": 10,
             },
         },
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
 
     NUM_MASTERS = 1
@@ -1065,7 +1070,7 @@ class TestListJobs(TestListJobsCommon):
 
         new_job_ids = wait_breakpoint(job_count=2)
 
-        assert len(set(job_ids) & set(new_job_ids)) == 0
+        assert len(builtins.set(job_ids) & builtins.set(new_job_ids)) == 0
 
         new_incarnation = get_operation_incarnation(op)
 
@@ -1299,6 +1304,41 @@ class TestListJobs(TestListJobsCommon):
         wait(lambda: len(list_jobs(op.id)["state_counts"]) == 2)
         state_counts = list_jobs(op.id)["state_counts"]
         assert frozenset(state_counts.keys()) == frozenset(["aborted", "completed"])
+
+    @authors("bystrovserg")
+    def test_brief_statistics_without_full_statistics(self):
+        if not self.ENABLE_RPC_PROXY:
+            set("//sys/clusters/primary/request_full_statistics_for_brief_statistics_in_list_jobs", False)
+        else:
+            rpc_config = {
+                "cluster_connection" : {
+                    "request_full_statistics_for_brief_statistics_in_list_jobs": False
+                }
+            }
+            set("//sys/rpc_proxies/@config", rpc_config)
+
+        input_table, output_table = self._create_tables()
+        op = map(
+            track=False,
+            in_=input_table,
+            out=output_table,
+            command="cat",
+            spec={"job_count": 1},
+        )
+        op.track()
+
+        wait(lambda: len(list_jobs(op.id)["jobs"]) == 1)
+        job_id = list_jobs(op.id)["jobs"][0]["id"]
+
+        print_debug("Clear job's statistics in archive")
+        update_job_in_archive(op.id, job_id, {"statistics" : "", "statistics_lz4" : ""})
+
+        @wait_no_assert
+        def check_brief_statistics():
+            jobs = list_jobs(op.id, attributes=["brief_statistics"])["jobs"]
+            assert len(jobs) == 1
+            job = jobs[0]
+            assert job.get("brief_statistics") != {}
 
 
 class TestListJobsAllocation(TestListJobsBase):
