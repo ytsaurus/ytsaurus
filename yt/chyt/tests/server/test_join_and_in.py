@@ -852,6 +852,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                             from "//tmp/t1" t1
                             GLOBAL INNER JOIN "//tmp/t2" t2 ON t1.a = t2.b
                         )
+                        order by a
                     '''
             assert clique.make_query(query) == [
                 {"a": 1, "b": 1},
