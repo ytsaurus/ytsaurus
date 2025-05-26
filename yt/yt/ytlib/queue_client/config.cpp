@@ -62,4 +62,12 @@ void TQueueAgentConnectionConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueueProducerSystemMeta::Register(TRegistrar registrar)
+{
+    registrar.Parameter("mutation_id", &TThis::MutationId)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueueClient

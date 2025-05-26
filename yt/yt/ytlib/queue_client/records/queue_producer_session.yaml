@@ -43,7 +43,7 @@ types:
         required: False
 
       - cpp_name: SystemMeta
-        cpp_type: std::optional<NYson::TYsonString>
+        cpp_type: std::optional<NYT::NQueueClient::TQueueProducerSystemMeta>
         column_name: system_meta
         column_type: Any
         required: False

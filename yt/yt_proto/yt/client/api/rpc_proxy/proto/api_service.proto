@@ -808,6 +808,8 @@ message TReqCreateQueueProducerSession
     optional string queue_path = 2;
     optional string session_id = 3;
     optional bytes user_meta = 4; // YSON
+
+    optional TMutatingOptions mutating_options = 103;
 }
 
 message TRspCreateQueueProducerSession
