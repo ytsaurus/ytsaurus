@@ -35,6 +35,8 @@
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 
+#include <yt/yt/core/actions/cancelable_context.h>
+
 #include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NTabletNode {
@@ -60,8 +62,12 @@ class TChaosDataTrimProgressGuard
     : public TMoveOnly
 {
 public:
-    TChaosDataTrimProgressGuard(TChaosTabletDataPtr chaosTabletData, TLogger logger)
+    TChaosDataTrimProgressGuard(
+        TChaosTabletDataPtr chaosTabletData,
+        TCancelableContextPtr tabletCancelableContext,
+        TLogger logger)
         : Logger(std::move(logger))
+        , TabletCancelableContext_(std::move(tabletCancelableContext))
         , ChaosTabletData_(std::move(chaosTabletData))
     {
         if (ChaosTabletData_) {
@@ -71,12 +77,18 @@ public:
 
     TChaosDataTrimProgressGuard(TChaosDataTrimProgressGuard&& guard)
         : Logger(std::move(guard.Logger))
+        , TabletCancelableContext_(std::move(guard.TabletCancelableContext_))
         , ChaosTabletData_(std::move(guard.ChaosTabletData_))
     { }
 
     ~TChaosDataTrimProgressGuard()
     {
         if (!ChaosTabletData_) {
+            return;
+        }
+
+        if (TabletCancelableContext_ && TabletCancelableContext_->IsCanceled()) {
+            YT_LOG_DEBUG("Tablet epoch changed, do nothing");
             return;
         }
 
@@ -97,6 +109,7 @@ public:
 
 private:
     const TLogger Logger;
+    const TCancelableContextPtr TabletCancelableContext_;
 
     TChaosTabletDataPtr ChaosTabletData_;
 };
@@ -229,7 +242,10 @@ private:
 
         auto logger = TabletNodeLogger()
             .WithTag("%v", tablet->GetLoggingTag());
-        auto finallyGuard = TChaosDataTrimProgressGuard(nullptr, logger);
+        auto finallyGuard = TChaosDataTrimProgressGuard(
+            nullptr,
+            tablet->GetCancelableContext(),
+            logger);
         CommitTrimRowsMutation(
             std::move(slot),
             tablet->GetId(),
@@ -278,7 +294,10 @@ private:
             minTimestamp = std::min(minTimestamp, replicaMinTimestamp);
         }
 
-        auto finallyGuard = TChaosDataTrimProgressGuard(std::move(tabletChaosData), Logger);
+        auto finallyGuard = TChaosDataTrimProgressGuard(
+            std::move(tabletChaosData),
+            tablet->GetCancelableContext(),
+            Logger);
 
         TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosReplicationLogStoreTrim"));
 
