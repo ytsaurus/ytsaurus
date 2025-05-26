@@ -812,6 +812,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_snapshot_loading", &TThis::EnableSnapshotLoading)
         .Default(true);
+    registrar.Parameter("enable_snapshot_phoenix_schema_during_snapshot_loading", &TThis::EnableSnapshotPhoenixSchemaDuringSnapshotLoading)
+        .Default(true);
     registrar.Parameter("enable_snapshot_loading_disabled_alert", &TThis::EnableSnapshotLoadingDisabledAlert)
         .Default(true);
     registrar.Parameter("snapshot_reader", &TThis::SnapshotReader)

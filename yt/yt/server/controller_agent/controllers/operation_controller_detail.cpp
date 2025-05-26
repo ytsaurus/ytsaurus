@@ -156,6 +156,8 @@
 #include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/phoenix/type_registry.h>
+#include <yt/yt/core/phoenix/schemas.h>
+#include <yt/yt/core/phoenix/load.h>
 
 #include <library/cpp/yt/memory/chunked_input_stream.h>
 
@@ -2143,9 +2145,13 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
         RowBuffer_,
         static_cast<ESnapshotVersion>(snapshot.Version));
 
+    std::optional<NPhoenix::TLoadSessionGuard> phoenixLoadSessionGuard;
     if (context.GetVersion() >= ESnapshotVersion::PhoenixSchema) {
-        // TODO(babenko): make actual use of this schema
-        Load<TYsonString>(context);
+        auto schemaYson = Load<TYsonString>(context);
+        auto schema = ConvertTo<NPhoenix::TUniverseSchemaPtr>(schemaYson);
+        if (GetConfig()->EnableSnapshotPhoenixSchemaDuringSnapshotLoading) {
+            phoenixLoadSessionGuard.emplace(std::move(schema));
+        }
     }
 
     NPhoenix::NDetail::TSerializer::InplaceLoad(context, this);
