@@ -856,7 +856,11 @@ struct TControllerAgentConfig
     NApi::TFileWriterConfigPtr SnapshotWriter;
 
     //! If |true|, snapshots are loaded during revival.
+    //! If |false|, then all operations are always restarted cleanly.
     bool EnableSnapshotLoading;
+
+    // COMPAT(babenko): make this always true when the feature is stable.
+    bool EnableSnapshotPhoenixSchemaDuringSnapshotLoading;
 
     bool EnableSnapshotLoadingDisabledAlert;
 

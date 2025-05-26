@@ -337,6 +337,7 @@ def get_controller_agent_config():
             },
 
             "enable_snapshot_loading": True,
+            "enable_snapshot_phoenix_schema_during_snapshot_loading": True,
             "snapshot_period": 100000000,
             "snapshot_timeout": 5000,
 
