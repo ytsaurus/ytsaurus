@@ -47,8 +47,11 @@ namespace NSQLComplete {
                 clusters.emplace_back(cluster);
             }
 
-            Y_ENSURE(!tree.empty());
-            tree[""]["/"] = std::begin(tree)->second["/"];
+            if (tree.empty()) {
+                tree[""]["/"] = {};
+            } else {
+                tree[""]["/"] = std::begin(tree)->second["/"];
+            }
 
             THashMap<TString, ISchema::TPtr> schemasByCluster;
             for (auto& [cluster, fs] : tree) {
