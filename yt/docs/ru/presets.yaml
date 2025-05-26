@@ -13,6 +13,7 @@ public:
     pool-tree: default
     ipa: _вай-ти-за́у-рус_
     yt-docs-root: https://ytsaurus.tech/docs/ru
+    community-tg: https://t.me/ytsaurus_ru
 
     yql:
         udf-cpp-dir: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs
