@@ -46,7 +46,7 @@ void TStaticClickHouseConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("read_operation_ids_from", &TThis::ReadOperationIdsFrom)
-        .Default(NApi::EMasterChannelKind::MasterSideCache);
+        .Default(NApi::EMasterChannelKind::Cache);
 
     registrar.Parameter("chyt_strawberry_path", &TThis::ChytStrawberryPath)
         .Default("//sys/strawberry/chyt");
