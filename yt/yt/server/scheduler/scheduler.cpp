@@ -125,22 +125,21 @@ static const TString UnknownTreeId = "<unknown>";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPoolTreeKeysHolder
+const std::vector<std::string>& GetPoolTreeKeys()
 {
-    TPoolTreeKeysHolder()
-    {
+    static const std::vector<std::string> result = [] {
         auto poolConfigTemplate = New<TPoolConfig>();
         auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
-
-        Keys.reserve(poolConfigKeys.size() + 3);
-        Keys.insert(Keys.end(), poolConfigKeys.begin(), poolConfigKeys.end());
-        Keys.insert(Keys.end(), DefaultTreeAttributeName);
-        Keys.insert(Keys.end(), TreeConfigAttributeName);
-        Keys.insert(Keys.end(), IdAttributeName);
-    }
-
-    std::vector<TString> Keys;
-};
+        std::vector<std::string> keys;
+        keys.reserve(poolConfigKeys.size() + 3);
+        keys.insert(keys.end(), poolConfigKeys.begin(), poolConfigKeys.end());
+        keys.insert(keys.end(), DefaultTreeAttributeName);
+        keys.insert(keys.end(), TreeConfigAttributeName);
+        keys.insert(keys.end(), IdAttributeName);
+        return keys;
+    }();
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2236,13 +2235,11 @@ private:
 
     void RequestPoolTrees(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        static const TPoolTreeKeysHolder PoolTreeKeysHolder;
-
         YT_LOG_INFO("Requesting pool trees");
 
         auto req = TYPathProxy::Get(Config_->PoolTreesRoot);
 
-        ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
+        ToProto(req->mutable_attributes()->mutable_keys(), GetPoolTreeKeys());
         batchReq->AddRequest(req, "get_pool_trees");
     }
 

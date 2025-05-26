@@ -2023,7 +2023,7 @@ static void ParseJobsFromControllerAgentResponse(
 static void ParseJobsFromControllerAgentResponse(
     TOperationId operationId,
     const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp,
-    const TString& key,
+    const std::string& key,
     const THashSet<TString>& attributes,
     const TListJobsOptions& options,
     std::vector<TJob>* jobs,

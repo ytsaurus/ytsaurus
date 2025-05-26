@@ -53,7 +53,7 @@ struct TTablet final
         TTable* table);
 
     NYson::TYsonString GetPerformanceCountersYson(
-        const std::vector<TString>& performanceCountersKeys,
+        const std::vector<std::string>& performanceCountersKeys,
         const NTableClient::TTableSchemaPtr& performanceCountersTableSchema) const;
 };
 

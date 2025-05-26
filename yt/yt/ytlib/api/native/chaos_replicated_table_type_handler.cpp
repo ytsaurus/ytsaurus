@@ -134,7 +134,7 @@ private:
     T GetAttributeOrThrow(
         const ITransactionPtr& transaction,
         const TYPath& path,
-        const TString& attributeKey,
+        const std::string& attributeKey,
         const TString& errorMessage)
     {
         TGetNodeOptions options;

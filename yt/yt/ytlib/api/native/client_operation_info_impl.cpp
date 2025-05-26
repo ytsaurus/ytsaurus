@@ -256,7 +256,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
         attributeDictionary->Set("type", type);
     }
 
-    if (auto key = attributeDictionary->FindAndRemove<TString>("key")) {
+    if (auto key = attributeDictionary->FindAndRemove<std::string>("key")) {
         attributeDictionary->Set("id", key);
     }
 
@@ -267,7 +267,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     auto modificationTime = attributeDictionary->GetAndRemove<TInstant>("modification_time");
 
     if (!options.Attributes) {
-        auto keysToKeep = attributeDictionary->Get<THashSet<TString>>("user_attribute_keys");
+        auto keysToKeep = attributeDictionary->Get<THashSet<std::string>>("user_attribute_keys");
         keysToKeep.insert("id");
         keysToKeep.insert("type");
         for (const auto& key : attributeDictionary->ListKeys()) {

@@ -303,7 +303,7 @@ void TDynamicTablesTestBase::SyncFlushTable(const NYPath::TYPath& path)
 }
 
 std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> TDynamicTablesTestBase::PrepareUnversionedRow(
-    const std::vector<TString>& names,
+    const std::vector<std::string>& names,
     const TString& rowString)
 {
     auto nameTable = New<TNameTable>();
@@ -318,7 +318,7 @@ std::tuple<TSharedRange<TUnversionedRow>, TNameTablePtr> TDynamicTablesTestBase:
 }
 
 void TDynamicTablesTestBase::WriteUnversionedRow(
-    std::vector<TString> names,
+    const std::vector<std::string>& names,
     const TString& rowString,
     const IClientPtr& client)
 {
@@ -351,7 +351,7 @@ void TDynamicTablesTestBase::WriteRows(
 }
 
 std::tuple<TSharedRange<TVersionedRow>, TNameTablePtr> TDynamicTablesTestBase::PrepareVersionedRow(
-    const std::vector<TString>& names,
+    const std::vector<std::string>& names,
     const TString& keyYson,
     const TString& valueYson)
 {
@@ -367,7 +367,7 @@ std::tuple<TSharedRange<TVersionedRow>, TNameTablePtr> TDynamicTablesTestBase::P
 }
 
 void TDynamicTablesTestBase::WriteVersionedRow(
-    std::vector<TString> names,
+    const std::vector<std::string>& names,
     const TString& keyYson,
     const TString& valueYson,
     const IClientPtr& client)

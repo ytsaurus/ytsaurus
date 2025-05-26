@@ -336,7 +336,7 @@ protected:
     {
         struct TChildInfo
         {
-            TString Key;
+            std::string Key;
             TNodeId Id;
         };
 

@@ -31,7 +31,7 @@ TTablet::TTablet(
 ////////////////////////////////////////////////////////////////////////////////
 
 NYson::TYsonString TTablet::GetPerformanceCountersYson(
-    const std::vector<TString>& performanceCountersKeys,
+    const std::vector<std::string>& performanceCountersKeys,
     const TTableSchemaPtr& performanceCountersTableSchema) const
 {
     if (auto performanceCounters = std::get_if<TYsonString>(&PerformanceCounters)) {

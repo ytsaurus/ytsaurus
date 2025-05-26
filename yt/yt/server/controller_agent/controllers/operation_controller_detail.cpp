@@ -6483,7 +6483,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
     static const auto AttributeKeys = [] {
         return ConcatVectors(
             GetTableUploadOptionsAttributeKeys(),
-            std::vector<TString>{
+            std::vector<std::string>{
                 "schema_id"
             });
     }();

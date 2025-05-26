@@ -206,7 +206,7 @@ NYTree::IAttributeDictionaryPtr ResolveExternalTable(
     const NYPath::TYPath& path,
     TTableId* tableId,
     NObjectClient::TCellTag* externalCellTag,
-    const std::vector<TString>& extraAttributeKeys = {});
+    const std::vector<std::string>& extraAttributeKeys = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

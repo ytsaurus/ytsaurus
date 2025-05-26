@@ -85,10 +85,10 @@ struct TOperationAliasesTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
+const std::vector<std::string>& TArchiveOperationRequest::GetAttributeKeys()
 {
     // Keep the stuff below synchronized with InitializeRequestFromAttributes method.
-    static const std::vector<TString> attributeKeys = {
+    static const std::vector<std::string> attributeKeys = {
         "key",
         "start_time",
         "finish_time",
@@ -119,9 +119,9 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
     return attributeKeys;
 }
 
-const std::vector<TString>& TArchiveOperationRequest::GetProgressAttributeKeys()
+const std::vector<std::string>& TArchiveOperationRequest::GetProgressAttributeKeys()
 {
-    static const std::vector<TString> attributeKeys = {
+    static const std::vector<std::string> attributeKeys = {
         "progress",
         "brief_progress",
     };
@@ -789,7 +789,7 @@ public:
     {
         TArchiveOperationRequest result;
 
-        result.Id = TOperationId(TGuid::FromString(attributes.Get<TString>("key")));
+        result.Id = TOperationId(TGuid::FromString(attributes.Get<std::string>("key")));
         result.StartTime = attributes.Get<TInstant>("start_time");
         result.FinishTime = attributes.Get<TInstant>("finish_time");
         result.State = attributes.Get<EOperationState>("state");
@@ -1842,7 +1842,7 @@ private:
                     TOperationId operationId;
                     try {
                         attributes = ConvertToAttributes(operationDataToParse.AttributesYson);
-                        operationId = TOperationId(TGuid::FromString(attributes->Get<TString>("key")));
+                        operationId = TOperationId(TGuid::FromString(attributes->Get<std::string>("key")));
                         YT_VERIFY(operationId == operationDataToParse.OperationId);
                     } catch (const std::exception& ex) {
                         THROW_ERROR_EXCEPTION("Error parsing operation attributes")

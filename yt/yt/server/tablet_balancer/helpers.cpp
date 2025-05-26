@@ -40,7 +40,7 @@ namespace {
 THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(
     const NApi::NNative::IClientPtr& client,
     const std::vector<std::pair<TObjectId, TCellTag>>& objectIdsWithCellTags,
-    const std::vector<TString>& attributeKeys)
+    const std::vector<std::string>& attributeKeys)
 {
     // TODO(alexelex): Receive list of error codes to skip them.
 
@@ -89,7 +89,7 @@ TInstant TruncateToMinutes(TInstant t)
 THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributes(
     const NNative::IClientPtr& client,
     const THashSet<TObjectId>& objectIds,
-    const std::vector<TString>& attributeKeys)
+    const std::vector<std::string>& attributeKeys)
 {
     std::vector<std::pair<TObjectId, TCellTag>> objectIdsWithCellTags;
     objectIdsWithCellTags.reserve(std::ssize(objectIds));

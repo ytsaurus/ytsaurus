@@ -51,8 +51,8 @@ struct TArchiveOperationRequest
     // Archive version >= 46
     NYson::TYsonString ProvidedSpec;
 
-    static const std::vector<TString>& GetAttributeKeys();
-    static const std::vector<TString>& GetProgressAttributeKeys();
+    static const std::vector<std::string>& GetAttributeKeys();
+    static const std::vector<std::string>& GetProgressAttributeKeys();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
