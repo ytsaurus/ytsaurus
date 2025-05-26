@@ -79,6 +79,7 @@ void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunCommi
     TTransactionActionGuard transactionActionGuard;
     for (int index = 0; index < std::ssize(transaction->Actions()); ++index) {
         auto& action = transaction->Actions()[index];
+        bool needDestroyState = false;
         try {
             auto it = ActionDescriptorMap_.find(action.Type);
             if (it == ActionDescriptorMap_.end()) {
@@ -86,12 +87,18 @@ void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunCommi
                     action.Type);
             }
             const auto& descriptor = it->second;
+            needDestroyState = !descriptor.HasSerializeHandler();
             auto* state = GetOrCreateTransactionActionState(&action, descriptor);
             descriptor.Commit(transaction, action.Value, state, options);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Commit action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
                 action.Type);
+        }
+        if (needDestroyState) {
+            // After transaction is finished its side effects should become
+            // observable immediately.
+            action.State.reset();
         }
     }
 }
@@ -125,6 +132,9 @@ void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunAbort
                 transaction->GetId(),
                 action.Type);
         }
+        // After transaction is finished its side effects should become
+        // observable immediately.
+        action.State.reset();
     };
 
     // COMPAT(kvk1920)
@@ -161,6 +171,9 @@ void TTransactionManagerBase<TTransaction, TSaveContext, TLoadContext>::RunSeria
                 transaction->GetId(),
                 action.Type);
         }
+        // After transaction is finished its side effects should become
+        // observable immediately.
+        action.State.reset();
     }
 }
 

@@ -177,6 +177,12 @@ void TTypeErasedTransactionActionDescriptor<TTransaction, TSaveContext, TLoadCon
     }
 }
 
+template <class TTransaction, class TSaveContext, class TLoadContext>
+bool TTypeErasedTransactionActionDescriptor<TTransaction, TSaveContext, TLoadContext>::HasSerializeHandler() const
+{
+    return static_cast<bool>(Serialize_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionSupervisor
