@@ -769,15 +769,6 @@ public:
         return NNative::CreateClient(this, options, MemoryTracker_);
     }
 
-    NSequoiaClient::ISequoiaClientPtr CreateSequoiaClient() override
-    {
-        auto nativeClient = CreateNativeClient(
-            TClientOptions::FromUser(NSecurityClient::RootUserName));
-        return NSequoiaClient::CreateSequoiaClient(
-            Config_.Acquire()->SequoiaConnection,
-            nativeClient);
-    }
-
     NHiveClient::ITransactionParticipantPtr CreateTransactionParticipant(
         TCellId cellId,
         const TTransactionParticipantOptions& options) override
@@ -932,6 +923,58 @@ public:
         return ConvertToYsonString(GetCompoundConfig());
     }
 
+    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override
+    {
+        // Fast path: return the cached client.
+        if (auto existingSequoiaClient = CachedSequoiaClient_.Acquire()) {
+            return existingSequoiaClient;
+        }
+
+        // Slow path: create a new client.
+        auto config = Config_.Acquire()->SequoiaConnection;
+        auto localClient = CreateNativeClient(TClientOptions::Root());
+        auto groundClientFuture = [&] () -> TFuture<IClientPtr> {
+            if (config->GroundClusterName) {
+                return InsistentGetRemoteConnection(this, *config->GroundClusterName)
+                    .Apply(BIND([] (const IConnectionPtr& groundConnection) {
+                        return groundConnection->CreateNativeClient(TClientOptions::Root());
+                    }));
+            } else {
+                return MakeFuture(localClient);
+            }
+        }();
+
+        auto sequoiaClient = NSequoiaClient::CreateSequoiaClient(
+            config,
+            std::move(localClient),
+            std::move(groundClientFuture));
+
+        if (auto existingSequoiaClient = CachedSequoiaClient_.Exchange(sequoiaClient)) {
+            return existingSequoiaClient;
+        }
+
+        YT_LOG_DEBUG("Sequoia client recreated");
+
+        // We've got a cycle:
+        // *-> local client -> local connection -> sequoia client --*
+        // |                                                        |
+        // *--------------------------------------------------------*
+        //
+        // This callback is scheduled to break it after a short period of time
+        // and force the cached sequoia client to be recreated on demand.
+        //
+        // This also deals with ground cluster reconfiguration.
+        TDelayedExecutor::Submit(
+            BIND([weakThis = MakeWeak(this)] {
+                if (auto this_ = weakThis.Lock()) {
+                    this_->CachedSequoiaClient_.Reset();
+                }
+            }),
+            config->GroundClusterConnectionUpdatePeriod);
+
+        return sequoiaClient;
+    }
+
 private:
     const TConnectionStaticConfigPtr StaticConfig_;
     // TODO(max42): switch to atomic intrusive ptr.
@@ -1006,9 +1049,11 @@ private:
 
     TServerAddressPoolPtr DiscoveryServerAddressPool_;
 
-    std::atomic<bool> Terminated_ = false;
-
     std::string ShuffleServiceAddress_;
+
+    TAtomicIntrusivePtr<NSequoiaClient::ISequoiaClient> CachedSequoiaClient_;
+
+    std::atomic<bool> Terminated_ = false;
 
     void ConfigureMasterCells()
     {
@@ -1404,26 +1449,20 @@ IConnectionPtr FindRemoteConnection(
     return connection;
 }
 
-IConnectionPtr GetRemoteConnectionOrThrow(
-    const IConnectionPtr& connection,
-    const std::string& clusterName,
-    bool syncOnFailure)
+TFuture<IConnectionPtr> InsistentGetRemoteConnection(
+    const NApi::NNative::IConnectionPtr& connection,
+    const std::string& clusterName)
 {
-    for (int retry = 0; retry < 2; ++retry) {
-        auto remoteConnection = FindRemoteConnection(connection, clusterName);
-        if (remoteConnection) {
-            return remoteConnection;
-        }
-
-        if (!syncOnFailure || retry == 1) {
-            THROW_ERROR_EXCEPTION("Cannot find cluster with name %Qv", clusterName);
-        }
-
-        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true))
-            .ThrowOnError();
+    // Fast path.
+    if (auto remoteConnection = connection->GetClusterDirectory()->FindConnection(clusterName)) {
+        return MakeFuture(remoteConnection);
     }
 
-    YT_ABORT();
+    // Slow path.
+    return connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true)
+        .Apply(BIND([=] {
+            return connection->GetClusterDirectory()->GetConnectionOrThrow(clusterName);
+        }));
 }
 
 IConnectionPtr FindRemoteConnection(

@@ -151,9 +151,9 @@ public:
         return NativeRootClient_;
     }
 
-    const ISequoiaClientPtr& GetSequoiaClient() const override
+    ISequoiaClientPtr GetSequoiaClient() const override
     {
-        return SequoiaClient_;
+        return NativeConnection_->GetSequoiaClient();
     }
 
     NApi::IClientPtr GetRootClient() const override
@@ -210,8 +210,6 @@ private:
     NApi::NNative::IClientPtr NativeRootClient_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
-    ISequoiaClientPtr SequoiaClient_;
-
     ISequoiaServicePtr SequoiaService_;
 
     ISequoiaResponseKeeperPtr ResponseKeeper_;
@@ -249,8 +247,6 @@ private:
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
-
-        SequoiaClient_ = NativeConnection_->CreateSequoiaClient();
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
         DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));

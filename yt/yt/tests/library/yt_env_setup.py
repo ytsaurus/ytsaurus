@@ -1235,8 +1235,12 @@ class YTEnvSetup(object):
             return config
 
         ground_cluster_name = cls.get_cluster_name(cluster_index + cls.get_ground_index_offset())
-        config["cluster_connection"].setdefault("sequoia_connection", {})
-        config["cluster_connection"]["sequoia_connection"]["ground_cluster_name"] = ground_cluster_name
+        update_inplace(config["cluster_connection"], {
+            "sequoia_connection": {
+                "ground_cluster_name": ground_cluster_name,
+                "ground_cluster_connection_update_period": 500,
+            }
+        })
         return config
 
     @classmethod

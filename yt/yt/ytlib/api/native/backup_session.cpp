@@ -960,10 +960,8 @@ TClusterBackupSession* TBackupSession::CreateClusterSession(
     EBackupDirection direction)
 {
     const auto& nativeConnection = Client_->GetNativeConnection();
-    auto remoteConnection = GetRemoteConnectionOrThrow(
-        nativeConnection,
-        clusterName,
-        /*syncOnFailure*/ true);
+    auto remoteConnection = WaitFor(InsistentGetRemoteConnection(nativeConnection, clusterName))
+        .ValueOrThrow();
     auto remoteClient = New<TClient>(
         std::move(remoteConnection),
         Client_->GetOptions(),

@@ -64,7 +64,7 @@ IClientPtr TTestConnection::CreateNativeClient(const TClientOptions& options)
     return New<TClient>(this, options, NodeMemoryTracker_);
 }
 
-NSequoiaClient::ISequoiaClientPtr TTestConnection::CreateSequoiaClient()
+NSequoiaClient::ISequoiaClientPtr TTestConnection::GetSequoiaClient()
 {
     YT_UNIMPLEMENTED();
 }

@@ -283,7 +283,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    NSequoiaClient::ISequoiaClientPtr CreateSequoiaClient() override
+    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override
     {
         YT_UNIMPLEMENTED();
     }

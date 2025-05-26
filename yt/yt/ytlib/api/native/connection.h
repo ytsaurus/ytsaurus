@@ -147,7 +147,6 @@ struct IConnection
     virtual const ITableReplicaSynchronicityCachePtr& GetTableReplicaSynchronicityCache() = 0;
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
-    virtual NSequoiaClient::ISequoiaClientPtr CreateSequoiaClient() = 0;
 
     virtual std::vector<std::string> GetDiscoveryServerAddresses() const = 0;
     virtual NDiscoveryClient::IDiscoveryClientPtr CreateDiscoveryClient(
@@ -177,6 +176,8 @@ struct IConnection
     virtual NRpc::IChannelPtr GetShuffleServiceChannelOrThrow() = 0;
 
     virtual NRpc::IChannelPtr CreateChannelByAddress(const std::string& address) = 0;
+
+    virtual NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() = 0;
 
     using TReconfiguredSignature = void(const TConnectionDynamicConfigPtr& newConfig);
     DECLARE_INTERFACE_SIGNAL(TReconfiguredSignature, Reconfigured);
@@ -259,15 +260,17 @@ IConnectionPtr FindRemoteConnection(
     const std::string& clusterName);
 
 //! Returns native connection to cluster `clusterName`.
-//! Falls back to the provided connection if `clusterName` is null or the cluster is not present in the connection's cluster directory.
+//! Falls back to the provided connection if `clusterName` is null or
+//! the cluster is not present in the connection's cluster directory.
 IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
     const std::optional<std::string>& clusterName);
 
-IConnectionPtr GetRemoteConnectionOrThrow(
+//! Synchornizes the directory (once) and retries the lookup if
+//! the cluster is missing in the directory at the moment.
+TFuture<IConnectionPtr> InsistentGetRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,
-    const std::string& clusterName,
-    bool syncOnFailure = false);
+    const std::string& clusterName);
 
 IConnectionPtr FindRemoteConnection(
     const NApi::NNative::IConnectionPtr& connection,

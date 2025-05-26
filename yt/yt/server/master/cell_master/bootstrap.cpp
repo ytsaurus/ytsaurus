@@ -378,9 +378,9 @@ const NNative::IClientPtr& TBootstrap::GetRootClient() const
     return RootClient_;
 }
 
-const ISequoiaClientPtr& TBootstrap::GetSequoiaClient() const
+ISequoiaClientPtr TBootstrap::GetSequoiaClient() const
 {
-    return SequoiaClient_;
+    return ClusterConnection_->GetSequoiaClient();
 }
 
 const TCellManagerPtr& TBootstrap::GetCellManager() const
@@ -785,8 +785,6 @@ void TBootstrap::DoInitialize()
     RootClient_ = ClusterConnection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
-
-    SequoiaClient_ = ClusterConnection_->CreateSequoiaClient();
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(ClusterConnection_);
 

@@ -125,6 +125,8 @@ struct TSequoiaConnectionConfig
     //! If |nullopt|, Sequoia tables are handled on the local cluster.
     std::optional<std::string> GroundClusterName;
 
+    TDuration GroundClusterConnectionUpdatePeriod;
+
     NYTree::TYPath SequoiaRootPath;
 
     TDuration SequoiaTransactionTimeout;
