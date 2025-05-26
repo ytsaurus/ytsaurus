@@ -38,7 +38,7 @@ type compressedFile struct {
 }
 
 func newCompressedFile(logger *slog.Logger, filepath string, filePosition FilePosition) (*compressedFile, error) {
-	decompressor, err := newDecompressor(logger, filepath, filePosition)
+	decompressor, err := newDecompressor(logger, filepath, filePosition.BlockPhysicalOffset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create decompressor: %w", err)
 	}
@@ -47,27 +47,33 @@ func newCompressedFile(logger *slog.Logger, filepath string, filePosition FilePo
 		decompressedFrameReader: bytes.NewReader(nil),
 		filePosition:            filePosition,
 	}
-	if filePosition.InsideBlockOffset == 0 {
+	if filePosition.BlockPhysicalOffset == 0 && filePosition.InsideBlockOffset == 0 {
 		return f, nil
 	}
-	f.decompressedFrameReader, err = f.decompressor.nextDecompressedFrame(context.Background())
+	decompressedFrameReader, err := f.decompressor.nextDecompressedFrame(context.Background(), false)
 	if err != nil {
+		var decodingError *frameDecodingError
+		if errors.As(err, &decodingError) {
+			logger.Warn("Detected log corruption; all data will be skipped until the next zstd sync tag", "error", err)
+			return f, nil
+		}
 		if errors.Is(err, io.EOF) {
 			return f, nil
 		}
 		return nil, fmt.Errorf("failed to read frame at offset %d: %w", filePosition.InsideBlockOffset, err)
 	}
+	f.decompressedFrameReader = decompressedFrameReader
 	n, err := io.CopyN(io.Discard, f.decompressedFrameReader, filePosition.InsideBlockOffset)
 	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf(
-			"failed to skip %d bytes of uncompressed data (block physical offset: %d): %w",
+			"failed to skip %d bytes of decompressed data (block physical offset: %d): %w",
 			filePosition.InsideBlockOffset, filePosition.BlockPhysicalOffset, err,
 		)
 	}
 	if n != filePosition.InsideBlockOffset {
-		return nil, fmt.Errorf(
-			"unexpected end of uncompressed log: expected to skip %d bytes, actually skipped %d",
-			filePosition.InsideBlockOffset, n,
+		logger.Warn(
+			"Detected log corruption: frame size mismatch",
+			"file_position", filePosition, "expected_skip_bytes", filePosition.InsideBlockOffset, "actually_skipped_bytes", n,
 		)
 	}
 	return f, nil
@@ -76,7 +82,7 @@ func newCompressedFile(logger *slog.Logger, filepath string, filePosition FilePo
 
 func (d *compressedFile) ReadContext(ctx context.Context, buf []byte) (read int, err error) {
 	if d.decompressedFrameReader.Len() == 0 {
-		r, err := d.decompressor.nextDecompressedFrame(ctx)
+		r, err := d.decompressor.nextDecompressedFrame(ctx, true)
 		if err != nil {
 			return 0, fmt.Errorf("failed to get next decompressed frame: %w", err)
 		}
@@ -116,8 +122,19 @@ type decompressor struct {
 	decompressedDataBuf []byte
 }
 
-func newDecompressor(logger *slog.Logger, filepath string, filePosition FilePosition) (*decompressor, error) {
-	frameIterator, err := newZstdFrameIterator(logger, filepath, filePosition.BlockPhysicalOffset)
+type frameDecodingError struct {
+	err           error
+	frameStartPos int64
+	frameSize     int
+}
+
+func (e *frameDecodingError) Error() string {
+	return fmt.Sprintf(
+		"failed to decode frame (frame_start_pos: %d, frame_size: %d): %s", e.frameStartPos, e.frameSize, e.err.Error())
+}
+
+func newDecompressor(logger *slog.Logger, filepath string, filePosition int64) (*decompressor, error) {
+	frameIterator, err := newZstdFrameIterator(logger, filepath, filePosition)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zstd frame iterator: %w", err)
 	}
@@ -136,19 +153,29 @@ func newDecompressor(logger *slog.Logger, filepath string, filePosition FilePosi
 	}, nil
 }
 
-func (d *decompressor) nextDecompressedFrame(ctx context.Context) (*bytes.Reader, error) {
+func (d *decompressor) nextDecompressedFrame(ctx context.Context, skipBrokenFrames bool) (*bytes.Reader, error) {
 	brokenFramesCount := 0
 	for {
 		rawFrame, err := d.frameIterator.next(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get next raw frame: %w", err)
 		}
+		if len(rawFrame) == 0 {
+			if !skipBrokenFrames {
+				return nil, &frameDecodingError{err: errors.New("empty frame"), frameStartPos: d.frameIterator.filePosition()}
+			}
+			d.logger.Warn("Detected empty frame", "frame_start_position", d.frameIterator.filePosition())
+			continue
+		}
 		d.decompressedDataBuf = d.decompressedDataBuf[:0]
 		decompressedData, err := d.decoder.DecodeAll(rawFrame, d.decompressedDataBuf)
 		if err != nil {
+			if !skipBrokenFrames {
+				return nil, &frameDecodingError{err: err, frameStartPos: d.frameIterator.filePosition(), frameSize: len(rawFrame)}
+			}
 			brokenFramesCount++
 			if err := d.handleBrokenFrame(err, brokenFramesCount, len(rawFrame)); err != nil {
-				return nil, err
+				return nil, &frameDecodingError{err: err, frameStartPos: d.frameIterator.filePosition(), frameSize: len(rawFrame)}
 			}
 			continue
 		}
@@ -163,7 +190,7 @@ func (d *decompressor) handleBrokenFrame(err error, brokenFramesCount int, frame
 			"frame_start_position", d.frameIterator.filePosition(), "frame_size", frameSize,
 			"broken_frames_count", brokenFramesCount)
 		if brokenFramesCount > 3 {
-			return fmt.Errorf("failed to decode 3 frames in a row: %w", err)
+			return fmt.Errorf("failed to decode %d frames in a row: %w", brokenFramesCount, err)
 		}
 		return nil
 	}
@@ -220,12 +247,6 @@ func (d *zstdFrameIterator) next(ctx context.Context) ([]byte, error) {
 	for {
 		tagPos := d.findFirstSynсTagPos()
 		if tagPos >= 0 {
-			if d.frameStart == tagPos {
-				d.logger.Warn("Detected empty frame", "offset", d.filePos)
-				d.frameSize = zstdSyncTagLength
-				d.advanceToNextFrame()
-				continue
-			}
 			d.frameSize = tagPos + zstdSyncTagLength - d.frameStart
 			return d.buffer[d.frameStart:tagPos], nil
 		}
