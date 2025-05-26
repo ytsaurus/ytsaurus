@@ -207,6 +207,7 @@ protected:
     IConfigManagerPtr ConfigManager_;
     IMulticellManagerPtr MulticellManager_;
     IMulticellStatisticsCollectorPtr MulticellStatisticsCollector_;
+    IHiveProfilingManagerPtr HiveProfilingManager_;
     NIncumbentServer::IIncumbentManagerPtr IncumbentManager_;
     NRpc::IServerPtr RpcServer_;
     NRpc::IChannelPtr LocalRpcChannel_;
