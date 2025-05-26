@@ -692,9 +692,10 @@ func (e *Encoder) CreateQueueProducerSession(
 	opts *yt.CreateQueueProducerSessionOptions,
 ) (result *yt.CreateQueueProducerSessionResult, err error) {
 	req := &rpc_proxy.TReqCreateQueueProducerSession{
-		ProducerPath: []byte(producerPath.String()),
-		QueuePath:    []byte(queuePath.String()),
-		SessionId:    ptr.String(sessionID),
+		ProducerPath:    []byte(producerPath.String()),
+		QueuePath:       []byte(queuePath.String()),
+		SessionId:       ptr.String(sessionID),
+		MutatingOptions: convertMutatingOptions(opts.MutatingOptions),
 	}
 	if opts.UserMeta != nil {
 		req.UserMeta, err = yson.Marshal(opts.UserMeta)
