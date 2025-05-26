@@ -1,16 +1,18 @@
 # Re2
 
-#### Список функций
+## Список функций
 
-* ```Re2::Grep(pattern:String, options:Struct<...>?) -> (string:String?) -> Bool```
-* ```Re2::Match(pattern:String, options:Struct<...>?) -> (string:String?) -> Bool```
-* ```Re2::Capture(pattern:String, options:Struct<...>?) -> (string:String?) -> Struct<_1:String?,foo:String?,...>```
-* ```Re2::FindAndConsume(pattern:String, options:Struct<...>?) -> (string:String?) -> List<String>```
-* ```Re2::Replace(pattern:String, options:Struct<...>?) -> (string:String?, replacement:String) -> String?```
-* ```Re2::Count(pattern:String, options:Struct<...>?) -> (string:String?) -> Uint32```
-* ```Re2::Options([CaseSensitive:Bool?,DotNl:Bool?,Literal:Bool?,LogErrors:Bool?,LongestMatch:Bool?,MaxMem:Uint64?,NeverCapture:Bool?,NeverNl:Bool?,OneLine:Bool?,PerlClasses:Bool?,PosixSyntax:Bool?,Utf8:Bool?,WordBoundary:Bool?]) -> Struct<CaseSensitive:Bool,DotNl:Bool,Literal:Bool,LogErrors:Bool,LongestMatch:Bool,MaxMem:Uint64,NeverCapture:Bool,NeverNl:Bool,OneLine:Bool,PerlClasses:Bool,PosixSyntax:Bool,Utf8:Bool,WordBoundary:Bool>```
+```yql
+Re2::Grep(pattern:String, options:Struct<...>?) -> (string:String?) -> Bool
+Re2::Match(pattern:String, options:Struct<...>?) -> (string:String?) -> Bool
+Re2::Capture(pattern:String, options:Struct<...>?) -> (string:String?) -> Struct<_1:String?,foo:String?,...>
+Re2::FindAndConsume(pattern:String, options:Struct<...>?) -> (string:String?) -> List<String>
+Re2::Replace(pattern:String, options:Struct<...>?) -> (string:String?, replacement:String) -> String?
+Re2::Count(pattern:String, options:Struct<...>?) -> (string:String?) -> Uint32
+Re2::Options([CaseSensitive:Bool?,DotNl:Bool?,Literal:Bool?,LogErrors:Bool?,LongestMatch:Bool?,MaxMem:Uint64?,NeverCapture:Bool?,NeverNl:Bool?,OneLine:Bool?,PerlClasses:Bool?,PosixSyntax:Bool?,Utf8:Bool?,WordBoundary:Bool?]) -> Struct<CaseSensitive:Bool,DotNl:Bool,Literal:Bool,LogErrors:Bool,LongestMatch:Bool,MaxMem:Uint64,NeverCapture:Bool,NeverNl:Bool,OneLine:Bool,PerlClasses:Bool,PosixSyntax:Bool,Utf8:Bool,WordBoundary:Bool>
+```
 
-Модуль Re2 реализует поддержку регулярных выражений на основе [google::RE2](https://github.com/google/re2), где предоставляется широкий ассортимент возможностей ([смотрите официальную документацию](https://github.com/google/re2/wiki/Syntax)).
+Модуль Re2 реализует поддержку регулярных выражений на основе [google::RE2](https://github.com/google/re2), где предоставляется широкий ассортимент возможностей ([см. официальную документацию](https://github.com/google/re2/wiki/Syntax)).
 
 По умолчанию UTF-8 режим включается автоматически, если регулярное выражение является валидной строкой в кодировке UTF-8, но не является валидной ASCII-строкой. Вручную настройками библиотеки re2 можно управлять с помощью передачи результата функции `Re2::Options` вторым аргументом другим функциям модуля, рядом с регулярным выражением.
 
@@ -20,9 +22,9 @@
 
 {% endnote %}
 
-#### Примеры
+## Примеры
 
-```sql
+```yql
 $value = "xaaxaaxaa";
 $options = Re2::Options(false AS CaseSensitive);
 $match = Re2::Match("[ax]+\\d");
@@ -44,12 +46,12 @@ SELECT
 
 Если вынести за скобки детали реализации и синтаксиса регулярных выражений, эти функции полностью аналогичны [одноименным функциям](pire.md#match) из модуля Pire. При прочих равных и отсутствии каких-либо специфических предпочтений мы рекомендуем пользоваться `Pire::Grep / Pire::Match`.
 
-Функцию `Re2::Grep` можно вызвать с помощью выражения `REGEXP` (смотрите [описание базового синтаксиса выражений](../../syntax/expressions.md#regexp)).
+Функцию `Re2::Grep` можно вызвать с помощью выражения `REGEXP` (см. [описание базового синтаксиса выражений](../../syntax/expressions.md#regexp)).
 
 Например, следующие два запроса эквивалентны (в том числе по эффективности вычислений):
 
-* ```$grep = Re2::Grep("b+"); SELECT $grep("aaabccc");```
-* ```SELECT "aaabccc" REGEXP "b+";```
+* `$grep = Re2::Grep("b+"); SELECT $grep("aaabccc");`
+* `SELECT "aaabccc" REGEXP "b+";`
 
 ## Re2::Capture {#capture}
 
@@ -60,7 +62,7 @@ SELECT
 * Для неименованных групп генерируются имена вида: `_1`, `_2` и т.д.
 * В результат всегда включается поле `_0`, в котором доступна вся совпавшая с регулярным выражением подстрока.
 
-Подробнее про работу со структурами в YQL смотрите в [разделе про контейнеры](../../types/containers.md).
+Подробнее про работу со структурами в YQL см. в [разделе про контейнеры](../../types/containers.md).
 
 ## Re2::FindAndConsume {#findandconsume}
 
@@ -100,9 +102,9 @@ SELECT
 
 Не рекомендуется Re2::Options использовать в коде. Большинство параметров можно заменить на флаги регулярного выражения.
 
-**Пример использования флагов**
+### Пример использования флагов
 
-```sql
+```yql
 $value = "Foo bar FOO"u;
 -- включить режим без учета регистра
 $capture = Re2::Capture(@@(?i)(foo)@@);
