@@ -2032,7 +2032,7 @@ private:
         }
 
         std::vector<ISecondaryIndexModifierPtr> indexModifiers;
-        std::vector<TFuture<void>> lookupRowsEvents;
+        std::vector<TFuture<void>> lookupRowsFutures;
 
         for (auto& [tableId, mergedRows] : mergedRowsByTable) {
             const auto& mountInfo = GetOrCrash(mountInfosByTable, tableId);
@@ -2057,14 +2057,14 @@ private:
                 connection->GetColumnEvaluatorCache(),
                 Logger);
 
-            lookupRowsEvents.push_back(indexModifier->LookupRows());
+            lookupRowsFutures.push_back(indexModifier->LookupRows());
             indexModifiers.push_back(std::move(indexModifier));
         }
 
-        WaitFor(AllSucceeded(std::move(lookupRowsEvents)))
+        WaitFor(AllSucceeded(std::move(lookupRowsFutures)))
             .ThrowOnError();
 
-        std::vector<TFuture<void>> modificationsEnqueuedEvents;
+        std::vector<TFuture<void>> modificationsEnqueuedFutures;
 
         for (const auto& modifier : indexModifiers) {
             TModifyRowsOptions modifyRowsOptions{
@@ -2072,7 +2072,7 @@ private:
                 .AllowMissingKeyColumns=true,
             };
 
-            modificationsEnqueuedEvents.push_back(
+            modificationsEnqueuedFutures.push_back(
                 modifier->OnIndexModifications([&, modifyRowsOptions = std::move(modifyRowsOptions)] (
                     TYPath path,
                     TNameTablePtr nameTable,
@@ -2089,7 +2089,7 @@ private:
                 }));
         }
 
-        WaitForFast(AllSucceeded(std::move(modificationsEnqueuedEvents)))
+        WaitForFast(AllSucceeded(std::move(modificationsEnqueuedFutures)))
             .ThrowOnError();
     }
 
