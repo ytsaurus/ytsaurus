@@ -904,7 +904,7 @@ private:
 
         context->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v",
             chunkId,
-            MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
+            MakeCompactIntervalView(blockIndexes),
             blockIndexes.size(),
             workloadDescriptor);
 
