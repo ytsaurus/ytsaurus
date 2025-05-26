@@ -169,6 +169,7 @@ DEFINE_ENUM(EMasterReign,
     ((ResourceQuotaAttributeForBundles)                             (2932))  // ifsmirnov
     ((FixSettingListAttributeForUnexistingNode)                     (2933))  // kvk1920
     ((IntroduceCypressToSequoiaCopy)                                (2934))  // h0pless
+    ((TableSchemaCache)                                             (2935))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

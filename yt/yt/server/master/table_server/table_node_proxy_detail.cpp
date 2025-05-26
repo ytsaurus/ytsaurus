@@ -132,7 +132,9 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         } else if (securityManager->HasColumnarAce(Object_, user)) {
             // If the object lacks a columnar ACE, column-level permissions
             // are skipped during the permission check.
-            auto tableSchema = table->GetSchema()->AsHeavyTableSchema();
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            // TODO(cherepashka): make GetBasicAttributes async YT-25153.
+            auto tableSchema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
             checkOptions.Columns.emplace();
             checkOptions.Columns->reserve(tableSchema->Columns().size());
             for (const auto& columnSchema : tableSchema->Columns()) {
@@ -1204,8 +1206,10 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             return ComputeHunkStatistics(Bootstrap_, chunkLists);
         }
 
-        case EInternedAttributeKey::Schema:
-            return table->GetSchema()->AsYsonAsync();
+        case EInternedAttributeKey::Schema: {
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            return tableManager->GetYsonTableSchemaAsync(table->GetSchema());
+        }
 
         case EInternedAttributeKey::QueueStatus:
         case EInternedAttributeKey::QueuePartitions: {
@@ -2096,6 +2100,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.SchemaId = FromProto<TObjectId>(request->schema_id());
     }
 
+    const auto& tableManager = Bootstrap_->GetTableManager();
     context->SetRequestInfo("Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, SchemaId: %v, SchemaMemoryUsage: %v, Schema: %v",
         options.Dynamic,
         options.UpstreamReplicaId,
@@ -2103,10 +2108,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.ReplicationProgress,
         options.SchemaId,
         options.Schema ? options.Schema->GetMemoryUsage() : 0,
-        options.Schema);
+        tableManager->GetHeavyTableSchemaSync(options.Schema));
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
-    const auto& tableManager = Bootstrap_->GetTableManager();
     auto* table = LockThisImpl();
     auto dynamic = options.Dynamic.value_or(table->IsDynamic());
     auto schemaReceived = options.SchemaId || options.Schema;
@@ -2133,13 +2137,14 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (dynamic && schemaReceived  && schema->IsSorted() && !schema->IsUniqueKeys()) {
         // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
+        auto heavySchema = tableManager->GetHeavyTableSchemaSync(schema);
         YT_LOG_ALERT_IF(
             !schema->IsUniqueKeys() && table->IsForeign(),
             "Schema doesn't have UniqueKeys set to true on the external cell (TableId: %v, Schema: %v)",
             table->GetId(),
-            schema);
+            heavySchema);
 
-        schema = schema->ToUniqueKeys();
+        schema = New<TCompactTableSchema>(heavySchema->ToUniqueKeys());
     }
 
     if (table->IsNative()) {
@@ -2231,8 +2236,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         }
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        auto newTableSchema = schema->AsHeavyTableSchema();
-        auto tableSchema = table->GetSchema()->AsHeavyTableSchema();
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        auto newTableSchema = tableManager->GetHeavyTableSchemaSync(schema);
+        auto tableSchema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
 
         ValidateTableSchemaUpdateInternal(
             *tableSchema,
@@ -2243,12 +2249,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             config->AllowAlterKeyColumnToAny);
 
         if (table->IsDynamic()) {
-            const auto& tableManager = Bootstrap_->GetTableManager();
-
             if (auto index = table->GetIndexTo()) {
-                auto indexTableSchema = tableManager->GetTableNodeOrThrow(index->GetTableId())
-                    ->GetSchema()
-                    ->AsHeavyTableSchema();
+                auto indexTableNode = tableManager->GetTableNodeOrThrow(index->GetTableId());
+                auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
                 ValidateIndexSchema(
                     index->GetKind(),
                     *indexTableSchema,
@@ -2259,9 +2262,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             }
 
             for (const auto index : GetValuesSortedByKey(table->SecondaryIndices())) {
-                auto indexTableSchema = tableManager->GetTableNodeOrThrow(index->GetIndexTableId())
-                    ->GetSchema()
-                    ->AsHeavyTableSchema();
+                auto indexTableNode = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
+                auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
                 ValidateIndexSchema(
                     index->GetKind(),
                     *newTableSchema,
@@ -2303,7 +2305,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (options.SchemaModification) {
         YT_LOG_ALERT_IF(table->IsForeign(), "Alter request with schema modification present was received by an external cell (TableId: %v)",
             table->GetId());
-        schema = schema->ToModifiedSchema(*options.SchemaModification);
+        auto heavySchema = tableManager->GetHeavyTableSchemaSync(schema);
+        schema = New<TCompactTableSchema>(heavySchema->ToModifiedSchema(*options.SchemaModification));
     }
 
     if (schemaReceived || options.SchemaModification) {
