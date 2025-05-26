@@ -1889,64 +1889,57 @@ print(json.dumps(input))
 
         assert len(op.list_jobs()) == 10
 
-    @authors("faucct")
-    @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_multi_job_splitter(self, ordered):
-        input = "//tmp/in_1"
-        create("table", input)
-        write_table(
-            input,
-            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)],
+    @authors("fauct")
+    def test_distributed(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+
+        with pytest.raises(YtError, match="echo: write error: Invalid argument"):
+            map(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; else echo "{foo=bar}"; fi',
+                spec={"mapper": {"cookie_group_size": 2}},
+            )
+        map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
+            spec={"mapper": {"cookie_group_size": 2}},
         )
 
-        output = "//tmp/output"
-        create("table", output)
+        res = read_table("//tmp/t2")
+        assert res == [{"a": "b"}]
 
-        command = """
-if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then
-while read ROW; do
-    if [ "$YT_JOB_INDEX" == 0 ]; then
-        sleep 10
-    else
-        sleep 0.1
-    fi
-    echo "$ROW"
-done
-fi
-"""
-
-        op = map(
-            ordered=ordered,
+    @authors("fauct")
+    def test_distributed_aborting(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+        op=map(
             track=False,
-            in_=input,
-            out=output,
-            command=command,
-            spec={
-                "mapper": {
-                    "cookie_group_size": 2,
-                    "format": "dsv",
-                },
-                "data_size_per_job": 21 * 1024 * 1024,
-                "max_failed_job_count": 1,
-                "job_io": {
-                    "buffer_row_count": 1,
-                },
-            },
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+            spec={"mapper": {"cookie_group_size": 2}},
         )
+        wait_breakpoint(job_count=2)
+        op.abort()
 
-        op.track()
-
-        completed = get(op.get_path() + "/@progress/jobs/completed")
-        interrupted = completed["interrupted"]
-        assert completed["total"] >= 4
-        assert interrupted["job_split"] >= 1
-        expected = read_table("//tmp/in_1", verbose=False)
-        for row in expected:
-            del row["data"]
-        got = read_table(output, verbose=False)
-        for row in got:
-            del row["data"]
-        assert sorted_dicts(got) == sorted_dicts(expected)
+    @authors("fauct")
+    def test_distributed_with_job_fail_and_operation_completion(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+        map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="""if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; elif [ "$YT_JOB_INDEX" < 2 ]; then exit 1; fi""",
+            spec={"mapper": {"cookie_group_size": 2}, "max_failed_job_count": 2},
+        )
+        res = read_table("//tmp/t2")
+        assert res == [{"a": "b"}]
 
     @authors("faucct")
     @pytest.mark.parametrize("ordered", [False, True])
