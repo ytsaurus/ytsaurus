@@ -12,6 +12,7 @@ Is released as a docker image.
 
 **Release date:** 2025-05-16
 
+
 Maintenance release with minor enhancements and bug fixes
 
 - Support for retrieving driver operation id in direct submit scenarios
@@ -21,7 +22,9 @@ Maintenance release with minor enhancements and bug fixes
 - Fix prometeus metrics configuration
 - Fix dedicated driver mode for standalone cluster
 
+
 {% endcut %}
+
 
 {% cut "**2.6.0**" %}
 
