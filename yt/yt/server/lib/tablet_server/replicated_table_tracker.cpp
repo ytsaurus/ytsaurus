@@ -876,7 +876,7 @@ public:
             if (TableAttributesFuture_.IsSet()) {
                 CurrentTableAttributes_ = TableAttributesFuture_.Get();
 
-                std::vector<TString> keys;
+                std::vector<IAttributeDictionary::TKey> keys;
                 if (checkPreloadState) {
                     keys.push_back("preload_state");
                 }
