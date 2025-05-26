@@ -1384,6 +1384,8 @@ add_custom_command(
   yt/yt/client/queue_client/public.h
   --output-include
   yt/yt/core/yson/string.h
+  --output-include
+  yt/yt/ytlib/queue_client/config.h
 )
 
 add_custom_command(
