@@ -219,13 +219,16 @@ void TJoblet::RegisterMetadata(auto&& registrar)
     });
 }
 
-void TJoblet::TCookieGroupInfo::Persist(const TPersistenceContext& context) {
-    using NYT::Persist;
-    Persist(context, MainJobId);
-    Persist(context, OutputIndex);
+void TJoblet::TCookieGroupInfo::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, MainJobId);
+    PHOENIX_REGISTER_FIELD(2, OutputIndex);
 }
 
-void Serialize(const TJoblet::TCookieGroupInfo& cookieGroupInfo, NYson::IYsonConsumer* consumer) {
+PHOENIX_DEFINE_TYPE(TJoblet::TCookieGroupInfo);
+
+void Serialize(const TJoblet::TCookieGroupInfo& cookieGroupInfo, NYson::IYsonConsumer* consumer)
+{
     using NYT::Serialize;
 
     consumer->OnBeginMap();
