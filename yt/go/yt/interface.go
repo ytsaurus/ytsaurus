@@ -1400,6 +1400,7 @@ type CreateQueueProducerSessionOptions struct {
 	UserMeta any `http:"user_meta,omitnil"`
 
 	*TimeoutOptions
+	*MutatingOptions
 }
 
 type RemoveQueueProducerSessionOptions struct {

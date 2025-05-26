@@ -1362,6 +1362,18 @@ func (r CreateQueueProducerSessionRequest) Log() []log.Field {
 	}
 }
 
+func (r CreateQueueProducerSessionRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
+func (r CreateQueueProducerSessionRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *CreateQueueProducerSessionRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
+}
+
 func (r CreateQueueProducerSessionRequest) Path() (string, bool) {
 	return string(r.GetProducerPath()), false
 }
