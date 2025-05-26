@@ -54,6 +54,8 @@ public:
     void Abort(TTransaction* transaction, TStringBuf value, IActionState* state, const TTransactionAbortOptions& options) const;
     void Serialize(TTransaction* transaction, TStringBuf value, IActionState* state) const;
 
+    bool HasSerializeHandler() const;
+
 private:
     const std::function<std::unique_ptr<IActionState>()> CreateState_;
 
