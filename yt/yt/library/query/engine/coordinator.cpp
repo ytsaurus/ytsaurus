@@ -284,7 +284,7 @@ TQueryStatistics CoordinateAndExecute(
         return evaluateResult.Reader;
     };
 
-    YT_LOG_DEBUG("Creating reader (Ordered: %v, Prefetch: %v, SplitCount %v, Offset %v, Limit %v, UseAdaptiveOrderedSchemafulReader %v)",
+    YT_LOG_DEBUG("Creating reader (Ordered: %v, Prefetch: %v, SplitCount: %v, Offset: %v, Limit: %v, UseAdaptiveOrderedSchemafulReader: %v)",
         ordered,
         prefetch,
         splitCount,
