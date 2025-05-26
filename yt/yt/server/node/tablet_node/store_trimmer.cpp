@@ -75,11 +75,18 @@ public:
 
     ~TChaosDataTrimProgressGuard()
     {
-        if (ChaosTabletData_) {
-            ChaosTabletData_->IsTrimInProgress.store(false);
-
-            YT_LOG_DEBUG("Replication log trimming finished without actually trimming");
+        if (!ChaosTabletData_) {
+            return;
         }
+
+        if (!ChaosTabletData_->IsTrimInProgress.load()) {
+            YT_LOG_ALERT("Chaos data trimming progress flag was reset unexpectedly");
+            return;
+        }
+
+        ChaosTabletData_->IsTrimInProgress.store(false);
+
+        YT_LOG_DEBUG("Replication log trimming finished without actually trimming");
     }
 
     void Release()
