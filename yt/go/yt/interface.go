@@ -121,7 +121,7 @@ type TimeoutOptions struct {
 
 // CreateNodeOptions.
 //
-// See https://wiki.yandex-team.ru/yt/userdoc/api/#create
+// See https://ytsaurus.tech/docs/en/api/commands#create
 type CreateNodeOptions struct {
 	Recursive      bool `http:"recursive"`
 	IgnoreExisting bool `http:"ignore_existing"`
