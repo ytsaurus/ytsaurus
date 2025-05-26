@@ -386,7 +386,7 @@ void TActionManager::Poll()
 
     YT_LOG_DEBUG("Started fetching tablet action states (ActionCount: %v)", actionIds.size());
 
-    static const std::vector<TString> attributeKeys{"state", "error"};
+    static const std::vector<std::string> attributeKeys{"state", "error"};
     auto actionToAttributes = FetchAttributes(Client_, actionIds, attributeKeys);
 
     YT_LOG_DEBUG("Finished fetching tablet action states (ActionCount: %v)", actionToAttributes.size());

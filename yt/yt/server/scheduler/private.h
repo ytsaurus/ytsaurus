@@ -170,7 +170,7 @@ YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SchedulerProfiler, "/scheduler");
 
 static constexpr int MaxNodesWithoutPoolTreeToAlert = 10;
 
-inline const TString EventLogPoolTreeKey{"tree_id"};
+inline const std::string EventLogPoolTreeKey{"tree_id"};
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, StrategyLogger, "Strategy");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, NodeShardLogger, "NodeShard");

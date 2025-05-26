@@ -61,7 +61,7 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
 
 std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const TTabletCellBundlePtr& bundle,
-    const std::vector<TString>& performanceCountersKeys,
+    const std::vector<std::string>& performanceCountersKeys,
     const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
     const TTableParameterizedMetricTrackerPtr& metricTracker,
@@ -69,7 +69,7 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
 
 std::vector<TMoveDescriptor> ReassignTabletsReplica(
     const TTabletCellBundlePtr& bundle,
-    const std::vector<TString>& performanceCountersKeys,
+    const std::vector<std::string>& performanceCountersKeys,
     const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
     const TTableParameterizedMetricTrackerPtr& metricTracker,

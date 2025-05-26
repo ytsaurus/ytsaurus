@@ -355,7 +355,7 @@ private:
             auto req = TYPathProxy::Get(ProxyPath_ + "/@");
             ToProto(
                 req->mutable_attributes()->mutable_keys(),
-                std::vector<TString>{
+                std::vector<std::string>{
                     RoleAttributeName,
                     BannedAttributeName,
                     BanMessageAttributeName,
@@ -368,7 +368,7 @@ private:
             auto req = TYPathProxy::Get(RpcProxiesPath);
             ToProto(
                 req->mutable_attributes()->mutable_keys(),
-                std::vector<TString>{
+                std::vector<std::string>{
                     RoleAttributeName,
                     BannedAttributeName,
                     AddressesAttributeName,

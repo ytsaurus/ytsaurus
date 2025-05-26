@@ -552,7 +552,7 @@ private:
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
                 AddCellTagToSyncWith(req, ObjectId_);
                 SetTransactionId(req, UploadTransaction_);
-                std::vector<TString> attributeKeys{
+                std::vector<std::string> attributeKeys{
                     "type",
                     "erasure_codec",
                     "replication_factor",

@@ -143,13 +143,13 @@ class TParameterizedMetricsCalculator
 public:
     TParameterizedMetricsCalculator(
         TString metric,
-        std::vector<TString> performanceCountersKeys,
+        std::vector<std::string> performanceCountersKeys,
         TTableSchemaPtr performanceCountersTableSchema,
         const TLogger& logger)
-    : PerformanceCountersKeys_(std::move(performanceCountersKeys))
-    , PerformanceCountersTableSchema_(std::move(performanceCountersTableSchema))
-    , Metric_(std::move(metric))
-    , Logger(logger)
+        : PerformanceCountersKeys_(std::move(performanceCountersKeys))
+        , PerformanceCountersTableSchema_(std::move(performanceCountersTableSchema))
+        , Metric_(std::move(metric))
+        , Logger(logger)
     {
         auto newMetric = ReplaceAliases(Metric_);
         YT_LOG_DEBUG_IF(newMetric != Metric_,
@@ -176,7 +176,7 @@ public:
     }
 
 protected:
-    const std::vector<TString> PerformanceCountersKeys_;
+    const std::vector<std::string> PerformanceCountersKeys_;
     const TTableSchemaPtr PerformanceCountersTableSchema_;
     const TString Metric_;
     const TLogger Logger;
@@ -224,7 +224,7 @@ class TReplicaMetricsCalculator
 public:
     TReplicaMetricsCalculator(
         TString metric,
-        std::vector<TString> performanceCountersKeys,
+        std::vector<std::string> performanceCountersKeys,
         TTableSchemaPtr performanceCountersTableSchema,
         THashMap<TClusterName, TTableSchemaPtr> perClusterPerformanceCountersTableSchemas,
         const TLogger& logger,
@@ -376,7 +376,7 @@ class TParameterizedReassignSolver
 public:
     TParameterizedReassignSolver(
         TTabletCellBundlePtr bundle,
-        std::vector<TString> performanceCountersKeys,
+        std::vector<std::string> performanceCountersKeys,
         TParameterizedReassignSolverConfig config,
         TGroupName groupName,
         TTableParameterizedMetricTrackerPtr metricTracker,
@@ -487,7 +487,7 @@ private:
 
 TParameterizedReassignSolver::TParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
-    std::vector<TString> performanceCountersKeys,
+    std::vector<std::string> performanceCountersKeys,
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
@@ -1270,7 +1270,7 @@ class TParameterizedResharder
 public:
     TParameterizedResharder(
         TTabletCellBundlePtr bundle,
-        std::vector<TString> performanceCountersKeys,
+        std::vector<std::string> performanceCountersKeys,
         TParameterizedResharderConfig config,
         TGroupName groupName,
         const TLogger& logger);
@@ -1360,7 +1360,7 @@ private:
 
 TParameterizedResharder::TParameterizedResharder(
     TTabletCellBundlePtr bundle,
-    std::vector<TString> performanceCountersKeys,
+    std::vector<std::string> performanceCountersKeys,
     TParameterizedResharderConfig config,
     TGroupName groupName,
     const TLogger& logger)
@@ -1748,7 +1748,7 @@ TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStati
 
 IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
-    std::vector<TString> performanceCountersKeys,
+    std::vector<std::string> performanceCountersKeys,
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
@@ -1766,7 +1766,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
 
 IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
     TTabletCellBundlePtr bundle,
-    std::vector<TString> performanceCountersKeys,
+    std::vector<std::string> performanceCountersKeys,
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
@@ -1784,7 +1784,7 @@ IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
 
 IParameterizedResharderPtr CreateParameterizedResharder(
     TTabletCellBundlePtr bundle,
-    std::vector<TString> performanceCountersKeys,
+    std::vector<std::string> performanceCountersKeys,
     TParameterizedResharderConfig config,
     TGroupName groupName,
     const NLogging::TLogger& logger)

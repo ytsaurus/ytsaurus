@@ -44,7 +44,7 @@ THashMap<NObjectClient::TCellTag, TCellTagRequest> FetchTableAttributes(
 THashMap<NObjectClient::TObjectId, NYTree::IAttributeDictionaryPtr> FetchAttributes(
     const NApi::NNative::IClientPtr& client,
     const THashSet<NObjectClient::TObjectId>& objectIds,
-    const std::vector<TString>& attributeKeys);
+    const std::vector<std::string>& attributeKeys);
 
 TInstant TruncatedNow();
 

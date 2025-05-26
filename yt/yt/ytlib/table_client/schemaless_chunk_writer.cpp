@@ -2421,7 +2421,7 @@ INodePtr GetTableAttributes(
     static const auto AttributeKeys = [] {
         return ConcatVectors(
             GetTableUploadOptionsAttributeKeys(),
-            std::vector<TString>{
+            std::vector<std::string>{
                 "account",
                 "chunk_writer",
                 "primary_medium",

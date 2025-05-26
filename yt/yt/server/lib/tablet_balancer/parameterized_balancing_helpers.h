@@ -88,7 +88,7 @@ void FormatValue(TStringBuilderBase* builder, const TParameterizedResharderConfi
 
 IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     TTabletCellBundlePtr bundle,
-    std::vector<TString> performanceCountersKeys,
+    std::vector<std::string> performanceCountersKeys,
     TParameterizedReassignSolverConfig config,
     TString groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
@@ -99,7 +99,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
 // of the loads of each major table and its associated minor tables.
 IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
     TTabletCellBundlePtr bundle,
-    std::vector<TString> performanceCountersKeys,
+    std::vector<std::string> performanceCountersKeys,
     TParameterizedReassignSolverConfig config,
     TGroupName groupName,
     TTableParameterizedMetricTrackerPtr metricTracker,
@@ -107,7 +107,7 @@ IParameterizedReassignSolverPtr CreateReplicaReassignSolver(
 
 IParameterizedResharderPtr CreateParameterizedResharder(
     TTabletCellBundlePtr bundle,
-    std::vector<TString> performanceCountersKeys,
+    std::vector<std::string> performanceCountersKeys,
     TParameterizedResharderConfig config,
     TString groupName,
     const NLogging::TLogger& logger);

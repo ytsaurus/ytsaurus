@@ -63,11 +63,11 @@ protected:
     static void SyncFlushTable(const NYPath::TYPath& path);
 
     static std::tuple<TSharedRange<NTableClient::TUnversionedRow>, NTableClient::TNameTablePtr> PrepareUnversionedRow(
-        const std::vector<TString>& names,
+        const std::vector<std::string>& names,
         const TString& rowString);
 
     static void WriteUnversionedRow(
-        std::vector<TString> names,
+        const std::vector<std::string>& names,
         const TString& rowString,
         const NApi::IClientPtr& client = Client_);
 
@@ -77,12 +77,12 @@ protected:
         const NApi::IClientPtr& client = Client_);
 
     static std::tuple<TSharedRange<NTableClient::TVersionedRow>, NTableClient::TNameTablePtr> PrepareVersionedRow(
-        const std::vector<TString>& names,
+        const std::vector<std::string>& names,
         const TString& keyYson,
         const TString& valueYson);
 
     static void WriteVersionedRow(
-        std::vector<TString> names,
+        const std::vector<std::string>& names,
         const TString& keyYson,
         const TString& valueYson,
         const NApi::IClientPtr& client = Client_);
