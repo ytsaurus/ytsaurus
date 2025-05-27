@@ -525,8 +525,11 @@ private:
 
         JobProxyConfigTemplate_->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;
 
-        JobProxyConfigTemplate_->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
-        JobProxyConfigTemplate_->SupervisorConnection->Address = localAddress;
+        if (const auto& supervisorConnection = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
+            JobProxyConfigTemplate_->SupervisorConnection = CloneYsonStruct(supervisorConnection);
+        } else {
+            JobProxyConfigTemplate_->SupervisorConnection = NBus::TBusClientConfig::CreateTcp(localAddress);
+        }
 
         JobProxyConfigTemplate_->SupervisorRpcTimeout = GetConfig()->ExecNode->JobProxy->SupervisorRpcTimeout;
 
