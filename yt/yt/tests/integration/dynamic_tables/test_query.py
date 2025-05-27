@@ -2787,7 +2787,7 @@ class TestQuerySequoia(TestQuery):
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_SECONDARY_MASTER_CELLS = 2
-    NUM_TEST_PARTITIONS = 3
+    NUM_TEST_PARTITIONS = 4
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
