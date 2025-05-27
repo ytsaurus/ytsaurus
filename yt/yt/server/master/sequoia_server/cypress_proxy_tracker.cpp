@@ -56,6 +56,16 @@ public:
             "CypressProxyTracker.Values",
             BIND_NO_PROPAGATE(&TCypressProxyTracker::LoadValues, Unretained(this)));
 
+        RegisterSaver(
+            ESyncSerializationPriority::Keys,
+            "CypressProxyTracker.Keys",
+            BIND_NO_PROPAGATE(&TCypressProxyTracker::SaveKeys, Unretained(this)));
+
+        RegisterSaver(
+            ESyncSerializationPriority::Values,
+            "CypressProxyTracker.Values",
+            BIND_NO_PROPAGATE(&TCypressProxyTracker::SaveValues, Unretained(this)));
+
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressProxyTracker::HydraCypressProxyHeartbeat, Unretained(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
@@ -109,6 +119,8 @@ public:
 
     TCypressProxyObject* FindCypressProxyByAddress(const std::string& address) override
     {
+        VerifyPersistentStateRead();
+
         return GetOrDefault(CypressProxyByAddress_, address, nullptr);
     }
 
@@ -153,6 +165,11 @@ private:
     void SaveKeys(NCellMaster::TSaveContext& context) const
     {
         CypressProxyMap_.SaveKeys(context);
+    }
+
+    void SaveValues(NCellMaster::TSaveContext& context) const
+    {
+        CypressProxyMap_.SaveValues(context);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
