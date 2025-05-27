@@ -677,6 +677,8 @@ struct TJobProxyConfig
 
     NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
 
+    NBus::TBusClientConfigPtr SupervisorConnection;
+
     TDuration SupervisorRpcTimeout;
 
     TDuration JobProxyHeartbeatPeriod;
