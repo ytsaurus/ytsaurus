@@ -460,6 +460,16 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     securityManager->UpdateMasterMemoryUsage(clonedTrunkNode);
 }
 
+void TNontemplateCypressNodeTypeHandlerBase::RefObject(TCypressNode* node)
+{
+    Bootstrap_->GetObjectManager()->RefObject(node);
+}
+
+void TNontemplateCypressNodeTypeHandlerBase::UnrefObject(TCypressNode* node)
+{
+    Bootstrap_->GetObjectManager()->UnrefObject(node);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TImpl>

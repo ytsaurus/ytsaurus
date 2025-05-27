@@ -355,9 +355,6 @@ private:
             })->As<TScionNode>();
         YT_VERIFY(scionNode->GetId() == scionNodeId);
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(scionNode);
-
         cypressManager->SetShard(scionNode, shard);
 
         if (effectiveInheritableAttributes) {

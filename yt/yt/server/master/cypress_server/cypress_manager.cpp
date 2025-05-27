@@ -4172,20 +4172,11 @@ private:
 
                 if (originatingNode->GetReachable()) {
                     handler->SetUnreachable(originatingNode);
-
-                    if (originatingNode->IsTrunk()) {
-                        objectManager->UnrefObject(originatingNode);
-                    }
                 }
                 originatingNode = nullptr;
             } else if (!originatingNode->GetReachable()) {
                 YT_VERIFY(branchedNodeReachable);
                 handler->SetReachable(originatingNode);
-
-                // See #TSequoiaActionsExecutor::HydraPrepareCreateNode.
-                if (originatingNode->IsTrunk()) {
-                    objectManager->RefObject(originatingNode);
-                }
             }
         }
 

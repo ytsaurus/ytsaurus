@@ -161,7 +161,7 @@ private:
             });
     }
 
-    void CommitSequoiaNodeCreation(TCypressNodePtr&& node)
+    void CommitSequoiaNodeCreation(const TCypressNodePtr& node)
     {
         auto* currentNode = node.Get();
 
@@ -174,12 +174,6 @@ private:
             [] (TCypressNode* node) {
                 YT_VERIFY(std::exchange(node->MutableSequoiaProperties()->BeingCreated, false));
             });
-
-        if (node->IsTrunk()) {
-            Y_UNUSED(node.Release());
-        } else {
-            // TCypressNodePtr dtor will release the ref.
-        }
     }
 
     struct TCreateNodeActionState
@@ -301,7 +295,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        CommitSequoiaNodeCreation(std::move(state->Node));
+        CommitSequoiaNodeCreation(state->Node);
     }
 
     void HydraPrepareAttachChild(
@@ -556,8 +550,8 @@ private:
             return;
         }
 
-        const auto& handler = cypressManager->GetHandler(trunkNode);
 
+        auto* node = trunkNode;
         // NB: lock is already checked in prepare. Nobody cannot lock this node
         // between prepare and commit of Sequoia tx due to:
         //   - exlusive lock in "node_id_to_path" Sequoia table;
@@ -565,11 +559,11 @@ private:
         if (cypressTransaction) {
             auto* branchedNode = cypressManager->LockNode(trunkNode, cypressTransaction, ELockMode::Exclusive);
             branchedNode->MutableSequoiaProperties()->Tombstone = true;
-            handler->SetUnreachable(branchedNode);
-        } else {
-            handler->SetUnreachable(trunkNode);
-            Bootstrap_->GetObjectManager()->UnrefObject(trunkNode);
+            node = branchedNode;
         }
+
+        const auto& handler = cypressManager->GetHandler(trunkNode);
+        handler->SetUnreachable(node);
     }
 
     void HydraPrepareAndCommitSetNode(
@@ -762,7 +756,7 @@ private:
             MaybeTouchNode(cypressManager, trunkSourceNode);
         }
 
-        CommitSequoiaNodeCreation(std::move(state->DestinationNode));
+        CommitSequoiaNodeCreation(state->DestinationNode);
     }
 
     void HydraPrepareAndCommitExplicitlyLockNode(
