@@ -77,6 +77,13 @@ TRef TImmutableChunkMeta::GetExtensionData(const TExtensionDescriptor& descripto
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateFromProto(const NChunkClient::NProto::TChunkMeta& protoMeta)
+{
+    Y_UNUSED(FromProto<EChunkType>(protoMeta.type()));
+    Y_UNUSED(FromProto<EChunkFormat>(protoMeta.format()));
+    Y_UNUSED(FromProto<EChunkFeatures>(protoMeta.features()));
+}
+
 void FromProto(
     TImmutableChunkMetaPtr* meta,
     const NChunkClient::NProto::TChunkMeta& protoMeta)
