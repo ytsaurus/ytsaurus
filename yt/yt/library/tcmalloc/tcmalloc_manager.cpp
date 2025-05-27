@@ -454,7 +454,7 @@ public:
         if (tcmalloc::MallocExtension::NeedsProcessBackgroundActions()) {
             std::call_once(InitAggressiveReleaseThread_, [&] {
                 std::thread([&] {
-                    ::TThread::SetCurrentThreadName("TCMallocBack");
+                    ::TThread::SetCurrentThreadName("TCMallocHelper");
 
                     while (true) {
                         auto config = Config_.Acquire();
@@ -473,10 +473,14 @@ public:
                             tcmalloc::MallocExtension::ReleaseMemoryToSystem(config->AggressiveReleaseSize);
                         }
 
-                        tcmalloc::MallocExtension::ProcessBackgroundActions();
-
                         Sleep(config->AggressiveReleasePeriod);
                     }
+                }).detach();
+
+                std::thread([] {
+                    ::TThread::SetCurrentThreadName("TCMallocBack");
+                    tcmalloc::MallocExtension::ProcessBackgroundActions();
+                    YT_ABORT();
                 }).detach();
             });
         }
