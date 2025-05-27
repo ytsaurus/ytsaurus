@@ -650,7 +650,6 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
                         },
                         /*tags*/ {
                             {FormatIOTag(EAggregateIOTag::Direction), "write"},
-                            // TODO(babenko): switch to std::string
                             {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
                             {FormatIOTag(EAggregateIOTag::LocationType), "slot"},
                             {FormatIOTag(ERawIOTag::SlotIndex), ToString(slotIndex)},

@@ -332,7 +332,6 @@ TIntrusivePtr<TTracker> TOverloadController::CreateGenericTracker(TStringBuf tra
     auto trackerId = id.value_or(trackerType);
 
     auto tracker = New<TTracker>(trackerType, trackerId);
-    // TODO(babenko): switch to std::string
     auto profiler = Profiler.WithTag("tracker", std::string(trackerId));
 
     auto guard = Guard(SpinLock_);

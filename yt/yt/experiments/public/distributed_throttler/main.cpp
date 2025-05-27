@@ -151,8 +151,7 @@ public:
             "/group",
             Format("Factory %v", ThrottlerFactoryIndex_),
             RpcServer_,
-            // TODO(babenko): switch to std::string
-            TString(Address_),
+            Address_,
             DiscoveryServerLogger(),
             /*authenticator*/ nullptr);
 

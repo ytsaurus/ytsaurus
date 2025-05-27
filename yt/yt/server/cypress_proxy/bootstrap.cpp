@@ -189,8 +189,7 @@ public:
             NativeConnection_->GetChannelFactory(),
             NativeConnection_,
             std::move(invoker),
-            // TODO(babenko): migrate to std::string
-            TString(groupId),
+            NYPath::TYPath(groupId),
             selfAddress,
             RpcServer_,
             std::move(selfAddress),
