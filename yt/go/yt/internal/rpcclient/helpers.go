@@ -1063,6 +1063,20 @@ func makeListJobsResult(result *rpc_proxy.TListJobsResult) (*yt.ListJobsResult, 
 	return ret, nil
 }
 
+func makeGetJobResult(result *rpc_proxy.TRspGetJob) (*yt.JobStatus, error) {
+	if result == nil {
+		return nil, nil
+	}
+
+	var info yt.JobStatus
+
+	if err := yson.Unmarshal(result.Info, &info); err != nil {
+		return nil, xerrors.Errorf("unable to deserialize job: %w", err)
+	}
+
+	return &info, nil
+}
+
 func convertTabletRangeOptions(opts *yt.TabletRangeOptions) *rpc_proxy.TTabletRangeOptions {
 	if opts == nil {
 		return nil
