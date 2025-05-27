@@ -726,18 +726,21 @@ private:
                     .Subscribe(BIND(
                         &TSession::OnRequestSerialized,
                         MakeStrong(this),
+                        std::move(request),
                         std::move(requestControl),
                         options));
             } else {
                 try {
                     auto requestMessage = request->Serialize();
                     OnRequestSerialized(
-                        std::move(requestControl),
+                        request,
+                        requestControl,
                         options,
                         std::move(requestMessage));
                 } catch (const std::exception& ex) {
                     OnRequestSerialized(
-                        std::move(requestControl),
+                        request,
+                        requestControl,
                         options,
                         TError(ex));
                 }
@@ -769,6 +772,7 @@ private:
 
 
         void OnRequestSerialized(
+            const IClientRequestPtr& request,
             const TClientRequestControlPtr& requestControl,
             const TSendOptions& options,
             TErrorOr<TSharedRefArray> requestMessageOrError)
@@ -867,7 +871,7 @@ private:
             requestControl->ProfileRequest(requestMessage);
 
             YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v.%v, Timeout: %v, TrackingLevel: %v, "
-                "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v, BodySize: %v, AttachmentsSize: %v)",
+                "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v, BodySize: %v, AttachmentsSize: %v%v)",
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),
@@ -877,7 +881,8 @@ private:
                 options.MultiplexingBand,
                 Bus_->GetEndpointDescription(),
                 GetMessageBodySize(requestMessage),
-                GetTotalMessageAttachmentSize(requestMessage));
+                GetTotalMessageAttachmentSize(requestMessage),
+                request->GetRequestInfo() ? std::string(Format(", %v", *request->GetRequestInfo())) : std::string());
         }
 
 

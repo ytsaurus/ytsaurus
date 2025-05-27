@@ -2655,12 +2655,6 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Requesting blocks from peer (Address: %v, Blocks: %v, EstimatedSize: %v, BytesThrottled: %v)",
-            peerAddress,
-            FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
-            EstimatedSize_,
-            BytesThrottled_);
-
         if (ShouldThrottle(peerAddress, BytesThrottled_ == 0 && EstimatedSize_)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we check BytesThrottled_ is zero.
@@ -2678,6 +2672,10 @@ private:
 
         auto req = proxy.GetBlockRange();
         req->SetResponseHeavy(true);
+        req->SetRequestInfo("Blocks: %v, EstimatedSize: %v, BytesThrottled: %v",
+            FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
+            EstimatedSize_,
+            BytesThrottled_);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -2958,8 +2956,6 @@ private:
 
         YT_VERIFY(channel);
 
-        YT_LOG_DEBUG("Requesting chunk meta (Addresses: %v)", peers);
-
         if (ShouldThrottle(primaryPeer.Address, BytesThrottled_ == 0 && MetaSize_ > 0)) {
             BytesThrottled_ = *MetaSize_;
             if (!CombinedDataByteThrottler_->IsOverdraft()) {
@@ -2975,6 +2971,12 @@ private:
 
         auto req = proxy.GetChunkMeta();
         req->SetResponseHeavy(true);
+        req->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v",
+            ChunkId_,
+            ExtensionTags_,
+            PartitionTag_,
+            WorkloadDescriptor_,
+            true);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -3361,6 +3363,14 @@ private:
 
         auto req = proxy.LookupRows();
         req->SetResponseHeavy(true);
+        req->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, "
+            "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v",
+            ChunkId_,
+            SessionOptions_.ReadSessionId,
+            WorkloadDescriptor_,
+            true,
+            Options_->EnableHashChunkIndex,
+            schemaRequested);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -3843,10 +3853,16 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
 
         auto req = proxy.ProbeBlockSet();
+        auto blockIndexes = std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
         req->SetResponseHeavy(true);
+        req->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v",
+            ChunkId_,
+            MakeCompactIntervalView(blockIndexes),
+            blockIndexes.size(),
+            queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
         ToProto(req->mutable_chunk_id(), ChunkId_);
-        ToProto(req->mutable_block_indexes(), std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end()));
+        ToProto(req->mutable_block_indexes(), std::move(blockIndexes));
         req->SetAcknowledgementTimeout(std::nullopt);
         req->set_ally_replicas_revision(ToProto(queuedBatch.Session->SeedReplicas_.Revision));
 
@@ -3868,6 +3884,13 @@ private:
 
         auto blockIndexes = std::vector(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
         std::sort(blockIndexes.begin(), blockIndexes.end());
+
+        req->SetRequestInfo("ChunkId: %v, Blocks: %v, "
+            "PopulateCache: %v, Workload: %v",
+            ChunkId_,
+            MakeCompactIntervalView(blockIndexes),
+            ReaderConfig_->PopulateCache,
+            queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
 
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);
