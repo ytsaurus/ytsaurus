@@ -792,6 +792,7 @@ private:
                 }
             } else {
                 auto progressTimestamp = replicationProgress->Segments[0].Timestamp;
+                auto previousTimestamp = progressTimestamp;
                 auto unversionedRows = ReinterpretCastRange<TUnversionedRow>(resultRows);
 
                 auto timestampColumnIndex = nameTable->FindId(TimestampColumnName);
@@ -807,18 +808,23 @@ private:
                             row,
                             *timestampColumnIndex);
                     }
-                    if (auto rowTimestamp = row[*timestampColumnIndex].Data.Uint64; progressTimestamp >= rowTimestamp) {
-                        YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",
+
+                    auto rowTimestamp = row[*timestampColumnIndex].Data.Uint64;
+
+                    if (progressTimestamp >= rowTimestamp || previousTimestamp > rowTimestamp) {
+                        YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %v, PreviousTimestamp: %v, Row: %v, Progress: %v)",
                             rowTimestamp,
-                            progressTimestamp,
+                            previousTimestamp,
                             row,
                             static_cast<TReplicationProgress>(*replicationProgress));
 
                         THROW_ERROR_EXCEPTION("Inappropriate row timestamp in pull rows response")
                             << TErrorAttribute("row_timestamp", rowTimestamp)
-                            << TErrorAttribute("progress_timestamp", progressTimestamp)
+                            << TErrorAttribute("previous_timestamp", previousTimestamp)
                             << HardErrorAttribute;
                     }
+
+                    previousTimestamp = rowTimestamp;
                 }
             }
 
