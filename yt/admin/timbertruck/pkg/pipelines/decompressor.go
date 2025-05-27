@@ -245,7 +245,7 @@ func newZstdFrameIterator(logger *slog.Logger, filepath string, filePosition int
 func (d *zstdFrameIterator) next(ctx context.Context) ([]byte, error) {
 	d.advanceToNextFrame()
 	for {
-		tagPos := d.findFirstSynсTagPos()
+		tagPos := d.findFirstSyncTagPos()
 		if tagPos >= 0 {
 			d.frameSize = tagPos + zstdSyncTagLength - d.frameStart
 			return d.buffer[d.frameStart:tagPos], nil
@@ -278,7 +278,7 @@ func (d *zstdFrameIterator) advanceToNextFrame() {
 	}
 }
 
-func (d *zstdFrameIterator) findFirstSynсTagPos() int {
+func (d *zstdFrameIterator) findFirstSyncTagPos() int {
 	firstSyncTagPos := -1
 	begin := d.frameStart
 	for {
