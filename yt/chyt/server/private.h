@@ -6,6 +6,8 @@
 
 #include <yt/yt/library/clickhouse_functions/public.h>
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <library/cpp/yt/misc/global.h>
 
 #include <Common/COW.h>
@@ -133,6 +135,8 @@ struct IStorageDistributor;
 using IStorageDistributorPtr = std::shared_ptr<IStorageDistributor>;
 
 struct IUserDefinedSqlObjectsYTStorage;
+
+using TSecondaryQueryReadDescriptors = std::vector<NChunkClient::TDataSliceDescriptor>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
