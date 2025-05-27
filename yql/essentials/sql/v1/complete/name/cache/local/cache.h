@@ -5,7 +5,7 @@
 #include <library/cpp/cache/cache.h>
 #include <library/cpp/time_provider/time_provider.h>
 
-#include <util/system/rwlock.h>
+#include <util/system/mutex.h>
 
 namespace NSQLComplete {
 
@@ -47,8 +47,7 @@ namespace NSQLComplete {
 
             NThreading::TFuture<TEntry> Get(const TKey& key) const override {
                 TEntry entry;
-                {
-                    TReadGuard _(Mutex_);
+                with_lock (Mutex_) {
                     if (auto it = Origin_.Find(key); it != Origin_.End()) {
                         entry.Value = it->Value;
                         entry.IsExpired = (it->Death < Clock_->Now());
@@ -62,8 +61,7 @@ namespace NSQLComplete {
                     .Value = std::move(value),
                     .Death = Clock_->Now() + Config_.TTL,
                 };
-                {
-                    TWriteGuard _(Mutex_);
+                with_lock (Mutex_) {
                     Origin_.Update(key, std::move(entry));
                 }
                 return NThreading::MakeFuture();
@@ -73,7 +71,7 @@ namespace NSQLComplete {
             TIntrusivePtr<ITimeProvider> Clock_;
             TLocalCacheConfig Config_;
 
-            TRWMutex Mutex_;
+            TMutex Mutex_;
             mutable TStorage Origin_;
         };
 

@@ -5,6 +5,7 @@
 #include <library/cpp/time_provider/time_provider.h>
 
 #include <util/random/random.h>
+#include <util/thread/pool.h>
 
 using namespace NSQLComplete;
 
@@ -27,6 +28,27 @@ struct TIdentitySizeProvider {
         return value;
     }
 };
+
+struct TAction {
+    bool IsGet = false;
+    ui32 Key = 0;
+    ui32 Value = 0;
+};
+
+TVector<TAction> GenerateRandomActions(size_t size) {
+    constexpr double GetFrequency = 0.75;
+    constexpr ui32 MaxKey = 100;
+    constexpr ui32 MinValue = 1;
+    constexpr ui32 MaxValue = 10;
+
+    TVector<TAction> actions(size);
+    for (auto& action : actions) {
+        action.IsGet = RandomNumber<double>() < GetFrequency;
+        action.Key = RandomNumber(MaxKey);
+        action.Value = MinValue + RandomNumber(MaxValue - MinValue);
+    }
+    return actions;
+}
 
 TIntrusivePtr<TPausedClock> MakePausedClock() {
     return new TPausedClock();
@@ -104,24 +126,39 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
 
     Y_UNIT_TEST(WhenRandomlyAccessed_ThenDoesNotDie) {
         constexpr size_t Iterations = 1024 * 1024;
-        constexpr double GetFrequency = 0.75;
-        constexpr ui32 MaxKey = 100;
-        constexpr ui32 MinValue = 1;
-        constexpr ui32 MaxValue = 10;
         SetRandomSeed(1);
 
         auto cache = MakeLocalCache<ui32, ui32, TIdentitySizeProvider>(
             CreateDefaultTimeProvider(), {.Capacity = 128, .TTL = TDuration::MilliSeconds(1)});
 
-        for (size_t i = 0; i < Iterations; ++i) {
-            ui32 key = RandomNumber(MaxKey);
-            if (RandomNumber<double>() < GetFrequency) {
-                Y_DO_NOT_OPTIMIZE_AWAY(cache->Get(key));
+        for (auto&& a : GenerateRandomActions(Iterations)) {
+            if (a.IsGet) {
+                Y_DO_NOT_OPTIMIZE_AWAY(cache->Get(a.Key));
             } else {
-                ui32 value = MinValue + RandomNumber(MaxValue - MinValue);
-                Y_DO_NOT_OPTIMIZE_AWAY(cache->Update(key, value));
+                Y_DO_NOT_OPTIMIZE_AWAY(cache->Update(a.Key, a.Value));
             }
         }
+    }
+
+    Y_UNIT_TEST(WhenConcurrentlyAccessed_ThenDoesNotDie) {
+        constexpr size_t Threads = 8;
+        constexpr size_t Iterations = Threads * 16 * 1024;
+        SetRandomSeed(1);
+
+        auto cache = MakeLocalCache<ui32, ui32, TIdentitySizeProvider>(
+            CreateDefaultTimeProvider(), {.Capacity = 128, .TTL = TDuration::MilliSeconds(1)});
+
+        auto pool = CreateThreadPool(Threads);
+        for (auto&& a : GenerateRandomActions(Iterations)) {
+            Y_ENSURE(pool->AddFunc([cache, a = std::move(a)] {
+                if (a.IsGet) {
+                    Y_DO_NOT_OPTIMIZE_AWAY(cache->Get(a.Key));
+                } else {
+                    Y_DO_NOT_OPTIMIZE_AWAY(cache->Update(a.Key, a.Value));
+                }
+            }));
+        }
+        pool->Stop();
     }
 
 } // Y_UNIT_TEST_SUITE(LocalCacheTests)
