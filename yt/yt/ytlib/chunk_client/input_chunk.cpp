@@ -187,10 +187,7 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int>
         ? std::make_unique<NTableClient::NProto::THunkChunkRefsExt>(
             GetProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkSpec.chunk_meta().extensions()))
         : nullptr)
-    // , OffshoreReplicas_(FromProto<TChunkReplicaWithMediumList>(chunkSpec.offshore_replicas()))
 {
-    // Cerr << Format("KEK Created chunk (ChunkId: %v, OffshoreReplicaCount: %v)", ChunkId_, std::ssize(OffshoreReplicas_)) << Endl;
-
     if (IsSortedDynamicStore()) {
         BoundaryKeys_ = std::make_unique<TOwningBoundaryKeys>();
         BoundaryKeys_->MinKey = LowerLimit_ && LowerLimit_->HasLegacyKey() ? LowerLimit_->GetLegacyKey() : MinKey();

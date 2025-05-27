@@ -1221,14 +1221,10 @@ void SerializeMediumDirectory(
     NChunkClient::NProto::TMediumDirectory* protoMediumDirectory,
     const IChunkManagerPtr& chunkManager)
 {
-    YT_LOG_DEBUG("KEK Serializing medium directory");
     for (auto [mediumId, medium] : chunkManager->Media()) {
-        YT_LOG_DEBUG("KEK Serializing medium (Index: %v, Name: %v)", medium->GetIndex(), medium->GetName());
         auto* protoMediumDescriptor = protoMediumDirectory->add_medium_descriptors();
         medium->FillMediumDescriptor(protoMediumDescriptor);
     }
-
-    YT_LOG_DEBUG("KEK Serialized medium directory (DebugString: %v)", protoMediumDirectory->DebugString());
 }
 
 void SerializeMediumOverrides(

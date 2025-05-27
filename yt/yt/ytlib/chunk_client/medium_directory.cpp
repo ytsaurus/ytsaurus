@@ -78,15 +78,11 @@ void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
 {
     auto guard = WriterGuard(SpinLock_);
 
-    YT_LOG_DEBUG("KEK Loading medium directory (DebugString: %v)", protoDirectory.DebugString());
-
     auto oldIndexToDescriptor = std::move(IndexToDescriptor_);
     IndexToDescriptor_.clear();
     NameToDescriptor_.clear();
     for (const auto& protoMediumDescriptor : protoDirectory.medium_descriptors()) {
         auto descriptor = TMediumDescriptor::CreateFromProto(protoMediumDescriptor);
-
-        YT_LOG_DEBUG("KEK Adding medium to medium directory (Index: %v, Name: %v)", descriptor->GetIndex(), descriptor->GetName());
 
         // Let's keep the same pointer if the medium configuration did not change since the descriptor
         // sometimes caches things, e.g. S3 client in S3 medium descriptor.

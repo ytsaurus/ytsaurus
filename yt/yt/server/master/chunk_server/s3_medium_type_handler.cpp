@@ -50,7 +50,6 @@ public:
     {
         auto name = attributes->GetAndRemove<std::string>("name");
         auto config = attributes->GetAndRemove<TS3MediumConfigPtr>("config");
-        YT_LOG_DEBUG("KEK Medium config on create (Config: %v)", ConvertToYsonString(config, NYson::EYsonFormat::Text));
         // These three are optional.
         auto priority = attributes->FindAndRemove<int>("priority");
         auto index = attributes->FindAndRemove<int>("index");

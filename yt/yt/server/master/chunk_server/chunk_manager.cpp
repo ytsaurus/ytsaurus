@@ -6121,9 +6121,7 @@ private:
         auto mediumHolder = TPoolAllocator::New<TS3Medium>(id);
         mediumHolder->SetName(name);
         mediumHolder->SetIndex(mediumIndex);
-        YT_LOG_DEBUG("KEK Moving config into medium (Config: %v)", ConvertToYsonString(config, EYsonFormat::Text));
         mediumHolder->Config() = std::move(config);
-        YT_LOG_DEBUG("KEK Config in medium (Config: %v)", ConvertToYsonString(mediumHolder->Config(), EYsonFormat::Text));
         if (priority) {
             ValidateMediumPriority(*priority);
             mediumHolder->SetPriority(*priority);

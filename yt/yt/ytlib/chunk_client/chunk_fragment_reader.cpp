@@ -185,7 +185,6 @@ public:
         , SuccessfulProbingRequestCounter_(profiler.Counter("/successful_probing_request_count"))
         , FailedProbingRequestCounter_(profiler.Counter("/failed_probing_request_count"))
     {
-        YT_LOG_DEBUG("KEK Medium directory is started in CFR");
         // NB: Ensure that it is started so medium priorities could be accounted.
         Client_->GetNativeConnection()->GetMediumDirectorySynchronizer()->Start();
 
