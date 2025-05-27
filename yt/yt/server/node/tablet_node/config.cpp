@@ -541,6 +541,9 @@ void TSmoothMovementTrackerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("testing", &TThis::Testing)
         .DefaultNew();
+
+    registrar.Parameter("preload_wait_timeout", &TThis::PreloadWaitTimeout)
+        .Default(TDuration::Minutes(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

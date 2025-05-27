@@ -1734,7 +1734,7 @@ private:
             updateMode == EUpdateMode::Overwrite,
             transactionId);
 
-        storeManager->BulkAddStores(TRange(storesToAdd), /*onMount*/ false);
+        storeManager->BulkAddStores(TRange(storesToAdd));
 
         const auto& lockManager = tablet->GetLockManager();
         if (tablet->GetLockManager()->HasTransaction(transactionId)) {
@@ -2673,7 +2673,10 @@ private:
 
             auto store = CreateStore(tablet, storeType, storeId, &descriptor)->AsChunk();
             store->Initialize();
-            storeManager->AddStore(store, /*onMount*/ false, /*onFlush*/ updateReason == ETabletStoresUpdateReason::Flush);
+            storeManager->AddStore(
+                store,
+                /*useInterceptedChunkData*/ true,
+                /*onFlush*/ updateReason == ETabletStoresUpdateReason::Flush);
             addedStores.push_back(store);
 
             TStoreId backingStoreId;
