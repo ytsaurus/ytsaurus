@@ -49,7 +49,7 @@ namespace NSQLComplete {
                 TLocalCacheConfiguration config)
                 : Clock_(std::move(clock))
                 , Config_(std::move(config))
-                , Origin_(Callbacks_)
+                , Origin_(Callbacks_, /* maxSize = */ Config_.Capacity)
             {
             }
 
