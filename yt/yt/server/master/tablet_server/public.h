@@ -118,6 +118,8 @@ DECLARE_MASTER_OBJECT_TYPE(THunkStorageNode)
 
 struct TTabletStatistics;
 
+class TTabletResources;
+
 extern const std::string DefaultTabletCellBundleName;
 extern const std::string SequoiaTabletCellBundleName;
 

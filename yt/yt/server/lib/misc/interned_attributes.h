@@ -464,6 +464,7 @@
     XX(ResolveCached, resolve_cached) \
     XX(ResourceLimits, resource_limits) \
     XX(ResourceLimitsOverrides, resource_limits_overrides) \
+    XX(ResourceQuota, resource_quota) \
     XX(ResourceUsage, resource_usage) \
     XX(RetainedTimestamp, retained_timestamp) \
     XX(Revision, revision) \

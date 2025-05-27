@@ -942,6 +942,44 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         self._multicell_set("//sys/@config/tablet_manager/enable_tablet_resource_validation", False)
         insert_rows("//tmp/t", [{"key": 1}])
 
+    @authors("ifsmirnov")
+    def test_resource_quota_attribute(self):
+        create_tablet_cell_bundle("b")
+
+        path = "//sys/tablet_cell_bundles/b"
+
+        default_resource_limits = {
+            "tablet_count": 0,
+            "tablet_static_memory": 0,
+        }
+
+        set(f"{path}/@resource_limits", default_resource_limits)
+
+        assert get(f"{path}/@resource_quota") == {}
+
+        set(f"{path}/@resource_quota/cpu", 1)
+        assert get(f"{path}/@resource_quota") == {"cpu": 1}
+        assert get(f"{path}/@resource_limits") == {**default_resource_limits, "cpu": 1}
+
+        set(f"{path}/@resource_quota/memory", 100500)
+        assert get(f"{path}/@resource_quota") == {"cpu": 1, "memory": 100500}
+        assert get(f"{path}/@resource_limits") == {**default_resource_limits, "cpu": 1, "memory": 100500}
+
+        set(f"{path}/@resource_limits/net_bytes", 42)
+        assert get(f"{path}/@resource_quota") == {"cpu": 1, "memory": 100500, "net_bytes": 42}
+        assert get(f"{path}/@resource_limits") == {**default_resource_limits, "cpu": 1, "memory": 100500, "net_bytes": 42}
+
+        remove(f"{path}/@resource_quota/memory")
+        assert get(f"{path}/@resource_quota") == {"cpu": 1, "net_bytes": 42}
+        assert get(f"{path}/@resource_limits") == {**default_resource_limits, "cpu": 1, "net_bytes": 42}
+
+        with raises_yt_error():
+            remove(f"{path}/@resource_quota")
+        with raises_yt_error():
+            set(f"{path}/@resource_quota/memory", "string value")
+        with raises_yt_error():
+            set(f"{path}/@resource_quota/memory", -1)
+
 
 @pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingMulticell(TestPerBundleAccounting):

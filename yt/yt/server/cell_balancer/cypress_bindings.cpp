@@ -24,7 +24,8 @@ void TResourceQuota::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Default(0);
 
-    registrar.Parameter("network", &TThis::Network)
+    // TODO(ifsmirnov): Finish migration started in YT-17749.
+    registrar.Parameter("net_bytes", &TThis::Network)
         .GreaterThanOrEqual(0)
         .Default(0);
 }

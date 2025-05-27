@@ -51,8 +51,9 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletAction*>, TabletActions);
     DEFINE_BYVAL_RO_PROPERTY(int, ActiveTabletActionCount);
 
-    DEFINE_BYREF_RW_PROPERTY(TTabletResources, ResourceLimits);
+    DEFINE_BYREF_RW_PROPERTY(TTabletCellBundleResources, ResourceLimits);
     DEFINE_BYREF_RW_PROPERTY(TGossipTabletResources, ResourceUsage);
+    DEFINE_BYREF_RW_PROPERTY(TTabletCellBundleQuota, QuotaUsage);
 
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TAbcConfigPtr, AbcConfig);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<std::string>, FolderId);

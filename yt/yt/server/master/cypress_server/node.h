@@ -13,7 +13,7 @@
 #include <yt/yt/server/master/security_server/cluster_resources.h>
 #include <yt/yt/server/master/security_server/detailed_master_memory.h>
 
-#include <yt/yt/server/master/tablet_server/tablet_resources.h>
+#include <yt/yt/server/master/tablet_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
 

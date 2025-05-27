@@ -166,6 +166,7 @@ DEFINE_ENUM(EMasterReign,
     ((ReplicaDataInReplicatableTabletContent)                       (2929))  // ifsmirnov
     ((TransactionActionStates)                                      (2930))  // babenko
     ((SupportTzTypes)                                               (2931))  // nadya02
+    ((ResourceQuotaAttributeForBundles)                             (2932))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
