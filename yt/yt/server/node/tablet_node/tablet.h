@@ -826,7 +826,7 @@ public:
 
     const std::string& GetLoggingTag() const;
 
-    std::optional<TString> GetPoolTagByMemoryCategory(EMemoryCategory category) const;
+    std::optional<std::string> GetPoolTagByMemoryCategory(EMemoryCategory category) const;
 
     int GetEdenStoreCount() const;
 

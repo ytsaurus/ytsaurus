@@ -76,7 +76,7 @@ public:
         SlotScanExecutor_->Start();
     }
 
-    bool IsOutOfMemory(const std::optional<TString>& poolTag) const override
+    bool IsOutOfMemory(const std::optional<std::string>& poolTag) const override
     {
         const auto& tracker = Bootstrap_->GetNodeMemoryUsageTracker();
         return tracker->IsExceeded(EMemoryCategory::TabletDynamic, poolTag);
@@ -162,8 +162,7 @@ private:
             YT_LOG_DEBUG("Tablet cell bundle memory pool weight updated (Bundle: %v, Weight: %v)",
                 bundleName,
                 weight);
-            // TODO(babenko): migrate to std::string
-            memoryTracker->SetPoolWeight(TString(bundleName), weight);
+            memoryTracker->SetPoolWeight(bundleName, weight);
         };
 
         TBundlesMemoryPoolWeights weights;
@@ -267,10 +266,8 @@ private:
         // Fill per bundle limits.
         for (auto& [bundleName, bundleStat] : summary.Bundles) {
             bundleStat.Total.Dynamic = {
-                // TODO(babenko): switch to std::string
-                .Usage = memoryTracker->GetUsed(EMemoryCategory::TabletDynamic, TString(bundleName)),
-                // TODO(babenko): switch to std::string
-                .Limit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, TString(bundleName)),
+                .Usage = memoryTracker->GetUsed(EMemoryCategory::TabletDynamic, bundleName),
+                .Limit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, bundleName),
             };
         }
 

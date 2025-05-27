@@ -46,7 +46,7 @@ struct ITabletCellWriteManagerHost
     virtual NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const = 0;
     virtual TTabletManagerConfigPtr GetConfig() const = 0;
 
-    virtual void ValidateMemoryLimit(const std::optional<TString>& poolTag) = 0;
+    virtual void ValidateMemoryLimit(const std::optional<std::string>& poolTag) = 0;
     virtual NTransactionClient::TTimestamp GetLatestTimestamp() const = 0;
 
     virtual bool ValidateRowRef(const TSortedDynamicRowRef& rowRef) = 0;

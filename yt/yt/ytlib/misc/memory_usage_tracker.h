@@ -22,7 +22,7 @@ struct INodeMemoryTracker
     : public TRefCounted
 {
     using ECategory = EMemoryCategory;
-    using TPoolTag = TString;
+    using TPoolTag = std::string;
 
     virtual i64 GetTotalLimit() const = 0;
     virtual i64 GetTotalUsed() const = 0;

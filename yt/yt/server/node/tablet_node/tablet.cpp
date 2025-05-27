@@ -2380,11 +2380,10 @@ const std::string& TTablet::GetLoggingTag() const
     return LoggingTag_;
 }
 
-std::optional<TString> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const
+std::optional<std::string> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const
 {
     if (category == EMemoryCategory::TabletDynamic) {
-        // TODO(babenko): migrate to std::string
-        return TString(Context_->GetTabletCellBundleName());
+        return Context_->GetTabletCellBundleName();
     }
     return {};
 }
