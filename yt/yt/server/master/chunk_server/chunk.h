@@ -187,6 +187,9 @@ public:
     // COMPAT(ifsmirnov)
     void SetApprovedReplicaCount(int count);
 
+    void ValidateConfirmation(
+        const NChunkClient::NProto::TChunkInfo& chunkInfo,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta) const;
     void Confirm(
         const NChunkClient::NProto::TChunkInfo& chunkInfo,
         const NChunkClient::NProto::TChunkMeta& chunkMeta);
