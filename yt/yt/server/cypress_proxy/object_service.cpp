@@ -169,8 +169,7 @@ private:
                     "BytesThrottler",
                     CypressProxyLogger()),
                 Owner_->ThrottlerFactory_->GetOrCreateThrottler(
-                    // TODO(babenko): migrate to std::string
-                    TString(throttlerId),
+                    throttlerId,
                     throttlerConfig));
         }
     };

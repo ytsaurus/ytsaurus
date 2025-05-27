@@ -671,8 +671,7 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
 
     return Counters.FindOrInsert(userTag, [&] {
         if (userTag) {
-            // TODO(babenko): switch to std::string
-            return TCounter{profiler.WithTag("user", ToString(*userTag))};
+            return TCounter{profiler.WithTag("user", *userTag)};
         } else {
             return TCounter{profiler};
         }

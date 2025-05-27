@@ -276,8 +276,7 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
                     "/remote_cluster_throttlers_group",
                     TMemberId(LocalAddress_),
                     RpcServer_,
-                    // TODO(babenko): switch to std::string
-                    TString(LocalAddress_),
+                    LocalAddress_,
                     this->Logger,
                     Authenticator_,
                     Profiler_.WithPrefix("/distributed_throttler"));
