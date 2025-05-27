@@ -481,7 +481,8 @@ private:
         connectionOptions.BlockCache = CreateClientBlockCache(
             std::move(blockCacheConfig),
             NChunkClient::EBlockType::CompressedData,
-            GetNullMemoryUsageTracker());
+            GetNullMemoryUsageTracker(),
+            ExecNodeProfiler().WithPrefix("/layer_block_cache"));
         connectionOptions.ConnectionInvoker = invoker;
         auto connection = CreateConnection(TBootstrapBase::GetConnection()->GetCompoundConfig(), std::move(connectionOptions));
         connection->GetNodeDirectorySynchronizer()->Start();
