@@ -889,6 +889,10 @@ public:
             }
         }
 
+        chunk->ValidateConfirmation(chunkInfo, chunkMeta);
+
+        // No exceptions below this point, please. Thank you kindly.
+
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto* hunkChunk : referencedHunkChunks) {
             objectManager->RefObject(hunkChunk);

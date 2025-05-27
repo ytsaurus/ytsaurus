@@ -364,16 +364,18 @@ void TChunk::SetApprovedReplicaCount(int count)
     MutableReplicasData()->ApprovedReplicaCount = count;
 }
 
-void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
+void TChunk::ValidateConfirmation(const TChunkInfo& /*chunkInfo*/, const TChunkMeta& chunkMeta) const
 {
     // YT-3251
     if (!HasProtoExtension<TMiscExt>(chunkMeta.extensions())) {
         THROW_ERROR_EXCEPTION("Missing TMiscExt in chunk meta");
     }
 
-    Y_UNUSED(FromProto<EChunkType>(chunkMeta.type()));
-    Y_UNUSED(FromProto<EChunkFormat>(chunkMeta.format()));
+    ValidateFromProto(chunkMeta);
+}
 
+void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
+{
     ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(chunkMeta);
 
     SetDiskSpace(chunkInfo.disk_space());
