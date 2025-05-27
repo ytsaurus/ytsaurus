@@ -48,7 +48,7 @@ public:
     }
 
     TFuture<TRefCountedChunkMetaPtr> GetMeta(
-        const TGetMetaOptions& options,
+        const TClientChunkReadOptions& options,
         std::optional<int> partitionTag = std::nullopt,
         const std::optional<std::vector<int>>& extensionTags = {}) override
     {

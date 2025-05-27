@@ -318,7 +318,7 @@ public:
         const TEphemeralObjectPtr<TChunk>& chunk) const override
     {
         YT_VERIFY(!HasMutationContext());
-        VerifyPersistentStateRead();
+        Bootstrap_->VerifyPersistentStateRead();
 
         // This is so stupid.
         std::vector<TEphemeralObjectPtr<TChunk>> chunks;

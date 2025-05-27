@@ -148,7 +148,7 @@ private:
     //! Absolute path to location.
     const TString LocationPath_;
 
-    TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
+    TAtomicIntrusivePtr<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SlotsLock_);
 

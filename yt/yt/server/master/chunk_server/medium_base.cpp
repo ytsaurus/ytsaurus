@@ -34,7 +34,7 @@ const TDomesticMedium* TMedium::AsDomestic() const
 
 void TMedium::FillMediumDescriptor(NChunkClient::NProto::TMediumDirectory::TMediumDescriptor* protoItem) const
 {
-    protoItem->set_name(Name_);
+    protoItem->set_name(TString(Name_));
     protoItem->set_index(Index_);
     protoItem->set_priority(Priority_);
 }

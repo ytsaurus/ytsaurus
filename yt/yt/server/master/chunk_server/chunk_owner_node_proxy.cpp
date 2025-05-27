@@ -169,7 +169,7 @@ void PopulateChunkSpecWithReplicas(
     ToProto(chunkSpec->mutable_replicas(), replicas);
 
     for (const auto& replica : offshoreReplicas) {
-        chunkSpec->add_replicas(ToProto(replica));
+        chunkSpec->add_replicas(ToProto<ui64>(replica));
     }
 }
 

@@ -378,7 +378,7 @@ void TSessionManager::OnChunkRemovalScheduled(const IChunkPtr& chunk)
 {
     auto sessionId = TSessionId(
         chunk->GetId(),
-        chunk->GetLocation()->GetMediumDescriptor().Index);
+        chunk->GetLocation()->GetMediumDescriptor()->GetIndex());
     if (auto session = FindSession(sessionId)) {
         session->Cancel(TError("Chunk %v is about to be removed",
             chunk->GetId()));

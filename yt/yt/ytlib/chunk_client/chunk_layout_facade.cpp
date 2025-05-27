@@ -234,7 +234,7 @@ TChunkLayoutFacade::TWriteRequest TChunkLayoutFacade::AddBlocks(const std::vecto
 
         auto* blockInfo = BlocksExt_.add_blocks();
         blockInfo->set_offset(request.EndOffset);
-        blockInfo->set_size(ToProto(block.Size()));
+        blockInfo->set_size(ToProto<i64>(block.Size()));
         blockInfo->set_checksum(block.GetOrComputeChecksum());
 
         request.EndOffset += block.Size();

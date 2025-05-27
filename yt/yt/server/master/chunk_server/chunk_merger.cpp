@@ -161,7 +161,7 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
         ToProto(protoChunk->mutable_source_replicas(), replicas);
 
         for (const auto& offshoreReplica : offshoreReplicas) {
-            protoChunk->add_source_replicas(ToProto(offshoreReplica));
+            protoChunk->add_source_replicas(ToProto<ui64>(offshoreReplica));
         }
 
         builder.Add(replicas);

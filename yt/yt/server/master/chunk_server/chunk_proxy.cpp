@@ -315,7 +315,7 @@ private:
                 })
             .EndAttributes()
             // Maybe not the cleanest approach, but good enough for now.
-            .Value(node ? node->GetDefaultAddress() : medium->GetName());
+            .Value(node ? node->GetDefaultAddress() : TString(medium->GetName()));
     };
 
     void BuildYsonReplicas(
@@ -1323,7 +1323,7 @@ private:
         ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
         ToProto(chunkSpec->mutable_replicas(), replicas);
         for (const auto& offshoreReplica : offshoreReplicas) {
-            chunkSpec->add_replicas(ToProto(offshoreReplica));
+            chunkSpec->add_replicas(ToProto<ui64>(offshoreReplica));
         }
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
         chunkSpec->set_erasure_codec(ToProto<int>(chunk->GetErasureCodec()));

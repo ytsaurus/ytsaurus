@@ -101,7 +101,7 @@ public:
     //! Do not call any other methods after this one.
     TFuture<void> Cancel()
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         if (IsAborted()) {
             return VoidFuture;
@@ -185,7 +185,7 @@ public:
 
     TFuture<void> Start()
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         // There is no need to schedule this callback twice.
         if (TryExchangeState(ES3UploadSessionState::Created, ES3UploadSessionState::Starting)) {
@@ -198,7 +198,7 @@ public:
     //! Session must be started before calling Add.
     bool Add(const std::vector<TSharedRef>& data)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         // If we return false, a call to GetReadyEvent will follow which will return the error to the caller.
         if (IsAborted()) {
@@ -227,7 +227,7 @@ public:
 
     TFuture<void> GetReadyEvent()
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto promise = NewPromise<void>();
         promise.TrySetFrom(GetStateFuture());
@@ -239,7 +239,7 @@ public:
     //! After calling this method, no more data can be added to the session.
     TFuture<void> Complete()
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         // You cannot complete a session that has not been started.
         YT_VERIFY(GetState() != ES3UploadSessionState::Created);
@@ -261,7 +261,7 @@ public:
     //! Used for sanity-checks.
     i64 GetCurrentOffset() const
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(SpinLock_);
         return CurrentObjectOffset_;
@@ -296,7 +296,7 @@ private:
 
     ES3UploadSessionState GetState() const
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(SpinLock_);
         return State_;
@@ -304,7 +304,7 @@ private:
 
     bool TryExchangeState(ES3UploadSessionState expected, ES3UploadSessionState desired)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(SpinLock_);
         if (State_ == expected) {
@@ -316,7 +316,7 @@ private:
 
     void DoStart()
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Starting multi-part upload to S3");
 
@@ -361,7 +361,7 @@ private:
 
     void SchedulePartUploadIfNeeded()
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(SpinLock_);
         GuardedSchedulePartUploadIfNeeded();
@@ -429,7 +429,7 @@ private:
 
     NS3::TUploadPartResponse OnPartUploadCompleted(const TErrorOr<NS3::TUploadPartResponse>& response, int partIndex, i64 partSize)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         if (response.IsOK()) {
             YT_LOG_DEBUG(
@@ -456,7 +456,7 @@ private:
 
     std::vector<TFuture<NS3::TUploadPartResponse>> DrainPendingPartUploads()
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         std::vector<TFuture<NS3::TUploadPartResponse>> pendingPartUploads;
 
@@ -470,7 +470,7 @@ private:
 
     void CancelPendingUploads(TError error)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         // These cancellations should not have synchronous side effects, but we do not like to live dangerously.
         for (auto& partUpload : DrainPendingPartUploads()) {
@@ -592,7 +592,7 @@ public:
 
     TFuture<void> Upload(TSharedRef data)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         Invoker_->Invoke(BIND(&TS3SimpleUploadSession::DoUpload, MakeWeak(this), Passed(std::move(data))));
 
@@ -681,15 +681,13 @@ public:
     }
 
     bool WriteBlock(
-        const TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const TBlock& block) override
     {
-        return WriteBlocks(options, workloadDescriptor, {block});
+        return WriteBlocks(workloadDescriptor, {block});
     }
 
     bool WriteBlocks(
-        const TWriteBlocksOptions& /*options*/,
         const TWorkloadDescriptor& /*workloadDescriptor*/,
         const std::vector<TBlock>& blocks) override
     {
@@ -703,7 +701,6 @@ public:
     }
 
     TFuture<void> Close(
-        const IChunkWriter::TWriteBlocksOptions& /*options*/,
         const TWorkloadDescriptor& /*workloadDescriptor*/,
         const TDeferredChunkMetaPtr& chunkMeta = nullptr) override
     {
@@ -724,14 +721,14 @@ public:
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         return ChunkLayoutFacade_->GetChunkInfo();
     }
 
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         // TODO(achulkov2): [PForReview] What should we return here, if anything?
         YT_UNIMPLEMENTED();
@@ -739,7 +736,7 @@ public:
 
     TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         // This method may only be called if the chunk was closed successfully,
         // so we can assume that the upload session was completed.
@@ -761,7 +758,7 @@ public:
 
     NErasure::ECodec GetErasureCodecId() const override
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         return NErasure::ECodec::None;
     }

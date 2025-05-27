@@ -53,9 +53,9 @@ private:
     friend void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation replica);
     friend void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaInfo value);
 
-    using TLoadContext = NPhoenix::TLoadContext;
-    using TSaveContext = NPhoenix::TSaveContext;
-    using TPersistenceContext = NPhoenix::TPersistenceContext;
+    using TLoadContext = NPhoenix2::TLoadContext;
+    using TSaveContext = NPhoenix2::TSaveContext;
+    using TPersistenceContext = NPhoenix2::TPersistenceContext;
 
     PHOENIX_DECLARE_TYPE(TChunkReplicaWithMedium, 0x004d1b8e);
 };
