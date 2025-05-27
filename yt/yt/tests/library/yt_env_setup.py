@@ -1083,6 +1083,14 @@ class YTEnvSetup(object):
         return config
 
     @classmethod
+    def _validate_cell_descriptors(cls, cluster_index, cell_tags):
+        if cluster_index >= cls.get_ground_index_offset():
+            return
+
+        for cell_tag in cls.get_param("MASTER_CELL_DESCRIPTORS", cluster_index):
+            assert cell_tag in cell_tags
+
+    @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
         cls.modify_multi_config(configs["multi"])
         for cell_index, cell_tag in enumerate([configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]):
@@ -1945,6 +1953,7 @@ class YTEnvSetup(object):
 
     def _apply_master_dynamic_config_patches(self, config, cluster_index):
         master_cell_descriptors = self.get_param("MASTER_CELL_DESCRIPTORS", cluster_index)
+
         update_inplace(
             config, self.get_param("DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
         )
