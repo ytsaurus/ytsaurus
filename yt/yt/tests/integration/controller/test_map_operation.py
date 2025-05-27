@@ -1895,6 +1895,13 @@ print(json.dumps(input))
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
 
+        with pytest.raises(YtError, match="User job failed"):
+            map(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then exit 1; fi',
+                spec={"mapper": {"cookie_group_size": 2}},
+            )
         with pytest.raises(YtError, match="echo: write error: Invalid argument"):
             map(
                 in_="//tmp/t1",
