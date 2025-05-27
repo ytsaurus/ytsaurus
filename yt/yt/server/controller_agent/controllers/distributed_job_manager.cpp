@@ -50,9 +50,9 @@ std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> TDistributedJobManager::P
     return {cookie, replicas.Secondaries.size() - replicas.Pending + 1};
 }
 
-bool TDistributedJobManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason reason)
+bool TDistributedJobManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason /*reason*/)
 {
-    return OnUnsuccessfulJobFinish(joblet, reason);
+    return OnUnsuccessfulJobFinish(joblet, EAbortReason::CookieGroupDisbanded);
 }
 
 bool TDistributedJobManager::OnJobFailed(const TJobletPtr& joblet)
