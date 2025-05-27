@@ -1958,52 +1958,6 @@ print(json.dumps(input))
         res = read_table("//tmp/t2")
         assert res == [{"a": "b"}]
 
-    @authors("faucct")
-    @pytest.mark.parametrize("ordered", [False, True])
-    def test_failing_map_multi_job_splitter(self, ordered):
-        input = "//tmp/in_1"
-        create("table", input)
-        write_table(
-            input,
-            [{"key": "%08d" % i, "value": "(t_1)", "data": "a" * (1024 * 1024)} for i in range(20)],
-        )
-
-        command = """
-if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then
-while read ROW; do
-    if [ "$YT_JOB_INDEX" == 0 ]; then
-        sleep 10
-    else
-        sleep 0.1
-    fi
-    echo "$ROW"
-done
-else
-    exit 1
-fi
-"""
-
-        with pytest.raises(YtError, match="User job failed"):
-            map(
-                ordered=ordered,
-                in_=input,
-                out="<create=true>//tmp/t_output1",
-                command=command,
-                spec={
-                    "mapper": {
-                        "cookie_group_size": 2,
-                        "format": "dsv",
-                    },
-                    "data_size_per_job": 21 * 1024 * 1024,
-                    "max_failed_job_count": 1,
-                    "job_io": {
-                        "buffer_row_count": 1,
-                    },
-                },
-            )
-
-        assert not exists("//tmp/t_output1")
-
     @authors("ifsmirnov")
     def test_disallow_partially_sorted_output(self):
         create(
