@@ -43,6 +43,9 @@ NYT::NApi::IClientPtr CreateApiClient(const TClientContext& context)
     if (context.ImpersonationUser) {
         clientOptions.User = *context.ImpersonationUser;
     }
+    if (context.MultiproxyTargetCluster) {
+        clientOptions.MultiproxyTargetCluster = *context.MultiproxyTargetCluster;
+    }
 
     auto connection = NApi::NRpcProxy::CreateConnection(connectionConfig);
     return connection->CreateClient(clientOptions);
