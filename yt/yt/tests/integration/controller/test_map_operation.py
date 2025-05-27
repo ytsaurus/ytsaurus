@@ -1928,6 +1928,23 @@ print(json.dumps(input))
         op.abort()
 
     @authors("fauct")
+    def test_distributed_interrupting(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+        op=map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+            spec={"mapper": {"cookie_group_size": 2}},
+        )
+        for job in wait_breakpoint(job_count=2):
+            interrupt_job(job)
+        release_breakpoint()
+        op.track()
+
+    @authors("fauct")
     def test_distributed_with_job_fail_and_operation_completion(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
