@@ -8,7 +8,7 @@ from yt_commands import (
     authors, events_on_fs, print_debug, raises_yt_error, remove, set_nodes_banned, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get, sorted_dicts,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
-    map, merge, sort, interrupt_job, get_first_chunk_id,
+    map, merge, sort, interrupt_job, get_first_chunk_id, abort_job,
     get_singular_chunk_id, check_all_stderrs,
     create_test_tables, assert_statistics, extract_statistic_v2,
     set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics)
@@ -1924,8 +1924,8 @@ print(json.dumps(input))
             command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
             spec={"mapper": {"cookie_group_size": 2}},
         )
-        wait_breakpoint(job_count=2)
-        op.abort()
+        jobs = wait_breakpoint(job_count=2)
+        abort_job(jobs[0])
 
     @authors("fauct")
     def test_distributed_interrupting(self):
