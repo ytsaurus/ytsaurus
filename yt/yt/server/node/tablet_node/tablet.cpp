@@ -1926,6 +1926,8 @@ void TTablet::StopEpoch()
         CancelableContext_.Reset();
     }
 
+    ChaosData_->IsTrimInProgress.store(false);
+
     std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
 
     SetState(GetPersistentState());

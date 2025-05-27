@@ -4333,7 +4333,6 @@ private:
             return;
         }
 
-        tablet->ChaosData()->IsTrimInProgress.store(false);
         AddChaosAgent(tablet, replicationCardId);
         tablet->GetChaosAgent()->Enable();
         tablet->GetTablePuller()->Enable();
