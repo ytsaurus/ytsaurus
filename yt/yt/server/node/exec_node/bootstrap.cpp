@@ -520,8 +520,12 @@ private:
 
         newJobProxyConfigTemplate->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;
 
-        newJobProxyConfigTemplate->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
-        newJobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
+        if (const auto& supervisorConnection = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
+            newJobProxyConfigTemplate->SupervisorConnection = CloneYsonStruct(supervisorConnection);
+        } else {
+            newJobProxyConfigTemplate->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
+            newJobProxyConfigTemplate->SupervisorConnection->Address = localAddress;
+        }
 
         newJobProxyConfigTemplate->SupervisorRpcTimeout = GetConfig()->ExecNode->JobProxy->SupervisorRpcTimeout;
 

@@ -768,6 +768,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("core_watcher", &TThis::CoreWatcher)
         .DefaultNew();
 
+    registrar.Parameter("supervisor_connection", &TThis::SupervisorConnection)
+        .Default();
+
     registrar.Parameter("supervisor_rpc_timeout", &TThis::SupervisorRpcTimeout)
         .Default(TDuration::Seconds(30));
 
