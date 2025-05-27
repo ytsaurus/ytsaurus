@@ -51,7 +51,7 @@ public:
     ITransactionManagerPtr GetTransactionManager() const override;
     NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const override;
     TTabletManagerConfigPtr GetConfig() const override;
-    void ValidateMemoryLimit(const std::optional<TString>& /*poolTag*/) override;
+    void ValidateMemoryLimit(const std::optional<std::string>& /*poolTag*/) override;
     TTimestamp GetLatestTimestamp() const override;
     bool ValidateRowRef(const TSortedDynamicRowRef& /*rowRef*/) override;
     bool ValidateAndDiscardRowRef(const TSortedDynamicRowRef& /*rowRef*/) override;

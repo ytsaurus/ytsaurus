@@ -4612,7 +4612,7 @@ private:
     }
 
 
-    void ValidateMemoryLimit(const std::optional<TString>& poolTag) override
+    void ValidateMemoryLimit(const std::optional<std::string>& poolTag) override
     {
         if (Bootstrap_->GetSlotManager()->IsOutOfMemory(poolTag)) {
             THROW_ERROR_EXCEPTION(

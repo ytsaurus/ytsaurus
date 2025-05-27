@@ -22,7 +22,7 @@ struct ISlotManager
     virtual void Initialize() = 0;
     virtual void Start() = 0;
 
-    virtual bool IsOutOfMemory(const std::optional<TString>& poolTag) const = 0;
+    virtual bool IsOutOfMemory(const std::optional<std::string>& poolTag) const = 0;
 
     //! Returns fraction of CPU used by tablet slots (in terms of resource limits).
     virtual double GetUsedCpu(double cpuPerTabletSlot) const = 0;
