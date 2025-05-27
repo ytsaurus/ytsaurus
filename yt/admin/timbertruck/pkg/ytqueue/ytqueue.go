@@ -8,7 +8,6 @@ import (
 
 	"go.ytsaurus.tech/yt/admin/timbertruck/internal/misc"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
-	"go.ytsaurus.tech/yt/go/compression"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ytrpc"
@@ -38,6 +37,8 @@ type OutputConfig struct {
 	Token string
 
 	Logger *slog.Logger
+
+	BatchSize int
 }
 
 func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[pipelines.Row], err error) {
@@ -70,18 +71,23 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 		return
 	}
 
-	var compressionCodec compression.Codec
+	var compressor *compressor
 	if config.CompressionCodec != "" {
-		compressionCodec = newCompressionCodec(config.CompressionCodec)
-		config.Logger.Debug("compression codec is set", "compression_codec", compressionCodec.GetID().String())
+		compressor, err = newCompressor(config.BatchSize, config.CompressionCodec)
+		if err != nil {
+			err = fmt.Errorf("failed to create compressor: %w", err)
+			return
+		}
+		config.Logger.Debug("Compression codec is set", "compression_codec", compressor.codec())
 	}
 	out = &output{
-		yc:               yc,
-		queuePath:        ypath.Path(config.QueuePath),
-		producerPath:     ypath.Path(config.ProducerPath),
-		sessionID:        config.SessionID,
-		epoch:            createSessionResult.Epoch,
-		compressionCodec: compressionCodec,
+		yc:           yc,
+		queuePath:    ypath.Path(config.QueuePath),
+		producerPath: ypath.Path(config.ProducerPath),
+		sessionID:    config.SessionID,
+		epoch:        createSessionResult.Epoch,
+
+		compressor: compressor,
 
 		logger: config.Logger,
 	}
@@ -96,12 +102,13 @@ type ytRow struct {
 }
 
 type output struct {
-	yc               yt.Client
-	queuePath        ypath.Path
-	producerPath     ypath.Path
-	sessionID        string
-	epoch            int64
-	compressionCodec compression.Codec
+	yc           yt.Client
+	queuePath    ypath.Path
+	producerPath ypath.Path
+	sessionID    string
+	epoch        int64
+
+	compressor *compressor
 
 	logger *slog.Logger
 }
@@ -109,9 +116,9 @@ type output struct {
 func (o *output) Add(ctx context.Context, meta pipelines.RowMeta, row pipelines.Row) {
 	codec := "null"
 	value := row.Payload
-	if o.compressionCodec != nil && o.compressionCodec.GetID() != compression.CodecIDNone {
-		codec = o.compressionCodec.GetID().String()
-		value = o.compressValue(ctx, row.Payload)
+	if o.compressor != nil {
+		codec = o.compressor.codec()
+		value = o.compressor.compress(row.Payload)
 	}
 	ytRow := ytRow{
 		Value:          value,
@@ -129,17 +136,6 @@ func (o *output) Add(ctx context.Context, meta pipelines.RowMeta, row pipelines.
 	)
 }
 
-func (o *output) compressValue(ctx context.Context, value []byte) (compressed []byte) {
-	retry(
-		func() (err error) {
-			compressed, err = o.compressionCodec.Compress(value)
-			return
-		},
-		func(err error) { o.logger.Error("error compress value before pushing queue, will retry", "error", err) },
-	)
-	return
-}
-
 func (o *output) Close(ctx context.Context) {
 	retry(
 		func() error {
@@ -154,6 +150,9 @@ func (o *output) Close(ctx context.Context) {
 		func(err error) { o.logger.Warn("cannot remove queue producer session, will retry", "error", err) },
 	)
 	o.yc.Stop()
+	if o.compressor != nil {
+		o.compressor.close()
+	}
 }
 
 func retry(action func() error, errHandler func(error)) {
@@ -170,14 +169,5 @@ func retry(action func() error, errHandler func(error)) {
 		if retryInterval > maxRetryInterval {
 			retryInterval = maxRetryInterval
 		}
-	}
-}
-
-func newCompressionCodec(codecName string) compression.Codec {
-	switch codecName {
-	case compression.CodecIDZstd6.String():
-		return compression.NewCodec(compression.CodecIDZstd6)
-	default:
-		return compression.CodecNone{}
 	}
 }
