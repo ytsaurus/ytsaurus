@@ -4,6 +4,8 @@
 
 #include <library/cpp/time_provider/time_provider.h>
 
+#include <util/random/random.h>
+
 using namespace NSQLComplete;
 
 class TPausedClock: public ITimeProvider {
@@ -98,6 +100,28 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
         UNIT_ASSERT_LE(2, evicted);
         UNIT_ASSERT_LE(size, 16);
         UNIT_ASSERT_LT(0, size);
+    }
+
+    Y_UNIT_TEST(WhenRandomlyAccessed_ThenDoesNotDie) {
+        constexpr size_t Iterations = 1024 * 1024;
+        constexpr double GetFrequency = 0.75;
+        constexpr ui32 MaxKey = 100;
+        constexpr ui32 MinValue = 1;
+        constexpr ui32 MaxValue = 10;
+        SetRandomSeed(1);
+
+        auto cache = MakeLocalCache<ui32, ui32, TIdentitySizeProvider>(
+            CreateDefaultTimeProvider(), {.Capacity = 128, .TTL = TDuration::MilliSeconds(1)});
+
+        for (size_t i = 0; i < Iterations; ++i) {
+            ui32 key = RandomNumber(MaxKey);
+            if (RandomNumber<double>() < GetFrequency) {
+                Y_DO_NOT_OPTIMIZE_AWAY(cache->Get(key));
+            } else {
+                ui32 value = MinValue + RandomNumber(MaxValue - MinValue);
+                Y_DO_NOT_OPTIMIZE_AWAY(cache->Update(key, value));
+            }
+        }
     }
 
 } // Y_UNIT_TEST_SUITE(LocalCacheTests)
