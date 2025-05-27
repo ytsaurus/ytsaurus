@@ -272,13 +272,14 @@ private:
     {
         YT_VERIFY(ConfigurationLock_->GetFree() == 0);
 
-        if (!ReplicationCard_) {
+        auto replicationCard = ReplicationCard_;
+        if (!replicationCard) {
             YT_LOG_DEBUG("Replication card is not available");
             return;
         }
 
         auto* selfReplica = [&] () -> TReplicaInfo* {
-            auto* selfReplica = ReplicationCard_->FindReplica(Tablet_->GetUpstreamReplicaId());
+            auto* selfReplica = replicationCard->FindReplica(Tablet_->GetUpstreamReplicaId());
             if (!selfReplica) {
                 YT_LOG_DEBUG("Could not find self replica in replication card");
                 return nullptr;
@@ -303,7 +304,7 @@ private:
 
         if (!selfReplica) {
             Tablet_->RuntimeData()->WriteMode = ETabletWriteMode::Pull;
-            TryAdvanceReplicationEra(ReplicationCard_->Era);
+            TryAdvanceReplicationEra(replicationCard->Era);
             return;
         }
 
@@ -330,12 +331,13 @@ private:
             writeMode = ETabletWriteMode::Direct;
         }
 
-        TryAdvanceReplicationEra(ReplicationCard_->Era);
+        // ReplicationCard_ might change during this call so we are using a local reference.
+        TryAdvanceReplicationEra(replicationCard->Era);
         Tablet_->RuntimeData()->WriteMode = writeMode;
 
         YT_LOG_DEBUG("Updated tablet write mode (WriteMode: %v, ReplicationEra: %v)",
             writeMode,
-            ReplicationCard_->Era);
+            replicationCard->Era);
 
         if (IsReplicaDisabled(selfReplica->State)) {
             return;
@@ -346,7 +348,7 @@ private:
         }
 
         if (writeMode == ETabletWriteMode::Direct) {
-            auto currentTimestamp = ReplicationCard_->CurrentTimestamp;
+            auto currentTimestamp = replicationCard->CurrentTimestamp;
             if (!IsReplicationProgressGreaterOrEqual(*progress, currentTimestamp)) {
                 auto newProgress = AdvanceReplicationProgress(
                     *progress,
