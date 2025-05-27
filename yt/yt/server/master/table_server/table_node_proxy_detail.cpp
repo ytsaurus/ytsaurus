@@ -1171,12 +1171,13 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkLists,
-                [] (const TChunk* chunk) -> std::optional<ETableChunkFormat> {
+                [] (const TChunk* chunk) -> std::optional<EChunkFormat> {
                     if (chunk->GetChunkType() != EChunkType::Table) {
                         return std::nullopt;
                     }
-                    return static_cast<ETableChunkFormat>(chunk->GetChunkFormat());
-                });
+                    return chunk->GetChunkFormat();
+                },
+                SerializeChunkFormatAsTableChunkFormat);
 
         case EInternedAttributeKey::OptimizeForStatistics: {
             if (isExternal) {

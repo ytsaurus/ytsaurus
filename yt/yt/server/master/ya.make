@@ -138,6 +138,7 @@ SRCS(
     chunk_server/medium_base.cpp
     chunk_server/medium_proxy_base.cpp
     chunk_server/medium_type_handler_base.cpp
+    chunk_server/private.cpp
     chunk_server/proto/chunk_autotomizer.proto
     chunk_server/proto/chunk_manager.proto
     chunk_server/proto/chunk_merger.proto
