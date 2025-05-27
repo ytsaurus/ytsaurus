@@ -222,13 +222,29 @@ private:
             for (int index = 0; index < request->chunk_id_size(); ++index) {
                 auto tabletId = FromProto<TTabletId>(request->tablet_id(index));
 
+                auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision(index));
                 // COMPAT(ifsmirnov)
-                auto tabletSnapshot = request->mount_revision_size() > 0
-                    ? snapshotStore->FindTabletSnapshot(tabletId, FromProto<NHydra::TRevision>(request->mount_revision(index)))
-                    : snapshotStore->FindLatestTabletSnapshot(tabletId);
+                auto targetServantMountRevision = request->target_servant_mount_revision().size() > 0
+                    ? FromProto<NHydra::TRevision>(request->target_servant_mount_revision(index))
+                    : NHydra::TRevision{};
+
+                auto tabletSnapshot = snapshotStore->FindTabletSnapshot(tabletId, mountRevision);
+                if (!tabletSnapshot) {
+                    // NB: Mount revision is used mostly to detect schema mismatches.
+                    // Both servants always have the same schema, so if they both happen
+                    // happen to be at the same node it does not matter which tablet
+                    // snapshot to take.
+                    tabletSnapshot = snapshotStore->FindTabletSnapshot(tabletId, targetServantMountRevision);
+                }
 
                 if (!tabletSnapshot) {
-                    YT_LOG_DEBUG("Tablet snapshot not found (TabletId: %v)", tabletId);
+                    YT_LOG_DEBUG("Tablet snapshot not found (SessionId: %v, TabletId: %v, "
+                        "MountRevision: %v, TargetServantMountRevision: %v)",
+                        sessionId,
+                        tabletId,
+                        mountRevision,
+                        targetServantMountRevision);
+
                     continue;
                 }
 

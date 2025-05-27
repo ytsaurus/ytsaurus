@@ -626,6 +626,8 @@ struct TSmoothMovementTrackerDynamicConfig
 {
     TSmoothMovementTrackerTestingConfigPtr Testing;
 
+    TDuration PreloadWaitTimeout;
+
     REGISTER_YSON_STRUCT(TSmoothMovementTrackerDynamicConfig);
 
     static void Register(TRegistrar registrar);
