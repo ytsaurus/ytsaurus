@@ -8,7 +8,6 @@ from yt_commands import (
 import yt_error_codes
 
 import os
-import time
 
 
 class TestLocationMisconfigured(YTEnvSetup):
