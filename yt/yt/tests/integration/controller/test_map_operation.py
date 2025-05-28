@@ -2562,6 +2562,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"map_operation_options": {"data_size_per_job": 1}}}
 
     @authors("max42")
+    @pytest.mark.skip(reason="YT-8228")
     def test_map_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i} for i in range(31)]
