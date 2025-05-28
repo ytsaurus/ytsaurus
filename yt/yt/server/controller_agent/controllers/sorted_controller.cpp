@@ -287,7 +287,7 @@ protected:
 
             // If teleport chunks were found, then teleport table index should be non-null.
             Controller_->RegisterTeleportChunk(
-                std::move(teleportChunk), /*key*/ 0, /*tableIndex*/*Controller_->GetOutputTeleportTableIndex());
+                std::move(teleportChunk), /*key*/ TChunkStripeKey(), /*tableIndex*/*Controller_->GetOutputTeleportTableIndex());
         }
 
         TJobSplitterConfigPtr GetJobSplitterConfig() const override

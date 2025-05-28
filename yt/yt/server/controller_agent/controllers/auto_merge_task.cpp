@@ -451,7 +451,7 @@ void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any ta
     TTask::OnChunkTeleported(teleportChunk, tag);
 
     auto poolIndex = std::any_cast<int>(tag);
-    TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, GetTableIndex(poolIndex));
+    TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ TChunkStripeKey(), GetTableIndex(poolIndex));
 
     --CurrentChunkCounts_[poolIndex];
     TaskHost_->GetAutoMergeDirector()->AccountMergeInputChunks(-1);

@@ -25,20 +25,14 @@ struct TBoundaryKeys
 class TChunkStripeKey
 {
 public:
-    TChunkStripeKey(int index);
-    TChunkStripeKey(TBoundaryKeys boundaryKeys);
-    TChunkStripeKey(NChunkPools::TOutputOrder::TEntry entry);
-    //! Used only for persistence.
     TChunkStripeKey();
+    explicit TChunkStripeKey(TBoundaryKeys boundaryKeys);
+    explicit TChunkStripeKey(NChunkPools::TOutputOrder::TEntry entry);
 
-    bool IsIndex() const;
     bool IsBoundaryKeys() const;
     bool IsOutputOrderEntry() const;
 
     explicit operator bool() const;
-
-    int& AsIndex();
-    int AsIndex() const;
 
     TBoundaryKeys& AsBoundaryKeys();
     const TBoundaryKeys& AsBoundaryKeys() const;
@@ -49,7 +43,19 @@ public:
     bool operator ==(const TChunkStripeKey& other) const;
 
 private:
-    std::variant<int, TBoundaryKeys, NChunkPools::TOutputOrder::TEntry> Key_;
+    struct TUninitialized
+    {
+        bool operator ==(const TUninitialized& uninitializedTag) const = default;
+        inline void Persist(const auto& /*context*/)
+        { }
+    };
+
+    std::variant<
+        TUninitialized,
+        TBoundaryKeys,
+        // TODO(coteeq): TOutputCookie
+        NChunkPools::TOutputOrder::TEntry
+    > Key_;
 
     PHOENIX_DECLARE_TYPE(TChunkStripeKey, 0x60a2ecee);
 };

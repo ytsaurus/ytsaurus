@@ -2909,17 +2909,10 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 addChunkTree(chunkTreeId);
             }
         } else {
-            YT_LOG_DEBUG("Sorting output chunk tree ids by integer keys (ChunkTreeCount: %v, Table: %v)",
+            YT_LOG_DEBUG("Output chunks do not need to be sorted (ChunkTreeCount: %v, Table: %v)",
                 table->OutputChunkTreeIds.size(), path);
-            std::stable_sort(
-                table->OutputChunkTreeIds.begin(),
-                table->OutputChunkTreeIds.end(),
-                [&] (const auto& lhs, const auto& rhs) -> bool {
-                    auto lhsKey = lhs.first.AsIndex();
-                    auto rhsKey = rhs.first.AsIndex();
-                    return lhsKey < rhsKey;
-                });
             for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
+                YT_VERIFY(!key);
                 addChunkTree(chunkTreeId);
             }
         }
@@ -8709,7 +8702,11 @@ void TOperationControllerBase::RegisterTeleportChunk(
         ToProto(resultBoundaryKeys.mutable_min(), chunk->BoundaryKeys()->MinKey);
         ToProto(resultBoundaryKeys.mutable_max(), chunk->BoundaryKeys()->MaxKey);
 
-        key = BuildBoundaryKeysFromOutputResult(resultBoundaryKeys, StandardStreamDescriptors_[tableIndex], RowBuffer_);
+        key = TChunkStripeKey(
+            BuildBoundaryKeysFromOutputResult(
+                resultBoundaryKeys,
+                StandardStreamDescriptors_[tableIndex],
+                RowBuffer_));
     }
 
     table->OutputChunkTreeIds.emplace_back(key, chunk->GetChunkId());
