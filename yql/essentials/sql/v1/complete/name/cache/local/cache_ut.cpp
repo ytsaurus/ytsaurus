@@ -2,16 +2,16 @@
 
 #include <library/cpp/testing/unittest/registar.h>
 
-#include <library/cpp/time_provider/time_provider.h>
+#include <library/cpp/time_provider/monotonic_provider.h>
 
 #include <util/random/random.h>
 #include <util/thread/pool.h>
 
 using namespace NSQLComplete;
 
-class TPausedClock: public ITimeProvider {
+class TPausedClock: public NMonotonic::IMonotonicTimeProvider {
 public:
-    TInstant Now() override {
+    NMonotonic::TMonotonic Now() override {
         return Now_;
     }
 
@@ -20,7 +20,7 @@ public:
     }
 
 private:
-    TInstant Now_ = CreateDeterministicTimeProvider(1)->Now();
+    NMonotonic::TMonotonic Now_ = NMonotonic::CreateDefaultMonotonicTimeProvider()->Now();
 };
 
 struct TIdentitySizeProvider {
@@ -57,7 +57,8 @@ TIntrusivePtr<TPausedClock> MakePausedClock() {
 Y_UNIT_TEST_SUITE(LocalCacheTests) {
 
     Y_UNIT_TEST(OnEmpty_WhenGet_ThenReturnedExpiredDefault) {
-        auto cache = MakeLocalCache<int, int>(CreateDefaultTimeProvider(), {});
+        auto cache = MakeLocalCache<int, int>(
+            NMonotonic::CreateDefaultMonotonicTimeProvider(), {});
 
         auto entry = cache->Get(1).GetValueSync();
 
@@ -66,7 +67,8 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
     }
 
     Y_UNIT_TEST(OnEmpty_WhenUpdate_ThenReturnedNew) {
-        auto cache = MakeLocalCache<int, int>(CreateDefaultTimeProvider(), {});
+        auto cache = MakeLocalCache<int, int>(
+            NMonotonic::CreateDefaultMonotonicTimeProvider(), {});
 
         cache->Update(1, 1).GetValueSync();
 
@@ -76,7 +78,8 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
     }
 
     Y_UNIT_TEST(OnExistingKey_WhenUpdate_ThenReturnedNew) {
-        auto cache = MakeLocalCache<int, int>(CreateDefaultTimeProvider(), {});
+        auto cache = MakeLocalCache<int, int>(
+            NMonotonic::CreateDefaultMonotonicTimeProvider(), {});
         cache->Update(1, 1);
 
         cache->Update(1, 2).GetValueSync();
@@ -100,7 +103,7 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
 
     Y_UNIT_TEST(OnFull_WhenFatAdded_ThenSomeKeysAreEvicted) {
         auto cache = MakeLocalCache<int, int, TIdentitySizeProvider>(
-            CreateDefaultTimeProvider(), {.Capacity = 16});
+            NMonotonic::CreateDefaultMonotonicTimeProvider(), {.Capacity = 16});
         cache->Update(1, 4);
         cache->Update(2, 4);
         cache->Update(3, 4);
@@ -129,7 +132,7 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
         SetRandomSeed(1);
 
         auto cache = MakeLocalCache<ui32, ui32, TIdentitySizeProvider>(
-            CreateDefaultTimeProvider(), {.Capacity = 128, .TTL = TDuration::MilliSeconds(1)});
+            NMonotonic::CreateDefaultMonotonicTimeProvider(), {.Capacity = 128, .TTL = TDuration::MilliSeconds(1)});
 
         for (auto&& a : GenerateRandomActions(Iterations)) {
             if (a.IsGet) {
@@ -146,7 +149,7 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
         SetRandomSeed(1);
 
         auto cache = MakeLocalCache<ui32, ui32, TIdentitySizeProvider>(
-            CreateDefaultTimeProvider(), {.Capacity = 128, .TTL = TDuration::MilliSeconds(1)});
+            NMonotonic::CreateDefaultMonotonicTimeProvider(), {.Capacity = 128, .TTL = TDuration::MilliSeconds(1)});
 
         auto pool = CreateThreadPool(Threads);
         for (auto&& a : GenerateRandomActions(Iterations)) {

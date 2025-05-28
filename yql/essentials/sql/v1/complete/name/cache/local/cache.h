@@ -3,7 +3,7 @@
 #include <yql/essentials/sql/v1/complete/name/cache/cache.h>
 
 #include <library/cpp/cache/cache.h>
-#include <library/cpp/time_provider/time_provider.h>
+#include <library/cpp/time_provider/monotonic_provider.h>
 
 #include <util/system/mutex.h>
 
@@ -23,7 +23,7 @@ namespace NSQLComplete {
 
             struct TCell {
                 TValue Value;
-                TInstant Death;
+                NMonotonic::TMonotonic Death;
             };
 
             struct TCellSizeProvider {
@@ -38,7 +38,7 @@ namespace NSQLComplete {
                 TCellSizeProvider>;
 
         public:
-            TLocalCache(TIntrusivePtr<ITimeProvider> clock, TLocalCacheConfig config)
+            TLocalCache(TIntrusivePtr<NMonotonic::IMonotonicTimeProvider> clock, TLocalCacheConfig config)
                 : Clock_(std::move(clock))
                 , Config_(std::move(config))
                 , Origin_(/* maxSize = */ Config_.Capacity)
@@ -68,7 +68,7 @@ namespace NSQLComplete {
             }
 
         private:
-            TIntrusivePtr<ITimeProvider> Clock_;
+            TIntrusivePtr<NMonotonic::IMonotonicTimeProvider> Clock_;
             TLocalCacheConfig Config_;
 
             TMutex Mutex_;
@@ -82,7 +82,7 @@ namespace NSQLComplete {
         NPrivate::CCacheValue TValue,
         NPrivate::CSizeProvider<TValue> TSizeProvider = TUniformSizeProvider<TValue>>
     ICache<TKey, TValue>::TPtr MakeLocalCache(
-        TIntrusivePtr<ITimeProvider> clock,
+        TIntrusivePtr<NMonotonic::IMonotonicTimeProvider> clock,
         TLocalCacheConfig config) {
         return new NPrivate::TLocalCache<TKey, TValue, TSizeProvider>(std::move(clock), std::move(config));
     }

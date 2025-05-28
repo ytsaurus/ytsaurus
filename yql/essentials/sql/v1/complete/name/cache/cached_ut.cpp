@@ -4,7 +4,7 @@
 
 #include <library/cpp/testing/unittest/registar.h>
 
-#include <library/cpp/time_provider/time_provider.h>
+#include <library/cpp/time_provider/monotonic_provider.h>
 
 using namespace NSQLComplete;
 
@@ -13,7 +13,7 @@ Y_UNIT_TEST_SUITE(CachedQueryTests) {
     Y_UNIT_TEST(OnExpired_WhenApplied_ThenDefferedUpdateAndReturnOld) {
         size_t queried = 0;
         auto cache = MakeLocalCache<int, int>(
-            CreateDefaultTimeProvider(), {.TTL = TDuration::Zero()});
+            NMonotonic::CreateDefaultMonotonicTimeProvider(), {.TTL = TDuration::Zero()});
         auto cached = TCachedQuery<int, int>(cache, [&](const int& key) {
             queried += 1;
             return NThreading::MakeFuture<int>(key);
