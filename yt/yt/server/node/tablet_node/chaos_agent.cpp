@@ -188,7 +188,8 @@ private:
                 },
             };
 
-            if (newEra != InvalidReplicationEra && ReplicationCard_->Era < newEra) {
+            // Replication card can be null on start, so check it before getting the era.
+            if (ReplicationCard_ && newEra != InvalidReplicationEra && ReplicationCard_->Era < newEra) {
                 key.RefreshEra = newEra;
                 YT_LOG_DEBUG("Forcing cached replication card update (OldEra: %v, NewEra: %v)",
                     ReplicationCard_->Era,
