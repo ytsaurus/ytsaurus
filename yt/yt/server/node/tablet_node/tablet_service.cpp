@@ -256,9 +256,11 @@ private:
                 }
 
                 if (*replicationEra > era) {
-                    const auto& chaosAgent = Slot_->GetTabletManager()->GetTabletOrThrow(tabletId)->GetChaosAgent();
-                    chaosAgent->RefreshEra(*replicationEra);
-                    era = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+                    auto chaosAgent = Slot_->GetTabletManager()->GetTabletOrThrow(tabletId)->GetChaosAgent();
+                    if (chaosAgent) {
+                        chaosAgent->RefreshEra(*replicationEra);
+                        era = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+                    }
                 }
 
                 if (*replicationEra != era) {
