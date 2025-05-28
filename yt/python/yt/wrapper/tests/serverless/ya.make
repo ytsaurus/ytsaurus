@@ -32,6 +32,7 @@ ENDIF()
 EXPLICIT_DATA()
 
 SET(SRCS
+    __init__.py
     test_common.py
     test_formats.py
     test_schema.py
