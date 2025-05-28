@@ -4133,7 +4133,7 @@ void TOperationControllerBase::SafeOnIntermediateChunkBatchLocated(
     for (const auto& chunkInfo : chunkBatch) {
         if (chunkInfo.Missing) {
             // We can unstage intermediate chunks (e.g. in automerge) - just skip them.
-            return;
+            continue;
         }
 
         // Intermediate chunks are always replicated.
