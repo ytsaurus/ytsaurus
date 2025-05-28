@@ -345,25 +345,29 @@ void TInputTransactionManager::ValidateRemoteOperationsAllowed(
     const std::string& authenticatedUser,
     const NYPath::TRichYPath& path) const
 {
-    if (!IsLocal(clusterName)) {
-        const auto& disallowRemoteConfig = ControllerConfig_->DisallowRemoteOperations;
+    if (IsLocal(clusterName)) {
+        return;
+    }
 
-        if (disallowRemoteConfig->AllowedForEveryoneClusters.contains(clusterName.Underlying())) {
-            return;
-        }
+    if (!ControllerConfig_->RemoteOperations.contains(clusterName)) {
+        THROW_ERROR_EXCEPTION(
+            "Cluster %Qv is not allowed to be an input remote cluster",
+            clusterName)
+            << TErrorAttribute("input_table_path", path);
+    }
 
-        if (!disallowRemoteConfig->AllowedUsers.contains(authenticatedUser)) {
-            THROW_ERROR_EXCEPTION(
-                "User %Qv is not allowed to start operations with remote clusters",
-                authenticatedUser)
-                << TErrorAttribute("input_table_path", path);
-        }
-        if (!disallowRemoteConfig->AllowedClusters.contains(clusterName.Underlying())) {
-            THROW_ERROR_EXCEPTION(
-                "Cluster %Qv is not allowed to be an input remote cluster",
-                clusterName)
-                << TErrorAttribute("input_table_path", path);
-        }
+    const auto& clusterConfig = ControllerConfig_->RemoteOperations[clusterName];
+
+    if (clusterConfig->AllowedForEveryone) {
+        return;
+    }
+
+    if (!clusterConfig->AllowedUsers.contains(authenticatedUser)) {
+        THROW_ERROR_EXCEPTION(
+            "User %Qv is not allowed to start operations reading from cluster %Qv",
+            authenticatedUser,
+            clusterName)
+            << TErrorAttribute("input_table_path", path);
     }
 }
 

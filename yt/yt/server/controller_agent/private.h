@@ -49,7 +49,7 @@ DECLARE_REFCOUNTED_STRUCT(TGangManagerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TDockerRegistryConfig)
 
-DECLARE_REFCOUNTED_STRUCT(TDisallowRemoteOperationsConfig)
+DECLARE_REFCOUNTED_STRUCT(TRemoteOperationsConfig)
 
 struct TJobStartInfo
 {
