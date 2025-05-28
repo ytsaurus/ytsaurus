@@ -1004,7 +1004,7 @@ class YTInstance(object):
         self.kill_service("tablet_balancer", indexes=indexes)
 
     def kill_cypress_proxies(self, indexes=None):
-        self.kill_service("cypress_proxies", indexes=indexes)
+        self.kill_service("cypress_proxy", indexes=indexes)
 
     def kill_replicated_table_trackers(self, indexes=None):
         self.kill_service("replicated_table_tracker", indexes=indexes)
@@ -1240,7 +1240,7 @@ class YTInstance(object):
                 has_some_bind_failure = has_some_bind_failure or has_bind_failure
 
         if has_some_bind_failure:
-            raise YtEnvRetriableError("Process failed to bind on some of ports")
+            raise YtEnvRetriableError(f"Process {name} failed to bind on some of ports")
 
     def _run(self, args, name, env=None, number=None):
         with self._lock:
