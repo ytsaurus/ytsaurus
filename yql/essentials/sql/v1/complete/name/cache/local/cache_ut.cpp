@@ -113,8 +113,8 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
     }
 
     Y_UNIT_TEST(OnFull_WhenFatAdded_ThenSomeKeysAreEvicted) {
-        auto cache = MakeLocalCache<TString, TString, TStringSizeProvider>(
-            NMonotonic::CreateDefaultMonotonicTimeProvider(), {.Capacity = 16});
+        auto cache = MakeLocalCache<TString, TString, TStringSizeProvider, TStringSizeProvider>(
+            NMonotonic::CreateDefaultMonotonicTimeProvider(), {.Capacity = 4 + 16});
         cache->Update("1", "1111");
         cache->Update("2", "2222");
         cache->Update("3", "3333");
@@ -134,7 +134,7 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
         }
 
         UNIT_ASSERT_LE(2, evicted);
-        UNIT_ASSERT_LE(size, 16);
+        UNIT_ASSERT_LE(size, 4 + 16);
         UNIT_ASSERT_LT(0, size);
     }
 
