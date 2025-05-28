@@ -416,7 +416,7 @@ private:
             slotsCount = *newConfig->TabletNode->Slots;
         }
 
-        // COMPAT(savrus, capone212)
+        // COMPAT(savrus, capone212, tea-mur)
         auto getCellarManagerConfig = [&] {
             auto& config = newConfig->CellarNode->CellarManager;
             if (!slotsCount) {

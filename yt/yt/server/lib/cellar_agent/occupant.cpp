@@ -481,7 +481,7 @@ public:
         TJournalWriterPerformanceCounters performanceCounters{changelogProfiler};
         performanceCounters.JournalWritesObserver = JournalWritesObserver_;
 
-        auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
+        ChangelogStoreFactory_ = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
             primaryStoresPath + "/changelogs",
@@ -490,7 +490,7 @@ public:
             Bootstrap_->GetResourceLimitsManager(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
             std::move(performanceCounters));
-        ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
+        ChangelogStoreFactoryThunk_->SetUnderlying(ChangelogStoreFactory_);
 
         bool independent = Options_->IndependentPeers;
         if (independent) {
@@ -708,16 +708,19 @@ public:
         }
     }
 
-    void Reconfigure(NHydra::TDynamicDistributedHydraManagerConfigPtr dynamicConfig) override
+    void Reconfigure(TCellarDynamicConfigPtr dynamicConfig) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        JournalWritesObserver_->Reconfigure(dynamicConfig);
-        EnableSnapshotNetworkThrottling_.store(dynamicConfig->EnableSnapshotNetworkThrottling.value_or(false));
+        JournalWritesObserver_->Reconfigure(dynamicConfig->HydraManager);
+        EnableSnapshotNetworkThrottling_.store(dynamicConfig->HydraManager->EnableSnapshotNetworkThrottling.value_or(false));
 
         if (CanConfigure()) {
             if (const auto& hydraManager = HydraManager_.Acquire()) {
-                YT_UNUSED_FUTURE(hydraManager->Reconfigure(dynamicConfig));
+                YT_UNUSED_FUTURE(hydraManager->Reconfigure(dynamicConfig->HydraManager));
+            }
+            if (ChangelogStoreFactory_) {
+                ChangelogStoreFactory_->Reconfigure(dynamicConfig->Changelogs);
             }
         }
     }
@@ -839,6 +842,7 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     const TIntrusivePtr<TJournalWritesObserver> JournalWritesObserver_;
+    IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     std::atomic<bool> EnableSnapshotNetworkThrottling_ = false;
 
     // COMPAT(danilalexeev): 'primary'.

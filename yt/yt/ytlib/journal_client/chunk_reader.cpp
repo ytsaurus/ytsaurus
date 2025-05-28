@@ -249,7 +249,7 @@ public:
 
             const auto& rowLists = rowListsOrError.Value();
             if (TypeFromId(Reader_->ChunkId_) == EObjectType::ErasureJournalChunk) {
-                auto rows = DecodeErasureJournalRows(Reader_->Codec_, rowLists);
+                auto rows = DecodeErasureJournalRows(Reader_->Codec_, rowLists, Logger);
                 Promise_.Set(RowsToBlocks(rows));
             } else {
                 YT_VERIFY(rowLists.size() == 1);
