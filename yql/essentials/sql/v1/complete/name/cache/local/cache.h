@@ -23,7 +23,7 @@ namespace NSQLComplete {
 
             struct TCell {
                 TValue Value;
-                NMonotonic::TMonotonic Death;
+                NMonotonic::TMonotonic Deadline;
             };
 
             struct TCellSizeProvider {
@@ -50,7 +50,7 @@ namespace NSQLComplete {
                 with_lock (Mutex_) {
                     if (auto it = Origin_.Find(key); it != Origin_.End()) {
                         entry.Value = it->Value;
-                        entry.IsExpired = (it->Death < Clock_->Now());
+                        entry.IsExpired = (it->Deadline < Clock_->Now());
                     }
                 }
                 return NThreading::MakeFuture(std::move(entry));
@@ -59,7 +59,7 @@ namespace NSQLComplete {
             NThreading::TFuture<void> Update(const TKey& key, TValue value) const override {
                 TCell entry = {
                     .Value = std::move(value),
-                    .Death = Clock_->Now() + Config_.TTL,
+                    .Deadline = Clock_->Now() + Config_.TTL,
                 };
                 with_lock (Mutex_) {
                     Origin_.Update(key, std::move(entry));
