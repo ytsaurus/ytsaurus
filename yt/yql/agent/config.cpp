@@ -79,6 +79,7 @@ constexpr auto DefaultGatewaySettings = std::to_array<std::pair<TStringBuf, TStr
     {"JoinCommonUseMapMultiOut", "true"},
     {"UseAggPhases", "true"},
     {"EnforceJobUtc", "true"},
+    {"_EnforceRegexpProbabilityFail", "0"},
     {"_ForceJobSizeAdjuster", "true"},
     {"_EnableWriteReorder", "true"},
     {"_EnableYtPartitioning", "true"},
