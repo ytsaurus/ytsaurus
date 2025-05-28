@@ -9,6 +9,7 @@
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/config.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 

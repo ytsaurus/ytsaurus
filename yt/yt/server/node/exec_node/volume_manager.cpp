@@ -3641,11 +3641,6 @@ private:
             return MakeFuture<std::vector<std::string>>({*data.DataNodeAddress});
         }
 
-        if (true) {
-            // TODO(yuryalekseev): Return empty node list for now.
-            return MakeFuture<std::vector<std::string>>({});
-        }
-
         // Create AllocateWriteTargets request.
         auto cellTag = Bootstrap_->GetConnection()->GetRandomMasterCellTagWithRoleOrThrow(NCellMasterClient::EMasterCellRole::ChunkHost);
         auto channel = Bootstrap_->GetMasterChannel(std::move(cellTag));
@@ -3656,6 +3651,7 @@ private:
         ToProto(subRequest->mutable_session_id(), sessionId);
         subRequest->set_min_target_count(data.MinDataNodesCount);
         subRequest->set_desired_target_count(data.MaxDataNodesCount);
+        subRequest->set_is_nbd_chunk(true);
 
         // Invoke AllocateWriteTargets request and process response.
         return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this), mediumIndex = data.MediumIndex] (const TErrorOr<TChunkServiceProxy::TRspAllocateWriteTargetsPtr>& rspOrError) {

@@ -5,6 +5,7 @@
 #include "chunk_manager.h"
 #include "chunk_view.h"
 #include "chunk_location.h"
+#include "domestic_medium.h"
 #include "dynamic_store.h"
 #include "job.h"
 

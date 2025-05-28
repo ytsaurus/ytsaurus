@@ -14,6 +14,8 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_replica_fetcher.h>
 
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
+
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>

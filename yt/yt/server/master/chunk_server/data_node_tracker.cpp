@@ -1,6 +1,7 @@
 #include "data_node_tracker.h"
 
 #include "data_node_tracker_internal.h"
+#include "domestic_medium.h"
 #include "chunk_manager.h"
 #include "chunk_location.h"
 #include "chunk_location_type_handler.h"
