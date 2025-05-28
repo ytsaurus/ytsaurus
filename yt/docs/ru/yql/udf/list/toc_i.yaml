@@ -16,6 +16,7 @@ items:
 - { name: H3,                     href: h3.md,                       when: audience == "internal"   }
 - { name: Histogram,              href: histogram.md                           }
 - { name: Hyperscan,              href: hyperscan.md                           }
+- { name: Html,                   href: html.md,                     when: audience == "internal"   }
 - { name: Ip,                     href: ip.md                                  }
 - { name: Math,                   href: math.md                                }
 - { name: Pcre,                   href: pcre.md                                }
