@@ -14,3 +14,7 @@ END()
 RECURSE(
     local
 )
+
+RECURSE_FOR_TESTS(
+    ut
+)

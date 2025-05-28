@@ -9,7 +9,7 @@ namespace NSQLComplete {
     public:
         using TFunc = std::function<NThreading::TFuture<TValue>(const TKey& key)>;
 
-        explicit TCachedQuery(ICache<TKey, TValue>::TPtr cache, TFunc query)
+        TCachedQuery(ICache<TKey, TValue>::TPtr cache, TFunc query)
             : Cache_(std::move(cache))
             , Query_(std::move(query))
         {
@@ -22,7 +22,7 @@ namespace NSQLComplete {
                 typename ICache<TKey, TValue>::TEntry entry = f.ExtractValue();
                 if (entry.IsExpired) {
                     query(key).Apply([cache, key = std::move(key)](auto f) {
-                        cache.Put(key, f.ExtractValue());
+                        cache->Update(key, f.ExtractValue());
                     });
                 }
                 return std::move(entry.Value);
