@@ -479,7 +479,7 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
-    def modify_cypress_proxy_config(cls, config):
+    def modify_cypress_proxy_config(cls, config, cluster_index):
         pass
 
     @classmethod
@@ -1215,7 +1215,7 @@ class YTEnvSetup(object):
             config = update_inplace(config, cls.get_param("DELTA_CYPRESS_PROXY_CONFIG", cluster_index))
             configs["cypress_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             configs["cypress_proxy"][index] = cls.update_sequoia_connection_config(cluster_index, config)
-            cls.modify_cypress_proxy_config(configs["cypress_proxy"][index])
+            cls.modify_cypress_proxy_config(configs["cypress_proxy"][index], cluster_index)
             configs["multi"]["daemons"][f"cypress_proxy_{index}"]["config"] = configs["cypress_proxy"][index]
 
         for key, config in configs["driver"].items():

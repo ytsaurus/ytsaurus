@@ -899,6 +899,7 @@ def get_cypress_proxy_config():
         "dynamic_config_manager": {
             "update_period": 100,
         },
+        "heartbeat_period": 1000,
     }
 
 
