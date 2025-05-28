@@ -19,11 +19,12 @@ namespace NSQLComplete {
 
     struct TSchemaListResultSizeProvider {
         size_t operator()(const TVector<TFolderEntry>& entries) const {
-            return Accumulate(
-                entries, static_cast<size_t>(0),
-                [](size_t acc, const TFolderEntry& entry) {
-                    return acc + entry.Type.size() + entry.Name.size();
-                });
+            return sizeof(entries) +
+                   Accumulate(
+                       entries, static_cast<size_t>(0),
+                       [](size_t acc, const TFolderEntry& entry) {
+                           return acc + sizeof(entry) + entry.Type.size() + entry.Name.size();
+                       });
         }
     };
 
