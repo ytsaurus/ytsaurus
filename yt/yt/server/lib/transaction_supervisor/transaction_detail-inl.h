@@ -113,7 +113,7 @@ void TTransactionBase<TBase, TSaveContext, TLoadContext>::Load(TLoadContext& con
     constexpr int ChaosReignSaneTxActionAbortFix = 300'014;
     constexpr int TabletReignBase = 100'000;
     constexpr int MasterReignSaneTxActionAbortFix = 2528;
-    constexpr int MasterReignTransactionActionStates = 2926;
+    constexpr int MasterReignTransactionActionStates = 2930;
 
     bool hasPreparedActionCount;
     bool hasActionStates;
