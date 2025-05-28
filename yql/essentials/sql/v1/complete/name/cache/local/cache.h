@@ -10,7 +10,7 @@
 namespace NSQLComplete {
 
     struct TLocalCacheConfig {
-        size_t Capacity = 256 * 1024 * 1024;
+        size_t Capacity = 1 * 1024 * 1024;
         TDuration TTL = TDuration::Seconds(8);
     };
 

@@ -1248,8 +1248,9 @@ JOIN yt:$cluster_name.test;
     Y_UNIT_TEST(CachedSchema) {
         TLexerSupplier lexer = MakePureLexerSupplier();
 
-        auto cache = MakeLocalCache<TSchemaListCacheKey, TVector<TFolderEntry>>(
-            CreateDefaultTimeProvider(), {});
+        auto cache = MakeLocalCache<
+            TSchemaListCacheKey, TVector<TFolderEntry>,
+            TSchemaListResultSizeProvider>(CreateDefaultTimeProvider(), {});
 
         auto aliceService = MakeSchemaNameService(
             MakeSimpleSchema(

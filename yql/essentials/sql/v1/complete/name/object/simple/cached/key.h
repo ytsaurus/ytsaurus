@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yql/essentials/sql/v1/complete/name/object/simple/schema.h>
+
 #include <util/generic/string.h>
 #include <util/generic/hash.h>
 
@@ -13,6 +15,16 @@ namespace NSQLComplete {
         friend bool operator==(
             const TSchemaListCacheKey& lhs,
             const TSchemaListCacheKey& rhs) = default;
+    };
+
+    struct TSchemaListResultSizeProvider {
+        size_t operator()(const TVector<TFolderEntry>& entries) const {
+            return Accumulate(
+                entries, static_cast<size_t>(0),
+                [](size_t acc, const TFolderEntry& entry) {
+                    return acc + entry.Type.size() + entry.Name.size();
+                });
+        }
     };
 
 } // namespace NSQLComplete
