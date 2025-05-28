@@ -98,6 +98,23 @@ void TRemoteSnapshotStoreConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicRemoteChangelogStoreConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("writer", &TThis::Writer)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRemoteChangelogStoreConfigPtr TRemoteChangelogStoreConfig::ApplyDynamic(
+    const TDynamicRemoteChangelogStoreConfigPtr& dynamicConfig) const
+{
+    auto mergedConfig = CloneYsonStruct(MakeStrong(this));
+    mergedConfig->Writer->ApplyDynamicInplace(dynamicConfig->Writer);
+    mergedConfig->Postprocess();
+    return mergedConfig;
+}
+
 void TRemoteChangelogStoreConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("reader", &TThis::Reader)
