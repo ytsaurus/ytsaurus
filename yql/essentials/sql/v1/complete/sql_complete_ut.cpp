@@ -1250,7 +1250,8 @@ JOIN yt:$cluster_name.test;
 
         auto cache = MakeLocalCache<
             TSchemaListCacheKey, TVector<TFolderEntry>,
-            TSchemaListResultSizeProvider>(
+            TSchemaListResultSizeProvider,
+            TSchemaListCacheKeySizeProvider>(
             NMonotonic::CreateDefaultMonotonicTimeProvider(), {});
 
         auto aliceService = MakeSchemaNameService(

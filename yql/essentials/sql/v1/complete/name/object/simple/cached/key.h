@@ -17,6 +17,12 @@ namespace NSQLComplete {
             const TSchemaListCacheKey& rhs) = default;
     };
 
+    struct TSchemaListCacheKeySizeProvider {
+        size_t operator()(const TSchemaListCacheKey& key) const {
+            return sizeof(key) + key.Zone.size() + key.Cluster.size() + key.Folder.size();
+        }
+    };
+
     struct TSchemaListResultSizeProvider {
         size_t operator()(const TVector<TFolderEntry>& entries) const {
             return sizeof(entries) +
