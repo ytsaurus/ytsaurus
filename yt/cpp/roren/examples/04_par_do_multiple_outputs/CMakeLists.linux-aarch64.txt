@@ -26,7 +26,8 @@ target_link_libraries(04_par_do_multiple_outputs PUBLIC
 )
 
 target_allocator(04_par_do_multiple_outputs
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(04_par_do_multiple_outputs PRIVATE

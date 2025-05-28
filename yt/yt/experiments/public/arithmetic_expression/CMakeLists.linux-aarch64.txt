@@ -25,7 +25,8 @@ target_link_libraries(arithmetic_expression PUBLIC
 )
 
 target_allocator(arithmetic_expression
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(arithmetic_expression PRIVATE

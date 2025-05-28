@@ -33,7 +33,8 @@ target_link_libraries(formats_test PUBLIC
 )
 
 target_allocator(formats_test
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(formats_test PRIVATE

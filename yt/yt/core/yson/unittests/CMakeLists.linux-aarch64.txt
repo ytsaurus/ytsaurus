@@ -51,7 +51,8 @@ target_link_libraries(unittester-core-yson PUBLIC
 )
 
 target_allocator(unittester-core-yson
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-core-yson PRIVATE

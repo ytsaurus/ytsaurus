@@ -41,7 +41,8 @@ target_link_libraries(cpp-mapreduce-tests-native-operations_core_http PUBLIC
 )
 
 target_allocator(cpp-mapreduce-tests-native-operations_core_http
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(cpp-mapreduce-tests-native-operations_core_http PRIVATE

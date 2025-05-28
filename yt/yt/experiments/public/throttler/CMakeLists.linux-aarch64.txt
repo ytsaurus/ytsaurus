@@ -34,7 +34,8 @@ target_link_libraries(throttler PUBLIC
 )
 
 target_allocator(throttler
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(throttler PRIVATE

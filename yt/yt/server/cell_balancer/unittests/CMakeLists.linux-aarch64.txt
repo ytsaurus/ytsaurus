@@ -35,7 +35,8 @@ target_link_libraries(cell-balancer-unittests PUBLIC
 )
 
 target_allocator(cell-balancer-unittests
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(cell-balancer-unittests PRIVATE

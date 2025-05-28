@@ -24,7 +24,8 @@ target_link_libraries(gencrc PUBLIC
 )
 
 target_allocator(gencrc
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(gencrc PRIVATE

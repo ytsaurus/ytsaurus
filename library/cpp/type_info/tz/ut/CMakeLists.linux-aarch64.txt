@@ -30,7 +30,8 @@ target_link_libraries(library-cpp-type_info-tz-ut PUBLIC
 )
 
 target_allocator(library-cpp-type_info-tz-ut
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(library-cpp-type_info-tz-ut PRIVATE

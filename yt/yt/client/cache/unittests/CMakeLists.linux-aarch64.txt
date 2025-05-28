@@ -36,7 +36,8 @@ target_link_libraries(yt-yt-client-cache-unittests PUBLIC
 )
 
 target_allocator(yt-yt-client-cache-unittests
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-client-cache-unittests PRIVATE

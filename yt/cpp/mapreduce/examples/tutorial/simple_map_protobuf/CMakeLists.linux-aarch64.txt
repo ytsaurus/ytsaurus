@@ -48,7 +48,8 @@ target_link_libraries(simple_map_protobuf PUBLIC
 )
 
 target_allocator(simple_map_protobuf
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(simple_map_protobuf PRIVATE

@@ -25,7 +25,8 @@ target_link_libraries(concurrent_cache PUBLIC
 )
 
 target_allocator(concurrent_cache
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(concurrent_cache PRIVATE

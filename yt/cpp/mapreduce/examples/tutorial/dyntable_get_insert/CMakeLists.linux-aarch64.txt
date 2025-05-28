@@ -34,7 +34,8 @@ target_link_libraries(dyntable_get_insert PUBLIC
 )
 
 target_allocator(dyntable_get_insert
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(dyntable_get_insert PRIVATE

@@ -36,7 +36,8 @@ target_link_libraries(unittester-fair-share-update PUBLIC
 )
 
 target_allocator(unittester-fair-share-update
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-fair-share-update PRIVATE

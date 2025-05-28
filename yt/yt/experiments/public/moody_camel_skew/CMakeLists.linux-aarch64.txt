@@ -33,7 +33,8 @@ target_link_libraries(moody_camel_skew PUBLIC
 )
 
 target_allocator(moody_camel_skew
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(moody_camel_skew PRIVATE

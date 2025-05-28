@@ -35,7 +35,8 @@ target_link_libraries(yt-yt-library-profiling-sensors_owner-unittests PUBLIC
 )
 
 target_allocator(yt-yt-library-profiling-sensors_owner-unittests
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-library-profiling-sensors_owner-unittests PRIVATE

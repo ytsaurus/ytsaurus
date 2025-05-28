@@ -35,7 +35,8 @@ target_link_libraries(yt-yt-library-tracing-unittests PUBLIC
 )
 
 target_allocator(yt-yt-library-tracing-unittests
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-library-tracing-unittests PRIVATE

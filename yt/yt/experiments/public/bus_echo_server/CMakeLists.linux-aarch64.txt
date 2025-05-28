@@ -27,7 +27,8 @@ target_link_libraries(bus_echo_server PUBLIC
 )
 
 target_allocator(bus_echo_server
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(bus_echo_server PRIVATE

@@ -37,7 +37,8 @@ target_link_libraries(unittester-query-tracker-proxy PUBLIC
 )
 
 target_allocator(unittester-query-tracker-proxy
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-query-tracker-proxy PRIVATE

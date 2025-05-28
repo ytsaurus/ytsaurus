@@ -29,7 +29,8 @@ target_link_libraries(value_dictionary_compression PUBLIC
 )
 
 target_allocator(value_dictionary_compression
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(value_dictionary_compression PRIVATE

@@ -34,7 +34,8 @@ target_link_libraries(http_server PUBLIC
 )
 
 target_allocator(http_server
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(http_server PRIVATE

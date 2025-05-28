@@ -33,7 +33,8 @@ target_link_libraries(pass_table_as_file PUBLIC
 )
 
 target_allocator(pass_table_as_file
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(pass_table_as_file PRIVATE

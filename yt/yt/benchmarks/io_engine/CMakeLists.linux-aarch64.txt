@@ -39,7 +39,8 @@ target_link_libraries(io_engine PUBLIC
 )
 
 target_allocator(io_engine
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(io_engine PRIVATE

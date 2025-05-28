@@ -31,7 +31,8 @@ target_link_libraries(yt-sudo-fixup PUBLIC
 )
 
 target_allocator(yt-sudo-fixup
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-sudo-fixup PRIVATE

@@ -36,7 +36,8 @@ target_link_libraries(library-gpu-unittest PUBLIC
 )
 
 target_allocator(library-gpu-unittest
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(library-gpu-unittest PRIVATE

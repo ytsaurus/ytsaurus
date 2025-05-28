@@ -35,7 +35,8 @@ target_link_libraries(read_arrow PUBLIC
 )
 
 target_allocator(read_arrow
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(read_arrow PRIVATE

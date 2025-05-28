@@ -36,7 +36,8 @@ target_link_libraries(yt-yt-tests-cpp-test_multiproxy PUBLIC
 )
 
 target_allocator(yt-yt-tests-cpp-test_multiproxy
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-tests-cpp-test_multiproxy PRIVATE
