@@ -172,7 +172,7 @@ struct TQueryBaseOptions
     bool UseCanonicalNullRelations = false;
     bool MergeVersionedRows = true;
     // COMPAT(sabdenovch)
-    bool AllowUnorderedGroupByWithLimit = false;
+    bool AllowUnorderedGroupByWithLimit = true;
 };
 
 struct TQueryOptions
