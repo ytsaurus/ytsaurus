@@ -270,7 +270,7 @@ public:
         // Run core stuff.
         BranchCoreEpilogue(typedBranchedNode);
 
-        return std::move(branchedNodeHolder);
+        return branchedNodeHolder;
     }
 
     void Unbranch(
