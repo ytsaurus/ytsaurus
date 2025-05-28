@@ -1305,7 +1305,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_columnar_statistics_early_finish", &TThis::EnableColumnarStatisticsEarlyFinish)
         .Default(true);
     registrar.Parameter("enable_table_column_renaming", &TThis::EnableTableColumnRenaming)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("footprint_memory", &TThis::FootprintMemory)
         .Default();
