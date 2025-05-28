@@ -24,7 +24,7 @@ public:
         int maxSpeculativeJobCount);
 
     void OnJobScheduled(const TJobletPtr& joblet) override;
-    void OnJobCompleted(const TJobletPtr& joblet) override;
+    bool OnJobCompleted(const TJobletPtr& joblet) override;
 
     // If competitive job of this joblet completed we should abort the joblet even if it has completed.
     std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet) override;
