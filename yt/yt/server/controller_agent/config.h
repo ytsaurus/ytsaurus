@@ -18,6 +18,7 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
@@ -791,19 +792,19 @@ DEFINE_REFCOUNTED_TYPE(TDockerRegistryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDisallowRemoteOperationsConfig
+struct TRemoteOperationsConfig
     : public NYTree::TYsonStruct
 {
     THashSet<TString> AllowedUsers;
-    THashSet<std::string> AllowedClusters;
-    THashSet<std::string> AllowedForEveryoneClusters;
 
-    REGISTER_YSON_STRUCT(TDisallowRemoteOperationsConfig);
+    bool AllowedForEveryone;
+
+    REGISTER_YSON_STRUCT(TRemoteOperationsConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDisallowRemoteOperationsConfig)
+DEFINE_REFCOUNTED_TYPE(TRemoteOperationsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1278,7 +1279,7 @@ struct TControllerAgentConfig
     //! How many initial successive job aborts are needed to fail operation.
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
 
-    TDisallowRemoteOperationsConfigPtr DisallowRemoteOperations;
+    THashMap<NScheduler::TClusterName, TRemoteOperationsConfigPtr> RemoteOperations;
 
     bool EnableMergeSchemasDuringSchemaInfer;
 

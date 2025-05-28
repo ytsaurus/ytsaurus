@@ -72,10 +72,11 @@ class TestSchedulerRemoteOperationCommandsBase(YTEnvSetup):
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_users": ["root"],
-                "allowed_clusters": ["remote_0"],
-            }
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_users": ["root"],
+                },
+            },
         },
     }
 
@@ -685,9 +686,11 @@ class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteO
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_for_everyone_clusters": ["remote_0"],
-            }
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_for_everyone": True,
+                },
+            },
         },
     }
 
@@ -736,10 +739,11 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_users": ["root"],
-                "allowed_clusters": ["remote_0"],
-            }
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_users": ["root"],
+                },
+            },
         },
     }
 
