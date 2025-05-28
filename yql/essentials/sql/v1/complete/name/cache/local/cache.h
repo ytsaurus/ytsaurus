@@ -16,7 +16,11 @@ namespace NSQLComplete {
 
     namespace NPrivate {
 
-        template <CCacheKey TKey, CCacheValue TValue, CSizeProvider<TValue> TSizeProvider>
+        template <
+            CCacheKey TKey,
+            CCacheValue TValue,
+            CSizeProvider<TKey> TKeySizeProvider,
+            CSizeProvider<TValue> TValueSizeProvider>
         class TLocalCache: public ICache<TKey, TValue> {
         private:
             using TEntry = ICache<TKey, TValue>::TEntry;
@@ -24,11 +28,12 @@ namespace NSQLComplete {
             struct TCell {
                 TValue Value;
                 NMonotonic::TMonotonic Deadline;
+                size_t KeySize = 0;
             };
 
             struct TCellSizeProvider {
                 size_t operator()(const TCell& entry) const {
-                    return TSizeProvider()(entry.Value);
+                    return TValueSizeProvider()(entry.Value) + entry.KeySize;
                 };
             };
 
@@ -60,6 +65,7 @@ namespace NSQLComplete {
                 TCell entry = {
                     .Value = std::move(value),
                     .Deadline = Clock_->Now() + Config_.TTL,
+                    .KeySize = TKeySizeProvider()(key),
                 };
                 with_lock (Mutex_) {
                     Origin_.Update(key, std::move(entry));
@@ -77,14 +83,23 @@ namespace NSQLComplete {
 
     } // namespace NPrivate
 
+    template <class T>
+    struct TZeroSizeProvider {
+        size_t operator()(const T&) const {
+            return 0;
+        }
+    };
+
     template <
         NPrivate::CCacheKey TKey,
         NPrivate::CCacheValue TValue,
-        NPrivate::CSizeProvider<TValue> TSizeProvider = TUniformSizeProvider<TValue>>
+        NPrivate::CSizeProvider<TValue> TValueSizeProvider = TUniformSizeProvider<TValue>,
+        NPrivate::CSizeProvider<TKey> TKeySizeProvider = TZeroSizeProvider<TKey>>
     ICache<TKey, TValue>::TPtr MakeLocalCache(
         TIntrusivePtr<NMonotonic::IMonotonicTimeProvider> clock,
         TLocalCacheConfig config) {
-        return new NPrivate::TLocalCache<TKey, TValue, TSizeProvider>(std::move(clock), std::move(config));
+        return new NPrivate::TLocalCache<TKey, TValue, TKeySizeProvider, TValueSizeProvider>(
+            std::move(clock), std::move(config));
     }
 
 } // namespace NSQLComplete
