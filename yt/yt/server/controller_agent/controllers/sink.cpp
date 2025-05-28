@@ -22,7 +22,7 @@ IChunkPoolInput::TCookie TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeK
     if (table->TableUploadOptions.TableSchema->IsSorted() && Controller_->ShouldVerifySortedOutput()) {
         // We override the key suggested by the task with the one formed by the stripe boundary keys.
         YT_VERIFY(stripe->BoundaryKeys);
-        key = stripe->BoundaryKeys;
+        key = TChunkStripeKey(stripe->BoundaryKeys);
     }
 
     if (Controller_->IsLegacyOutputLivePreviewSupported()) {
