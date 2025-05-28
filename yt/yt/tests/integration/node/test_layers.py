@@ -1436,12 +1436,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
                     "data_node_address": ls("//sys/data_nodes")[0],
                 }
             else:
-                # TODO(yuryalekseev): Take data node address from master.
-                # spec["mapper"]["disk_request"]["nbd_disk"] = {}
-
-                spec["mapper"]["disk_request"]["nbd_disk"] = {
-                    "data_node_address": ls("//sys/data_nodes")[0],
-                }
+                spec["mapper"]["disk_request"]["nbd_disk"] = {}
 
         op = map(
             in_="//tmp/t_in",

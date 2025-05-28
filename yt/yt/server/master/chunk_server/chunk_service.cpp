@@ -506,6 +506,10 @@ private:
         // Gather chunks.
         std::vector<TEphemeralObjectPtr<TChunk>> chunks;
         for (const auto& subrequest : request->subrequests()) {
+            if (subrequest.is_nbd_chunk()) {
+                continue;
+            }
+
             auto sessionId = FromProto<TSessionId>(subrequest.session_id());
             auto* chunk = chunkManager->FindChunk(sessionId.ChunkId);
             // We will fill subresponse with error later.
@@ -541,17 +545,6 @@ private:
                         << TErrorAttribute("medium_name", medium->GetName())
                         << TErrorAttribute("medium_type", medium->GetType());
                 }
-                auto* chunk = chunkManager->GetChunkOrThrow(sessionId.ChunkId);
-
-                auto it = replicas.find(sessionId.ChunkId);
-                // This is really weird.
-                if (it == replicas.end()) {
-                    THROW_ERROR_EXCEPTION("Replicas were not fetched for chunk")
-                        << TErrorAttribute("chunk_id", sessionId.ChunkId);
-                }
-
-                const auto& chunkReplicas = it->second
-                    .ValueOrThrow();
 
                 TNodeList forbiddenNodes;
                 for (const auto& address : forbiddenAddresses) {
@@ -569,16 +562,55 @@ private:
                 }
                 std::sort(allocatedNodes.begin(), allocatedNodes.end());
 
-                auto targets = chunkManager->AllocateWriteTargets(
-                    medium->AsDomestic(),
-                    chunk,
-                    chunkReplicas,
-                    desiredTargetCount,
-                    minTargetCount,
-                    replicationFactorOverride,
-                    &forbiddenNodes,
-                    &allocatedNodes,
-                    preferredHostName);
+                TNodeList targets;
+                bool hasConsistentReplicaPlacementHash = false;
+                auto consistentReplicaPlacementHash = NullConsistentReplicaPlacementHash;
+
+                if (subrequest.is_nbd_chunk()) {
+                    TDummyNbdChunk dummyNbdChunk;
+                    TChunkLocationPtrWithReplicaInfoList dummyReplicas;
+
+                    targets = chunkManager->AllocateWriteTargets(
+                        medium->AsDomestic(),
+                        &dummyNbdChunk,
+                        dummyReplicas,
+                        desiredTargetCount,
+                        minTargetCount,
+                        replicationFactorOverride,
+                        &forbiddenNodes,
+                        &allocatedNodes,
+                        preferredHostName);
+
+                    hasConsistentReplicaPlacementHash = false;
+                } else {
+                    auto* chunk = chunkManager->GetChunkOrThrow(sessionId.ChunkId);
+
+                    auto it = replicas.find(sessionId.ChunkId);
+                    // This is really weird.
+                    if (it == replicas.end()) {
+                        THROW_ERROR_EXCEPTION("Replicas were not fetched for chunk")
+                            << TErrorAttribute("chunk_id", sessionId.ChunkId);
+                    }
+
+                    const auto& chunkReplicas = it->second
+                        .ValueOrThrow();
+
+                    targets = chunkManager->AllocateWriteTargets(
+                        medium->AsDomestic(),
+                        chunk,
+                        chunkReplicas,
+                        desiredTargetCount,
+                        minTargetCount,
+                        replicationFactorOverride,
+                        &forbiddenNodes,
+                        &allocatedNodes,
+                        preferredHostName);
+
+                    hasConsistentReplicaPlacementHash = chunk->HasConsistentReplicaPlacementHash();
+                    if (hasConsistentReplicaPlacementHash) {
+                        consistentReplicaPlacementHash = chunk->GetConsistentReplicaPlacementHash();
+                    }
+                }
 
                 for (int index = 0; index < std::ssize(targets); ++index) {
                     auto* target = targets[index];
@@ -592,10 +624,10 @@ private:
                     "PreferredHostName: %v, ForbiddenAddresses: %v, AllocatedAddresses: %v, Targets: %v)",
                     sessionId,
                     MakeFormatterWrapper([&] (auto* builder) {
-                        if (chunk->HasConsistentReplicaPlacementHash()) {
+                        if (hasConsistentReplicaPlacementHash) {
                             builder->AppendFormat(
                                 ", ConsistentReplicaPlacementHash: %x",
-                                chunk->GetConsistentReplicaPlacementHash());
+                                consistentReplicaPlacementHash);
                         }
                     }),
                     desiredTargetCount,
