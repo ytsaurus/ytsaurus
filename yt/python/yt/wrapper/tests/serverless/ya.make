@@ -29,6 +29,8 @@ ELSE()
     )
 ENDIF()
 
+EXPLICIT_DATA()
+
 SET(SRCS
     test_common.py
     test_formats.py
