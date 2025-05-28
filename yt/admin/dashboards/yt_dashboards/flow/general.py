@@ -41,7 +41,8 @@ def build_flow_status():
         **Warming up** — current job is working ≤ 5 minutes.
         ---
         **after Failed** — previous job failed.
-        **after Lost** — previous job worker is gone or job lease is aborted or something like this.
+        **after LostWorker** — previous job worker is gone (release/reallocation/OOM/crash/...).
+        **after ExpiredLease** — job lease is expired or aborted (problems with YT / manual lease aborting / ...).
         **after Rebalanced** — previous job was stopped by balancer.
         **after Unknown** — partition is newly created or last job finish reason is unknown.
         **after Stopped** — pipeline is pausing / stopping.
@@ -80,13 +81,15 @@ def build_flow_status():
                 description=recovery_by_reason_description,
                 colors={
                     "Recovering after Failed": "#610000",
-                    "Recovering after Lost": "#2d89e5",
+                    "Recovering after LostWorker": "#2d89e5",
+                    "Recovering after ExpiredLease": "#e5e500",
                     "Recovering after PartitionStateChanged": "#e59400",
                     "Recovering after Rebalanced": "#b70000",
                     "Recovering after Stopped": "#00e500",
                     "Recovering after Unknown": "#0000e5",
                     "Warming up after Failed": "#d09999",
-                    "Warming up after Lost": "#add6ff",
+                    "Warming up after LostWorker": "#add6ff",
+                    "Warming up after ExpiredLease": "#ffff66",
                     "Warming up after PartitionStateChanged": "#ffdb99",
                     "Warming up after Rebalanced": "#ea9999",
                     "Warming up after Stopped": "#99ff99",
