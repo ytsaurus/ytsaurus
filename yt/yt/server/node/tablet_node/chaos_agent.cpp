@@ -332,9 +332,10 @@ private:
             writeMode = ETabletWriteMode::Direct;
         }
 
+        // Should be updated before era not to race with logic in tablet service.
+        Tablet_->RuntimeData()->WriteMode = writeMode;
         // ReplicationCard_ might change during this call so we are using a local reference.
         TryAdvanceReplicationEra(replicationCard->Era);
-        Tablet_->RuntimeData()->WriteMode = writeMode;
 
         YT_LOG_DEBUG("Updated tablet write mode (WriteMode: %v, ReplicationEra: %v)",
             writeMode,
