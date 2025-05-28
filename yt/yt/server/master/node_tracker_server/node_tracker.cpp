@@ -1001,6 +1001,9 @@ private:
     TAggregatedNodeStatistics AggregatedNodeStatistics_;
     using TFlavoredNodeStatistics = TEnumIndexedArray<ENodeFlavor, TAggregatedNodeStatistics>;
     TFlavoredNodeStatistics FlavoredNodeStatistics_;
+    TCpuInstant LocalStateToNodeCountUpdateDeadline_ = 0;
+    using TLocalStateToNodeCount = TEnumIndexedArray<ENodeState, int>;
+    TLocalStateToNodeCount LocalStateToNodeCount_;
     THashMap<const TDataCenter*, TAggregatedNodeStatistics> DataCenterNodeStatistics_;
     THashMap<const TDataCenter*, TFlavoredNodeStatistics> DataCenterFlavoredNodeStatistics_;
 
@@ -2600,62 +2603,66 @@ private:
 
         BufferedProducer_->SetEnabled(true);
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (!multicellManager->IsPrimaryMaster()) {
-            return;
-        }
-
         TSensorBuffer buffer;
-        auto statistics = GetAggregatedNodeStatistics();
+        NodeDisposalManager_->OnProfiling(&buffer);
 
-        auto profileStatistics = [&] (const TAggregatedNodeStatistics& statistics) {
-            buffer.AddGauge("/available_space", statistics.TotalSpace.Available);
-            buffer.AddGauge("/used_space", statistics.TotalSpace.Used);
-
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            for (auto [mediumIndex, space] : statistics.SpacePerMedium) {
-                const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                if (!IsObjectAlive(medium)) {
-                    continue;
-                }
-                TWithTagGuard tagGuard(&buffer, "medium", medium->GetName());
-                buffer.AddGauge("/available_space_per_medium", space.Available);
-                buffer.AddGauge("/used_space_per_medium", space.Used);
-            }
-
-            buffer.AddGauge("/chunk_replica_count", statistics.ChunkReplicaCount);
-
-            buffer.AddGauge("/online_node_count", statistics.OnlineNodeCount);
-            buffer.AddGauge("/offline_node_count", statistics.OfflineNodeCount);
-            buffer.AddGauge("/banned_node_count", statistics.BannedNodeCount);
-            buffer.AddGauge("/decommissioned_node_count", statistics.DecommissinedNodeCount);
-            buffer.AddGauge("/with_alerts_node_count", statistics.WithAlertsNodeCount);
-            buffer.AddGauge("/full_node_count", statistics.FullNodeCount);
-
-            for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
-                TWithTagGuard tagGuard(&buffer, "node_role", FormatEnum(nodeRole));
-                buffer.AddGauge("/node_count", NodeListPerRole_[nodeRole].Nodes().size());
-            }
-        };
-
-        {
-            TWithTagGuard tagGuard(&buffer, "flavor", "cluster");
-            profileStatistics(GetAggregatedNodeStatistics());
+        const auto& localStateToNodeCount = GetLocalStateToNodeCount();
+        for (auto state : TEnumTraits<ENodeState>::GetDomainValues()) {
+            TWithTagGuard tagGuard(&buffer, "state", FormatEnum(state));
+            buffer.AddGauge("/node_count", localStateToNodeCount[state]);
         }
 
-        for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
-            TWithTagGuard tagGuard(&buffer, "flavor", FormatEnum(flavor));
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            auto statistics = GetAggregatedNodeStatistics();
 
-            profileStatistics(GetFlavoredNodeStatistics(flavor));
+            auto profileStatistics = [&] (const TAggregatedNodeStatistics& statistics) {
+                buffer.AddGauge("/available_space", statistics.TotalSpace.Available);
+                buffer.AddGauge("/used_space", statistics.TotalSpace.Used);
+
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                for (auto [mediumIndex, space] : statistics.SpacePerMedium) {
+                    const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                    if (!IsObjectAlive(medium)) {
+                        continue;
+                    }
+                    TWithTagGuard tagGuard(&buffer, "medium", medium->GetName());
+                    buffer.AddGauge("/available_space_per_medium", space.Available);
+                    buffer.AddGauge("/used_space_per_medium", space.Used);
+                }
+
+                buffer.AddGauge("/chunk_replica_count", statistics.ChunkReplicaCount);
+
+                buffer.AddGauge("/online_node_count", statistics.OnlineNodeCount);
+                buffer.AddGauge("/offline_node_count", statistics.OfflineNodeCount);
+                buffer.AddGauge("/banned_node_count", statistics.BannedNodeCount);
+                buffer.AddGauge("/decommissioned_node_count", statistics.DecommissinedNodeCount);
+                buffer.AddGauge("/with_alerts_node_count", statistics.WithAlertsNodeCount);
+                buffer.AddGauge("/full_node_count", statistics.FullNodeCount);
+
+                for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
+                    TWithTagGuard tagGuard(&buffer, "node_role", FormatEnum(nodeRole));
+                    buffer.AddGauge("/node_count", NodeListPerRole_[nodeRole].Nodes().size());
+                }
+            };
 
             {
-                auto& addresses = FlavorToThrottledRegisterNodeAddresses_[flavor];
-                addresses.Expire(Now());
-                buffer.AddGauge("/throttled_register_node_count", addresses.GetSize());
+                TWithTagGuard tagGuard(&buffer, "flavor", "cluster");
+                profileStatistics(GetAggregatedNodeStatistics());
+            }
+
+            for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
+                TWithTagGuard tagGuard(&buffer, "flavor", FormatEnum(flavor));
+
+                profileStatistics(GetFlavoredNodeStatistics(flavor));
+
+                {
+                    auto& addresses = FlavorToThrottledRegisterNodeAddresses_[flavor];
+                    addresses.Expire(Now());
+                    buffer.AddGauge("/throttled_register_node_count", addresses.GetSize());
+                }
             }
         }
-
-        NodeDisposalManager_->OnProfiling(&buffer);
 
         BufferedProducer_->Update(buffer);
     }
@@ -2827,6 +2834,41 @@ private:
         NodeStatisticsUpdateDeadline_ =
             GetCpuInstant() +
             DurationToCpuDuration(GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod);
+    }
+
+    const TLocalStateToNodeCount& GetLocalStateToNodeCount()
+    {
+        MaybeRebuildLocalStateToNodeCount();
+
+        return LocalStateToNodeCount_;
+    }
+
+    void MaybeRebuildLocalStateToNodeCount()
+    {
+        auto now = GetCpuInstant();
+        if (now > LocalStateToNodeCountUpdateDeadline_) {
+            BuildLocalStateToNodeCount();
+        }
+    }
+
+    void BuildLocalStateToNodeCount()
+    {
+        for (auto state : TEnumTraits<ENodeState>::GetDomainValues()) {
+            LocalStateToNodeCount_[state] = 0;
+        }
+
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            auto state = node->GetLocalState();
+            ++LocalStateToNodeCount_[state];
+        }
+
+        LocalStateToNodeCountUpdateDeadline_ =
+            GetCpuInstant() +
+            DurationToCpuDuration(GetDynamicConfig()->LocalStateToNodeCountUpdatePeriod);
     }
 
     const TDynamicNodeTrackerConfigPtr& GetDynamicConfig()
