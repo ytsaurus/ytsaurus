@@ -93,6 +93,31 @@ void TCypressProxyConnectionConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSequoiaRetriesConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Preprocessor([] (TSequoiaRetriesConfig* config) {
+        config->StartBackoff = TDuration::MilliSeconds(150); // Average duration of Sequoia tx.
+        config->MaxBackoff = TDuration::Seconds(10);
+        config->BackoffMultiplier = 2;
+        config->RetryCount = 15;
+    });
+}
+
+TReqExecuteBatchRetriesConfigPtr TSequoiaRetriesConfig::ToRetriesConfig() const
+{
+    auto adjustedConfig = New<TReqExecuteBatchRetriesConfig>();
+    static_cast<TReqExecuteBatchRetriesOptions&>(*adjustedConfig) = static_cast<const TReqExecuteBatchRetriesOptions&>(*this);
+    if (!Enable) {
+        adjustedConfig->RetryCount = 0;
+    }
+    return adjustedConfig;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSequoiaConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("ground_cluster_name", &TThis::GroundClusterName)
@@ -105,6 +130,9 @@ void TSequoiaConnectionConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)
         .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("retries", &TThis::Retries)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

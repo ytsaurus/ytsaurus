@@ -15,11 +15,6 @@
 
     NUM_NODES = 3;
 
-    DRIVER_BACKEND = rpc;
-
-    NUM_RPC_PROXIES = 2;
-    ENABLE_RPC_PROXY = %true;
-
     NUM_HTTP_PROXIES = 0;
     ENABLE_HTTP_PROXY = %false;
 
