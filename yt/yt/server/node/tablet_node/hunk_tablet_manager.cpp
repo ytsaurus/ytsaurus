@@ -751,6 +751,11 @@ private:
                 std::move(tabletHolder));
         }
 
+        YT_LOG_DEBUG("Tablet unmounted (TabletId: %v, MountRevision: %v, Force: %v)",
+            tabletId,
+            mountRevision,
+            force);
+
         // NB: Response is not sent to master in case of force unmount.
         if (force) {
             return;
@@ -758,10 +763,6 @@ private:
 
         // NB: Do not unregister master avenue since it still has pending messages.
         // It will be unregistered later by TReqUnregisterMasterAvenueEndpoint message.
-
-        YT_LOG_DEBUG("Tablet unmounted (TabletId: %v, MountRevision: %v)",
-            tabletId,
-            mountRevision);
 
         TRspUnmountHunkTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
