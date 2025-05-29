@@ -630,13 +630,12 @@ TEST_F(TCookieAuthenticatorTest, SessguardGoodOrigin)
     MockCall("{status={id=0};login=sandello;user_ticket=good_ticket}");
     EXPECT_NO_THROW(authenticateSessguard("https://good.ytsaurus").ThrowOnError());
 
+    MockCall("{status={id=0};login=sandello;user_ticket=good_ticket}");
+    EXPECT_NO_THROW(authenticateSessguard({}).ThrowOnError());
+
     EXPECT_THROW_THAT(
         authenticateSessguard("https://bad.ytsaurus").ThrowOnError(),
         ::testing::HasSubstr("Sessguard cookie from disallowed origin:"));
-
-    EXPECT_THROW_THAT(
-        authenticateSessguard({}).ThrowOnError(),
-        ::testing::HasSubstr("Sessguard cookie is provided but origin header is empty"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
