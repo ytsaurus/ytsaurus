@@ -1,7 +1,6 @@
 #include "helpers.h"
 
 #include "path_resolver.h"
-#include "sequoia_service.h"
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -92,6 +91,10 @@ TAbsoluteYPath GetCanonicalYPath(const TResolveResult& resolveResult)
             // NB: Cypress resolve result doesn't contain unresolved links.
             return TAbsoluteYPath(resolveResult.Path);
         },
+        [] (const TMasterResolveResult& /*resolveResult*/) -> TAbsoluteYPath {
+            // NB: Master resolve result is uncurated, it's unwise to attempt to parse it.
+            Y_UNREACHABLE();
+        },
         [] (const TSequoiaResolveResult& resolveResult) -> TAbsoluteYPath {
             // We don't want to distinguish "//tmp/a&/my-link" from
             // "//tmp/a/my-link".
@@ -118,7 +121,12 @@ void ValidateLinkNodeCreation(
         const TAbsoluteYPath& forbiddenPrefix)
     {
         std::vector<TSequoiaResolveIterationResult> history;
-        auto resolveResult = ResolvePath(session, std::move(pathToResolve), /*method*/ {}, &history);
+        auto resolveResult = ResolvePath(
+            session,
+            std::move(pathToResolve),
+            /*service*/ {},
+            /*method*/ {},
+            &history);
 
         for (const auto& [id, path] : history) {
             if (IsLinkType(TypeFromId(id)) && path == forbiddenPrefix) {
@@ -237,6 +245,16 @@ void ThrowAlreadyExists(const TAbsoluteYPath& path)
         NYTree::EErrorCode::AlreadyExists,
         "Node %v already exists",
         path);
+}
+
+void ThrowCannotHaveChildren(const TAbsoluteYPath& path)
+{
+    THROW_ERROR_EXCEPTION("%v cannot have children", path);
+}
+
+void ThrowCannotReplaceNode(const TAbsoluteYPath& path)
+{
+    THROW_ERROR_EXCEPTION("%v cannot be replaced", path);
 }
 
 void ThrowNoSuchChild(const TAbsoluteYPath& existingPath, TStringBuf missingPath)

@@ -230,7 +230,7 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
         auto req = constructRequest(channels[primaryCellId]);
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
-        YT_LOG_INFO("Recieved consistent state (CellId: %v, LogicalTime: %v, SequenceNumber: %v)",
+        YT_LOG_INFO("Received consistent state (CellId: %v, LogicalTime: %v, SequenceNumber: %v)",
             primaryCellId,
             rsp->logical_time(),
             rsp->sequence_number());
@@ -255,7 +255,7 @@ TCellIdToConsistentStateMap TClient::DoGetMasterConsistentState(
         auto responseOrError = WaitFor(request.Future);
         if (responseOrError.IsOK()) {
             auto response = responseOrError.Value();
-            YT_LOG_INFO("Recieved consistent state (CellId: %v, SequenceNumber: %v, SegmentId: %v)",
+            YT_LOG_INFO("Received consistent state (CellId: %v, SequenceNumber: %v, SegmentId: %v)",
                 cellId,
                 response->sequence_number(),
                 response->segment_id());

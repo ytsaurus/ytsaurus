@@ -749,7 +749,7 @@ public:
             });
     }
 
-    TAccount* GetAccountOrThrow(TAccountId id) override
+    TAccount* GetAccountOrThrow(TAccountId id, bool activeLifeStageOnly) override
     {
         auto* account = FindAccount(id);
         if (!IsObjectAlive(account)) {
@@ -758,6 +758,12 @@ public:
                 "No such account %v",
                 id);
         }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(account);
+        }
+
         return account;
     }
 

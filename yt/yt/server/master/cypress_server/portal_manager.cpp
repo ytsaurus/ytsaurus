@@ -501,7 +501,7 @@ private:
             : std::nullopt;
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = securityManager->GetAccountOrThrow(accountId);
+        auto* account = securityManager->GetAccountOrThrow(accountId, /*activeLifeStageOnly*/ true);
 
         auto effectiveAcl = DeserializeAclOrAlert(
             ConvertToNode(TYsonString(request->effective_acl())),

@@ -49,6 +49,7 @@ target_sources(yt-server-cypress_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/master_connector.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/master_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/object_service.cpp
