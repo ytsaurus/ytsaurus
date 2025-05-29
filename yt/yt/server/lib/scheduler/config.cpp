@@ -625,9 +625,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("allow_single_job_large_gpu_operations_in_multiple_trees", &TThis::AllowSingleJobLargeGpuOperationsInMultipleTrees)
         .Default(true);
 
-    registrar.Parameter("enable_node_resource_overcommit_preemption", &TThis::EnableNodeResourceOvercommitPreemption)
-        .Default(true);
-
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")

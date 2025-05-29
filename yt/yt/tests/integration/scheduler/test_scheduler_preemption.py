@@ -1271,13 +1271,13 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
             "allocation_preemption_timeout": 600000,
         })
 
+    def teardown_method(self, method):
+        remove("//sys/scheduler/config", force=True)
+        super(TestResourceLimitsOverdraftPreemption, self).teardown_method(method)
+
     @authors("ignat")
-    @pytest.mark.parametrize("enable", [False, True])
-    def test_scheduler_preempt_overdraft_resources(self, enable):
-        update_pool_tree_config("default", {
-            "allocation_preemption_timeout": 1000,
-            "enable_node_resource_overcommit_preemption": enable,
-        })
+    def test_scheduler_preempt_overdraft_resources(self):
+        update_pool_tree_config_option("default", "allocation_preemption_timeout", 1000)
 
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) > 0
@@ -1336,20 +1336,11 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
         )
         wait(lambda: get("//sys/cluster_nodes/{}/orchid/exec_node/job_resource_manager/resource_limits/cpu".format(nodes[1])) == 0.0)
 
-        if enable:
-            wait(lambda: op1.get_job_count("aborted") == 1)
-            wait(lambda: op2.get_job_count("aborted") == 1)
+        wait(lambda: op1.get_job_count("aborted") == 1)
+        wait(lambda: op2.get_job_count("aborted") == 1)
 
-            wait(lambda: op1.get_job_count("running") == 1)
-            wait(lambda: op2.get_job_count("running") == 1)
-        else:
-            time.sleep(5)
-
-            wait(lambda: op1.get_job_count("aborted") == 0)
-            wait(lambda: op2.get_job_count("aborted") == 0)
-
-            wait(lambda: op1.get_job_count("running") == 1)
-            wait(lambda: op2.get_job_count("running") == 1)
+        wait(lambda: op1.get_job_count("running") == 1)
+        wait(lambda: op2.get_job_count("running") == 1)
 
     @authors("ignat")
     def test_scheduler_force_abort(self):

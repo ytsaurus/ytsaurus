@@ -1157,8 +1157,6 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
         }
     }();
 
-    const auto& treeConfig = TreeSnapshot_->TreeConfig();
-
     int currentAllocationIndex = 0;
     for (; currentAllocationIndex < std::ssize(preemptibleAllocations); ++currentAllocationIndex) {
         if (Dominates(SchedulingContext_->ResourceLimits(), SchedulingContext_->ResourceUsage()) &&
@@ -1209,12 +1207,9 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
 
             allocation->SetPreemptedForProperlyStarvingOperation(
                 targetOperationPreemptionPriority == preemptorOperationLocalPreemptionPriority);
-        } else if (treeConfig->EnableNodeResourceOvercommitPreemption) {
-            allocation->SetPreemptionReason(Format("Node resource limits violated"));
         } else {
-            break;
+            allocation->SetPreemptionReason(Format("Node resource limits violated"));
         }
-
         PreemptAllocation(allocation, operationElement, preemptionReason);
     }
 
@@ -2618,10 +2613,7 @@ void TFairShareTreeAllocationScheduler::ScheduleAllocations(TScheduleAllocations
     DoPreemptiveAllocationScheduling(context);
 
     // Preempt some allocations if usage is greater that limit.
-    const auto& treeConfig = context->TreeSnapshot()->TreeConfig();
-    if (treeConfig->EnableNodeResourceOvercommitPreemption &&
-        context->SchedulingContext()->ShouldAbortAllocationsSinceResourcesOvercommit())
-    {
+    if (context->SchedulingContext()->ShouldAbortAllocationsSinceResourcesOvercommit()) {
         context->AbortAllocationsSinceResourcesOvercommit();
     }
 
