@@ -109,6 +109,8 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     checkCommand->Args = std::move(Context_.Options.BinaryArgs);
     checkCommand->EnvironmentVariables = std::move(Context_.Options.Environment);
 
+    checkCommand->EnvironmentVariables.emplace("YT_GPU_CHECK_TYPE", FormatEnum(Context_.Type));
+
     if (Context_.Options.NetworkAttributes) {
         checkCommand->EnvironmentVariables.emplace("YT_NETWORK_PROJECT_ID", ToString(Context_.Options.NetworkAttributes->ProjectId));
         for (const auto& networkAddress : Context_.Options.NetworkAttributes->Addresses) {

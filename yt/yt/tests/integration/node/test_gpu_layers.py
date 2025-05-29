@@ -1153,9 +1153,18 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
     @pytest.mark.timeout(180)
     def test_gpu_check_with_separate_volume(self):
         self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
-        self.setup_gpu_check_options_for_separate_volume()
         self.setup_tables()
         self.init_operations_archive()
+
+        update_controller_agent_config(
+            "map_operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/bin/bash",
+                "binary_args": ["-c", "set -u; echo $YT_GPU_CHECK_TYPE >&2"],
+            }
+        )
 
         write_table("//tmp/t_in", [{"k": 0}])
         op = map(
