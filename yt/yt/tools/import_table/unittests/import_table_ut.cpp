@@ -805,6 +805,7 @@ private:
         auto poller = CreateThreadPoolPoller(1, "S3TestPoller");
         auto client = NS3::CreateClient(
             std::move(clientConfig),
+            NS3::CreateAnonymousCredentialProvider(),
             poller,
             poller->GetInvoker());
 

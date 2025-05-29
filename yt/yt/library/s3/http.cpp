@@ -24,8 +24,7 @@ using namespace NNet;
 
 void PrepareHttpRequest(
     THttpRequest* request,
-    const TString& keyId,
-    const TString& secretKey,
+    ICredentialsProviderPtr credentialProvider,
     TInstant requestTime)
 {
     TStringStream canonicalRequestStream;
@@ -173,36 +172,44 @@ void PrepareHttpRequest(
         canonicalRequestStream << contentSha256;
     }
 
-    auto canonicalRequest = canonicalRequestStream.Str();
+    auto credentials = credentialProvider->GetCredentials();
 
-    auto time = NCrypto::FormatTimeIso8601(requestTime);
-    auto date = TStringBuf(time).substr(0, "YYYYMMDD"sv.size());
-    auto scope = Format("%v/%v/%v/aws4_request",
-        date,
-        request->Region,
-        request->Service);
-    auto stringToSign = Format("AWS4-HMAC-SHA256\n%v\n%v\n%v",
-        time,
-        scope,
-        NCrypto::Sha256HashHex(canonicalRequest));
+    if (!credentials.SessionToken.empty()) {
+        auto authorizationHeader = Format("AWS TVM2:%v:%v", credentials.AccessKeyId, credentials.SecretAccessKey);
+        constexpr auto AuthorizationHeaderName = "Authorization";
+        EmplaceOrCrash(request->Headers, AuthorizationHeaderName, authorizationHeader);
 
-    const static TString Aws4 = "AWS4";
-    const static TString Aws4Request = "aws4_request";
+        constexpr auto ServiceTicketHeaderName = "X-Ya-Service-Ticket";
+        EmplaceOrCrash(request->Headers, ServiceTicketHeaderName, std::move(credentials.SessionToken));
+    } else if (!credentials.SecretAccessKey.empty() && !credentials.AccessKeyId.empty()) {
+        auto canonicalRequest = canonicalRequestStream.Str();
+        auto time = NCrypto::FormatTimeIso8601(requestTime);
+        auto date = TStringBuf(time).substr(0, "YYYYMMDD"sv.size());
+        auto scope = Format("%v/%v/%v/aws4_request",
+            date,
+            request->Region,
+            request->Service);
+        auto stringToSign = Format("AWS4-HMAC-SHA256\n%v\n%v\n%v",
+            time,
+            scope,
+            NCrypto::Sha256HashHex(canonicalRequest));
 
-    auto dateKey = NCrypto::HmacSha256(Aws4 + secretKey, date);
-    auto dateRegionKey = NCrypto::HmacSha256(dateKey, request->Region);
-    auto dateRegionServiceKey = NCrypto::HmacSha256(dateRegionKey, request->Service);
-    auto signingKey = NCrypto::HmacSha256(dateRegionServiceKey, Aws4Request);
+        const static TString Aws4 = "AWS4";
+        const static TString Aws4Request = "aws4_request";
 
-    auto signature = NCrypto::Hex(NCrypto::HmacSha256(signingKey, stringToSign));
-
-    auto authorizationHeader = Format("AWS4-HMAC-SHA256 Credential=%v/%v,SignedHeaders=%v,Signature=%v",
-        keyId,
-        scope,
-        signedHeaders,
-        signature);
-    constexpr auto AuthorizationHeaderName = "Authorization";
-    EmplaceOrCrash(request->Headers, AuthorizationHeaderName, authorizationHeader);
+        auto dateKey = NCrypto::HmacSha256(Aws4 + credentials.SecretAccessKey, date);
+        auto dateRegionKey = NCrypto::HmacSha256(dateKey, request->Region);
+        auto dateRegionServiceKey = NCrypto::HmacSha256(dateRegionKey, request->Service);
+        auto signingKey = NCrypto::HmacSha256(dateRegionServiceKey, Aws4Request);
+        auto signature = NCrypto::Hex(NCrypto::HmacSha256(signingKey, stringToSign));
+        auto authorizationHeader = Format("AWS4-HMAC-SHA256 Credential=%v/%v,SignedHeaders=%v,Signature=%v",
+            credentials.AccessKeyId,
+            scope,
+            signedHeaders,
+            signature);
+        constexpr auto AuthorizationHeaderName = "Authorization";
+        EmplaceOrCrash(request->Headers, AuthorizationHeaderName, authorizationHeader);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
