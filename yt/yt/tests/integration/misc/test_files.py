@@ -109,7 +109,7 @@ class TestFiles(YTEnvSetup):
 
         wait(lambda: not exists("#%s" % chunk_id))
 
-    @authors("babenko", "ignat")
+    @authors("kvk1920", "babenko", "ignat")
     def test_copy_tx(self):
         content = b"some_data"
         create("file", "//tmp/f")
@@ -130,7 +130,7 @@ class TestFiles(YTEnvSetup):
 
         remove("//tmp/f2")
 
-        wait(lambda: not exists("#%s" % chunk_id))
+        wait(lambda: not exists(f"#{chunk_id}"))
 
     @authors("babenko", "ignat")
     def test_replication_factor_attr(self):
