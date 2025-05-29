@@ -1,5 +1,6 @@
 #pragma once
 
+#include "credential_provider.h"
 #include "public.h"
 
 #include <yt/yt/core/http/http.h>
@@ -44,8 +45,7 @@ struct THttpRequest final
 //! Prepares HTTP request for sending. Time is used for unittests only.
 void PrepareHttpRequest(
     THttpRequest* request,
-    const TString& keyId,
-    const TString& secretKey,
+    ICredentialsProviderPtr credentialProvider,
     TInstant requestTime = TInstant::Now());
 
 NHttp::IResponsePtr MakeRequest(

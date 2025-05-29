@@ -131,21 +131,21 @@ void ExtractKeys(std::vector<TString>& keys, const std::vector<NS3::TObject>& ob
 }
 
 NS3::IClientPtr CreateS3Client(
-    const TS3Config& s3Config,
-    const TString& accessKeyId,
-    const TString& secretAccessKey)
+    TS3Config s3Config,
+    TString accessKeyId,
+    TString secretAccessKey)
 {
+    auto credentialProvider = NS3::CreateStaticCredentialProvider(std::move(accessKeyId), std::move(secretAccessKey));
     auto clientConfig = New<NS3::TS3ClientConfig>();
 
-    clientConfig->Url = s3Config.Url;
-    clientConfig->Region = s3Config.Region;
-    clientConfig->Bucket = s3Config.Bucket;
-    clientConfig->AccessKeyId = accessKeyId;
-    clientConfig->SecretAccessKey = secretAccessKey;
+    clientConfig->Url = std::move(s3Config.Url);
+    clientConfig->Region = std::move(s3Config.Region);
+    clientConfig->Bucket = std::move(s3Config.Bucket);
 
     auto poller = CreateThreadPoolPoller(1, "S3Poller");
     auto client = NS3::CreateClient(
         std::move(clientConfig),
+        std::move(credentialProvider),
         poller,
         poller->GetInvoker());
 
@@ -156,20 +156,20 @@ NS3::IClientPtr CreateS3Client(
 
 std::vector<TString> GetListFilesKeysFromS3(
     const TS3Config& s3Config,
-    const TString& accessKeyId,
-    const TString& secretAccessKey,
-    const TString& prefix)
+    TString accessKeyId,
+    TString secretAccessKey,
+    TString prefix)
 {
     auto s3Client =  CreateS3Client(
         s3Config,
-        accessKeyId,
-        secretAccessKey);
+        std::move(accessKeyId),
+        std::move(secretAccessKey));
 
     std::vector<TString> keys;
     NS3::TListObjectsResponse response({ .NextContinuationToken = std::nullopt });
     do {
         response = WaitFor(s3Client->ListObjects({
-            .Prefix = prefix,
+            .Prefix = std::move(prefix),
             .Bucket = s3Config.Bucket,
             .ContinuationToken = response.NextContinuationToken,
         })).ValueOrThrow();
@@ -197,12 +197,12 @@ class TS3Downloader
 public:
     TS3Downloader(
         const TS3Config& s3Config,
-        const TString& accessKeyId,
-        const TString& secretAccessKey)
+        TString accessKeyId,
+        TString secretAccessKey)
         : Client_(CreateS3Client(
             s3Config,
-            accessKeyId,
-            secretAccessKey))
+            std::move(accessKeyId),
+            std::move(secretAccessKey)))
         , Bucket_(s3Config.Bucket)
     { }
 
