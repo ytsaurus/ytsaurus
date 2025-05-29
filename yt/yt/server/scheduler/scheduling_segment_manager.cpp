@@ -543,9 +543,12 @@ void TSchedulingSegmentManager::CollectFairResourceAmountPerSegment(TUpdateSched
     for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
         if (IsModuleAwareSchedulingSegment(segment)) {
             for (const auto& schedulingSegmentModule : Config_->GetModules()) {
-                auto reserve = std::min(
-                    Config_->ReserveFairResourceAmount.At(segment).GetOrDefaultAt(schedulingSegmentModule),
-                    context->RemainingCapacityPerModule[schedulingSegmentModule]);
+                // NB(eshcherbin): Remaining capacity may be negative due to fair resource amount overcommit when nodes go offline.
+                auto reserve = std::max(
+                    0.0,
+                    std::min(
+                        Config_->ReserveFairResourceAmount.At(segment).GetOrDefaultAt(schedulingSegmentModule),
+                        context->RemainingCapacityPerModule[schedulingSegmentModule]));
                 context->FairResourceAmountPerSegment.At(segment).MutableAt(schedulingSegmentModule) += reserve;
                 context->RemainingCapacityPerModule[schedulingSegmentModule] -= reserve;
             }
@@ -1217,13 +1220,15 @@ void TSchedulingSegmentManager::LogAndProfileSegments(const TUpdateSchedulingSeg
         YT_LOG_DEBUG(
             "Scheduling segments state in tree "
             "(Mode: %v, Modules: %v, KeyResource: %v, FairSharePerSegment: %v, TotalKeyResourceLimit: %v, "
-            "TotalCapacityPerModule: %v, FairResourceAmountPerSegment: %v, CurrentResourceAmountPerSegment: %v)",
+            "TotalCapacityPerModule: %v, RemainingCapacityPerModule: %v, "
+            "FairResourceAmountPerSegment: %v, CurrentResourceAmountPerSegment: %v)",
             mode,
             Config_->GetModules(),
             GetSegmentBalancingKeyResource(mode),
             context->FairSharePerSegment,
             context->NodesTotalKeyResourceLimit,
             context->TotalCapacityPerModule,
+            context->RemainingCapacityPerModule,
             context->FairResourceAmountPerSegment,
             context->CurrentResourceAmountPerSegment);
 
