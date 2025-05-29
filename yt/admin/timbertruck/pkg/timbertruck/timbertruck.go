@@ -620,6 +620,7 @@ type taskController struct {
 }
 
 func (c *taskController) NotifyProgress(pos pipelines.FilePosition) {
+	c.logger.Debug("Update end position", "progress", pos)
 	for {
 		err := c.datastore.UpdateEndPosition(c.path, pos)
 		if err != nil {
