@@ -75,6 +75,7 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <Storages/MergeTree/KeyCondition.h>
+#include <Storages/VirtualColumnsDescription.h>
 #include <DataTypes/DataTypeNullable.h>
 
 #include <cmath>
