@@ -30,6 +30,7 @@ DECLARE_REFCOUNTED_STRUCT(TMasterConnectionConfig)
 DECLARE_REFCOUNTED_STRUCT(TMasterCacheConnectionConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressProxyConnectionConfig)
 DECLARE_REFCOUNTED_STRUCT(TClockServersConfig)
+DECLARE_REFCOUNTED_STRUCT(TSequoiaRetriesConfig)
 DECLARE_REFCOUNTED_STRUCT(TSequoiaConnectionConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TConnectionStaticConfig)
@@ -77,4 +78,3 @@ struct TListJobsFromControllerAgentResult
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
-
