@@ -605,6 +605,17 @@ class YTEnvSetup(object):
             enable_legacy_logging_scheme = False
 
         delta_global_cluster_connection_config = None
+
+        if cls.get_param("USE_SEQUOIA", index):
+            if delta_global_cluster_connection_config is None:
+                delta_global_cluster_connection_config = {}
+            update_inplace(delta_global_cluster_connection_config, {
+                "sequoia_connection": {
+                    "retries": {
+                        "enable": True,
+                    },
+                },
+            })
         if cls._is_ground_cluster(index):
             delta_global_cluster_connection_config = {
                 "permission_cache": {
@@ -1247,7 +1258,7 @@ class YTEnvSetup(object):
             "sequoia_connection": {
                 "ground_cluster_name": ground_cluster_name,
                 "ground_cluster_connection_update_period": 500,
-            }
+            },
         })
         return config
 

@@ -1469,7 +1469,7 @@ TLockNodeResult TClient::DoLockNode(
 {
     auto proxy = CreateObjectServiceWriteProxy();
 
-    auto batchReqConfig = New<TReqExecuteBatchWithRetriesConfig>();
+    auto batchReqConfig = New<TReqExecuteBatchRetriesConfig>();
 
     auto batchReq = proxy.ExecuteBatchWithRetries(std::move(batchReqConfig));
     SetSuppressUpstreamSyncs(batchReq, options);
