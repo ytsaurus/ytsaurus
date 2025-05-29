@@ -302,6 +302,19 @@ TEST_F(TModifyRowsTest, IgnoringSeqNumbers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TModifyRowsTest, MaxAllowedCommitTimestamp)
+{
+    auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+    WriteSimpleRow(transaction, 0, 1, std::nullopt);
+    auto generatedTimestamp = WaitFor(Client_->GetTimestampProvider()->GenerateTimestamps())
+        .ValueOrThrow();
+    TTransactionCommitOptions commitOptions{.MaxAllowedCommitTimestamp = generatedTimestamp};
+    EXPECT_ANY_THROW(WaitFor(transaction->Commit(std::move(commitOptions))).ThrowOnError());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TMultiLookupTest
     : public TDynamicTablesTestBase
 {
