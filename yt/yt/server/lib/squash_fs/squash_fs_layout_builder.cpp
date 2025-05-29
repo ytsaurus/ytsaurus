@@ -554,7 +554,7 @@ void TSquashFSLayout::Dump(IOutputStream& output) const
         std::ssize(Head_));
 
     for (auto part : Parts_) {
-        auto ref = WaitFor(part.Reader->Read(0, part.Size))
+        auto ref = WaitFor(part.Reader->Read(0, part.Size, {}))
             .ValueOrThrow("Failed to read part");
         output.Write(
             ref.Begin(),
