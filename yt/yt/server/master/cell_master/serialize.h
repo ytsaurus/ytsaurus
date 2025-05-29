@@ -172,6 +172,7 @@ DEFINE_ENUM(EMasterReign,
     ((TableSchemaCache)                                             (2935))  // cherepashka
     ((DestroyTransactionActionStateInCommit)                        (2936))  // kvk1920
     ((ReachabilityBasedSequoiaNodeRefCount)                         (2937))  // kvk1920
+    ((OrchidInSequoia)                                              (2938))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

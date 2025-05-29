@@ -222,7 +222,8 @@ bool IsSupportedSequoiaType(EObjectType type)
     return IsSequoiaCompositeNodeType(type) ||
         IsScalarType(type) ||
         IsChunkOwnerType(type) ||
-        type == EObjectType::SequoiaLink;
+        type == EObjectType::SequoiaLink ||
+        type == EObjectType::Orchid;
 }
 
 bool IsSequoiaCompositeNodeType(EObjectType type)
