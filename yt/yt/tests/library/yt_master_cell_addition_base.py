@@ -147,26 +147,53 @@ class MasterCellAdditionBase(YTEnvSetup):
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
     @classmethod
-    def _disable_last_cell(cls):
-        print_debug("Disabling last master cell")
-
-        optional_services = [
+    def _get_optional_services(cls):
+        return [
             SCHEDULERS_SERVICE if cls.NUM_SCHEDULERS != 0 else None,
             CONTROLLER_AGENTS_SERVICE if cls.NUM_CONTROLLER_AGENTS != 0 else None,
             NODES_SERVICE if cls.NUM_NODES != 0 else None,
             CHAOS_NODES_SERVICE if cls.NUM_CHAOS_NODES != 0 else None,
         ]
+
+    @classmethod
+    def _rewrite_optional_services_configs(cls):
+        cls.Env.rewrite_node_configs()
+        cls.Env.rewrite_chaos_node_configs()
+        cls.Env.rewrite_scheduler_configs()
+        cls.Env.rewrite_controller_agent_configs()
+
+    @classmethod
+    def _abort_world_initializer_transactions(cls):
+        for tx in ls("//sys/transactions", attributes=["title"]):
+            title = tx.attributes.get("title", "")
+            if "World initialization" in title:
+                abort_transaction(str(tx))
+
+    @classmethod
+    def _build_readonly_snapshot(cls):
+        for cell_id in cls.CELL_IDS:
+            build_snapshot(cell_id=cell_id, set_read_only=True)
+
+    @classmethod
+    def _kill_drivers(cls):
+        drivers = ["driver"]
+        cls.Env.kill_service("driver")
+        for i in range(cls.Env.yt_config.secondary_cell_count):
+            cls.Env.kill_service(f"driver_secondary_{i}")
+            drivers.append(f"driver_secondary_{i}")
+        return drivers
+
+    @classmethod
+    def _disable_last_cell(cls):
+        print_debug("Disabling last master cell")
+
+        optional_services = cls._get_optional_services()
         services = [service for service in optional_services if service is not None]
 
         with Restarter(cls.Env, services):
-            drivers = ["driver"]
-            cls.Env.kill_service("driver")
-            for i in range(cls.Env.yt_config.secondary_cell_count):
-                cls.Env.kill_service(f"driver_secondary_{i}")
-                drivers.append(f"driver_secondary_{i}")
+            drivers = cls._kill_drivers()
 
-            for cell_id in cls.CELL_IDS:
-                build_snapshot(cell_id=cell_id, set_read_only=True)
+            cls._build_readonly_snapshot()
             cls.Env.kill_all_masters()
 
             # Patch static configs for all components.
@@ -190,10 +217,7 @@ class MasterCellAdditionBase(YTEnvSetup):
 
             init_drivers([cls.Env])
             cls.Env.rewrite_master_configs()
-            cls.Env.rewrite_node_configs()
-            cls.Env.rewrite_chaos_node_configs()
-            cls.Env.rewrite_scheduler_configs()
-            cls.Env.rewrite_controller_agent_configs()
+            cls._rewrite_optional_services_configs()
 
             cls.Env.start_master_cell(cell_index=0, set_config=False)
             secondary_masters_to_start = cls.get_param("NUM_SECONDARY_MASTER_CELLS", cls.PRIMARY_CLUSTER_INDEX) - 1
@@ -203,13 +227,8 @@ class MasterCellAdditionBase(YTEnvSetup):
             master_exit_read_only()
             # Cell 13 was dropped.
             wait_no_peers_in_read_only(secondary_cell_tags=["11", "12"])
-            cls.Env.synchronize()
 
-            for tx in ls("//sys/transactions", attributes=["title"]):
-                title = tx.attributes.get("title", "")
-                id = str(tx)
-                if "World initialization" in title:
-                    abort_transaction(id)
+        cls._abort_world_initializer_transactions()
 
         def _move_files(directory):
             files = os.listdir(directory)
@@ -231,22 +250,14 @@ class MasterCellAdditionBase(YTEnvSetup):
 
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
-        optional_services = [
-            SCHEDULERS_SERVICE if cls.NUM_SCHEDULERS != 0 else None,
-            CONTROLLER_AGENTS_SERVICE if cls.NUM_CONTROLLER_AGENTS != 0 else None,
-            NODES_SERVICE if cls.NUM_NODES != 0 else None,
-            CHAOS_NODES_SERVICE if cls.NUM_CHAOS_NODES != 0 else None,
-        ]
+        optional_services = cls._get_optional_services()
         services = [service for service in optional_services if downtime and service is not None]
 
         with Restarter(cls.Env, services):
-            for cell_id in cls.CELL_IDS:
-                build_snapshot(cell_id=cell_id, set_read_only=True)
-
             # Restart drivers to apply new master cells configuration.
-            cls.Env.kill_service("driver")
-            for i in range(cls.Env.yt_config.secondary_cell_count):
-                cls.Env.kill_service(f"driver_secondary_{i}")
+            cls._kill_drivers()
+
+            cls._build_readonly_snapshot()
 
             with Restarter(cls.Env, MASTERS_SERVICE, sync=False):
                 for i in range(len(cls.PATCHED_CONFIGS)):
@@ -260,16 +271,9 @@ class MasterCellAdditionBase(YTEnvSetup):
             cls.Env.synchronize()
 
             if downtime:
-                cls.Env.rewrite_node_configs()
-                cls.Env.rewrite_chaos_node_configs()
-                cls.Env.rewrite_scheduler_configs()
-                cls.Env.rewrite_controller_agent_configs()
+                cls._rewrite_optional_services_configs()
 
-        for tx in ls("//sys/transactions", attributes=["title"]):
-            title = tx.attributes.get("title", "")
-            id = str(tx)
-            if "World initialization" in title:
-                abort_transaction(id)
+        cls._abort_world_initializer_transactions()
 
         cls.PATCHED_CONFIGS = []
         cls.STASHED_CELL_CONFIGS = []
@@ -278,6 +282,8 @@ class MasterCellAdditionBase(YTEnvSetup):
         return callback(get_driver(cell_index))
 
     def run_checkers_iteration(self, checker_state_list, final_iteration=False):
+        print_debug("Run {}checkers iteration".format("final " if final_iteration else ""))
+
         for s in checker_state_list:
             if final_iteration:
                 with pytest.raises(StopIteration):
