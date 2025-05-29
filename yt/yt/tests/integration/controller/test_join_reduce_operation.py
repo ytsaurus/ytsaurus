@@ -1886,6 +1886,63 @@ echo {v = 2} >&7
 
         assert get("//tmp/out/@sorted")
 
+    @authors("galtsev")
+    def test_no_empty_jobs(self):
+        sort_order = "ascending"
+
+        self._make_table("//tmp/in", sort_order, [
+            {"key": "a"},
+            {"key": "b"},
+            {"key": "e"},
+        ])
+
+        self._make_table("//tmp/in_foreign_1", sort_order, [
+            {"key": "b"},
+            {"key": "c"},
+        ])
+
+        self._make_table("//tmp/in_foreign_2", sort_order, [
+            {"key": "d"},
+            {"key": "e"},
+        ])
+
+        self._make_table("//tmp/in_foreign_3", sort_order, [
+            {"key": "d"},
+            {"key": "f"},
+        ])
+
+        create("table", "//tmp/out")
+
+        join_reduce(
+            in_=[
+                "//tmp/in",
+                "<foreign=true>//tmp/in_foreign_1",
+                "<foreign=true>//tmp/in_foreign_2",
+                "<foreign=true>//tmp/in_foreign_3",
+            ],
+            out=[f"<sorted_by=[{{name=key; sort_order={sort_order}}}]>//tmp/out"],
+            join_by=[{"name": "key", "sort_order": sort_order}],
+            command="tee input; if [ ! -s input ]; then exit 1; fi",
+            spec={
+                "reducer": {"format": yson.loads(b"<line_prefix=tskv; enable_table_index=true>dsv")},
+                "data_size_per_job": 1,
+            },
+        )
+
+        rows = read_table("//tmp/out")
+
+        expected = [
+            {"key": "a", "@table_index": "0"},
+            {"key": "b", "@table_index": "0"},
+            {"key": "b", "@table_index": "1"},
+            {"key": "e", "@table_index": "0"},
+            {"key": "e", "@table_index": "2"},
+        ]
+
+        assert rows == expected
+
+        assert get("//tmp/out/@sorted")
+
 
 @pytest.mark.enabled_multidaemon
 class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):
