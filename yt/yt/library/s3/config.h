@@ -25,10 +25,6 @@ public:
     //! Name of the bucket to use.
     TString Bucket;
 
-    //! Credentials.
-    TString AccessKeyId;
-    TString SecretAccessKey;
-
     //! Url for S3 proxy server. If empty, Url will be used.
     std::optional<TString> ProxyUrl;
 

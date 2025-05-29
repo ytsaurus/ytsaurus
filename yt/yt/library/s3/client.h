@@ -13,6 +13,13 @@ namespace NYT::NS3 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EBucketAcl,
+    ((Private)           (0) ("private")           )
+    ((PublicRead)        (1) ("public-read")       )
+    ((PublicWrite)       (2) ("public-read-write") )
+    ((AuthenticatedRead) (3) ("authenticated-read"))
+);
+
 struct TBucket
 {
     TInstant CreationDate;
@@ -37,6 +44,13 @@ struct TOwner
     TString Id;
 
     void Deserialize(NXml::TNode node);
+};
+
+struct TDeleteError
+{
+    TString Key;
+    TString Code;
+    TString Message;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,6 +91,7 @@ struct TListObjectsResponse
 struct TPutBucketRequest
 {
     TString Bucket;
+    EBucketAcl Acl = EBucketAcl::Private;
 
     void Serialize(THttpRequest* request) const;
 };
@@ -94,6 +109,8 @@ struct TPutObjectRequest
     TString Key;
 
     TSharedRef Data;
+
+    std::optional<TString> ContentMd5;
 
     void Serialize(THttpRequest* request) const;
 };
@@ -167,6 +184,21 @@ struct TGetObjectStreamResponse
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDeleteObjectRequest
+{
+    TString Bucket;
+    TString Object;
+
+    void Serialize(THttpRequest* request) const;
+};
+
+struct TDeleteObjectResponse
+{
+    void Deserialize(const NHttp::IResponsePtr& response);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDeleteObjectsRequest
 {
     TString Bucket;
@@ -177,6 +209,8 @@ struct TDeleteObjectsRequest
 
 struct TDeleteObjectsResponse
 {
+    std::vector<TDeleteError> Errors;
+
     void Deserialize(const NHttp::IResponsePtr& response);
 };
 
@@ -281,6 +315,7 @@ struct IClient
     DEFINE_COMMAND(UploadPart)
     DEFINE_COMMAND(GetObject)
     DEFINE_COMMAND(GetObjectStream)
+    DEFINE_COMMAND(DeleteObject)
     DEFINE_COMMAND(DeleteObjects)
     DEFINE_COMMAND(CreateMultipartUpload)
     DEFINE_COMMAND(AbortMultipartUpload)
@@ -295,6 +330,7 @@ DEFINE_REFCOUNTED_TYPE(IClient)
 
 IClientPtr CreateClient(
     TS3ClientConfigPtr config,
+    ICredentialsProviderPtr credentialProvider,
     NConcurrency::IPollerPtr poller,
     IInvokerPtr executionInvoker);
 

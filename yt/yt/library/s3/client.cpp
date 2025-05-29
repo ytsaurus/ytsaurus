@@ -72,7 +72,9 @@ void TListObjectsRequest::Serialize(THttpRequest* request) const
     request->Method = NHttp::EMethod::Get;
     request->Path = Format("/%v", Bucket);
     request->Query["list-type"] = "2";
-    request->Query["prefix"] = Prefix;
+    if (!Prefix.empty()) {
+        request->Query["prefix"] = Prefix;
+    }
     if (ContinuationToken) {
         request->Query["continuation-token"] = *ContinuationToken;
     }
@@ -85,7 +87,7 @@ void TListObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
     for (
         auto object = node.FirstChild("Contents");
         !object.IsNull();
-        object = object.NextSibling())
+        object = object.NextSibling("Contents"))
     {
         Objects.emplace_back().Deserialize(object);
     }
@@ -101,6 +103,7 @@ void TPutBucketRequest::Serialize(THttpRequest* request) const
     request->Method = NHttp::EMethod::Put;
     request->Path = Format("/%v", Bucket);
     request->Headers["Content-Length"] = "0";
+    request->Headers["X-Amz-Acl"] = ToString(Acl);
 }
 
 void TPutBucketResponse::Deserialize(const NHttp::IResponsePtr& /*response*/)
@@ -113,6 +116,9 @@ void TPutObjectRequest::Serialize(THttpRequest* request) const
     request->Method = NHttp::EMethod::Put;
     request->Path = Format("/%v/%v", Bucket, Key);
     request->Payload = Data;
+    if (ContentMd5) {
+        request->Headers["content-md5"] = *ContentMd5;
+    }
 }
 
 void TPutObjectResponse::Deserialize(const NHttp::IResponsePtr& response)
@@ -173,6 +179,17 @@ void TGetObjectStreamResponse::Deserialize(const NHttp::IResponsePtr& response)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDeleteObjectRequest::Serialize(THttpRequest* request) const
+{
+    request->Method = NHttp::EMethod::Delete;
+    request->Path = Format("/%v/%v", Bucket, Object);
+}
+
+void TDeleteObjectResponse::Deserialize(const NHttp::IResponsePtr& /*response*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDeleteObjectsRequest::Serialize(THttpRequest* request) const
 {
     request->Method = NHttp::EMethod::Post;
@@ -196,18 +213,15 @@ void TDeleteObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
     auto document = ParseXmlDocument(response->ReadAll());
     auto node = document.Root();
-    TString errors;
     for (auto error = node.FirstChild("Error");
         !error.IsNull();
         error = error.NextSibling())
     {
-        errors += Format("%v: %v\n",
-            error.FirstChild("Key").Value<TString>(),
-            error.FirstChild("Message").Value<TString>());
-    }
-
-    if (errors) {
-        THROW_ERROR_EXCEPTION(NS3::EErrorCode::S3ApiError, std::move(errors), TError::DisableFormat);
+        Errors.emplace_back(TDeleteError{
+            .Key = error.FirstChild("Key").Value<TString>(),
+            .Code = error.FirstChild("Code").Value<TString>(),
+            .Message = error.FirstChild("Message").Value<TString>(),
+        });
     }
 }
 
@@ -292,9 +306,11 @@ class TClient
 public:
     TClient(
         TS3ClientConfigPtr config,
+        ICredentialsProviderPtr credentialProvider,
         IPollerPtr poller,
         IInvokerPtr executionInvoker)
         : Config_(std::move(config))
+        , CredentialProvider_(std::move(credentialProvider))
         , Poller_(std::move(poller))
         , ExecutionInvoker_(std::move(executionInvoker))
     { }
@@ -346,6 +362,7 @@ public:
     DEFINE_STRUCTURED_COMMAND(UploadPart)
     DEFINE_STRUCTURED_COMMAND(GetObject)
     DEFINE_STRUCTURED_COMMAND(GetObjectStream)
+    DEFINE_STRUCTURED_COMMAND(DeleteObject)
     DEFINE_STRUCTURED_COMMAND(DeleteObjects)
     DEFINE_STRUCTURED_COMMAND(CreateMultipartUpload)
     DEFINE_STRUCTURED_COMMAND(AbortMultipartUpload)
@@ -357,10 +374,11 @@ private:
     static TError ErrorFromResponse(NHttp::IResponsePtr response)
     {
         auto statusCode = response->GetStatusCode();
-        auto error = NYT::TError(
+        auto error = TError(
             "Got status code %v %v",
             ToUnderlying(statusCode),
             ToHttpString(statusCode));
+        error <<= TErrorAttribute("http_code", statusCode);
         auto responseBody = response->ReadAll();
         try {
             const auto xml = ParseXmlDocument(responseBody);
@@ -388,8 +406,7 @@ private:
         return BIND([this, this_ = MakeStrong(this)] (THttpRequest req) {
             PrepareHttpRequest(
                 &req,
-                Config_->AccessKeyId,
-                Config_->SecretAccessKey);
+                CredentialProvider_);
 
             return Client_->MakeRequest(std::move(req))
                 .ApplyUnique(BIND([] (TErrorOr<NHttp::IResponsePtr>&& responseOrError) -> TErrorOr<TCommandResponse> {
@@ -411,6 +428,7 @@ private:
     }
 
     TS3ClientConfigPtr Config_;
+    ICredentialsProviderPtr CredentialProvider_;
     TNetworkAddress S3Address_;
 
     IPollerPtr Poller_;
@@ -425,11 +443,13 @@ private:
 
 IClientPtr CreateClient(
     TS3ClientConfigPtr config,
+    ICredentialsProviderPtr credentialProvider,
     IPollerPtr poller,
     IInvokerPtr executionInvoker)
 {
     return New<TClient>(
         std::move(config),
+        std::move(credentialProvider),
         std::move(poller),
         std::move(executionInvoker));
 }
