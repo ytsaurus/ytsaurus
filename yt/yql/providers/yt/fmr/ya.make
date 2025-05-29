@@ -8,7 +8,7 @@ RECURSE(
     table_data_service
     utils
     worker
-    yt_service
+    yt_job_service
 )
 
 RECURSE_FOR_TESTS(
