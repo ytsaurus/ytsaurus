@@ -15,7 +15,7 @@ class TFairShareStrategyOperationController
 {
 public:
     TFairShareStrategyOperationController(
-        IOperationStrategyHost* operation,
+        const IOperationStrategyHostPtr& operation,
         const TFairShareStrategyOperationControllerConfigPtr& config,
         const std::vector<IInvokerPtr>& nodeShardInvokers);
 

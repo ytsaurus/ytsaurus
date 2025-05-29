@@ -17,14 +17,14 @@ class TFairShareStrategyOperationState
 public:
     using TTreeIdToPoolNameMap = THashMap<TString, TPoolName>;
 
-    DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHost*, Host);
+    DEFINE_BYVAL_RO_PROPERTY(IOperationStrategyHostPtr, Host);
     DEFINE_BYVAL_RO_PROPERTY(TFairShareStrategyOperationControllerPtr, Controller);
     DEFINE_BYREF_RW_PROPERTY(TTreeIdToPoolNameMap, TreeIdToPoolNameMap);
     DEFINE_BYVAL_RW_PROPERTY(bool, Enabled);
 
 public:
     TFairShareStrategyOperationState(
-        IOperationStrategyHost* host,
+        IOperationStrategyHostPtr host,
         const TFairShareStrategyOperationControllerConfigPtr& config,
         const std::vector<IInvokerPtr>& nodeShardInvokers);
 
