@@ -138,8 +138,10 @@ struct TChunkLocationConfig
     //! If the tracked memory is close to the limit, new sessions will not be started.
     double MemoryLimitFractionForStartingNewSessions;
 
-    //! Set way how io_weight is calculated for location.
-    //! double([/stat/available_space]), double([/stat/used_space]) - aliases for available_space and used_space disk statistics respectively.
+    //! Enables defining a dynamic location IO weight given by a formula, which
+    //! is re-evaluated periodically to determine the current value.
+    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
+    //! Supported variables: available_space, used_space
     std::optional<std::string> IOWeightFormula;
 
     void ApplyDynamicInplace(const TChunkLocationDynamicConfig& dynamicConfig);
@@ -187,8 +189,10 @@ struct TChunkLocationDynamicConfig
     //! If the tracked memory is close to the limit, new sessions will not be started.
     std::optional<double> MemoryLimitFractionForStartingNewSessions;
 
-    //! Set way how io_weight is calculated for location.
-    //! double([/stat/available_space]), double([/stat/used_space]) - aliases for available_space and used_space disk statistics respectively.
+    //! Enables defining a dynamic location IO weight given by a formula, which
+    //! is re-evaluated periodically to determine the current value.
+    //! Example: double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))
+    //! Supported variables: available_space, used_space
     std::optional<std::string> IOWeightFormula;
 
     REGISTER_YSON_STRUCT(TChunkLocationDynamicConfig);

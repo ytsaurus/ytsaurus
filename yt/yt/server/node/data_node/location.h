@@ -2,7 +2,7 @@
 
 #include "disk_location.h"
 
-#include <yt/yt/orm/library/query/expression_evaluator.h>
+#include <yt/yt/orm/library/query/public.h>
 
 #include <yt/yt/server/node/data_node/public.h>
 
@@ -562,8 +562,7 @@ private:
     const ELocationType Type_;
     const TChunkLocationConfigPtr StaticConfig_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, IOWeightEvaluatorSpinLock_);
-    NOrm::NQuery::IExpressionEvaluatorPtr IOWeightEvaluator_;
+    TAtomicIntrusivePtr<NOrm::NQuery::IExpressionEvaluator> IOWeightEvaluator_;
 
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
@@ -601,7 +600,6 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;
 
-    TErrorOr<double> GetIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const;
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
 
     THazardPtr<TChunkLocationConfig> GetRuntimeConfig() const;
@@ -617,6 +615,7 @@ private:
     void UpdateUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
 
     void UpdateIOWeightEvaluator(const std::optional<std::string>& formula);
+    TErrorOr<double> EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const;
 
     void ValidateWritable();
     void InitializeCellId();
