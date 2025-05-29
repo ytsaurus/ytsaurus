@@ -89,6 +89,11 @@ type Config struct {
 	// File for error logs of timbertruck itself
 	ErrorLogFile string `yaml:"error_log_file"`
 
+	// LoggerBufferSize is the buffer size in bytes for the timbertruck logger.
+	//
+	// Default value is 32768 (32 KiB).
+	LoggerBufferSize int `yaml:"logger_buffer_size"`
+
 	// ReopenLogFileInterval defines the interval before reopening the log file,
 	// e.g., "5s" for 5 seconds, "10m" for 10 minutes.
 	ReopenLogFileInterval time.Duration `yaml:"reopen_log_file_interval"`
@@ -259,7 +264,7 @@ func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 	var logFile io.WriteCloser = os.Stderr
 	closeLogFile := func() {}
 	if config.LogFile != "" {
-		logFile, err = misc.NewLogrotatingFile(config.LogFile, reopenLogFileInterval)
+		logFile, err = misc.NewLogrotatingFile(config.LogFile, config.LoggerBufferSize, reopenLogFileInterval)
 		if err != nil {
 			err = fmt.Errorf("cannot open log file: %v", err)
 			return
@@ -271,7 +276,7 @@ func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 	closeErrorLogFile := func() {}
 	if config.ErrorLogFile != "" {
 		var logrotatingFile io.WriteCloser
-		logrotatingFile, err = misc.NewLogrotatingFile(config.ErrorLogFile, reopenLogFileInterval)
+		logrotatingFile, err = misc.NewLogrotatingFile(config.ErrorLogFile, config.LoggerBufferSize, reopenLogFileInterval)
 		if err != nil {
 			err = fmt.Errorf("cannot open error log file: %v", err)
 			return
