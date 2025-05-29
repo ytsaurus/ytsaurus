@@ -37,8 +37,7 @@ target_link_libraries(unittester-core-bus PUBLIC
 )
 
 target_allocator(unittester-core-bus
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  cpp-malloc-jemalloc
 )
 
 target_link_options(unittester-core-bus PRIVATE

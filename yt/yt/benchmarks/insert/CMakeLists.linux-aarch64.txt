@@ -37,8 +37,7 @@ target_link_libraries(insert PUBLIC
 )
 
 target_allocator(insert
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  cpp-malloc-jemalloc
 )
 
 target_link_options(insert PRIVATE

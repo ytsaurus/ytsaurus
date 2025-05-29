@@ -14,35 +14,17 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_executable(benchmark_exception)
+add_library(cpp-malloc-jemalloc)
 
 
-target_link_libraries(benchmark_exception PUBLIC
+target_link_libraries(cpp-malloc-jemalloc PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  cpp-yt-phdr_cache
+  cpp-malloc-api
+  contrib-libs-jemalloc
 )
 
-target_allocator(benchmark_exception
-  cpp-malloc-jemalloc
+target_sources(cpp-malloc-jemalloc PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/malloc/jemalloc/malloc-info.cpp
 )
 
-target_link_options(benchmark_exception PRIVATE
-  -ldl
-  -lrt
-  -Wl,--no-as-needed
-  -fPIC
-  -fPIC
-  -lrt
-  -ldl
-  -lutil
-)
-
-target_sources(benchmark_exception PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/benchmarks/exceptions/main.cpp
-)
-
-
-vcs_info(benchmark_exception)
