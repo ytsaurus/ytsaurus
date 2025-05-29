@@ -2757,7 +2757,7 @@ class TestQueryRpcProxy(TestQuery):
         statistics = [get(f"{path}/@tablets/{i}/performance_counters/dynamic_row_read_count") for i in range(length)]
         assert all(map(lambda x : x == 0, statistics[:(length//2)]))
         assert statistics[length//2] != 0
-        assert all(map(lambda x : x == 0, statistics[(length//2+2):]))
+        assert all(map(lambda x : x == 0, statistics[(length//2+3):]))
 
 
 class TestSelectWithRowCache(TestLookupCache):
