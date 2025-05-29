@@ -189,8 +189,8 @@ private: \
         public,
         void,
         OnIntermediateChunkBatchLocated,
-        (const std::vector<NChunkClient::TScrapedChunkInfo>& chunkBatch),
-        (chunkBatch),
+        (std::vector<NChunkClient::TScrapedChunkInfo> chunkBatch),
+        (std::move(chunkBatch)),
         false)
 
     //! Called by `TSnapshotBuilder` when snapshot is built.

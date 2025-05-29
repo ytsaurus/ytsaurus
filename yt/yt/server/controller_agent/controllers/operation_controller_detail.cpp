@@ -4126,10 +4126,12 @@ void TOperationControllerBase::OnChunkFailed(TChunkId chunkId, TJobId jobId)
 }
 
 void TOperationControllerBase::SafeOnIntermediateChunkBatchLocated(
-    const std::vector<TScrapedChunkInfo>& chunkBatch)
+    std::vector<TScrapedChunkInfo> chunkBatch)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
+    int availableCount = 0;
+    int unavailableCount = 0;
     for (const auto& chunkInfo : chunkBatch) {
         if (chunkInfo.Missing) {
             // We can unstage intermediate chunks (e.g. in automerge) - just skip them.
@@ -4138,11 +4140,19 @@ void TOperationControllerBase::SafeOnIntermediateChunkBatchLocated(
 
         // Intermediate chunks are always replicated.
         if (IsUnavailable(chunkInfo.Replicas, NErasure::ECodec::None, GetChunkAvailabilityPolicy())) {
+            ++unavailableCount;
             OnIntermediateChunkUnavailable(chunkInfo.ChunkId);
         } else {
+            ++availableCount;
             OnIntermediateChunkAvailable(chunkInfo.ChunkId, chunkInfo.Replicas);
         }
     }
+
+    YT_LOG_DEBUG(
+        "Intermediate chunk batch has located (ChunkBatchSize: %v, AvailableCount: %v, UnavailableCount: %v)",
+        chunkBatch.size(),
+        availableCount,
+        unavailableCount);
 }
 
 bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
@@ -4216,6 +4226,15 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(
     }
 
     if (completedJob->UnavailableChunks.erase(chunkId) == 1) {
+        --UnavailableIntermediateChunkCount;
+
+        YT_LOG_DEBUG(
+            "Unavailable intermediate chunk was found (JobId: %v, InputCookie: %v, ChunkId: %v, UnavailableIntermediateChunkCount: %v)",
+            completedJob->JobId,
+            completedJob->InputCookie,
+            chunkId,
+            UnavailableIntermediateChunkCount);
+
         for (auto& dataSlice : completedJob->InputStripe->DataSlices) {
             // Intermediate chunks are always unversioned.
             auto inputChunk = dataSlice->GetSingleUnversionedChunk();
@@ -4223,12 +4242,12 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(
                 inputChunk->SetReplicaList(replicas);
             }
         }
-        --UnavailableIntermediateChunkCount;
 
         YT_VERIFY(UnavailableIntermediateChunkCount > 0 ||
             (UnavailableIntermediateChunkCount == 0 && completedJob->UnavailableChunks.empty()));
         if (completedJob->UnavailableChunks.empty()) {
-            YT_LOG_DEBUG("Job result is resumed (JobId: %v, InputCookie: %v, UnavailableIntermediateChunkCount: %v)",
+            YT_LOG_DEBUG(
+                "Found all unavailable chunks for job, job result is resumed (JobId: %v, InputCookie: %v, UnavailableIntermediateChunkCount: %v)",
                 completedJob->JobId,
                 completedJob->InputCookie,
                 UnavailableIntermediateChunkCount);
