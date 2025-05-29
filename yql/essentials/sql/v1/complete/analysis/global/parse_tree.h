@@ -15,4 +15,6 @@ namespace NSQLComplete {
 
     using NALADefaultAntlr4::SQLv1Antlr4BaseVisitor;
 
+    std::string GetId(SQLv1::Bind_parameterContext* ctx);
+
 } // namespace NSQLComplete
