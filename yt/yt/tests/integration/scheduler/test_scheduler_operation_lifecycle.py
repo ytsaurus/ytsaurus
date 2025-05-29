@@ -1195,6 +1195,24 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
 
 @pytest.mark.enabled_multidaemon
+class TestOperationOrchid(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @authors("renadeen")
+    def test_operation_orchid(self):
+        op = run_sleeping_vanilla(spec={"title": "op_title"})
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/type", default="") == "vanilla")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/title", default="") == "op_title")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/user", default="") == "root")
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
 class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

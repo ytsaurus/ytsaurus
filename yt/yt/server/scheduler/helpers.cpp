@@ -196,7 +196,7 @@ TJobResources ComputeAvailableResources(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(IOperationStrategyHost* operation, const TString& treeId)
+TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(const IOperationStrategyHostPtr& operation, const TString& treeId)
 {
     return GetOrCrash(operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree, treeId);
 }
