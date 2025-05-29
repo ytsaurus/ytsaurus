@@ -369,6 +369,7 @@ SRCS(
     table_server/table_node_type_handler_detail.cpp
     table_server/table_node_type_handler.cpp
     table_server/table_node.cpp
+    table_server/table_schema_cache.cpp
 
     tablet_server/backup_manager.cpp
     tablet_server/balancing_helpers.cpp

@@ -1805,18 +1805,19 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    const auto& tableManager = Bootstrap_->GetTableManager();
 
     YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (tableSchema || tableSchemaId),
         "Received a schema or schema ID while beginning upload into a non-schemaful node (NodeId: %v, Schema: %v, SchemaId: %v)",
         node->GetId(),
-        tableSchema,
+        tableManager->GetHeavyTableSchemaSync(tableSchema),
         tableSchemaId);
 
     YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (chunkSchema || chunkSchemaId),
         "Received a chunk schema or chunk schema ID while beginning upload into a non-schemaful node "
         "(NodeId: %v, ChunkSchema: %v, ChunkSchemaId: %v)",
         node->GetId(),
-        chunkSchema,
+        tableManager->GetHeavyTableSchemaSync(chunkSchema),
         chunkSchemaId);
 
     std::vector<TTransactionRawPtr> prerequisiteTransactions;
@@ -1839,7 +1840,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         ->LockNode(TrunkNode_, uploadTransaction, lockMode, false, true)
         ->As<TChunkOwnerBase>();
 
-    const auto& tableManager = Bootstrap_->GetTableManager();
     if (IsSchemafulType(node->GetType())) {
         tableManager->ValidateTableSchemaCorrespondence(
             node->GetVersionedId(),
@@ -2180,13 +2180,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->GetTransaction() == Transaction_);
 
+    const auto& tableManager = Bootstrap_->GetTableManager();
     YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (tableSchema || tableSchemaId),
         "Received a schema or schema ID while ending upload into a non-schemaful node (NodeId: %v, Schema: %v, SchemaId: %v)",
         node->GetId(),
-        tableSchema,
+        tableManager->GetHeavyTableSchemaSync(tableSchema),
         tableSchemaId);
 
-    const auto& tableManager = Bootstrap_->GetTableManager();
     if (IsTableType(node->GetType())) {
         tableManager->ValidateTableSchemaCorrespondence(
             node->GetVersionedId(),

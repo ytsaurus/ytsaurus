@@ -1072,7 +1072,8 @@ public:
             GetDynamicConfig());
         ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
 
-        auto schema = table->GetSchema()->AsHeavyTableSchema();
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        auto schema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
 
         if (table->GetReplicationCardId() && !table->IsSorted()) {
             if (table->GetCommitOrdering() != ECommitOrdering::Strong) {

@@ -1,6 +1,7 @@
 #include "table_manager.h"
 
 #include "config.h"
+#include "helpers.h"
 #include "private.h"
 #include "master_table_schema_proxy.h"
 #include "schemaful_node.h"
@@ -9,6 +10,7 @@
 #include "table_collocation.h"
 #include "table_collocation_type_handler.h"
 #include "table_node.h"
+#include "table_schema_cache.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -27,10 +29,6 @@
 
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
-
-#include <yt/yt/server/master/table_server/helpers.h>
-#include <yt/yt/server/master/tablet_server/config.h>
-#include <yt/yt/server/master/tablet_server/mount_config_storage.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
@@ -169,6 +167,10 @@ public:
 
     void Initialize() override
     {
+        // Dynamic config is not loaded yet, initialize caches with default config and they will be reconfigured in OnDynamicConfigChanged.
+        TableSchemaCache_ = New<TTableSchemaCache>(New<TAsyncExpiringCacheConfig>());
+        YsonTableSchemaCache_ = New<TYsonTableSchemaCache>(MakeWeak(this), New<TYsonTableSchemaCacheConfig>());
+
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TTableManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
@@ -476,6 +478,66 @@ public:
         return masterTableSchema;
     }
 
+    TFuture<TYsonString> GetYsonTableSchemaAsync(const TMasterTableSchema* masterSchema) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_VERIFY(YsonTableSchemaCache_);
+
+        if (!masterSchema) {
+            return MakeFuture<TYsonString>(TError("Master schema is null"));
+        }
+
+        return YsonTableSchemaCache_->Get(*masterSchema->AsCompactTableSchema());
+    }
+
+    TFuture<TTableSchemaPtr> GetHeavyTableSchemaAsync(const TCompactTableSchema& compactTableSchema) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_VERIFY(TableSchemaCache_);
+
+        return TableSchemaCache_->Get(compactTableSchema);
+    }
+
+    TTableSchemaPtr GetHeavyTableSchemaSync(const TCompactTableSchema& compactTableSchema) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_VERIFY(TableSchemaCache_);
+
+        if (auto schemaOrError = GetHeavyTableSchemaAsync(compactTableSchema).TryGet()) {
+            if (!schemaOrError->IsOK()) {
+                THROW_ERROR_EXCEPTION("Failed to parse heavy table schema from compact %v", compactTableSchema)
+                    << schemaOrError;
+            }
+            return schemaOrError->Value();
+        }
+
+        // We have to perform serialization right now.
+        auto heavySchema = TableSchemaCache_->ConvertToHeavyTableSchemaAndCache(compactTableSchema);
+        return heavySchema;
+    }
+
+    TTableSchemaPtr GetHeavyTableSchemaSync(const TCompactTableSchemaPtr& compactTableSchema) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (!compactTableSchema) {
+            return nullptr;
+        }
+
+        return GetHeavyTableSchemaSync(*compactTableSchema);
+    }
+
+    TTableSchemaPtr GetHeavyTableSchemaSync(const TMasterTableSchema* masterSchema) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (!masterSchema) {
+            return nullptr;
+        }
+
+        return GetHeavyTableSchemaSync(*masterSchema->AsCompactTableSchema());
+    }
+
     TMasterTableSchema* CreateMasterTableSchema(
         const TCompactTableSchema& tableSchema,
         bool isNative,
@@ -716,10 +778,10 @@ public:
                 // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
                 YT_LOG_ALERT("Schema doesn't have \"unique_keys\" set to true on the external cell for a dynamic table (TableId: %v, Schema: %v)",
                     nodeId,
-                    tableSchema);
+                    GetHeavyTableSchemaSync(tableSchema));
             }
-
-            tableSchema = effectiveTableSchema->ToUniqueKeys();
+            auto heavySchema = GetHeavyTableSchemaSync(*effectiveTableSchema);
+            tableSchema =  New<TCompactTableSchema>(heavySchema->ToUniqueKeys());
             effectiveTableSchema = tableSchema.Get();
         }
 
@@ -728,7 +790,7 @@ public:
         }
 
         const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig();
-        auto deserializedEffectiveTableSchema = effectiveTableSchema->AsHeavyTableSchema();
+        auto deserializedEffectiveTableSchema = GetHeavyTableSchemaSync(*effectiveTableSchema);
         ValidateTableSchemaUpdateInternal(TTableSchema(), *deserializedEffectiveTableSchema, GetSchemaUpdateEnabledFeatures(dynamicConfig), dynamic, true);
 
         if (!dynamicConfig->EnableDescendingSortOrder || (dynamic && !dynamicConfig->EnableDescendingSortOrderDynamic)) {
@@ -835,8 +897,8 @@ public:
 
             table->ValidateAllTabletsUnmounted("Cannot create index on a mounted table");
 
-            auto indexTableSchema = indexTable->GetSchema()->AsHeavyTableSchema();
-            auto tableSchema = table->GetSchema()->AsHeavyTableSchema();
+            auto indexTableSchema = GetHeavyTableSchemaSync(indexTable->GetSchema());
+            auto tableSchema = GetHeavyTableSchemaSync(table->GetSchema());
 
             ValidateIndexSchema(
                 kind,
@@ -1357,6 +1419,8 @@ private:
 
     static const TCompactTableSchema EmptyTableSchema;
 
+    TYsonTableSchemaCachePtr YsonTableSchemaCache_;
+    TTableSchemaCachePtr TableSchemaCache_;
     TEntityMap<TMasterTableSchema> MasterTableSchemaMap_;
 
     TMasterTableSchema::TNativeTableSchemaToObjectMap NativeTableSchemaToObjectMap_;
@@ -1403,7 +1467,8 @@ private:
             StatisticsGossipExecutor_->SetPeriod(gossipConfig->TableStatisticsGossipPeriod);
         }
 
-        TCompactTableSchema::CacheExpirationTimeout.Store(dynamicConfig->CompactTableCacheExpirationTimeout);
+        TableSchemaCache_->Reconfigure(dynamicConfig->TableSchemaCache);
+        YsonTableSchemaCache_->Reconfigure(dynamicConfig->YsonTableSchemaCache);
     }
 
     static bool IsSupportedNodeType(EObjectType type)
@@ -1947,12 +2012,10 @@ private:
         if (NeedToFindUnfoldedColumnName_) {
             for (const auto& [id, secondaryIndex] : SecondaryIndexMap_) {
                 if (secondaryIndex->GetKind() == ESecondaryIndexKind::Unfolding) {
-                    auto secondaryIndexSchema = GetTableNodeOrThrow(secondaryIndex->GetTableId())
-                        ->GetSchema()
-                        ->AsHeavyTableSchema();
-                    auto secondaryIndexTableSchema = GetTableNodeOrThrow(secondaryIndex->GetIndexTableId())
-                        ->GetSchema()
-                        ->AsHeavyTableSchema();
+                    auto secondaryIndexTableNode = GetTableNodeOrThrow(secondaryIndex->GetTableId());
+                    auto secondaryIndexSchema = GetHeavyTableSchemaSync(secondaryIndexTableNode->GetSchema());
+                    auto indexTableNodeForSecondaryIndex = GetTableNodeOrThrow(secondaryIndex->GetIndexTableId());
+                    auto secondaryIndexTableSchema = GetHeavyTableSchemaSync(indexTableNodeForSecondaryIndex->GetSchema());
                     const auto& indexUnfoldedColumn = FindUnfoldingColumnAndValidate(
                         *secondaryIndexSchema,
                         *secondaryIndexTableSchema,

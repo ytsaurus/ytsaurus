@@ -30,6 +30,8 @@
 #include <yt/yt/server/master/security_server/account.h>
 #include <yt/yt/server/master/security_server/helpers.h>
 
+#include <yt/yt/server/master/table_server/table_manager.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -1104,7 +1106,8 @@ private:
                     break;
                 }
 
-                return chunkSchema->AsYsonAsync();
+                const auto& tableManager = Bootstrap_->GetTableManager();
+                return tableManager->GetYsonTableSchemaAsync(chunkSchema.Get());
             }
 
             case EInternedAttributeKey::StoredReplicas: {
