@@ -467,6 +467,8 @@ struct TFairShareStrategyTreeConfig
     // TODO(eshcherbin): Remove when 24.2 is finalized.
     bool AllowSingleJobLargeGpuOperationsInMultipleTrees;
 
+    bool EnableNodeResourceOvercommitPreemption;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);
