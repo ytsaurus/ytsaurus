@@ -35,37 +35,60 @@ namespace NSQLComplete {
             }
 
             std::any visitDeclare_stmt(SQLv1::Declare_stmtContext* ctx) override {
-                Y_UNUSED(ctx, Exprs_);
+                VisitNullable(ctx->bind_parameter());
                 return {};
             }
 
             std::any visitImport_stmt(SQLv1::Import_stmtContext* ctx) override {
-                Y_UNUSED(ctx, Exprs_);
+                VisitNullable(ctx->named_bind_parameter_list());
                 return {};
             }
 
             std::any visitDefine_action_or_subquery_stmt(
                 SQLv1::Define_action_or_subquery_stmtContext* ctx) override {
-                Y_UNUSED(ctx, Exprs_);
+                VisitNullable(ctx->bind_parameter());
                 return {};
             }
 
             std::any visitNamed_nodes_stmt(SQLv1::Named_nodes_stmtContext* ctx) override {
-                Y_UNUSED(ctx, Exprs_);
+                VisitNullable(ctx->bind_parameter_list());
                 return {};
             }
 
             std::any visitFor_stmt(SQLv1::For_stmtContext* ctx) override {
-                Y_UNUSED(ctx, Exprs_);
+                VisitNullable(ctx->bind_parameter());
                 return {};
             }
 
             std::any visitLambda(SQLv1::LambdaContext* ctx) override {
-                Y_UNUSED(ctx, Exprs_);
+                VisitNullable(ctx->smart_parenthesis());
+                return {};
+            }
+
+            std::any visitNamed_bind_parameter(
+                SQLv1::Named_bind_parameterContext* ctx) override {
+                VisitNullable(ctx->bind_parameter(0));
+                return {};
+            }
+
+            std::any visitBind_parameter(SQLv1::Bind_parameterContext* ctx) override {
+                std::string id = GetId(ctx);
+                Exprs_->emplace(std::move(id), DummyYson());
                 return {};
             }
 
         private:
+            void VisitNullable(antlr4::tree::ParseTree* tree) {
+                if (tree == nullptr) {
+                    return;
+                }
+                visit(tree);
+            }
+
+            static NYT::TNode DummyYson() {
+                return "";
+            }
+
             TNamedExpressions* Exprs_;
         };
 
