@@ -216,6 +216,19 @@ DEFINE_ENUM(EChunkReplicaEventType,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESequoiaReplicaModificationPhase,
+    (StartTransaction)
+    (ParseLocationDirectory)
+    (GatherModifiedAddedReplicas)
+    (ParseRemovedReplicas)
+    (LookupRemovedLocationReplicas)
+    (GatherModifiedRemovedReplicas)
+    (WriteRowsAndAddTransactionActions)
+    (CommitTransaction)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkTreeBalancerCallbacks
     : public IChunkTreeBalancerCallbacks
 {
@@ -520,6 +533,25 @@ public:
             .WithSparse()
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", CrpBufferedProducer_);
+
+        // NB: most ESequoiaTransactionType do not deal with replicas at all, hence WithDefaultDisabled.
+        auto sequoiaReplicaModificationProfiler = ChunkServerProfiler()
+            .WithPrefix("/sequoia_replica_modification")
+            .WithDefaultDisabled()
+            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()));
+        for (auto sequoiaTransactionType : TEnumTraits<ESequoiaTransactionType>::GetDomainValues()) {
+            auto& profile = SequoiaReplicaModificationProfiles_[sequoiaTransactionType];
+
+            auto typeSpecificProfiler = sequoiaReplicaModificationProfiler
+                .WithTag("sequoia_transaction_type", Format("%lv", sequoiaTransactionType));
+            profile.Counter = typeSpecificProfiler.Counter("/count");
+
+            for (auto phase : TEnumTraits<ESequoiaReplicaModificationPhase>::GetDomainValues()) {
+                auto typeAndPhaseSpecificProfiler = typeSpecificProfiler
+                    .WithTag("phase", Format("%lv", phase));
+                profile.CumulativeTime[phase] = typeAndPhaseSpecificProfiler.TimeCounter("/cumulative_time");
+            }
+        }
 
         auto taggedHistogramProfiler = ChunkServerHistogramProfiler()
             .WithDefaultDisabled()
@@ -2500,6 +2532,14 @@ private:
     TGaugeHistogram ChunkUncompressedDataSizeHistogram_;
     TGaugeHistogram ChunkDataWeightHistogram_;
 
+    struct TSequoiaReplicaModificationProfile
+    {
+        TEnumIndexedArray<ESequoiaReplicaModificationPhase, NProfiling::TTimeCounter> CumulativeTime;
+        NProfiling::TCounter Counter;
+    };
+
+    TEnumIndexedArray<ESequoiaTransactionType, TSequoiaReplicaModificationProfile> SequoiaReplicaModificationProfiles_;
+
     TMediumMap<std::vector<i64>> ConsistentReplicaPlacementTokenDistribution_;
 
     TPeriodicExecutorPtr RedistributeConsistentReplicaPlacementTokensExecutor_;
@@ -3375,6 +3415,9 @@ private:
             request->dead_chunk_ids_size(),
             transactionType);
 
+        SequoiaReplicaModificationProfiles_[transactionType].Counter.Increment();
+        NProfiling::TWallTimer timer;
+
         const auto& config = GetDynamicConfig();
         const auto& sequoiaConfig = config->SequoiaChunkReplicas;
         auto enableChunkRefresh = config->EnableChunkRefresh;
@@ -3387,11 +3430,18 @@ private:
         return Bootstrap_
             ->GetSequoiaClient()
             ->StartTransaction(transactionType, {.CellTag = Bootstrap_->GetCellTag()})
-            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
+            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) mutable {
+                auto& profile = SequoiaReplicaModificationProfiles_[transactionType];
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::StartTransaction].Add(timer.GetElapsedTime());
+                timer.Restart();
+
                 auto nodeId = FromProto<TNodeId>(request->node_id());
 
                 const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
                 auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
+
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::ParseLocationDirectory].Add(timer.GetElapsedTime());
+                timer.Restart();
 
                 auto deadChunkIds = FromProto<THashSet<TChunkId>>(request->dead_chunk_ids());
 
@@ -3431,6 +3481,9 @@ private:
                         locationUuid);
                 }
 
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::GatherModifiedAddedReplicas].Add(timer.GetElapsedTime());
+                timer.Restart();
+
                 std::vector<NRecords::TLocationReplicasKey> keys;
                 for (const auto& chunkInfo : request->removed_chunks()) {
                     auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
@@ -3458,8 +3511,15 @@ private:
                         locationUuid);
                 }
 
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::ParseRemovedReplicas].Add(timer.GetElapsedTime());
+                timer.Restart();
+
                 auto replicasFuture = transaction->LookupRows(keys);
                 auto removedReplicasOrError = WaitFor(replicasFuture);
+
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::LookupRemovedLocationReplicas].Add(timer.GetElapsedTime());
+                timer.Restart();
+
                 ThrowOnSequoiaReplicasError(removedReplicasOrError, retriableErrorCodes);
 
                 const auto& removedReplicas = removedReplicasOrError
@@ -3500,6 +3560,9 @@ private:
                         chunkIdWithIndex.ReplicaIndex,
                         locationUuid);
                 }
+
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::GatherModifiedRemovedReplicas].Add(timer.GetElapsedTime());
+                timer.Restart();
 
                 for (const auto& [chunkId, chunkModifiedReplicas] : modifiedReplicas) {
                     NRecords::TChunkReplicas chunkReplicas{
@@ -3594,6 +3657,9 @@ private:
                     Bootstrap_->GetCellTag(),
                     NTransactionClient::MakeTransactionActionData(*request));
 
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::WriteRowsAndAddTransactionActions].Add(timer.GetElapsedTime());
+                timer.Restart();
+
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
@@ -3601,6 +3667,9 @@ private:
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
+
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::CommitTransaction].Add(timer.GetElapsedTime());
+
                 ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
 
                 // TODO(aleksandra-zh): add ally replica info.
