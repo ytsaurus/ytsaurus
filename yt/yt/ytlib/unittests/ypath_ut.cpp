@@ -51,6 +51,89 @@ TEST(TYPathTest, Segments)
     EXPECT_EQ(it, segments.end());
 }
 
+TEST(TYPathTest, GetFirstSegment)
+{
+    // Basic tests.
+    auto path = TYPath("/first");
+    EXPECT_EQ(path.GetFirstSegment(), "first");
+    path = TYPath("/first/second/third");
+    EXPECT_EQ(path.GetFirstSegment(), "first");
+
+    // Edge cases.
+    path = TYPath("/");
+    EXPECT_EQ(path.GetFirstSegment(), "");
+    path = TYPath("/weird\\/path");
+    EXPECT_EQ(path.GetFirstSegment(), "weird\\/path");
+    path = TYPath("/weird\\\\/path");
+    EXPECT_EQ(path.GetFirstSegment(), "weird\\\\");
+}
+
+TEST(TYPathTest, RemoveLastSegment)
+{
+    // Basic tests.
+    auto path = TYPath("/first");
+    path.RemoveLastSegment();
+    EXPECT_EQ(path, TYPath(""));
+    path = TYPath("/first/second/third");
+    path.RemoveLastSegment();
+    EXPECT_EQ(path, TYPath("/first/second"));
+
+    // Edge cases.
+    path = TYPath("/first/second//");
+    path.RemoveLastSegment();
+    EXPECT_EQ(path, TYPath("/first/second/"));
+    path = TYPath("/first/second");
+    path.RemoveLastSegment();
+    path.RemoveLastSegment();
+    path.RemoveLastSegment();
+    EXPECT_EQ(path, TYPath(""));
+
+    // Basic tests.
+    auto absolute = TAbsoluteYPath("//");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute, TAbsoluteYPath("/"));
+    absolute = TAbsoluteYPath("#123-123-123-123/something");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute, TAbsoluteYPath("#123-123-123-123"));
+    absolute = TAbsoluteYPath("//first");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute, TAbsoluteYPath("/"));
+    absolute = TAbsoluteYPath("//first/second/third");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute, TAbsoluteYPath("//first/second"));
+
+    // Edge cases.
+    absolute = TAbsoluteYPath("/");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute, TAbsoluteYPath("/"));
+    absolute = TAbsoluteYPath("#123-123-123-123");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute, TAbsoluteYPath("#123-123-123-123"));
+}
+
+TEST(TYPathTest, Append)
+{
+    auto path = TYPath("/first");
+    path.Append("second");
+    EXPECT_EQ(path, TYPath("/first/second"));
+    path = TYPath("/first");
+    path.Append("/second");
+    EXPECT_EQ(path, TYPath("/first/\\/second"));
+
+    auto absolute = TAbsoluteYPath("/");
+    absolute.Append("first");
+    EXPECT_EQ(absolute, TAbsoluteYPath("//first"));
+    absolute = TAbsoluteYPath("#123-123-123-123");
+    absolute.Append("something");
+    EXPECT_EQ(absolute, TAbsoluteYPath("#123-123-123-123/something"));
+    absolute = TAbsoluteYPath("//");
+    absolute.Append("first");
+    EXPECT_EQ(absolute, TAbsoluteYPath("//first"));
+    absolute = TAbsoluteYPath("//first");
+    absolute.Append("second");
+    EXPECT_EQ(absolute, TAbsoluteYPath("//first/second"));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
