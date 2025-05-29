@@ -107,7 +107,7 @@ public:
     virtual TFuture<TReadResponse> Read(
         i64 offset,
         i64 length,
-        const TReadOptions& /*options*/) override
+        const TReadOptions& options) override
     {
         auto guard = TCurrentTraceContextGuard(TraceContext_);
 
@@ -115,7 +115,7 @@ public:
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_bytes").Increment(length);
         NProfiling::TEventTimerGuard readTimeGuard(TNbdProfilerCounters::Get()->GetTimer(TagSet_, "/device/read_time"));
 
-        return Reader_->Read(offset, length)
+        return Reader_->Read(offset, length, options)
             .Apply(BIND([readTimeGuard = std::move(readTimeGuard), tagSet = TagSet_] (const TErrorOr<TSharedRef>& result) {
                 if (!result.IsOK()) {
                     TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_errors").Increment(1);
