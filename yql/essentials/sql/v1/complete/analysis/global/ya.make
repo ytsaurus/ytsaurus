@@ -3,6 +3,7 @@ LIBRARY()
 SRCS(
     evaluate.cpp
     global.cpp
+    named_node.cpp
     narrowing_visitor.cpp
     parse_tree.cpp
     use.cpp
