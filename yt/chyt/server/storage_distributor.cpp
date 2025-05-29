@@ -700,6 +700,7 @@ private:
             secondaryQueryCount = 1;
         }
 
+        auto secondaryQueryBuilder = QueryAnalyzer_->GetSecondaryQueryBuilder(SpecTemplate_);
         for (int index = 0; index < secondaryQueryCount; ++index) {
             int firstSubqueryIndex = index * ThreadSubqueries_.size() / secondaryQueryCount;
             int lastSubqueryIndex = (index + 1) * ThreadSubqueries_.size() / secondaryQueryCount;
@@ -723,9 +724,8 @@ private:
             // Each thread subquery will form its own secondary query when reading in order.
             YT_VERIFY(!ReadInOrder() || std::ssize(threadSubqueries) <= 1);
 
-            auto secondaryQuery = QueryAnalyzer_->CreateSecondaryQuery(
+            auto secondaryQuery = secondaryQueryBuilder->CreateSecondaryQuery(
                 threadSubqueries,
-                SpecTemplate_,
                 QueryInput_.MiscExtMap,
                 index,
                 index + 1 == secondaryQueryCount /*isLastSubquery*/);
