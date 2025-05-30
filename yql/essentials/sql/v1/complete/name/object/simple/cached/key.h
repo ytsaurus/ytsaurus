@@ -1,7 +1,7 @@
 #pragma once
 
 #include <yql/essentials/sql/v1/complete/name/object/simple/schema.h>
-#include <yql/essentials/sql/v1/complete/name/cache/size.h>
+#include <yql/essentials/sql/v1/complete/name/cache/byte_size.h>
 
 #include <util/generic/string.h>
 #include <util/generic/hash.h>

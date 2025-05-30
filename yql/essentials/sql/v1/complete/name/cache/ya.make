@@ -1,9 +1,9 @@
 LIBRARY()
 
 SRCS(
+    byte_size.cpp
     cache.cpp
     cached.cpp
-    size.cpp
 )
 
 PEERDIR(
