@@ -101,6 +101,7 @@ namespace NSQLComplete {
             result.Hint = HintMatch(candidates);
             result.Object = ObjectMatch(context, candidates);
             result.Cluster = ClusterMatch(context, candidates);
+            result.IsDollared = IsDollared(context);
 
             return result;
         }
@@ -290,6 +291,14 @@ namespace NSQLComplete {
                 cluster.Provider = begin->Base->Content;
             }
             return cluster;
+        }
+
+        bool IsDollared(const TCursorTokenContext& context) const {
+            if (TMaybe<TRichParsedToken> begin;
+                (begin = context.MatchCursorPrefix({"DOLLAR"}))) {
+                return true;
+            }
+            return false;
         }
 
         TEditRange EditRange(const TCursorTokenContext& context) const {

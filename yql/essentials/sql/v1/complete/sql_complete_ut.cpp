@@ -39,6 +39,7 @@ public:
 };
 
 Y_UNIT_TEST_SUITE(SqlCompleteTests) {
+    using ECandidateKind::BindingName;
     using ECandidateKind::ClusterName;
     using ECandidateKind::FolderName;
     using ECandidateKind::FunctionName;
@@ -679,6 +680,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
         {
             TVector<TCandidate> expected = {
+                {BindingName, "$hello"},
                 {TableName, "`maxim"},
                 {ClusterName, "example"},
                 {ClusterName, "saurus"},
@@ -694,6 +696,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
         {
             TVector<TCandidate> expected = {
+                {BindingName, "$action"},
                 {TableName, "`people"},
                 {FolderName, "`yql/"},
                 {ClusterName, "example"},
