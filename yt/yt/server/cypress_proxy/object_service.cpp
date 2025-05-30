@@ -937,6 +937,7 @@ private:
         if (revision != NHydra::NullRevision) {
             subresponse->set_revision(ToProto(revision));
         }
+        response.add_revisions(ToProto(revision));
 
         response.Attachments().insert(
             response.Attachments().end(),

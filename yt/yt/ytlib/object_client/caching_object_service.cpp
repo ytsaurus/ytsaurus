@@ -246,7 +246,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     }
 
                     const auto& rsp = rspOrError.Value();
-                    YT_VERIFY(rsp->subresponses_size() == 1);
+                    YT_VERIFY(rsp->part_counts_size() == 1 || rsp->subresponses_size() == 1);
                     auto responseMessage = TSharedRefArray(rsp->Attachments(), TSharedRefArray::TCopyParts{});
 
                     TResponseHeader responseHeader;
@@ -257,7 +257,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     }
 
                     auto responseError = FromProto<TError>(responseHeader.error());
-                    auto revision = FromProto<NHydra::TRevision>(rsp->subresponses(0).revision());
+                    auto revision = rsp->revisions_size() > 0 ? FromProto<NHydra::TRevision>(rsp->revisions(0)) : NHydra::NullRevision;
 
                     bool cachingEnabled = rsp->caching_enabled();
                     if (CachingEnabled_.exchange(cachingEnabled) != cachingEnabled) {
@@ -294,17 +294,30 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                         cacheEntry->GetKey(),
                         currentSize,
                         advisedSize);
+                    // COMPAT(babenko)
+                    response->add_advised_sticky_group_size(advisedSize);
                     subresponse->set_advised_sticky_group_size(advisedSize);
                 }
 
                 const auto& responseMessage = cacheEntry->GetResponseMessage();
                 subresponse->set_part_count(responseMessage.Size());
                 subresponse->set_revision(ToProto(cacheEntry->GetRevision()));
+                // COMPAT(babenko)
+                response->add_part_counts(responseMessage.Size());
 
                 responseAttachments.insert(
                     responseAttachments.end(),
                     responseMessage.Begin(),
                     responseMessage.End());
+            }
+
+            // COMPAT(babenko)
+            for (const auto& cacheEntry : cacheEntries) {
+                if (cacheEntry->GetRevision() == NHydra::NullRevision) {
+                    response->clear_revisions();
+                    break;
+                }
+                response->add_revisions(ToProto(cacheEntry->GetRevision()));
             }
 
             response->set_caching_enabled(true);

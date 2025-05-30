@@ -2271,6 +2271,10 @@ private:
             const auto& subresponseMessage = subrequest.ResponseMessage;
             attachments.insert(attachments.end(), subresponseMessage.Begin(), subresponseMessage.End());
 
+            // COMPAT(babenko)
+            response.add_part_counts(subresponseMessage.Size());
+            response.add_revisions(ToProto(subrequest.Revision));
+
             auto* subresponse = response.add_subresponses();
             subresponse->set_index(index);
             subresponse->set_part_count(subresponseMessage.Size());
