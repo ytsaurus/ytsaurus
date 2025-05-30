@@ -839,6 +839,7 @@ class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
 
 
 class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 2
     QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"resulting_rowset_value_length_limit": 20 * 1024**2}}
 
     @staticmethod
