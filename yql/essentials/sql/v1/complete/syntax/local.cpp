@@ -295,7 +295,8 @@ namespace NSQLComplete {
 
         bool IsDollared(const TCursorTokenContext& context) const {
             if (TMaybe<TRichParsedToken> begin;
-                (begin = context.MatchCursorPrefix({"DOLLAR"}))) {
+                (begin = context.MatchCursorPrefix({"DOLLAR"})) ||
+                (begin = context.MatchCursorPrefix({"DOLLAR", ""}))) {
                 return true;
             }
             return false;

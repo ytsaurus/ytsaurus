@@ -12,10 +12,15 @@ namespace NSQLComplete {
             }
 
             std::any visitBind_parameter(SQLv1::Bind_parameterContext* ctx) override {
-                std::string id = GetId(ctx);
-                if (const NYT::TNode* node = Env_->Parameters.FindPtr(id)) {
+                TMaybe<std::string> id = GetId(ctx);
+                if (id.Empty()) {
+                    return defaultResult();
+                }
+
+                if (const NYT::TNode* node = Env_->Parameters.FindPtr(*id)) {
                     return *node;
                 }
+
                 return defaultResult();
             }
 

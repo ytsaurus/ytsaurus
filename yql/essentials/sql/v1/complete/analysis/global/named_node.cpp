@@ -84,12 +84,12 @@ namespace NSQLComplete {
             }
 
             std::any visitBind_parameter(SQLv1::Bind_parameterContext* ctx) override {
-                std::string id = GetId(ctx);
-                if (id == "_") {
+                TMaybe<std::string> id = GetId(ctx);
+                if (id.Empty() || id == "_") {
                     return {};
                 }
 
-                Names_->emplace(std::move(id));
+                Names_->emplace(std::move(*id));
                 return {};
             }
 

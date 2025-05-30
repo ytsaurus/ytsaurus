@@ -986,6 +986,44 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         UNIT_ASSERT_GE(Complete(engine, "SELECT 1;").size(), 35);
     }
 
+    Y_UNIT_TEST(Bindings) {
+        auto engine = MakeSqlCompletionEngineUT();
+
+        TString query = R"(
+            $=0;
+            $a=0;
+            $abac=0;
+            SELECT 
+        )";
+
+        {
+            TVector<TCandidate> expected = {
+                {BindingName, "$a"},
+                {BindingName, "$abac"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(CompleteTop(2, engine, query), expected);
+        }
+        {
+            TVector<TCandidate> expected = {
+                {BindingName, "$abac"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(CompleteTop(1, engine, query + "ab"), expected);
+        }
+        {
+            TVector<TCandidate> expected = {
+                {BindingName, "a"},
+                {BindingName, "abac"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(CompleteTop(2, engine, query + "$"), expected);
+        }
+        {
+            TVector<TCandidate> expected = {
+                {BindingName, "abac"},
+            };
+            UNIT_ASSERT_VALUES_EQUAL(CompleteTop(1, engine, query + "$ab"), expected);
+        }
+    }
+
     Y_UNIT_TEST(Typing) {
         const auto queryUtf16 = TUtf16String::FromUtf8(
             "SELECT \n"

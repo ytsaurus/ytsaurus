@@ -1,5 +1,7 @@
 #pragma once
 
+#include <util/generic/maybe.h>
+
 #ifdef TOKEN_QUERY // Conflict with the winnt.h
     #undef TOKEN_QUERY
 #endif
@@ -15,6 +17,6 @@ namespace NSQLComplete {
 
     using NALADefaultAntlr4::SQLv1Antlr4BaseVisitor;
 
-    std::string GetId(SQLv1::Bind_parameterContext* ctx);
+    TMaybe<std::string> GetId(SQLv1::Bind_parameterContext* ctx);
 
 } // namespace NSQLComplete
