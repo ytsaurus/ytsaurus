@@ -5,7 +5,7 @@
 #include <library/cpp/iterator/iterate_keys.h>
 #include <library/cpp/iterator/iterate_values.h>
 
-#include <util/generic/hash.h>
+#include <util/generic/hash_set.h>
 #include <util/generic/ptr.h>
 
 namespace NSQLComplete {
@@ -17,7 +17,7 @@ namespace NSQLComplete {
             TVisitor(
                 antlr4::TokenStream* tokens,
                 size_t cursorPosition,
-                TVector<TString>* names)
+                THashSet<TString>* names)
                 : TSQLv1NarrowingVisitor(tokens, cursorPosition)
                 , Names_(names)
             {
@@ -47,21 +47,33 @@ namespace NSQLComplete {
             std::any visitDefine_action_or_subquery_stmt(
                 SQLv1::Define_action_or_subquery_stmtContext* ctx) override {
                 VisitNullable(ctx->bind_parameter());
+                if (IsEnclosing(ctx)) {
+                    return visitChildren(ctx);
+                }
                 return {};
             }
 
             std::any visitNamed_nodes_stmt(SQLv1::Named_nodes_stmtContext* ctx) override {
                 VisitNullable(ctx->bind_parameter_list());
+                if (IsEnclosing(ctx)) {
+                    return visitChildren(ctx);
+                }
                 return {};
             }
 
             std::any visitFor_stmt(SQLv1::For_stmtContext* ctx) override {
                 VisitNullable(ctx->bind_parameter());
+                if (IsEnclosing(ctx)) {
+                    return visitChildren(ctx);
+                }
                 return {};
             }
 
             std::any visitLambda(SQLv1::LambdaContext* ctx) override {
                 VisitNullable(ctx->smart_parenthesis());
+                if (IsEnclosing(ctx)) {
+                    return visitChildren(ctx);
+                }
                 return {};
             }
 
@@ -77,7 +89,7 @@ namespace NSQLComplete {
                     return {};
                 }
 
-                Names_->emplace_back(std::move(id));
+                Names_->emplace(std::move(id));
                 return {};
             }
 
@@ -89,7 +101,7 @@ namespace NSQLComplete {
                 visit(tree);
             }
 
-            TVector<TString>* Names_;
+            THashSet<TString>* Names_;
         };
 
     } // namespace
@@ -98,9 +110,9 @@ namespace NSQLComplete {
         SQLv1::Sql_queryContext* ctx,
         antlr4::TokenStream* tokens,
         size_t cursorPosition) {
-        TVector<TString> exprs;
-        TVisitor(tokens, cursorPosition, &exprs).visit(ctx);
-        return exprs;
+        THashSet<TString> names;
+        TVisitor(tokens, cursorPosition, &names).visit(ctx);
+        return TVector<TString>(begin(names), end(names));
     }
 
 } // namespace NSQLComplete

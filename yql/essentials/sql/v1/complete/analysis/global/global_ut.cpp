@@ -6,13 +6,15 @@ using namespace NSQLComplete;
 
 Y_UNIT_TEST_SUITE(GlobalAnalysisTests) {
 
-    Y_UNIT_TEST(NamesCollected) {
+    Y_UNIT_TEST(TopLevelNamesCollected) {
         IGlobalAnalysis::TPtr global = MakeGlobalAnalysis();
 
         TString query = R"(
             DECLARE $cluster_name AS String;
 
             IMPORT math SYMBOLS $sqrt, $pow;
+
+            $sqrt = 0;
 
             DEFINE ACTION $hello_world($name, $suffix?) AS
                 $name = $name ?? ($suffix ?? "world");
@@ -33,7 +35,37 @@ Y_UNIT_TEST_SUITE(GlobalAnalysisTests) {
             "second",
             "sqrt",
         };
+        UNIT_ASSERT_VALUES_EQUAL(ctx.Names, expected);
+    }
 
+    Y_UNIT_TEST(LocalNamesCollected) {
+        IGlobalAnalysis::TPtr global = MakeGlobalAnalysis();
+
+        TString query = R"(
+            DEFINE ACTION $sum($x, $y) AS
+                $acc = 0;
+                EVALUATE FOR $i IN AsList($x, $y) DO BEGIN
+                    $plus = ($a, $b) -> (#);
+                    $acc = $plus($acc, $i);
+                END DO;
+            END DEFINE;
+        )";
+
+        TCompletionInput input = SharpedInput(query);
+
+        TGlobalContext ctx = global->Analyze(input, {});
+        Sort(ctx.Names);
+
+        TVector<TString> expected = {
+            "a",
+            "acc",
+            "b",
+            "i",
+            "plus",
+            "sum",
+            "x",
+            "y",
+        };
         UNIT_ASSERT_VALUES_EQUAL(ctx.Names, expected);
     }
 
