@@ -1014,13 +1014,13 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {BindingName, "a"},
                 {BindingName, "abac"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(CompleteTop(2, engine, query + "$"), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, query + "$"), expected);
         }
         {
             TVector<TCandidate> expected = {
                 {BindingName, "abac"},
             };
-            UNIT_ASSERT_VALUES_EQUAL(CompleteTop(1, engine, query + "$ab"), expected);
+            UNIT_ASSERT_VALUES_EQUAL(Complete(engine, query + "$ab"), expected);
         }
     }
 

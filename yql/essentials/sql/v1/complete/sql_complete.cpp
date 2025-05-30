@@ -55,13 +55,15 @@ namespace NSQLComplete {
                 });
             }
 
-            auto service = MakeUnionNameService(
-                {
-                    MakeBindingNameService(std::move(global.Names)),
-                    Names_,
-                }, MakeDummyRanking());
+            TVector<INameService::TPtr> children;
+            children.emplace_back(MakeBindingNameService(std::move(global.Names)));
 
-            return service->Lookup(std::move(request))
+            if (!context.IsDollared) {
+                children.emplace_back(Names_);
+            }
+
+            return MakeUnionNameService(std::move(children), MakeDummyRanking())
+                ->Lookup(std::move(request))
                 .Apply([this, input, context = std::move(context)](auto f) {
                     return ToCompletion(input, context, f.ExtractValue());
                 });
