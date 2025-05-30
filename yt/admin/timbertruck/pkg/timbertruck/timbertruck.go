@@ -84,7 +84,7 @@ func NewTimberTruck(config Config, logger *slog.Logger, metrics metrics.Registry
 		}
 	}()
 
-	logPusher.datastore, err = NewDatastore(path.Join(config.WorkDir, stateFile))
+	logPusher.datastore, err = NewDatastore(logger.With("component", "Datastore"), path.Join(config.WorkDir, stateFile))
 	if err != nil {
 		return
 	}
