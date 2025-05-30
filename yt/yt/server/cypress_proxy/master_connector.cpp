@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/net/address.h>
@@ -94,17 +96,11 @@ private:
     TAtomicObject<TReign> MasterReign_;
     TAtomicObject<int> MaxCopiableSubtreeSize_;
 
-    // NB: when master is in read-only mode heartbeats should not be sent to
-    // leader since there is no active leader.
-    bool RequireLeader_ = true;
-
     void Heartbeat()
     {
         auto connection = Bootstrap_->GetNativeConnection();
         auto channel = connection->GetMasterChannelOrThrow(
-            RequireLeader_
-                ? EMasterChannelKind::Leader
-                : EMasterChannelKind::Follower,
+            EMasterChannelKind::Follower,
             PrimaryMasterCellTagSentinel);
         auto proxy = TCypressProxyTrackerServiceProxy(std::move(channel));
         auto request = proxy.Heartbeat();
@@ -112,36 +108,23 @@ private:
         request->set_sequoia_reign(ToProto(GetCurrentSequoiaReign()));
         request->set_version(GetVersion());
 
-        // By default require leader to update last seen time.
-        RequireLeader_ = true;
-
         auto rspOrError = WaitFor(request->Invoke());
         if (!rspOrError.IsOK()) {
             if (rspOrError.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
-                YT_LOG_ALERT(rspOrError, "Failed to send heartbeat; retrying (CurrentSequoiaReign: %v, Version: %v)",
+                YT_LOG_ALERT(rspOrError, "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
                     GetCurrentSequoiaReign(),
                     GetVersion());
             } else {
-                // TODO(kvk1920): Consider to not log "master in read-only mode"
-                // many times.
-                YT_LOG_ERROR(rspOrError, "Failed to send heartbeat; retrying (CurrentSequoiaReign: %v, Version: %v)",
+                YT_LOG_ERROR(rspOrError, "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
                     GetCurrentSequoiaReign(),
                     GetVersion());
-
-                // Cypress proxies should remain available during master restart and
-                // read-only mode.
-                if (auto readOnly = rspOrError.FindMatching(NHydra::EErrorCode::ReadOnly); IsRetriableError(rspOrError) || readOnly) {
-                    // Fallback to mutation-less protocol.
-                    RequireLeader_ = !readOnly;
-                    return;
-                }
-
-                auto error = WrapCypressProxyRegistrationError(std::move(rspOrError));
-
-                RegistrationError_.Store(std::move(error));
-                MasterReign_.Store(0);
-                MaxCopiableSubtreeSize_.Store(0);
             }
+
+            auto error = WrapCypressProxyRegistrationError(std::move(rspOrError));
+
+            RegistrationError_.Store(std::move(error));
+            MasterReign_.Store(0);
+            MaxCopiableSubtreeSize_.Store(0);
 
             return;
         }
