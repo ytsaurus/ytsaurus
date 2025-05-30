@@ -764,6 +764,8 @@ void TRemoteOperationsConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("allowed_for_everyone", &TThis::AllowedForEveryone)
         .Default(false);
+    registrar.Parameter("max_total_data_weight", &TThis::MaxTotalDataWeight)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

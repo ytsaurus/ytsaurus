@@ -7787,6 +7787,8 @@ void TOperationControllerBase::CollectTotals()
     // This is the sum across all input chunks not accounting lower/upper read limits.
     // Used to calculate compression ratio.
     i64 totalInputDataWeight = 0;
+    THashMap<TClusterName, i64> totalInputDataWeightPerCluster;
+
     for (const auto& table : InputManager_->GetInputTables()) {
         for (const auto& inputChunk : Concatenate(table->Chunks, table->HunkChunks)) {
             if (inputChunk->IsUnavailable(GetChunkAvailabilityPolicy())) {
@@ -7810,6 +7812,8 @@ void TOperationControllerBase::CollectTotals()
                         YT_ABORT();
                 }
             }
+
+            totalInputDataWeightPerCluster[table->ClusterName] += inputChunk->GetDataWeight();
 
             if (table->IsPrimary()) {
                 PrimaryInputDataWeight_ += inputChunk->GetDataWeight();
@@ -7840,6 +7844,20 @@ void TOperationControllerBase::CollectTotals()
         TotalEstimatedInputDataWeight_,
         totalInputDataWeight,
         TotalEstimatedInputValueCount_);
+
+    for (const auto& [clusterName, dataWeight] : totalInputDataWeightPerCluster) {
+        if (IsLocal(clusterName)) {
+            continue;
+        }
+        auto clusterConfig = GetOrCrash(Config_->RemoteOperations, clusterName);
+        if (clusterConfig->MaxTotalDataWeight && *clusterConfig->MaxTotalDataWeight < dataWeight) {
+            THROW_ERROR_EXCEPTION(
+                "Total estimated input data weight from cluster %Qv is too large",
+                clusterName)
+                << TErrorAttribute("estimated_data_weight", dataWeight)
+                << TErrorAttribute("max_data_weight", *clusterConfig->MaxTotalDataWeight);
+        }
+    }
 }
 
 bool TOperationControllerBase::HasDiskRequestsWithSpecifiedAccount() const
