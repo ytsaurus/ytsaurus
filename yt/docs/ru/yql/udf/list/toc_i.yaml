@@ -19,6 +19,7 @@ items:
 - { name: Html,                   href: html.md,                     when: audience == "internal"   }
 - { name: Ip,                     href: ip.md                                  }
 - { name: Math,                   href: math.md                                }
+- { name: Mime,                   href: mime.md,                     when: audience == "internal" }
 - { name: Pcre,                   href: pcre.md                                }
 - { name: Pire,                   href: pire.md                                }
 - { name: Protobuf,               href: protobuf.md                            }
