@@ -7,9 +7,8 @@
 
 import _brotli
 
-
 # The library version.
-__version__ = _brotli.__version__
+version = __version__ = _brotli.__version__
 
 # The compression mode.
 MODE_GENERIC = _brotli.MODE_GENERIC
