@@ -21,6 +21,7 @@ END()
 RECURSE(
     analysis
     antlr4
+    check
     core
     name
     syntax
