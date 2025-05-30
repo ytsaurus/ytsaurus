@@ -128,6 +128,8 @@
 
 #include <yt/yt/ytlib/auth/native_authenticating_channel.h>
 
+#include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
+
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/helpers.h>
 

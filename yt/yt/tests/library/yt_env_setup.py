@@ -30,6 +30,7 @@ from yt.environment.helpers import (  # noqa
     RPC_PROXIES_SERVICE,
     HTTP_PROXIES_SERVICE,
     KAFKA_PROXIES_SERVICE,
+    CYPRESS_PROXIES_SERVICE,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -2279,4 +2280,5 @@ def get_service_component_name(service):
         RPC_PROXIES_SERVICE: "proxy",
         HTTP_PROXIES_SERVICE: "http-proxy",
         KAFKA_PROXIES_SERVICE: "kafka-proxy",
+        CYPRESS_PROXIES_SERVICE: "cypress-proxy",
     }[service]
