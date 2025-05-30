@@ -1469,6 +1469,9 @@ private:
         TTransactionCommitOptions options;
         SetMutatingOptions(&options, request, context.Get());
         options.AdditionalParticipantCellIds = FromProto<std::vector<TCellId>>(request->additional_participant_cell_ids());
+        if (request->has_max_allowed_commit_timestamp()) {
+            options.MaxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
+        }
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
         }
