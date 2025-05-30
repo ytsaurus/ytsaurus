@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yql/essentials/sql/v1/complete/name/object/simple/schema.h>
+#include <yql/essentials/sql/v1/complete/name/cache/size.h>
 
 #include <util/generic/string.h>
 #include <util/generic/hash.h>
@@ -17,18 +18,22 @@ namespace NSQLComplete {
             const TSchemaListCacheKey& rhs) = default;
     };
 
-    struct TSchemaListSizeProvider {
-        size_t operator()(const TSchemaListCacheKey& key) const {
-            return sizeof(key) + key.Zone.size() + key.Cluster.size() + key.Folder.size();
+    template <>
+    struct TByteSize<TSchemaListCacheKey> {
+        size_t operator()(const TSchemaListCacheKey& x) const noexcept {
+            return sizeof(x) +
+                   TByteSize<TString>()(x.Zone) +
+                   TByteSize<TString>()(x.Cluster) +
+                   TByteSize<TString>()(x.Folder);
         }
+    };
 
-        size_t operator()(const TVector<TFolderEntry>& entries) const {
-            return sizeof(entries) +
-                   Accumulate(
-                       entries, static_cast<size_t>(0),
-                       [](size_t acc, const TFolderEntry& entry) {
-                           return acc + sizeof(entry) + entry.Type.size() + entry.Name.size();
-                       });
+    template <>
+    struct TByteSize<TFolderEntry> {
+        size_t operator()(const TFolderEntry& x) const noexcept {
+            return sizeof(x) +
+                   TByteSize<TString>()(x.Type) +
+                   TByteSize<TString>()(x.Name);
         }
     };
 
