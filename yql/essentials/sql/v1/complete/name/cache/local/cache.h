@@ -20,7 +20,7 @@ namespace NSQLComplete {
         struct TLocalCacheCell {
             TValue Value;
             NMonotonic::TMonotonic Deadline;
-            size_t KeySize = 0;
+            size_t KeyByteSize = 0;
         };
 
         template <CCacheKey TKey, CCacheValue TValue>
@@ -57,7 +57,7 @@ namespace NSQLComplete {
                 TLocalCacheCell entry = {
                     .Value = std::move(value),
                     .Deadline = Clock_->Now() + Config_.TTL,
-                    .KeySize = TByteSize<TKey>()(key),
+                    .KeyByteSize = TByteSize<TKey>()(key),
                 };
                 with_lock (Mutex_) {
                     Origin_.Update(key, std::move(entry));
@@ -85,7 +85,10 @@ namespace NSQLComplete {
     template <NPrivate::CCacheValue TValue>
     struct TByteSize<NPrivate::TLocalCacheCell<TValue>> {
         size_t operator()(const NPrivate::TLocalCacheCell<TValue>& x) const noexcept {
-            return sizeof(x);
+            return sizeof(x) +
+                   TByteSize<TValue>()(x.Value) +
+                   sizeof(x.Deadline) +
+                   x.KeyByteSize;
         }
     };
 
