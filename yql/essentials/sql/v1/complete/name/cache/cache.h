@@ -20,10 +20,11 @@ namespace NSQLComplete {
         template <class T>
         concept CCacheValue = std::copyable<T>;
 
-        template <class T, class V>
-        concept CSizeProvider = requires(T x, const V& y) {
-            { x(y) } -> std::convertible_to<std::size_t>;
-        };
+        template <class T, class K, class V>
+        concept CSizeProvider = requires(const T& x, const K& k, const V& v) {
+            { x(k) } -> std::convertible_to<std::size_t>;
+            { x(v) } -> std::convertible_to<std::size_t>;
+        } && std::is_default_constructible_v<T>;
 
     }; // namespace NPrivate
 
