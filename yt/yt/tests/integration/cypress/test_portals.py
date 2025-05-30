@@ -1623,6 +1623,9 @@ class TestCrossCellCopy(YTEnvSetup):
             create("rootstock", self.SRC)
             create("map_node", self.DST)
 
+        # NB: this attribute is not supported in Sequoia yet.
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("recursive_resource_usage")
+
     def teardown_method(self, method):
         abort_all_transactions()
         # XXX(babenko): cleanup is weird
