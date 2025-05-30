@@ -24,7 +24,7 @@ ELSE()
         yt/python/contrib/python-urllib3
         yt/python/contrib/python-idna
 
-        contrib/libs/brotli/python
+        contrib/python/Brotli
         contrib/python/argcomplete
         contrib/python/cryptography
         contrib/python/decorator
