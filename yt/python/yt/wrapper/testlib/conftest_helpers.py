@@ -128,10 +128,6 @@ def yt_env_multicluster_v4(request):
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_users": ["root"],
-                "allowed_clusters": ["first", "second"],
-            }
         }
     }
     environments = (
@@ -161,8 +157,8 @@ def yt_env_multicluster_v4(request):
     client_2.set("//sys/clusters/first", client_1.get("//sys/@cluster_connection"))
 
     # create fake clusters (cluster_name == proxy_url)
-    client_1.set("//sys/controller_agents/config/disallow_remote_operations/allowed_clusters", [client_2.config["proxy"]["url"]], recursive=True)
-    client_2.set("//sys/controller_agents/config/disallow_remote_operations/allowed_clusters", [client_1.config["proxy"]["url"]], recursive=True)
+    client_1.set("//sys/controller_agents/config/remote_operations/{}/allowed_for_everyone".format(client_2.config["proxy"]["url"]), True, recursive=True)
+    client_2.set("//sys/controller_agents/config/remote_operations/{}/allowed_for_everyone".format(client_1.config["proxy"]["url"]), True, recursive=True)
     client_1.set("//sys/clusters/{}".format(client_2.config["proxy"]["url"]), client_2.get("//sys/@cluster_connection"))
     client_2.set("//sys/clusters/{}".format(client_1.config["proxy"]["url"]), client_1.get("//sys/@cluster_connection"))
     client_1.remove("//sys/clusters/second", recursive=True)

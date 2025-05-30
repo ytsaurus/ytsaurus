@@ -5874,29 +5874,27 @@ std::expected<TJobId, EScheduleFailReason> TOperationControllerBase::GenerateJob
 {
     auto jobIdGuid = previousJobId ? previousJobId.Underlying() : allocationId.Underlying();
 
-    if (Config_->JobIdUnequalToAllocationId || previousJobId) {
-        int currentJobCount = jobIdGuid.Parts32[0] >> 24;
+    int currentJobCount = jobIdGuid.Parts32[0] >> 24;
 
-        jobIdGuid.Parts32[0] += 1 << 24;
+    jobIdGuid.Parts32[0] += 1 << 24;
 
-        if (jobIdGuid.Parts32[0] >> 24 == 0 ||
-            currentJobCount >= Config_->AllocationJobCountLimit.value_or(
-                std::numeric_limits<decltype(Config_->AllocationJobCountLimit)::value_type>::max()))
-        {
-            YT_LOG_DEBUG(
-                "Allocation job count reached limit (JobCount: %v, AllocationId: %v, PreviousJobId: %v)",
-                currentJobCount,
-                allocationId,
-                previousJobId);
-            return std::unexpected(EScheduleFailReason::AllocationJobCountReachedLimit);
-        }
-
+    if (jobIdGuid.Parts32[0] >> 24 == 0 ||
+        currentJobCount >= Config_->AllocationJobCountLimit.value_or(
+            std::numeric_limits<decltype(Config_->AllocationJobCountLimit)::value_type>::max()))
+    {
         YT_LOG_DEBUG(
-            "Generating new job id (JobId: %v, AllocationId: %v, PreviousJobId: %v)",
-            jobIdGuid,
+            "Allocation job count reached limit (JobCount: %v, AllocationId: %v, PreviousJobId: %v)",
+            currentJobCount,
             allocationId,
             previousJobId);
+        return std::unexpected(EScheduleFailReason::AllocationJobCountReachedLimit);
     }
+
+    YT_LOG_DEBUG(
+        "Generating new job id (JobId: %v, AllocationId: %v, PreviousJobId: %v)",
+        jobIdGuid,
+        allocationId,
+        previousJobId);
 
     return TJobId(jobIdGuid);
 }
@@ -7776,6 +7774,8 @@ void TOperationControllerBase::CollectTotals()
     // This is the sum across all input chunks not accounting lower/upper read limits.
     // Used to calculate compression ratio.
     i64 totalInputDataWeight = 0;
+    THashMap<TClusterName, i64> totalInputDataWeightPerCluster;
+
     for (const auto& table : InputManager_->GetInputTables()) {
         for (const auto& inputChunk : Concatenate(table->Chunks, table->HunkChunks)) {
             if (inputChunk->IsUnavailable(GetChunkAvailabilityPolicy())) {
@@ -7799,6 +7799,8 @@ void TOperationControllerBase::CollectTotals()
                         YT_ABORT();
                 }
             }
+
+            totalInputDataWeightPerCluster[table->ClusterName] += inputChunk->GetDataWeight();
 
             if (table->IsPrimary()) {
                 PrimaryInputDataWeight_ += inputChunk->GetDataWeight();
@@ -7829,6 +7831,20 @@ void TOperationControllerBase::CollectTotals()
         TotalEstimatedInputDataWeight_,
         totalInputDataWeight,
         TotalEstimatedInputValueCount_);
+
+    for (const auto& [clusterName, dataWeight] : totalInputDataWeightPerCluster) {
+        if (IsLocal(clusterName)) {
+            continue;
+        }
+        auto clusterConfig = GetOrCrash(Config_->RemoteOperations, clusterName);
+        if (clusterConfig->MaxTotalDataWeight && *clusterConfig->MaxTotalDataWeight < dataWeight) {
+            THROW_ERROR_EXCEPTION(
+                "Total estimated input data weight from cluster %Qv is too large",
+                clusterName)
+                << TErrorAttribute("estimated_data_weight", dataWeight)
+                << TErrorAttribute("max_data_weight", *clusterConfig->MaxTotalDataWeight);
+        }
+    }
 }
 
 bool TOperationControllerBase::HasDiskRequestsWithSpecifiedAccount() const

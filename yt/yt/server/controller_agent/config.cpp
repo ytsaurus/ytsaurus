@@ -758,13 +758,13 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDisallowRemoteOperationsConfig::Register(TRegistrar registrar)
+void TRemoteOperationsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("allowed_users", &TThis::AllowedUsers)
         .Default();
-    registrar.Parameter("allowed_clusters", &TThis::AllowedClusters)
-        .Default();
-    registrar.Parameter("allowed_for_everyone_clusters", &TThis::AllowedForEveryoneClusters)
+    registrar.Parameter("allowed_for_everyone", &TThis::AllowedForEveryone)
+        .Default(false);
+    registrar.Parameter("max_total_data_weight", &TThis::MaxTotalDataWeight)
         .Default();
 }
 
@@ -1358,11 +1358,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_job_aborts_until_operation_failure", &TThis::MaxJobAbortsUntilOperationFailure)
         .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 1000}, {EAbortReason::NbdErrors, 10}}));
 
-    registrar.Parameter("job_id_unequal_to_allocation_id", &TThis::JobIdUnequalToAllocationId)
-        .Default(false);
-
-    registrar.Parameter("disallow_remote_operations", &TThis::DisallowRemoteOperations)
-        .DefaultNew();
+    registrar.Parameter("remote_operations", &TThis::RemoteOperations)
+        .Default();
 
     registrar.Parameter("enable_merge_schemas_during_schema_infer", &TThis::EnableMergeSchemasDuringSchemaInfer)
         .Default(false);
