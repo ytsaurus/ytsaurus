@@ -23,7 +23,11 @@ private:
     NMonotonic::TMonotonic Now_ = NMonotonic::CreateDefaultMonotonicTimeProvider()->Now();
 };
 
-struct TFat {};
+struct TFat {
+    size_t Id = 0;
+
+    friend bool operator==(const TFat& lhs, const TFat& rhs) = default;
+};
 
 namespace NSQLComplete {
 
@@ -35,6 +39,13 @@ namespace NSQLComplete {
     };
 
 } // namespace NSQLComplete
+
+template <>
+struct THash<TFat> {
+    size_t operator()(const TFat& x) const noexcept {
+        return x.Id;
+    }
+};
 
 struct TAction {
     bool IsGet = false;
@@ -120,9 +131,11 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
     }
 
     Y_UNIT_TEST(OnFull_WhenFatAdded_ThenSomeKeyIsEvicted) {
+        const size_t Overhead = TByteSize<TFat>()({}) / 10;
+
         auto cache = MakeLocalCache<int, TFat>(
             NMonotonic::CreateDefaultMonotonicTimeProvider(),
-            {.ByteCapacity = 5 * TByteSize<TFat>()({})});
+            {.ByteCapacity = 4 * TByteSize<TFat>()({}) + Overhead});
         cache->Update(1, {});
         cache->Update(2, {});
         cache->Update(3, {});
@@ -132,6 +145,29 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
 
         size_t evicted = 0;
         for (auto x : {1, 2, 3, 4, 5}) {
+            if (cache->Get(x).GetValueSync().IsExpired) {
+                evicted += 1;
+            }
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(evicted, 1);
+    }
+
+    Y_UNIT_TEST(OnFull_WhenFatAdded_ThenKeyAndOverheadAreAccounted) {
+        const size_t Overhead = TByteSize<TFat>()({}) / 10;
+
+        auto cache = MakeLocalCache<TFat, TFat>(
+            NMonotonic::CreateDefaultMonotonicTimeProvider(),
+            {.ByteCapacity = 3 * 4 * TByteSize<TFat>()({}) + Overhead});
+        cache->Update(TFat{1}, {});
+        cache->Update(TFat{2}, {});
+        cache->Update(TFat{3}, {});
+        cache->Update(TFat{4}, {});
+
+        cache->Update(TFat{5}, {});
+
+        size_t evicted = 0;
+        for (auto x : {TFat{1}, TFat{2}, TFat{3}, TFat{4}, TFat{5}}) {
             if (cache->Get(x).GetValueSync().IsExpired) {
                 evicted += 1;
             }
