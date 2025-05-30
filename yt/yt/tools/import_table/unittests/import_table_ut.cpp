@@ -794,7 +794,10 @@ private:
 
     void SetUp() override
     {
-         InitializeGenerator();
+        SetEnv("ACCESS_KEY_ID", "key");
+        SetEnv("SECRET_ACCESS_KEY", "secret");
+
+        InitializeGenerator();
 
         auto clientConfig = New<NS3::TS3ClientConfig>();
 
