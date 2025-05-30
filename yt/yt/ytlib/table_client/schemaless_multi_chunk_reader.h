@@ -68,7 +68,7 @@ struct THintKeyPrefixes
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
+    NChunkClient::TMultiChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     std::optional<THintKeyPrefixes> hintKeyPrefixes,
@@ -84,7 +84,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
+    NChunkClient::TMultiChunkReaderHostPtr chunkReaderHost,
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
     std::optional<THintKeyPrefixes> hintKeysUnused,

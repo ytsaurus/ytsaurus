@@ -951,7 +951,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
 
     auto userJobReadController = CreateUserJobReadController(
         jobSpecHelper,
-        TChunkReaderHost::FromClient(MakeStrong(this)),
+        CreateSingleSourceMultiChunkReaderHost(TChunkReaderHost::FromClient(MakeStrong(this))),
         GetConnection()->GetInvoker(),
         /*onNetworkRelease*/ BIND([] { }),
         /*udfDirectory*/ {},
