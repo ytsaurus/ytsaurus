@@ -1,4 +1,4 @@
-#include "public.h"
+#include "sequoia_reign.h"
 
 namespace NYT::NSequoiaClient {
 

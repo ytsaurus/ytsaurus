@@ -26,7 +26,6 @@ public:
      *  Thread affinity: any.
      */
     virtual void ProcessCypressProxyHeartbeat(const TCtxHeartbeatPtr& context) = 0;
-    virtual bool TryProcessCypressProxyHeartbeatWithoutMutation(const TCtxHeartbeatPtr& context) = 0;
 
     virtual void Initialize() = 0;
 
