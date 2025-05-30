@@ -70,6 +70,11 @@ TString TOperation::GetAuthenticatedUser() const
     return AuthenticatedUser_;
 }
 
+std::optional<std::string> TOperation::GetTitle() const
+{
+    return std::nullopt;
+}
+
 void TOperation::SetSlotIndex(const TString& treeId, int value)
 {
     TreeIdToSlotIndex_[treeId] = value;

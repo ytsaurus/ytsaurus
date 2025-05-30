@@ -127,6 +127,7 @@ DEFINE_ENUM(EUnschedulableReason,
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationStrategyHost
+    : public TRefCounted
 {
     virtual EOperationType GetType() const = 0;
 
@@ -141,6 +142,8 @@ struct IOperationStrategyHost
     virtual void ReleaseSlotIndex(const TString& treeId) = 0;
 
     virtual TString GetAuthenticatedUser() const = 0;
+
+    virtual std::optional<std::string> GetTitle() const = 0;
 
     virtual TOperationId GetId() const = 0;
 
@@ -171,6 +174,8 @@ struct IOperationStrategyHost
 protected:
     friend class TFairShareStrategyOperationState;
 };
+
+DEFINE_REFCOUNTED_TYPE(IOperationStrategyHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,8 +216,7 @@ public: \
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation
-    : public TRefCounted
-    , public IOperationStrategyHost
+    : public IOperationStrategyHost
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
@@ -316,6 +320,9 @@ public:
 
     //! Returns operation authenticated user.
     TString GetAuthenticatedUser() const override;
+
+    //! Returns operation title.
+    std::optional<std::string> GetTitle() const override;
 
     //! Returns strategy operation spec.
     TStrategyOperationSpecPtr GetStrategySpec() const override;

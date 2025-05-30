@@ -225,7 +225,7 @@ struct ISchedulerStrategy
      *  The implementation must throw no exceptions.
      */
     virtual void RegisterOperation(
-        IOperationStrategyHost* operation,
+        IOperationStrategyHostPtr operation,
         std::vector<TString>* unknownTreeIds,
         TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap) = 0;
 
@@ -242,7 +242,7 @@ struct ISchedulerStrategy
     /*!
      *  The implementation must throw no exceptions.
      */
-    virtual void UnregisterOperation(IOperationStrategyHost* operation) = 0;
+    virtual void UnregisterOperation(const IOperationStrategyHostPtr& operation) = 0;
 
     virtual void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) = 0;
 

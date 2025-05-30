@@ -758,13 +758,13 @@ public:
 
 protected:
     TSchedulerOperationElementFixedState(
-        IOperationStrategyHost* operation,
+        IOperationStrategyHostPtr operation,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         TSchedulingTagFilter schedulingTagFilter);
 
     const TOperationId OperationId_;
 
-    IOperationStrategyHost* const OperationHost_;
+    IOperationStrategyHostPtr OperationHost_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
 
     // Used only in trunk version.
@@ -809,7 +809,7 @@ public:
         TFairShareStrategyOperationStatePtr state,
         ISchedulerStrategyHost* strategyHost,
         IFairShareTreeElementHost* treeElementHost,
-        IOperationStrategyHost* operation,
+        IOperationStrategyHostPtr operation,
         const TString& treeId,
         const NLogging::TLogger& logger);
     TSchedulerOperationElement(
@@ -823,6 +823,7 @@ public:
 
     TString GetId() const override;
     TOperationId GetOperationId() const;
+    std::optional<std::string> GetTitle() const;
 
     void SetRuntimeParameters(TOperationFairShareTreeRuntimeParametersPtr runtimeParameters);
     TOperationFairShareTreeRuntimeParametersPtr GetRuntimeParameters() const;

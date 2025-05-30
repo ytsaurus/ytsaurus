@@ -184,11 +184,11 @@ private:
 
 
 TFairShareStrategyOperationState::TFairShareStrategyOperationState(
-    IOperationStrategyHost* host,
+    IOperationStrategyHostPtr host,
     const TFairShareStrategyOperationControllerConfigPtr& config,
     const std::vector<IInvokerPtr>& nodeShardInvokers)
-    : Host_(host)
-    , Controller_(New<TFairShareStrategyOperationController>(host, config, nodeShardInvokers))
+    : Host_(std::move(host))
+    , Controller_(New<TFairShareStrategyOperationController>(Host_, config, nodeShardInvokers))
 { }
 
 TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const
@@ -3354,6 +3354,9 @@ private:
             .Item("unschedulable_reason").Value(element->GetUnschedulableReason())
             .Item("allocation_preemption_timeout").Value(element->GetEffectiveAllocationPreemptionTimeout())
             .Item("allocation_graceful_preemption_timeout").Value(element->GetEffectiveAllocationGracefulPreemptionTimeout())
+            .Item("user").Value(element->GetUserName())
+            .Item("type").Value(element->GetOperationType())
+            .Item("title").Value(element->GetTitle())
             .Do(BIND(&TFairShareTreeAllocationScheduler::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
             .Do(BIND(&TFairShareTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldsFilter{}));
     }
