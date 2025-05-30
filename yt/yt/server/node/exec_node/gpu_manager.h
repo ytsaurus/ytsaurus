@@ -97,6 +97,8 @@ class TGpuManager
 public:
     explicit TGpuManager(IBootstrap* bootstrap);
 
+    void Initialize();
+
     int GetTotalGpuCount() const;
     int GetFreeGpuCount() const;
     int GetUsedGpuCount() const;
