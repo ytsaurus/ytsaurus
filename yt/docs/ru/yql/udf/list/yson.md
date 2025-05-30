@@ -1,6 +1,6 @@
 # Yson
 
-[YSON](../../../user-guide/storage/yson.md) — разработанный в Яндексе формат данных, похожий на JSON.
+[YSON]({{yt-docs-root}}/user-guide/storage/yson) — разработанный в Яндексе формат данных, похожий на JSON.
 
 
 * Сходства с JSON:
@@ -223,7 +223,7 @@ Yson::YPathList(Resource<'Yson2.Node'>{Flags:AutoMap}, String) -> List<Resource<
 ```
 Позволяет по входному ресурсу и пути на языке YPath получить ресурс, указывающий на соответствующую пути часть исходного ресурса.
 
-[Информация про YPath](../../../user-guide/storage/ypath.md).
+[Информация про YPath]({{yt-docs-root}}/user-guide/storage/ypath).
 
 
 ## Yson::Attributes {#ysonattributes}
