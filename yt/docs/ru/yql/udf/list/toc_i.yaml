@@ -19,16 +19,17 @@ items:
 - { name: Html,                   href: html.md,                     when: audience == "internal"   }
 - { name: Ip,                     href: ip.md                                  }
 - { name: Math,                   href: math.md                                }
-- { name: Mime,                   href: mime.md,                     when: audience == "internal" }
+- { name: Mime,                   href: mime.md,                     when: audience == "internal"   }
 - { name: Pcre,                   href: pcre.md                                }
 - { name: Pire,                   href: pire.md                                }
 - { name: Protobuf,               href: protobuf.md                            }
 - { name: Re2,                    href: re2.md                                 }
+- { name: SearchEngine,           href: searchengine.md,             when: audience == "internal"   }
 - { name: Streaming,              href: streaming.md                           }
 - { name: String,                 href: string.md                              }
 - { name: TensorFlow,             href: tensorflow.md,                         }
 - { name: Unicode,                href: unicode.md                             }
-- { name: UserAgent,              href: useragent.md,                when: audience == "internal"  }
+- { name: UserAgent,              href: useragent.md,                when: audience == "internal"   }
 - { name: Url,                    href: url.md                                 }
 - { name: Xml,                    href: xml.md,                      when: audience == "internal"   }
 - { name: Yson,                   href: yson.md                                }
