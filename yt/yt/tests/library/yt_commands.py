@@ -1043,11 +1043,10 @@ def abort_transaction(tx, **kwargs):
     execute_command("abort_tx", kwargs)
 
 
-def abort_all_transactions():
-    topmost_transactions = ls("//sys/topmost_transactions")
-    for i in range(len(topmost_transactions) // 100 + 1):
+def abort_transactions(transactions, **kwargs):
+    for i in range(len(transactions) // 100 + 1):
         start = i * 100
-        end = min(len(topmost_transactions), (i + 1) * 100)
+        end = min(len(transactions), (i + 1) * 100)
         if start >= end:
             break
         requests = []
@@ -1055,10 +1054,15 @@ def abort_all_transactions():
             requests.append(
                 {
                     "command": "abort_transaction",
-                    "parameters": {"transaction_id": topmost_transactions[j]},
+                    "parameters": {"transaction_id": transactions[j]},
                 }
             )
-        execute_batch(requests)
+        execute_batch(requests, **kwargs)
+
+
+def abort_all_transactions(**kwargs):
+    topmost_transactions = ls("//sys/topmost_transactions")
+    abort_transactions(topmost_transactions, **kwargs)
 
 
 def generate_timestamp(**kwargs):
