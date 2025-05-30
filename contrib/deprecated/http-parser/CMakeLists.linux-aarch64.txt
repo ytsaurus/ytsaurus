@@ -14,29 +14,24 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_library(contrib-libs-yajl)
+add_library(contrib-deprecated-http-parser)
 
 
-target_compile_options(contrib-libs-yajl PRIVATE
+target_compile_options(contrib-deprecated-http-parser PRIVATE
+  -DHTTP_MAX_HEADER_SIZE=0x7fffffff
+  -DHTTP_PARSER_STRICT=0
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
-target_link_libraries(contrib-libs-yajl PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
+target_include_directories(contrib-deprecated-http-parser PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/deprecated/http-parser
 )
 
-target_sources(contrib-libs-yajl PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/src/yajl.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/src/yajl_buf.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/src/yajl_gen.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/src/yajl_parser.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/src/yajl_version.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/src/yajl_alloc.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/src/yajl_encode.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/src/yajl_lex.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/src/yajl_tree.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/yajl/yajl_parser.cpp
+target_link_libraries(contrib-deprecated-http-parser PUBLIC
+  linux-headers-generic::linux-headers-generic
+)
+
+target_sources(contrib-deprecated-http-parser PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/deprecated/http-parser/http_parser.c
 )
 

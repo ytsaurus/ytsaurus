@@ -739,7 +739,7 @@ ADDINCL(
 PEERDIR(
     contrib/libs/re2
     contrib/libs/protobuf
-    contrib/libs/yajl
+    contrib/deprecated/yajl
     library/cpp/erasure
     library/cpp/iterator
     library/cpp/yt/backtrace/symbolizers/dwarf

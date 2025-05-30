@@ -12,20 +12,5 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_library(contrib-restricted-http-parser)
-
-
-target_compile_options(contrib-restricted-http-parser PRIVATE
-  -DHTTP_MAX_HEADER_SIZE=0x7fffffff
-  -DHTTP_PARSER_STRICT=0
-  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
-)
-
-target_include_directories(contrib-restricted-http-parser PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/http-parser
-)
-
-target_sources(contrib-restricted-http-parser PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/restricted/http-parser/http_parser.c
-)
-
+add_subdirectory(yajl)
+add_subdirectory(http-parser)
