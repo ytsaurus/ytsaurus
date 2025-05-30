@@ -29,7 +29,21 @@ namespace NSQLComplete {
             using TEntry = ICache<TKey, TValue>::TEntry;
             using TCell = TLocalCacheCell<TValue>;
 
-            using TStorage = TLRUCache<TKey, TCell, TNoopDelete, TByteSize<TCell>>;
+            struct TLRUSizeProvider {
+                size_t operator()(const TCell& x) noexcept {
+                    const size_t listItemContent = TByteSize<TCell>()(x);
+                    const size_t listItemPtrs = sizeof(TIntrusiveListItem<void>);
+                    const size_t listItem = listItemContent + listItemPtrs;
+
+                    const size_t cacheIndexKey = x.KeyByteSize;
+                    const size_t cacheIndexListItemPtr = sizeof(void*);
+                    const size_t cacheIndexEntry = cacheIndexKey + cacheIndexListItemPtr;
+
+                    return listItem + cacheIndexEntry;
+                }
+            };
+
+            using TStorage = TLRUCache<TKey, TCell, TNoopDelete, TLRUSizeProvider>;
 
         public:
             TLocalCache(TIntrusivePtr<NMonotonic::IMonotonicTimeProvider> clock, TLocalCacheConfig config)
@@ -51,13 +65,13 @@ namespace NSQLComplete {
             }
 
             NThreading::TFuture<void> Update(const TKey& key, TValue value) const override {
-                TLocalCacheCell entry = {
+                TCell cell = {
                     .Value = std::move(value),
                     .Deadline = Clock_->Now() + Config_.TTL,
                     .KeyByteSize = TByteSize<TKey>()(key),
                 };
                 with_lock (Mutex_) {
-                    Origin_.Update(key, std::move(entry));
+                    Origin_.Update(key, std::move(cell));
                 }
                 return NThreading::MakeFuture();
             }
