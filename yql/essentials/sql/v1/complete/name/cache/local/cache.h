@@ -21,6 +21,11 @@ namespace NSQLComplete {
             TValue Value;
             NMonotonic::TMonotonic Deadline;
             size_t KeyByteSize = 0;
+
+            const size_t CellByteSize =
+                TByteSize<TValue>()(Value) +
+                sizeof(Deadline) +
+                KeyByteSize;
         };
 
         template <CCacheKey TKey, CCacheValue TValue>
@@ -31,7 +36,7 @@ namespace NSQLComplete {
 
             struct TLRUSizeProvider {
                 size_t operator()(const TCell& x) noexcept {
-                    const size_t listItemContent = TByteSize<TCell>()(x);
+                    const size_t listItemContent = x.CellByteSize;
                     const size_t listItemPtrs = sizeof(TIntrusiveListItem<void>);
                     const size_t listItem = listItemContent + listItemPtrs;
 
@@ -55,12 +60,14 @@ namespace NSQLComplete {
 
             NThreading::TFuture<TEntry> Get(const TKey& key) const override {
                 TEntry entry;
+
                 with_lock (Mutex_) {
                     if (auto it = Origin_.Find(key); it != Origin_.End()) {
                         entry.Value = it->Value;
                         entry.IsExpired = (it->Deadline < Clock_->Now());
                     }
                 }
+
                 return NThreading::MakeFuture(std::move(entry));
             }
 
@@ -70,9 +77,11 @@ namespace NSQLComplete {
                     .Deadline = Clock_->Now() + Config_.TTL,
                     .KeyByteSize = TByteSize<TKey>()(key),
                 };
+
                 with_lock (Mutex_) {
                     Origin_.Update(key, std::move(cell));
                 }
+
                 return NThreading::MakeFuture();
             }
 
@@ -96,10 +105,7 @@ namespace NSQLComplete {
     template <NPrivate::CCacheValue TValue>
     struct TByteSize<NPrivate::TLocalCacheCell<TValue>> {
         size_t operator()(const NPrivate::TLocalCacheCell<TValue>& x) const noexcept {
-            return sizeof(x) +
-                   TByteSize<TValue>()(x.Value) +
-                   sizeof(x.Deadline) +
-                   x.KeyByteSize;
+            return x.CellByteSize;
         }
     };
 
