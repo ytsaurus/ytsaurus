@@ -413,7 +413,7 @@ class TestSmoothMovement(DynamicTablesBase):
             mount_config={
                 "dynamic_store_auto_flush_period": yson.YsonEntity(),
                 "testing": {
-                    "simulated_store_preload_delay": 100000,
+                    "simulated_store_preload_delay": 10000,
                 }
             },
             in_memory_mode="compressed")
