@@ -1167,9 +1167,11 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         }
     };
 
+    auto fakePrepareDuration = JobTestingOptions_->FakePrepareDuration;
+
     return {
         .WaitingForResourcesDuration = getDuration(std::make_optional(CreationTime_), ResourcesAcquiredTime_),
-        .PrepareDuration = getDuration(PreparationStartTime_, ExecStartTime_),
+        .PrepareDuration = sumOptionals(getDuration(PreparationStartTime_, ExecStartTime_), fakePrepareDuration),
         .ArtifactsDownloadDuration = getDuration(PreparationStartTime_, CopyFinishTime_),
         .PrepareRootFSDuration = getDuration(PrepareRootVolumeStartTime_, PrepareRootVolumeFinishTime_),
         .ExecDuration = getDuration(ExecStartTime_, FinishTime_),

@@ -1,5 +1,5 @@
-#include "job_size_adjuster.h"
 #include "config.h"
+#include "job_size_adjuster.h"
 
 namespace NYT::NChunkPools {
 
@@ -149,6 +149,70 @@ std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
     const TJobSizeAdjusterConfigPtr& config)
 {
     return std::make_unique<TJobSizeAdjuster>(
+        dataWeightPerJob,
+        config);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDiscreteJobSizeAdjuster
+    : public IDiscreteJobSizeAdjuster
+{
+public:
+    // Persistence only.
+    TDiscreteJobSizeAdjuster() = default;
+
+    TDiscreteJobSizeAdjuster(
+        i64 dataWeightPerJob,
+        const TJobSizeAdjusterConfigPtr& config)
+        : Underlying_(CreateJobSizeAdjuster(dataWeightPerJob, config))
+        , DataWeightFactor_(config->DataWeightFactor)
+    {
+        LastEffectiveDataWeightPerJob_ = Underlying_->GetDataWeightPerJob();
+    }
+
+    EJobAdjustmentAction UpdateStatistics(const TCompletedJobSummary& jobSummary) override
+    {
+        Underlying_->UpdateStatistics(jobSummary);
+
+        i64 suggestedDataWeight = Underlying_->GetDataWeightPerJob();
+        if (LastEffectiveDataWeightPerJob_ * DataWeightFactor_ <= suggestedDataWeight) {
+            LastEffectiveDataWeightPerJob_ = suggestedDataWeight;
+            return EJobAdjustmentAction::RebuildJobs;
+        }
+
+        return EJobAdjustmentAction::None;
+    }
+
+    i64 GetDataWeightPerJob() const override
+    {
+        return Underlying_->GetDataWeightPerJob();
+    }
+
+private:
+    std::unique_ptr<IJobSizeAdjuster> Underlying_;
+    double DataWeightFactor_ = 0;
+    i64 LastEffectiveDataWeightPerJob_ = 0;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TDiscreteJobSizeAdjuster, 0xd6479cd7);
+};
+
+void TDiscreteJobSizeAdjuster::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Underlying_);
+    PHOENIX_REGISTER_FIELD(2, DataWeightFactor_);
+    PHOENIX_REGISTER_FIELD(3, LastEffectiveDataWeightPerJob_);
+}
+
+PHOENIX_DEFINE_TYPE(TDiscreteJobSizeAdjuster);
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IDiscreteJobSizeAdjuster> CreateDiscreteJobSizeAdjuster(
+    i64 dataWeightPerJob,
+    const TJobSizeAdjusterConfigPtr& config)
+{
+    return std::make_unique<TDiscreteJobSizeAdjuster>(
         dataWeightPerJob,
         config);
 }

@@ -29,4 +29,28 @@ std::unique_ptr<IJobSizeAdjuster> CreateJobSizeAdjuster(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EJobAdjustmentAction,
+    (None)
+    (RebuildJobs)
+);
+
+//! Suggests to increase data weight if last data weight was at least
+//! |dataWeightFactor| times smaller than the current ideal data weight.
+//! NB: "Discrete" is opposed to the regular adjuster,
+//! which does not suggest when to rebuild jobs.
+struct IDiscreteJobSizeAdjuster
+    : public virtual IPersistent
+{
+    virtual EJobAdjustmentAction UpdateStatistics(const NControllerAgent::TCompletedJobSummary& jobSummary) = 0;
+    virtual i64 GetDataWeightPerJob() const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IDiscreteJobSizeAdjuster> CreateDiscreteJobSizeAdjuster(
+    i64 dataWeightPerJob,
+    const TJobSizeAdjusterConfigPtr& config);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent

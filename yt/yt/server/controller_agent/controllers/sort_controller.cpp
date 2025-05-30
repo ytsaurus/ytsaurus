@@ -2159,6 +2159,7 @@ protected:
             options.EnablePeriodicYielder = true;
             options.ShouldSliceByRowIndices = true;
             options.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInOrderedPool;
+            options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
             options.Logger = Logger().WithTag("Name: RootPartition");
 
             RootPartitionPool_ = CreateOrderedChunkPool(
@@ -2736,6 +2737,9 @@ protected:
             Options_,
             GetOutputTablePaths().size());
         chunkPoolOptions.Logger = Logger().WithTag("Name: %v", name);
+        if (Config_->EnableSortedMergeInSortJobSizeAdjustment) {
+            chunkPoolOptions.JobSizeAdjusterConfig = Options_->SortedMergeJobSizeAdjuster;
+        }
 
         if (Spec_->UseNewSortedPool) {
             YT_LOG_DEBUG("Creating new sorted pool");
@@ -3368,7 +3372,10 @@ private:
             return;
         }
 
-        InitPartitionPool(RootPartitionPoolJobSizeConstraints_, nullptr, false /*ordered*/);
+        InitPartitionPool(
+            RootPartitionPoolJobSizeConstraints_,
+            nullptr,
+            /*ordered*/ false);
 
         PartitionTasks_.resize(PartitionTreeDepth_);
         for (int partitionTaskLevel = PartitionTreeDepth_ - 1; partitionTaskLevel >= 0; --partitionTaskLevel) {
@@ -4312,9 +4319,13 @@ private:
 
     void PreparePartitionTasks(const IJobSizeConstraintsPtr& partitionJobSizeConstraints)
     {
+        bool useJobSizeAdjuster =
+            (!Spec_->Ordered && Config_->EnablePartitionMapJobSizeAdjustment) ||
+            (Spec_->Ordered && Config_->EnableOrderedPartitionMapJobSizeAdjustment);
+
         InitPartitionPool(
             partitionJobSizeConstraints,
-            Config_->EnablePartitionMapJobSizeAdjustment && !Spec_->Ordered
+            useJobSizeAdjuster
                 ? Options_->PartitionJobSizeAdjuster
                 : nullptr,
             Spec_->Ordered);

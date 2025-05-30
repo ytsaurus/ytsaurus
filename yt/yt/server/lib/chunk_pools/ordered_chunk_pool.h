@@ -27,6 +27,7 @@ struct TOrderedChunkPoolOptions
     // COMPAT(apollo1321): remove in 25.2 release.
     bool UseNewSlicingImplementation = true;
     NLogging::TSerializableLogger Logger;
+    TJobSizeAdjusterConfigPtr JobSizeAdjusterConfig;
 
     PHOENIX_DECLARE_TYPE(TOrderedChunkPoolOptions, 0xa7e43d2a);
 };
