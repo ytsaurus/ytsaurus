@@ -23,6 +23,19 @@ private:
     NMonotonic::TMonotonic Now_ = NMonotonic::CreateDefaultMonotonicTimeProvider()->Now();
 };
 
+struct TFat {};
+
+namespace NSQLComplete {
+
+    template <>
+    struct TByteSize<TFat> {
+        size_t operator()(const TFat&) const noexcept {
+            return 10'000;
+        }
+    };
+
+} // namespace NSQLComplete
+
 struct TAction {
     bool IsGet = false;
     TString Key = "";
@@ -106,30 +119,25 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
         UNIT_ASSERT_VALUES_EQUAL(cache->Get("1").ExtractValueSync().Value, TString(128, '1'));
     }
 
-    Y_UNIT_TEST(OnFull_WhenFatAdded_ThenSomeKeysAreEvicted) {
-        auto cache = MakeLocalCache<TString, TString>(
-            NMonotonic::CreateDefaultMonotonicTimeProvider(), {.ByteCapacity = 4 + 16});
-        cache->Update("1", "1111");
-        cache->Update("2", "2222");
-        cache->Update("3", "3333");
-        cache->Update("4", "4444");
+    Y_UNIT_TEST(OnFull_WhenFatAdded_ThenSomeKeyIsEvicted) {
+        auto cache = MakeLocalCache<int, TFat>(
+            NMonotonic::CreateDefaultMonotonicTimeProvider(),
+            {.ByteCapacity = 5 * TByteSize<TFat>()({})});
+        cache->Update(1, {});
+        cache->Update(2, {});
+        cache->Update(3, {});
+        cache->Update(4, {});
 
-        cache->Update("5", "5_5_5_5_");
+        cache->Update(5, {});
 
         size_t evicted = 0;
-        size_t size = 0;
-        for (auto x : {"1", "2", "3", "4", "5"}) {
-            auto entry = cache->Get(x).GetValueSync();
-            if (entry.IsExpired) {
+        for (auto x : {1, 2, 3, 4, 5}) {
+            if (cache->Get(x).GetValueSync().IsExpired) {
                 evicted += 1;
-            } else {
-                size += entry.Value.size();
             }
         }
 
-        UNIT_ASSERT_LE(2, evicted);
-        UNIT_ASSERT_LE(size, 4 + 16);
-        UNIT_ASSERT_LT(0, size);
+        UNIT_ASSERT_VALUES_EQUAL(evicted, 1);
     }
 
     Y_UNIT_TEST(WhenRandomlyAccessed_ThenDoesNotDie) {
