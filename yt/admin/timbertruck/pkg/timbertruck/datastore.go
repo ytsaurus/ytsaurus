@@ -78,6 +78,8 @@ func parseTask(scanner rowScanner, task *Task) (err error) {
 	if err == sql.ErrNoRows {
 		err = ErrNotFound
 		return
+	} else if isDatabaseLocked(err) {
+		return
 	} else if err != nil {
 		panic(fmt.Sprintf("internal error: cannot decode task: %v", err))
 	}
@@ -437,7 +439,7 @@ func (ds *Datastore) UpdateEndPosition(stagedPath string, pos pipelines.FilePosi
 			stagedPath,
 		)
 		if err != nil {
-			panic(fmt.Sprintf("internal error: cannot update EndPosition: %v", err))
+			return fmt.Errorf("cannot update EndPosition: %v", err)
 		}
 		return checkSingleRowAffected(execResult)
 	})
