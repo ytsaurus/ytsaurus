@@ -138,7 +138,10 @@ public:
         const auto& objectToHost = Owner_->ObjectToHost_;
         auto objectToHostIt = objectToHost.find(objectRef);
         if (objectToHostIt == objectToHost.end()) {
-            THROW_ERROR_EXCEPTION("Object %Qv is not mapped to any queue agent", objectRef);
+            THROW_ERROR_EXCEPTION(
+                NQueueClient::EErrorCode::QueueAgentObjectIsNotMapped,
+                "Object %Qv is not mapped to any queue agent",
+                objectRef);
         }
 
         if (!Owner_->ObjectsWithOurStage_[ObjectKind_].contains(objectRef)) {
