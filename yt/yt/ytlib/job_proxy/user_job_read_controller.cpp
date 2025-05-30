@@ -61,7 +61,7 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         IInvokerPtr invoker,
         TClientChunkReadOptions chunkReadOptions,
-        TChunkReaderHostPtr chunkReaderHost,
+        TMultiChunkReaderHostPtr chunkReaderHost,
         TClosure onNetworkRelease,
         std::optional<TString> udfDirectory,
         TDuration threshold,
@@ -240,7 +240,7 @@ private:
     const IJobSpecHelperPtr JobSpecHelper_;
     const IInvokerPtr SerializedInvoker_;
     const TClientChunkReadOptions ChunkReadOptions_;
-    const TChunkReaderHostPtr ChunkReaderHost_;
+    const TMultiChunkReaderHostPtr ChunkReaderHost_;
     const TClosure OnNetworkRelease_;
     const TInstant IOStartTime_;
 
@@ -548,7 +548,7 @@ DEFINE_REFCOUNTED_TYPE(TVanillaUserJobReadController)
 
 IUserJobReadControllerPtr CreateUserJobReadController(
     IJobSpecHelperPtr jobSpecHelper,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     IInvokerPtr invoker,
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,

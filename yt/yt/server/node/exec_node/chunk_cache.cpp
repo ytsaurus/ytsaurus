@@ -1338,7 +1338,7 @@ private:
         auto reader = CreateSchemalessSequentialMultiReader(
             GetArtifactCacheReaderConfig(),
             std::move(readerOptions),
-            std::move(chunkReaderHost),
+            CreateSingleSourceMultiChunkReaderHost(std::move(chunkReaderHost)),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             /*hintKeys*/ std::nullopt,
