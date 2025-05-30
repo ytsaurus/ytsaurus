@@ -27,7 +27,7 @@ items:
 - { name: SearchEngine,           href: searchengine.md,             when: audience == "internal"   }
 - { name: Streaming,              href: streaming.md                           }
 - { name: String,                 href: string.md                              }
-- { name: TensorFlow,             href: tensorflow.md,                         }
+- { name: TensorFlow,             href: tensorflow.md,               when: audience == "internal"   }
 - { name: Unicode,                href: unicode.md                             }
 - { name: UserAgent,              href: useragent.md,                when: audience == "internal"   }
 - { name: Url,                    href: url.md                                 }
