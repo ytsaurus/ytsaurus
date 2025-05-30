@@ -209,9 +209,31 @@ public:
         } else if (movementData.GetRole() == ESmoothMovementRole::Target) {
             switch (movementData.GetStage()) {
                 case ESmoothMovementStage::TargetActivated:
-                    if (movementData.CommonDynamicStoreIds().empty()) {
-                        newStage = ESmoothMovementStage::ServantSwitchRequested;
+                    if (!movementData.CommonDynamicStoreIds().empty()) {
+                        return;
                     }
+
+                    if (TInstant::Now() - movementData.GetLastStageChangeTime() <
+                        GetDynamicConfig()->PreloadWaitTimeout)
+                    {
+                        // NB: It may be rather slow to traverse all chunks upon each CheckTablet
+                        // call since this method is called on all transaction commits.
+                        // Maybe should optimize and store accumulated preload statistics in tablet.
+                        auto preloadStatistics = tablet->ComputePreloadStatistics();
+                        if (preloadStatistics.PendingStoreCount > 0 ||
+                            preloadStatistics.FailedStoreCount > 0)
+                        {
+                            YT_LOG_DEBUG("Target servant is not fully preloaded, will not initiate switch "
+                                "(%v, PendingStoreCount: %v, FailedStoreCount: %v)",
+                                tablet->GetLoggingTag(),
+                                preloadStatistics.PendingStoreCount,
+                                preloadStatistics.FailedStoreCount);
+
+                            return;
+                        }
+                    }
+
+                    newStage = ESmoothMovementStage::ServantSwitchRequested;
 
                     break;
 

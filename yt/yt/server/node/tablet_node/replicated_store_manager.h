@@ -54,8 +54,8 @@ public:
     void UnscheduleRotation() override;
     void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason, bool allowEmptyStore) override;
 
-    void AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint) override;
-    void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
+    void AddStore(IStorePtr store, bool useInterceptedChunkData, bool onFlush, TPartitionId partitionIdHint) override;
+    void BulkAddStores(TRange<IStorePtr> stores) override;
     void CreateActiveStore(TDynamicStoreId hintId = {}) override;
 
     void DiscardAllStores() override;

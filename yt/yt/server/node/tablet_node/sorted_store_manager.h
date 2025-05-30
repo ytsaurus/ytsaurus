@@ -89,8 +89,12 @@ public:
     void PopulateReplicateTabletContentRequest(
         NProto::TReqReplicateTabletContent* request) override;
 
-    void AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint = {}) override;
-    void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
+    void AddStore(
+        IStorePtr store,
+        bool useInterceptedChunkData,
+        bool onFlush,
+        TPartitionId partitionIdHint = {}) override;
+    void BulkAddStores(TRange<IStorePtr> stores) override;
     void DiscardAllStores() override;
     void RemoveStore(IStorePtr store) override;
     void CreateActiveStore(TDynamicStoreId hintId = {}) override;

@@ -882,6 +882,8 @@ public:
 
     bool IsVersionedWriteUnversioned() const;
 
+    TPreloadStatistics ComputePreloadStatistics() const;
+
 private:
     struct TTabletSizeMetrics
     {

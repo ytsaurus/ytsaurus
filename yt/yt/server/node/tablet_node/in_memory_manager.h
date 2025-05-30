@@ -105,6 +105,8 @@ struct TChunkInfo
     NChunkClient::TRefCountedChunkMetaPtr ChunkMeta;
     TTabletId TabletId;
     NHydra::TRevision MountRevision;
+    // Used when blocks are sent to the cell with the target servant.
+    NHydra::TRevision TargetServantMountRevision;
 };
 
 struct IRemoteInMemoryBlockCache
@@ -120,7 +122,7 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
     IInvokerPtr controlInvoker,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
-    NHiveClient::TCellDescriptorPtr cellDescriptor,
+    const TTabletSnapshotPtr& tabletSnapshot,
     NTabletClient::EInMemoryMode inMemoryMode,
     TInMemoryManagerConfigPtr config);
 
