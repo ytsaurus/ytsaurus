@@ -10,6 +10,8 @@ from yt_commands import (
     get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, sorted_dicts,
 )
 
+from yt_sequoia_helpers import is_sequoia_id, not_implemented_in_sequoia
+
 from yt_helpers import (
     wait_until_unlocked
 )
@@ -1248,8 +1250,15 @@ class TestTables(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_recursive_resource_usage(self):
-        create("table", "//tmp/t1")
+        t1_id = create("table", "//tmp/t1")
         write_table("//tmp/t1", {"a": "b"})
+
+        # TODO(kvk1920): support @recursive_resource_usage in Sequoia.
+        if is_sequoia_id(t1_id):
+            with raises_yt_error("Attribute \"recursive_resource_usage\" is not supported in Sequoia yet"):
+                get_recursive_disk_space("//tmp")
+            return
+
         copy("//tmp/t1", "//tmp/t2")
 
         assert get_chunk_owner_disk_space("//tmp/t1") + get_chunk_owner_disk_space(
@@ -2776,10 +2785,21 @@ class TestTables(YTEnvSetup):
     @authors("h0pless")
     def test_schemaful_node_type_handler(self):
         def create_table_on_specific_cell(path, schema):
-            if self.is_multicell():
-                create("table", path, attributes={"schema": schema, "external_cell_tag": 13})
-            else:
-                create("table", path, attributes={"schema": schema, "external": False})
+            while True:
+                if self.is_multicell():
+                    table_id = create("table", path, attributes={"schema": schema, "external_cell_tag": 13})
+                else:
+                    table_id = create("table", path, attributes={"schema": schema, "external": False})
+
+                if self.ENABLE_TMP_ROOTSTOCK:
+                    cell_tag = int(table_id.split("-")[2], 16) >> 16
+                    if cell_tag != 14:
+                        # We want all tables to be on the same cell.
+                        remove(path)
+                        # Retry and hope it will be created on cell 14 next time.
+                        continue
+
+                break
 
         def branch_my_table():
             tx = start_transaction()
@@ -3117,6 +3137,7 @@ class TestTablesMulticell(TestTables):
             )
 
     @authors("shakurov")
+    @not_implemented_in_sequoia  # Cross-cell copy.
     def test_cloned_table_statistics_yt_18290(self):
         if not self.ENABLE_TMP_PORTAL:
             create("map_node", "//portals", force=True)
@@ -3269,6 +3290,7 @@ class TestTablesShardedTx(TestTablesPortal):
     }
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
 class TestTablesMirroredTx(TestTablesShardedTx):
     ENABLE_MULTIDAEMON = True
@@ -3288,6 +3310,23 @@ class TestTablesMirroredTx(TestTablesShardedTx):
         "transaction_manager": {
             "forbid_transaction_actions_for_cypress_transactions": True,
         }
+    }
+
+
+@authors("kvk1920")
+@pytest.mark.enabled_multidaemon
+class TestTablesSequoia(TestTablesMirroredTx):
+    ENABLE_MULTIDAEMON = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 5
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["cypress_node_host", "chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["sequoia_node_host",  "transaction_coordinator"]},
+        "15": {"roles": ["sequoia_node_host"]},
     }
 
 
