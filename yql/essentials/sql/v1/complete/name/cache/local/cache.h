@@ -10,7 +10,7 @@
 namespace NSQLComplete {
 
     struct TLocalCacheConfig {
-        size_t Capacity = 1 * 1024 * 1024;
+        size_t ByteCapacity = 1 * 1024 * 1024;
         TDuration TTL = TDuration::Seconds(8);
     };
 
@@ -54,7 +54,7 @@ namespace NSQLComplete {
             TLocalCache(TIntrusivePtr<NMonotonic::IMonotonicTimeProvider> clock, TLocalCacheConfig config)
                 : Clock_(std::move(clock))
                 , Config_(std::move(config))
-                , Origin_(/* maxSize = */ Config_.Capacity)
+                , Origin_(/* maxSize = */ Config_.ByteCapacity)
             {
             }
 
