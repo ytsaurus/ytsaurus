@@ -16,38 +16,23 @@ namespace NSQLComplete {
 
     namespace NPrivate {
 
-        template <class TKey, class TValue>
-        struct TSizeofSizeProvider {
-            template <class T>
-            size_t operator()(const T& x) const {
-                return sizeof(x);
-            }
+        template <CCacheValue TValue>
+        struct TLocalCacheCell {
+            TValue Value;
+            NMonotonic::TMonotonic Deadline;
+            size_t KeySize = 0;
         };
 
-        template <
-            CCacheKey TKey,
-            CCacheValue TValue,
-            CSizeProvider<TKey, TValue> TSizeProvider>
+        template <CCacheKey TKey, CCacheValue TValue>
         class TLocalCache: public ICache<TKey, TValue> {
         private:
             using TEntry = ICache<TKey, TValue>::TEntry;
-
-            struct TCell {
-                TValue Value;
-                NMonotonic::TMonotonic Deadline;
-                size_t KeySize = 0;
-            };
-
-            struct TCellSizeProvider {
-                size_t operator()(const TCell& entry) const {
-                    return TSizeProvider()(entry.Value) + entry.KeySize;
-                };
-            };
+            using TCell = TLocalCacheCell<TValue>;
 
             using TStorage = TLFUCache<
                 TKey, TCell,
                 TNoopDelete, std::allocator<TKey>,
-                TCellSizeProvider>;
+                TByteSize<TCell>>;
 
         public:
             TLocalCache(TIntrusivePtr<NMonotonic::IMonotonicTimeProvider> clock, TLocalCacheConfig config)
@@ -69,10 +54,10 @@ namespace NSQLComplete {
             }
 
             NThreading::TFuture<void> Update(const TKey& key, TValue value) const override {
-                TCell entry = {
+                TLocalCacheCell entry = {
                     .Value = std::move(value),
                     .Deadline = Clock_->Now() + Config_.TTL,
-                    .KeySize = TSizeProvider()(key),
+                    .KeySize = TByteSize<TKey>()(key),
                 };
                 with_lock (Mutex_) {
                     Origin_.Update(key, std::move(entry));
@@ -90,16 +75,18 @@ namespace NSQLComplete {
 
     } // namespace NPrivate
 
-    template <
-        NPrivate::CCacheKey TKey,
-        NPrivate::CCacheValue TValue,
-        NPrivate::CSizeProvider<TKey, TValue> TSizeProvider =
-            NPrivate::TSizeofSizeProvider<TKey, TValue>>
+    template <NPrivate::CCacheKey TKey, NPrivate::CCacheValue TValue>
     ICache<TKey, TValue>::TPtr MakeLocalCache(
         TIntrusivePtr<NMonotonic::IMonotonicTimeProvider> clock,
         TLocalCacheConfig config) {
-        return new NPrivate::TLocalCache<TKey, TValue, TSizeProvider>(
-            std::move(clock), std::move(config));
+        return new NPrivate::TLocalCache<TKey, TValue>(std::move(clock), std::move(config));
     }
+
+    template <NPrivate::CCacheValue TValue>
+    struct TByteSize<NPrivate::TLocalCacheCell<TValue>> {
+        size_t operator()(const NPrivate::TLocalCacheCell<TValue>& x) const noexcept {
+            return sizeof(x);
+        }
+    };
 
 } // namespace NSQLComplete

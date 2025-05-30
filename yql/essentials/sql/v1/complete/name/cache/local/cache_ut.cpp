@@ -23,12 +23,6 @@ private:
     NMonotonic::TMonotonic Now_ = NMonotonic::CreateDefaultMonotonicTimeProvider()->Now();
 };
 
-struct TStringSizeProvider {
-    size_t operator()(const TString& s) const {
-        return s.size();
-    }
-};
-
 struct TAction {
     bool IsGet = false;
     TString Key = "";
@@ -113,7 +107,7 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
     }
 
     Y_UNIT_TEST(OnFull_WhenFatAdded_ThenSomeKeysAreEvicted) {
-        auto cache = MakeLocalCache<TString, TString, TStringSizeProvider>(
+        auto cache = MakeLocalCache<TString, TString>(
             NMonotonic::CreateDefaultMonotonicTimeProvider(), {.Capacity = 4 + 16});
         cache->Update("1", "1111");
         cache->Update("2", "2222");
@@ -142,7 +136,7 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
         constexpr size_t Iterations = 1024 * 1024;
         SetRandomSeed(1);
 
-        auto cache = MakeLocalCache<TString, TString, TStringSizeProvider>(
+        auto cache = MakeLocalCache<TString, TString>(
             NMonotonic::CreateDefaultMonotonicTimeProvider(), {.Capacity = 64, .TTL = TDuration::MilliSeconds(1)});
 
         for (auto&& a : GenerateRandomActions(Iterations)) {
@@ -159,7 +153,7 @@ Y_UNIT_TEST_SUITE(LocalCacheTests) {
         constexpr size_t Iterations = Threads * 16 * 1024;
         SetRandomSeed(1);
 
-        auto cache = MakeLocalCache<TString, TString, TStringSizeProvider>(
+        auto cache = MakeLocalCache<TString, TString>(
             NMonotonic::CreateDefaultMonotonicTimeProvider(), {.Capacity = 64, .TTL = TDuration::MilliSeconds(1)});
 
         auto pool = CreateThreadPool(Threads);

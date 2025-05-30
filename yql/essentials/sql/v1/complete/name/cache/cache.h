@@ -1,5 +1,7 @@
 #pragma once
 
+#include "size.h"
+
 #include <library/cpp/threading/future/future.h>
 
 #include <util/generic/ptr.h>
@@ -15,16 +17,10 @@ namespace NSQLComplete {
         };
 
         template <class T>
-        concept CCacheKey = std::regular<T> && CHashable<T>;
+        concept CCacheKey = std::regular<T> && CHashable<T> && CByteSized<T>;
 
         template <class T>
-        concept CCacheValue = std::copyable<T>;
-
-        template <class T, class K, class V>
-        concept CSizeProvider = requires(const T& x, const K& k, const V& v) {
-            { x(k) } -> std::convertible_to<std::size_t>;
-            { x(v) } -> std::convertible_to<std::size_t>;
-        } && std::is_default_constructible_v<T>;
+        concept CCacheValue = std::copyable<T> && CByteSized<T>;
 
     }; // namespace NPrivate
 

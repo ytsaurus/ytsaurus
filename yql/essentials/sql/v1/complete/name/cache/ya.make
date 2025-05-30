@@ -3,6 +3,7 @@ LIBRARY()
 SRCS(
     cache.cpp
     cached.cpp
+    size.cpp
 )
 
 PEERDIR(

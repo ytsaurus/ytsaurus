@@ -1249,8 +1249,7 @@ JOIN yt:$cluster_name.test;
         TLexerSupplier lexer = MakePureLexerSupplier();
 
         auto cache = MakeLocalCache<
-            TSchemaListCacheKey, TVector<TFolderEntry>,
-            TSchemaListSizeProvider>(
+            TSchemaListCacheKey, TVector<TFolderEntry>>(
             NMonotonic::CreateDefaultMonotonicTimeProvider(), {});
 
         auto aliceService = MakeSchemaNameService(
