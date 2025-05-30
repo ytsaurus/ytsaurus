@@ -31,6 +31,10 @@ struct TGpuInfo
     double PcieTxByteRate = 0.0;
     double TensorActivityRate = 0.0;
     double DramActivityRate = 0.0;
+    bool IsSWThermalSlowdown = false;
+    bool IsHWThermalSlowdown = false;
+    bool IsHWPowerBrakeSlowdown = false;
+    bool IsHWSlowdown = false;
 
     struct
     {

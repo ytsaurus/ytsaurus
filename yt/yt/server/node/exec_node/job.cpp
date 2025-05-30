@@ -184,6 +184,7 @@ TString MakeNbdExportId(TJobId jobId, int nbdExportIndex)
 static const TString GpuUtilizationGpuSensorName = "gpu/utilization_gpu";
 static const TString GpuUtilizationMemorySensorName = "gpu/utilization_memory";
 static const TString GpuUtilizationPowerSensorName = "gpu/utilization_power";
+static const TString GpuSMClocksSensorName = "gpu/sm_clocks";
 static const TString GpuSMUtilizationSensorName = "gpu/sm_utilization";
 static const TString GpuSMOccupancySensorName = "gpu/sm_occupancy";
 static const TString GpuMemorySensorName = "gpu/memory";
@@ -197,6 +198,10 @@ static const TString GpuRdmaRxBytesSensorName = "gpu/rdma/rx_bytes";
 static const TString GpuRdmaTxBytesSensorName = "gpu/rdma/tx_bytes";
 static const TString GpuTensorActivitySensorName = "gpu/tensor_activity";
 static const TString GpuDramActivitySensorName = "gpu/dram_activity";
+static const TString GpuSwThermalSlowdownSensorName = "gpu/sw_thermal_slowdown";
+static const TString GpuHwThermalSlowdownSensorName = "gpu/hw_thermal_slowdown";
+static const TString GpuHwPowerBrakeSlowdownSensorName = "gpu/hw_power_brake_slowdown";
+static const TString GpuHwSlowdownSensorName = "gpu/hw_slowdown";
 
 const THashMap<TString, TUserJobSensorPtr>& GetSupportedGpuMonitoringSensors()
 {
@@ -213,6 +218,10 @@ const THashMap<TString, TUserJobSensorPtr>& GetSupportedGpuMonitoringSensors()
             .Item(GpuUtilizationPowerSensorName).BeginMap()
                 .Item("type").Value("gauge")
                 .Item("profiling_name").Value("/user_job/gpu/utilization_power")
+            .EndMap()
+            .Item(GpuSMClocksSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/sm_clocks")
             .EndMap()
             .Item(GpuSMUtilizationSensorName).BeginMap()
                 .Item("type").Value("gauge")
@@ -266,6 +275,22 @@ const THashMap<TString, TUserJobSensorPtr>& GetSupportedGpuMonitoringSensors()
                 .Item("type").Value("gauge")
                 .Item("profiling_name").Value("/user_job/gpu/dram_activity")
             .EndMap()
+            .Item(GpuSwThermalSlowdownSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/sw_thermal_slowdown")
+            .EndMap()
+            .Item(GpuHwThermalSlowdownSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/hw_thermal_slowdown")
+            .EndMap()
+            .Item(GpuHwPowerBrakeSlowdownSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/hw_power_brake_slowdown")
+            .EndMap()
+            .Item(GpuHwSlowdownSensorName).BeginMap()
+                .Item("type").Value("gauge")
+                .Item("profiling_name").Value("/user_job/gpu/hw_slowdown")
+                .EndMap()
 
             // COMPAT(eshcherbin): These sensors are no longer produced, however we cannot remove them
             // because user jobs will fail otherwise.
@@ -3865,6 +3890,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
             (gpuInfo.ClocksMaxSM > 0
                 ? static_cast<double>(gpuInfo.ClocksSM) / gpuInfo.ClocksMaxSM
                 : 0.0);
+        slotStatistics.CumulativeSMClocks += period.MilliSeconds() * gpuInfo.ClocksSM;
         slotStatistics.CumulativeSMUtilization += period.MilliSeconds() * gpuInfo.SMUtilizationRate;
         slotStatistics.CumulativeSMOccupancy += period.MilliSeconds() * gpuInfo.SMOccupancyRate;
         slotStatistics.NvlinkRxBytes += static_cast<i64>(period.SecondsFloat() * gpuInfo.NvlinkRxByteRate);
@@ -3879,6 +3905,10 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
         }
         slotStatistics.CumulativeTensorActivity += period.MilliSeconds() * gpuInfo.TensorActivityRate;
         slotStatistics.CumulativeDramActivity += period.MilliSeconds() * gpuInfo.DramActivityRate;
+        slotStatistics.CumulativeSwThermalSlowdown += gpuInfo.IsSWThermalSlowdown ? period.MilliSeconds() : 0;
+        slotStatistics.CumulativeHwThermalSlowdown += gpuInfo.IsHWThermalSlowdown ? period.MilliSeconds() : 0;
+        slotStatistics.CumulativeHwPowerBrakeSlowdown += gpuInfo.IsHWPowerBrakeSlowdown ? period.MilliSeconds() : 0;
+        slotStatistics.CumulativeHwSlowdown += gpuInfo.IsHWSlowdown ? period.MilliSeconds() : 0;
 
         YT_LOG_DEBUG(
             "Updated job GPU slot statistics "
@@ -3897,6 +3927,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
         aggregatedGpuStatistics.CumulativeLoad += slotStatistics.CumulativeLoad;
         aggregatedGpuStatistics.CumulativeUtilizationPower += slotStatistics.CumulativeUtilizationPower;
         aggregatedGpuStatistics.CumulativePower += slotStatistics.CumulativePower;
+        aggregatedGpuStatistics.CumulativeSMClocks += slotStatistics.CumulativeSMClocks;
         aggregatedGpuStatistics.CumulativeSMUtilization += slotStatistics.CumulativeSMUtilization;
         aggregatedGpuStatistics.CumulativeSMOccupancy += slotStatistics.CumulativeSMOccupancy;
         aggregatedGpuStatistics.NvlinkRxBytes += slotStatistics.NvlinkRxBytes;
@@ -3907,6 +3938,10 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
         aggregatedGpuStatistics.MaxStuckDuration = std::max(aggregatedGpuStatistics.MaxStuckDuration, slotStatistics.MaxStuckDuration);
         aggregatedGpuStatistics.CumulativeTensorActivity += slotStatistics.CumulativeTensorActivity;
         aggregatedGpuStatistics.CumulativeDramActivity += slotStatistics.CumulativeDramActivity;
+        aggregatedGpuStatistics.CumulativeSwThermalSlowdown += slotStatistics.CumulativeSwThermalSlowdown;
+        aggregatedGpuStatistics.CumulativeHwThermalSlowdown += slotStatistics.CumulativeHwThermalSlowdown;
+        aggregatedGpuStatistics.CumulativeHwPowerBrakeSlowdown += slotStatistics.CumulativeHwPowerBrakeSlowdown;
+        aggregatedGpuStatistics.CumulativeHwSlowdown += slotStatistics.CumulativeHwSlowdown;
         totalGpuMemory += gpuInfo.MemoryTotal;
     }
 
@@ -3922,6 +3957,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
     statistics->AddSample("/user_job/gpu/cumulative_power"_SP, aggregatedGpuStatistics.CumulativePower);
     statistics->AddSample("/user_job/gpu/cumulative_load"_SP, aggregatedGpuStatistics.CumulativeLoad);
     statistics->AddSample("/user_job/gpu/max_memory_used"_SP, aggregatedGpuStatistics.MaxMemoryUsed);
+    statistics->AddSample("/user_job/gpu/cumulative_sm_clocks"_SP, aggregatedGpuStatistics.CumulativeSMClocks);
     statistics->AddSample("/user_job/gpu/cumulative_sm_utilization"_SP, aggregatedGpuStatistics.CumulativeSMUtilization);
     statistics->AddSample("/user_job/gpu/cumulative_sm_occupancy"_SP, aggregatedGpuStatistics.CumulativeSMOccupancy);
     statistics->AddSample("/user_job/gpu/nvlink/rx_bytes"_SP, aggregatedGpuStatistics.NvlinkRxBytes);
@@ -3931,6 +3967,10 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
     statistics->AddSample("/user_job/gpu/max_stuck_duration"_SP, aggregatedGpuStatistics.MaxStuckDuration);
     statistics->AddSample("/user_job/gpu/cumulative_tensor_activity"_SP, aggregatedGpuStatistics.CumulativeTensorActivity);
     statistics->AddSample("/user_job/gpu/cumulative_dram_activity"_SP, aggregatedGpuStatistics.CumulativeDramActivity);
+    statistics->AddSample("/user_job/gpu/cumulative_sw_thermal_slowdown"_SP, aggregatedGpuStatistics.CumulativeSwThermalSlowdown);
+    statistics->AddSample("/user_job/gpu/cumulative_hw_thermal_slowdown"_SP, aggregatedGpuStatistics.CumulativeHwThermalSlowdown);
+    statistics->AddSample("/user_job/gpu/cumulative_hw_power_brake_slowdown"_SP, aggregatedGpuStatistics.CumulativeHwPowerBrakeSlowdown);
+    statistics->AddSample("/user_job/gpu/cumulative_hw_slowdown"_SP, aggregatedGpuStatistics.CumulativeHwSlowdown);
     statistics->AddSample("/user_job/gpu/memory_total"_SP, totalGpuMemory);
 }
 
@@ -4273,6 +4313,7 @@ void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
                 ? 0.0
                 : gpuInfo.PowerDraw / gpuInfo.PowerLimit);
         profileSensorIfNeeded(GpuPowerSensorName, gpuInfo.PowerDraw);
+        profileSensorIfNeeded(GpuSMClocksSensorName, gpuInfo.ClocksSM);
         profileSensorIfNeeded(GpuSMUtilizationSensorName, gpuInfo.SMUtilizationRate);
         profileSensorIfNeeded(GpuSMOccupancySensorName, gpuInfo.SMOccupancyRate);
         profileSensorIfNeeded(GpuNvlinkRxBytesSensorName, gpuInfo.NvlinkRxByteRate);
@@ -4282,6 +4323,10 @@ void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
         profileSensorIfNeeded(GpuStuckSensorName, static_cast<double>(gpuInfo.Stuck.Status));
         profileSensorIfNeeded(GpuTensorActivitySensorName, gpuInfo.TensorActivityRate);
         profileSensorIfNeeded(GpuDramActivitySensorName, gpuInfo.DramActivityRate);
+        profileSensorIfNeeded(GpuSwThermalSlowdownSensorName, gpuInfo.IsSWThermalSlowdown);
+        profileSensorIfNeeded(GpuHwThermalSlowdownSensorName, gpuInfo.IsHWThermalSlowdown);
+        profileSensorIfNeeded(GpuHwPowerBrakeSlowdownSensorName, gpuInfo.IsHWPowerBrakeSlowdown);
+        profileSensorIfNeeded(GpuHwSlowdownSensorName, gpuInfo.IsHWSlowdown);
     }
 
 
