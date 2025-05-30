@@ -410,6 +410,8 @@ struct TSimpleOperationOptions
     int MaxJobCount;
     i64 DataWeightPerJob;
 
+    NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
+
     REGISTER_YSON_STRUCT(TSimpleOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -425,8 +427,6 @@ DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
 struct TMapOperationOptions
     : public TSimpleOperationOptions
 {
-    NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
-
     REGISTER_YSON_STRUCT(TMapOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -527,6 +527,7 @@ struct TSortOperationOptionsBase
     i64 MinUncompressedBlockSize;
     i64 MaxValueCountPerSimpleSortJob;
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
+    NChunkPools::TJobSizeAdjusterConfigPtr SortedMergeJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
     double CriticalNewPartitionDifferenceRatio;
 
@@ -1032,6 +1033,11 @@ struct TControllerAgentConfig
 
     //! Enables dynamic change of job sizes.
     bool EnablePartitionMapJobSizeAdjustment;
+
+    //! Enables dynamic change of job sizes.
+    bool EnableOrderedPartitionMapJobSizeAdjustment;
+
+    bool EnableSortedMergeInSortJobSizeAdjustment;
 
     bool EnableMapJobSizeAdjustment;
 

@@ -30,6 +30,7 @@ struct TSortedChunkPoolOptions
 
     // Only for new pool.
     std::optional<i64> MinManiacDataWeight;
+    TJobSizeAdjusterConfigPtr JobSizeAdjusterConfig;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
