@@ -29,10 +29,7 @@ namespace NSQLComplete {
             using TEntry = ICache<TKey, TValue>::TEntry;
             using TCell = TLocalCacheCell<TValue>;
 
-            using TStorage = TLFUCache<
-                TKey, TCell,
-                TNoopDelete, std::allocator<TKey>,
-                TByteSize<TCell>>;
+            using TStorage = TLRUCache<TKey, TCell, TNoopDelete, TByteSize<TCell>>;
 
         public:
             TLocalCache(TIntrusivePtr<NMonotonic::IMonotonicTimeProvider> clock, TLocalCacheConfig config)
