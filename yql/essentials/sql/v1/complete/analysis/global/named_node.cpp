@@ -73,6 +73,10 @@ namespace NSQLComplete {
 
             std::any visitBind_parameter(SQLv1::Bind_parameterContext* ctx) override {
                 std::string id = GetId(ctx);
+                if (id == "_") {
+                    return {};
+                }
+
                 Names_->emplace_back(std::move(id));
                 return {};
             }

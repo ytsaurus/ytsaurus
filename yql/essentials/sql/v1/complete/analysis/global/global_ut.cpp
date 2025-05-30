@@ -26,12 +26,11 @@ Y_UNIT_TEST_SUITE(GlobalAnalysisTests) {
         Sort(ctx.Names);
 
         TVector<TString> expected = {
-            "_", 
-            "cluster_name", 
-            "first", 
-            "hello_world", 
-            "pow", 
-            "second", 
+            "cluster_name",
+            "first",
+            "hello_world",
+            "pow",
+            "second",
             "sqrt",
         };
 
