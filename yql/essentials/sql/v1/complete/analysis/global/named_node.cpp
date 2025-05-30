@@ -17,9 +17,9 @@ namespace NSQLComplete {
             TVisitor(
                 antlr4::TokenStream* tokens,
                 size_t cursorPosition,
-                TNamedExpressions* exprs)
+                TVector<TString>* names)
                 : TSQLv1NarrowingVisitor(tokens, cursorPosition)
-                , Exprs_(exprs)
+                , Names_(names)
             {
             }
 
@@ -73,7 +73,7 @@ namespace NSQLComplete {
 
             std::any visitBind_parameter(SQLv1::Bind_parameterContext* ctx) override {
                 std::string id = GetId(ctx);
-                Exprs_->emplace(std::move(id), DummyYson());
+                Names_->emplace_back(std::move(id));
                 return {};
             }
 
@@ -85,20 +85,16 @@ namespace NSQLComplete {
                 visit(tree);
             }
 
-            static NYT::TNode DummyYson() {
-                return "";
-            }
-
-            TNamedExpressions* Exprs_;
+            TVector<TString>* Names_;
         };
 
     } // namespace
 
-    TNamedExpressions CollectNamedNodes(
+    TVector<TString> CollectNamedNodes(
         SQLv1::Sql_queryContext* ctx,
         antlr4::TokenStream* tokens,
         size_t cursorPosition) {
-        TNamedExpressions exprs;
+        TVector<TString> exprs;
         TVisitor(tokens, cursorPosition, &exprs).visit(ctx);
         return exprs;
     }

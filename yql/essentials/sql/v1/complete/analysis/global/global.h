@@ -17,7 +17,7 @@ namespace NSQLComplete {
 
     struct TGlobalContext {
         TMaybe<TUseContext> Use;
-        TNamedExpressions NamedExpressions;
+        TVector<TString> Names;
     };
 
     class IGlobalAnalysis {
