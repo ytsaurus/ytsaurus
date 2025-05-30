@@ -7,12 +7,10 @@
 
 namespace NSQLComplete {
 
-    using TNamedExpressions = THashMap<TString, NYT::TNode>;
-
     struct TEnvironment {
         // Given `{ "$x": "{ "Data": "foo" }" }`,
         // it will contain `{ "$x": "foo" }`
-        TNamedExpressions Parameters;
+        THashMap<TString, NYT::TNode> Parameters;
     };
 
 } // namespace NSQLComplete
