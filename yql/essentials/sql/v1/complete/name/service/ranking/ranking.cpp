@@ -15,7 +15,7 @@ namespace NSQLComplete {
 
     public:
         explicit TRanking(TFrequencyData frequency)
-            : Frequency_(frequency)
+            : Frequency_(std::move(frequency))
         {
         }
 
