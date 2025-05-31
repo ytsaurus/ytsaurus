@@ -14,7 +14,7 @@ namespace NSQLComplete {
 
     class TSqlCompletionEngine: public ISqlCompletionEngine {
     public:
-        explicit TSqlCompletionEngine(
+        TSqlCompletionEngine(
             TLexerSupplier lexer,
             INameService::TPtr names,
             ISqlCompletionEngine::TConfiguration configuration)

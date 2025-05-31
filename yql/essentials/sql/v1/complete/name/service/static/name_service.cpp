@@ -103,7 +103,7 @@ namespace NSQLComplete {
 
     class TPragmaNameService: public IRankingNameService {
     public:
-        explicit TPragmaNameService(IRanking::TPtr ranking, TVector<TString> pragmas)
+        TPragmaNameService(IRanking::TPtr ranking, TVector<TString> pragmas)
             : IRankingNameService(std::move(ranking))
             , Pragmas_(BuildNameIndex(std::move(pragmas), NormalizeName))
         {
@@ -127,7 +127,7 @@ namespace NSQLComplete {
 
     class TTypeNameService: public IRankingNameService {
     public:
-        explicit TTypeNameService(IRanking::TPtr ranking, TVector<TString> types)
+        TTypeNameService(IRanking::TPtr ranking, TVector<TString> types)
             : IRankingNameService(std::move(ranking))
             , Types_(BuildNameIndex(std::move(types), NormalizeName))
         {
@@ -151,7 +151,7 @@ namespace NSQLComplete {
 
     class TFunctionNameService: public IRankingNameService {
     public:
-        explicit TFunctionNameService(IRanking::TPtr ranking, TVector<TString> functions)
+        TFunctionNameService(IRanking::TPtr ranking, TVector<TString> functions)
             : IRankingNameService(std::move(ranking))
             , Functions_(BuildNameIndex(std::move(functions), NormalizeName))
         {
@@ -175,7 +175,7 @@ namespace NSQLComplete {
 
     class THintNameService: public IRankingNameService {
     public:
-        explicit THintNameService(
+        THintNameService(
             IRanking::TPtr ranking,
             THashMap<EStatementKind, TVector<TString>> hints)
             : IRankingNameService(std::move(ranking))

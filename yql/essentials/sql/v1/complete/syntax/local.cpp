@@ -49,7 +49,7 @@ namespace NSQLComplete {
             TDefaultYQLGrammar>;
 
     public:
-        explicit TSpecializedLocalSyntaxAnalysis(
+        TSpecializedLocalSyntaxAnalysis(
             TLexerSupplier lexer, const THashSet<TString>& IgnoredRules)
             : Grammar_(&GetSqlGrammar())
             , Lexer_(lexer(/* ansi = */ IsAnsiLexer))
@@ -324,7 +324,7 @@ namespace NSQLComplete {
 
     class TLocalSyntaxAnalysis: public ILocalSyntaxAnalysis {
     public:
-        explicit TLocalSyntaxAnalysis(
+        TLocalSyntaxAnalysis(
             TLexerSupplier lexer, const THashSet<TString>& IgnoredRules)
             : DefaultEngine_(lexer, IgnoredRules)
             , AnsiEngine_(lexer, IgnoredRules)
