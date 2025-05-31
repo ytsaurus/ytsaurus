@@ -786,6 +786,9 @@ class YTInstance(object):
     def rewrite_controller_agent_configs(self):
         self._prepare_controller_agents(self._cluster_configuration["controller_agent"], force_overwrite=True)
 
+    def rewrite_cypress_proxies_configs(self):
+        self._prepare_cypress_proxies(self._cluster_configuration["cypress_proxy"], force_overwrite=True)
+
     def rewrite_timestamp_provider_configs(self):
         self._prepare_timestamp_providers(self._cluster_configuration["timestamp_provider"], force_overwrite=True)
 
@@ -1004,7 +1007,7 @@ class YTInstance(object):
         self.kill_service("tablet_balancer", indexes=indexes)
 
     def kill_cypress_proxies(self, indexes=None):
-        self.kill_service("cypress_proxies", indexes=indexes)
+        self.kill_service("cypress_proxy", indexes=indexes)
 
     def kill_replicated_table_trackers(self, indexes=None):
         self.kill_service("replicated_table_tracker", indexes=indexes)
@@ -1240,7 +1243,7 @@ class YTInstance(object):
                 has_some_bind_failure = has_some_bind_failure or has_bind_failure
 
         if has_some_bind_failure:
-            raise YtEnvRetriableError("Process failed to bind on some of ports")
+            raise YtEnvRetriableError(f"Process {name} failed to bind on some of ports")
 
     def _run(self, args, name, env=None, number=None):
         with self._lock:
@@ -2231,11 +2234,16 @@ class YTInstance(object):
             lambda: self._wait_for(tablet_balancer_ready, "tablet_balancer"),
             sync)
 
-    def _prepare_cypress_proxies(self, cypress_proxy_configs):
+    def _prepare_cypress_proxies(self, cypress_proxy_configs, force_overwrite=False):
+        if force_overwrite:
+            self.configs["cypress_proxy"] = []
+            self.config_paths["cypress_proxy"] = []
+            self._service_processes["cypress_proxy"] = []
+
         for cypress_proxy_index in xrange(self.yt_config.cypress_proxy_count):
             cypress_proxy_config_name = "cypress_proxy-{0}.yson".format(cypress_proxy_index)
             config_path = os.path.join(self.configs_path, cypress_proxy_config_name)
-            if self._load_existing_environment:
+            if self._load_existing_environment and not force_overwrite:
                 if not os.path.isfile(config_path):
                     raise YtError("Cypress proxy config {0} not found. It is possible that you requested "
                                   "more cypress proxies than configs exist".format(config_path))

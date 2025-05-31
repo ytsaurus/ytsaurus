@@ -777,6 +777,7 @@ message TContainerSpec {
     optional TContainerBindMounts bind = 24;
     optional TStringMap symlink = 25;
     optional TContainerDevices devices = 26;
+    optional bool devices_explicit = 265;
     optional TContainerPlaceConfig place = 27;
     optional TUintMap place_limit = 28;
 

@@ -242,7 +242,7 @@ private:
 
     void OnJobMemoryThrashing() override;
 
-    NChunkClient::TChunkReaderHostPtr GetChunkReaderHost() const override;
+    NChunkClient::TMultiChunkReaderHostPtr GetChunkReaderHost() const override;
 
     NChunkClient::IBlockCachePtr GetReaderBlockCache() const override;
     NChunkClient::IBlockCachePtr GetWriterBlockCache() const override;

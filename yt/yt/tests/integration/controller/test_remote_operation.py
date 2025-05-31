@@ -20,6 +20,7 @@ from yt_commands import (
     remove,
     set,
     start_transaction,
+    update_controller_agent_config,
     wait_breakpoint,
     with_breakpoint,
     write_table,
@@ -72,10 +73,11 @@ class TestSchedulerRemoteOperationCommandsBase(YTEnvSetup):
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_users": ["root"],
-                "allowed_clusters": ["remote_0"],
-            }
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_users": ["root"],
+                },
+            },
         },
     }
 
@@ -673,6 +675,40 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
                 command="cat"
             )
 
+    @authors("coteeq")
+    def test_max_total_data_weight(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t1", [{"value": "x" * 10_000}], driver=self.remote_driver)
+        write_table("//tmp/t2", [{"value": "x" * 10_000}])
+
+        def try_run_map():
+            map(
+                in_=[
+                    self.to_remote_path("//tmp/t1"),
+                    "//tmp/t2",
+                ],
+                out="//tmp/t_out",
+                command="cat",
+                spec={
+                    "mapper": {
+                        "format": "json",
+                        "enable_input_table_index": False,
+                    },
+                },
+            )
+
+        try_run_map()
+
+        update_controller_agent_config("remote_operations/remote_0/max_total_data_weight", 1_000)
+        with raises_yt_error("Total estimated input data weight from cluster"):
+            try_run_map()
+
+        write_table("//tmp/t1", [{"value": "x" * 10}], driver=self.remote_driver)
+        try_run_map()
+
 
 @pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteOperationCommandsBase):
@@ -685,9 +721,11 @@ class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteO
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_for_everyone_clusters": ["remote_0"],
-            }
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_for_everyone": True,
+                },
+            },
         },
     }
 
@@ -736,10 +774,11 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_users": ["root"],
-                "allowed_clusters": ["remote_0"],
-            }
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_users": ["root"],
+                },
+            },
         },
     }
 

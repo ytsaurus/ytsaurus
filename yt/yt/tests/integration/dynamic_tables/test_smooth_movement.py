@@ -1,6 +1,6 @@
 from yt_dynamic_tables_base import DynamicTablesBase
 
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, are_items_equal
 
 from yt_commands import (
     authors, create, wait, get, set,
@@ -8,11 +8,14 @@ from yt_commands import (
     sync_reshard_table, insert_rows, ls, abort_transaction,
     build_snapshot, select_rows, update_nodes_dynamic_config,
     create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
+    get_singular_chunk_id,
 )
 
 from yt.common import YtError
+import yt.yson as yson
 
 import random
+import time
 
 import pytest
 
@@ -362,6 +365,91 @@ class TestSmoothMovement(DynamicTablesBase):
 
         commit_rsp.wait()
         assert not commit_rsp.is_ok()
+
+        wait(lambda: self._check_action(action_id))
+
+    @authors("ifsmirnov")
+    def test_wait_preload(self):
+        cell_ids = sync_create_cells(2)
+
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "testing": {
+                    "simulated_store_preload_delay": 5000,
+                }
+            },
+            in_memory_mode="compressed")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+        insert_rows("//tmp/t", [{"key": 0}])
+        sync_flush_table("//tmp/t")
+        chunk_id = get_singular_chunk_id("//tmp/t")
+
+        def _get_preload_state():
+            try:
+                return get(
+                    f"#{cell_ids[1]}/orchid/tablets/{tablet_id}/partitions/0/stores/{chunk_id}/preload_state")
+            except YtError as e:
+                if e.is_resolve_error():
+                    return None
+                raise
+
+        action_id = self._move_tablet(tablet_id)
+        wait(lambda: _get_preload_state() == "running")
+        time.sleep(2)
+        assert _get_preload_state() == "running"
+
+        wait(lambda: self._check_action(action_id))
+        assert _get_preload_state() == "complete"
+
+    @authors("ifsmirnov")
+    def test_preload_flush_and_compaction(self):
+        cell_ids = sync_create_cells(2)
+
+        self._create_sorted_table(
+            "//tmp/t",
+            mount_config={
+                "dynamic_store_auto_flush_period": yson.YsonEntity(),
+                "testing": {
+                    "simulated_store_preload_delay": 100000,
+                }
+            },
+            in_memory_mode="compressed")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+        insert_rows("//tmp/t", [{"key": 0}])
+        sync_flush_table("//tmp/t")
+        assert get("//tmp/t/@preload_state") == "complete"
+
+        insert_rows("//tmp/t", [{"key": 1}])
+
+        def _get_preload_states():
+            prefix = f"#{cell_ids[1]}/orchid/tablets/{tablet_id}/partitions/0/stores"
+            try:
+                stores = ls(prefix)
+                preload_states = []
+                for store in stores:
+                    preload_states.append(get(f"{prefix}/{store}/preload_state"))
+                return preload_states
+            except YtError as e:
+                if e.is_resolve_error():
+                    return []
+                raise
+
+        action_id = self._move_tablet(tablet_id)
+        # Flushed store is already preloded at the target servant.
+        # Replicated store preload is delayed for a long time.
+        wait(lambda: are_items_equal(_get_preload_states(), ["running", "complete"]))
+        time.sleep(2)
+        assert_items_equal(_get_preload_states(), ["running", "complete"])
+
+        set("//tmp/t/@forced_compaction_revision", 1)
+        remount_table("//tmp/t")
+        # Replicated store is gone, newly compacted store replaced it.
+        wait(lambda: are_items_equal(_get_preload_states(), ["complete", "complete"]))
 
         wait(lambda: self._check_action(action_id))
 

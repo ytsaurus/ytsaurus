@@ -46,6 +46,36 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreConfigWrapper)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemoteChangelogStoreConfigWrapper
+    : public TRefCounted
+{
+public:
+    explicit TRemoteChangelogStoreConfigWrapper(TRemoteChangelogStoreConfigPtr config)
+        : Config_(std::move(config))
+    { }
+
+    void Set(TRemoteChangelogStoreConfigPtr config)
+    {
+        Config_.Store(config);
+    }
+
+    TRemoteChangelogStoreConfigPtr Get() const
+    {
+        return Config_.Acquire();
+    }
+
+private:
+    TAtomicIntrusivePtr<TRemoteChangelogStoreConfig> Config_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemoteChangelogStoreConfigWrapper)
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStore)
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreFactory)
 
@@ -171,7 +201,7 @@ class TRemoteChangelogStore
 {
 public:
     TRemoteChangelogStore(
-        TRemoteChangelogStoreConfigPtr config,
+        TRemoteChangelogStoreConfigWrapperPtr config,
         TTabletCellOptionsPtr options,
         TYPath primaryPath,
         TYPath secondaryPath,
@@ -265,7 +295,7 @@ public:
     }
 
 private:
-    const TRemoteChangelogStoreConfigPtr Config_;
+    const TRemoteChangelogStoreConfigWrapperPtr Config_;
     const TTabletCellOptionsPtr Options_;
     const NSecurityServer::IResourceLimitsManagerPtr ResourceLimitsManager_;
     const ITransactionPtr PrerequisiteTransaction_;
@@ -513,7 +543,7 @@ private:
 
         TJournalWriterOptions options;
         options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
-        options.Config = Config_->Writer;
+        options.Config = Config_->Get()->Writer;
         options.EnableMultiplexing = Options_->EnableChangelogMultiplexing;
         options.EnableChunkPreallocation = Options_->EnableChangelogChunkPreallocation;
         options.ReplicaLagLimit = Options_->ChangelogReplicaLagLimit;
@@ -708,7 +738,7 @@ private:
         std::vector<TSharedRef> DoRead(int firstRecordId, int maxRecords) const
         {
             try {
-                return ReadRecords(Path_, Owner_->Config_->Reader, Owner_->Client_, firstRecordId, maxRecords);
+                return ReadRecords(Path_, Owner_->Config_->Get()->Reader, Owner_->Client_, firstRecordId, maxRecords);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error reading remote changelog")
                     << TErrorAttribute("changelog_path", Path_)
@@ -782,7 +812,7 @@ public:
             std::move(secondaryPath),
             std::move(client),
             EStorageState::None)
-        , Config_(std::move(config))
+        , Config_(New<TRemoteChangelogStoreConfigWrapper>(std::move(config)))
         , Options_(std::move(options))
         , ResourceLimitsManager_(std::move(resourceLimitsManager))
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
@@ -796,8 +826,14 @@ public:
             .Run();
     }
 
+    void Reconfigure(const TDynamicRemoteChangelogStoreConfigPtr& dynamicConfig) override
+    {
+        auto newConfig = Config_->Get()->ApplyDynamic(dynamicConfig);
+        Config_->Set(newConfig);
+    }
+
 private:
-    const TRemoteChangelogStoreConfigPtr Config_;
+    const TRemoteChangelogStoreConfigWrapperPtr Config_;
     const TTabletCellOptionsPtr Options_;
     const NSecurityServer::IResourceLimitsManagerPtr ResourceLimitsManager_;
     const TTransactionId PrerequisiteTransactionId_;
@@ -890,7 +926,7 @@ private:
     {
         TTransactionStartOptions options;
         options.ParentId = PrerequisiteTransactionId_;
-        options.Timeout = Config_->LockTransactionTimeout;
+        options.Timeout = Config_->Get()->LockTransactionTimeout;
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title",
             Format("Lock for changelog store (PrimaryPath: %v, SecondaryPath: %v)",
@@ -944,7 +980,7 @@ private:
 
         auto recordReader = [&] (int changelogId, i64 recordId, bool atPrimaryPath) {
             auto path = GetChangelogPath(atPrimaryPath ? PrimaryPath_ : SecondaryPath_, changelogId);
-            auto recordsData = ReadRecords(path, Config_->Reader, Client_, recordId, 1);
+            auto recordsData = ReadRecords(path, Config_->Get()->Reader, Client_, recordId, 1);
 
             if (recordsData.empty()) {
                 THROW_ERROR_EXCEPTION("Unable to read record %v in changelog %v",

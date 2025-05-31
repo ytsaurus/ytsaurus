@@ -148,7 +148,7 @@ TChunkReaderConfigPtr PatchConfig(TChunkReaderConfigPtr config, i64 memoryEstima
 std::vector<IReaderFactoryPtr> CreateReaderFactories(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     std::optional<THintKeyPrefixes> hintKeyPrefixes,
@@ -261,7 +261,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             chunkMeta->GetChunkFormat() != EChunkFormat::TableUnversionedSchemalessHorizontal)
                         {
                             return CreateSchemalessRangeChunkReader(
-                                chunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
+                                perClusterChunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
                                 std::move(chunkState),
                                 std::move(chunkMeta),
                                 PatchConfig(config, memoryEstimate),
@@ -282,7 +282,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         } else {
                             YT_LOG_DEBUG("Only reading hint prefixes (Count: %v)", hintKeyPrefixes->HintPrefixes.size());
                             return CreateSchemalessKeyRangesChunkReader(
-                                chunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
+                                perClusterChunkReaderHost->Client->GetNativeConnection()->GetColumnEvaluatorCache(),
                                 std::move(chunkState),
                                 std::move(chunkMeta),
                                 PatchConfig(config, memoryEstimate),
@@ -623,7 +623,7 @@ const TDataSliceDescriptor& TSchemalessMultiChunkReader::GetCurrentReaderDescrip
 ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     std::optional<THintKeyPrefixes> hintKeyPrefixes,
@@ -671,7 +671,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
 ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     TTableReaderConfigPtr config,
     TTableReaderOptionsPtr options,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     std::optional<THintKeyPrefixes> hintKeyPrefixes,
@@ -1514,7 +1514,7 @@ ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
             return factory(
                 config,
                 options,
-                chunkReaderHost,
+                CreateSingleSourceMultiChunkReaderHost(std::move(chunkReaderHost)),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 /*hintKeyPrefixes*/ std::nullopt,

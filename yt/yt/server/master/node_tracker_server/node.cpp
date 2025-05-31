@@ -3,6 +3,7 @@
 #include "config.h"
 #include "data_center.h"
 #include "host.h"
+#include "node_tracker.h"
 #include "node_tracker_log.h"
 #include "rack.h"
 #include "private.h"

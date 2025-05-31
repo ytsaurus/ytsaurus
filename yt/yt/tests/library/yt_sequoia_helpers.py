@@ -205,3 +205,23 @@ def cannot_be_implemented_in_sequoia(reason):
         return decorator.decorate(func, wrapper)
 
     return wrapper_factory
+
+
+##################################################################
+
+
+def _is_well_known_id(object_id):
+    return (int(object_id.split("-")[0], 16) & 0x80000000) != 0
+
+
+def is_sequoia_id(object_id):
+    if _is_well_known_id(object_id):
+        return False
+
+    # Check Sequoia bit.
+    return (int(object_id.split("-")[0], 16) & 0x40000000) != 0
+
+
+def is_cypress_tx_id(object_id):
+    # Either transaction or nested_transaction.
+    return (int(object_id.split("-")[2], 16) & 0xffff) in (1, 4)

@@ -1753,15 +1753,15 @@ void TSchedulerPoolElement::PropagatePoolAttributesToOperations()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
-    IOperationStrategyHost* operation,
+    IOperationStrategyHostPtr operation,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     TSchedulingTagFilter schedulingTagFilter)
     : OperationId_(operation->GetId())
-    , OperationHost_(operation)
+    , OperationHost_(std::move(operation))
     , ControllerConfig_(std::move(controllerConfig))
-    , UserName_(operation->GetAuthenticatedUser())
-    , Type_(operation->GetType())
-    , TrimmedAnnotations_(operation->GetTrimmedAnnotations())
+    , UserName_(OperationHost_->GetAuthenticatedUser())
+    , Type_(OperationHost_->GetType())
+    , TrimmedAnnotations_(OperationHost_->GetTrimmedAnnotations())
     , SchedulingTagFilter_(std::move(schedulingTagFilter))
 { }
 
@@ -1777,7 +1777,7 @@ TSchedulerOperationElement::TSchedulerOperationElement(
     TFairShareStrategyOperationStatePtr state,
     ISchedulerStrategyHost* strategyHost,
     IFairShareTreeElementHost* treeElementHost,
-    IOperationStrategyHost* operation,
+    IOperationStrategyHostPtr operation,
     const TString& treeId,
     const NLogging::TLogger& logger)
     : TSchedulerElement(
@@ -1789,7 +1789,7 @@ TSchedulerOperationElement::TSchedulerOperationElement(
         EResourceTreeElementKind::Operation,
         logger.WithTag("OperationId: %v", operation->GetId()))
     , TSchedulerOperationElementFixedState(
-        operation,
+        std::move(operation),
         std::move(controllerConfig),
         TSchedulingTagFilter(spec->SchedulingTagFilter))
     , Spec_(std::move(spec))
@@ -1961,6 +1961,11 @@ TString TSchedulerOperationElement::GetId() const
 TOperationId TSchedulerOperationElement::GetOperationId() const
 {
     return OperationId_;
+}
+
+std::optional<std::string> TSchedulerOperationElement::GetTitle() const
+{
+    return OperationHost_->GetTitle();
 }
 
 void TSchedulerOperationElement::SetRuntimeParameters(TOperationFairShareTreeRuntimeParametersPtr runtimeParameters)

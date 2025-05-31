@@ -2909,17 +2909,10 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                 addChunkTree(chunkTreeId);
             }
         } else {
-            YT_LOG_DEBUG("Sorting output chunk tree ids by integer keys (ChunkTreeCount: %v, Table: %v)",
+            YT_LOG_DEBUG("Output chunks do not need to be sorted (ChunkTreeCount: %v, Table: %v)",
                 table->OutputChunkTreeIds.size(), path);
-            std::stable_sort(
-                table->OutputChunkTreeIds.begin(),
-                table->OutputChunkTreeIds.end(),
-                [&] (const auto& lhs, const auto& rhs) -> bool {
-                    auto lhsKey = lhs.first.AsIndex();
-                    auto rhsKey = rhs.first.AsIndex();
-                    return lhsKey < rhsKey;
-                });
             for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
+                YT_VERIFY(!key);
                 addChunkTree(chunkTreeId);
             }
         }
@@ -4061,23 +4054,33 @@ void TOperationControllerBase::OnChunkFailed(TChunkId chunkId, TJobId jobId)
 }
 
 void TOperationControllerBase::SafeOnIntermediateChunkBatchLocated(
-    const std::vector<TScrapedChunkInfo>& chunkBatch)
+    std::vector<TScrapedChunkInfo> chunkBatch)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
+    int availableCount = 0;
+    int unavailableCount = 0;
     for (const auto& chunkInfo : chunkBatch) {
         if (chunkInfo.Missing) {
             // We can unstage intermediate chunks (e.g. in automerge) - just skip them.
-            return;
+            continue;
         }
 
         // Intermediate chunks are always replicated.
         if (IsUnavailable(chunkInfo.Replicas, NErasure::ECodec::None, GetChunkAvailabilityPolicy())) {
+            ++unavailableCount;
             OnIntermediateChunkUnavailable(chunkInfo.ChunkId);
         } else {
+            ++availableCount;
             OnIntermediateChunkAvailable(chunkInfo.ChunkId, chunkInfo.Replicas);
         }
     }
+
+    YT_LOG_DEBUG(
+        "Intermediate chunk batch has located (ChunkBatchSize: %v, AvailableCount: %v, UnavailableCount: %v)",
+        chunkBatch.size(),
+        availableCount,
+        unavailableCount);
 }
 
 bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
@@ -4151,6 +4154,15 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(
     }
 
     if (completedJob->UnavailableChunks.erase(chunkId) == 1) {
+        --UnavailableIntermediateChunkCount_;
+
+        YT_LOG_DEBUG(
+            "Unavailable intermediate chunk was found (JobId: %v, InputCookie: %v, ChunkId: %v, UnavailableIntermediateChunkCount: %v)",
+            completedJob->JobId,
+            completedJob->InputCookie,
+            chunkId,
+            UnavailableIntermediateChunkCount_);
+
         for (auto& dataSlice : completedJob->InputStripe->DataSlices) {
             // Intermediate chunks are always unversioned.
             auto inputChunk = dataSlice->GetSingleUnversionedChunk();
@@ -4158,12 +4170,13 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(
                 inputChunk->SetReplicas(replicas);
             }
         }
-        --UnavailableIntermediateChunkCount_;
 
-        YT_VERIFY(UnavailableIntermediateChunkCount_ > 0 ||
+        YT_VERIFY(
+            UnavailableIntermediateChunkCount_ > 0 ||
             (UnavailableIntermediateChunkCount_ == 0 && completedJob->UnavailableChunks.empty()));
         if (completedJob->UnavailableChunks.empty()) {
-            YT_LOG_DEBUG("Job result is resumed (JobId: %v, InputCookie: %v, UnavailableIntermediateChunkCount: %v)",
+            YT_LOG_DEBUG(
+                "Found all unavailable chunks for job, job result is resumed (JobId: %v, InputCookie: %v, UnavailableIntermediateChunkCount: %v)",
                 completedJob->JobId,
                 completedJob->InputCookie,
                 UnavailableIntermediateChunkCount_);
@@ -7774,6 +7787,8 @@ void TOperationControllerBase::CollectTotals()
     // This is the sum across all input chunks not accounting lower/upper read limits.
     // Used to calculate compression ratio.
     i64 totalInputDataWeight = 0;
+    THashMap<TClusterName, i64> totalInputDataWeightPerCluster;
+
     for (const auto& table : InputManager_->GetInputTables()) {
         for (const auto& inputChunk : Concatenate(table->Chunks, table->HunkChunks)) {
             if (inputChunk->IsUnavailable(GetChunkAvailabilityPolicy())) {
@@ -7797,6 +7812,8 @@ void TOperationControllerBase::CollectTotals()
                         YT_ABORT();
                 }
             }
+
+            totalInputDataWeightPerCluster[table->ClusterName] += inputChunk->GetDataWeight();
 
             if (table->IsPrimary()) {
                 PrimaryInputDataWeight_ += inputChunk->GetDataWeight();
@@ -7827,6 +7844,20 @@ void TOperationControllerBase::CollectTotals()
         TotalEstimatedInputDataWeight_,
         totalInputDataWeight,
         TotalEstimatedInputValueCount_);
+
+    for (const auto& [clusterName, dataWeight] : totalInputDataWeightPerCluster) {
+        if (IsLocal(clusterName)) {
+            continue;
+        }
+        auto clusterConfig = GetOrCrash(Config_->RemoteOperations, clusterName);
+        if (clusterConfig->MaxTotalDataWeight && *clusterConfig->MaxTotalDataWeight < dataWeight) {
+            THROW_ERROR_EXCEPTION(
+                "Total estimated input data weight from cluster %Qv is too large",
+                clusterName)
+                << TErrorAttribute("estimated_data_weight", dataWeight)
+                << TErrorAttribute("max_data_weight", *clusterConfig->MaxTotalDataWeight);
+        }
+    }
 }
 
 bool TOperationControllerBase::HasDiskRequestsWithSpecifiedAccount() const
@@ -8689,7 +8720,11 @@ void TOperationControllerBase::RegisterTeleportChunk(
         ToProto(resultBoundaryKeys.mutable_min(), chunk->BoundaryKeys()->MinKey);
         ToProto(resultBoundaryKeys.mutable_max(), chunk->BoundaryKeys()->MaxKey);
 
-        key = BuildBoundaryKeysFromOutputResult(resultBoundaryKeys, StandardStreamDescriptors_[tableIndex], RowBuffer_);
+        key = TChunkStripeKey(
+            BuildBoundaryKeysFromOutputResult(
+                resultBoundaryKeys,
+                StandardStreamDescriptors_[tableIndex],
+                RowBuffer_));
     }
 
     table->OutputChunkTreeIds.emplace_back(key, chunk->GetChunkId());

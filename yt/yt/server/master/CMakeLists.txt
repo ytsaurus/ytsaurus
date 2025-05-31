@@ -201,6 +201,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_type_handler_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/incumbency_epoch.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/s3_medium_proxy.cpp

@@ -593,7 +593,7 @@ private:
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(static_cast<ETableChunkFormat>(chunk->GetChunkFormat()));
+                    .Value(SerializeChunkFormatAsTableChunkFormat(chunk->GetChunkFormat()));
                 return true;
             }
 

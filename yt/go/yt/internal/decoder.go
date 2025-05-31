@@ -63,6 +63,7 @@ var (
 	GetOperationByAliasResultDecoder        AnyValueResultDecoder       = newValueResultDecoder()
 	ListOperationsResultDecoder             AnyValueResultDecoder       = newValueResultDecoder()
 	ListJobsResultDecoder                   AnyValueResultDecoder       = newValueResultDecoder()
+	GetJobResultDecoder                     AnyValueResultDecoder       = newValueResultDecoder()
 	GetJobStderrResultDecoder               valueResultDecoder[*[]byte] = newRawValueResultDecoder()
 	PutFileToCacheResultDecoder             AnyValueResultDecoder       = newValueResultDecoder()
 	GetFileFromCacheResultDecoder           AnyValueResultDecoder       = newValueResultDecoder()

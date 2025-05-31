@@ -5,6 +5,7 @@
 #include "chunk_location.h"
 #include "config.h"
 #include "data_node_tracker.h"
+#include "domestic_medium.h"
 #include "chunk_manager.h"
 
 #include <yt/yt/server/master/object_server/object.h>

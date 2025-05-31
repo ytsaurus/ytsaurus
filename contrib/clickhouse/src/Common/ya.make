@@ -123,12 +123,6 @@ CFLAGS(
     -D_LIBUNWIND_IS_NATIVE_ONLY
 )
 
-IF (MUSL)
-    CFLAGS(
-        -DUSE_MUSL
-    )
-ENDIF()
-
 SRCDIR(contrib/clickhouse)
 
 SRCS(

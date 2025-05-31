@@ -24,7 +24,7 @@ ELSE()
         yt/python/contrib/python-urllib3
         yt/python/contrib/python-idna
 
-        contrib/libs/brotli/python
+        contrib/python/Brotli
         contrib/python/argcomplete
         contrib/python/cryptography
         contrib/python/decorator
@@ -156,6 +156,7 @@ ELSE()
         SET(SRCS
             ${SRCS}
             client_impl_yandex.py
+            docker_yandex.py
             features/__init__.py
             features/use_base.py
             features/use_get_gpu_cluster.py

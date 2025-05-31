@@ -276,12 +276,12 @@ public:
         auto it = Barriers_.find(lastStronglyOrderedTransactionSequenceNumber);
         if (it != Barriers_.end()) {
             YT_LOG_DEBUG("Barrier already exists (NextStronglyOrderedTransactionSequenceNumber: %v)", lastStronglyOrderedTransactionSequenceNumber);
-            return it->second.ToFuture();
+            return it->second.ToFuture().ToUncancelable();
         }
 
         YT_LOG_DEBUG("Creating barrier (NextStronglyOrderedTxSequenceNumber: %v)", lastStronglyOrderedTransactionSequenceNumber);
         it = EmplaceOrCrash(Barriers_, lastStronglyOrderedTransactionSequenceNumber, NewPromise<void>());
-        return it->second.ToFuture();
+        return it->second.ToFuture().ToUncancelable();
     }
 
     // COMPAT(aleksandra-zh): remove that after Sequencer is more stable.

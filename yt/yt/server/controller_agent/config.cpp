@@ -28,6 +28,7 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NChunkPools;
 using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -460,17 +461,19 @@ void TSimpleOperationOptions::Register(TRegistrar registrar)
         .Alias("data_size_per_job")
         .Default(256_MB)
         .GreaterThan(0);
+
+    registrar.Parameter("job_size_adjuster", &TThis::JobSizeAdjuster)
+        // TODO(coteeq): DefaultNew when non-map job_size_adjuster will be stable.
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TMapOperationOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("job_size_adjuster", &TThis::JobSizeAdjuster)
-        .DefaultNew();
-
     registrar.Preprocessor([&] (TMapOperationOptions* options) {
         options->DataWeightPerJob = 128_MB;
+        options->JobSizeAdjuster = New<TJobSizeAdjusterConfig>();
     });
 }
 
@@ -566,6 +569,9 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .GreaterThanOrEqual(1);
 
     registrar.Parameter("partition_job_size_adjuster", &TThis::PartitionJobSizeAdjuster)
+        .DefaultNew();
+
+    registrar.Parameter("sorted_merge_job_size_adjuster", &TThis::SortedMergeJobSizeAdjuster)
         .DefaultNew();
 
     registrar.Parameter("data_balancer", &TThis::DataBalancer)
@@ -758,13 +764,13 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDisallowRemoteOperationsConfig::Register(TRegistrar registrar)
+void TRemoteOperationsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("allowed_users", &TThis::AllowedUsers)
         .Default();
-    registrar.Parameter("allowed_clusters", &TThis::AllowedClusters)
-        .Default();
-    registrar.Parameter("allowed_for_everyone_clusters", &TThis::AllowedForEveryoneClusters)
+    registrar.Parameter("allowed_for_everyone", &TThis::AllowedForEveryone)
+        .Default(false);
+    registrar.Parameter("max_total_data_weight", &TThis::MaxTotalDataWeight)
         .Default();
 }
 
@@ -1085,6 +1091,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     //! since it may lead to partition data skew between nodes.
     registrar.Parameter("enable_partition_map_job_size_adjustment", &TThis::EnablePartitionMapJobSizeAdjustment)
         .Default(false);
+    registrar.Parameter("enable_ordered_partition_map_job_size_adjustment", &TThis::EnableOrderedPartitionMapJobSizeAdjustment)
+        .Default(false);
+    registrar.Parameter("enable_sorted_merge_in_sort_job_size_adjustment", &TThis::EnableSortedMergeInSortJobSizeAdjustment)
+        .Default(false);
 
     registrar.Parameter("user_job_memory_digest_precision", &TThis::UserJobMemoryDigestPrecision)
         .Default(0.01)
@@ -1305,7 +1315,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_columnar_statistics_early_finish", &TThis::EnableColumnarStatisticsEarlyFinish)
         .Default(true);
     registrar.Parameter("enable_table_column_renaming", &TThis::EnableTableColumnRenaming)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("footprint_memory", &TThis::FootprintMemory)
         .Default();
@@ -1358,8 +1368,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_job_aborts_until_operation_failure", &TThis::MaxJobAbortsUntilOperationFailure)
         .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 1000}, {EAbortReason::NbdErrors, 10}}));
 
-    registrar.Parameter("disallow_remote_operations", &TThis::DisallowRemoteOperations)
-        .DefaultNew();
+    registrar.Parameter("remote_operations", &TThis::RemoteOperations)
+        .Default();
 
     registrar.Parameter("enable_merge_schemas_during_schema_infer", &TThis::EnableMergeSchemasDuringSchemaInfer)
         .Default(false);

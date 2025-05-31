@@ -10,4 +10,5 @@
             session_timeout = "20m";
         };
     };
+    CLASS_TEST_LIMIT = 600;
 }

@@ -1062,7 +1062,7 @@ struct TOperationSpecBase
     TDuration JobProxyRefCountedTrackerLogPeriod;
 
     //! An arbitrary user-provided string that is, however, logged by the scheduler.
-    std::optional<TString> Title;
+    std::optional<std::string> Title;
 
     //! Limit on operation execution time.
     std::optional<TDuration> TimeLimit;

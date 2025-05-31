@@ -15,6 +15,7 @@ using namespace NConcurrency;
 
 const static TString S3TutorialAccessKeyId = "AKIAIOSFODNN7EXAMPLE";
 const static TString S3TutorialSecretAccessKey = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY";
+const static ICredentialsProviderPtr S3CredentialProvider = CreateStaticCredentialProvider(S3TutorialAccessKeyId, S3TutorialSecretAccessKey);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,8 +34,7 @@ TEST(TRequestPreparerTest, Test1)
 
     PrepareHttpRequest(
         &request,
-        S3TutorialAccessKeyId,
-        S3TutorialSecretAccessKey,
+        S3CredentialProvider,
         time);
 
     EXPECT_EQ(
@@ -62,8 +62,7 @@ TEST(TRequestPreparerTest, Test2)
 
     PrepareHttpRequest(
         &request,
-        S3TutorialAccessKeyId,
-        S3TutorialSecretAccessKey,
+        S3CredentialProvider,
         time);
 
     EXPECT_EQ(
@@ -88,8 +87,7 @@ TEST(TRequestPreparerTest, Test3)
 
     PrepareHttpRequest(
         &request,
-        S3TutorialAccessKeyId,
-        S3TutorialSecretAccessKey,
+        S3CredentialProvider,
         time);
 
     EXPECT_EQ(
@@ -115,8 +113,7 @@ TEST(TRequestPreparerTest, Test4)
 
     PrepareHttpRequest(
         &request,
-        S3TutorialAccessKeyId,
-        S3TutorialSecretAccessKey,
+        S3CredentialProvider,
         time);
 
     EXPECT_EQ(

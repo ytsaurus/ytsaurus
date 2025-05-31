@@ -1926,6 +1926,8 @@ void TTablet::StopEpoch()
         CancelableContext_.Reset();
     }
 
+    ChaosData_->IsTrimInProgress.store(false);
+
     std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
 
     SetState(GetPersistentState());
@@ -1997,45 +1999,16 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->DistributedThrottlers = DistributedThrottlers_;
     snapshot->HedgingManagerRegistry = HedgingManagerRegistry_;
     snapshot->CompressionDictionaryInfos = CompressionDictionaryInfos_;
-
-    auto addStoreStatistics = [&] (const IStorePtr& store) {
-        if (store->IsChunk()) {
-            auto chunkStore = store->AsChunk();
-
-            auto preloadState = chunkStore->GetPreloadState();
-            switch (preloadState) {
-                case EStorePreloadState::Scheduled:
-                case EStorePreloadState::Running:
-                    if (chunkStore->IsPreloadAllowed()) {
-                        ++snapshot->PreloadPendingStoreCount;
-                    } else {
-                        ++snapshot->PreloadFailedStoreCount;
-                    }
-                    break;
-                case EStorePreloadState::Complete:
-                    ++snapshot->PreloadCompletedStoreCount;
-                    break;
-                default:
-                    break;
-            }
-        }
-    };
-
-    auto addPartitionStatistics = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-        for (const auto& store : partitionSnapshot->Stores) {
-            addStoreStatistics(store);
-        }
-    };
+    snapshot->OrderedDynamicStoreRotateEpoch = RuntimeData_->OrderedDynamicStoreRotateEpoch.load();
+    snapshot->CommitOrdering = CommitOrdering_;
 
     snapshot->Eden = Eden_->BuildSnapshot();
-    addPartitionStatistics(snapshot->Eden);
     snapshot->ActiveStore = ActiveStore_;
 
     snapshot->PartitionList.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->BuildSnapshot();
         snapshot->PartitionList.push_back(partitionSnapshot);
-        addPartitionStatistics(partitionSnapshot);
     }
 
     if (IsPhysicallyOrdered()) {
@@ -2043,11 +2016,15 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
         snapshot->OrderedStores.reserve(StoreRowIndexMap_.size());
         for (const auto& [_, store] : StoreRowIndexMap_) {
             snapshot->OrderedStores.push_back(store);
-            addStoreStatistics(store);
         }
 
         snapshot->TotalRowCount = GetTotalRowCount();
     }
+
+    auto preloadStatistics = ComputePreloadStatistics();
+    snapshot->PreloadPendingStoreCount = preloadStatistics.PendingStoreCount;
+    snapshot->PreloadCompletedStoreCount = preloadStatistics.CompletedStoreCount;
+    snapshot->PreloadFailedStoreCount = preloadStatistics.FailedStoreCount;
 
     if (IsPhysicallySorted() && StoreManager_) {
         auto lockedStores = StoreManager_->GetLockedStores();
@@ -3015,6 +2992,54 @@ void TTablet::InitializeTargetServantActivationFuture()
 bool TTablet::IsVersionedWriteUnversioned() const
 {
     return !IsPhysicallyLog() && !IsPhysicallySorted();
+}
+
+TPreloadStatistics TTablet::ComputePreloadStatistics() const
+{
+    TPreloadStatistics result;
+
+    auto addStoreStatistics = [&] (const IStorePtr& store) {
+        if (store->IsChunk()) {
+            auto chunkStore = store->AsChunk();
+
+            auto preloadState = chunkStore->GetPreloadState();
+            switch (preloadState) {
+                case EStorePreloadState::Scheduled:
+                case EStorePreloadState::Running:
+                    if (chunkStore->IsPreloadAllowed()) {
+                        ++result.PendingStoreCount;
+                    } else {
+                        ++result.FailedStoreCount;
+                    }
+                    break;
+                case EStorePreloadState::Complete:
+                    ++result.CompletedStoreCount;
+                    break;
+                default:
+                    break;
+            }
+        }
+    };
+
+    auto addPartitionStatistics = [&] (const TPartition* partition) {
+        for (const auto& store : partition->Stores()) {
+            addStoreStatistics(store);
+        }
+    };
+
+    addPartitionStatistics(Eden_.get());
+
+    for (const auto& partition : PartitionList_) {
+        addPartitionStatistics(partition.get());
+    }
+
+    if (IsPhysicallyOrdered()) {
+        for (const auto& [_, store] : StoreRowIndexMap_) {
+            addStoreStatistics(store);
+        }
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

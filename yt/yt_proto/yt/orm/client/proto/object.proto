@@ -775,7 +775,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31055.
+// Next field 31056.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -918,6 +918,11 @@ extend google.protobuf.FieldOptions
 
     // Field (in the same message) that actually stores the content of this field in raw protobuf format as bytes.
     optional string raw_protobuf = 31051;
+
+    // Each predicate is an ORM QL expression over field's attribute.
+    // Alias `value` can be used instead of spelling out full attribute path in the expression.
+    // Validation is performed only for mutating API calls, not for server-side plugins.
+    repeated string field_validation_predicates = 31055;
 }
 
 // Next field 32016.

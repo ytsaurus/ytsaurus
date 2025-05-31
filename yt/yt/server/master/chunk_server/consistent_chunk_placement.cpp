@@ -10,6 +10,7 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/yt/server/master/node_tracker_server/rack.h>
 
 #include <library/cpp/yt/string/raw_formatter.h>

@@ -162,6 +162,7 @@ struct TRuntimeTabletData
     std::atomic<i64> TotalRowCount = 0;
     std::atomic<i64> TrimmedRowCount = 0;
     std::atomic<i64> DelayedLocklessRowCount = 0;
+    std::atomic<i64> OrderedDynamicStoreRotateEpoch = 0;
     std::atomic<TTimestamp> LastCommitTimestamp = NullTimestamp;
     std::atomic<TTimestamp> LastWriteTimestamp = NullTimestamp;
     std::atomic<TTimestamp> UnflushedTimestamp = MinTimestamp;
@@ -256,6 +257,10 @@ struct TTabletSnapshot
     int PreloadPendingStoreCount = 0;
     int PreloadCompletedStoreCount = 0;
     int PreloadFailedStoreCount = 0;
+
+    int64_t OrderedDynamicStoreRotateEpoch = 0;
+
+    NTransactionClient::ECommitOrdering CommitOrdering;
 
     TSortedDynamicRowKeyComparer RowKeyComparer;
 
@@ -881,6 +886,8 @@ public:
     i64 GetTotalDataWeight();
 
     bool IsVersionedWriteUnversioned() const;
+
+    TPreloadStatistics ComputePreloadStatistics() const;
 
 private:
     struct TTabletSizeMetrics

@@ -600,9 +600,11 @@ public:
 
     i64 GetMaxDataSlicesPerJob() const override
     {
-        return std::max<i64>(Options_->MaxDataSlicesPerJob, Spec_->JobCount && *Spec_->JobCount > 0
-            ? DivCeil<i64>(InputChunkCount_, *Spec_->JobCount)
-            : 1);
+        return std::max<i64>(
+            Options_->MaxDataSlicesPerJob,
+            Spec_->JobCount && *Spec_->JobCount > 0
+                ? DivCeil<i64>(InputChunkCount_, *Spec_->JobCount)
+                : 1);
     }
 
     i64 GetCompressedDataSizePerJob() const override
@@ -1066,7 +1068,7 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     i64 dataWeightPerJob = std::max(minDataWeightPerJob, spec->DataWeightPerSortedJob.value_or(spec->DataWeightPerShuffleJob));
 
     return CreateExplicitJobSizeConstraints(
-        /*canAdjustDataSizePerJob*/ false,
+        /*canAdjustDataSizePerJob*/ true,
         /*isExplicitJobCount*/ false,
         /*jobCount*/ 0,
         /*dataWeightPerJob*/ dataWeightPerJob,

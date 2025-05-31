@@ -26,6 +26,7 @@ message TReqFinishSession
     repeated NYT.NChunkClient.NProto.TChunkMeta chunk_meta = 3;
     repeated NYT.NProto.TGuid tablet_id = 4;
     repeated uint64 mount_revision = 5;
+    repeated uint64 target_servant_mount_revision = 6;
 }
 
 message TRspFinishSession

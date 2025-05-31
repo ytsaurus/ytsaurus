@@ -212,7 +212,9 @@ void TOrderedStoreManager::ResetActiveStore()
 }
 
 void TOrderedStoreManager::OnActiveStoreRotated()
-{ }
+{
+    Tablet_->RuntimeData()->OrderedDynamicStoreRotateEpoch.fetch_add(1);
+}
 
 bool TOrderedStoreManager::IsFlushNeeded() const
 {
@@ -292,7 +294,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             TabletContext_->GetControlInvoker(),
             TabletContext_->GetLocalDescriptor(),
             TabletContext_->GetLocalRpcServer(),
-            Client_->GetNativeConnection()->GetCellDirectory()->GetDescriptorByCellIdOrThrow(tabletSnapshot->CellId),
+            tabletSnapshot,
             inMemoryMode,
             InMemoryManager_->GetConfig());
 
@@ -423,12 +425,18 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         updateWriterStatistics();
 
+        const auto& smoothMovementData = tabletSnapshot->TabletRuntimeData->SmoothMovementData;
+        auto targetServantMountRevision = smoothMovementData.Role == ESmoothMovementRole::Source
+            ? smoothMovementData.SiblingServantMountRevision.load()
+            : TRevision{};
+
         std::vector<TChunkInfo> chunkInfos{
             TChunkInfo{
                 .ChunkId = tableWriter->GetChunkId(),
                 .ChunkMeta = tableWriter->GetMeta(),
                 .TabletId = tabletSnapshot->TabletId,
                 .MountRevision = tabletSnapshot->MountRevision,
+                .TargetServantMountRevision = targetServantMountRevision,
             }
         };
 

@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(IUserJobReadController)
 
 IUserJobReadControllerPtr CreateUserJobReadController(
     IJobSpecHelperPtr jobSpecHelper,
-    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
+    NChunkClient::TMultiChunkReaderHostPtr chunkReaderHost,
     IInvokerPtr invoker,
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,

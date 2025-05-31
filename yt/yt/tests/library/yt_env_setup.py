@@ -27,9 +27,11 @@ from yt.environment.helpers import (  # noqa
     MASTERS_SERVICE,
     MASTER_CACHES_SERVICE,
     QUEUE_AGENTS_SERVICE,
+    CYPRESS_PROXIES_SERVICE,
     RPC_PROXIES_SERVICE,
     HTTP_PROXIES_SERVICE,
     KAFKA_PROXIES_SERVICE,
+    CYPRESS_PROXIES_SERVICE,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -479,7 +481,7 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
-    def modify_cypress_proxy_config(cls, config):
+    def modify_cypress_proxy_config(cls, config, cluster_index):
         pass
 
     @classmethod
@@ -605,6 +607,17 @@ class YTEnvSetup(object):
             enable_legacy_logging_scheme = False
 
         delta_global_cluster_connection_config = None
+
+        if cls.get_param("USE_SEQUOIA", index):
+            if delta_global_cluster_connection_config is None:
+                delta_global_cluster_connection_config = {}
+            update_inplace(delta_global_cluster_connection_config, {
+                "sequoia_connection": {
+                    "retries": {
+                        "enable": True,
+                    },
+                },
+            })
         if cls._is_ground_cluster(index):
             delta_global_cluster_connection_config = {
                 "permission_cache": {
@@ -1083,6 +1096,14 @@ class YTEnvSetup(object):
         return config
 
     @classmethod
+    def _validate_cell_descriptors(cls, cluster_index, cell_tags):
+        if cluster_index >= cls.get_ground_index_offset():
+            return
+
+        for cell_tag in cls.get_param("MASTER_CELL_DESCRIPTORS", cluster_index):
+            assert cell_tag in cell_tags
+
+    @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
         cls.modify_multi_config(configs["multi"])
         for cell_index, cell_tag in enumerate([configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]):
@@ -1097,6 +1118,14 @@ class YTEnvSetup(object):
 
         for index, config in enumerate(configs["scheduler"]):
             config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
+
+            if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", cluster_index):
+                # TODO(kvk1920): wait_for_ground_sync().
+                # NB: default backoff is 15 seconds, but primary cluster's
+                # cluster directory syncs in about 2 seconds.
+                config = update_inplace(config, {
+                    "connect_retry_backoff_time": 2000,
+                })
 
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index], cluster_index)
@@ -1207,7 +1236,7 @@ class YTEnvSetup(object):
             config = update_inplace(config, cls.get_param("DELTA_CYPRESS_PROXY_CONFIG", cluster_index))
             configs["cypress_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             configs["cypress_proxy"][index] = cls.update_sequoia_connection_config(cluster_index, config)
-            cls.modify_cypress_proxy_config(configs["cypress_proxy"][index])
+            cls.modify_cypress_proxy_config(configs["cypress_proxy"][index], cluster_index)
             configs["multi"]["daemons"][f"cypress_proxy_{index}"]["config"] = configs["cypress_proxy"][index]
 
         for key, config in configs["driver"].items():
@@ -1239,7 +1268,7 @@ class YTEnvSetup(object):
             "sequoia_connection": {
                 "ground_cluster_name": ground_cluster_name,
                 "ground_cluster_connection_update_period": 500,
-            }
+            },
         })
         return config
 
@@ -1945,6 +1974,7 @@ class YTEnvSetup(object):
 
     def _apply_master_dynamic_config_patches(self, config, cluster_index):
         master_cell_descriptors = self.get_param("MASTER_CELL_DESCRIPTORS", cluster_index)
+
         update_inplace(
             config, self.get_param("DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
         )
@@ -2259,4 +2289,5 @@ def get_service_component_name(service):
         RPC_PROXIES_SERVICE: "proxy",
         HTTP_PROXIES_SERVICE: "http-proxy",
         KAFKA_PROXIES_SERVICE: "kafka-proxy",
+        CYPRESS_PROXIES_SERVICE: "cypress-proxy",
     }[service]

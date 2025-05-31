@@ -65,8 +65,8 @@ public:
     TChaosDataTrimProgressGuard(
         TChaosTabletDataPtr chaosTabletData,
         TCancelableContextPtr tabletCancelableContext,
-        TLogger logger)
-        : Logger(std::move(logger))
+        const TLogger& logger)
+        : Logger(logger.WithTag("TrimGuardId: %v", TGuid::Create()))
         , TabletCancelableContext_(std::move(tabletCancelableContext))
         , ChaosTabletData_(std::move(chaosTabletData))
     {
@@ -419,8 +419,9 @@ private:
         ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
         hydraRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
         hydraRequest.set_trimmed_row_count(trimmedRowCount);
-        YT_UNUSED_FUTURE(CreateMutation(slot->GetHydraManager(), hydraRequest)
-            ->CommitAndLog(Logger));
+        auto mutation = CreateMutation(slot->GetHydraManager(), hydraRequest);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
         finallyGuard.Release();
     }
 

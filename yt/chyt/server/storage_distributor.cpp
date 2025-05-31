@@ -9,6 +9,7 @@
 #include "query_analyzer.h"
 #include "query_context.h"
 #include "query_registry.h"
+#include "read_from_yt_step.h"
 #include "remote_source.h"
 #include "schema_inference.h"
 #include "secondary_query_header.h"
@@ -429,6 +430,11 @@ public:
         return std::move(Pipes_);
     }
 
+    std::vector<std::shared_ptr<IChytIndexStat>> ExtractIndexStats()
+    {
+        return std::move(QueryInput_.IndexStats);
+    }
+
     bool ReadInOrder() const
     {
         YT_VERIFY(QueryAnalyzer_);
@@ -694,6 +700,7 @@ private:
             secondaryQueryCount = 1;
         }
 
+        auto secondaryQueryBuilder = QueryAnalyzer_->GetSecondaryQueryBuilder(SpecTemplate_);
         for (int index = 0; index < secondaryQueryCount; ++index) {
             int firstSubqueryIndex = index * ThreadSubqueries_.size() / secondaryQueryCount;
             int lastSubqueryIndex = (index + 1) * ThreadSubqueries_.size() / secondaryQueryCount;
@@ -717,9 +724,8 @@ private:
             // Each thread subquery will form its own secondary query when reading in order.
             YT_VERIFY(!ReadInOrder() || std::ssize(threadSubqueries) <= 1);
 
-            auto secondaryQuery = QueryAnalyzer_->CreateSecondaryQuery(
+            auto secondaryQuery = secondaryQueryBuilder->CreateSecondaryQuery(
                 threadSubqueries,
-                SpecTemplate_,
                 QueryInput_.MiscExtMap,
                 index,
                 index + 1 == secondaryQueryCount /*isLastSubquery*/);
@@ -970,6 +976,8 @@ public:
             processingStage);
         preparer.Fire();
 
+        IndexStats_ = preparer.ExtractIndexStats();
+
         auto pipes = preparer.ExtractPipes();
         auto pipe = DB::Pipe::unitePipes(std::move(pipes));
 
@@ -993,7 +1001,8 @@ public:
         size_t numStreams) override
     {
         auto pipe = read(columnNames, storageSnapshot, queryInfo, context, processedStage, maxBlockSize, numStreams);
-        readFromPipe(queryPlan, std::move(pipe), columnNames, storageSnapshot, queryInfo, context, getName());
+        auto readStep = std::make_unique<TReadFromYTStep>(std::move(pipe), context, queryInfo, IndexStats_, GetTables());
+        queryPlan.addStep(std::move(readStep));
     }
 
     bool supportsSampling() const override
@@ -1373,6 +1382,7 @@ private:
     std::vector<TTablePtr> Tables_;
     TTableSchemaPtr Schema_;
     size_t DistributionSeed_;
+    std::vector<std::shared_ptr<IChytIndexStat>> IndexStats_;
     TLogger Logger;
 
     TDistributedQueryPreparer BuildPreparer(

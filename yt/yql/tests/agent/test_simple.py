@@ -786,7 +786,7 @@ class TestYqlAgent(TestQueriesYqlBase):
             assert not gateway_config["execute_udf_locally_if_possible"]
             assert len(gateway_config["cluster_mapping"]) == 1
             assert len(gateway_config["cluster_mapping"][0]["settings"]) == 2
-            assert len(gateway_config["default_settings"]) == 58
+            assert len(gateway_config["default_settings"]) == 59
 
             setting_found = False
             for setting in gateway_config["default_settings"]:
@@ -839,6 +839,7 @@ class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
 
 
 class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 2
     QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"resulting_rowset_value_length_limit": 20 * 1024**2}}
 
     @staticmethod

@@ -187,6 +187,12 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Parameter("priority_module_assignment_timeout", &TThis::PriorityModuleAssignmentTimeout)
         .Default(TDuration::Minutes(15));
 
+    registrar.Parameter("module_oversatisfaction_threshold", &TThis::ModuleOversatisfactionThreshold)
+        .Default();
+
+    registrar.Parameter("force_incompatible_segment_preemption", &TThis::ForceIncompatibleSegmentPreemption)
+        .Default(false);
+
     registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
         for (const auto& schedulingSegmentModule : config->DataCenters) {
             ValidateDataCenterName(schedulingSegmentModule);

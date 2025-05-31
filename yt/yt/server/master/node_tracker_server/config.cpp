@@ -61,6 +61,9 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("total_node_statistics_update_period", &TThis::TotalNodeStatisticsUpdatePeriod)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("local_state_to_node_count_update_period", &TThis::LocalStateToNodeCountUpdatePeriod)
+        .Default(TDuration::Seconds(60))
+        .DontSerializeDefault();
 
     registrar.Parameter("full_node_states_gossip_period", &TThis::FullNodeStatesGossipPeriod)
         .Default(TDuration::Minutes(1));

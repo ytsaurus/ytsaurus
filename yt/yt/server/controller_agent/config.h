@@ -18,6 +18,7 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
@@ -409,6 +410,8 @@ struct TSimpleOperationOptions
     int MaxJobCount;
     i64 DataWeightPerJob;
 
+    NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
+
     REGISTER_YSON_STRUCT(TSimpleOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -424,8 +427,6 @@ DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
 struct TMapOperationOptions
     : public TSimpleOperationOptions
 {
-    NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
-
     REGISTER_YSON_STRUCT(TMapOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -526,6 +527,7 @@ struct TSortOperationOptionsBase
     i64 MinUncompressedBlockSize;
     i64 MaxValueCountPerSimpleSortJob;
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
+    NChunkPools::TJobSizeAdjusterConfigPtr SortedMergeJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
     double CriticalNewPartitionDifferenceRatio;
 
@@ -791,19 +793,21 @@ DEFINE_REFCOUNTED_TYPE(TDockerRegistryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TDisallowRemoteOperationsConfig
+struct TRemoteOperationsConfig
     : public NYTree::TYsonStruct
 {
     THashSet<TString> AllowedUsers;
-    THashSet<std::string> AllowedClusters;
-    THashSet<std::string> AllowedForEveryoneClusters;
 
-    REGISTER_YSON_STRUCT(TDisallowRemoteOperationsConfig);
+    bool AllowedForEveryone;
+
+    std::optional<i64> MaxTotalDataWeight;
+
+    REGISTER_YSON_STRUCT(TRemoteOperationsConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDisallowRemoteOperationsConfig)
+DEFINE_REFCOUNTED_TYPE(TRemoteOperationsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1029,6 +1033,11 @@ struct TControllerAgentConfig
 
     //! Enables dynamic change of job sizes.
     bool EnablePartitionMapJobSizeAdjustment;
+
+    //! Enables dynamic change of job sizes.
+    bool EnableOrderedPartitionMapJobSizeAdjustment;
+
+    bool EnableSortedMergeInSortJobSizeAdjustment;
 
     bool EnableMapJobSizeAdjustment;
 
@@ -1278,7 +1287,7 @@ struct TControllerAgentConfig
     //! How many initial successive job aborts are needed to fail operation.
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
 
-    TDisallowRemoteOperationsConfigPtr DisallowRemoteOperations;
+    THashMap<NScheduler::TClusterName, TRemoteOperationsConfigPtr> RemoteOperations;
 
     bool EnableMergeSchemasDuringSchemaInfer;
 

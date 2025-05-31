@@ -262,7 +262,7 @@ void ExecTest(TTestCase testCase)
     }
 
     if (testCase.DecodeRowCount > 0) {
-        auto decodedRows = NJournalClient::DecodeErasureJournalRows(codec, rowParts);
+        auto decodedRows = NJournalClient::DecodeErasureJournalRows(codec, rowParts, /*logger*/ {});
         ASSERT_GE(std::ssize(decodedRows), testCase.DecodeRowCount);
         for (int row = 0; row < testCase.DecodeRowCount; ++row) {
             EXPECT_TRUE(TRef::AreBitwiseEqual(rows[row + testCase.FirstRowIndex], decodedRows[row]));

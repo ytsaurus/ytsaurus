@@ -7,3 +7,7 @@
 #else
 #   include "clickhouse_config-linux.h"
 #endif
+
+#if defined(_musl_)
+#   include "clickhouse_config-musl.h"
+#endif

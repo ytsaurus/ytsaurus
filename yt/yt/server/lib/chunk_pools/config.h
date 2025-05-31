@@ -16,6 +16,11 @@ struct TJobSizeAdjusterConfig
 
     double ExecToPrepareTimeRatio;
 
+    // TODO(coteeq): When(if) map operation will be properly split for
+    // ordered and unordered versions, this field could live in its own config.
+    //! A step for discrete version.
+    double DataWeightFactor;
+
     REGISTER_YSON_STRUCT(TJobSizeAdjusterConfig);
 
     static void Register(TRegistrar registrar);

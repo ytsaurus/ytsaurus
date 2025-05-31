@@ -1,9 +1,9 @@
 #include "object_service_proxy.h"
 
-#include "private.h"
 #include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
@@ -26,9 +26,22 @@ using namespace NApi::NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
 constinit const auto Logger = ObjectClientLogger;
 
-static const auto ExecuteMethodDescriptor = TMethodDescriptor("Execute");
+const auto ExecuteMethodDescriptor = TMethodDescriptor("Execute");
+
+TReqExecuteBatchRetriesConfigPtr GetSequoiaRetriesConfig(const IConnectionPtr& connection)
+{
+    return connection->GetConfig()->SequoiaConnection->Retries->ToRetriesConfig();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,6 +56,7 @@ TObjectServiceProxy::TObjectServiceProxy(
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , CellTag_(cellTag)
     , ChannelKind_(GetEffectiveMasterChannelKind(client->GetNativeConnection(), masterChannelKind))
+    , SequoiaRetriesConfig_(GetSequoiaRetriesConfig(client->GetNativeConnection()))
 { }
 
 TObjectServiceProxy::TObjectServiceProxy(
@@ -56,6 +70,7 @@ TObjectServiceProxy::TObjectServiceProxy(
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , CellTag_(cellTag)
     , ChannelKind_(GetEffectiveMasterChannelKind(connection, masterChannelKind))
+    , SequoiaRetriesConfig_(GetSequoiaRetriesConfig(connection))
 { }
 
 TObjectServiceProxy::TObjectServiceProxy(
@@ -72,6 +87,7 @@ TObjectServiceProxy::TObjectServiceProxy(
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , CellTag_(cellTag)
     , ChannelKind_(GetEffectiveMasterChannelKind(connection, masterChannelKind))
+    , SequoiaRetriesConfig_(GetSequoiaRetriesConfig(connection))
 { }
 
 TObjectServiceProxy TObjectServiceProxy::FromDirectMasterChannel(IChannelPtr channel)
@@ -317,7 +333,7 @@ void TObjectServiceProxy::TReqExecuteBatchBase::PushDownPrerequisites()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRefArray TObjectServiceProxy::TReqExecuteBatch::PatchForRetry(const TSharedRefArray& message)
+TSharedRefArray TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::PatchForRetry(const TSharedRefArray& message)
 {
     NRpc::NProto::TRequestHeader header;
     YT_VERIFY(TryParseRequestHeader(message, &header));
@@ -330,7 +346,7 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteBatch::PatchForRetry(const TShar
     }
 }
 
-TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecuteBatch::Invoke()
+TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::Invoke()
 {
     InFlightSubbatchIndexToGlobalIndex_.reserve(SubbatchSize_);
     SetBalancingHeader();
@@ -341,27 +357,30 @@ TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecu
     return FullResponsePromise_;
 }
 
-void TObjectServiceProxy::TReqExecuteBatch::SetStickyGroupSize(int value)
+void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::SetStickyGroupSize(int value)
 {
     StickyGroupSize_ = value;
 }
 
-void TObjectServiceProxy::TReqExecuteBatch::SetEnableClientStickiness(bool value)
+void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::SetEnableClientStickiness(bool value)
 {
     EnableClientStickiness_ = value;
 }
 
 TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel)
     : TProxyBase(std::move(channel), GetDescriptor())
-{ }
+    , SequoiaRetriesConfig_(New<TReqExecuteBatchRetriesConfig>())
+{
+    SequoiaRetriesConfig_->RetryCount = 0;
+}
 
-TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
+TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::TReqExecuteBatchNoSequoiaRetries(
     const TReqExecuteBatchBase& other,
     std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors)
     : TReqExecuteBatchBase(other, std::move(innerRequestDescriptors))
 { }
 
-TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
+TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::TReqExecuteBatchNoSequoiaRetries(
     IChannelPtr channel,
     int subbatchSize,
     TStickyGroupSizeCachePtr stickyGroupSizeCache,
@@ -375,7 +394,8 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
         channelKind)
 { }
 
-TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatch::FormNextBatch()
+TObjectServiceProxy::TReqExecuteSubbatchPtr
+TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::FormNextBatch()
 {
     std::vector<TInnerRequestDescriptor> innerRequestDescriptors;
     innerRequestDescriptors.reserve(SubbatchSize_);
@@ -414,7 +434,7 @@ TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatc
     return New<TReqExecuteSubbatch>(*this, std::move(innerRequestDescriptors));
 }
 
-void TObjectServiceProxy::TReqExecuteBatch::InvokeNextBatch()
+void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::InvokeNextBatch()
 {
     auto subbatchReq = FormNextBatch();
     CurrentReqFuture_ = subbatchReq->DoInvoke();
@@ -423,10 +443,11 @@ void TObjectServiceProxy::TReqExecuteBatch::InvokeNextBatch()
         subbatchReq->GetRequestId(),
         subbatchReq->GetSize());
 
-    CurrentReqFuture_.Subscribe(BIND(&TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse, MakeStrong(this)));
+    CurrentReqFuture_.Subscribe(
+        BIND(&TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::OnSubbatchResponse, MakeStrong(this)));
 }
 
-TObjectServiceProxy::TRspExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::GetFullResponse()
+TObjectServiceProxy::TRspExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::GetFullResponse()
 {
     if (!FullResponse_) {
         // Make sure the full response uses the promise we've returned to the caller.
@@ -439,7 +460,7 @@ TObjectServiceProxy::TRspExecuteBatchPtr TObjectServiceProxy::TReqExecuteBatch::
     return FullResponse_;
 }
 
-void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TRspExecuteBatchPtr>& rspOrErr)
+void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::OnSubbatchResponse(const TErrorOr<TRspExecuteBatchPtr>& rspOrErr)
 {
     auto isFirstBatch = IsFirstBatch_;
     IsFirstBatch_ = false;
@@ -500,27 +521,27 @@ void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TR
     InvokeNextBatch();
 }
 
-int TObjectServiceProxy::TReqExecuteBatch::GetTotalSubrequestCount() const
+int TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::GetTotalSubrequestCount() const
 {
     return GetSize();
 }
 
-int TObjectServiceProxy::TReqExecuteBatch::GetFirstUnreceivedSubresponseIndex() const
+int TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::GetFirstUnreceivedSubresponseIndex() const
 {
     return FullResponse_ ? FullResponse_->GetFirstUnreceivedResponseIndex() : 0;
 }
 
-bool TObjectServiceProxy::TReqExecuteBatch::IsSubresponseUncertain(int index) const
+bool TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::IsSubresponseUncertain(int index) const
 {
     return FullResponse_ ? FullResponse_->IsResponseUncertain(index) : false;
 }
 
-bool TObjectServiceProxy::TReqExecuteBatch::IsSubresponseReceived(int index) const
+bool TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::IsSubresponseReceived(int index) const
 {
     return FullResponse_ ? FullResponse_->IsResponseReceived(index) : false;
 }
 
-void TObjectServiceProxy::TReqExecuteBatch::SetBalancingHeader()
+void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::SetBalancingHeader()
 {
     if (!StickyGroupSize_) {
         return;
@@ -545,13 +566,13 @@ void TObjectServiceProxy::TReqExecuteBatch::SetBalancingHeader()
     balancingHeaderExt->set_sticky_group_size(stickyGroupSize);
 }
 
-void TObjectServiceProxy::TReqExecuteBatch::SetMulticellSyncHeader()
+void TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::SetMulticellSyncHeader()
 {
     NObjectClient::SetSuppressUpstreamSync(&Header(), SuppressUpstreamSync_);
     NObjectClient::SetSuppressTransactionCoordinatorSync(&Header(), SuppressTransactionCoordinatorSync_);
 }
 
-std::optional<int> TObjectServiceProxy::TReqExecuteBatch::GetAdvisedStickyGroupSize() const
+std::optional<int> TObjectServiceProxy::TReqExecuteBatchNoSequoiaRetries::GetAdvisedStickyGroupSize() const
 {
     if (!StickyGroupSizeCache_) {
         return std::nullopt;
@@ -574,14 +595,15 @@ std::optional<int> TObjectServiceProxy::TReqExecuteBatch::GetAdvisedStickyGroupS
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TObjectServiceProxy::TReqExecuteBatchWithRetries::TReqExecuteBatchWithRetries(
+TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     IChannelPtr channel,
-    TReqExecuteBatchWithRetriesConfigPtr config,
+    TReqExecuteBatchRetriesConfigPtr config,
     TStickyGroupSizeCachePtr stickyGroupSizeCache,
     std::optional<TCellTag> cellTag,
     std::optional<NApi::EMasterChannelKind> channelKind,
     TCallback<bool(int, const TError&)> needRetry,
-    int subbatchSize)
+    int subbatchSize,
+    bool regenerateMutationIdForRetries)
     : TReqExecuteBatchBase(
         std::move(channel),
         subbatchSize,
@@ -589,17 +611,31 @@ TObjectServiceProxy::TReqExecuteBatchWithRetries::TReqExecuteBatchWithRetries(
         cellTag,
         channelKind)
     , Config_(std::move(config))
-    , NeedRetry_(BIND(std::move(needRetry), std::cref(CurrentRetry_)))
-{ }
+    , NeedRetry_(std::move(needRetry))
+    , RegenerateMutationIdForRetries_(regenerateMutationIdForRetries)
+{
+    YT_VERIFY(Config_);
+    YT_VERIFY(NeedRetry_);
+}
 
-TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecuteBatchWithRetries::Invoke()
+void TObjectServiceProxy::TReqExecuteBatch::SetStickyGroupSize(int value)
+{
+    StickyGroupSize_ = value;
+}
+
+void TObjectServiceProxy::TReqExecuteBatch::SetEnableClientStickiness(bool value)
+{
+    EnableClientStickiness_ = value;
+}
+
+TFuture<TObjectServiceProxy::TRspExecuteBatchPtr> TObjectServiceProxy::TReqExecuteBatch::Invoke()
 {
     Initialize();
     InvokeNextBatch();
     return FullResponsePromise_;
 }
 
-void TObjectServiceProxy::TReqExecuteBatchWithRetries::Initialize()
+void TObjectServiceProxy::TReqExecuteBatch::Initialize()
 {
     FullResponsePromise_ = NewPromise<TRspExecuteBatchPtr>();
     FullResponse_ = New<TRspExecuteBatch>(
@@ -615,27 +651,36 @@ void TObjectServiceProxy::TReqExecuteBatchWithRetries::Initialize()
     PushDownPrerequisites();
 }
 
-void TObjectServiceProxy::TReqExecuteBatchWithRetries::InvokeNextBatch()
+void TObjectServiceProxy::TReqExecuteBatch::InvokeNextBatch()
 {
     std::vector<TInnerRequestDescriptor> innerRequestDescriptors;
     innerRequestDescriptors.reserve(PendingIndexes_.size());
 
     for (int index : PendingIndexes_) {
         auto& descriptor = InnerRequestDescriptors_[index];
-        descriptor.Message = PatchMutationId(descriptor.Message);
+        descriptor.Message = PatchMutationId(
+            descriptor.Message,
+            CurrentRetry_ > 0,
+            RegenerateMutationIdForRetries_);
         innerRequestDescriptors.push_back(descriptor);
     }
 
-    auto batchRequest = New<TReqExecuteBatch>(*this, std::move(innerRequestDescriptors));
+    auto batchRequest = New<TReqExecuteBatchNoSequoiaRetries>(*this, std::move(innerRequestDescriptors));
+    batchRequest->SetEnableClientStickiness(EnableClientStickiness_);
+    if (StickyGroupSize_) {
+        batchRequest->SetStickyGroupSize(*StickyGroupSize_);
+    }
     CurrentReqFuture_ = batchRequest->Invoke();
-    YT_LOG_DEBUG("Batch attempt invoked (BatchRequestId: %v, AttemptRequestId: %v, RequestCount: %v)",
+    YT_LOG_DEBUG("Batch attempt invoked (BatchRequestId: %v, AttemptRequestId: %v, RequestCount: %v, CurrentRetry: %v)",
         GetRequestId(),
         batchRequest->GetRequestId(),
-        batchRequest->GetSize());
-    YT_UNUSED_FUTURE(CurrentReqFuture_.Apply(BIND(&TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse, MakeStrong(this))));
+        batchRequest->GetSize(),
+        CurrentRetry_);
+    YT_UNUSED_FUTURE(CurrentReqFuture_.Apply(
+        BIND(&TObjectServiceProxy::TReqExecuteBatch::OnBatchResponse, MakeStrong(this))));
 }
 
-void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse(const TErrorOr<TRspExecuteBatchPtr>& batchRspOrErr)
+void TObjectServiceProxy::TReqExecuteBatch::OnBatchResponse(const TErrorOr<TRspExecuteBatchPtr>& batchRspOrErr)
 {
     if (!batchRspOrErr.IsOK()) {
         FullResponsePromise_.Set(batchRspOrErr);
@@ -649,7 +694,7 @@ void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse(const TEr
     int retryCount = 0;
     for (int i = 0; i < batchRsp->GetSize(); ++i) {
         const auto& rspOrErr = batchRsp->GetResponse(i);
-        if (CurrentRetry_ < Config_->RetryCount && NeedRetry_(rspOrErr)) {
+        if (CurrentRetry_ < Config_->RetryCount && NeedRetry_(CurrentRetry_, rspOrErr)) {
             // Building new indexes vector in-place to avoid new allocations.
             PendingIndexes_[retryCount++] = PendingIndexes_[i];
         } else {
@@ -667,25 +712,61 @@ void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnBatchResponse(const TEr
     PendingIndexes_.resize(retryCount);
 
     NConcurrency::TDelayedExecutor::Submit(
-        BIND(&TObjectServiceProxy::TReqExecuteBatchWithRetries::OnRetryDelayFinished, MakeStrong(this)),
+        BIND(&TObjectServiceProxy::TReqExecuteBatch::OnRetryDelayFinished, MakeStrong(this)),
         GetCurrentDelay());
 }
 
-void TObjectServiceProxy::TReqExecuteBatchWithRetries::OnRetryDelayFinished()
+void TObjectServiceProxy::TReqExecuteBatch::OnRetryDelayFinished()
 {
     ++CurrentRetry_;
     InvokeNextBatch();
 }
 
-TSharedRefArray TObjectServiceProxy::TReqExecuteBatchWithRetries::PatchMutationId(const TSharedRefArray& message)
+TSharedRefArray TObjectServiceProxy::TReqExecuteBatch::PatchMutationId(
+    const TSharedRefArray& message,
+    bool retry,
+    bool regenerateMutationIdForRetries)
 {
     NRpc::NProto::TRequestHeader header;
     YT_VERIFY(TryParseRequestHeader(message, &header));
-    NRpc::SetMutationId(&header, GenerateMutationId(), false);
+
+    // TReqExecuteBatch has 2 modes:
+    //   1. low-level retries: every error is considered as "transient error"
+    //      (i.e. is not kept by master response keeper). In this mode mutation
+    //      ID is not generated for every retry and |retry| flag is properly
+    //      set. Examples: Unavailable, Timeout, Sequoia errors.
+    //   2. retries of any errors: every request retry has its own mutation ID to
+    //      be able retry persistent errors occurred inside master mutations.
+    //      |retry| flag is always false in this mode.
+
+    if (retry) {
+        YT_VERIFY(header.has_mutation_id());
+        if (regenerateMutationIdForRetries) {
+            NRpc::SetMutationId(&header, GenerateMutationId(), /*retry*/ false);
+        } else if (header.retry()) {
+            // Fast path: request header isn't changed.
+            return message;
+        } else {
+            header.set_retry(true);
+        }
+    } else {
+        if (header.has_mutation_id()) {
+            // NB: we don't check if |retry| flag is already set because caller
+            // may want to retry request with old mutation ID. In such cases
+            // mutation ID isn't patched and it's a caller's responsibility to
+            // properly set |retry| flag.
+
+            // Fast path: request header isn't changed.
+            return message;
+        } else {
+            NRpc::SetMutationId(&header, GenerateMutationId(), /*retry*/ false);
+        }
+    }
+
     return SetRequestHeader(message, header);
 }
 
-TDuration TObjectServiceProxy::TReqExecuteBatchWithRetries::GetCurrentDelay()
+TDuration TObjectServiceProxy::TReqExecuteBatch::GetCurrentDelay()
 {
     YT_VERIFY(CurrentRetry_ < Config_->RetryCount);
 
@@ -959,14 +1040,15 @@ NHydra::TRevision TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) 
 TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::ExecuteBatch(int subbatchSize)
 {
-    auto batchReq = New<TReqExecuteBatch>(
-        Channel_,
+    static const auto NeedRetry = BIND_NO_PROPAGATE([] (int, const TError& error) {
+            return error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError;
+    });
+
+    return ExecuteBatchWithRetries(
+        SequoiaRetriesConfig_,
+        NeedRetry,
         subbatchSize,
-        StickyGroupSizeCache_,
-        CellTag_,
-        ChannelKind_);
-    PrepareBatchRequest(batchReq);
-    return batchReq;
+        /*regenerateMutationIdForRetries*/ false);
 }
 
 TObjectServiceProxy::TReqExecuteBatchBasePtr
@@ -982,33 +1064,35 @@ TObjectServiceProxy::ExecuteBatchNoBackoffRetries(int subbatchSize)
     return batchReq;
 }
 
-TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr
+TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::ExecuteBatchWithRetries(
-    TReqExecuteBatchWithRetriesConfigPtr config,
+    TReqExecuteBatchRetriesConfigPtr config,
     TCallback<bool(int, const TError&)> needRetry,
-    int subbatchSize)
+    int subbatchSize,
+    bool regenerateMutationIdForRetries)
 {
-    auto batchReq = New<TReqExecuteBatchWithRetries>(
+    auto batchReq = New<TReqExecuteBatch>(
         Channel_,
         std::move(config),
         StickyGroupSizeCache_,
         CellTag_,
         ChannelKind_,
         std::move(needRetry),
-        subbatchSize);
+        subbatchSize,
+        regenerateMutationIdForRetries);
     PrepareBatchRequest(batchReq);
     return batchReq;
 }
 
-TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallelPtr
+TObjectServiceProxy::TReqExecuteBatchInParallelPtr
 TObjectServiceProxy::ExecuteBatchWithRetriesInParallel(
-    TReqExecuteBatchWithRetriesConfigPtr config,
+    TReqExecuteBatchRetriesConfigPtr config,
     TCallback<bool(int, const TError&)> needRetry,
     int subbatchSize,
     int maxParallelSubbatchCount)
 {
     YT_VERIFY(maxParallelSubbatchCount > 0);
-    std::vector<TReqExecuteBatchWithRetriesPtr> parallelReqs;
+    std::vector<TReqExecuteBatchPtr> parallelReqs;
     for (int i = 0; i < maxParallelSubbatchCount; ++i) {
         auto batchReq = ExecuteBatchWithRetries(
             config,
@@ -1017,7 +1101,7 @@ TObjectServiceProxy::ExecuteBatchWithRetriesInParallel(
         PrepareBatchRequest(batchReq);
         parallelReqs.push_back(std::move(batchReq));
     }
-    return New<TReqExecuteBatchWithRetriesInParallel>(
+    return New<TReqExecuteBatchInParallel>(
         Channel_,
         subbatchSize,
         StickyGroupSizeCache_,
@@ -1026,13 +1110,13 @@ TObjectServiceProxy::ExecuteBatchWithRetriesInParallel(
         std::move(parallelReqs));
 }
 
-TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::TReqExecuteBatchWithRetriesInParallel(
+TObjectServiceProxy::TReqExecuteBatchInParallel::TReqExecuteBatchInParallel(
     NRpc::IChannelPtr channel,
     int subbatchSize,
     TStickyGroupSizeCachePtr stickyGroupSizeCache,
     std::optional<TCellTag> cellTag,
     std::optional<NApi::EMasterChannelKind> channelKind,
-    std::vector<TReqExecuteBatchWithRetriesPtr> parallelReqs)
+    std::vector<TReqExecuteBatchPtr> parallelReqs)
     : TReqExecuteBatchBase(
         std::move(channel),
         subbatchSize,
@@ -1043,7 +1127,7 @@ TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::TReqExecuteBatchWith
 { }
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
-TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::Invoke()
+TObjectServiceProxy::TReqExecuteBatchInParallel::Invoke()
 {
     auto needsRoundUp = std::ssize(InnerRequestDescriptors_) % std::ssize(ParallelReqs_) != 0;
     auto reqsPerParallelReq = std::ssize(InnerRequestDescriptors_) / std::ssize(ParallelReqs_) + needsRoundUp;
@@ -1064,11 +1148,11 @@ TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::Invoke()
     }
 
     return AllSucceeded(std::move(parallelReqFutures)).Apply(
-        BIND(&TReqExecuteBatchWithRetriesInParallel::OnParallelResponses, MakeStrong(this)));
+        BIND(&TReqExecuteBatchInParallel::OnParallelResponses, MakeStrong(this)));
 }
 
 TObjectServiceProxy::TRspExecuteBatchPtr
-TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::OnParallelResponses(
+TObjectServiceProxy::TReqExecuteBatchInParallel::OnParallelResponses(
     const TErrorOr<std::vector<TRspExecuteBatchPtr>>& parallelRspsOrError)
 {
     auto fullResponse = New<TRspExecuteBatch>(

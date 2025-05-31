@@ -106,8 +106,7 @@ using TOperationControllerStrategyHostMockPtr = TIntrusivePtr<TOperationControll
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationStrategyHostMock
-    : public TRefCounted
-    , public IOperationStrategyHost
+    : public IOperationStrategyHost
 {
 public:
     explicit TOperationStrategyHostMock(const TJobResourcesWithQuotaList& jobResourcesList)
@@ -122,6 +121,11 @@ public:
     }
 
     EOperationState GetState() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    std::optional<std::string> GetTitle() const override
     {
         YT_UNIMPLEMENTED();
     }

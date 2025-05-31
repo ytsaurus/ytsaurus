@@ -226,8 +226,8 @@ private:
 
         YT_VERIFY(currentDecompressedSize == std::ssize(blob));
 
-        YT_LOG_DEBUG("Dictionary decompression session successfully decompressed rows "
-            "(DecompressionTime: %v, RowCount: %v/%v, CompressedSize: %v, DecompressedSize: %v, UncompressedSize: %v)",
+        YT_LOG_DEBUG("Dictionary decompression session successfully decompressed values "
+            "(DecompressionTime: %v, ProcessedValueCount: %v/%v, CompressedSize: %v, DecompressedSize: %v, UncompressedSize: %v)",
             decompressionTimer.GetElapsedTime(),
             newDecompressedValueCount,
             values.size(),

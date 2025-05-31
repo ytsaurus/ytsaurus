@@ -119,7 +119,7 @@ namespace NSQLComplete {
 
             if (context.Cluster) {
                 TClusterName::TConstraints constraints;
-                constraints.Namespace = context.Cluster->Provider;
+                constraints.Namespace = ""; // TODO(YQL-19747): filter by provider
                 request.Constraints.Cluster = std::move(constraints);
             }
 
@@ -186,14 +186,14 @@ namespace NSQLComplete {
                 if constexpr (std::is_base_of_v<TFolderName, T>) {
                     name.Indentifier.append('/');
                     if (!context.Object->IsQuoted) {
-                        name.Indentifier = Quoted(std::move(name.Indentifier));
+                        name.Indentifier.prepend('`');
                     }
                     return {ECandidateKind::FolderName, std::move(name.Indentifier)};
                 }
 
                 if constexpr (std::is_base_of_v<TTableName, T>) {
                     if (!context.Object->IsQuoted) {
-                        name.Indentifier = Quoted(std::move(name.Indentifier));
+                        name.Indentifier.prepend('`');
                     }
                     return {ECandidateKind::TableName, std::move(name.Indentifier)};
                 }

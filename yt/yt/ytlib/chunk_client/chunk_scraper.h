@@ -25,7 +25,7 @@ struct TScrapedChunkInfo
     bool Missing = false;
 };
 
-using TChunkBatchLocatedHandler = TCallback<void(const std::vector<TScrapedChunkInfo>&)>;
+using TChunkBatchLocatedHandler = TCallback<void(std::vector<TScrapedChunkInfo>)>;
 
 //! A chunk scraper for unavailable chunks.
 class TChunkScraper

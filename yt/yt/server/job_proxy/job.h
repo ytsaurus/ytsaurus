@@ -85,7 +85,7 @@ struct IJobHost
 
     virtual void OnJobMemoryThrashing() = 0;
 
-    virtual NChunkClient::TChunkReaderHostPtr GetChunkReaderHost() const = 0;
+    virtual NChunkClient::TMultiChunkReaderHostPtr GetChunkReaderHost() const = 0;
 
     virtual NChunkClient::IBlockCachePtr GetReaderBlockCache() const = 0;
     virtual NChunkClient::IBlockCachePtr GetWriterBlockCache() const = 0;

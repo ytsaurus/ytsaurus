@@ -5,6 +5,7 @@
 #include "in_memory_service_proxy.h"
 #include "private.h"
 #include "slot_manager.h"
+#include "smooth_movement_tracker.h"
 #include "sorted_chunk_store.h"
 #include "store_manager.h"
 #include "structured_logger.h"
@@ -21,6 +22,7 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
@@ -382,7 +384,7 @@ private:
         if (!tabletSnapshot) {
             YT_LOG_INFO("Tablet snapshot is missing");
 
-            store->UpdatePreloadAttempt(false);
+            store->UpdatePreloadAttempt(/*isBackoff*/ false);
             storeManager->BackoffStorePreload(store);
             return;
         }
@@ -423,7 +425,7 @@ private:
             // SetInMemoryMode with other mode was called during current action execution.
 
             YT_LOG_ERROR(ex, "Error preloading tablet store, backing off");
-            store->UpdatePreloadAttempt(true);
+            store->UpdatePreloadAttempt(/*isBackoff*/ true);
             storeManager->BackoffStorePreload(store);
 
             auto error = TError(ex)
@@ -442,6 +444,8 @@ private:
         }
 
         snapshotStore->RegisterTabletSnapshot(slot, tablet);
+
+        slot->GetSmoothMovementTracker()->CheckTablet(tablet);
     }
 };
 
@@ -1039,6 +1043,7 @@ private:
                 *req->add_chunk_meta() = *chunkInfo.ChunkMeta;
                 ToProto(req->add_tablet_id(), chunkInfo.TabletId);
                 req->add_mount_revision(ToProto(chunkInfo.MountRevision));
+                req->add_target_servant_mount_revision(ToProto(chunkInfo.TargetServantMountRevision));
             }
 
             asyncResults.push_back(req->Invoke().As<void>());
@@ -1101,13 +1106,24 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
     const IInvokerPtr& controlInvoker,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
-    const NHiveClient::TCellDescriptorPtr& cellDescriptor,
+    const std::vector<NHiveClient::TCellDescriptorPtr>& cellDescriptors,
     EInMemoryMode inMemoryMode,
     const TInMemoryManagerConfigPtr& config)
 {
+    THashMap<std::string, TNodeDescriptor> nodeDescriptors;
+
+    auto addCellPeers = [&] (const NHiveClient::TCellDescriptorPtr& cellDescriptor) {
+        for (const auto& target : cellDescriptor->Peers) {
+            nodeDescriptors.emplace(target.GetDefaultAddress(), target);
+        }
+    };
+
+    for (const auto& cellDescriptor : cellDescriptors) {
+        addCellPeers(cellDescriptor);
+    }
+
     std::vector<TNodePtr> nodes;
-    for (const auto& target : cellDescriptor->Peers) {
-        const auto& address = target.GetDefaultAddress();
+    for (const auto& [address, target] : nodeDescriptors) {
         auto channel = address == localDescriptor.GetDefaultAddress()
             ? CreateLocalChannel(localRpcServer)
             : client->GetChannelFactory()->CreateChannel(target);
@@ -1163,12 +1179,29 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
     IInvokerPtr controlInvoker,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
-    NHiveClient::TCellDescriptorPtr cellDescriptor,
+    const TTabletSnapshotPtr& tabletSnapshot,
     EInMemoryMode inMemoryMode,
     TInMemoryManagerConfigPtr config)
 {
     if (inMemoryMode == EInMemoryMode::None) {
         return MakeFuture<IRemoteInMemoryBlockCachePtr>(New<TDummyInMemoryBlockCache>());
+    }
+
+    const auto& cellDirectory = client->GetNativeConnection()->GetCellDirectory();
+
+    std::vector<NHiveClient::TCellDescriptorPtr> cellDescriptors;
+    cellDescriptors.push_back(cellDirectory->GetDescriptorByCellIdOrThrow(tabletSnapshot->CellId));
+
+    {
+        const auto& movementData = tabletSnapshot->TabletRuntimeData->SmoothMovementData;
+        if (movementData.IsActiveServant.load() &&
+            movementData.Role.load() == ESmoothMovementRole::Source)
+        {
+            // NB: May be absent in case of concurrent modification.
+            if (auto cellId = movementData.SiblingServantCellId.Load()) {
+                cellDescriptors.push_back(cellDirectory->GetDescriptorByCellIdOrThrow(cellId));
+            }
+        }
     }
 
     return BIND(&DoCreateRemoteInMemoryBlockCache)
@@ -1178,7 +1211,7 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
             controlInvoker,
             localDescriptor,
             std::move(localRpcServer),
-            std::move(cellDescriptor),
+            std::move(cellDescriptors),
             inMemoryMode,
             std::move(config));
 }

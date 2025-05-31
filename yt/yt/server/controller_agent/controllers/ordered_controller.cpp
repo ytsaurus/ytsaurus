@@ -153,9 +153,9 @@ protected:
                 TotalOutputRowCount_ += jobSummary.TotalOutputDataStatistics->row_count();
             }
 
-            TChunkStripeKey key = 0;
+            TChunkStripeKey key;
             if (Controller_->OrderedOutputRequired_) {
-                key = TOutputOrder::TEntry(joblet->OutputCookie);
+                key = TChunkStripeKey(TOutputOrder::TEntry(joblet->OutputCookie));
             }
 
             RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /*processEmptyStripes*/ true);
@@ -242,9 +242,9 @@ protected:
             TTask::OnChunkTeleported(teleportChunk, tag);
 
             if (Controller_->OrderedOutputRequired_) {
-                Controller_->RegisterTeleportChunk(teleportChunk, /*key*/ TOutputOrder::TEntry(teleportChunk), /*tableIndex*/ 0);
+                Controller_->RegisterTeleportChunk(teleportChunk, /*key*/ TChunkStripeKey(TOutputOrder::TEntry(teleportChunk)), /*tableIndex*/ 0);
             } else {
-                Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, /*tableIndex*/ 0);
+                Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ TChunkStripeKey(), /*tableIndex*/ 0);
             }
         }
 
@@ -447,7 +447,7 @@ protected:
         FinishPreparation();
     }
 
-    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const
+    virtual TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const
     {
         TOrderedChunkPoolOptions chunkPoolOptions;
         chunkPoolOptions.MaxTotalSliceCount = Config_->MaxTotalSliceCount;
@@ -518,7 +518,7 @@ public:
     TOrderedMergeController(
         TOrderedMergeOperationSpecPtr spec,
         TControllerAgentConfigPtr config,
-        TSimpleOperationOptionsPtr options,
+        TOrderedMergeOperationOptionsPtr options,
         IOperationControllerHostPtr host,
         TOperation* operation)
         : TOrderedControllerBase(
@@ -528,10 +528,12 @@ public:
             host,
             operation)
         , Spec_(spec)
+        , Options_(std::move(options))
     { }
 
 private:
     TOrderedMergeOperationSpecPtr Spec_;
+    TOrderedMergeOperationOptionsPtr Options_;
 
     bool IsRowCountPreserved() const override
     {
@@ -677,6 +679,13 @@ private:
     TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
         return TConfigurator<TOrderedMergeOperationSpec>();
+    }
+
+    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const override
+    {
+        auto options = TOrderedControllerBase::GetOrderedChunkPoolOptions();
+        options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
+        return options;
     }
 
     void OnOperationCompleted(bool interrupted) override
@@ -905,6 +914,13 @@ private:
     TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
         return TConfigurator<TMapOperationSpec>();
+    }
+
+    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const override
+    {
+        auto options = TOrderedControllerBase::GetOrderedChunkPoolOptions();
+        options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
+        return options;
     }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedMapController, 0x3be901ca);

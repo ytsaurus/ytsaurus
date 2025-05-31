@@ -4,4 +4,5 @@ RECURSE(
     interface
     server
     service
+    yt_coordinator_service
 )

@@ -28,7 +28,7 @@ from flaky import flaky
 import builtins
 from collections import namedtuple
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import itertools
 from random import randint
 from time import sleep
@@ -499,42 +499,6 @@ class TestSequoiaInternals(YTEnvSetup):
         assert not get_batch_output(results[0])
         with raises_yt_error():
             get_batch_output(results[1])
-
-    @authors("kvk1920")
-    def test_cypress_proxy_registry(self):
-        assert get("//sys/cypress_proxies/@count") == self.NUM_CYPRESS_PROXIES
-
-        cypress_proxy = ls("//sys/cypress_proxies")[0]
-        cypress_proxy_object_id = get(f"//sys/cypress_proxies/{cypress_proxy}/@id")
-        cypress_proxy_reign = get(f"//sys/cypress_proxies/{cypress_proxy}/orchid/sequoia_reign")
-
-        master = ls("//sys/primary_masters")[0]
-        master_reign = get(f"//sys/primary_masters/{master}/orchid/sequoia_reign")
-
-        assert cypress_proxy_reign == master_reign
-
-        remove(f"//sys/cypress_proxies/{cypress_proxy}")
-        wait(lambda: exists(f"//sys/cypress_proxies/{cypress_proxy}"))
-        assert cypress_proxy_object_id != get(f"//sys/cypress_proxies/{cypress_proxy}/@id")
-
-    @authors("kvk1920")
-    def test_cypress_proxy_version(self):
-        version = ls("//sys/cypress_proxies", attributes=["version"])[0].attributes["version"]
-        assert ".".join(map(str, self.Env.get_component_version("ytserver-cypress-proxy").abi)) in version
-
-    @authors("kvk1920")
-    def test_cypress_proxy_persistent_heartbeat_period(self):
-        set("//sys/@config/cypress_proxy_tracker/persistent_heartbeat_period", 1000)
-
-        now = datetime.now(timezone.utc)
-
-        def check():
-            last_persistent_heartbeat_time = ls("//sys/cypress_proxies", attributes=["last_persistent_heartbeat_time"])[0].attributes["last_persistent_heartbeat_time"]
-            last_persistent_heartbeat_time = datetime.strptime(last_persistent_heartbeat_time, "%Y-%m-%dT%H:%M:%S.%fZ")
-            last_persistent_heartbeat_time = last_persistent_heartbeat_time.replace(tzinfo=timezone.utc)
-            return last_persistent_heartbeat_time > now
-
-        wait(check)
 
     @authors("danilalexeev")
     @flaky(max_runs=3)
