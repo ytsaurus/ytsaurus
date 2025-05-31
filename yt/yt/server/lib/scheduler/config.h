@@ -192,6 +192,10 @@ public:
 
     TDuration PriorityModuleAssignmentTimeout;
 
+    std::optional<double> ModuleOversatisfactionThreshold;
+
+    bool ForceIncompatibleSegmentPreemption;
+
     const THashSet<TString>& GetModules() const;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySchedulingSegmentsConfig);
