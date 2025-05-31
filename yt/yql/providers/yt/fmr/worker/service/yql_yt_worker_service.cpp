@@ -9,7 +9,7 @@
 #include <yt/yql/providers/yt/fmr/table_data_service/local/yql_yt_table_data_service_local.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/discovery/file/yql_yt_file_service_discovery.h>
 #include <yt/yql/providers/yt/fmr/worker/impl/yql_yt_worker_impl.h>
-#include <yt/yql/providers/yt/fmr/yt_service/impl/yql_yt_yt_service_impl.h>
+#include <yt/yql/providers/yt/fmr/yt_job_service/impl/yql_yt_job_service_impl.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/log_component.h>
 #include <yql/essentials/utils/mem_limit.h>
@@ -74,10 +74,10 @@ int main(int argc, const char *argv[]) {
         } else {
             tableDataService = MakeLocalTableDataService(TLocalTableDataServiceSettings(3));
         }
-        auto fmrYtSerivce = MakeFmrYtSerivce();
+        auto fmrYtJobSerivce = MakeYtJobSerivce();
         // TODO - add different job Settings here
-        auto func = [tableDataService, fmrYtSerivce] (TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
-            return RunJob(task, tableDataService, fmrYtSerivce, cancelFlag);
+        auto func = [tableDataService, fmrYtJobSerivce] (TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
+            return RunJob(task, tableDataService, fmrYtJobSerivce, cancelFlag);
         };
 
         TFmrJobFactorySettings settings{.Function=func};

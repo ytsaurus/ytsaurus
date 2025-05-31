@@ -95,9 +95,12 @@ class TestSchedulerMapReduceCommands(TestSchedulerMapReduceBase):
                 },
                 "spec_template": {
                     "use_new_sorted_pool": False,
-                }
+                },
+                "sorted_merge_job_size_adjuster": {},
             },
             "enable_partition_map_job_size_adjustment": True,
+            "enable_ordered_partition_map_job_size_adjustment": True,
+            "enable_sorted_merge_in_sort_job_size_adjustment": True,
         }
     }
 
@@ -1153,9 +1156,14 @@ print("x={0}\ty={1}".format(x, y))
         assert get("//tmp/t2/@schema_mode") == "strong"
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in range(2)]
 
-    @authors("klyachin")
-    @pytest.mark.skipif("True", reason="YT-8228")
-    def test_map_reduce_job_size_adjuster_boost(self):
+    @authors("klyachin", "coteeq")
+    @pytest.mark.parametrize("ordered", [True, False])
+    def test_map_reduce_job_size_adjuster_boost(self, ordered):
+        if not ordered:
+            pytest.skip(reason="YT-8228")
+
+        skip_if_old(self.Env, (25, 3), "No ordered adjuster in 25.2")
+
         create("table", "//tmp/t_input")
         # original_data should have at least 1Mb of data
         original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in range(31)]
@@ -1171,13 +1179,68 @@ print("x={0}\ty={1}".format(x, y))
             mapper_command="echo lines=`wc -l`",
             reducer_command="cat",
             spec={
+                "ordered": ordered,
                 "mapper": {"format": "dsv"},
                 "map_job_io": {"table_writer": {"block_size": 1024}},
                 "resource_limits": {"user_slots": 1},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
             },
         )
 
         expected = [{"lines": str(2 ** i)} for i in range(5)]
+        actual = read_table("//tmp/t_output")
+        assert_items_equal(actual, expected)
+
+    @authors("coteeq")
+    @pytest.mark.timeout(300)
+    def test_map_reduce_job_size_adjuster_sorted_merge(self):
+        self.skip_if_legacy_sorted_pool()
+        create("table", "//tmp/t_input")
+        original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in range(15)]
+        for row in original_data:
+            write_table("<append=true>//tmp/t_input", row, verbose=False)
+
+        create("table", "//tmp/t_output")
+
+        map_reduce(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            reduce_by="index",
+            mapper_command="cat",
+            reducer_command="echo lines=`wc -l`",
+            spec={
+                "mapper": {"format": "dsv"},
+                "reducer": {"format": "dsv"},
+                "resource_limits": {"user_slots": 1},
+                "data_size_per_map_job": 1,
+                "data_size_per_sort_job": 36000,
+                "partition_count": 1,
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+            },
+        )
+
+        # NB(coteeq): A little quirk of sorted job builder is that it checks for data weight too late.
+        # So initially it will produce jobs with row counts [1, 2, 2, 2, 2, 2, 2, 2].
+        # JobManager will then schedule fat jobs first, so we will schedule jobs starting from the second.
+        # But this second job will not trigger enlargement, because the jobs are already too large.
+        # So the job sizes will look like this (c means completed):
+        # [1, 2, 2, 2, 2, 2, 2, 2]
+        # [1, c, 2, 2, 2, 2, 2, 2]
+        # [1, c, c, 4, 4, 2]
+        # [1, c, c, c, 6]
+        # [1, c, c, c, c]
+        # [c, c, c, c, c]
+        expected = [
+            {"lines": "1"},
+            {"lines": "2"},
+            {"lines": "2"},
+            {"lines": "4"},
+            {"lines": "6"},
+        ]
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
 
@@ -3814,9 +3877,12 @@ class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands
                 },
                 "spec_template": {
                     "use_new_sorted_pool": True,
-                }
+                },
+                "sorted_merge_job_size_adjuster": {},
             },
             "enable_partition_map_job_size_adjustment": True,
+            "enable_ordered_partition_map_job_size_adjustment": True,
+            "enable_sorted_merge_in_sort_job_size_adjustment": True,
         }
     }
 

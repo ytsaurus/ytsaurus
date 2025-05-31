@@ -1192,7 +1192,8 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
                 targetOperationPreemptionPriority);
             if (forcefullyPreemptibleAllocations.contains(allocation.Get())) {
                 preemptionReasonBuilder.AppendString(
-                    "; this allocation was forcefully preemptible, because its node was moved to other scheduling segment");
+                    "; this allocation was forcefully preemptible, because its node was "
+                    "moved to another scheduling segment or the operation was preempted from module");
             }
             if (conditionallyPreemptibleAllocations.contains(allocationInfo)) {
                 preemptionReasonBuilder.AppendString("; this allocation was conditionally preemptible");
@@ -1221,11 +1222,6 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
     // This is one of the reasons why we advise against specified resource limits.
     for (; currentAllocationIndex < std::ssize(preemptibleAllocations); ++currentAllocationIndex) {
         const auto& allocationInfo = preemptibleAllocations[currentAllocationIndex];
-        if (conditionallyPreemptibleAllocations.contains(allocationInfo)) {
-            // Only unconditionally preemptible allocations can be preempted to recover violated resource limits.
-            continue;
-        }
-
         const auto& [allocation, _, operationElement] = allocationInfo;
         if (!IsAllocationKnown(operationElement, allocation->GetId())) {
             // Allocation may have been terminated concurrently with scheduling, e.g. operation aborted by user request. See: YT-16429, YT-17913.
@@ -1234,6 +1230,19 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
                 allocation->GetId(),
                 allocation->GetOperationId());
 
+            continue;
+        }
+
+        const auto& treeConfig = TreeSnapshot_->TreeConfig();
+        if (treeConfig->SchedulingSegments->ForceIncompatibleSegmentPreemption && forcefullyPreemptibleAllocations.contains(allocation.Get())) {
+            allocation->SetPreemptionReason(
+                "Preempted because node was moved to another scheduling segment or the operation was preempted from module");
+            PreemptAllocation(allocation, operationElement, EAllocationPreemptionReason::IncompatibleSchedulingSegment);
+            continue;
+        }
+
+        if (conditionallyPreemptibleAllocations.contains(allocationInfo)) {
+            // Only unconditionally preemptible allocations can be preempted to recover violated resource limits.
             continue;
         }
 
@@ -3498,6 +3507,8 @@ void TFairShareTreeAllocationScheduler::RunPreemptiveSchedulingStage(
     context->PrepareForScheduling();
 
     std::vector<TAllocationWithPreemptionInfo> unconditionallyPreemptibleAllocations;
+    // TODO(eshcherbin): Refactor so that attributes like conditionality or forcefulness are placed in a single struct.
+    // Or, even better, remove both conditional and forceful preemption altogether.
     TNonOwningAllocationSet forcefullyPreemptibleAllocations;
     context->AnalyzePreemptibleAllocations(
         parameters.TargetOperationPreemptionPriority,

@@ -385,7 +385,7 @@ protected:
 
     int InvokeAndGetRetryCount(TYPathRequestPtr request, TErrorCode errorCode, int maxRetryCount)
     {
-        auto config = New<TReqExecuteBatchWithRetriesConfig>();
+        auto config = New<TReqExecuteBatchRetriesConfig>();
         config->RetryCount = maxRetryCount;
         config->StartBackoff = TDuration::MilliSeconds(100);
         config->BackoffMultiplier = 1;
@@ -448,7 +448,7 @@ protected:
         int subbatchSize,
         int maxParallelSubbatchCount)
     {
-        auto config = New<TReqExecuteBatchWithRetriesConfig>();
+        auto config = New<TReqExecuteBatchRetriesConfig>();
         config->RetryCount = maxRetryCount;
         config->StartBackoff = TDuration::MilliSeconds(100);
         config->BackoffMultiplier = 1;
@@ -467,6 +467,9 @@ protected:
         auto batchRequest = proxy.ExecuteBatchWithRetriesInParallel(config, BIND(needRetry), subbatchSize, maxParallelSubbatchCount);
 
         for (int i = 0; i < requestCount; ++i) {
+            if (i > 0) {
+                GenerateMutationId(request);
+            }
             batchRequest->AddRequest(request);
         }
 

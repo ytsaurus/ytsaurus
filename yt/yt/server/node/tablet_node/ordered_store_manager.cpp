@@ -212,7 +212,9 @@ void TOrderedStoreManager::ResetActiveStore()
 }
 
 void TOrderedStoreManager::OnActiveStoreRotated()
-{ }
+{
+    Tablet_->RuntimeData()->OrderedDynamicStoreRotateEpoch.fetch_add(1);
+}
 
 bool TOrderedStoreManager::IsFlushNeeded() const
 {

@@ -1,8 +1,8 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, CYPRESS_PROXIES_SERVICE
 
 from yt_commands import (
     authors,
-    wait, build_snapshot,
+    wait, build_snapshot, build_master_snapshots,
     get, ls, remove, exists, set,
 )
 
@@ -80,3 +80,13 @@ class TestCypressProxyTracker(YTEnvSetup):
             return last_persistent_heartbeat_time > now
 
         wait(check)
+
+    @authors("kvk1920")
+    def test_read_only_registration(self):
+        set("//sys/@config/cypress_proxy_tracker/persistent_heartbeat_period", 200)
+        build_master_snapshots(set_read_only=True)
+        with Restarter(self.Env, CYPRESS_PROXIES_SERVICE):
+            pass
+        sleep(1)
+        # Should not fail.
+        get("//sys/@config")

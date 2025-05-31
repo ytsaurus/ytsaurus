@@ -166,6 +166,11 @@ std::string TOperation::GetAuthenticatedUser() const
     return AuthenticatedUser_;
 }
 
+std::optional<std::string> TOperation::GetTitle() const
+{
+    return Spec_->Title;
+}
+
 TStrategyOperationSpecPtr TOperation::GetStrategySpec() const
 {
     return Spec_;

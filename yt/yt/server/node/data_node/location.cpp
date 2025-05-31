@@ -11,6 +11,8 @@
 #include "master_connector.h"
 #include "medium_updater.h"
 
+#include <yt/yt/orm/library/query/expression_evaluator.h>
+
 #include <yt/yt/server/node/data_node/session.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -634,11 +636,11 @@ double TChunkLocation::GetIOWeight() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto guard = Guard(IOWeightEvaluatorSpinLock_);
+    auto evaluator = IOWeightEvaluator_.Acquire();
 
-    if (IOWeightEvaluator_) {
-        auto value = GetIOWeight(IOWeightEvaluator_);
-        return value.ValueOrThrow();
+    if (evaluator) {
+        auto value = EvaluateIOWeight(evaluator);
+        return value.ValueOrDefault(1.);
     } else {
         return StaticConfig_->IOWeight;
     }
@@ -1144,7 +1146,7 @@ void TChunkLocation::UpdateUsedMemory(
         delta);
 }
 
-TErrorOr<double> TChunkLocation::GetIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const
+TErrorOr<double> TChunkLocation::EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const
 {
     auto rowBuffer = New<NTableClient::TRowBuffer>();
     auto value = evaluator->Evaluate(
@@ -1157,7 +1159,7 @@ TErrorOr<double> TChunkLocation::GetIOWeight(const NOrm::NQuery::IExpressionEval
     if (value.IsOK() && value.Value().Type == NTableClient::EValueType::Double) {
         return value.Value().Data.Double;
     } else {
-        return TError("Failed to evaluate IO weight evaluator");
+        return TError("Failure in evaluation of IO weight formula") << value;
     }
 }
 
@@ -1165,17 +1167,13 @@ void TChunkLocation::UpdateIOWeightEvaluator(const std::optional<std::string>& f
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    if (formula.has_value()) {
+    if (formula) {
         auto evaluator = NOrm::NQuery::CreateOrmExpressionEvaluator(*formula, {"/stat"});
-        GetIOWeight(evaluator).ThrowOnError();
+        EvaluateIOWeight(evaluator).ThrowOnError();
 
-        {
-            auto guard = Guard(IOWeightEvaluatorSpinLock_);
-            IOWeightEvaluator_ = std::move(evaluator);
-        }
+        IOWeightEvaluator_ = std::move(evaluator);
     } else {
-        auto guard = Guard(IOWeightEvaluatorSpinLock_);
-        IOWeightEvaluator_ = nullptr;
+        IOWeightEvaluator_.Reset();
     }
 }
 

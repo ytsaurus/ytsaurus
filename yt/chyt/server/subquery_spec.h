@@ -11,6 +11,8 @@
 
 #include <yt/yt/core/yson/public.h>
 #include <yt/yt/core/ytree/public.h>
+#include <yt/yt/ytlib/chunk_client/public.h>
+#include <yt/yt/ytlib/chunk_pools/public.h>
 
 #include <vector>
 
@@ -18,11 +20,18 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FillDataSliceDescriptors(
+    std::vector<TSecondaryQueryReadDescriptors>& dataSliceDescriptors,
+    const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap,
+    const TRange<NChunkPools::TChunkStripePtr>& chunkStripes);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSubquerySpec
 {
 public:
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
-    std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> DataSliceDescriptors;
+    std::vector<TSecondaryQueryReadDescriptors> DataSliceDescriptors;
     TString InitialQuery;
     // Does not include virtual columns.
     NTableClient::TTableSchemaPtr ReadSchema;

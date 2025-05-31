@@ -1999,6 +1999,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->DistributedThrottlers = DistributedThrottlers_;
     snapshot->HedgingManagerRegistry = HedgingManagerRegistry_;
     snapshot->CompressionDictionaryInfos = CompressionDictionaryInfos_;
+    snapshot->OrderedDynamicStoreRotateEpoch = RuntimeData_->OrderedDynamicStoreRotateEpoch.load();
+    snapshot->CommitOrdering = CommitOrdering_;
 
     snapshot->Eden = Eden_->BuildSnapshot();
     snapshot->ActiveStore = ActiveStore_;

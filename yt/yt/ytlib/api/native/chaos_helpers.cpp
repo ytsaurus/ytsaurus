@@ -7,6 +7,7 @@
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/downed_cell_tracker.h>
 
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 #include <yt/yt/client/chaos_client/replication_card.h>
@@ -25,6 +26,57 @@ using namespace NLogging;
 using namespace NQueryClient;
 using namespace NTabletClient;
 using namespace NTableClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+TCellId GetCoordinatorCellId(
+    const TReplicationCardPtr& replicationCard,
+    TReplicationCardId replicationCardId,
+    const IReplicationCardCachePtr& replicationCardCache,
+    const NHiveClient::TDownedCellTrackerPtr& downedCellTracker,
+    const TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    if (!replicationCard->CoordinatorCellIds.empty()) {
+        // Common case.
+        return downedCellTracker->ChooseOne(replicationCard->CoordinatorCellIds);
+    }
+
+    YT_LOG_DEBUG("Replication card contains no coordinators, trying the watched one (ReplicationCardId: %v)",
+        replicationCardId);
+
+    auto watchedCardKey = TReplicationCardCacheKey{
+        .CardId = replicationCardId,
+        .FetchOptions = MinimalFetchOptions,
+    };
+
+    auto futureWatchedReplicationCard = replicationCardCache->GetReplicationCard(watchedCardKey);
+    auto watchedReplicationCardOrError = WaitForFast(futureWatchedReplicationCard);
+
+    if (!watchedReplicationCardOrError.IsOK()) {
+        YT_LOG_DEBUG(watchedReplicationCardOrError,
+            "Failed to get replication card coordinators from cache (ReplicationCardId: %v)",
+            replicationCardId);
+
+        return NullCellId;
+    }
+
+    const auto& watchedReplicationCard = watchedReplicationCardOrError.Value();
+
+    if (watchedReplicationCard->CoordinatorCellIds.empty()) {
+        YT_LOG_DEBUG("Watched replication card contains no coordinators (ReplicationCard: %v)",
+            *replicationCard);
+
+        return NullCellId;
+    }
+
+    return downedCellTracker->ChooseOne(watchedReplicationCard->CoordinatorCellIds);
+}
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,13 +127,18 @@ TReplicationCardPtr GetSyncReplicationCard(
 
         replicationCard = replicationCardOrError.Value();
 
-        if (replicationCard->CoordinatorCellIds.empty()) {
-            YT_LOG_DEBUG("Replication card contains no coordinators (ReplicationCard: %v)",
-                *replicationCard);
+        auto coordinator = NDetail::GetCoordinatorCellId(
+            replicationCard,
+            tableInfo->ReplicationCardId,
+            replicationCardCache,
+            connection->GetDownedCellTracker(),
+            Logger);
+
+        if (coordinator == NullCellId) {
+            coordinatorEra = InvalidReplicationEra;
             continue;
         }
 
-        auto coordinator = replicationCard->CoordinatorCellIds[RandomNumber<size_t>() % replicationCard->CoordinatorCellIds.size()];
         auto channel = connection->GetChaosChannelByCellId(coordinator, EPeerKind::Leader);
         auto proxy = TCoordinatorServiceProxy(channel);
         proxy.SetDefaultTimeout(connection->GetConfig()->DefaultChaosNodeServiceTimeout);

@@ -36,6 +36,11 @@ type Config struct {
 
 	// How much time timbertruck waits before removing completed tasks from datastore
 	CompletedTaskRetainPeriod *time.Duration `yaml:"completed_task_retain_period"`
+
+	// The period with which timbertruck scans the datastore for active tasks.
+	//
+	// Default value is 30s.
+	ListActiveTasksPeriod *time.Duration `yaml:"list_acive_tasks_period"`
 }
 
 type TimberTruck struct {
@@ -64,6 +69,10 @@ func NewTimberTruck(config Config, logger *slog.Logger, metrics metrics.Registry
 		defaultPeriod := 7 * 24 * time.Hour
 		logPusher.config.CompletedTaskRetainPeriod = &defaultPeriod
 	}
+	if logPusher.config.ListActiveTasksPeriod == nil {
+		defaultPeriod := 30 * time.Second
+		logPusher.config.ListActiveTasksPeriod = &defaultPeriod
+	}
 
 	logPusher.fsWatcher, err = NewFsWatcher(logger.With("component", "FsWatcher"))
 	if err != nil {
@@ -75,7 +84,7 @@ func NewTimberTruck(config Config, logger *slog.Logger, metrics metrics.Registry
 		}
 	}()
 
-	logPusher.datastore, err = NewDatastore(path.Join(config.WorkDir, stateFile))
+	logPusher.datastore, err = NewDatastore(logger.With("component", "Datastore"), path.Join(config.WorkDir, stateFile))
 	if err != nil {
 		return
 	}
@@ -208,7 +217,7 @@ func (tt *TimberTruck) launchMetricsProc(ctx context.Context) {
 	activeTaskCounter := newActiveTaskCounter(tt.logger, streamNames, tt.metrics, tt.datastore)
 
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(*tt.config.ListActiveTasksPeriod)
 		for {
 			select {
 			case <-ctx.Done():
@@ -620,6 +629,7 @@ type taskController struct {
 }
 
 func (c *taskController) NotifyProgress(pos pipelines.FilePosition) {
+	c.logger.Debug("Update end position", "progress", pos)
 	for {
 		err := c.datastore.UpdateEndPosition(c.path, pos)
 		if err != nil {

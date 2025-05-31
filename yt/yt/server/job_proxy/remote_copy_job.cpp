@@ -799,7 +799,7 @@ private:
         auto repairPartReaders = CreateErasurePartReaders(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
-            Host_->GetChunkReaderHost(),
+            Host_->GetChunkReaderHost()->CreateHostForCluster(NScheduler::LocalClusterName),
             outputSessionId.ChunkId,
             std::move(repairSeedReplicas),
             repairPartIndices,
@@ -1137,26 +1137,16 @@ private:
             clusterName = FromProto<TClusterName>(RemoteCopyJobSpecExt_.remote_cluster_name());
         }
 
-        auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
-            auto thisLocked = weakThis.Lock();
-            if (!thisLocked) {
-                return IThroughputThrottlerPtr();
-            }
-
-            return Host_->GetInBandwidthThrottler(clusterName);
-        });
-
         return New<TChunkReaderHost>(
             RemoteClient_,
             Host_->LocalDescriptor(),
             Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            bandwidthThrottlerFactory(clusterName),
+            Host_->GetInBandwidthThrottler(clusterName),
             Host_->GetOutRpsThrottler(),
             /*mediumThrottler*/ GetUnlimitedThrottler(),
-            Host_->GetTrafficMeter(),
-            std::move(bandwidthThrottlerFactory));
+            Host_->GetTrafficMeter());
     }
 
     void ReplaceHunkChunkIds(const TDeferredChunkMetaPtr& chunkMeta)

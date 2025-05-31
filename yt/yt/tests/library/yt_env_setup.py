@@ -27,9 +27,11 @@ from yt.environment.helpers import (  # noqa
     MASTERS_SERVICE,
     MASTER_CACHES_SERVICE,
     QUEUE_AGENTS_SERVICE,
+    CYPRESS_PROXIES_SERVICE,
     RPC_PROXIES_SERVICE,
     HTTP_PROXIES_SERVICE,
     KAFKA_PROXIES_SERVICE,
+    CYPRESS_PROXIES_SERVICE,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -605,6 +607,17 @@ class YTEnvSetup(object):
             enable_legacy_logging_scheme = False
 
         delta_global_cluster_connection_config = None
+
+        if cls.get_param("USE_SEQUOIA", index):
+            if delta_global_cluster_connection_config is None:
+                delta_global_cluster_connection_config = {}
+            update_inplace(delta_global_cluster_connection_config, {
+                "sequoia_connection": {
+                    "retries": {
+                        "enable": True,
+                    },
+                },
+            })
         if cls._is_ground_cluster(index):
             delta_global_cluster_connection_config = {
                 "permission_cache": {
@@ -1106,6 +1119,14 @@ class YTEnvSetup(object):
         for index, config in enumerate(configs["scheduler"]):
             config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
 
+            if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", cluster_index):
+                # TODO(kvk1920): wait_for_ground_sync().
+                # NB: default backoff is 15 seconds, but primary cluster's
+                # cluster directory syncs in about 2 seconds.
+                config = update_inplace(config, {
+                    "connect_retry_backoff_time": 2000,
+                })
+
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index], cluster_index)
             configs["multi"]["daemons"][f"scheduler_{index}"]["config"] = configs["scheduler"][index]
@@ -1247,7 +1268,7 @@ class YTEnvSetup(object):
             "sequoia_connection": {
                 "ground_cluster_name": ground_cluster_name,
                 "ground_cluster_connection_update_period": 500,
-            }
+            },
         })
         return config
 
@@ -2268,4 +2289,5 @@ def get_service_component_name(service):
         RPC_PROXIES_SERVICE: "proxy",
         HTTP_PROXIES_SERVICE: "http-proxy",
         KAFKA_PROXIES_SERVICE: "kafka-proxy",
+        CYPRESS_PROXIES_SERVICE: "cypress-proxy",
     }[service]

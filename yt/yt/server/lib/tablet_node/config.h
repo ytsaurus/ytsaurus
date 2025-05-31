@@ -272,6 +272,9 @@ struct TCustomTableMountConfig
     bool EnableNarrowChunkViewCompaction;
     double MaxChunkViewSizeRatio;
 
+    // YT-24851: Protects from stale reads in ordered tables
+    bool RetryReadOnOrderedStoreRotation;
+
     // TODO(akozhikhov): Make these true by default.
     bool PrecacheChunkReplicasOnMount;
     bool RegisterChunkReplicasOnStoresUpdate;

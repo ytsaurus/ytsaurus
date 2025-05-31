@@ -11,8 +11,7 @@ namespace NYT::NSchedulerSimulator {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation
-    : public TRefCounted
-    , public NScheduler::IOperationStrategyHost
+    : public NScheduler::IOperationStrategyHost
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(ISimulatorOperationControllerPtr, Controller);
@@ -28,6 +27,7 @@ public:
     std::optional<NScheduler::EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId) const override;
     TInstant GetStartTime() const override;
     std::string GetAuthenticatedUser() const override;
+    std::optional<std::string> GetTitle() const override;
 
     std::optional<int> FindSlotIndex(const TString& treeId) const override;
     void SetSlotIndex(const TString& treeId, int index) override;

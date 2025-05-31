@@ -14,6 +14,9 @@ void TJobSizeAdjusterConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("exec_to_prepare_time_ratio", &TThis::ExecToPrepareTimeRatio)
         .Default(20.0);
+
+    registrar.Parameter("data_weight_factor", &TThis::DataWeightFactor)
+        .Default(2.0);
 }
 
 DEFINE_REFCOUNTED_TYPE(TJobSizeAdjusterConfig)

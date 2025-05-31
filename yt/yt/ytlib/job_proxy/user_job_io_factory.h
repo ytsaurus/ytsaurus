@@ -58,7 +58,7 @@ struct TCreateUserJobReaderResult
 TCreateUserJobReaderResult CreateUserJobReader(
     const IJobSpecHelperPtr& jobSpecHelper,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
+    NChunkClient::TMultiChunkReaderHostPtr chunkReaderHost,
     TClosure onNetworkReleased,
     NTableClient::TNameTablePtr nameTable,
     const NTableClient::TColumnFilter& columnFilter);
@@ -70,7 +70,7 @@ TCreateUserJobReaderResult CreateMapJobReader(
     const NTableClient::TTableReaderOptionsPtr& tableReaderOptions,
     const NTableClient::TTableReaderConfigPtr& tableReaderConfig,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
+    NChunkClient::TMultiChunkReaderHostPtr chunkReaderHost,
     NTableClient::TNameTablePtr nameTable,
     const NTableClient::TColumnFilter& columnFilter);
 

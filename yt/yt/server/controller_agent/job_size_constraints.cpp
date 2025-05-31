@@ -1068,7 +1068,7 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     i64 dataWeightPerJob = std::max(minDataWeightPerJob, spec->DataWeightPerSortedJob.value_or(spec->DataWeightPerShuffleJob));
 
     return CreateExplicitJobSizeConstraints(
-        /*canAdjustDataSizePerJob*/ false,
+        /*canAdjustDataSizePerJob*/ true,
         /*isExplicitJobCount*/ false,
         /*jobCount*/ 0,
         /*dataWeightPerJob*/ dataWeightPerJob,

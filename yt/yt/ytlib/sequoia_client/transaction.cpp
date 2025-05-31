@@ -1,6 +1,7 @@
 #include "transaction.h"
 
 #include "client.h"
+#include "sequoia_reign.h"
 #include "table_descriptor.h"
 #include "transaction_service_proxy.h"
 #include "write_set.h"

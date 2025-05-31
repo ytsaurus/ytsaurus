@@ -2,6 +2,8 @@
 
 #include "random_access_file_reader.h"
 
+#include "block_device.h"
+
 #include <yt/yt/server/lib/squash_fs/squash_fs_layout_builder.h>
 
 namespace NYT::NNbd {
@@ -24,7 +26,8 @@ struct IImageReader
 
     virtual TFuture<TSharedRef> Read(
         i64 offset,
-        i64 length) = 0;
+        i64 length,
+        const TReadOptions& options) = 0;
 
     virtual i64 GetSize() const = 0;
 

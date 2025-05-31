@@ -50,7 +50,8 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         std::optional<TCallback<TSecondaryQueryReadDescriptors()>> readTaskCallback = std::nullopt)
     : DataSourceDirectory_(subquerySpec.DataSourceDirectory)
-    , ChunkReaderHost_(TChunkReaderHost::FromClient(storageContext->QueryContext->Client()))
+    , ChunkReaderHost_(CreateSingleSourceMultiChunkReaderHost(
+        TChunkReaderHost::FromClient(storageContext->QueryContext->Client())))
     , ChunkReadOptions_(chunkReadOptions)
     , ReadTaskCallback_(std::move(readTaskCallback))
     {
@@ -102,7 +103,7 @@ public:
 
 private:
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory_;
-    TChunkReaderHostPtr ChunkReaderHost_;
+    TMultiChunkReaderHostPtr ChunkReaderHost_;
     TClientChunkReadOptions ChunkReadOptions_;
     TTableReaderConfigPtr TableReaderConfig_;
     NChunkClient::IMultiReaderMemoryManagerPtr ReaderMemoryManager_;

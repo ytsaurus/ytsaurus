@@ -28,6 +28,7 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NChunkPools;
 using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -460,17 +461,19 @@ void TSimpleOperationOptions::Register(TRegistrar registrar)
         .Alias("data_size_per_job")
         .Default(256_MB)
         .GreaterThan(0);
+
+    registrar.Parameter("job_size_adjuster", &TThis::JobSizeAdjuster)
+        // TODO(coteeq): DefaultNew when non-map job_size_adjuster will be stable.
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TMapOperationOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("job_size_adjuster", &TThis::JobSizeAdjuster)
-        .DefaultNew();
-
     registrar.Preprocessor([&] (TMapOperationOptions* options) {
         options->DataWeightPerJob = 128_MB;
+        options->JobSizeAdjuster = New<TJobSizeAdjusterConfig>();
     });
 }
 
@@ -566,6 +569,9 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .GreaterThanOrEqual(1);
 
     registrar.Parameter("partition_job_size_adjuster", &TThis::PartitionJobSizeAdjuster)
+        .DefaultNew();
+
+    registrar.Parameter("sorted_merge_job_size_adjuster", &TThis::SortedMergeJobSizeAdjuster)
         .DefaultNew();
 
     registrar.Parameter("data_balancer", &TThis::DataBalancer)
@@ -764,6 +770,8 @@ void TRemoteOperationsConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("allowed_for_everyone", &TThis::AllowedForEveryone)
         .Default(false);
+    registrar.Parameter("max_total_data_weight", &TThis::MaxTotalDataWeight)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1082,6 +1090,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     //! By default we disable job size adjustment for partition maps,
     //! since it may lead to partition data skew between nodes.
     registrar.Parameter("enable_partition_map_job_size_adjustment", &TThis::EnablePartitionMapJobSizeAdjustment)
+        .Default(false);
+    registrar.Parameter("enable_ordered_partition_map_job_size_adjustment", &TThis::EnableOrderedPartitionMapJobSizeAdjustment)
+        .Default(false);
+    registrar.Parameter("enable_sorted_merge_in_sort_job_size_adjustment", &TThis::EnableSortedMergeInSortJobSizeAdjustment)
         .Default(false);
 
     registrar.Parameter("user_job_memory_digest_precision", &TThis::UserJobMemoryDigestPrecision)

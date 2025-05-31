@@ -22,7 +22,7 @@ Each HTTP proxy is assigned a certain role that specifies which kind of load the
 - Read or write requests (for example, `read-table`, `write-table`) can potentially transfer a significantly larger amount of data, resulting in a bigger load on {{product-name}} cluster nodes. Such queries are therefore processed by so-called heavy proxies (data proxies), the `data` role.
 - Individual processes can use their own roles so that their load does not interfere with other processes.
 
-Client SDKs typically hide role-related operations. The only thing you may need to do is to specify the role in the client configuration if you need a non-standard role for heavy queries. However, when working directly with HTTP, light and heavy queries should be sent to different hosts. If you send a heavy query via a light HTTP proxy, the server will return an error. For more information, see [List of heavy proxies](http-reference.md#hosts).
+Client SDKs typically hide role-related operations. The only thing you may need to do is to specify the role in the client configuration if you need a non-standard role for heavy queries. However, when working directly with HTTP, light and heavy queries should be sent to different hosts. If you send a heavy query via a light HTTP proxy, the server will return an error. For more information, see [List of heavy proxies](../../../user-guide/proxy/http-reference.md#hosts).
 
 
 To get examples of how to interract with {{product-name}} via the HTTP interface, check the [HTTP proxy](../../../user-guide/proxy/http.md) section.

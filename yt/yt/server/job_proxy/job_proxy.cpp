@@ -1572,7 +1572,7 @@ NApi::NNative::IClientPtr TJobProxy::GetClient() const
     return Client_;
 }
 
-TChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
+TMultiChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
 {
     auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
         auto thisLocked = weakThis.Lock();
@@ -1587,17 +1587,26 @@ TChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
         return GetInBandwidthThrottler(LocalClusterName);
     });
 
-    return New<TChunkReaderHost>(
-        Client_,
-        LocalDescriptor_,
-        ReaderBlockCache_,
-        /*chunkMetaCache*/ nullptr,
-        /*nodeStatusDirectory*/ nullptr,
-        bandwidthThrottlerFactory(LocalClusterName),
-        GetOutRpsThrottler(),
-        /*mediumThrottler*/ GetUnlimitedThrottler(),
-        GetTrafficMeter(),
-        std::move(bandwidthThrottlerFactory));
+    std::vector<TClusterName> clusterNames {
+        LocalClusterName
+    };
+    for (const auto& [clusterName, protoRemoteCluster] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
+        clusterNames.emplace_back(clusterName);
+    }
+
+    return CreateMultiChunkReaderHost(
+        New<TChunkReaderHost>(
+            Client_,
+            LocalDescriptor_,
+            ReaderBlockCache_,
+            /*chunkMetaCache*/ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
+            bandwidthThrottlerFactory(LocalClusterName),
+            GetOutRpsThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            GetTrafficMeter()),
+        std::move(bandwidthThrottlerFactory),
+        clusterNames);
 }
 
 IBlockCachePtr TJobProxy::GetReaderBlockCache() const

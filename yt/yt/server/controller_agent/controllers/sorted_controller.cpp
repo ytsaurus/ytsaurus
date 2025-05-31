@@ -689,6 +689,7 @@ protected:
         chunkPoolOptions.Logger = Logger().WithTag("Name: Root");
         chunkPoolOptions.StructuredLogger = ChunkPoolStructuredLogger()
             .WithStructuredTag("operation_id", OperationId_);
+        chunkPoolOptions.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
         return chunkPoolOptions;
     }
 

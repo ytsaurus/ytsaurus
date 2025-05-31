@@ -602,8 +602,8 @@ private:
         serverConfig->Credentials = New<NHttps::TServerCredentialsConfig>();
         serverConfig->Credentials->PrivateKey = New<TPemBlobConfig>();
         serverConfig->Credentials->PrivateKey->Value = TestCertificate;
-        serverConfig->Credentials->CertChain = New<TPemBlobConfig>();
-        serverConfig->Credentials->CertChain->Value = TestCertificate;
+        serverConfig->Credentials->CertificateChain = New<TPemBlobConfig>();
+        serverConfig->Credentials->CertificateChain->Value = TestCertificate;
         SetupServer(serverConfig);
         Server = NHttps::CreateServer(serverConfig, Poller);
 
@@ -794,7 +794,10 @@ private:
 
     void SetUp() override
     {
-         InitializeGenerator();
+        SetEnv("ACCESS_KEY_ID", "key");
+        SetEnv("SECRET_ACCESS_KEY", "secret");
+
+        InitializeGenerator();
 
         auto clientConfig = New<NS3::TS3ClientConfig>();
 
@@ -805,6 +808,7 @@ private:
         auto poller = CreateThreadPoolPoller(1, "S3TestPoller");
         auto client = NS3::CreateClient(
             std::move(clientConfig),
+            NS3::CreateAnonymousCredentialProvider(),
             poller,
             poller->GetInvoker());
 

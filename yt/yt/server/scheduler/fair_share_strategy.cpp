@@ -225,7 +225,7 @@ public:
     }
 
     void RegisterOperation(
-        IOperationStrategyHost* operation,
+        IOperationStrategyHostPtr operation,
         std::vector<TString>* unknownTreeIds,
         TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap) override
     {
@@ -272,7 +272,7 @@ public:
         }
     }
 
-    void UnregisterOperation(IOperationStrategyHost* operation) override
+    void UnregisterOperation(const IOperationStrategyHostPtr& operation) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 

@@ -98,16 +98,15 @@ public:
             sessguardMD5 = GetMD5HexDigestUpperCase(*sessguard);;
             errorAttributes.emplace_back("sessguard_md5", sessguardMD5);
 
-            if (!credentials.Origin) {
-                return MakeFuture<TAuthenticationResult>(TError("Sessguard cookie is provided but origin header is empty"));
-            }
-            origin = StripSchema(*credentials.Origin);
-            origin = *credentials.Origin;
-            errorAttributes.emplace_back("origin", origin);
-            if (!CheckSessguardOrigin(origin)) {
-                return MakeFuture<TAuthenticationResult>(TError("Sessguard cookie from disallowed origin: %Qv",
-                    origin)
-                    << errorAttributes);
+            if (credentials.Origin) {
+                origin = StripSchema(*credentials.Origin);
+                origin = *credentials.Origin;
+                errorAttributes.emplace_back("origin", origin);
+                if (!CheckSessguardOrigin(origin)) {
+                    return MakeFuture<TAuthenticationResult>(TError("Sessguard cookie from disallowed origin: %Qv",
+                        origin)
+                        << errorAttributes);
+                }
             }
         }
 

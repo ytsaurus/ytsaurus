@@ -39,6 +39,9 @@ struct TClientChunkReadOptions
 
     NTableClient::IGranuleFilterPtr GranuleFilter;
     NTableClient::EPerformanceCountedRequestType RequestType = NTableClient::EPerformanceCountedRequestType::Lookup;
+
+    //! Additional request data, e.g. NBD request id.
+    std::optional<ui64> Cookie;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

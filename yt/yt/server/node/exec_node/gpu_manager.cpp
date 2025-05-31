@@ -140,6 +140,9 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         BIND_NO_PROPAGATE(&TGpuManager::OnTestGpuInfoUpdate, MakeWeak(this)),
         StaticConfig_->Testing->TestGpuInfoUpdatePeriod))
     , GpuInfoProvider_(CreateGpuInfoProvider(StaticConfig_->GpuInfoSource))
+{ }
+
+void TGpuManager::Initialize()
 {
     YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
@@ -443,15 +446,17 @@ void TGpuManager::OnRdmaDeviceInfoUpdate()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
+    std::vector<TRdmaDeviceInfo> rdmaDevices;
     try {
         auto timeout = DynamicConfig_.Acquire()->RdmaDeviceInfoUpdateTimeout;
-        auto rdmaDevices = GpuInfoProvider_.Acquire()->GetRdmaDeviceInfos(timeout);
-
-        auto guard = Guard(SpinLock_);
-        RdmaDevices_ = std::move(rdmaDevices);
+        rdmaDevices = GpuInfoProvider_.Acquire()->GetRdmaDeviceInfos(timeout);
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to fetch RDMA device infos");
+        return;
     }
+
+    auto guard = Guard(SpinLock_);
+    std::swap(RdmaDevices_, rdmaDevices);
 }
 
 void TGpuManager::OnTestGpuInfoUpdate()
