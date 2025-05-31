@@ -13,8 +13,7 @@
 #endif
 #include <yql/essentials/parser/antlr_ast/gen/v1_antlr4/SQLv1Antlr4Parser.h>
 
-#define RULE_(mode, name) NALA##mode##Antlr4::SQLv1Antlr4Parser::Rule##name
-#define RULE(name) RULE_(Default, name)
+#define RULE(name) NALADefaultAntlr4::SQLv1Antlr4Parser::Rule##name
 
 namespace NSQLComplete {
 
