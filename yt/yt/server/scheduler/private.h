@@ -129,6 +129,7 @@ DEFINE_ENUM(EAllocationPreemptionReason,
     (GracefulPreemption)
     (ResourceOvercommit)
     (ResourceLimitsViolated)
+    (IncompatibleSchedulingSegment)
 );
 
 DEFINE_ENUM(EGpuSchedulingLogEventType,

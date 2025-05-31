@@ -188,6 +188,10 @@ struct TFairShareStrategySchedulingSegmentsConfig
 
     TDuration PriorityModuleAssignmentTimeout;
 
+    std::optional<double> ModuleOversatisfactionThreshold;
+
+    bool ForceIncompatibleSegmentPreemption;
+
     const THashSet<std::string>& GetModules() const;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySchedulingSegmentsConfig);
