@@ -25,11 +25,12 @@ namespace NSQLComplete {
         {
         }
 
-        TCompletion Complete(TCompletionInput input) override {
-            return CompleteAsync(std::move(input), {}).ExtractValueSync();
+        NThreading::TFuture<TCompletion>
+        Complete(TCompletionInput input, TEnvironment env = {}) override {
+            return CompleteAsync(input, env);
         }
 
-        virtual NThreading::TFuture<TCompletion> CompleteAsync(TCompletionInput input, TEnvironment env) override {
+        NThreading::TFuture<TCompletion> CompleteAsync(TCompletionInput input, TEnvironment env) override {
             if (
                 input.CursorPosition < input.Text.length() &&
                     IsUTF8ContinuationByte(input.Text.at(input.CursorPosition)) ||

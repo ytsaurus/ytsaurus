@@ -529,7 +529,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             TVector<TCandidate> expected = {
                 {FolderName, "`prod/"},
             };
-            TCompletion actual = engine->Complete(SharpedInput(input));
+            TCompletion actual = engine->Complete(SharpedInput(input)).ExtractValueSync();
             UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, "pr");
         }
@@ -550,7 +550,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {FolderName, "prod/"},
                 {FolderName, "test/"},
             };
-            TCompletion actual = engine->Complete(SharpedInput(input));
+            TCompletion actual = engine->Complete(SharpedInput(input)).ExtractValueSync();
             UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, "");
         }
@@ -561,7 +561,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {TableName, "account"},
                 {TableName, "example"},
             };
-            TCompletion actual = engine->Complete(SharpedInput(input));
+            TCompletion actual = engine->Complete(SharpedInput(input)).ExtractValueSync();
             UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, "");
         }
@@ -571,7 +571,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
                 {TableName, "abacaba"},
                 {TableName, "account"},
             };
-            TCompletion actual = engine->Complete(SharpedInput(input));
+            TCompletion actual = engine->Complete(SharpedInput(input)).ExtractValueSync();
             UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, "a");
         }
@@ -580,7 +580,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             TVector<TCandidate> expected = {
                 {FolderName, ".sys/"},
             };
-            TCompletion actual = engine->Complete(SharpedInput(input));
+            TCompletion actual = engine->Complete(SharpedInput(input)).ExtractValueSync();
             UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, ".sy");
         }
@@ -589,7 +589,7 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             TVector<TCandidate> expected = {
                 {FolderName, "service/"},
             };
-            TCompletion actual = engine->Complete(SharpedInput(input));
+            TCompletion actual = engine->Complete(SharpedInput(input)).ExtractValueSync();
             UNIT_ASSERT_VALUES_EQUAL(actual.Candidates, expected);
             UNIT_ASSERT_VALUES_EQUAL(actual.CompletedToken.Content, "ser");
         }
