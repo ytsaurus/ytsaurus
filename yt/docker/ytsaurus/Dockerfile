@@ -23,9 +23,14 @@ ARG PYTHON_BUILD_BASE="copy-ytsaurus-python-binaries"
 # base-server or base-server-crio
 ARG SERVER_IMAGE_BASE="base-server"
 
+# Apt mirror.
+ARG APT_MIRROR="http://mirror.yandex.ru/ubuntu"
+
 ##########################################################################################
 
 FROM mirror.gcr.io/ubuntu:focal AS ubuntu-base
+
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirror.yandex.ru/ubuntu/|g' /etc/apt/sources.list
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
