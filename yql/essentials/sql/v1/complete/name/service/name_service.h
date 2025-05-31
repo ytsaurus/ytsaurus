@@ -58,6 +58,9 @@ namespace NSQLComplete {
         struct TConstraints: TNamespaced {};
     };
 
+    struct TBindingName: TIndentifier {
+    };
+
     struct TUnkownName {
         TString Content;
         TString Type;
@@ -72,6 +75,7 @@ namespace NSQLComplete {
         TFolderName,
         TTableName,
         TClusterName,
+        TBindingName,
         TUnkownName>;
 
     struct TNameConstraints {
