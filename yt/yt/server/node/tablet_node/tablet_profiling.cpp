@@ -418,11 +418,13 @@ void TWriterProfiler::Profile(
         CodecStatistics_,
         tabletSnapshot->Settings.StoreWriterOptions->ReplicationFactor);
 
-    counters->HunkChunkWriterCounters.Increment(
-        HunkChunkWriterStatistics_,
-        HunkChunkDataStatistics_,
-        /*codecStatistics*/ {},
-        tabletSnapshot->Settings.HunkWriterOptions->ReplicationFactor);
+    if (HunkChunkWriterStatistics_) {
+        counters->HunkChunkWriterCounters.Increment(
+            HunkChunkWriterStatistics_,
+            HunkChunkDataStatistics_,
+            /*codecStatistics*/ {},
+            tabletSnapshot->Settings.HunkWriterOptions->ReplicationFactor);
+    }
 }
 
 void TWriterProfiler::Update(const IMultiChunkWriterPtr& writer)
@@ -484,9 +486,13 @@ void TReaderProfiler::Profile(
     counters->UnmergedDataWeight.Increment(DataStatistics_.data_weight());
     counters->DecompressionCpuTime.Add(compressionCpuTime);
 
-    counters->ChunkReaderStatisticsCounters.Increment(ChunkReaderStatistics_, failed);
+    if (ChunkReaderStatistics_) {
+        counters->ChunkReaderStatisticsCounters.Increment(ChunkReaderStatistics_, failed);
+    }
 
-    counters->HunkChunkReaderCounters.Increment(HunkChunkReaderStatistics_, failed);
+    if (HunkChunkReaderStatistics_) {
+        counters->HunkChunkReaderCounters.Increment(HunkChunkReaderStatistics_, failed);
+    }
 }
 
 void TReaderProfiler::Update(
