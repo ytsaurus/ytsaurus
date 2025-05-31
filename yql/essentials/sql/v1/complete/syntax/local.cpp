@@ -88,7 +88,9 @@ namespace NSQLComplete {
             if (auto enclosing = context.Enclosing()) {
                 if (enclosing->IsLiteral()) {
                     return result;
-                } else if (enclosing->Base->Name == "ID_QUOTED") {
+                }
+
+                if (enclosing->Base->Name == "ID_QUOTED") {
                     result.Object = ObjectMatch(context, candidates);
                     return result;
                 }
