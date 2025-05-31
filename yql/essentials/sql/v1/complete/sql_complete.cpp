@@ -265,8 +265,8 @@ namespace NSQLComplete {
 } // namespace NSQLComplete
 
 template <>
-void Out<NSQLComplete::ECandidateKind>(IOutputStream& out, NSQLComplete::ECandidateKind kind) {
-    switch (kind) {
+void Out<NSQLComplete::ECandidateKind>(IOutputStream& out, NSQLComplete::ECandidateKind value) {
+    switch (value) {
         case NSQLComplete::ECandidateKind::Keyword:
             out << "Keyword";
             break;
@@ -298,6 +298,6 @@ void Out<NSQLComplete::ECandidateKind>(IOutputStream& out, NSQLComplete::ECandid
 }
 
 template <>
-void Out<NSQLComplete::TCandidate>(IOutputStream& out, const NSQLComplete::TCandidate& candidate) {
-    out << "{" << candidate.Kind << ", \"" << candidate.Content << "\"}";
+void Out<NSQLComplete::TCandidate>(IOutputStream& out, const NSQLComplete::TCandidate& value) {
+    out << "{" << value.Kind << ", \"" << value.Content << "\"}";
 }
