@@ -82,7 +82,7 @@ TJobShellInfo::TJobShellInfo(
     YT_VERIFY(JobShell_);
 }
 
-const std::vector<TString>& TJobShellInfo::GetOwners()
+const std::vector<std::string>& TJobShellInfo::GetOwners()
 {
     if (JobShellRuntimeParameters_) {
         return JobShellRuntimeParameters_->Owners;
