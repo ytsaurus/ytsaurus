@@ -100,7 +100,7 @@ protected:
         auto client = DynamicPointerCast<NApi::NNative::IClient>(Client_);
         auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
         auto batchReq = proxy.ExecuteBatch();
-        batchReq->SetTimeout(TDuration::MilliSeconds(200));
+        batchReq->SetTimeout(TDuration::Seconds(1));
         MaybeSetMutationId(batchReq, subrequestTypes);
 
         FillWithSubrequests(batchReq, subrequestTypes);
