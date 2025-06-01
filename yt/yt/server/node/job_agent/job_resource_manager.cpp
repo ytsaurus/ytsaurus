@@ -80,6 +80,9 @@ public:
         std::vector<ISlotPtr>&& gpuSlots,
         std::vector<int> ports) noexcept;
 
+    TAcquiredResources(TAcquiredResources&&) noexcept = default;
+    TAcquiredResources& operator=(TAcquiredResources&&) noexcept = default;
+
     TAcquiredResources(TJobResourceManager::TImpl* jobResourceManagerImpl) noexcept;
     ~TAcquiredResources();
 
@@ -733,6 +736,62 @@ public:
             releasingResources);
     }
 
+    auto TryAcquirePhysicalResources(const TResourceHolderPtr& resourceHolder, const TJobResources& neededResources)
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        const auto& Logger = resourceHolder->GetLogger();
+
+        TResourceHolder::TAcquiredResources acquiredResources(this);
+
+        auto onResourcesAcquisitionFailed = [resourceHolder, neededResources, this] () mutable {
+            OnResourcesAcquisitionFailed(
+                resourceHolder,
+                neededResources);
+        };
+
+        if (!TryReserveResources(Logger, neededResources)) {
+            return std::tuple(
+                false,
+                std::move(acquiredResources),
+                std::optional<TFinallyGuard<decltype(onResourcesAcquisitionFailed)>>());
+        }
+
+        auto finallyGuard = Finally(std::move(onResourcesAcquisitionFailed));
+
+        i64 userMemory = neededResources.UserMemory;
+        i64 systemMemory = neededResources.SystemMemory;
+        if (userMemory > 0 || systemMemory > 0) {
+            bool reachedWatermark = NodeMemoryUsageTracker_->GetTotalFree() <= GetFreeMemoryWatermark();
+            if (reachedWatermark) {
+                YT_LOG_DEBUG("Not enough memory; reached free memory watermark");
+                return std::tuple(false, std::move(acquiredResources), std::optional(std::move(finallyGuard)));
+            }
+        }
+
+        if (userMemory > 0) {
+            auto errorOrGuard = TMemoryUsageTrackerGuard::TryAcquire(UserMemoryUsageTracker_, userMemory);
+            if (!errorOrGuard.IsOK()) {
+                YT_LOG_DEBUG(errorOrGuard, "Not enough user memory");
+                return std::tuple(false, std::move(acquiredResources), std::optional(std::move(finallyGuard)));
+            }
+
+            acquiredResources.UserMemoryGuard = std::move(errorOrGuard.Value());
+        }
+
+        if (systemMemory > 0) {
+            auto errorOrGuard = TMemoryUsageTrackerGuard::TryAcquire(SystemMemoryUsageTracker_, systemMemory);
+            if (!errorOrGuard.IsOK()) {
+                YT_LOG_DEBUG(errorOrGuard, "Not enough system memory");
+                return std::tuple(false, std::move(acquiredResources), std::optional(std::move(finallyGuard)));
+            }
+
+            acquiredResources.SystemMemoryGuard = std::move(errorOrGuard.Value());
+        }
+
+        return std::tuple(true, std::move(acquiredResources), std::optional(std::move(finallyGuard)));
+    }
+
     bool AcquireResourcesFor(const TResourceHolderPtr& resourceHolder)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -758,52 +817,12 @@ public:
                 ->VerifyCudaToolkitDriverVersion(allocationAttributes.CudaToolkitVersion.value());
         }
 
-        TResourceHolder::TAcquiredResources acquiredResources(this);
-
-        if (!TryReserveResources(Logger, neededResources)) {
+        auto [success, acquiredResources, resourceAcquisitionFailedGuard] = TryAcquirePhysicalResources(resourceHolder, neededResources);
+        if (!success) {
             return false;
         }
 
-        auto resourceAcquisitionFailedGuard = Finally([&] {
-            OnResourcesAcquisitionFailed(
-                resourceHolder,
-                neededResources);
-        });
-
-        i64 userMemory = neededResources.UserMemory;
-        i64 systemMemory = neededResources.SystemMemory;
-        if (userMemory > 0 || systemMemory > 0) {
-            bool reachedWatermark = NodeMemoryUsageTracker_->GetTotalFree() <= GetFreeMemoryWatermark();
-            if (reachedWatermark) {
-                YT_LOG_DEBUG("Not enough memory; reached free memory watermark");
-                return false;
-            }
-        }
-
-        if (userMemory > 0) {
-            auto errorOrGuard = TMemoryUsageTrackerGuard::TryAcquire(UserMemoryUsageTracker_, userMemory);
-            if (!errorOrGuard.IsOK()) {
-                YT_LOG_DEBUG(errorOrGuard, "Not enough user memory");
-                return false;
-            }
-
-            acquiredResources.UserMemoryGuard = std::move(errorOrGuard.Value());
-        }
-
-        if (systemMemory > 0) {
-            auto errorOrGuard = TMemoryUsageTrackerGuard::TryAcquire(SystemMemoryUsageTracker_, systemMemory);
-            if (!errorOrGuard.IsOK()) {
-                YT_LOG_DEBUG(errorOrGuard, "Not enough system memory");
-                return false;
-            }
-
-            acquiredResources.SystemMemoryGuard = std::move(errorOrGuard.Value());
-        }
-
-        if (neededResources.UserSlots == 0 && SystemMemoryUsageTracker_->IsExceeded()) {
-            YT_LOG_DEBUG("Not enough system memory");
-            return false;
-        }
+        YT_VERIFY(resourceAcquisitionFailedGuard);
 
         if (allocationAttributes.PortCount > 0) {
             YT_LOG_INFO("Allocating ports (PortCount: %v)", allocationAttributes.PortCount);
@@ -876,7 +895,7 @@ public:
             acquiredResources.GpuSlots = AcquireGpuSlots(neededResources);
         }
 
-        resourceAcquisitionFailedGuard.Release();
+        resourceAcquisitionFailedGuard->Release();
         ShouldNotifyResourcesUpdated_ = true;
 
         resourceHolder->SetAcquiredResources(std::move(acquiredResources));
