@@ -14,7 +14,7 @@ namespace NSQLComplete {
             }
 
             NThreading::TFuture<TNameResponse> Lookup(TNameRequest request) const override {
-                if (request.IsEmpty()) {
+                if (request.Constraints.IsEmpty()) {
                     return NThreading::MakeFuture<TNameResponse>({});
                 }
 

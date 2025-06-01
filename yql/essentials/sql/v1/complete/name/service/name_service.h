@@ -86,6 +86,15 @@ namespace NSQLComplete {
         TMaybe<TObjectNameConstraints> Object;
         TMaybe<TClusterName::TConstraints> Cluster;
 
+        bool IsEmpty() const {
+            return !Pragma &&
+                   !Type &&
+                   !Function &&
+                   !Hint &&
+                   !Object &&
+                   !Cluster;
+        }
+
         TGenericName Qualified(TGenericName unqualified) const;
         TGenericName Unqualified(TGenericName qualified) const;
         TVector<TGenericName> Qualified(TVector<TGenericName> unqualified) const;
@@ -99,19 +108,13 @@ namespace NSQLComplete {
         size_t Limit = 128;
 
         bool IsEmpty() const {
-            return Keywords.empty() &&
-                   !Constraints.Pragma &&
-                   !Constraints.Type &&
-                   !Constraints.Function &&
-                   !Constraints.Hint &&
-                   !Constraints.Object &&
-                   !Constraints.Cluster;
+            return Keywords.empty() && Constraints.IsEmpty();
         }
     };
 
     struct TNameResponse {
         TVector<TGenericName> RankedNames;
-        TMaybe<size_t> NameHintLength;
+        TMaybe<size_t> NameHintLength = Nothing();
 
         bool IsEmpty() const {
             return RankedNames.empty();

@@ -101,7 +101,7 @@ namespace NSQLComplete {
             result.Hint = HintMatch(candidates);
             result.Object = ObjectMatch(context, candidates);
             result.Cluster = ClusterMatch(context, candidates);
-            result.IsDollared = IsDollared(context);
+            result.Binding = BindingMatch(candidates);
 
             return result;
         }
@@ -293,13 +293,8 @@ namespace NSQLComplete {
             return cluster;
         }
 
-        bool IsDollared(const TCursorTokenContext& context) const {
-            if (TMaybe<TRichParsedToken> begin;
-                (begin = context.MatchCursorPrefix({"DOLLAR"})) ||
-                (begin = context.MatchCursorPrefix({"DOLLAR", ""}))) {
-                return true;
-            }
-            return false;
+        bool BindingMatch(const TC3Candidates& candidates) const {
+            return AnyOf(candidates.Rules, RuleAdapted(IsLikelyBindingStack));
         }
 
         TEditRange EditRange(const TCursorTokenContext& context) const {

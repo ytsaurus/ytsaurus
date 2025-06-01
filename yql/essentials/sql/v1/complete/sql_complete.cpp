@@ -57,8 +57,7 @@ namespace NSQLComplete {
 
             TVector<INameService::TPtr> children;
             children.emplace_back(MakeBindingNameService(std::move(global.Names)));
-
-            if (!context.IsDollared) {
+            if (!context.Binding) {
                 children.emplace_back(Names_);
             }
 
@@ -214,7 +213,7 @@ namespace NSQLComplete {
                 }
 
                 if constexpr (std::is_base_of_v<TBindingName, T>) {
-                    if (!context.IsDollared) {
+                    if (!context.Binding) {
                         name.Indentifier.prepend('$');
                     }
                     return {ECandidateKind::BindingName, std::move(name.Indentifier)};
