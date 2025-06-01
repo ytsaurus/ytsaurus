@@ -436,7 +436,7 @@ public:
     //! name being of form "<experiment name>.<group name>".
     std::vector<TString> GetExperimentAssignmentNames() const;
 
-    std::vector<TString> GetJobShellOwners(const TString& jobShellName);
+    std::vector<std::string> GetJobShellOwners(const TString& jobShellName);
 
     // Aborts all transactions except user and "completion" transactions.
     TFuture<void> AbortCommonTransactions();

@@ -645,7 +645,7 @@ void TClient::ValidateSuperuserPermissions()
     auto groupYsonList = WaitFor(GetNode(pathToGroupYsonList, options))
         .ValueOrThrow();
 
-    auto groups = ConvertTo<THashSet<TString>>(groupYsonList);
+    auto groups = ConvertTo<THashSet<std::string>>(groupYsonList);
     YT_LOG_DEBUG("User group membership info received (Name: %v, Groups: %v)",
         Options_.User,
         groups);

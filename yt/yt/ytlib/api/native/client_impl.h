@@ -534,13 +534,13 @@ public: \
         (options))
 
     IMPLEMENT_METHOD(void, AddMember, (
-        const TString& group,
-        const TString& member,
+        const std::string& group,
+        const std::string& member,
         const TAddMemberOptions& options),
         (group, member, options))
     IMPLEMENT_METHOD(void, RemoveMember, (
-        const TString& group,
-        const TString& member,
+        const std::string& group,
+        const std::string& member,
         const TRemoveMemberOptions& options),
         (group, member, options))
     IMPLEMENT_METHOD(TCheckPermissionResponse, CheckPermission, (
