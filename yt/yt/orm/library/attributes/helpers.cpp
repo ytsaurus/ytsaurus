@@ -68,7 +68,8 @@ const TProtobufMessageType* GetMessageTypeByYPath(
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
-    const TWireString& wireStringPayload)
+    const TWireString& wireStringPayload,
+    const NYson::TProtobufParserOptions& options)
 {
     THROW_ERROR_EXCEPTION_IF(wireStringPayload.size() > 1,
         EErrorCode::Unimplemented,
@@ -82,16 +83,17 @@ NYTree::INodePtr ConvertProtobufToNode(
 
     auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
     builder->BeginTree();
-    ParseProtobuf(&*builder, &protobufInputStream, payloadType);
+    ParseProtobuf(&*builder, &protobufInputStream, payloadType, options);
     return builder->EndTree();
 }
 
 NYTree::INodePtr ConvertProtobufToNode(
     const TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
-    const TString& payload)
+    const TString& payload,
+    const NYson::TProtobufParserOptions& options)
 {
-    return ConvertProtobufToNode(rootType, path, TWireString::FromSerialized(payload));
+    return ConvertProtobufToNode(rootType, path, TWireString::FromSerialized(payload), options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
