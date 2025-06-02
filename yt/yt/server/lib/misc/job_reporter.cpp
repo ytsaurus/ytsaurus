@@ -220,6 +220,12 @@ public:
             record.GangRank = Report_.GangRank();
         }
 
+        // COMPAT(faucct)
+        if (archiveVersion >= 61) {
+            record.JobCookieGroupIndex = Report_.JobCookieGroupIndex();
+            record.MainJobId = ToString(Report_.MainJobId());
+        }
+
         return FromRecord(record);
     }
 
