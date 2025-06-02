@@ -553,19 +553,25 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         for _ in range(30):
             select_rows("* from [//tmp/t] where value = \"bbb\"")
 
-        def _get_select_cpu_time(tablet_id):
-            return self._get_counter(statistics_path, table_id, tablet_id, "select_cpu_time", "count")
+        cpu_time_by_tablet_id = {tablet_id : 0.0 for tablet_id in tablet_ids}
+
+        def _check_select_cpu_time_stable(tablet_id):
+            old_cpu_time = cpu_time_by_tablet_id[tablet_id]
+            cpu_time_by_tablet_id[tablet_id] = self._get_counter(
+                statistics_path,
+                table_id,
+                tablet_id,
+                "select_cpu_time",
+                "count")
+
+            return cpu_time_by_tablet_id[tablet_id] == old_cpu_time
 
         for tablet_id in tablet_ids:
-            wait(lambda: _get_select_cpu_time(tablet_id) > 0)
+            wait(lambda: _check_select_cpu_time_stable(tablet_id))
 
-        a_cpu = _get_select_cpu_time(tablet_ids[0])
-        b_cpu = _get_select_cpu_time(tablet_ids[1])
-        c_cpu = _get_select_cpu_time(tablet_ids[2])
-
-        assert a_cpu > 0
-        assert b_cpu > 0
-        assert c_cpu > 0
+        a_cpu = cpu_time_by_tablet_id[tablet_ids[0]]
+        b_cpu = cpu_time_by_tablet_id[tablet_ids[1]]
+        c_cpu = cpu_time_by_tablet_id[tablet_ids[2]]
 
         # CPU usage of the second tablet must be substantially higher
         assert b_cpu > ((a_cpu + c_cpu) / 2) * 1.3
