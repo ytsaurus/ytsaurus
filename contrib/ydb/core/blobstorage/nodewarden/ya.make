@@ -11,6 +11,7 @@ SRCS(
     distconf_generate.cpp
     distconf_fsm.cpp
     distconf_invoke.h
+    distconf_invoke_bridge.cpp
     distconf_invoke_common.cpp
     distconf_invoke_state_storage.cpp
     distconf_invoke_static_group.cpp
@@ -43,6 +44,7 @@ PEERDIR(
     contrib/ydb/core/blob_depot/agent
     contrib/ydb/core/blobstorage/common
     contrib/ydb/core/blobstorage/crypto
+    contrib/ydb/core/blobstorage/dsproxy/bridge
     contrib/ydb/core/blobstorage/groupinfo
     contrib/ydb/core/blobstorage/pdisk
     contrib/ydb/core/control/lib

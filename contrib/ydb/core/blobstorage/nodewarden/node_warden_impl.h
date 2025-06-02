@@ -639,6 +639,7 @@ namespace NKikimr::NStorage {
 
         NKikimrBlobStorage::TStorageConfig StorageConfig;
         bool SelfManagementEnabled = false;
+        TBridgeInfo::TPtr BridgeInfo;
         THashSet<TActorId> StorageConfigSubscribers;
 
         void Handle(TEvNodeWardenQueryStorageConfig::TPtr ev);

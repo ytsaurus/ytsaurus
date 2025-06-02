@@ -68,6 +68,7 @@ PEERDIR(
     contrib/ydb/core/blobstorage/common
     contrib/ydb/core/blobstorage/groupinfo
     contrib/ydb/core/blobstorage/storagepoolmon
+    contrib/ydb/core/blobstorage/vdisk/common
     contrib/ydb/core/blobstorage/vdisk/ingress
     contrib/ydb/core/control/lib
     contrib/ydb/core/util
@@ -76,6 +77,7 @@ PEERDIR(
 END()
 
 RECURSE(
+    bridge
     mock
 )
 
