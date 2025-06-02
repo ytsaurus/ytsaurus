@@ -495,7 +495,7 @@ public:
 
         auto statistics = DoCoordinateAndExecute();
 
-        AccountCPUTimeToTablets(statistics);
+        AccountCpuTimeToTablets(statistics);
 
         auto cpuTime = statistics.SyncTime;
         for (const auto& innerStatistics : statistics.InnerStatistics) {
@@ -1585,7 +1585,7 @@ private:
         return CreatePrefetchingOrderedSchemafulReader(std::move(bottomSplitReaderGenerator));
     }
 
-    void AccountCPUTimeToTablets(const TQueryStatistics& statistics)
+    void AccountCpuTimeToTablets(const TQueryStatistics& statistics)
     {
         int subqueryCount = statistics.InnerStatistics.size();
         // We might end up executing fewer subqueries than initially planned.
@@ -1620,7 +1620,7 @@ private:
                     ->PerformanceCounters
                     ->SelectCpuTime.Counter.fetch_add(
                         safeDiv(ratio, ratioSums[subqueryIndex]) * subqueryCpuTime,
-                        std::memory_order_relaxed);
+                        std::memory_order::relaxed);
             }
         }
     }
