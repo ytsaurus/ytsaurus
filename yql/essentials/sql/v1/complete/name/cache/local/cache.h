@@ -21,11 +21,7 @@ namespace NSQLComplete {
             TValue Value;
             NMonotonic::TMonotonic Deadline;
             size_t KeyByteSize = 0;
-
-            const size_t CellByteSize =
-                TByteSize<TValue>()(Value) +
-                sizeof(Deadline) +
-                KeyByteSize;
+            size_t CellByteSize = 0;
         };
 
         template <CCacheKey TKey, CCacheValue TValue>
@@ -77,6 +73,11 @@ namespace NSQLComplete {
                     .Deadline = Clock_->Now() + Config_.TTL,
                     .KeyByteSize = TByteSize<TKey>()(key),
                 };
+
+                cell.CellByteSize =
+                    TByteSize<TValue>()(cell.Value) +
+                    sizeof(cell.Deadline) +
+                    cell.KeyByteSize;
 
                 with_lock (Mutex_) {
                     Origin_.Update(key, std::move(cell));
