@@ -49,7 +49,9 @@ public:
 
     bool ConvertUnsupportedTypesToString;
 
-    static TCompositeSettingsPtr Create(bool convertUnsupportedTypesToString);
+    bool EnableComplexNullConverison;
+
+    static TCompositeSettingsPtr Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison = true);
 
     REGISTER_YSON_STRUCT(TCompositeSettings);
 
