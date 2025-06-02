@@ -229,12 +229,9 @@ namespace NSQLComplete {
     ISqlCompletionEngine::TConfiguration MakeYDBConfiguration() {
         return {
             .IgnoredRules = {
-                "pragma_stmt",
                 "use_stmt",
                 "import_stmt",
                 "export_stmt",
-                "if_stmt",
-                "for_stmt",
             },
         };
     }
