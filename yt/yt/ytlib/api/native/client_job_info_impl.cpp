@@ -1659,6 +1659,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             .PoolTree = record.PoolTree,
             .MonitoringDescriptor = record.MonitoringDescriptor,
             .JobCookie = record.JobCookie,
+            .JobCookieGroupIndex = record.JobCookieGroupIndex,
             .ArchiveFeatures = record.ArchiveFeatures.value_or(TYsonString()),
             .OperationIncarnation = record.OperationIncarnation,
             .GangRank = record.GangRank,
@@ -1724,6 +1725,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
 
         if (record.JobCompetitionId) {
             job.JobCompetitionId = TJobId(TGuid::FromString(*record.JobCompetitionId));
+        }
+
+        if (record.MainJobId) {
+            job.MainJobId = TJobId(TGuid::FromString(*record.MainJobId));
         }
 
         if (record.ProbingJobCompetitionId) {
