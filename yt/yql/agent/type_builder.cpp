@@ -111,7 +111,10 @@ void TTypeBuilder::OnUtf8()
 
 void TTypeBuilder::OnYson()
 {
-    Push(SimpleLogicalType(ESimpleLogicalValueType::Any));
+    if (3U == ItemsStack_.size()) // YT doesn't support strict yson on colums level: List<Struct<'column':Yson>>
+        Push(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)));
+    else
+        Push(SimpleLogicalType(ESimpleLogicalValueType::Any));
 }
 
 void TTypeBuilder::OnJson()
