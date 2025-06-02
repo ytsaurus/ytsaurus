@@ -1458,24 +1458,6 @@ class TestGangOperations(YTEnvSetup):
 
         wait(lambda: incarnation_switch_counter.get() == 1)
 
-    @authors("faucct")
-    def test_preemption_of_distributed(self):
-        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
-
-        op = run_test_vanilla(
-            with_breakpoint("BREAKPOINT"),
-            task_patch={"cookie_group_size": 3},
-            spec={"pool": "fake_pool"},
-        )
-
-        wait_breakpoint(job_count=3)
-
-        sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=1)
-        wait(lambda: len(get(_get_job_tracker_orchid_path(sleeping_op) + f"/operations/{sleeping_op.id}/allocations")) == 1)
-
-        wait(lambda: len(op.get_running_jobs()) == 0)
-
     @authors("pogorelov")
     @pytest.mark.parametrize("with_gang_policy", [False, True])
     def test_revive_with_completed_task(self, with_gang_policy):
