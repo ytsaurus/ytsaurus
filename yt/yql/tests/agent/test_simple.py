@@ -174,6 +174,10 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
             select core::IndexOf([3,7,1], 7) as idx, test::my_sqr(3) as sqr;
         """, [{"idx": 1, "sqr": 9}])
 
+
+class TestTypes(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 4
+
     @authors("a-romanov")
     def test_datetime_types(self, query_tracker, yql_agent):
         self._test_simple_query("""
