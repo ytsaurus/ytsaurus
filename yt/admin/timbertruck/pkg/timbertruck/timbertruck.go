@@ -633,7 +633,7 @@ func (c *taskController) NotifyProgress(pos pipelines.FilePosition) {
 	for {
 		err := c.datastore.UpdateEndPosition(c.path, pos)
 		if err != nil {
-			c.logger.Error("Failed to notify progress: %v", "error", err)
+			c.logger.Error("Failed to notify progress, will retry", "error", err)
 			time.Sleep(1 * time.Second)
 			continue
 		}

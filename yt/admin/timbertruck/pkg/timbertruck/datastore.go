@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -578,10 +579,6 @@ func (ds *Datastore) withRetry(fn func() error) error {
 	b.MaxInterval = 2 * time.Second
 	b.MaxElapsedTime = time.Minute
 
-	notifyFn := func(err error, nextWait time.Duration) {
-		ds.logger.Warn("Datastore error, will retry", "error", err, "backoff", nextWait.String())
-	}
-
 	return backoff.RetryNotify(func() error {
 		err := fn()
 		if err == nil {
@@ -591,14 +588,25 @@ func (ds *Datastore) withRetry(fn func() error) error {
 			return err
 		}
 		return backoff.Permanent(err)
-	}, b, notifyFn)
+	}, b, ds.notifyRetryableError)
+}
+
+func (ds *Datastore) notifyRetryableError(err error, nextWait time.Duration) {
+	ds.logger.Warn("Datastore error, will retry",
+		"error", err, "error_struct", fmt.Sprintf("%#v", err), "backoff", nextWait.String())
 }
 
 func isDatabaseLocked(err error) bool {
+	if err == nil {
+		return false
+	}
 	var sqliteErr sqlite3.Error
 	if errors.As(err, &sqliteErr) {
-		// SQLITE_BUSY = 5, SQLITE_LOCKED = 6
 		return sqliteErr.Code == sqlite3.ErrBusy || sqliteErr.Code == sqlite3.ErrLocked
+	}
+	// Fallback: check for error message in case error type is not sqlite3.Error.
+	if strings.Contains(err.Error(), "database is locked") || strings.Contains(err.Error(), "database table is locked") {
+		return true
 	}
 	return false
 }
