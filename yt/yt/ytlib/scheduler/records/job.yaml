@@ -167,6 +167,16 @@ types:
         column_name: job_cookie
         column_type: Int64
 
+      - cpp_name: JobCookieGroupIndex
+        cpp_type: i64
+        column_name: job_cookie_group_index
+        column_type: Int64
+
+      - cpp_name: MainJobId
+        cpp_type: TString
+        column_name: main_job_id
+        column_type: String
+
       - cpp_name: ControllerState
         cpp_type: TString
         column_name: controller_state
