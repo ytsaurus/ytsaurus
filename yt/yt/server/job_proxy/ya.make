@@ -16,6 +16,7 @@ SRCS(
     merge_job.cpp
     partition_job.cpp
     partition_sort_job.cpp
+    private.cpp
     program.cpp
     public.cpp
     remote_copy_job.cpp
