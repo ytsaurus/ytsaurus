@@ -1886,21 +1886,12 @@ IIOEnginePtr CreateIOEngineUring(
                 std::move(locationId),
                 std::move(profiler),
                 std::move(logger));
-        // TODO(vvshlyaga): remove copy-paste after patching ytdyncfgen/ytcfgen.
-        case EIOEngineType::Uring: {
-            auto config = New<TUringIOEngine::TConfig>();
-            config->SetDefaults();
-            config->EnableSlicing = false;
-            if (ioConfig) {
-                config->Load(ioConfig);
-            }
-
-            return New<TUringIOEngine>(
-                std::move(config),
+        case EIOEngineType::Uring:
+            return CreateIOEngine<TUringIOEngine>(
+                std::move(ioConfig),
                 std::move(locationId),
                 std::move(profiler),
                 std::move(logger));
-        }
         default:
             YT_ABORT();
     };
