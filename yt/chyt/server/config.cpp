@@ -12,10 +12,11 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString)
+TCompositeSettingsPtr TCompositeSettings::Create(bool convertUnsupportedTypesToString, bool enableComplexNullConverison)
 {
     auto settings = New<TCompositeSettings>();
     settings->ConvertUnsupportedTypesToString = convertUnsupportedTypesToString;
+    settings->EnableComplexNullConverison = enableComplexNullConverison;
     return settings;
 }
 
@@ -26,6 +27,9 @@ void TCompositeSettings::Register(TRegistrar registrar)
 
     registrar.Parameter("convert_unsupported_types_to_string", &TThis::ConvertUnsupportedTypesToString)
         .Default(false);
+
+    registrar.Parameter("enable_complex_null_conversion", &TThis::EnableComplexNullConverison)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
