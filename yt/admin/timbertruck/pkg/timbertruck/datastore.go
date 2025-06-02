@@ -373,36 +373,31 @@ func (ds *Datastore) SetPeeked(streamName, fileName string) error {
 func (ds *Datastore) ResetUnboundTask(streamName string, ino int64, boundTime time.Time) error {
 	boundTimeString := boundTime.Format(datastoreTimeLayout)
 	return ds.withRetry(func() error {
-		_, err := ds.sqlite.Exec(`
-			BEGIN;
-
-			UPDATE Tasks
-			SET
-				BoundTime = ?
-			WHERE
-				StreamName = ?
-				AND Inode != ?
-				AND BoundTime IS NULL
-				AND CompletionTime IS NULL
-			;
-
-			UPDATE Tasks
-			Set
-				BoundTime = NULL
-			WHERE
-				StreamName = ?
-				AND Inode = ?
-				AND CompletionTime IS NULL;
-
-			COMMIT;
-		`,
-			boundTimeString,
-			streamName,
-			ino,
-			streamName,
-			ino,
-		)
-		return err
+		return ds.withTransaction(func(tx *sql.Tx) error {
+			_, err := tx.Exec(`
+                UPDATE Tasks
+                SET BoundTime = ?
+                WHERE
+                    StreamName = ?
+                    AND Inode != ?
+                    AND BoundTime IS NULL
+                    AND CompletionTime IS NULL
+                ;`,
+				boundTimeString, streamName, ino)
+			if err != nil {
+				return err
+			}
+			_, err = tx.Exec(`
+                UPDATE Tasks
+                SET BoundTime = NULL
+                WHERE
+                    StreamName = ?
+                    AND Inode = ?
+                    AND CompletionTime IS NULL
+                ;`,
+				streamName, ino)
+			return err
+		})
 	})
 }
 
@@ -581,10 +576,10 @@ func (ds *Datastore) withRetry(fn func() error) error {
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = 50 * time.Millisecond
 	b.MaxInterval = 2 * time.Second
-	b.MaxElapsedTime = 30 * time.Second
+	b.MaxElapsedTime = time.Minute
 
 	notifyFn := func(err error, nextWait time.Duration) {
-		ds.logger.Warn("Datastore error, will retry", "error", err, "backoff", nextWait)
+		ds.logger.Warn("Datastore error, will retry", "error", err, "backoff", nextWait.String())
 	}
 
 	return backoff.RetryNotify(func() error {
