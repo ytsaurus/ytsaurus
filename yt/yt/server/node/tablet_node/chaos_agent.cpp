@@ -250,7 +250,7 @@ private:
     void TryAdvanceReplicationEra(TReplicationEra newEra)
     {
         ui64 snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
-        if (snapshotEra != InvalidReplicationEra && snapshotEra >= ReplicationCard_->Era) {
+        if (snapshotEra != InvalidReplicationEra && snapshotEra >= newEra) {
             return;
         }
 
@@ -258,8 +258,10 @@ private:
         ToProto(req.mutable_tablet_id(), Tablet_->GetId());
         req.set_new_replication_era(newEra);
 
-        YT_LOG_DEBUG("Committing replication era advance (NewReplicationEra: %v)",
-            newEra);
+        YT_LOG_DEBUG("Committing replication era advance (NewReplicationEra: %v, OldReplicationEra: %v)",
+            newEra,
+            snapshotEra
+        );
 
         auto mutation = CreateMutation(Slot_->GetSimpleHydraManager(), req);
         WaitFor(mutation->Commit())
