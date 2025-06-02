@@ -93,11 +93,9 @@ static void ExtractQuery(TPosOutput& out, const google::protobuf::Message& node)
     }
 }
 
-bool TestComplete(
-    const TString& query, 
-    THashMap<TString, TVector<TString>> tablesByCluster) {
+bool TestComplete(const TString& query, NYql::TAstNode& root) {
     TString error;
-    if (!NSQLComplete::CheckComplete(query, std::move(tablesByCluster), error)) {
+    if (!NSQLComplete::CheckComplete(query, root, error)) {
         Cerr << error << Endl;
         return false;
     }
@@ -431,7 +429,7 @@ int BuildAST(int argc, char* argv[]) {
             }
 
             if (res.Has("test-complete") && syntaxVersion == 1 && !hasError && parseRes.Root) {
-                hasError = !TestComplete(query, std::move(tablesByCluster));
+                hasError = !TestComplete(query, *parseRes.Root);
             }
 
             if (hasError) {
