@@ -151,7 +151,6 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
             config->DefaultHunkStorageReadQuorum,
             config->DefaultHunkStorageWriteQuorum);
     });
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
