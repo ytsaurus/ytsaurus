@@ -3,6 +3,7 @@
 #include "source.h"
 
 #include <contrib/ydb/core/formats/arrow/program/collection.h>
+#include <contrib/ydb/core/formats/arrow/reader/result_builder.h>
 #include <contrib/ydb/core/formats/arrow/serializer/native.h>
 #include <contrib/ydb/core/tx/conveyor/usage/service.h>
 
@@ -85,7 +86,7 @@ bool TBaseMergeTask::DoOnAllocated(
         return false;
     }
     AllocationGuard = std::move(guard);
-    NConveyor::TScanServiceOperator::SendTaskToExecute(static_pointer_cast<TBaseMergeTask>(allocation));
+    NConveyor::TScanServiceOperator::SendTaskToExecute(static_pointer_cast<TBaseMergeTask>(allocation), Context->GetCommonContext()->GetConveyorProcessId());
     return true;
 }
 

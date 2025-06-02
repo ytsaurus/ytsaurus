@@ -1952,6 +1952,28 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
             }
         }
 
+        // Read SysViews
+        {
+            auto rowset = db.Table<Schema::SysView>().Range().Select();
+            if (!rowset.IsReady()) {
+                return false;
+            }
+
+            while (!rowset.EndOfSet()) {
+                TLocalPathId localPathId = rowset.GetValue<Schema::SysView::PathId>();
+                TPathId pathId(selfId, localPathId);
+
+                auto& sysView = Self->SysViews[pathId] = new TSysViewInfo();
+                sysView->AlterVersion = rowset.GetValue<Schema::SysView::AlterVersion>();
+                sysView->Type = rowset.GetValue<Schema::SysView::SysViewType>();
+                Self->IncrementPathDbRefCount(pathId);
+
+                if (!rowset.Next()) {
+                    return false;
+                }
+            }
+        }
+
         // Resorce Pool
         {
             auto rowset = db.Table<Schema::ResourcePool>().Range().Select();
@@ -3410,7 +3432,7 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
             }
         }
 
-           // Read KesusAlters
+        // Read KesusAlters
         {
             TKesusAlterRows kesusAlterRows;
             if (!LoadKesusAlters(db, kesusAlterRows)) {
@@ -4503,6 +4525,12 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
                         item.Changefeeds = rowset.GetValue<Schema::ImportItems::Changefeeds>();
                     }
 
+                    if (rowset.HaveValue<Schema::ImportItems::Topic>()) {
+                        Ydb::Topic::CreateTopicRequest topic;
+                        Y_ABORT_UNLESS(ParseFromStringNoSizeLimit(topic, rowset.GetValue<Schema::ImportItems::Topic>()));
+                        item.Topic = topic;
+                    }
+
                     item.State = static_cast<TImportInfo::EState>(rowset.GetValue<Schema::ImportItems::State>());
                     item.WaitTxId = rowset.GetValueOrDefault<Schema::ImportItems::WaitTxId>(InvalidTxId);
                     item.NextIndexIdx = rowset.GetValueOrDefault<Schema::ImportItems::NextIndexIdx>(0);
@@ -4595,20 +4623,26 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
                     return false;
                 }
 
+                size_t sampleCount = 0;
                 while (!rowset.EndOfSet()) {
                     TIndexBuildId id = rowset.GetValue<Schema::KMeansTreeSample::Id>();
                     const auto* buildInfoPtr = Self->IndexBuilds.FindPtr(id);
                     Y_VERIFY_S(buildInfoPtr, "BuildIndex not found: id# " << id);
                     auto& buildInfo = *buildInfoPtr->Get();
-                    buildInfo.Sample.Set(
+                    buildInfo.Sample.Add(
                         rowset.GetValue<Schema::KMeansTreeSample::Probability>(),
                         rowset.GetValue<Schema::KMeansTreeSample::Data>()
                     );
+                    sampleCount++;
 
                     if (!rowset.Next()) {
                         return false;
                     }
                 }
+
+                LOG_NOTICE_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+                             "KMeansTreeSample records: " << sampleCount
+                             << ", at schemeshard: " << Self->TabletID());
             }
 
             // read index build columns

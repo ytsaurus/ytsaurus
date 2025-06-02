@@ -42,7 +42,7 @@ void TNodeWarden::ApplyServiceSet(const NKikimrBlobStorage::TNodeWardenServiceSe
         bool comprehensive, bool updateCache, const char *origin) {
     if (Cfg->IsCacheEnabled() && updateCache) {
         Y_ABORT_UNLESS(!isStatic);
-        return EnqueueSyncOp(WrapCacheOp(UpdateServiceSet(serviceSet, comprehensive, [=] {
+        return EnqueueSyncOp(WrapCacheOp(UpdateServiceSet(serviceSet, comprehensive, [=, this] {
             ApplyServiceSet(serviceSet, false, comprehensive, false, origin);
         })));
     }
@@ -77,15 +77,17 @@ void TNodeWarden::ApplyServiceSet(const NKikimrBlobStorage::TNodeWardenServiceSe
 }
 
 void TNodeWarden::Handle(TEvNodeWardenQueryStorageConfig::TPtr ev) {
-    Send(ev->Sender, new TEvNodeWardenStorageConfig(StorageConfig, nullptr, SelfManagementEnabled));
+    Send(ev->Sender, new TEvNodeWardenStorageConfig(StorageConfig, nullptr, SelfManagementEnabled, BridgeInfo));
     if (ev->Get()->Subscribe) {
         StorageConfigSubscribers.insert(ev->Sender);
     }
 }
 
 void TNodeWarden::Handle(TEvNodeWardenStorageConfig::TPtr ev) {
-    ev->Get()->Config->Swap(&StorageConfig);
-    SelfManagementEnabled = ev->Get()->SelfManagementEnabled;
+    auto *msg = ev->Get();
+    msg->Config->Swap(&StorageConfig);
+    SelfManagementEnabled = msg->SelfManagementEnabled;
+    BridgeInfo = std::move(msg->BridgeInfo);
 
     if (StorageConfig.HasBlobStorageConfig()) {
         if (const auto& bsConfig = StorageConfig.GetBlobStorageConfig(); bsConfig.HasServiceSet()) {
@@ -111,7 +113,7 @@ void TNodeWarden::Handle(TEvNodeWardenStorageConfig::TPtr ev) {
     }
 
     for (const TActorId& subscriber : StorageConfigSubscribers) {
-        Send(subscriber, new TEvNodeWardenStorageConfig(StorageConfig, nullptr, SelfManagementEnabled));
+        Send(subscriber, new TEvNodeWardenStorageConfig(StorageConfig, nullptr, SelfManagementEnabled, BridgeInfo));
     }
 
     if (StorageConfig.HasConfigComposite()) {
