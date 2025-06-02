@@ -1926,10 +1926,10 @@ private:
                         *suggestedAddress,
                         suggestorPeer.Address);
 
-                    if (peerDescriptor.has_delivery_barier()) {
+                    if (peerDescriptor.has_delivery_barrier()) {
                         P2PDeliveryBarrier_[peerNodeId].emplace(
                             blockIndex,
-                            peerDescriptor.delivery_barier());
+                            peerDescriptor.delivery_barrier());
                     }
                 } else {
                     YT_LOG_WARNING("Peer suggestion ignored, required network is missing "
