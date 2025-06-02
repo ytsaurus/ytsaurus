@@ -1,6 +1,7 @@
 LIBRARY()
 
 SRCS(
+    collect_clusters.cpp
     check_complete.cpp
 )
 
@@ -15,6 +16,8 @@ PEERDIR(
     yql/essentials/sql/v1/complete/name/service/union
     yql/essentials/sql/v1/lexer/antlr4_pure
     yql/essentials/sql/v1/lexer/antlr4_pure_ansi
+    yql/essentials/ast
+    yql/essentials/core
 )
 
 END()
