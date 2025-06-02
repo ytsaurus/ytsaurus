@@ -378,6 +378,38 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         wait(lambda: len(op.get_running_jobs()) == 0)
 
+    @authors("faucct")
+    def test_preemption_of_distributed_jobs_excessing_resource_limits(self):
+        create("table", "//tmp/t_in")
+        for i in range(1):
+            write_table("<append=%true>//tmp/t_in", {"foo": "bar"})
+
+        create("table", "//tmp/t_out")
+
+        op = map(
+            track=False,
+            command="sleep 1000; cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={"mapper": {"cookie_group_size": 3}},
+        )
+
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+        update_op_parameters(
+            op.id,
+            parameters={"scheduling_options_per_pool_tree": {"default": {"resource_limits": {"user_slots": 2}}}},
+        )
+
+        wait(lambda: len(op.get_running_jobs()) == 0)
+
+        update_op_parameters(
+            op.id,
+            parameters={"scheduling_options_per_pool_tree": {"default": {"resource_limits": {"user_slots": 3}}}},
+        )
+
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
     @authors("ignat")
     def test_preemptor_event_log(self):
         set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
