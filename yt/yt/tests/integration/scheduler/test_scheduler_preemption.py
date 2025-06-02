@@ -877,6 +877,7 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
         run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=1)
 
         wait(lambda: not op.get_running_jobs())
+        assert op.get_job_count("aborted") == 1
 
     @authors("pogorelov")
     @pytest.mark.parametrize("several_jobs_in_allocation", [False, True])
