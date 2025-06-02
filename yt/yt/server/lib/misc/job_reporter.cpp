@@ -214,6 +214,12 @@ public:
             record.ControllerFinishTime = Report_.ControllerFinishTime();
         }
 
+        // COMPAT(faucct)
+        if (archiveVersion >= 59) {
+            record.JobCookieGroupIndex = Report_.JobCookieGroupIndex();
+            record.MainJobId = ToString(Report_.MainJobId());
+        }
+
         return FromRecord(record);
     }
 
