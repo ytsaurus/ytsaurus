@@ -577,11 +577,6 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         "13": {"roles": ["chunk_host", "cypress_node_host"]}
     }
 
-    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
-    # supported in native client.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
     def _check_transaction_not_exists(self, tx):
         assert not exists(f"#{tx}")
         assert not lookup_cypress_transaction(tx)
@@ -1070,11 +1065,6 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-
-    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
-    # supported in native client.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
 
     # Creates node and returns its ID. For rootstock returns corresponding
     # scion's ID.

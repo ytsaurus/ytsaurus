@@ -1161,11 +1161,6 @@ class TestSchedulerReviveForMapMirroredTx(TestSchedulerReviveForMap):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
 
-    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
-    # supported in native client.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
 
 ################################################################################
 
