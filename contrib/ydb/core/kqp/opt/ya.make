@@ -21,6 +21,7 @@ PEERDIR(
     contrib/ydb/core/kqp/opt/logical
     contrib/ydb/core/kqp/opt/peephole
     contrib/ydb/core/kqp/opt/physical
+    contrib/ydb/core/kqp/opt/rbo
     contrib/ydb/library/yql/dq/common
     contrib/ydb/library/yql/dq/opt
     contrib/ydb/library/yql/dq/type_ann
