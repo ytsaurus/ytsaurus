@@ -324,7 +324,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
     switch (key) {
         case EInternedAttributeKey::RecursiveResourceUsage: {
             if (GetThisImpl()->IsSequoia()) {
-               THROW_ERROR_EXCEPTION("Attribute \"recursive_resource_usage\" is not supported in Sequoia yet");
+                THROW_ERROR_EXCEPTION("Attribute \"recursive_resource_usage\" is not supported in Sequoia yet");
             }
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             return cypressManager->ComputeRecursiveResourceUsage(GetTrunkNode(), GetTransaction());
