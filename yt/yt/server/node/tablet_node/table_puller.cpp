@@ -346,7 +346,7 @@ private:
                 THROW_ERROR_EXCEPTION("No replication card");
             }
 
-            ui64 snapshotEra = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+            auto snapshotEra = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
             if (snapshotEra == InvalidReplicationEra) {
                 YT_LOG_DEBUG("Will not pull rows since replication era is not known yet");
                 return;

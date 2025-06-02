@@ -199,7 +199,7 @@ private:
             auto replicationCard = WaitFor(replicationCardCache->GetReplicationCard(key))
                 .ValueOrThrow();
 
-            if (ui64 snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
+            if (auto snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
                 snapshotEra != InvalidReplicationEra && replicationCard->Era < snapshotEra)
             {
                 key.RefreshEra = snapshotEra;
@@ -249,7 +249,7 @@ private:
 
     void TryAdvanceReplicationEra(TReplicationEra newEra)
     {
-        ui64 snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
+        auto snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
         if (snapshotEra != InvalidReplicationEra && snapshotEra >= newEra) {
             return;
         }
