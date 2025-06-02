@@ -83,6 +83,9 @@ struct TTabletBalancerDynamicConfig
 
     TActionManagerConfigPtr ActionManager;
 
+    std::vector<std::string> ClustersForBundleHealthCheck;
+    int MaxUnhealthyBundlesOnReplicaCluster;
+
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);
 
     static void Register(TRegistrar registrar);

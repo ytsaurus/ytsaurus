@@ -52,6 +52,9 @@ public:
     bool HasUnfinishedActions(const std::string& bundleName) const override;
     bool IsKnownAction(const std::string& bundleName, TTabletActionId actionId) const override;
 
+    bool HasPendingActions(const std::string& bundleName) const override;
+    void CancelPendingActions(const std::string& bundleName) override;
+
     void Start(TTransactionId prerequisiteTransactionId) override;
     void Stop() override;
 
@@ -133,10 +136,7 @@ void TActionManager::CreateActions(const std::string& bundleName)
             bundleName);
     }
 
-    if (!PendingActionDescriptors_.contains(bundleName)) {
-        YT_LOG_INFO("Action manager has no actions to create (BundleName: %v)", bundleName);
-        return;
-    }
+    YT_VERIFY(PendingActionDescriptors_.contains(bundleName));
 
     BundlesWithPendingActions_.emplace(bundleName, TInstant::Now() + Config_->TabletActionCreationTimeout);
 }
@@ -318,6 +318,17 @@ bool TActionManager::IsKnownAction(const std::string& bundleName, TTabletActionI
 
     return false;
 }
+
+bool TActionManager::HasPendingActions(const std::string& bundleName) const
+{
+    return PendingActionDescriptors_.contains(bundleName);
+}
+
+void TActionManager::CancelPendingActions(const std::string& bundleName)
+{
+    PendingActionDescriptors_.erase(bundleName);
+}
+
 
 void TActionManager::Start(TTransactionId prerequisiteTransactionId)
 {

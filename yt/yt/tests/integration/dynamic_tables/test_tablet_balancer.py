@@ -806,3 +806,95 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsRepor
         tablets = get("//tmp/t/@tablets")
         assert tablets[0]["cell_id"] == tablets[1]["cell_id"]
         assert tablets[2]["cell_id"] == tablets[3]["cell_id"]
+
+
+##################################################################
+
+
+class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, DynamicTablesBase):
+    NUM_REMOTE_CLUSTERS = 1
+    NUM_MASTERS_REMOTE_0 = 1
+
+    REMOTE_CLUSTER_NAME = "remote_0"
+
+    @classmethod
+    def setup_class(cls):
+        super(TestMultiClusterTabletBalancer, cls).setup_class()
+        cls.remote_driver = get_driver(cluster=cls.REMOTE_CLUSTER_NAME)
+
+    @authors("alexelexa")
+    def test_failed_replica_bundle(self):
+        sync_create_cells(1, driver=self.remote_driver)
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "iguana", driver=self.remote_driver)
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.remote_driver) == "failed")
+
+        self._apply_dynamic_config_patch({
+            "clusters_for_bundle_health_check": [self.REMOTE_CLUSTER_NAME],
+        })
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t")
+
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        assert get("//tmp/t/@tablet_count") == 2
+
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "", driver=self.remote_driver)
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
+
+    @authors("alexelexa")
+    def test_too_many_unhealthy_bundles(self):
+        self._apply_dynamic_config_patch({
+            "clusters_for_bundle_health_check": [self.REMOTE_CLUSTER_NAME],
+            "max_unhealthy_bundles_on_replica_cluster": 3
+        })
+
+        for bundle in ("one", "two", "three"):
+            create_tablet_cell_bundle(bundle, driver=self.remote_driver)
+            sync_create_cells(1, tablet_cell_bundle=bundle, driver=self.remote_driver)
+            set(f"//sys/tablet_cell_bundles/{bundle}/@node_tag_filter", "iguana", driver=self.remote_driver)
+            wait(lambda: get(f"//sys/tablet_cell_bundles/{bundle}/@health", driver=self.remote_driver) == "failed")
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t")
+
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        assert get("//tmp/t/@tablet_count") == 2
+
+        set("//sys/tablet_cell_bundles/one/@node_tag_filter", "", driver=self.remote_driver)
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
+
+        set("//sys/tablet_cell_bundles/two/@node_tag_filter", "", driver=self.remote_driver)
+        set("//sys/tablet_cell_bundles/three/@node_tag_filter", "", driver=self.remote_driver)
+
+    @authors("alexelexa")
+    def test_banned_replica_clusters(self):
+        sync_create_cells(1, driver=self.remote_driver)
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "iguana", driver=self.remote_driver)
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.remote_driver) == "failed")
+
+        self._apply_dynamic_config_patch({
+            "clusters_for_bundle_health_check": [self.REMOTE_CLUSTER_NAME],
+        })
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t")
+
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        assert get("//tmp/t/@tablet_count") == 2
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", [self.REMOTE_CLUSTER_NAME])
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
+
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "", driver=self.remote_driver)
