@@ -15,6 +15,9 @@ Y_WEAK const TAllocationTagsHooks& GetAllocationTagsHooks()
         },
         .DestroyAllocationTags = [] (void* /*opaque*/) {
         },
+        .ComputeAllocationTagsHash = [] (void* /*opaque*/) -> size_t {
+            return 0;
+        },
         .ReadAllocationTags = [] (void* /*opaque*/) -> TRange<TAllocationTag> {
             return {};
         },

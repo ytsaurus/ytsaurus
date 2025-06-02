@@ -175,7 +175,13 @@ auto TCompactVector<T, N>::begin() const -> const_iterator
 template <class T, size_t N>
 auto TCompactVector<T, N>::end() -> iterator
 {
-    return Y_LIKELY(IsInline()) ? &InlineElements_[InlineMeta_.SizePlusOne - 1] : OnHeapMeta_.Storage->End;
+    if (Y_LIKELY(IsInline())) {
+        auto size = InlineMeta_.SizePlusOne - 1;
+        return &InlineElements_[size];
+    } else {
+        auto* storage = OnHeapMeta_.Storage;
+        return storage->End;
+    }
 }
 
 template <class T, size_t N>

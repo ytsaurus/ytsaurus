@@ -30,6 +30,7 @@
 #include "absl/debugging/stacktrace.h"
 #include "tcmalloc/internal/parameter_accessors.h"
 #include "tcmalloc/malloc_extension.h"
+#include "tcmalloc/static_vars.h"
 
 GOOGLE_MALLOC_SECTION_BEGIN
 namespace tcmalloc {
@@ -49,6 +50,10 @@ static void WriteMessage(const char* msg, int length) {
 }
 
 void (*log_message_writer)(const char* msg, int length) = WriteMessage;
+
+size_t StackTrace::compute_user_data_hash() const {
+  return Static::ComputeSampleUserDataHash(user_data);
+}
 
 class Logger {
  public:
