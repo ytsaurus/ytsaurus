@@ -14,6 +14,7 @@ PEERDIR(
     yt/yt/build
     yt/yt/core
     yt/yt/core/test_framework
+    yt/yt/library/backtrace_introspector
     yt/yt/library/process
     yt/yt/library/signals
 )
