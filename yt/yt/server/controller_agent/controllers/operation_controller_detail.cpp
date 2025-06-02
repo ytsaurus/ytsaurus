@@ -11645,7 +11645,9 @@ bool TOperationControllerBase::IsMemoryLimitExceeded() const
 void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet) const
 {
     HandleJobReport(joblet, TControllerJobReport()
-        .JobCookie(joblet->OutputCookie));
+        .JobCookie(joblet->OutputCookie)
+        .JobCookieGroupIndex(joblet->CookieGroupInfo.OutputIndex)
+        .MainJobId(joblet->CookieGroupInfo.MainJobId));
 }
 
 void TOperationControllerBase::ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const
