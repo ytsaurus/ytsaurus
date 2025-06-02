@@ -33,7 +33,27 @@ static constexpr auto& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-YT_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN);
+YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, [] (bool ok, int threadCount) {
+        // NB(pogorelov): In some cases (for example, when using mac os and docker with colima),
+        // there may be strange threads at the application start, which we can not send signals to.
+        //
+        // YT_LOG_INFO("Thread count is not 1, trying to get thread infos (ThreadCount: %v)", threadCount);
+        // auto threadInfos = IntrospectThreads();
+        // auto descripion = FormatIntrospectionInfos(threadInfos);
+        // AbortProcessDramatically(
+        //     EProcessExitCode::GenericError,
+        //     Format(
+        //         "Thread count is not 1, threadCount: %v, threadInfos: %v",
+        //         threadCount,
+        //         descripion));
+
+        if (!ok) {
+            YT_LOG_WARNING(
+                "Failed to block SIGRTMIN for process: thread count is not 1 at the process start; delivery fenced write will be disabled (ThreadCount: %v)",
+                threadCount);
+        }
+        DeliveyFencedWriteEnabled = ok;
+    });
 
 class TJobProxyProgram
     : public virtual TProgram

@@ -1159,12 +1159,26 @@ private:
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
 
+        EDeliveryFencedMode deliveryFencedMode = EDeliveryFencedMode::None;
+        if (JobIOConfig_->UseDeliveryFencedPipeWriter) {
+            deliveryFencedMode = Config_->UseNewDeliveryFencedConnection
+                    ? EDeliveryFencedMode::New
+                    : EDeliveryFencedMode::Old;
+        }
+
+        if (deliveryFencedMode == EDeliveryFencedMode::New) {
+            if (!DeliveyFencedWriteEnabled) {
+                YT_LOG_DEBUG("Delivery fenced write is disabled, fail job");
+                THROW_ERROR_EXCEPTION("Delivery fenced write is disabled on the node");
+            }
+        }
+
         YT_LOG_DEBUG(
-            "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v, UseDeliveryFencedPipeWriter: %v)",
+            "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v, DeliveryFencedMode: %v)",
             InputPipePath_,
             DefaultArtifactPermissions,
             JobIOConfig_->PipeCapacity,
-            JobIOConfig_->UseDeliveryFencedPipeWriter);
+            deliveryFencedMode);
 
         auto pipe = TNamedPipe::Create(InputPipePath_, DefaultArtifactPermissions, JobIOConfig_->PipeCapacity);
         auto pipeConfig = TNamedPipeConfig::Create(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
