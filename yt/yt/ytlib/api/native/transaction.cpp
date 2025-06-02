@@ -2068,8 +2068,8 @@ private:
 
         for (const auto& modifier : indexModifiers) {
             TModifyRowsOptions modifyRowsOptions{
-                .RequireSyncReplica=false,
-                .AllowMissingKeyColumns=true,
+                .RequireSyncReplica = false,
+                .AllowMissingKeyColumns = true,
             };
 
             modificationsEnqueuedFutures.push_back(
