@@ -575,7 +575,7 @@ public:
     void DoValidateJobShellAccess(
         const std::string& user,
         const TString& jobShellName,
-        const std::vector<TString>& jobShellOwners)
+        const std::vector<std::string>& jobShellOwners)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -596,7 +596,7 @@ public:
     TFuture<void> ValidateJobShellAccess(
         const std::string& user,
         const TString& jobShellName,
-        const std::vector<TString>& jobShellOwners)
+        const std::vector<std::string>& jobShellOwners)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -4637,7 +4637,7 @@ TFuture<void> TScheduler::SetOperationAlert(
 TFuture<void> TScheduler::ValidateJobShellAccess(
     const std::string& user,
     const TString& jobShellName,
-    const std::vector<TString>& jobShellOwners)
+    const std::vector<std::string>& jobShellOwners)
 {
     return Impl_->ValidateJobShellAccess(user, jobShellName, jobShellOwners);
 }

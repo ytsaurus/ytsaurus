@@ -4587,21 +4587,6 @@ class TestCypressMirroredTx(TestCypressShardedTx):
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 9
 
-    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
-    # supported in native client.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        }
-    }
-
 
 ##################################################################
 
@@ -5223,11 +5208,6 @@ class TestCypressSequoia(TestCypressMulticell):
         "12": {"roles": ["sequoia_node_host"]},
         "13": {"roles": ["chunk_host"]},
     }
-
-    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
-    # supported in native client.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
 
 
 ################################################################################

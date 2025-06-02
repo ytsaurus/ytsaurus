@@ -12,6 +12,7 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
+add_subdirectory(clickhouse_functions)
 add_subdirectory(syncmap)
 add_subdirectory(undumpable)
 add_subdirectory(profiling)
@@ -49,7 +50,6 @@ add_subdirectory(dns_over_rpc)
 add_subdirectory(stockpile)
 add_subdirectory(error_skeleton)
 add_subdirectory(clickhouse_discovery)
-add_subdirectory(clickhouse_functions)
 add_subdirectory(monitoring)
 add_subdirectory(backtrace_introspector)
 add_subdirectory(server_program)

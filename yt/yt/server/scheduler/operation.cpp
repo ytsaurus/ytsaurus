@@ -550,7 +550,7 @@ std::vector<TString> TOperation::GetExperimentAssignmentNames() const
     return result;
 }
 
-std::vector<TString> TOperation::GetJobShellOwners(const TString& jobShellName)
+std::vector<std::string> TOperation::GetJobShellOwners(const TString& jobShellName)
 {
     TJobShellPtr jobShell;
     for (const auto& shell : Spec_->JobShells) {

@@ -920,6 +920,7 @@ protected:
         ISequoiaClientPtr sequoiaClient,
         TCellId coordinatorCellId,
         TStringBuf description,
+        std::string title,
         IInvokerPtr invoker,
         TLogger logger)
         : SequoiaClient_(std::move(sequoiaClient))
@@ -927,6 +928,7 @@ protected:
         , Invoker_(std::move(invoker))
         , Logger(std::move(logger))
         , Description_(description)
+        , Title_(std::move(title))
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
     }
@@ -947,15 +949,20 @@ protected:
 
 private:
     const TStringBuf Description_;
+    const std::string Title_;
 
     TFuture<TResult> DoApply()
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
+        NApi::TTransactionStartOptions options;
+        options.Attributes = CreateEphemeralAttributes();
+        options.Attributes->Set("title", Title_);
+
         return SequoiaClient_
             ->StartTransaction(
                 TransactionType,
-                /*transactionStartOptions*/ {},
+                options,
                 /*sequoiaTransactionOptions*/ {.SequenceTabletCommitSessions = true})
             .ApplyUnique(
                 BIND(&TSequoiaMutation::OnSequoiaTransactionStarted, MakeStrong(this))
@@ -1033,6 +1040,7 @@ public:
             std::move(sequoiaClient),
             coordinatorCellId,
             "start",
+            "Sequoia transaction: start Cypress transaction",
             std::move(invoker),
             std::move(logger))
         , ParentId_(FromProto<TTransactionId>(request.parent_id()))
@@ -1511,11 +1519,13 @@ protected:
         TTransactionId transactionId,
         TAuthenticationIdentity authenticationIdentity,
         IInvokerPtr invoker,
-        TLogger logger)
+        TLogger logger,
+        std::string title)
         : TSequoiaMutation(
             std::move(sequoiaClient),
             cypressTransactionCoordinatorCellId,
             description,
+            std::move(title),
             std::move(invoker),
             std::move(logger))
         , TransactionId_(transactionId)
@@ -1724,7 +1734,9 @@ public:
             transactionId,
             std::move(authenticationIdentity),
             std::move(invoker),
-            std::move(logger))
+            std::move(logger),
+            Format("Sequoia transaction: abort Cypress transaction %v",
+                transactionId))
         , Force_(force)
     { }
 
@@ -1741,7 +1753,9 @@ public:
             transactionId,
             GetRootAuthenticationIdentity(),
             std::move(invoker),
-            std::move(logger))
+            std::move(logger),
+            Format("Sequoia transaction: abort expired Cypress transaction %v",
+                transactionId))
         , Force_(false)
     { }
 
@@ -1809,7 +1823,8 @@ public:
             transactionId,
             std::move(authenticationIdentity),
             std::move(invoker),
-            std::move(logger))
+            std::move(logger),
+            Format("Sequoia transaction: commit Cypress transaction %v", transactionId))
         , CommitTimestamp_(commitTimestamp)
         , PrerequisiteTransactionIds_(std::move(prerequisiteTransactionIds))
     { }
@@ -1900,6 +1915,9 @@ protected:
             std::move(sequoiaClient),
             hintCoordinatorCellId,
             "replicate Cypress",
+            Format("Sequoia transaction: replicate Cypress transactions %v to %v",
+                transactionIds,
+                destinationCellTags),
             std::move(invoker),
             std::move(logger))
         , TransactionIds_(std::move(transactionIds))

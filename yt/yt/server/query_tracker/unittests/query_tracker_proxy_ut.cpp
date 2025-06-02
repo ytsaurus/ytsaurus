@@ -272,7 +272,7 @@ public:
                 .WillOnce(Return(MakeFuture(existAcos)));
         }
 
-        std::vector<TString> memberOfClosure({"users", "everyone"});
+        std::vector<std::string> memberOfClosure({"users", "everyone"});
         if (isSuperuser) {
             memberOfClosure.push_back(NSecurityClient::SuperusersGroupName);
         }
