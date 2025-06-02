@@ -71,22 +71,27 @@ extern "C" i64 timestamp_floor_hour(TExpressionContext*, i64 timestamp)
 {
     return TimestampFloorHour(timestamp);
 }
+
 extern "C" i64 timestamp_floor_day(TExpressionContext*, i64 timestamp)
 {
     return TimestampFloorDay(timestamp);
 }
+
 extern "C" i64 timestamp_floor_week(TExpressionContext*, i64 timestamp)
 {
     return TimestampFloorWeek(timestamp);
 }
+
 extern "C" i64 timestamp_floor_month(TExpressionContext*, i64 timestamp)
 {
     return TimestampFloorMonth(timestamp);
 }
+
 extern "C" i64 timestamp_floor_quarter(TExpressionContext*, i64 timestamp)
 {
     return TimestampFloorQuarter(timestamp);
 }
+
 extern "C" i64 timestamp_floor_year(TExpressionContext*, i64 timestamp)
 {
     return TimestampFloorYear(timestamp);
@@ -103,22 +108,27 @@ extern "C" i64 timestamp_floor_hour_localtime(TExpressionContext*, i64 timestamp
 {
     return TimestampFloorHourLocaltime(timestamp);
 }
+
 extern "C" i64 timestamp_floor_day_localtime(TExpressionContext*, i64 timestamp)
 {
     return TimestampFloorDayLocaltime(timestamp);
 }
+
 extern "C" i64 timestamp_floor_week_localtime(TExpressionContext*, i64 timestamp)
 {
     return TimestampFloorWeekLocaltime(timestamp);
 }
+
 extern "C" i64 timestamp_floor_month_localtime(TExpressionContext*, i64 timestamp)
 {
     return TimestampFloorMonthLocaltime(timestamp);
 }
+
 extern "C" i64 timestamp_floor_quarter_localtime(TExpressionContext*, i64 timestamp)
 {
     return TimestampFloorQuarterLocaltime(timestamp);
 }
+
 extern "C" i64 timestamp_floor_year_localtime(TExpressionContext*, i64 timestamp)
 {
     return TimestampFloorYearLocaltime(timestamp);
@@ -144,6 +154,7 @@ extern "C" i64 timestamp_floor_hour_tz(
         timezoneLength,
         functionContext);
 }
+
 extern "C" i64 timestamp_floor_day_tz(
     TExpressionContext*,
     TFunctionContext* functionContext,
@@ -157,6 +168,7 @@ extern "C" i64 timestamp_floor_day_tz(
         timezoneLength,
         functionContext);
 }
+
 extern "C" i64 timestamp_floor_week_tz(
     TExpressionContext*,
     TFunctionContext* functionContext,
@@ -170,6 +182,7 @@ extern "C" i64 timestamp_floor_week_tz(
         timezoneLength,
         functionContext);
 }
+
 extern "C" i64 timestamp_floor_month_tz(
     TExpressionContext*,
     TFunctionContext* functionContext,
@@ -183,6 +196,7 @@ extern "C" i64 timestamp_floor_month_tz(
         timezoneLength,
         functionContext);
 }
+
 extern "C" i64 timestamp_floor_quarter_tz(
     TExpressionContext*,
     TFunctionContext* functionContext,
@@ -196,6 +210,7 @@ extern "C" i64 timestamp_floor_quarter_tz(
         timezoneLength,
         functionContext);
 }
+
 extern "C" i64 timestamp_floor_year_tz(
     TExpressionContext*,
     TFunctionContext* functionContext,
