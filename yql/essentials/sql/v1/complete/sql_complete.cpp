@@ -25,9 +25,9 @@ namespace NSQLComplete {
         {
         }
 
-        NThreading::TFuture<TCompletion>
+        TCompletion
         Complete(TCompletionInput input, TEnvironment env = {}) override {
-            return CompleteAsync(input, env);
+            return CompleteAsync(input, env).ExtractValueSync();
         }
 
         NThreading::TFuture<TCompletion> CompleteAsync(TCompletionInput input, TEnvironment env) override {
