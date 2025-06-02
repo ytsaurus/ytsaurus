@@ -216,7 +216,7 @@ private:
     TDuration ColumnarConversionCpuTime_;
     TDuration NonColumnarConversionCpuTime_;
     TDuration ConversionSyncWaitTime_;
-
+    TDuration TotalGenerateTime_;
     TDuration WaitReadyEventTime_;
 
     TWallTimer IdleTimer_ = TWallTimer(/*start*/ false);
@@ -244,6 +244,8 @@ private:
         }
 
         Statistics_.AddSample("/secondary_query_source/step_count"_SP, ReadPlan_->Steps.size());
+
+        YT_LOG_DEBUG("Secondary query source was initialized");
 
         IdleTimer_.Start();
     }
@@ -337,6 +339,11 @@ private:
         }
 
         auto totalElapsed = totalWallTimer.GetElapsedTime();
+        if (totalElapsed > TDuration::Seconds(5)) {
+            YT_LOG_DEBUG("Generate call took significant time (WallTime: %v)", totalElapsed);
+        }
+
+        TotalGenerateTime_ += totalElapsed;
         YT_LOG_TRACE("Finished reading ClickHouse block (WallTime: %v)", totalElapsed);
 
         // Report the query progress, including rows that were filtered out.
@@ -382,8 +389,9 @@ private:
         }
 
         YT_LOG_DEBUG(
-            "Secondary query source timing statistics (ColumnarConversionCpuTime: %v, NonColumnarConversionCpuTime: %v, "
+            "Secondary query source timing statistics (TotalGenerateTime: %v, ColumnarConversionCpuTime: %v, NonColumnarConversionCpuTime: %v, "
             "ConversionSyncWaitTime: %v, IdleTime: %v, ReadCount: %v)",
+            TotalGenerateTime_,
             ColumnarConversionCpuTime_,
             NonColumnarConversionCpuTime_,
             ConversionSyncWaitTime_,
