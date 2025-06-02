@@ -1241,20 +1241,20 @@ JOIN yt:$cluster_name.test;
             MakeSimpleSchema(
                 MakeCachedSimpleSchema(
                     cache, "alice",
-                    MakeStaticSimpleSchema({{"/", {{"Table", "alice"}}}}))));
+                    MakeStaticSimpleSchema({{"", {{"/", {{"Table", "alice"}}}}}}))));
 
         auto petyaService = MakeSchemaNameService(
             MakeSimpleSchema(
                 MakeCachedSimpleSchema(
                     cache, "petya",
-                    MakeStaticSimpleSchema({{"/", {{"Table", "petya"}}}}))));
+                    MakeStaticSimpleSchema({{"", {{"/", {{"Table", "petya"}}}}}}))));
 
         auto aliceEngine = MakeSqlCompletionEngine(lexer, std::move(aliceService));
         auto petyaEngine = MakeSqlCompletionEngine(lexer, std::move(petyaService));
 
         TVector<TCandidate> empty;
-        TVector<TCandidate> aliceExpected = {{TableName, "`alice`"}};
-        TVector<TCandidate> petyaExpected = {{TableName, "`petya`"}};
+        TVector<TCandidate> aliceExpected = {{TableName, "`alice"}};
+        TVector<TCandidate> petyaExpected = {{TableName, "`petya"}};
 
         // Cache is empty
         UNIT_ASSERT_VALUES_EQUAL(Complete(aliceEngine, "SELECT * FROM "), empty);
