@@ -857,7 +857,7 @@ bool TSlotManager::Disable(TError error)
     }
 
     if (auto volumeManager = RootVolumeManager_.Acquire()) {
-        auto result = WaitFor(volumeManager->GetVolumeReleaseEvent()
+        auto disableVolumeManagerResult = WaitFor(volumeManager->GetVolumeReleaseEvent()
             .WithTimeout(timeout));
 
         auto disableLayerCacheResult = WaitFor(BIND(&IVolumeManager::DisableLayerCache, volumeManager, Passed(std::move(error)))
@@ -865,11 +865,11 @@ bool TSlotManager::Disable(TError error)
             .Run()
             .WithTimeout(timeout));
 
-        if (!result.IsOK()) {
+        if (!disableVolumeManagerResult.IsOK()) {
             YT_LOG_EVENT(
                 Logger(),
                 dynamicConfig->AbortOnFreeVolumeSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
-                result,
+                disableVolumeManagerResult,
                 "Free volume synchronization failed");
         }
 
