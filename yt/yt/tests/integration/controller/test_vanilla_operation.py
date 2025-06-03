@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_A
 from yt_commands import (
     authors, execute_command, extract_statistic_v2, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     raises_yt_error, update_controller_agent_config, update_nodes_dynamic_config, update_scheduler_config,
-    create, ls, exists, sorted_dicts, create_pool,
+    create, ls, exists, sorted_dicts, create_pool, get_job, list_jobs,
     get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
     interrupt_job, dump_job_context, run_sleeping_vanilla, get_allocation_id_from_job_id,
     patch_op_spec, create_tmpdir)
@@ -474,7 +474,32 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
             with_breakpoint("echo YT_JOB_COOKIE_GROUP_INDEX $YT_JOB_COOKIE_GROUP_INDEX 1>&2; env 1>&2; BREAKPOINT"),
             task_patch={"cookie_group_size": 2}, job_count=1,
         )
-        wait_breakpoint(job_count=2)
+        job_ids = wait_breakpoint(job_count=2)
+        main_job_id = list_jobs(op.id, attributes=["main_job_id"])["jobs"][0]["main_job_id"]
+
+        jobs = [
+            get_job(op.id, job_id, attributes=["job_id", "job_cookie_group_index", "main_job_id"])
+            for job_id in job_ids
+        ]
+        jobs = sorted(jobs, key=lambda job: job["job_cookie_group_index"])
+        assert [0, 1] == [job["job_cookie_group_index"] for job in jobs]
+        assert main_job_id == jobs[0]["job_id"]
+        assert {main_job_id} == {job["main_job_id"] for job in jobs}
+
+        jobs = list_jobs(
+            op.id, attributes=["job_id", "job_cookie_group_index", "main_job_id"],
+            main_job_id=main_job_id,
+        )["jobs"]
+        jobs = sorted(jobs, key=lambda job: job["job_cookie_group_index"])
+        assert [0, 1] == [job["job_cookie_group_index"] for job in jobs]
+        assert main_job_id == jobs[0]["id"]
+        assert {main_job_id} == {job["main_job_id"] for job in jobs}
+
+        assert [] == list_jobs(
+            op.id, attributes=["job_id", "job_cookie_group_index", "main_job_id"],
+            main_job_id=(set(job_ids) - {main_job_id}).pop(),
+        )["jobs"]
+
         release_breakpoint()
         op.track()
 
