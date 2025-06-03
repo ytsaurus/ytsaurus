@@ -20,8 +20,9 @@ class TTableSchemaCache
 public:
     explicit TTableSchemaCache(TAsyncExpiringCacheConfigPtr config);
 
-    // Calls ConvertToHeavyTableSchema and cahces the result.
-    NTableClient::TTableSchemaPtr ConvertToHeavyTableSchemaAndCache(const TCompactTableSchema& compactTableSchema);
+    // Calls ConvertToHeavyTableSchema and caches the result.
+    // Returns non-OK error in case of parsing errors. (Such errors are cached, too.)
+    TErrorOr<NTableClient::TTableSchemaPtr> ConvertToHeavyTableSchemaAndCache(const TCompactTableSchema& compactTableSchema);
 
 private:
     friend class TYsonTableSchemaCache;
@@ -32,7 +33,9 @@ private:
 
     // NB: This function is heavy, since it triggers deserialization from wire protobuf.
     // It is important to return copy of TIntrusivePtr for correct lifetime management of TTableSchema object.
-    static NTableClient::TTableSchemaPtr ConvertToHeavyTableSchema(const TCompactTableSchema& compactTableSchema);
+    // Returns non-OK error in case of parsing errors.
+    static TErrorOr<NTableClient::TTableSchemaPtr> ConvertToHeavyTableSchema(
+        const TCompactTableSchema& compactTableSchema);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableSchemaCache)
@@ -53,6 +56,8 @@ private:
     TFuture<NYson::TYsonString> DoGet(
         const TCompactTableSchema& key,
         bool /*isPeriodicUpdate*/) noexcept override;
+
+    static TErrorOr<NYson::TYsonString> ConvertHeavySchemaToYsonString(const NTableClient::TTableSchemaPtr& heavySchema);
 };
 
 DEFINE_REFCOUNTED_TYPE(TYsonTableSchemaCache)

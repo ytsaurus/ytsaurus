@@ -503,17 +503,25 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_VERIFY(TableSchemaCache_);
 
+        auto isUnexpectedError = [] (const TErrorOr<TTableSchemaPtr>& schemaOrError) {
+            return !schemaOrError.IsOK() &&
+                schemaOrError.GetCode() != NCellServer::EErrorCode::CompactSchemaParseError;
+        };
+
         if (auto schemaOrError = GetHeavyTableSchemaAsync(compactTableSchema).TryGet()) {
-            if (!schemaOrError->IsOK()) {
-                THROW_ERROR_EXCEPTION("Failed to parse heavy table schema from compact %v", compactTableSchema)
-                    << schemaOrError;
-            }
-            return schemaOrError->Value();
+            YT_LOG_ALERT_IF(isUnexpectedError(*schemaOrError),
+                *schemaOrError,
+                "Unexpected error found in table schema cache");
+            return schemaOrError->ValueOrThrow();
         }
 
         // We have to perform serialization right now.
-        auto heavySchema = TableSchemaCache_->ConvertToHeavyTableSchemaAndCache(compactTableSchema);
-        return heavySchema;
+        auto heavySchemaOrError = TableSchemaCache_->ConvertToHeavyTableSchemaAndCache(compactTableSchema);
+        YT_LOG_ALERT_IF(isUnexpectedError(heavySchemaOrError),
+            heavySchemaOrError,
+            "Unexpected error encountered while converting compact schema to heavy table schema");
+        return heavySchemaOrError
+            .ValueOrThrow();
     }
 
     TTableSchemaPtr GetHeavyTableSchemaSync(const TCompactTableSchemaPtr& compactTableSchema) override

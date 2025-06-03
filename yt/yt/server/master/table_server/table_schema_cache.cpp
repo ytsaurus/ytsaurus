@@ -16,10 +16,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constinit const auto Logger = TableServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 void FormatValue(TStringBuilderBase* builder, const TCompactTableSchema& schema, TStringBuf spec)
 {
     FormatValue(builder, schema.AsWireProto(), spec);
@@ -34,32 +30,47 @@ TTableSchemaCache::TTableSchemaCache(TAsyncExpiringCacheConfigPtr config)
         TableServerProfiler().WithPrefix("/table_schema_cache"))
 { }
 
-TTableSchemaPtr TTableSchemaCache::ConvertToHeavyTableSchemaAndCache(const TCompactTableSchema& compactTableSchema)
+TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchemaAndCache(const TCompactTableSchema& compactTableSchema)
 {
-    auto schema = ConvertToHeavyTableSchema(compactTableSchema);
-    Set(compactTableSchema, schema);
-    return schema;
+    auto schemaOrError = ConvertToHeavyTableSchema(compactTableSchema);
+    Set(compactTableSchema, schemaOrError);
+    return schemaOrError;
 }
 
 TFuture<TTableSchemaPtr> TTableSchemaCache::DoGet(
     const TCompactTableSchema& schema,
     bool /*isPeriodicUpdate*/) noexcept
 {
+    // NB: since DoGet and ConvertToHeavyTableSchemaAndCache are called in a
+    // racy way (i.e. may be called interchangeably on different Hydra peers),
+    // it's crucial for them to return identical results, including errors.
+
     return BIND([schema] {
-        return ConvertToHeavyTableSchema(schema);
+        auto schemaOrError = ConvertToHeavyTableSchema(schema);
+        return schemaOrError
+            .ValueOrThrow();
     })
         .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Run();
 }
 
-TTableSchemaPtr TTableSchemaCache::ConvertToHeavyTableSchema(const TCompactTableSchema& compactTableSchema)
+TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchema(const TCompactTableSchema& compactTableSchema)
 {
-    NTableClient::NProto::TTableSchemaExt protoSchema;
-    YT_LOG_ALERT_AND_THROW_UNLESS(
-        protoSchema.ParseFromString(compactTableSchema.AsWireProto()),
-        "Failed to parse table schema from wire proto (WireProtobufSchema: %v)",
-        compactTableSchema.AsWireProto());
-    return NYT::FromProto<TTableSchemaPtr>(protoSchema);
+    try {
+        NTableClient::NProto::TTableSchemaExt protoSchema;
+        if (!protoSchema.ParseFromString(compactTableSchema.AsWireProto())) {
+            return TError(NCellServer::EErrorCode::CompactSchemaParseError,
+                "Failed to parse table schema from wire proto");
+        }
+
+        // NB: FromProto may throw (invalid logical type is one reason).
+        return NYT::FromProto<TTableSchemaPtr>(protoSchema);
+    } catch (const std::exception& ex) {
+        auto result = TError(NCellServer::EErrorCode::CompactSchemaParseError,
+            "Failed to parse table schema");
+        result <<= TError(ex);
+        return result;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,22 +97,31 @@ TFuture<TYsonString> TYsonTableSchemaCache::DoGet(
 {
     if (auto tableManager = WeakTableManager_.Lock(); EnableTableSchemaCache_ && tableManager) {
         return tableManager->GetHeavyTableSchemaAsync(schema)
-            .Apply(BIND([schema] (const TErrorOr<TTableSchemaPtr>& heavySchemaOrError) {
-                THROW_ERROR_EXCEPTION_IF_FAILED(
-                    heavySchemaOrError,
-                    "Failed to get async table schema from %v",
-                    schema);
-
-                return ConvertToYsonString(heavySchemaOrError.Value());
+            .Apply(BIND([schema] (const TTableSchemaPtr& heavySchema) {
+                return ConvertHeavySchemaToYsonString(heavySchema).ValueOrThrow();
             }));
     }
 
     return BIND([schema] {
-        auto heavySchema = TTableSchemaCache::ConvertToHeavyTableSchema(schema);
-        return ConvertToYsonString(heavySchema);
+        auto heavySchemaOrError = TTableSchemaCache::ConvertToHeavyTableSchema(schema);
+        return ConvertHeavySchemaToYsonString(heavySchemaOrError.ValueOrThrow()).ValueOrThrow();
     })
         .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
         .Run();
+}
+
+/*static*/ TErrorOr<TYsonString> TYsonTableSchemaCache::ConvertHeavySchemaToYsonString(
+    const NTableClient::TTableSchemaPtr& heavySchema)
+{
+    try {
+        return ConvertToYsonString(heavySchema);
+    } catch (const std::exception& ex) {
+        auto result = TError(NCellServer::EErrorCode::CompactSchemaParseError,
+            "Failed to convert table schema to yson string");
+        result <<= TError(ex);
+        return result;
+    }
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
