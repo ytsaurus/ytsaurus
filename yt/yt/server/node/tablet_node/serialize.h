@@ -46,6 +46,7 @@ DEFINE_ENUM(ETabletReign,
     ((CheckChaosTransactionsInPrepare)             (101205)) // savrus
     ((FixTransactionActionAbort)                   (101206)) // kvk1920
     ((ChaosReplicationEraIsPersistent)             (101207)) // osidorkin
+    ((TransactionActionStates)                     (101208)) // babenko
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

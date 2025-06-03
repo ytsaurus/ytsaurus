@@ -109,9 +109,11 @@ void TTransactionBase<TBase, TSaveContext, TLoadContext>::Load(TLoadContext& con
     using NYT::Load;
 
     // COMPAT(kvk1920, babenko)
-    constexpr int ChaosReignBase = 300'000;
-    constexpr int ChaosReignSaneTxActionAbortFix = 300'014;
-    constexpr int TabletReignBase = 100'000;
+    constexpr int ChaosReignBase = 300000;
+    constexpr int ChaosReignSaneTxActionAbortFix = 300014;
+    constexpr int ChaosReignTransactionActionStates = 300104;
+    constexpr int TabletReignBase = 100000;
+    constexpr int TabletReignTransactionActionStates = 101208;
     constexpr int MasterReignSaneTxActionAbortFix = 2528;
     constexpr int MasterReignTransactionActionStates = 2930;
 
@@ -121,10 +123,10 @@ void TTransactionBase<TBase, TSaveContext, TLoadContext>::Load(TLoadContext& con
 
     if (version > ChaosReignBase) {
         hasPreparedActionCount = version >= ChaosReignSaneTxActionAbortFix;
-        hasActionStates = false;
+        hasActionStates = version >= ChaosReignTransactionActionStates;
     } else if (version > TabletReignBase) {
         hasPreparedActionCount = true;
-        hasActionStates = false;
+        hasActionStates = version >= TabletReignTransactionActionStates;
     } else {
         hasPreparedActionCount = version >= MasterReignSaneTxActionAbortFix;
         hasActionStates = version >= MasterReignTransactionActionStates;
