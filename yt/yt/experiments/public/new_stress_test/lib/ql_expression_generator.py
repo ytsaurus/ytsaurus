@@ -729,9 +729,12 @@ class Function(IExpression):
             name = random.choice(["numeric_to_string", "if"])
         elif is_compatible(desired_type, BOOLEAN):
             name = "if"
-        args = []
         if name in ("numeric_to_string", "int64", "uint64", "double"):
-            args.append(make_random_expression(schema, random.choice([INT, UINT, DOUBLE]), depth + 1, options))
+            if options.forbid_throwing and name in ("int64", "uint64") :
+                arg_types = [INT, UINT]
+            else:
+                arg_types = [INT, UINT, DOUBLE]
+            args = [make_random_expression(schema, random.choice(arg_types), depth + 1, options)]
         elif name == "if":
             args = [
                 make_random_predicate(schema, depth + 1, options),

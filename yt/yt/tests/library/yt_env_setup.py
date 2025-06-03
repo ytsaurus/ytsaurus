@@ -1968,6 +1968,12 @@ class YTEnvSetup(object):
             self._wait_for_scheduler_state_restored(driver=driver)
 
     def _apply_cypres_proxy_dynamic_config_patches(self, config, cluster_index):
+        if self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index):
+            update_inplace(config, {
+                "response_keeper": {
+                    "enable": True,
+                },
+            })
         delta_cypress_proxy_config = self.get_param("DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG", cluster_index)
         update_inplace(config, delta_cypress_proxy_config)
         return config

@@ -1,6 +1,12 @@
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 #include <yt/yt/tests/cpp/test_base/private.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 
@@ -357,6 +363,7 @@ TEST_F(TSequoiaTest, TestParallelActionsWithPrerequisiteTx)
             auto startTimestamp = timestamp.fetch_add(1, std::memory_order::acquire);
             auto error = WaitFor(prerequisiteTx->Commit());
             auto endTimestamp = timestamp.fetch_add(1, std::memory_order::release);
+            YT_LOG_DEBUG(error, "Request executed (StartTimestamp: %v, EndTimestamp: %v)", startTimestamp, endTimestamp);
             return {startTimestamp, endTimestamp, error};
         })
             .AsyncVia(threadPool->GetInvoker())
@@ -474,6 +481,82 @@ TEST_F(TSequoiaTest, TestTransactionAbortConflict)
         EXPECT_FALSE(WaitFor(Client_->NodeExists(FromObjectId(nodeId)))
             .ValueOrThrow());
     }
+}
+
+TEST_F(TSequoiaTest, TestResponseKeeper)
+{
+    constexpr int ThreadCount = 4;
+    constexpr int RequestCount = 20;
+
+    WaitFor(Client_->SetNode("//sequoia/@unexisting_attr", ConvertToYsonString(ConvertToNode(123))))
+        .ThrowOnError();
+
+    auto threadPool = CreateThreadPool(ThreadCount, "ConcurrentResponseKeeperRequests");
+    auto barrierPromise = NewPromise<void>();
+
+    auto mutationId = NRpc::TMutationId::Create();
+
+    auto client = DynamicPointerCast<NApi::NNative::IClient>(Client_);
+    auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
+
+    std::vector<TFuture<void>> responses;
+
+    auto registerRequest = [&] (auto batchReq) {
+        auto req = NCypressClient::TCypressYPathProxy::Remove("//sequoia/@unexisting_attr");
+        SetMutationId(req, mutationId, /*retry*/ true);
+
+        batchReq->AddRequest(req);
+
+        responses.push_back(BIND([batchReq = std::move(batchReq), barrier = barrierPromise.ToFuture()] {
+            WaitFor(barrier)
+                .ThrowOnError();
+            auto batchRsp = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
+            auto rsp = batchRsp->template GetResponse<NCypressClient::TCypressYPathProxy::TRspRemove>(0);
+            YT_LOG_DEBUG(TError(rsp), "Response finished");
+            rsp.ThrowOnError();
+        })
+            .AsyncVia(threadPool->GetInvoker())
+            .Run());
+    };
+
+    for (int i : std::views::iota(0, RequestCount)) {
+        if (i < RequestCount / 2) {
+            // NB: sometimes we want to observe SequoiaRetriableError.
+            registerRequest(proxy.ExecuteBatchNoBackoffRetries());
+        } else {
+            registerRequest(proxy.ExecuteBatch());
+        }
+    }
+
+    barrierPromise.Set();
+
+    WaitFor(AllSet(responses))
+        .ThrowOnError();
+
+    int okWithRetries = 0;
+    int okWithoutRetries = 0;
+    int sequoiaRetriableErrors = 0;
+    for (int i : std::views::iota(0, RequestCount)) {
+        const auto& error = responses[i].Get();
+        if (error.IsOK()) {
+            ++(i < RequestCount / 2 ? okWithoutRetries : okWithRetries);
+        } else if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError && i < RequestCount / 2) {
+            ++sequoiaRetriableErrors;
+        } else if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
+            YT_LOG_FATAL(error, "Unexpected retriable error when retries were enabled");
+        } else {
+            YT_LOG_FATAL(error, "Unexpected error");
+        }
+    }
+
+    YT_LOG_DEBUG("Requests finished (OkWithRetries: %v, OkWithoutRetries: %v, SequoiaRetriableErrors: %v)",
+        okWithRetries,
+        okWithoutRetries,
+        sequoiaRetriableErrors);
+
+    EXPECT_LE(okWithoutRetries, 1);
+    EXPECT_GE(okWithRetries, RequestCount / 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

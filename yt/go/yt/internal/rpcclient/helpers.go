@@ -226,8 +226,6 @@ func convertReadKind(k yt.ReadKind) *rpc_proxy.EMasterReadKind {
 		ret = rpc_proxy.EMasterReadKind_MRK_FOLLOWER
 	case yt.ReadFromCache:
 		ret = rpc_proxy.EMasterReadKind_MRK_CACHE
-	case yt.ReadFromMasterCache:
-		ret = rpc_proxy.EMasterReadKind_MRK_MASTER_SIDE_CACHE
 	default:
 		return nil
 	}

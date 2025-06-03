@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/net/connection.h>
 
+#include <yt/yt/library/backtrace_introspector/introspect.h>
+
 #include <yt/yt/library/process/pipe.h>
 
 #include <yt/yt/library/program/program.h>
@@ -439,7 +441,20 @@ protected:
     IConnectionWriterPtr Writer;
 };
 
-YT_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN);
+YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, [] (bool ok, int threadCount) {
+    if (!ok) {
+        NLogging::TLogger Logger("SignalBlocking");
+        YT_LOG_WARNING("Thread count is not 1, trying to get thread infos (ThreadCount: %v)", threadCount);
+        auto threadInfos = NYT::NBacktraceIntrospector::IntrospectThreads();
+        auto descripion = NYT::NBacktraceIntrospector::FormatIntrospectionInfos(threadInfos);
+        AbortProcessDramatically(
+            EProcessExitCode::GenericError,
+            Format(
+                "Thread count is not 1, threadCount: %v, threadInfos: %v",
+                threadCount,
+                descripion));
+    }
+});
 
 #define EXPECT_ERROR_IS_OK(...) do { \
         const auto& error = __VA_ARGS__; \
