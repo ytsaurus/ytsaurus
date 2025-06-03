@@ -246,15 +246,7 @@ private:
             , Connection_(std::move(connection))
             , Logger(Server_->GetLogger().WithTag("ConnectionId: %v", TGuid::Create()))
             , ResponseInvoker_(CreateBoundedConcurrencyInvoker(Server_->GetInvoker(), /*maxConcurrentInvocations*/ 1))
-        {
-            Connection_->SubscribePeerDisconnect(BIND([this, weakThis = MakeWeak(this)]() {
-                if (auto this_ = weakThis.Lock()) {
-                    Abort_ = true;
-                    YT_LOG_DEBUG("Peer disconnected (RemoteAddress: %v)", Connection_->GetRemoteAddress());
-                }
-                TNbdProfilerCounters::Get()->GetCounter({}, "/server/connection/peer_disconnect").Increment(1);
-            }));
-        }
+        { }
 
         void Run()
         {
@@ -563,7 +555,7 @@ private:
             NHPTimer::STime startTime;
             NHPTimer::GetTime(&startTime);
 
-            Device_->Read(offset, length)
+            Device_->Read(offset, length, {.Cookie = cookie})
                 .Subscribe(
                     BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TSharedRef>& result) {
                         NHPTimer::STime nowTime = startTime;
@@ -650,6 +642,7 @@ private:
                 flags);
 
             TWriteOptions options;
+            options.Cookie = cookie;
             if (Any(flags & ECommandFlags::NBD_CMD_FLAG_FUA)) {
                 options.Flush = true;
             }

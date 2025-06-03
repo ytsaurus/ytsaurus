@@ -36,7 +36,8 @@ public:
 
     TFuture<TSharedRef> Read(
         i64 offset,
-        i64 length) override
+        i64 length,
+        const TReadOptions& /*options*/) override
     {
         return MakeFuture<TSharedRef>(Data_.Slice(offset, offset + length));
     }

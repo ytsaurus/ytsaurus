@@ -613,6 +613,10 @@ protected:
             Logger.AddTag("CompressionFairShareTag: %v", WorkloadDescriptor_.CompressionFairShareTag);
         }
 
+        if (SessionOptions_.Cookie) {
+            Logger.AddTag("Cookie: %x", *SessionOptions_.Cookie);
+        }
+
         SessionOptions_.ChunkReaderStatistics->RecordSession();
 
         ResetPeerQueue();

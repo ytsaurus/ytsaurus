@@ -10,11 +10,24 @@ namespace NYT::NNbd {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TReadOptions
+{
+    //! Request id issued by linux kernel (NBD module).
+    ui64 Cookie = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TWriteOptions
 {
     //! The 'FUA (Force Unit Access) flag'.
     bool Flush = false;
+
+    //! Request id issued by linux kernel (NBD module).
+    ui64 Cookie = 0;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Represents a block device that can be exposed via the NBD protocol.
 struct IBlockDevice
@@ -29,7 +42,8 @@ struct IBlockDevice
 
     virtual TFuture<TSharedRef> Read(
         i64 offset,
-        i64 length) = 0;
+        i64 length,
+        const TReadOptions& options = {}) = 0;
 
     virtual TFuture<void> Write(
         i64 offset,
