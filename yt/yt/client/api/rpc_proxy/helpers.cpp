@@ -988,6 +988,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     YT_OPTIONAL_TO_PROTO(protoJob, pool, job.Pool);
     YT_OPTIONAL_SET_PROTO(protoJob, job_cookie, job.JobCookie);
     YT_OPTIONAL_SET_PROTO(protoJob, job_cookie_group_index, job.JobCookieGroupIndex);
+    if (job.MainJobId) {
+        ToProto(protoJob->mutable_main_job_id(), job.MainJobId);
+    }
     if (job.ArchiveFeatures) {
         protoJob->set_archive_features(ToProto(job.ArchiveFeatures));
     }
