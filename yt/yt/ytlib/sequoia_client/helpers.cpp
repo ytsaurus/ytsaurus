@@ -65,15 +65,13 @@ bool IsRetriableSequoiaError(const TError& error)
 
 bool IsRetriableSequoiaReplicasError(
     const TError& error,
-    const std::vector<TErrorCode>& retriableErrorCodes)
+    const std::vector<TErrorCode>& /*retriableErrorCodes*/)
 {
     if (error.IsOK()) {
         return false;
     }
 
-    return AnyOf(retriableErrorCodes, [&] (auto errorCode) {
-        return error.FindMatching(errorCode);
-    });
+    return !error.FindMatching(EErrorCode::TransactionActionFailedOnMasterCell);
 }
 
 void ThrowOnSequoiaReplicasError(
