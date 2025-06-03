@@ -77,6 +77,7 @@ void TDistributedJobManager::OnJobScheduled(const TJobletPtr& joblet)
             replicas.Secondaries.push_back({.ProgressCounterGuard = std::move(guard)});
         }
         replicas.MainJobId = joblet->JobId;
+        joblet->CookieGroupInfo.MainJobId = replicas.MainJobId;
         replicas.Pending = GetCookieGroupSize() - 1;
         replicas.NotCompletedCount = GetCookieGroupSize();
         InsertOrCrash(PendingCookies_, joblet->OutputCookie);
