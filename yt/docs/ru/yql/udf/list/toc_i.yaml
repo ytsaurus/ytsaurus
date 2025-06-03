@@ -15,23 +15,24 @@ items:
 - { name: Geobase,                href: geobase.md,                  when: audience == "internal"   }
 - { name: GeoHash,                href: geohash.md,                  when: audience == "internal"   }
 - { name: H3,                     href: h3.md,                       when: audience == "internal"   }
-- { name: Histogram,              href: histogram.md                           }
-- { name: Hyperscan,              href: hyperscan.md                           }
+- { name: Histogram,              href: histogram.md                                                }
+- { name: Hyperscan,              href: hyperscan.md                                                }
 - { name: Html,                   href: html.md,                     when: audience == "internal"   }
-- { name: Ip,                     href: ip.md                                  }
-- { name: Math,                   href: math.md                                }
+- { name: Ip,                     href: ip.md                                                       }
+- { name: Math,                   href: math.md                                                     }
 - { name: Mime,                   href: mime.md,                     when: audience == "internal"   }
-- { name: Pcre,                   href: pcre.md                                }
-- { name: Pire,                   href: pire.md                                }
-- { name: Protobuf,               href: protobuf.md                            }
-- { name: Re2,                    href: re2.md                                 }
+- { name: Pcre,                   href: pcre.md                                                     }
+- { name: Pire,                   href: pire.md                                                     }
+- { name: PostgreSQL,             href: postgres.md                                                 }
+- { name: Protobuf,               href: protobuf.md                                                 }
+- { name: Re2,                    href: re2.md                                                      }
 - { name: SearchEngine,           href: searchengine.md,             when: audience == "internal"   }
-- { name: Streaming,              href: streaming.md                           }
-- { name: String,                 href: string.md                              }
+- { name: Streaming,              href: streaming.md                                                }
+- { name: String,                 href: string.md                                                   }
 - { name: TensorFlow,             href: tensorflow.md,               when: audience == "internal"   }
-- { name: Unicode,                href: unicode.md                             }
+- { name: Unicode,                href: unicode.md                                                  }
 - { name: UserAgent,              href: useragent.md,                when: audience == "internal"   }
-- { name: Url,                    href: url.md                                 }
+- { name: Url,                    href: url.md                                                      }
 - { name: Watson,                 href: watson.md,                   when: audience == "internal"   }
 - { name: Xml,                    href: xml.md,                      when: audience == "internal"   }
-- { name: Yson,                   href: yson.md                                }
+- { name: Yson,                   href: yson.md                                                     }
