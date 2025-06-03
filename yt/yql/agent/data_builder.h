@@ -61,7 +61,7 @@ private:
     void OnTzDatetime64(TStringBuf value) final;
     void OnTzTimestamp64(TStringBuf value) final;
     void OnInterval64(i64 value) final;
-    void OnDecimal(TStringBuf value) final;
+    void OnDecimal(TStringBuf value, ui32 precision, ui32 scale) final;
     void OnBeginOptional() final;
     void OnBeforeOptionalItem() final;
     void OnAfterOptionalItem() final;

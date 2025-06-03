@@ -92,6 +92,20 @@ public:
     }
 };
 
+class TDecimalProcessor : public IDataProcessor {
+public:
+    void Process(const NYT::TNode& dataNode, IDataVisitor& visitor) final {
+        CHECK(dataNode.IsString());
+        visitor.OnDecimal(dataNode.AsString(), Precision, Scale);
+    }
+
+    TDecimalProcessor(ui32 precision, ui32 scale)
+        : Precision(precision), Scale(scale)
+    {}
+
+    const ui32 Precision, Scale;
+};
+
 template <void (IDataVisitor::*Func)(TStringBuf)>
 class TUtf8Processor : public IDataProcessor {
 public:
@@ -422,9 +436,7 @@ public:
     }
 
     void OnDecimal(ui32 precision, ui32 scale) final {
-        Y_UNUSED(precision);
-        Y_UNUSED(scale);
-        Stack.push_back(std::make_unique<TUtf8Processor<&IDataVisitor::OnDecimal>>());
+        Stack.push_back(std::make_unique<TDecimalProcessor>(precision, scale));
     }
 
     void OnBeginOptional() final {
@@ -716,7 +728,7 @@ void TDataBuilder::OnInterval64(i64 value) {
     Top() = ToString(value);
 }
 
-void TDataBuilder::OnDecimal(TStringBuf value) {
+void TDataBuilder::OnDecimal(TStringBuf value, ui32, ui32) {
     Top() = value;
 }
 
@@ -1034,7 +1046,7 @@ void TSameActionDataVisitor::OnInterval64(i64 value) {
     Do();
 }
 
-void TSameActionDataVisitor::OnDecimal(TStringBuf value) {
+void TSameActionDataVisitor::OnDecimal(TStringBuf value, ui32, ui32) {
     Y_UNUSED(value);
     Do();
 }
