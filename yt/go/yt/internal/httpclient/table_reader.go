@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -109,8 +110,8 @@ type skiffTableReader struct {
 	end          bool
 }
 
-func newSkiffTableReader(r io.ReadCloser, format skiff.Format) (*skiffTableReader, error) {
-	skiffDecoder, err := skiff.NewDecoder(r, format)
+func newSkiffTableReader(r io.ReadCloser, format skiff.Format, tableSchema *schema.Schema) (*skiffTableReader, error) {
+	skiffDecoder, err := skiff.NewDecoder(r, format, skiff.WithDecoderTableSchemas(tableSchema))
 	if err != nil {
 		return nil, err
 	}
@@ -154,10 +155,10 @@ type tableReader interface {
 	setRspParams(params *tableReaderRspParams) error
 }
 
-func newTableReader(r io.ReadCloser, outputFormat any) (tr tableReader, err error) {
+func newTableReader(r io.ReadCloser, outputFormat any, tableSchema *schema.Schema) (tr tableReader, err error) {
 	if outputFormat != nil {
 		if skiffFormat, ok := outputFormat.(skiff.Format); ok {
-			return newSkiffTableReader(r, skiffFormat)
+			return newSkiffTableReader(r, skiffFormat, tableSchema)
 		}
 		return nil, xerrors.Errorf("unexpected output format: %+v", outputFormat)
 	}
