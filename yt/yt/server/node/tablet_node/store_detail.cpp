@@ -164,6 +164,7 @@ public:
             chunkSpec.set_erasure_codec(ToProto<int>(owner->GetErasureCodecId()));
             chunkSpec.set_striped_erasure(owner->IsStripedErasure());
             *chunkSpec.mutable_chunk_meta() = owner->GetChunkMeta();
+            ToProto(chunkSpec.mutable_replicas(), owner->GetReplicas(InvalidNodeId));
             CachedWeakChunk_.Reset();
             auto nodeStatusDirectory = Bootstrap_
                 ? Bootstrap_->GetHintManager()
@@ -305,6 +306,10 @@ public:
 
         // Erasure chunks do not have local readers.
         if (TypeFromId(owner->GetChunkId()) != EObjectType::Chunk) {
+            return {};
+        }
+
+        if (localNodeId == InvalidNodeId) {
             return {};
         }
 

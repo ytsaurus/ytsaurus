@@ -1417,6 +1417,9 @@ def _build_cluster_connection_config(yt_config,
             "sync_period": 500,
             "sync_period_splay": 100,
         },
+        "medium_directory_synchronizer": {
+            "sync_period": 500,
+        },
         "chaos_cell_directory_synchronizer": {
             "sync_period": 500,
             "sync_period_splay": 100,

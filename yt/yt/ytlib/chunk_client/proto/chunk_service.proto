@@ -260,6 +260,7 @@ message TReqConfirmChunk
     // COMPAT(kvk1920)
     optional bool location_uuids_supported = 7 [default = false];
     repeated TConfirmChunkReplicaInfo replicas = 9;
+    // repeated fixed64 offshore_replicas = 10;
 
     required TChunkMeta chunk_meta = 3;
     required TChunkInfo chunk_info = 4;

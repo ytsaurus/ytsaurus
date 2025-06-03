@@ -66,6 +66,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobFailTolerance)                     (301609))
     ((NewJobsForbiddenReason)               (301610))
     ((RemoteCopyDynamicTableWithHunks)      (301611))
+    ((OffshoreReplicas)                     (301612))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

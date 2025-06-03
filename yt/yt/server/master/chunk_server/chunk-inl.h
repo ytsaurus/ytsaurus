@@ -18,6 +18,12 @@ inline TRange<TChunkLocationPtrWithReplicaInfo> TChunk::StoredReplicas() const
     return data.GetStoredReplicas();
 }
 
+inline TRange<TMediumPtrWithReplicaInfo> TChunk::StoredOffshoreReplicas() const
+{
+    const auto& data = OffshoreReplicasData();
+    return data.StoredReplicas;
+}
+
 inline TRange<TNodeId> TChunk::LastSeenReplicas() const
 {
     const auto& data = ReplicasData();
@@ -33,6 +39,16 @@ inline const TChunk::TReplicasDataBase& TChunk::ReplicasData() const
     return EmptyChunkReplicasData;
 }
 
+inline const TChunk::TOffshoreReplicasData& TChunk::OffshoreReplicasData() const
+{
+    if (OffshoreReplicasData_) {
+        return *OffshoreReplicasData_;
+    }
+
+    static const TOffshoreReplicasData EmptyOffshoreReplicasData;
+    return EmptyOffshoreReplicasData;
+}
+
 inline TChunk::TReplicasDataBase* TChunk::MutableReplicasData()
 {
     if (!ReplicasData_) {
@@ -44,6 +60,14 @@ inline TChunk::TReplicasDataBase* TChunk::MutableReplicasData()
         ReplicasData_->Initialize();
     }
     return ReplicasData_.get();
+}
+
+inline TChunk::TOffshoreReplicasData* TChunk::MutableOffshoreReplicasData()
+{
+    if (!OffshoreReplicasData_) {
+        OffshoreReplicasData_ = std::make_unique<TOffshoreReplicasData>();
+    }
+    return OffshoreReplicasData_.get();
 }
 
 inline TChunkDynamicData* TChunk::GetDynamicData() const

@@ -314,6 +314,37 @@ public:
         return GetReplicas(chunks, sequoiaReplicasOrError, sequoiaChunkIds);
     }
 
+    TMediumPtrWithReplicaInfoList GetOffshoreChunkReplicas(
+        const TEphemeralObjectPtr<TChunk>& chunk) const override
+    {
+        YT_VERIFY(!HasMutationContext());
+        Bootstrap_->VerifyPersistentStateRead();
+
+        // This is so stupid.
+        std::vector<TEphemeralObjectPtr<TChunk>> chunks;
+        chunks.emplace_back(chunk.Get());
+        auto result = GetOffshoreChunkReplicas(chunks);
+        return GetOrCrash(result, chunk->GetId());
+    }
+
+    TChunkToMediumPtrWithReplicaInfoList GetOffshoreChunkReplicas(
+        const std::vector<TEphemeralObjectPtr<TChunk>>& chunks) const override
+    {
+        YT_VERIFY(!HasMutationContext());
+        Bootstrap_->VerifyPersistentStateRead();
+
+        TChunkToMediumPtrWithReplicaInfoList result;
+        for (const auto& chunk : chunks) {
+            auto chunkId = chunk->GetId();
+
+            auto offshoreReplicas = chunk->StoredOffshoreReplicas();
+            TMediumPtrWithReplicaInfoList replicaList(offshoreReplicas.begin(), offshoreReplicas.end());
+            result[chunkId] = std::move(replicaList);
+        }
+
+        return result;
+    }
+
     TFuture<TChunkLocationPtrWithReplicaInfoList> GetChunkReplicasAsync(
         TEphemeralObjectPtr<TChunk> chunk,
         bool includeUnapproved) const override
