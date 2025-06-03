@@ -22,8 +22,8 @@ var (
 			systemColumns["$key_switch"],
 			systemColumns["$row_index"],
 			systemColumns["$range_index"],
-			OptionalColumn("first", TypeInt64),
-			OptionalColumn("second", TypeInt64),
+			optionalColumn("first", TypeInt64),
+			optionalColumn("second", TypeInt64),
 			{Type: TypeString32, Name: "third"},
 		},
 	}

@@ -11,6 +11,7 @@ import (
 
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
@@ -671,11 +672,16 @@ func (e *Encoder) ReadTable(
 	options *yt.ReadTableOptions,
 ) (r yt.TableReader, err error) {
 	var format any
+	var tableSchema *schema.Schema
 	if options != nil && options.Format != nil {
 		format = options.Format
 		skiffFormat, ok := options.Format.(skiff.Format)
 		if !ok {
 			return nil, xerrors.Errorf("unexpected output format: %+v", format)
+		}
+		tableSchema, err = e.tableSchema(ctx, path)
+		if err != nil {
+			return nil, err
 		}
 		var columns []string
 		columns, err = columnNames(skiffFormat)
@@ -689,7 +695,23 @@ func (e *Encoder) ReadTable(
 	}
 	call := e.newCall(NewReadTableParams(path, options))
 	call.OutputFormat = format
+	call.TableSchema = tableSchema
 	return e.InvokeReadRow(ctx, call)
+}
+
+func (e *Encoder) tableSchema(ctx context.Context, path ypath.YPath) (*schema.Schema, error) {
+	var attrs struct {
+		Schema     schema.Schema `yson:"schema"`
+		SchemaMode string        `yson:"schema_mode"`
+	}
+	err := e.GetNode(ctx, path.YPath().Attrs(), &attrs, &yt.GetNodeOptions{Attributes: []string{"schema", "schema_mode"}})
+	if err != nil {
+		return nil, xerrors.Errorf("failed to get table schema: %w", err)
+	}
+	if attrs.SchemaMode == "weak" {
+		return nil, nil
+	}
+	return &attrs.Schema, nil
 }
 
 func columnNames(skiffFormat skiff.Format) ([]string, error) {

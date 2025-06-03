@@ -18,6 +18,8 @@ const (
 	TypeInt16
 	TypeInt32
 	TypeInt64
+	TypeInt128
+	TypeInt256
 	TypeUint8
 	TypeUint16
 	TypeUint32
@@ -28,53 +30,14 @@ const (
 
 	TypeVariant8
 	TypeVariant16
+	TypeRepeatedVariant8
 	TypeRepeatedVariant16
 	TypeTuple
 )
 
-// FromYTType returns skiff wire type used for transferring YT type.
-func FromYTType(typ schema.Type) WireType {
-	switch typ {
-	case schema.TypeBoolean:
-		return TypeBoolean
-	case schema.TypeInt8:
-		return TypeInt8
-	case schema.TypeInt16:
-		return TypeInt16
-	case schema.TypeInt32:
-		return TypeInt32
-	case schema.TypeInt64:
-		return TypeInt64
-	case schema.TypeUint8:
-		return TypeUint8
-	case schema.TypeUint16:
-		return TypeUint16
-	case schema.TypeUint32:
-		return TypeUint32
-	case schema.TypeUint64:
-		return TypeUint64
-	case schema.TypeFloat32, schema.TypeFloat64:
-		return TypeDouble
-	case schema.TypeBytes, schema.TypeString:
-		return TypeString32
-	case schema.TypeAny:
-		return TypeYSON32
-	case schema.TypeDate:
-		return TypeUint64
-	case schema.TypeDatetime:
-		return TypeUint64
-	case schema.TypeTimestamp:
-		return TypeUint64
-	case schema.TypeInterval:
-		return TypeInt64
-	default:
-		panic(fmt.Sprintf("invalid YT type %s", typ))
-	}
-}
-
 func (t WireType) IsSimple() bool {
 	switch t {
-	case TypeBoolean, TypeInt8, TypeInt16, TypeInt32, TypeInt64,
+	case TypeBoolean, TypeInt8, TypeInt16, TypeInt32, TypeInt64, TypeInt128, TypeInt256,
 		TypeUint8, TypeUint16, TypeUint32, TypeUint64,
 		TypeDouble, TypeString32, TypeYSON32:
 		return true
@@ -102,6 +65,10 @@ func (t *WireType) UnmarshalYSON(data []byte) error {
 		*t = TypeInt32
 	case "int64":
 		*t = TypeInt64
+	case "int128":
+		*t = TypeInt128
+	case "int256":
+		*t = TypeInt256
 	case "uint8":
 		*t = TypeUint8
 	case "uint16":
@@ -120,6 +87,8 @@ func (t *WireType) UnmarshalYSON(data []byte) error {
 		*t = TypeVariant8
 	case "variant16":
 		*t = TypeVariant16
+	case "repeated_variant8":
+		*t = TypeRepeatedVariant8
 	case "repeated_variant16":
 		*t = TypeRepeatedVariant16
 	case "tuple":
@@ -145,6 +114,10 @@ func (t WireType) String() string {
 		return "int32"
 	case TypeInt64:
 		return "int64"
+	case TypeInt128:
+		return "int128"
+	case TypeInt256:
+		return "int256"
 	case TypeUint8:
 		return "uint8"
 	case TypeUint16:
@@ -163,6 +136,8 @@ func (t WireType) String() string {
 		return "variant8"
 	case TypeVariant16:
 		return "variant16"
+	case TypeRepeatedVariant8:
+		return "repeated_variant8"
 	case TypeRepeatedVariant16:
 		return "repeated_variant16"
 	case TypeTuple:
@@ -191,10 +166,6 @@ func (c Schema) IsSystem() bool {
 		}
 	}
 	return false
-}
-
-func OptionalColumn(name string, typ WireType) Schema {
-	return Schema{Type: TypeVariant8, Name: name, Children: []Schema{{Type: TypeNothing}, {Type: typ}}}
 }
 
 func init() {
@@ -246,11 +217,7 @@ func FromTableSchema(schema schema.Schema, opts ...schemaOption) Schema {
 	}
 
 	for _, row := range schema.Columns {
-		if row.Required {
-			columns = append(columns, Schema{Name: row.Name, Type: FromYTType(row.Type)})
-		} else {
-			columns = append(columns, OptionalColumn(row.Name, FromYTType(row.Type)))
-		}
+		columns = append(columns, fromTableSchemaColumn(row))
 	}
 
 	return Schema{
@@ -261,8 +228,8 @@ func FromTableSchema(schema schema.Schema, opts ...schemaOption) Schema {
 
 var systemColumns = map[string]Schema{
 	"$key_switch":  {Type: TypeBoolean, Name: "$key_switch"},
-	"$row_index":   OptionalColumn("$row_index", TypeInt64),
-	"$range_index": OptionalColumn("$range_index", TypeInt64),
+	"$row_index":   optionalColumn("$row_index", TypeInt64),
+	"$range_index": optionalColumn("$range_index", TypeInt64),
 }
 
 // Format describes skiff schemas for the stream.
@@ -302,4 +269,138 @@ func MustInferFormat(value any) Format {
 		panic(err)
 	}
 	return s
+}
+
+func fromTableSchemaColumn(column schema.Column) Schema {
+	if column.ComplexType == nil {
+		skiffType := fromYTType(column.Type)
+		if column.Required {
+			return Schema{Name: column.Name, Type: skiffType}
+		}
+		return optionalColumn(column.Name, skiffType)
+	}
+	s := fromComplexYTType(column.ComplexType)
+	s.Name = column.Name
+	return s
+}
+
+func fromComplexYTType(typ schema.ComplexType) Schema {
+	switch t := typ.(type) {
+	case schema.Type:
+		return Schema{Type: fromYTType(t)}
+	case schema.Decimal:
+		return fromDecimalYTType(t)
+	case schema.Optional:
+		return Schema{Type: TypeVariant8, Children: []Schema{{Type: TypeNothing}, fromComplexYTType(t.Item)}}
+	case schema.List:
+		return Schema{Type: TypeRepeatedVariant8, Children: []Schema{fromComplexYTType(t.Item)}}
+	case schema.Struct:
+		return fromStructSchema(t)
+	case schema.Tuple:
+		return fromTupleSchema(t)
+	case schema.Variant:
+		return fromVariantSchema(t)
+	case schema.Dict:
+		return Schema{Type: TypeRepeatedVariant8, Children: []Schema{
+			{Type: TypeTuple, Children: []Schema{fromComplexYTType(t.Key), fromComplexYTType(t.Value)}},
+		}}
+	case schema.Tagged:
+		return fromComplexYTType(t.Item)
+	default:
+		panic(fmt.Sprintf("invalid YT complex type: %T", typ))
+	}
+}
+
+func fromDecimalYTType(t schema.Decimal) Schema {
+	var wt WireType
+	if t.Precision <= 9 {
+		wt = TypeInt32
+	} else if t.Precision <= 18 {
+		wt = TypeInt64
+	} else if t.Precision <= 38 {
+		wt = TypeInt128
+	} else if t.Precision <= 76 {
+		wt = TypeInt256
+	} else {
+		panic(fmt.Sprintf("decimal precision %d exceeds maximum supported value 76", t.Precision))
+	}
+	return Schema{Type: wt}
+}
+
+// fromYTType returns skiff wire type used for transferring YT type.
+func fromYTType(typ schema.Type) WireType {
+	switch typ {
+	case schema.TypeBoolean:
+		return TypeBoolean
+	case schema.TypeInt8:
+		return TypeInt8
+	case schema.TypeInt16:
+		return TypeInt16
+	case schema.TypeInt32:
+		return TypeInt32
+	case schema.TypeInt64:
+		return TypeInt64
+	case schema.TypeUint8:
+		return TypeUint8
+	case schema.TypeUint16:
+		return TypeUint16
+	case schema.TypeUint32:
+		return TypeUint32
+	case schema.TypeUint64:
+		return TypeUint64
+	case schema.TypeFloat32, schema.TypeFloat64:
+		return TypeDouble
+	case schema.TypeBytes, schema.TypeString:
+		return TypeString32
+	case schema.TypeAny:
+		return TypeYSON32
+	case schema.TypeDate:
+		return TypeUint64
+	case schema.TypeDatetime:
+		return TypeUint64
+	case schema.TypeTimestamp:
+		return TypeUint64
+	case schema.TypeInterval:
+		return TypeInt64
+	default:
+		panic(fmt.Sprintf("invalid YT type %s", typ))
+	}
+}
+
+func fromStructSchema(s schema.Struct) Schema {
+	children := make([]Schema, len(s.Members))
+	for i, m := range s.Members {
+		memberSchema := fromComplexYTType(m.Type)
+		memberSchema.Name = m.Name
+		children[i] = memberSchema
+	}
+	return Schema{Type: TypeTuple, Children: children}
+}
+
+func fromTupleSchema(s schema.Tuple) Schema {
+	children := make([]Schema, len(s.Elements))
+	for i, e := range s.Elements {
+		children[i] = fromComplexYTType(e.Type)
+	}
+	return Schema{Type: TypeTuple, Children: children}
+}
+
+func fromVariantSchema(s schema.Variant) Schema {
+	var children []Schema
+	if s.Elements != nil {
+		for _, e := range s.Elements {
+			children = append(children, fromComplexYTType(e.Type))
+		}
+	} else {
+		for _, m := range s.Members {
+			memberSchema := fromComplexYTType(m.Type)
+			memberSchema.Name = m.Name
+			children = append(children, memberSchema)
+		}
+	}
+	return Schema{Type: TypeVariant8, Children: children}
+}
+
+func optionalColumn(name string, typ WireType) Schema {
+	return Schema{Type: TypeVariant8, Name: name, Children: []Schema{{Type: TypeNothing}, {Type: typ}}}
 }
