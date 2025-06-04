@@ -1579,7 +1579,11 @@ public:
             if (pathRootType) {
                 *pathRootType = EPathRootType::PortalExit;
             }
-        } else if (currentNode->ImmutableSequoiaProperties()) {
+        } else if (
+            currentNode->ImmutableSequoiaProperties() &&
+            currentNode->IsNative() &&
+            currentNode->GetReachable())
+        {
             builder.AppendString(currentNode->ImmutableSequoiaProperties()->Path);
             if (pathRootType) {
                 *pathRootType = EPathRootType::SequoiaNode;

@@ -1118,6 +1118,14 @@ class YTEnvSetup(object):
         for index, config in enumerate(configs["scheduler"]):
             config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
 
+            if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", cluster_index):
+                # TODO(kvk1920): wait_for_ground_sync().
+                # NB: default backoff is 15 seconds, but primary cluster's
+                # cluster directory syncs in about 2 seconds.
+                config = update_inplace(config, {
+                    "connect_retry_backoff_time": 2000,
+                })
+
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index], cluster_index)
             configs["multi"]["daemons"][f"scheduler_{index}"]["config"] = configs["scheduler"][index]
