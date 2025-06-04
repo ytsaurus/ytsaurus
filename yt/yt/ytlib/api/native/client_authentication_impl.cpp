@@ -1,6 +1,9 @@
 #include "client_impl.h"
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/library/re2/re2.h>
+
 #include <yt/yt/core/crypto/crypto.h>
 
 #include <util/string/hex.h>
@@ -144,7 +147,7 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
 
     auto rootClient = CreateRootClient();
     auto userIdRspOrError = WaitFor(rootClient->GetNode(
-        Format("//sys/users/%v/@id", user),
+        Format("//sys/users/%v/@id", ToYPathLiteral(user)),
         /*options*/ {}));
     if (!userIdRspOrError.IsOK()) {
         YT_LOG_DEBUG(userIdRspOrError, "Failed to issue new token for user: "
@@ -254,11 +257,11 @@ void TClient::DoRevokeToken(
 
     getOptions.Attributes = {};
     TString tokenUser;
-    auto userIdAttribute = tokenAttributes.Find<TString>("user_id");
+    auto userIdAttribute = tokenAttributes.Find<TObjectId>("user_id");
     if (userIdAttribute) {
         // Resolve the username with the retrieved user_id.
         auto tokenUsernameOrError = WaitFor(rootClient->GetNode(
-            Format("#%v/@name", ToYPathLiteral(*userIdAttribute)),
+            Format("%v/@name", FromObjectId(*userIdAttribute)),
             getOptions));
         if (!tokenUsernameOrError.IsOK()) {
             YT_LOG_DEBUG(tokenUsernameOrError, "Failed to get user for token (TokenHash: %v)",
@@ -341,7 +344,7 @@ TListUserTokensResult TClient::DoListUserTokens(
     }
 
     auto userIdRspOrError = WaitFor(rootClient->GetNode(
-        Format("//sys/users/%v/@id", user),
+        Format("//sys/users/%v/@id", ToYPathLiteral(user)),
         /*options*/ {}));
     if (!userIdRspOrError.IsOK()) {
         YT_LOG_DEBUG(userIdRspOrError, "Failed to list tokens: could not get user ID by username (User: %v)",
@@ -349,7 +352,7 @@ TListUserTokensResult TClient::DoListUserTokens(
         THROW_ERROR_EXCEPTION("Failed to list tokens")
             << userIdRspOrError;
     }
-    auto userId = ConvertTo<TString>(userIdRspOrError.Value());
+    auto userId = ConvertTo<std::string>(userIdRspOrError.Value());
 
     std::vector<TString> userTokens;
     THashMap<TString, NYson::TYsonString> tokenMetadata;
@@ -357,16 +360,16 @@ TListUserTokensResult TClient::DoListUserTokens(
     auto tokens = ConvertTo<IListNodePtr>(rspOrError.Value());
     for (const auto& tokenNode : tokens->GetChildren()) {
         const auto& attributes = tokenNode->Attributes();
-        auto userIdAttribute = attributes.Find<TString>("user_id");
-        auto userAttribute = attributes.Find<TString>("user");
+        auto userIdAttribute = attributes.Find<std::string>("user_id");
+        auto userAttribute = attributes.Find<std::string>("user");
         if (userIdAttribute == userId || userAttribute == user) {
-            userTokens.push_back(ConvertTo<TString>(tokenNode));
+            userTokens.push_back(ConvertTo<std::string>(tokenNode));
             if (options.WithMetadata) {
                 auto metadata = BuildYsonStringFluently()
                     .BeginMap()
-                        .Item("description").Value(attributes.Find<TString>("description"))
-                        .Item("token_prefix").Value(attributes.Find<TString>("token_prefix"))
-                        .Item("creation_time").Value(attributes.Find<TString>("creation_time"))
+                        .Item("description").Value(attributes.Find<std::string>("description"))
+                        .Item("token_prefix").Value(attributes.Find<std::string>("token_prefix"))
+                        .Item("creation_time").Value(attributes.Find<std::string>("creation_time"))
                         .Item("effective_expiration").Value(attributes.GetYson("effective_expiration"))
                     .EndMap();
                 tokenMetadata[ConvertTo<TString>(tokenNode)] = ConvertToYsonString(metadata);
