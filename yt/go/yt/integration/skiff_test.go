@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cast"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -138,9 +137,9 @@ var (
 			"t_bool":            false,
 			"t_string":          "Test byte string 3",
 			"t_utf8":            "Test utf8 string 3",
-			"t_date":            cast.ToTime("2105-12-31T23:59:59").Unix() / secondsPerDay, // Max allowed by YT Date.
-			"t_datetime":        cast.ToTime("2105-12-31T23:59:59").Unix(),                 // Max allowed by YT Datetime.
-			"t_timestamp":       cast.ToTime("2105-12-31 23:59:59").UnixMicro(),
+			"t_date":            mustParseTime("2105-12-31 23:59:59").Unix() / secondsPerDay, // Max allowed by YT Date.
+			"t_datetime":        mustParseTime("2105-12-31 23:59:59").Unix(),                 // Max allowed by YT Datetime.
+			"t_timestamp":       mustParseTime("2105-12-31 23:59:59").UnixMicro(),
 			"t_interval":        ytInterval(49673*24*time.Hour - 1000), // Max allowed by YT Duration.
 			"t_decimal":         []byte{0x80, 0x00, 0x00, 0x00},        // zero in binary representation.
 			"t_yson":            nil,
@@ -581,4 +580,12 @@ func ytInterval(duration time.Duration) schema.Interval {
 		panic(err)
 	}
 	return res
+}
+
+func mustParseTime(value string) time.Time {
+	t, err := time.Parse(time.DateTime, value)
+	if err != nil {
+		panic(err)
+	}
+	return t
 }
