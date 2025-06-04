@@ -2575,11 +2575,12 @@ private:
 
         auto req = proxy.GetBlockRange();
         req->SetResponseHeavy(true);
-        req->SetRequestInfo("Address: %v, Blocks: %v, EstimatedSize: %v, BytesThrottled: %v",
+        req->SetRequestInfo("Address: %v, Blocks: %v, EstimatedSize: %v, BytesThrottled: %v, Cookie: %x",
             peerAddress,
             FormatBlocks(),
             EstimatedSize_,
-            BytesThrottled_);
+            BytesThrottled_,
+            SessionOptions_.Cookie);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -2889,12 +2890,13 @@ private:
 
         auto req = proxy.GetChunkMeta();
         req->SetResponseHeavy(true);
-        req->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v",
+        req->SetRequestInfo("ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v, Cookie: %x",
             ChunkId_,
             ExtensionTags_,
             PartitionTag_,
             WorkloadDescriptor_,
-            true);
+            true,
+            SessionOptions_.Cookie);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -3281,13 +3283,14 @@ private:
         auto req = proxy.LookupRows();
         req->SetResponseHeavy(true);
         req->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, "
-            "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v",
+            "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v, Cookie: %x",
             ChunkId_,
             SessionOptions_.ReadSessionId,
             WorkloadDescriptor_,
             true,
             Options_->EnableHashChunkIndex,
-            schemaRequested);
+            schemaRequested,
+            SessionOptions_.Cookie);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -3770,11 +3773,12 @@ private:
         auto blockIndexes = std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
         req->SetResponseHeavy(true);
-        req->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v",
+        req->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v, Cookie: %x",
             ChunkId_,
             MakeCompactIntervalView(blockIndexes),
             blockIndexes.size(),
-            queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
+            queuedBatch.Session->SessionOptions_.WorkloadDescriptor,
+            queuedBatch.Session->SessionOptions_.Cookie);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_block_indexes(), std::move(blockIndexes));
         req->SetAcknowledgementTimeout(std::nullopt);
@@ -3800,11 +3804,12 @@ private:
         std::sort(blockIndexes.begin(), blockIndexes.end());
 
         req->SetRequestInfo("ChunkId: %v, Blocks: %v, "
-            "PopulateCache: %v, Workload: %v",
+            "PopulateCache: %v, Workload: %v, Cookie: %x",
             ChunkId_,
             MakeCompactIntervalView(blockIndexes),
             ReaderConfig_->PopulateCache,
-            queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
+            queuedBatch.Session->SessionOptions_.WorkloadDescriptor,
+            queuedBatch.Session->SessionOptions_.Cookie);
 
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);
