@@ -66,14 +66,15 @@ TOverloadControllerConfigPtr CreateConfig(const THashMap<TString, TMethodInfoLis
     config->Enabled = true;
 
     for (const auto& [trackerName, methods] : schema) {
-        auto trackerConfig = New<TOverloadTrackerConfig>();
+        TOverloadTrackerConfig trackerConfig(EOverloadTrackerConfigType::MeanWaitTime);
+        auto trackerMeanWaitTimeConfig = trackerConfig.TryGetConcrete<TOverloadTrackerMeanWaitTimeConfig>();
 
         for (const auto& methodInfo : methods) {
             {
                 auto serviceMethod = New<TServiceMethod>();
                 serviceMethod->Service = methodInfo.Service;
                 serviceMethod->Method = methodInfo.Method;
-                trackerConfig->MethodsToThrottle.push_back(std::move(serviceMethod));
+                trackerMeanWaitTimeConfig->MethodsToThrottle.push_back(std::move(serviceMethod));
             }
             {
                 auto serviceMethodConfig = New<TServiceMethodConfig>();
@@ -82,7 +83,7 @@ TOverloadControllerConfigPtr CreateConfig(const THashMap<TString, TMethodInfoLis
                 serviceMethodConfig->WaitingTimeoutFraction = methodInfo.WaitingTimeoutFraction;
                 config->Methods.push_back(std::move(serviceMethodConfig));
             }
-            trackerConfig->MeanWaitTimeThreshold = MeanWaitTimeThreshold;
+            trackerMeanWaitTimeConfig->MeanWaitTimeThreshold = MeanWaitTimeThreshold;
         }
 
         config->Trackers[trackerName] = trackerConfig;

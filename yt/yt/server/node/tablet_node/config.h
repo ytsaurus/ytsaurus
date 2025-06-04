@@ -2,31 +2,30 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/tablet_node/public.h>
-
-#include <yt/yt/server/lib/hive/public.h>
-
-#include <yt/yt/server/lib/transaction_supervisor/public.h>
-
 #include <yt/yt/server/lib/election/public.h>
 
 #include <yt/yt/server/lib/hydra/config.h>
 
-#include <yt/yt/library/dynamic_config/public.h>
+#include <yt/yt/server/lib/hive/public.h>
+
+#include <yt/yt/server/lib/tablet_node/public.h>
+
+#include <yt/yt/server/lib/transaction_supervisor/public.h>
+
+#include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/core/compression/public.h>
 
-#include <yt/yt/client/misc/workload.h>
+#include <yt/yt/core/concurrency/config.h>
+
+#include <yt/yt/core/rpc/public.h>
+
+#include <yt/yt/core/ytree/polymorphic_yson_struct.h>
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/library/dynamic_config/public.h>
 
 #include <yt/yt/library/query/base/public.h>
-
-#include <yt/yt/core/ytree/yson_struct.h>
-
-#include <yt/yt/core/rpc/public.h>
-
-#include <yt/yt/core/concurrency/config.h>
 
 namespace NYT::NTabletNode {
 
@@ -489,18 +488,57 @@ DEFINE_REFCOUNTED_TYPE(TServiceMethodConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOverloadTrackerConfig
+struct TOverloadTrackerConfigBase
     : public NYTree::TYsonStruct
 {
-    TDuration MeanWaitTimeThreshold;
     std::vector<TServiceMethodPtr> MethodsToThrottle;
 
-    REGISTER_YSON_STRUCT(TOverloadTrackerConfig);
+    REGISTER_YSON_STRUCT(TOverloadTrackerConfigBase);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TOverloadTrackerConfig)
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOverloadTrackerMeanWaitTimeConfig
+    : public TOverloadTrackerConfigBase
+{
+    TDuration MeanWaitTimeThreshold;
+
+    REGISTER_YSON_STRUCT(TOverloadTrackerMeanWaitTimeConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOverloadTrackerMeanWaitTimeConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOverloadTrackerBacklogQueueFillFractionConfig
+    : public TOverloadTrackerConfigBase
+{
+    double BacklogQueueFillFractionThreshold;
+
+    REGISTER_YSON_STRUCT(TOverloadTrackerBacklogQueueFillFractionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOverloadTrackerBacklogQueueFillFractionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EOverloadTrackerConfigType,
+    (Base)
+    (MeanWaitTime)
+    (BacklogQueueFillFraction)
+);
+
+DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM_WITH_DEFAULT(OverloadTrackerConfig, EOverloadTrackerConfigType, MeanWaitTime,
+    ((Base)                     (TOverloadTrackerConfigBase))
+    ((MeanWaitTime)             (TOverloadTrackerMeanWaitTimeConfig))
+    ((BacklogQueueFillFraction) (TOverloadTrackerBacklogQueueFillFractionConfig))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -508,7 +546,7 @@ struct TOverloadControllerConfig
     : public NYTree::TYsonStruct
 {
     bool Enabled;
-    THashMap<TString, TOverloadTrackerConfigPtr> Trackers;
+    THashMap<TString, TOverloadTrackerConfig> Trackers;
     std::vector<TServiceMethodConfigPtr> Methods;
     TDuration LoadAdjustingPeriod;
 
