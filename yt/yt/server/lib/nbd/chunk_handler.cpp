@@ -133,6 +133,12 @@ public:
         }
 
         auto req = Proxy_.Read();
+        req->SetRequestInfo("ChunkId: %v, Offset: %v, Length: %v, Cookie: %x",
+            SessionId_.ChunkId,
+            offset,
+            length,
+            options.Cookie);
+
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
         req->set_offset(offset);
@@ -168,6 +174,12 @@ public:
         }
 
         auto req = Proxy_.Write();
+        req->SetRequestInfo("ChunkId: %v, Offset: %v, Length: %v, Cookie: %x",
+            SessionId_.ChunkId,
+            offset,
+            data.size(),
+            options.Cookie);
+
         req->SetTimeout(Config_->DataNodeNbdServiceRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
         req->set_offset(offset);
