@@ -1,15 +1,19 @@
-#include "config.h"
 #include "connection.h"
+
 #include "client.h"
-#include "sync_replica_cache.h"
-#include "tablet_sync_replica_cache.h"
-#include "table_replica_synchronicity_cache.h"
-#include "transaction_participant.h"
-#include "private.h"
+#include "config.h"
 #include "helpers.h"
+#include "private.h"
+#include "sync_replica_cache.h"
+#include "table_replica_synchronicity_cache.h"
+#include "tablet_sync_replica_cache.h"
+#include "transaction_participant.h"
 
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/native_authenticating_channel.h>
+
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
 #include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
@@ -19,14 +23,13 @@
 #include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 
-#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
-#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 #include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
+
+#include <yt/yt/ytlib/cypress_client/proto/rpc.pb.h>
 
 #include <yt/yt/ytlib/hive/config.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -106,6 +109,7 @@
 #include <yt/yt/core/rpc/bus/channel.h>
 
 #include <yt/yt/core/rpc/caching_channel_factory.h>
+#include <yt/yt/core/rpc/channel_detail.h>
 #include <yt/yt/core/rpc/balancing_channel.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/helpers.h>
@@ -158,6 +162,39 @@ TString MakeConnectionClusterId(const TConnectionStaticConfigPtr& config)
             CellTagFromId(config->PrimaryMaster->CellId));
     }
 }
+
+class TTargetMasterPeerInjectingChannel
+    : public TChannelWrapper
+{
+public:
+    TTargetMasterPeerInjectingChannel(
+        IChannelPtr underlying,
+        TCellTag cellTag,
+        EMasterChannelKind kind)
+        : TChannelWrapper(std::move(underlying))
+        , CellTag_(cellTag)
+        , Kind_(kind)
+    { }
+
+    IClientRequestControlPtr Send(
+        IClientRequestPtr request,
+        IClientResponseHandlerPtr responseHandler,
+        const TSendOptions& options) override
+    {
+        auto* ext = request->Header().MutableExtension(NCypressClient::NProto::TTargetMasterPeerExt::target_master_peer_ext);
+        ext->set_cell_tag(ToProto(CellTag_));
+        ext->set_master_channel_kind(ToProto(Kind_));
+
+        return TChannelWrapper::Send(
+            std::move(request),
+            std::move(responseHandler),
+            options);
+    }
+
+private:
+    const TCellTag CellTag_;
+    const EMasterChannelKind Kind_;
+};
 
 } // namespace
 
@@ -594,17 +631,21 @@ public:
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
+        auto effectiveKind = kind == EMasterChannelKind::Cache && !MasterCellDirectory_->IsMasterCacheConfigured()
+            ? EMasterChannelKind::Follower
+            : kind;
+
+        auto effectiveCellTag = cellTag == PrimaryMasterCellTagSentinel
+            ? GetPrimaryMasterCellTag()
+            : cellTag;
+
         auto canUseCypressProxy =
-            kind == EMasterChannelKind::Leader ||
-            kind == EMasterChannelKind::Follower ||
-            // If master cache is not configured then all |EMasterChannelKind::Cache| requests
-            // will actually be routed to followers or Cypress Proxy (if present);
-            // cf. GetEffectiveMasterChannelKind.
-            kind == EMasterChannelKind::Cache && !MasterCellDirectory_->IsMasterCacheConfigured();
+            effectiveKind == EMasterChannelKind::Leader ||
+            effectiveKind == EMasterChannelKind::Follower;
 
         return canUseCypressProxy && CypressProxyChannel_
-            ? CypressProxyChannel_
-            : GetMasterChannelOrThrow(kind, cellTag);
+            ? New<TTargetMasterPeerInjectingChannel>(CypressProxyChannel_, effectiveCellTag, effectiveKind)
+            : GetMasterChannelOrThrow(effectiveKind, effectiveCellTag);
     }
 
     const IChannelPtr& GetSchedulerChannel() override
@@ -1467,7 +1508,7 @@ IConnectionPtr FindRemoteConnection(
 }
 
 TFuture<IConnectionPtr> InsistentGetRemoteConnection(
-    const NApi::NNative::IConnectionPtr& connection,
+    const IConnectionPtr& connection,
     const std::string& clusterName)
 {
     // Fast path.

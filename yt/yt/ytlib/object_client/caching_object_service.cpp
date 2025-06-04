@@ -207,8 +207,6 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         if (cookie.IsActive()) {
             auto proxy = TObjectServiceProxy::FromDirectMasterChannel(ThrottlingUpstreamChannel_);
             auto req = proxy.Execute();
-            req->set_cell_tag(ToProto(CellTagFromId(MasterCellId_)));
-            req->set_master_channel_kind(ToProto(NApi::EMasterChannelKind::Follower));
             SetCurrentAuthenticationIdentity(req);
 
             if (cachingEnabled) {

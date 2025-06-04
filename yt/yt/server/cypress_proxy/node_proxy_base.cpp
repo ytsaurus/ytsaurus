@@ -1,7 +1,5 @@
 #include "node_proxy_base.h"
 
-#include "private.h"
-
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/object_client/helpers.h>

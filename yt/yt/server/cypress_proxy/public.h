@@ -15,6 +15,8 @@ DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 using ISequoiaServiceContext = NYTree::IYPathServiceContext;
 using ISequoiaServiceContextPtr = NYTree::IYPathServiceContextPtr;
 
+DECLARE_REFCOUNTED_CLASS(TCypressProxyServiceBase)
+
 DECLARE_REFCOUNTED_STRUCT(INodeProxy)
 
 DECLARE_REFCOUNTED_STRUCT(IObjectService)

@@ -102,9 +102,6 @@ private:
         const NApi::NNative::TStickyGroupSizeCachePtr StickyGroupSizeCache_;
         const int SubbatchSize_;
 
-        const std::optional<TCellTag> CellTag_;
-        const std::optional<NApi::EMasterChannelKind> ChannelKind_;
-
         std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
         NRpc::TRequestId OriginalRequestId_;
         bool SuppressUpstreamSync_ = false;
@@ -113,9 +110,7 @@ private:
         TReqExecuteSubbatch(
             NRpc::IChannelPtr channel,
             int subbatchSize,
-            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
-            std::optional<TCellTag> cellTag,
-            std::optional<NApi::EMasterChannelKind> channelKind);
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
         TReqExecuteSubbatch(
             const TReqExecuteSubbatch& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
@@ -135,8 +130,6 @@ private:
 
     const NApi::NNative::TStickyGroupSizeCachePtr StickyGroupSizeCache_;
 
-    const std::optional<TCellTag> CellTag_;
-    const std::optional<NApi::EMasterChannelKind> ChannelKind_;
     const TReqExecuteBatchRetriesConfigPtr SequoiaRetriesConfig_;
 
 public:
@@ -180,9 +173,7 @@ public:
         TReqExecuteBatchBase(
             NRpc::IChannelPtr channel,
             int subbatchSize,
-            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
-            std::optional<TCellTag> cellTag,
-            std::optional<NApi::EMasterChannelKind> channelKind);
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
         TReqExecuteBatchBase(
             const TReqExecuteBatchBase& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
@@ -217,9 +208,7 @@ public:
         TReqExecuteBatchNoSequoiaRetries(
             NRpc::IChannelPtr channel,
             int subbatchSize,
-            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
-            std::optional<TCellTag> cellTag,
-            std::optional<NApi::EMasterChannelKind> channelKind);
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
         TReqExecuteBatchNoSequoiaRetries(
             const TReqExecuteBatchBase& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
@@ -283,8 +272,6 @@ public:
             NRpc::IChannelPtr channel,
             TReqExecuteBatchRetriesConfigPtr config,
             NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
-            std::optional<TCellTag> cellTag,
-            std::optional<NApi::EMasterChannelKind> channelKind,
             TCallback<bool(int, const TError&)> needRetry,
             int subbatchSize,
             bool regenerateMutationIdForRetries);
@@ -313,8 +300,6 @@ public:
             NRpc::IChannelPtr channel,
             int subbatchSize,
             NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
-            std::optional<TCellTag> cellTag,
-            std::optional<NApi::EMasterChannelKind> channelKind,
             std::vector<TReqExecuteBatchPtr> parallelReqs);
 
         //! Starts the asynchronous invocation.
