@@ -1409,7 +1409,7 @@ private:
                         << TErrorAttribute("first_root_volume", placePath)
                         << TErrorAttribute("second_root_volume", overlayData.GetPath());
                 }
-                placePath = overlayData.GetPath();
+                placePath = "//" + overlayData.GetPath();
             }
         }
 
