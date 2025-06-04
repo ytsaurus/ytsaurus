@@ -1485,6 +1485,85 @@ static TQueryBuilder GetListJobsQueryBuilder(
     return builder;
 }
 
+static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& options, int archiveVersion)
+{
+    if (options.WithStderr) {
+        if (*options.WithStderr) {
+            builder->AddWhereConjunct("stderr_size != 0 AND NOT is_null(stderr_size)");
+        } else {
+            builder->AddWhereConjunct("stderr_size = 0 OR is_null(stderr_size)");
+        }
+    }
+
+    if (options.WithSpec) {
+        if (*options.WithSpec) {
+            builder->AddWhereConjunct("has_spec");
+        } else {
+            builder->AddWhereConjunct("NOT has_spec OR is_null(has_spec)");
+        }
+    }
+
+    if (options.WithFailContext) {
+        if (*options.WithFailContext) {
+            builder->AddWhereConjunct("fail_context_size != 0 AND NOT is_null(fail_context_size)");
+        } else {
+            builder->AddWhereConjunct("fail_context_size = 0 OR is_null(fail_context_size)");
+        }
+    }
+
+    if (options.Type) {
+        builder->AddWhereConjunct(Format("job_type = %Qv", FormatEnum(*options.Type)));
+    }
+
+    if (options.State) {
+        builder->AddWhereConjunct(Format("job_state = %Qv", FormatEnum(*options.State)));
+    }
+
+    if (options.JobCompetitionId) {
+        builder->AddWhereConjunct(Format("job_competition_id = %Qv", options.JobCompetitionId));
+    }
+
+    if (options.WithCompetitors) {
+        if (*options.WithCompetitors) {
+            builder->AddWhereConjunct("has_competitors");
+        } else {
+            builder->AddWhereConjunct("is_null(has_competitors) OR NOT has_competitors");
+        }
+    }
+
+    if (options.WithMonitoringDescriptor) {
+        if (*options.WithMonitoringDescriptor) {
+            builder->AddWhereConjunct("not is_null(monitoring_descriptor)");
+        } else {
+            builder->AddWhereConjunct("is_null(monitoring_descriptor)");
+        }
+    }
+
+    if (options.WithInterruptionInfo) {
+        if (*options.WithInterruptionInfo) {
+            builder->AddWhereConjunct("not is_null(interruption_info)");
+        } else {
+            builder->AddWhereConjunct("is_null(interruption_info)");
+        }
+    }
+
+    if (options.FromTime) {
+        builder->AddWhereConjunct(Format("start_time >= %v", options.FromTime->MicroSeconds()));
+    }
+    if (options.ToTime) {
+        builder->AddWhereConjunct(Format("finish_time <= %v", options.ToTime->MicroSeconds()));
+    }
+
+    if (options.TaskName) {
+        builder->AddWhereConjunct(Format("task_name = %Qv", *options.TaskName));
+    }
+
+    if (options.OperationIncarnation && DoesArchiveContainAttribute("operation_incarnation", archiveVersion))
+    {
+        builder->AddWhereConjunct(Format("operation_incarnation = %Qv", *options.OperationIncarnation));
+    }
+}
+
 // Get statistics for jobs.
 TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     int archiveVersion,
@@ -1509,6 +1588,12 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     }
     auto countIndex = builder.AddSelectExpression("sum(1)", "count");
 
+    TListJobsOptions optionsWithoutCounterFilters = options;
+    optionsWithoutCounterFilters.State.reset();
+    optionsWithoutCounterFilters.Type.reset();
+
+    AddWhereExpressions(&builder, optionsWithoutCounterFilters, archiveVersion);
+
     builder.AddGroupByExpression("job_type");
     builder.AddGroupByExpression("job_state");
 
@@ -1526,14 +1611,16 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
             auto jobState = ParseEnum<EJobState>(FromUnversionedValue<TStringBuf>(row[jobStateIndex]));
             auto count = FromUnversionedValue<i64>(row[countIndex]);
 
-            statistics.TypeCounts[jobType] += count;
-            if (options.Type && *options.Type != jobType) {
-                continue;
-            }
+            bool failTypeFilter = options.Type && *options.Type != jobType;
+            bool failStateFilter = options.State && *options.State != jobState;
 
-            statistics.StateCounts[jobState] += count;
-            if (options.State && *options.State != jobState) {
-                continue;
+            // NB(bystrovserg): list_jobs and list_operation have similar logic for calculating counters:
+            // for given counter we assume its filter is empty and all other filters are applied.
+            if (!failStateFilter) {
+                statistics.TypeCounts[jobType] += count;
+            }
+            if (!failTypeFilter) {
+                statistics.StateCounts[jobState] += count;
             }
         }
         return statistics;
@@ -1751,85 +1838,6 @@ void TClient::AddSelectExpressions(
         } else {
             builder->AddSelectExpression(attribute);
         }
-    }
-}
-
-static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& options, int archiveVersion)
-{
-    if (options.WithStderr) {
-        if (*options.WithStderr) {
-            builder->AddWhereConjunct("stderr_size != 0 AND NOT is_null(stderr_size)");
-        } else {
-            builder->AddWhereConjunct("stderr_size = 0 OR is_null(stderr_size)");
-        }
-    }
-
-    if (options.WithSpec) {
-        if (*options.WithSpec) {
-            builder->AddWhereConjunct("has_spec");
-        } else {
-            builder->AddWhereConjunct("NOT has_spec OR is_null(has_spec)");
-        }
-    }
-
-    if (options.WithFailContext) {
-        if (*options.WithFailContext) {
-            builder->AddWhereConjunct("fail_context_size != 0 AND NOT is_null(fail_context_size)");
-        } else {
-            builder->AddWhereConjunct("fail_context_size = 0 OR is_null(fail_context_size)");
-        }
-    }
-
-    if (options.Type) {
-        builder->AddWhereConjunct(Format("job_type = %Qv", FormatEnum(*options.Type)));
-    }
-
-    if (options.State) {
-        builder->AddWhereConjunct(Format("job_state = %Qv", FormatEnum(*options.State)));
-    }
-
-    if (options.JobCompetitionId) {
-        builder->AddWhereConjunct(Format("job_competition_id = %Qv", options.JobCompetitionId));
-    }
-
-    if (options.WithCompetitors) {
-        if (*options.WithCompetitors) {
-            builder->AddWhereConjunct("has_competitors");
-        } else {
-            builder->AddWhereConjunct("is_null(has_competitors) OR NOT has_competitors");
-        }
-    }
-
-    if (options.WithMonitoringDescriptor) {
-        if (*options.WithMonitoringDescriptor) {
-            builder->AddWhereConjunct("not is_null(monitoring_descriptor)");
-        } else {
-            builder->AddWhereConjunct("is_null(monitoring_descriptor)");
-        }
-    }
-
-    if (options.WithInterruptionInfo) {
-        if (*options.WithInterruptionInfo) {
-            builder->AddWhereConjunct("not is_null(interruption_info)");
-        } else {
-            builder->AddWhereConjunct("is_null(interruption_info)");
-        }
-    }
-
-    if (options.FromTime) {
-        builder->AddWhereConjunct(Format("start_time >= %v", options.FromTime->MicroSeconds()));
-    }
-    if (options.ToTime) {
-        builder->AddWhereConjunct(Format("finish_time <= %v", options.ToTime->MicroSeconds()));
-    }
-
-    if (options.TaskName) {
-        builder->AddWhereConjunct(Format("task_name = %Qv", *options.TaskName));
-    }
-
-    if (options.OperationIncarnation && DoesArchiveContainAttribute("operation_incarnation", archiveVersion))
-    {
-        builder->AddWhereConjunct(Format("operation_incarnation = %Qv", *options.OperationIncarnation));
     }
 }
 
