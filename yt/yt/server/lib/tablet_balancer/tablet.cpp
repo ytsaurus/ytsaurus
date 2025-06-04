@@ -52,12 +52,19 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
                     }
 
                     auto index = performanceCountersTableSchema->GetColumnIndexOrThrow(performanceCounterKey);
-                    auto values = ConvertTo<IListNodePtr>(performanceCountersRow->Get()[index]);
+                    auto values = ConvertTo<INodePtr>(performanceCountersRow->Get()[index]);
+                    THROW_ERROR_EXCEPTION_IF(values->GetType() != NYTree::ENodeType::List && values->GetType() != NYTree::ENodeType::Entity,
+                        "Node has unexpected value type: expected one of (%Qv, %Qv), actual %Qv",
+                        NYTree::ENodeType::List,
+                        NYTree::ENodeType::Entity,
+                        values->GetType());
+
+                    bool isListNode = values->GetType() == NYTree::ENodeType::List;
                     fluent
-                        .Item(performanceCounterKey + "_count").Value(values->GetChildValueOrThrow<i64>(0))
-                        .Item(performanceCounterKey + "_rate").Value(values->GetChildValueOrThrow<double>(1))
-                        .Item(performanceCounterKey + "_10m_rate").Value(values->GetChildValueOrThrow<double>(2))
-                        .Item(performanceCounterKey + "_1h_rate").Value(values->GetChildValueOrThrow<double>(3));
+                        .Item(performanceCounterKey + "_count").Value(isListNode ? values->AsList()->GetChildValueOrThrow<i64>(0) : 0)
+                        .Item(performanceCounterKey + "_rate").Value(isListNode ? values->AsList()->GetChildValueOrThrow<double>(1) : 0)
+                        .Item(performanceCounterKey + "_10m_rate").Value(isListNode ? values->AsList()->GetChildValueOrThrow<double>(2) : 0)
+                        .Item(performanceCounterKey + "_1h_rate").Value(isListNode ? values->AsList()->GetChildValueOrThrow<double>(3) : 0);
                 }
         });
     }
