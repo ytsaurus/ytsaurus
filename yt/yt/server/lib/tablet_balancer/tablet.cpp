@@ -39,11 +39,20 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
     }
 
     if (auto performanceCountersRow = std::get_if<NTableClient::TUnversionedOwningRow>(&PerformanceCounters)) {
+        YT_LOG_DEBUG_IF(Index == 0 &&
+                performanceCountersTableSchema->GetValueColumnCount() != std::ssize(performanceCountersKeys),
+            "Statistics reporter schema and current tablet balancer version has different performance counter keys "
+            "(StatisticsReporterValueColumnCount: %v, PerformanceCountersKeyCount: %v, TabletId: %v)",
+            performanceCountersTableSchema->GetValueColumnCount(),
+            std::ssize(performanceCountersKeys),
+            Id);
+
         return BuildYsonStringFluently()
             .DoMap([&] (TFluentMap fluent) {
                 for (const auto& performanceCounterKey : performanceCountersKeys) {
                     if (!performanceCountersTableSchema->FindColumn(performanceCounterKey)) {
-                        YT_LOG_DEBUG_IF(Index == 0,
+                        YT_LOG_DEBUG_IF(Index == 0 &&
+                                performanceCountersTableSchema->GetValueColumnCount() == std::ssize(performanceCountersKeys),
                             "Statistics reporter schema does not contain performance counter column "
                             "(PerformanceCounterKey: %v, TabletId: %v)",
                             performanceCounterKey,
@@ -53,13 +62,13 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
 
                     auto index = performanceCountersTableSchema->GetColumnIndexOrThrow(performanceCounterKey);
                     auto values = ConvertTo<INodePtr>(performanceCountersRow->Get()[index]);
-                    THROW_ERROR_EXCEPTION_IF(values->GetType() != NYTree::ENodeType::List && values->GetType() != NYTree::ENodeType::Entity,
+                    THROW_ERROR_EXCEPTION_IF(values->GetType() != ENodeType::List && values->GetType() != ENodeType::Entity,
                         "Node has unexpected value type: expected one of (%Qv, %Qv), actual %Qv",
-                        NYTree::ENodeType::List,
-                        NYTree::ENodeType::Entity,
+                        ENodeType::List,
+                        ENodeType::Entity,
                         values->GetType());
 
-                    bool isListNode = values->GetType() == NYTree::ENodeType::List;
+                    bool isListNode = values->GetType() == ENodeType::List;
                     fluent
                         .Item(performanceCounterKey + "_count").Value(isListNode ? values->AsList()->GetChildValueOrThrow<i64>(0) : 0)
                         .Item(performanceCounterKey + "_rate").Value(isListNode ? values->AsList()->GetChildValueOrThrow<double>(1) : 0)

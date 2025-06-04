@@ -1451,6 +1451,15 @@ INSTANTIATE_TEST_SUITE_P(
             "double([/statistics/memory_size])",
             "double([/statistics/memory_size])"),
         std::tuple(
+            "double([/performance_counters/dynamic_row_write_10m_rate])",
+            "double([/performance_counters/dynamic_row_write_10m_rate])"),
+        std::tuple(
+            "write_10m",
+            "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])"),
+        std::tuple(
+            "1 + write_10m + double([/performance_counters/dynamic_row_write_data_weight_10m_rate]) + 2",
+            "1 + double([/performance_counters/dynamic_row_write_data_weight_10m_rate]) + double([/performance_counters/dynamic_row_write_data_weight_10m_rate]) + 2"),
+        std::tuple(
             "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])",
             "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])"),
         std::tuple(
