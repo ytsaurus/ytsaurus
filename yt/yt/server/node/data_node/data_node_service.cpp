@@ -824,9 +824,10 @@ private:
         auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
 
-        context->SetRequestInfo("BlockIds: %v:%v, Workload: %v",
+        context->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v",
             chunkId,
-            MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
+            MakeCompactIntervalView(blockIndexes),
+            blockIndexes.size(),
             workloadDescriptor);
 
         ValidateOnline();
