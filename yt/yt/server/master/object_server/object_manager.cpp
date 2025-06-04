@@ -1893,7 +1893,7 @@ auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectI
     }
 
     return AllSucceeded(std::move(perCellFutures))
-        .Apply(BIND([results = std::move(results)] {
+        .Apply(BIND([results = std::move(results)] () mutable {
             return std::move(*results);
         }));
 }
