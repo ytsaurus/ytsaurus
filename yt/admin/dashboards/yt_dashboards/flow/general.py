@@ -7,9 +7,9 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from .common import (
-    build_versions, build_message_rate, build_resource_usage,
-    add_common_dashboard_parameters)
+from .common import build_versions, build_resource_usage, add_common_dashboard_parameters
+
+from .computation import ComputationCellGenerator
 
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
@@ -17,6 +17,9 @@ from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 
 from textwrap import dedent
+
+
+COMPUTATION_CELL_GENERATOR = ComputationCellGenerator(has_computation_id_tag=False)
 
 
 def build_flow_status():
@@ -27,6 +30,13 @@ def build_flow_status():
             .aggr("previous_job_finish_reason")
             .aggr("job_finish_reason")  # Temporary code.
             .query_transformation(f'alias({{query}}, "{alias}")'))
+
+    job_status_description = dedent("""\
+        Statuses of jobs of not finished partitions.
+        If partition has no current job, consider it as `Unknown` job.
+        So sum of lines on graph must be equal to total partition count.
+    """)
+
 
     def recovery_by_reason(statuses, alias):
         return (FlowController("|".join(f"yt.flow.controller.job_status.{status}" for status in statuses))
@@ -70,7 +80,8 @@ def build_flow_status():
                     "Has retryable errors": "#cc0000",
                     "Recovering (new job is preparing)": "#ffa500",
                     "Unknown": "#11114e",
-                })
+                },
+                description=job_status_description)
             .cell("Recovering/warming up by reason",
                 MultiSensor(
                     recovery_by_reason(["unknown", "preparing"], "Recovering after {{{{previous_job_finish_reason}}}}"),
@@ -135,96 +146,15 @@ def build_lags():
     )
 
 
-def build_computation_resources():
-    return (Rowset()
-        .stack(True)
-        .all("computation_id")
-        .aggr("host")
-        .row()
-            .cell(
-                "Computation cpu time",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.cpu_time.rate"))
-                    .alias("{{computation_id}}")
-                    .unit("UNIT_PERCENT_UNIT"))
-            .cell(
-                "Computation memory usage",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.memory_usage"))
-                    .alias("{{computation_id}}")
-                    .unit("UNIT_BYTES_SI"))
-            .cell(
-                "Input buffers size",
-                MonitoringExpr(FlowWorker("yt.flow.worker.buffer_state.computations.input.size"))
-                    .all("stream_id")
-                    .alias("{{computation_id}} / {{stream_id}}")
-                    .unit("UNIT_BYTES_SI"))
-            .cell(
-                "Output buffers size",
-                MonitoringExpr(FlowWorker("yt.flow.worker.buffer_state.computations.output.size"))
-                    .all("stream_id")
-                    .alias("{{computation_id}} / {{stream_id}}")
-                    .unit("UNIT_BYTES_SI"))
-    )
-
-def build_partition_store_commits():
-    return (Rowset()
-        .stack(False)
-        .all("computation_id")
-        .row()
-            .cell(
-                "Partition store commit rate",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_total.rate"))
-                    .aggr("host")
-                    .unit("UNIT_REQUESTS_PER_SECOND"))
-            .cell(
-                "Partition store failed commit rate",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_failed.rate"))
-                    .aggr("host")
-                    .unit("UNIT_REQUESTS_PER_SECOND"))
-            .cell(
-                "Partition store commit time",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_time.max"))
-                    .all("host")
-                    .alias("{{computation_id}} - {{host}}")
-                    .top(50)
-                    .unit("UNIT_SECONDS"))
-            .cell(
-                "Input messages lookup time",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.lookup_time.max"))
-                    .all("host")
-                    .alias("{{computation_id}} - {{host}}")
-                    .top(50)
-                    .unit("UNIT_SECONDS"))
-    )
-
 def build_epoch_timings():
     return (Rowset()
         .row()
-            .cell(
-                "Epoch parts time",
-                MonitoringExpr(
-                    FlowWorker("yt.flow.worker.computation.epoch_parts_time.rate")
-                        .value("part", "!-"))
-                    .aggr("host")
-                    .aggr("computation_id")
-                    .stack(True))
-            .cell(
-                "Epoch duration max time",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.epoch_time.max"))
-                    .all("host")
-                    .all("computation_id")
-                    .alias("{{computation_id}} - {{host}}")
-                    .top(50)
-                    .unit("UNIT_SECONDS")
-                    .stack(False))
-            .cell(
-                "Epoch count total",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.epoch.rate"))
-                    .aggr("host")
-                    .all("computation_id")
-                    .unit("UNIT_COUNT")
-                    .stack(False))
+            .apply_func(COMPUTATION_CELL_GENERATOR.add_epoch_parts_time_cell)
+            .apply_func(COMPUTATION_CELL_GENERATOR.add_epoch_duration_max_time_cell)
+            .apply_func(COMPUTATION_CELL_GENERATOR.add_epoch_count_total_cell)
             .cell("", EmptyCell())
     )
+
 
 def build_logging():
     return (Rowset()
@@ -268,34 +198,6 @@ def build_logging():
     )
 
 
-def build_partition_aggregates():
-    return (Rowset()
-        .stack(False)
-        .all("computation_id")
-        .row()
-            .cell(
-                "Max partition cpu usage",
-                MonitoringExpr(FlowController("yt.flow.controller.computations.partition_cpu_usage.max"))
-                    .alias("{{computation_id}}"))
-            .cell(
-                "Average partition cpu usage",
-                MonitoringExpr(FlowController("yt.flow.controller.computations.partition_cpu_usage.avg"))
-                    .alias("{{computation_id}}"))
-            .cell(
-                "Max partition messages per second",
-                MonitoringExpr(FlowController("yt.flow.controller.computations.partition_input_messages_per_second.max"))
-                    .all("stream_id")
-                    .alias("{{computation_id}} - {{stream_id}}")
-                    .unit("UNIT_COUNTS_PER_SECOND"))
-            .cell(
-                "Average partition messages per second",
-                MonitoringExpr(FlowController("yt.flow.controller.computations.partition_input_messages_per_second.avg"))
-                    .all("stream_id")
-                    .alias("{{computation_id}} - {{stream_id}}")
-                    .unit("UNIT_COUNTS_PER_SECOND"))
-    )
-
-
 def build_flow_general():
     d = Dashboard()
     d.add(build_versions())
@@ -303,11 +205,11 @@ def build_flow_general():
     d.add(build_resource_usage("worker", add_component_to_title=True))
     d.add(build_flow_status())
     d.add(build_lags())
-    d.add(build_message_rate())
+    d.add(COMPUTATION_CELL_GENERATOR.build_message_rate_rowset())
     d.add(build_epoch_timings())
-    d.add(build_computation_resources())
-    d.add(build_partition_aggregates())
-    d.add(build_partition_store_commits())
+    d.add(COMPUTATION_CELL_GENERATOR.build_resources_rowset())
+    d.add(COMPUTATION_CELL_GENERATOR.build_partition_aggregates_rowset())
+    d.add(COMPUTATION_CELL_GENERATOR.build_partition_store_operations_rowset())
     d.add(build_logging())
 
     d.set_title("[YT Flow] Pipeline general")

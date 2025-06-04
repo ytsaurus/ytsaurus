@@ -37,15 +37,24 @@ def build_versions():
     return (Rowset()
         .stack(True)
         .row()
-            .cell("Controller versions", FlowController("yt.build.version").aggr("host"))
-            .cell("Worker versions", FlowWorker("yt.build.version").aggr("host"))
-            .cell("Specs version change", MultiSensor(
-                MonitoringExpr(FlowController("yt.flow.controller.spec_version"))
-                    .query_transformation(spec_version_change_query_transformation)
-                    .alias("Spec change"),
-                MonitoringExpr(FlowController("yt.flow.controller.dynamic_spec_version"))
-                    .query_transformation(spec_version_change_query_transformation)
-                    .alias("Dynamic spec change")))
+            .cell(
+                "Controller versions",
+                FlowController("yt.build.version").aggr("host"),
+                description="Color change on this graph means deploying new controller binary")
+            .cell(
+                "Worker versions",
+                FlowWorker("yt.build.version").aggr("host"),
+                description="Color change on this graph means deploying new worker binary")
+            .cell(
+                "Specs version change",
+                MultiSensor(
+                    MonitoringExpr(FlowController("yt.flow.controller.spec_version"))
+                        .query_transformation(spec_version_change_query_transformation)
+                        .alias("Spec change"),
+                    MonitoringExpr(FlowController("yt.flow.controller.dynamic_spec_version"))
+                        .query_transformation(spec_version_change_query_transformation)
+                        .alias("Dynamic spec change")),
+                description="Spikes mean that [dynamic] spec has been changed")
             .cell("", Text(description_text))
     ).owner
 
@@ -57,13 +66,25 @@ def build_resource_usage(component: str, add_component_to_title: bool):
     }[component]
     title_suffix = f" ({component.capitalize()})" if add_component_to_title else ""
 
+    vcpu_description = (
+        "VCPU is CPU multiplied by processor coefficient, "
+        "so that new/old/Intel/AMD processors spend similar amount of VCPU-time to perform the same task"
+    )
+
+    retransmits_description = (
+        "If you see significant increase on this graph, check that network limits are not exceeded"
+    )
+
     return (Rowset()
         .stack(False)
         .all("host")
         .row()
-            .cell("Total VCPU" + title_suffix, sensor("yt.resource_tracker.total_vcpu")
-                .aggr("thread")
-                .unit("UNIT_PERCENT"))
+            .cell(
+                "Total VCPU" + title_suffix,
+                sensor("yt.resource_tracker.total_vcpu")
+                    .aggr("thread")
+                    .unit("UNIT_PERCENT"),
+                description=vcpu_description)
             .cell(
                 "Busiest thread pool" + title_suffix,
                 MonitoringExpr(sensor("yt.resource_tracker.utilization"))
@@ -73,61 +94,14 @@ def build_resource_usage(component: str, add_component_to_title: bool):
                     .alias("{{thread}} - {{host}}")
                     .top(10))
             .cell("Memory" + title_suffix, sensor("yt.resource_tracker.memory_usage.rss").unit("UNIT_BYTES_SI"))
-            .cell("Network retransmits" + title_suffix, sensor("yt.bus.retransmits.rate")
-                .aggr("band")
-                .aggr("encrypted")
-                .aggr("network"))
+            .cell(
+                "Network retransmits" + title_suffix,
+                sensor("yt.bus.retransmits.rate")
+                    .aggr("band")
+                    .aggr("encrypted")
+                    .aggr("network"),
+                description=retransmits_description)
     ).owner
-
-
-def build_message_rate():
-    return (Rowset()
-        .stack(True)
-        .aggr("host")
-        .all("computation_id")
-        .all("stream_id")
-        .row()
-            .cell(
-                "Registered processed messages rate",
-                MultiSensor(
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.input_streams.persisted_count.rate"))
-                        .alias("input - {{computation_id}} - {{stream_id}}"),
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.source_streams.persisted_count.rate"))
-                        .alias("source - {{computation_id}} - {{stream_id}}"),
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.unregistered_count.rate"))
-                        .alias("timer - {{computation_id}} - {{stream_id}}")
-                )
-                    .unit("UNIT_COUNTS_PER_SECOND"))
-            .cell(
-                "Registered generated messages rate",
-                MultiSensor(
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_streams.registered_count.rate"))
-                        .alias("output - {{computation_id}} - {{stream_id}}"),
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.registered_count.rate"))
-                        .alias("timer - {{computation_id}} - {{stream_id}}")
-                )
-                    .unit("UNIT_COUNTS_PER_SECOND"))
-            .cell(
-                "Registered processed messages bytes rate",
-                MultiSensor(
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.input_streams.persisted_bytes.rate"))
-                        .alias("input - {{computation_id}} - {{stream_id}}"),
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.source_streams.persisted_bytes.rate"))
-                        .alias("source - {{computation_id}} - {{stream_id}}"),
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.unregistered_bytes.rate"))
-                        .alias("timer - {{computation_id}} - {{stream_id}}")
-                )
-                    .unit("UNIT_BYTES_SI_PER_SECOND"))
-            .cell(
-                "Registered generated messages bytes rate",
-                MultiSensor(
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_streams.registered_bytes.rate"))
-                        .alias("output - {{computation_id}} - {{stream_id}}"),
-                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.registered_bytes.rate"))
-                        .alias("timer - {{computation_id}} - {{stream_id}}")
-                )
-                    .unit("UNIT_BYTES_SI_PER_SECOND"))
-    )
 
 
 def build_text_row(text: str):
