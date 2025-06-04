@@ -14,7 +14,7 @@
 | E011-04 | Arithmetic operators | В YQL подавляются ошибки в арифметических вычислениях. Например выражение `1/0` имеет тип `Int32?` и значение `NULL`. В ANSI SQL в этом случае возникает ошибка |
 | E011-06 | Implicit casting among the numeric data types | В YQL нет неявного кастинга между NUMERIC и INTEGER/FLOAT. |
 | E031-01 | Delimited identifiers | В YQL выражение `SELECT "a" FROM foo` возвращает строковую константу. В ANSI `"a"` – это идентификатор (колонка `a`) |
-| E071-02 | UNION ALL table operator | В ANSI SQL колонки объединяются по позиционному принципу, в YQL - по именам. В YQL `ORDER BY, OFFSET, LIMIT` относится к последнему элементу объединения. В ANSI - к результату `UNION ALL`.
+| E071-02 | UNION ALL table operator | В ANSI SQL колонки объединяются по позиционному принципу, в YQL - по именам. При добавлении прагмы `PositionalUnionAll`, включается соответствующий стандарту поколоночный режим выполнения UNION ALL, при этом автоматически включается упорядоченность колонок. |
 
 ## Статус поддержки ANSI SQL
 | Идентификатор | Название | Поддержка | Комментарий |
@@ -44,7 +44,7 @@
 | E031-02 | Lower case identifiers | Да |  |
 | E031-03 | Trailing underscore | Да |  |
 | **E051** | **Basic query specification** | **Частично** |  |
-| E051-01 | SELECT DISTINCT | Частично | Не поддерживается `SELECT DISTINCT *` |
+| E051-01 | SELECT DISTINCT | Да |  |
 | E051-02 | GROUP BY clause | Да |  |
 | E051-04 | GROUP BY can contain columns not in \<select list\> | Да | |
 | E051-05 | Select items can be renamed | Да | `SELECT foo AS bar` |
@@ -54,7 +54,7 @@
 | E051-09 | Rename columns in the FROM clause | Нет | `SELECT ... FROM T AS a (x AS foo, y AS bar)` |
 | **E061** | **Basic predicates and search conditions** | **Частично** |  |
 | E061-01 | Comparison predicate | Да | Операторы `<,>,=,<>,<=,>=` |
-| E061-02 | BETWEEN predicate | Частично |  |
+| E061-02 | BETWEEN predicate | Да |  |
 | E061-03 | IN predicate with list of values| Да |  |
 | E061-04 | LIKE predicate| Да |  |
 | E061-05 | LIKE predicate: ESCAPE clause| Да | |
@@ -251,18 +251,6 @@ SELECT DISTINCT поддерживается за исключением вар�
 ##### E061-01 Comparison predicate
 
 В YQL поддерживаются операторы <,>,=,<>,<=,>= для совместимых типов
-
-##### E061-02 BETWEEN predicate
-
-```
-<between predicate> ::=
-  <row value predicand> <between predicate part 2>
-<between predicate part 2> ::=
-  [ NOT ] BETWEEN [ ASYMMETRIC | SYMMETRIC ]
-      <row value predicand> AND <row value predicand>
-```
-
-В YQL не поддерживаются SYMMETRIC/ASSYMETRIC - `A BETWEEN B AND C` эквивалентно `A >= B AND A <= C`.
 
 ##### E061-07 Quantified comparison predicate
 
