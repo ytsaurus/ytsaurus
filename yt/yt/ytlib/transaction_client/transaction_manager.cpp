@@ -994,10 +994,16 @@ private:
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
 
         if (options.StartCypressTransaction) {
+            channel = CreateRetryingChannel(
+                Owner_->Config_.Acquire(),
+                std::move(channel),
+                BIND([] (const TError& error) {
+                    return error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError;
+                }));
             TCypressTransactionServiceProxy proxy(channel);
             auto req = proxy.StartTransaction();
 
-            FillStartTransactionReq<TReqStartCypressTransactionPtr>(req, options);
+            FillStartTransactionReq(req, options);
             return req->Invoke().Apply(
                 BIND(
                     &TImpl::OnMasterTransactionStarted<TCypressTransactionServiceProxy::TErrorOrRspStartTransactionPtr>,
@@ -1007,7 +1013,7 @@ private:
         TTransactionServiceProxy proxy(channel);
         auto req = proxy.StartTransaction();
 
-        FillStartTransactionReq<TReqStartMasterTransactionPtr>(req, options);
+        FillStartTransactionReq(req, options);
         req->set_is_cypress_transaction(options.StartCypressTransaction);
         return req->Invoke().Apply(
             BIND(
