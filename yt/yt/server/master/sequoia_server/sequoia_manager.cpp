@@ -126,7 +126,18 @@ private:
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 
         auto attributes = FromProto(request->attributes());
-        auto title = attributes->FindAndRemove<std::string>("title").value_or("Sequoia transaction");
+        std::string title;
+        if (auto specifiedTitle = attributes->FindAndRemove<std::string>("title")) {
+            // NB: it's better to have weird title like "Sequoia transaction:
+            // sequoia transaction for something" than to not have any Sequoia
+            // mentioning at all.
+            if (!specifiedTitle->starts_with("Sequoia transaction")) {
+                *specifiedTitle = "Sequoia transaction: " + *specifiedTitle;
+            }
+            title = std::move(*specifiedTitle);
+        } else {
+            title = "Sequoia transaction";
+        }
 
         auto enableLeaseIssuing = Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases;
 
