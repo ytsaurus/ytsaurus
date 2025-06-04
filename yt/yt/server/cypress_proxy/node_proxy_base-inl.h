@@ -24,35 +24,13 @@ void TNodeProxyBase::FinishSequoiaSessionAndReply(
 {
     auto responseMessage = CreateResponseMessage(context->Response(), context->Response().Attachments());
 
-    auto mutationId = context->GetMutationId();
-    const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
-    if (commitSession && mutationId) {
-        responseKeeper->KeepResponse(SequoiaSession_->SequoiaTransaction(), mutationId, responseMessage);
-    }
-
     // TODO(cherepashka): after `set` is done, make all responses with mutationId handled correctly.
     if (commitSession) {
-        try {
-            SequoiaSession_->Commit(coordinatorCellId);
-        } catch (const std::exception& ex) {
-            auto useResponseKeeper = mutationId && responseKeeper->GetDynamicConfig()->Enable;
-            if (useResponseKeeper) {
-                // NB: If commit failed, then some error related to dynamic tables occured and client will receive it,
-                // so we should save this error in case of retries on client side.
-                auto sequoiaTransaction = NConcurrency::WaitFor(
-                    StartCypressProxyTransaction(
-                        Bootstrap_->GetSequoiaClient(),
-                        NSequoiaClient::ESequoiaTransactionType::ResponseKeeper)
-                    ).ValueOrThrow();
-                responseKeeper->KeepResponse(sequoiaTransaction, mutationId, TError(ex));
-                NConcurrency::WaitFor(sequoiaTransaction->Commit({
-                    .CoordinatorCellId = coordinatorCellId,
-                    .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
-                }))
-                    .ThrowOnError();
-            }
-            THROW_ERROR_EXCEPTION(ex);
+        if (auto mutationId = context->GetMutationId()) {
+            const auto& responseKeeper = Bootstrap_->GetResponseKeeper();
+            responseKeeper->KeepResponse(SequoiaSession_->SequoiaTransaction(), mutationId, responseMessage);
         }
+        SequoiaSession_->Commit(coordinatorCellId);
     } else {
         SequoiaSession_->Abort();
     }
