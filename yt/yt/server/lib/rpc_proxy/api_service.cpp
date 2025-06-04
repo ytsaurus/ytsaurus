@@ -7024,13 +7024,8 @@ private:
 
         std::optional<std::pair<int, int>> writerIndexRange;
         if (request->has_writer_index_range()) {
-            auto writerIndexBegin = request->writer_index_range().has_begin()
-                ? std::optional<int>(request->writer_index_range().begin())
-                : std::nullopt;
-
-            auto writerIndexEnd = request->writer_index_range().has_end()
-                ? std::optional<int>(request->writer_index_range().end())
-                : std::nullopt;
+            auto writerIndexBegin = YT_OPTIONAL_FROM_PROTO(request->writer_index_range(), begin);
+            auto writerIndexEnd = YT_OPTIONAL_FROM_PROTO(request->writer_index_range(), end);
 
             if (!writerIndexBegin.has_value() || !writerIndexEnd.has_value()) {
                 THROW_ERROR_EXCEPTION("One or both writer index range limits are empty")
