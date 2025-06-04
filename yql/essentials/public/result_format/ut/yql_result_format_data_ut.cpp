@@ -60,7 +60,7 @@ Y_UNIT_TEST_SUITE(ParseData) {
         v.OnTzDatetime64("foo");
         v.OnTzTimestamp64("foo");
         v.OnInterval64(1);
-        v.OnDecimal("1.2");
+        v.OnDecimal("1.2", 5, 3);
         v.OnBeginOptional();
         v.OnBeforeOptionalItem();
         v.OnAfterOptionalItem();
@@ -129,7 +129,7 @@ Y_UNIT_TEST_SUITE(ParseData) {
         UNIT_ASSERT_EXCEPTION(v.OnTzDatetime64("foo"), TUnsupportedException);
         UNIT_ASSERT_EXCEPTION(v.OnTzTimestamp64("foo"), TUnsupportedException);
         UNIT_ASSERT_EXCEPTION(v.OnInterval64(1), TUnsupportedException);
-        UNIT_ASSERT_EXCEPTION(v.OnDecimal("1.2"), TUnsupportedException);
+        UNIT_ASSERT_EXCEPTION(v.OnDecimal("1.2", 5, 3), TUnsupportedException);
         UNIT_ASSERT_EXCEPTION(v.OnBeginOptional(), TUnsupportedException);
         UNIT_ASSERT_EXCEPTION(v.OnBeforeOptionalItem(), TUnsupportedException);
         UNIT_ASSERT_EXCEPTION(v.OnAfterOptionalItem(), TUnsupportedException);
