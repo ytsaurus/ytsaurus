@@ -2685,6 +2685,8 @@ void TTask::FinalizeSubscriptions()
 
 void TTask::UpdateNetworkAndTask()
 {
+    YT_LOG_DEBUG("Update network bandwidth availability and task");
+
     // Update network bandwidth availability first.
     UpdateClusterToNetworkBandwidthAvailability();
     UpdateTask();
