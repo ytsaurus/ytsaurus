@@ -4,14 +4,15 @@
 
 #include "bootstrap.h"
 #include "config.h"
+#include "cypress_proxy_service_base.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
 #include "master_connector.h"
 #include "path_resolver.h"
 #include "per_user_and_workload_request_queue_provider.h"
+#include "response_keeper.h"
 #include "sequoia_service.h"
 #include "sequoia_session.h"
-#include "response_keeper.h"
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
 
@@ -57,21 +58,20 @@ using NSequoiaClient::TRawYPath;
 
 class TObjectService
     : public IObjectService
-    , public TServiceBase
+    , public TCypressProxyServiceBase
 {
 public:
-    explicit TObjectService(IBootstrap* bootstrap)
-        : TServiceBase(
-            /*invoker*/ nullptr,
+    explicit TObjectService(IBootstrap* bootstrap, IThreadPoolPtr threadPool)
+        : TCypressProxyServiceBase(
+            bootstrap,
+            threadPool->GetInvoker(),
             TObjectServiceProxy::GetDescriptor(),
             CypressProxyLogger(),
             TServiceOptions{
                 .Authenticator = bootstrap->GetNativeAuthenticator(),
             })
-        , Bootstrap_(bootstrap)
         , Connection_(bootstrap->GetNativeConnection())
-        , ThreadPool_(CreateThreadPool(/*threadCount*/ 1, "ObjectService"))
-        , Invoker_(ThreadPool_->GetInvoker())
+        , ThreadPool_(std::move(threadPool))
         , ThrottlerFactory_(bootstrap->CreateDistributedThrottlerFactory(
             GetDynamicConfig()->DistributedThrottler,
             bootstrap->GetControlInvoker(),
@@ -88,7 +88,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10'000)
             .SetConcurrencyLimit(10'000)
-            .SetInvoker(Invoker_)
             .SetRequestQueueProvider(RequestQueueProvider_));
 
         DeclareServerFeature(EMasterFeature::Portals);
@@ -125,12 +124,9 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 
-    IBootstrap* const Bootstrap_;
-
-    const NApi::NNative::IConnectionPtr Connection_;
+    const NNative::IConnectionPtr Connection_;
 
     const IThreadPoolPtr ThreadPool_;
-    const IInvokerPtr Invoker_;
 
     const IDistributedThrottlerFactoryPtr ThrottlerFactory_;
     const TPerUserAndWorkloadRequestQueueProviderPtr RequestQueueProvider_;
@@ -270,7 +266,7 @@ public:
         , TargetCellTag_(targetCellTag)
         , MasterChannelKind_(masterChannelKind)
         , ForceUseTargetCellTag_(
-            targetCellTag != Owner_->Bootstrap_->GetNativeConnection()->GetPrimaryMasterCellTag())
+            targetCellTag != Owner_->Connection_->GetPrimaryMasterCellTag())
         , Logger(Owner_->Logger.WithTag("RequestId: %v", RpcContext_->GetRequestId()))
     { }
 
@@ -516,8 +512,7 @@ private:
         TRange<int> subrequestIndices,
         TCellTag cellTag)
     {
-        const auto& connection = Owner_->Bootstrap_->GetNativeConnection();
-        const auto& masterCellDirectory = connection->GetMasterCellDirectory();
+        const auto& masterCellDirectory = Owner_->Connection_->GetMasterCellDirectory();
         const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(nakedMasterChannel);
 
@@ -963,23 +958,10 @@ private:
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
-    if (!request->has_cell_tag()) {
-        THROW_ERROR_EXCEPTION("Cell tag is not provided in request");
-    }
+    auto cellTag = context->GetTargetMasterCellTag();
+    auto masterChannelKind = context->GetTargetMasterChannelKind();
 
-    if (!request->has_master_channel_kind()) {
-        THROW_ERROR_EXCEPTION("Peer kind is not provided in request");
-    }
-
-    auto cellTag = FromProto<TCellTag>(request->cell_tag());
-    if (cellTag == PrimaryMasterCellTagSentinel) {
-        cellTag = Bootstrap_->GetNativeConnection()->GetPrimaryMasterCellTag();
-    }
-    auto masterChannelKind = FromProto<EMasterChannelKind>(request->master_channel_kind());
-
-    context->SetRequestInfo("CellTag: %v, MasterChannelKind: %v, RequestCount: %v",
-        cellTag,
-        masterChannelKind,
+    context->SetRequestInfo("RequestCount: %v",
         request->part_counts_size());
 
     if (masterChannelKind != EMasterChannelKind::Leader &&
@@ -1003,7 +985,9 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 
 IObjectServicePtr CreateObjectService(IBootstrap* bootstrap)
 {
-    return New<TObjectService>(bootstrap);
+    return New<TObjectService>(
+        bootstrap,
+        CreateThreadPool(/*threadCount*/ 1, "ObjectService"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

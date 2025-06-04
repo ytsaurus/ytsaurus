@@ -31,21 +31,6 @@ bool IsCachingEnabled(
 
 } // namespace
 
-NApi::EMasterChannelKind GetEffectiveMasterChannelKind(
-    const IConnectionPtr& connection,
-    NApi::EMasterChannelKind kind)
-{
-    if (kind == NApi::EMasterChannelKind::Cache &&
-        !connection->GetMasterCellDirectory()->IsMasterCacheConfigured())
-    {
-        // If master cache is not configured then all |EMasterChannelKind::Cache| requests
-        // will actually be routed to followers.
-        return NApi::EMasterChannelKind::Follower;
-    }
-
-    return kind;
-}
-
 void SetCachingHeader(
     const IClientRequestPtr& request,
     const NApi::NNative::IConnectionPtr& connection,

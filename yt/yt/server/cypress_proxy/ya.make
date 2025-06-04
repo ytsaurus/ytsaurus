@@ -7,6 +7,8 @@ SRCS(
     action_helpers.cpp
     bootstrap.cpp
     config.cpp
+    cypress_proxy_service_base.cpp
+    cypress_transaction_service.cpp
     dynamic_config_manager.cpp
     helpers.cpp
     master_connector.cpp
