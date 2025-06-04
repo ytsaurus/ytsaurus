@@ -14,7 +14,7 @@ import random
 
 
 class TestMutations(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
 
     @authors("max42")
     def test_insert_values(self):
