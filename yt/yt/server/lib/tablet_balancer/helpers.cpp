@@ -3,6 +3,7 @@
 #include <library/cpp/yt/logging/logger.h>
 
 #include <util/string/join.h>
+#include <util/string/split.h>
 
 namespace NYT::NTabletBalancer {
 
@@ -26,7 +27,7 @@ TString BuildMetric(const TString& requestType, const TString& duration)
     if (requestType == "write") {
         return metrics.front();
     }
-    return Format("(%v)", JoinRange(" + ", metrics.begin(), metrics.end()));
+    return Format("(%v)", JoinSeq(" + ", metrics));
 }
 
 THashMap<TString, TString> BuildMetricAliases()
@@ -51,15 +52,32 @@ THashMap<TString, TString> BuildMetricAliases()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ReplaceAliases(TString metric)
+TString ReplaceAliases(const TString& metric)
 {
     static const auto aliases = BuildMetricAliases();
 
-    for (const auto& [alias, replacement] : aliases) {
-        SubstGlobal(metric, alias, replacement);
+    std::vector<TString> parts;
+    StringSplitter(metric).Split('[').Collect(&parts);
+    std::vector<TString> resultMetric;
+
+    for (int partIndex = 0; partIndex < std::ssize(parts); ++partIndex) {
+        std::vector<TString> subParts;
+        StringSplitter(parts[partIndex]).Split(']').Collect(&subParts);
+
+        THROW_ERROR_EXCEPTION_IF(subParts.size() > 2 || partIndex == 0 && subParts.size() > 1,
+            "Unexpected token. Invalid parentheses substring %Qv in string %Qv",
+            parts[partIndex],
+            metric);
+
+        if (partIndex == 0 && subParts.size() == 1 || subParts.size() == 2) {
+            for (const auto& [alias, replacement] : aliases) {
+                SubstGlobal(subParts.back(), alias, replacement);
+            }
+        }
+        resultMetric.push_back(JoinSeq(']', subParts));
     }
 
-    return metric;
+    return JoinSeq('[', resultMetric);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
