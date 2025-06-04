@@ -5247,6 +5247,10 @@ void TOperationControllerBase::IncreaseNeededResources(const TCompositeNeededRes
 
     auto zeroOutNeededResources = false;
     for (const auto& task : Tasks_) {
+        if (task->IsCompleted()) {
+            continue;
+        }
+
         if (!task->IsNetworkBandwidthToClustersAvailable()) {
             zeroOutNeededResources = true;
             break;
