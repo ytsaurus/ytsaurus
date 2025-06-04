@@ -13,7 +13,7 @@ from yt_sequoia_helpers import (
     lookup_cypress_transaction, select_cypress_transaction_replicas,
     select_cypress_transaction_descendants, clear_table_in_ground,
     select_cypress_transaction_prerequisites,
-    mangle_sequoia_path, insert_rows_to_ground,
+    mangle_sequoia_path, demangle_sequoia_path, insert_rows_to_ground,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -112,9 +112,9 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_create_table(self):
         create("table", "//tmp/some_dir/table", recursive=True)
         assert select_paths_from_ground() == [
-            "//tmp/",
-            "//tmp/some_dir/",
-            "//tmp/some_dir/table/",
+            "//tmp",
+            "//tmp/some_dir",
+            "//tmp/some_dir/table",
         ]
 
         assert get("//tmp") == {"some_dir": {"table": yson.YsonEntity()}}
@@ -219,29 +219,29 @@ class TestSequoiaInternals(YTEnvSetup):
         create("string_node", "//tmp/strings/s2")
 
         COMMON_ROWS = [
-            "//tmp/",
-            "//tmp/other/",
-            "//tmp/other/s1/",
-            "//tmp/other/s2/",
+            "//tmp",
+            "//tmp/other",
+            "//tmp/other/s1",
+            "//tmp/other/s2",
         ]
 
         if copy_mode == "copy":
             copy("//tmp/strings", "//tmp/other")
             assert select_paths_from_ground() == COMMON_ROWS + [
-                "//tmp/strings/",
-                "//tmp/strings/s1/",
-                "//tmp/strings/s2/",
+                "//tmp/strings",
+                "//tmp/strings/s1",
+                "//tmp/strings/s2",
             ]
 
             # Let's do it twice for good measure.
             copy("//tmp/strings", "//tmp/other_other")
             assert select_paths_from_ground() == COMMON_ROWS + [
-                "//tmp/other_other/",
-                "//tmp/other_other/s1/",
-                "//tmp/other_other/s2/",
-                "//tmp/strings/",
-                "//tmp/strings/s1/",
-                "//tmp/strings/s2/",
+                "//tmp/other_other",
+                "//tmp/other_other/s1",
+                "//tmp/other_other/s2",
+                "//tmp/strings",
+                "//tmp/strings/s1",
+                "//tmp/strings/s2",
             ]
         else:
             move("//tmp/strings", "//tmp/other")
@@ -255,24 +255,24 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", "//tmp/src/d")
 
         COMMON_ROWS = [
-            "//tmp/",
-            "//tmp/d/",
-            "//tmp/d/s/",
-            "//tmp/d/s/t/",
-            "//tmp/d/s/t/a/",
-            "//tmp/d/s/t/a/b/",
-            "//tmp/d/s/t/a/c/",
-            "//tmp/d/s/t/d/",
+            "//tmp",
+            "//tmp/d",
+            "//tmp/d/s",
+            "//tmp/d/s/t",
+            "//tmp/d/s/t/a",
+            "//tmp/d/s/t/a/b",
+            "//tmp/d/s/t/a/c",
+            "//tmp/d/s/t/d",
         ]
 
         if copy_mode == "copy":
             copy("//tmp/src", "//tmp/d/s/t", recursive=True)
             assert select_paths_from_ground() == COMMON_ROWS + [
-                "//tmp/src/",
-                "//tmp/src/a/",
-                "//tmp/src/a/b/",
-                "//tmp/src/a/c/",
-                "//tmp/src/d/",
+                "//tmp/src",
+                "//tmp/src/a",
+                "//tmp/src/a/b",
+                "//tmp/src/a/c",
+                "//tmp/src/d",
             ]
         else:
             move("//tmp/src", "//tmp/d/s/t", recursive=True)
@@ -287,12 +287,12 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", "//tmp/src/d")
 
         COMMON_ROWS = [
-            "//tmp/",
-            "//tmp/dst/",
-            "//tmp/dst/a/",
-            "//tmp/dst/a/b/",
-            "//tmp/dst/a/c/",
-            "//tmp/dst/d/",
+            "//tmp",
+            "//tmp/dst",
+            "//tmp/dst/a",
+            "//tmp/dst/a/b",
+            "//tmp/dst/a/c",
+            "//tmp/dst/d",
         ]
 
         if not is_excessive:
@@ -301,11 +301,11 @@ class TestSequoiaInternals(YTEnvSetup):
         if copy_mode == "copy":
             copy("//tmp/src", "//tmp/dst", force=True)
             assert select_paths_from_ground() == COMMON_ROWS + [
-                "//tmp/src/",
-                "//tmp/src/a/",
-                "//tmp/src/a/b/",
-                "//tmp/src/a/c/",
-                "//tmp/src/d/",
+                "//tmp/src",
+                "//tmp/src/a",
+                "//tmp/src/a/b",
+                "//tmp/src/a/c",
+                "//tmp/src/d",
             ]
         else:
             move("//tmp/src", "//tmp/dst", force=True)
@@ -324,12 +324,12 @@ class TestSequoiaInternals(YTEnvSetup):
             move("//tmp/dst/src", "//tmp/dst", force=True)
 
         assert select_paths_from_ground() == [
-            "//tmp/",
-            "//tmp/dst/",
-            "//tmp/dst/a/",
-            "//tmp/dst/a/b/",
-            "//tmp/dst/a/c/",
-            "//tmp/dst/d/",
+            "//tmp",
+            "//tmp/dst",
+            "//tmp/dst/a",
+            "//tmp/dst/a/b",
+            "//tmp/dst/a/c",
+            "//tmp/dst/d",
         ]
 
     @authors("kvk1920")
@@ -2554,7 +2554,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             # Target content is removed.
             r | {"transaction_id": tx2, "node_id": None}
             for r in path_to_node_id_destination
-            if not r["path"].endswith("/e/")
+            if not demangle_sequoia_path(r["path"]).endswith("/e")
         ] + [
             # Target node is recreated.
             self.path_to_node_id("//tmp/scion/e", e2, tx2)

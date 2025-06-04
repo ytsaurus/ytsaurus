@@ -74,12 +74,6 @@ void TYPathBase<Absolute, TUnderlying>::RemoveLastSegment()
 }
 
 template <bool Absolute, class TUnderlying>
-TMangledSequoiaPath TYPathBase<Absolute, TUnderlying>::ToMangledSequoiaPath() const
-{
-    return MangleSequoiaPath(Path_);
-}
-
-template <bool Absolute, class TUnderlying>
 TRawYPath TYPathBase<Absolute, TUnderlying>::ToRawYPath() const &
 {
     return TRawYPath(TString(Underlying()));
@@ -119,7 +113,7 @@ TUnderlying&& TYPathBase<Absolute, TUnderlying>::Underlying() &&
 
 inline bool IsForbiddenYPathSymbol(char ch)
 {
-    return ch == '\0';
+    return ch == MangledPathSeparator;
 }
 
 template <bool Absolute, class TUnderlying>
@@ -252,6 +246,12 @@ TYPathBaseImpl<true, TUnderlying>::GetRootDesignator() const &
     Y_UNREACHABLE();
 }
 
+template <class TUnderlying>
+TMangledSequoiaPath TYPathBaseImpl<true, TUnderlying>::ToMangledSequoiaPath() const
+{
+    return MangleSequoiaPath(TBase::Path_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TUnderlying>
@@ -373,11 +373,6 @@ TBasicYPathBuf<Absolute>& TBasicYPathBuf<Absolute>::operator=(const TYPathBase<A
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <bool Absolute>
-TBasicYPath<Absolute>::TBasicYPath(const TMangledSequoiaPath& mangledPath)
-    : TBase(DemangleSequoiaPath(mangledPath))
-{ }
 
 template <bool Absolute>
 template <class T>

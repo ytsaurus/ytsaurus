@@ -93,7 +93,7 @@ class TBasicYPathBuf;
 using TYPath = TBasicYPath<false>;
 using TYPathBuf = TBasicYPathBuf<false>;
 
-using TAbsoluteYPath = TBasicYPath<true>;
+class TAbsoluteYPath;
 using TAbsoluteYPathBuf = TBasicYPathBuf<true>;
 
 ////////////////////////////////////////////////////////////////////////////////
