@@ -593,19 +593,6 @@ class TestDynamicTablesResourceLimitsMirroredTx(TestDynamicTablesResourceLimitsS
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
 
-    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
-    # supported in native client.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    def setup_method(self, method):
-        super(TestDynamicTablesResourceLimitsMirroredTx, self).setup_method(method)
-        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
-
 
 ##################################################################
 
@@ -1009,22 +996,3 @@ class TestPerBundleAccountingMirroredTx(TestPerBundleAccountingShardedTx):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 2
-
-    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
-    # supported in native client.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        }
-    }
-
-    def setup_method(self, method):
-        super(TestPerBundleAccountingMirroredTx, self).setup_method(method)
-        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)

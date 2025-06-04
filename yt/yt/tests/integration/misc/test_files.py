@@ -309,7 +309,6 @@ class TestFilesSequoia(TestFiles):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 2
 
     MASTER_CELL_DESCRIPTORS = {
@@ -317,11 +316,6 @@ class TestFilesSequoia(TestFiles):
         "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         "12": {"roles": ["chunk_host"]},
     }
-
-    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
-    # implemented in native client.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
 
 
 ##################################################################

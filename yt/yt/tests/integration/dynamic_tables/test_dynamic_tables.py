@@ -3666,19 +3666,6 @@ class TestDynamicTablesMirroredTx(TestDynamicTablesShardedTx):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
 
-    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
-    # supported in native client.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    def setup_method(self, method):
-        super(TestDynamicTablesShardedTx, self).setup_method(method)
-        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
-
 
 ##################################################################
 

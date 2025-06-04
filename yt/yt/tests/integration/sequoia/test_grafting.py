@@ -193,11 +193,6 @@ class TestSequoiaSymlinks(YTEnvSetup):
         },
     }
 
-    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
-    # supported in native client.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
     def setup_method(self, method):
         super().setup_method(method)
 

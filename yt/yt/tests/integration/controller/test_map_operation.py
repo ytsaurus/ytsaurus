@@ -2429,22 +2429,6 @@ class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTx):
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 24
 
-    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
-    # supported in native client.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    def setup_method(self, method):
-        super(TestSchedulerMapCommandsShardedTx, self).setup_method(method)
-        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
-        update_controller_agent_config(
-            "set_committed_attribute_via_transaction_action",
-            False,
-            wait_for_orchid=False)
-        update_controller_agent_config(
-            "commit_operation_cypress_node_changes_via_system_transaction",
-            True)
-
 
 ##################################################################
 
