@@ -102,6 +102,7 @@ TSelectRowsCounters::TSelectRowsCounters(
     , UnmergedMissingRowCount(profiler.Counter("/select/unmerged_missing_row_count"))
     , UnmergedDataWeight(profiler.Counter("/select/unmerged_data_weight"))
     , WastedUnmergedDataWeight(profiler.Counter("/select/wasted_unmerged_data_weight"))
+    , ConcurrentStoreRotateErrors(profiler.Counter("/select/concurrent_store_rotate_errors"))
     , CpuTime(profiler.TimeCounter("/select/cpu_time"))
     , DecompressionCpuTime(profiler.TimeCounter("/select/decompression_cpu_time"))
     , SelectDuration(profiler.TimeHistogram(

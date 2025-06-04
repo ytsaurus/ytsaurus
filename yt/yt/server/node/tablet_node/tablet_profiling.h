@@ -100,6 +100,7 @@ struct TSelectRowsCounters
     NProfiling::TCounter UnmergedMissingRowCount;
     NProfiling::TCounter UnmergedDataWeight;
     NProfiling::TCounter WastedUnmergedDataWeight;
+    NProfiling::TCounter ConcurrentStoreRotateErrors;
 
     NProfiling::TTimeCounter CpuTime;
     NProfiling::TTimeCounter DecompressionCpuTime;

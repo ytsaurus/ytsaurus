@@ -2,6 +2,7 @@
 
 #include "bootstrap.h"
 #include "config.h"
+#include "failing_on_rotation_reader.h"
 #include "partition.h"
 #include "private.h"
 #include "sorted_chunk_store.h"
@@ -860,6 +861,12 @@ ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     }
 
     auto reader = CreateSchemafulConcatenatingReader(std::move(readers));
+
+    if (tabletSnapshot->CommitOrdering == NTransactionClient::ECommitOrdering::Strong &&
+        tabletSnapshot->Settings.MountConfig->RetryReadOnOrderedStoreRotation)
+    {
+        reader = CreateFailingOnRotationReader(std::move(reader), tabletSnapshot);
+    }
 
     return WrapSchemafulTabletReader(
         tabletThrottlerKind,

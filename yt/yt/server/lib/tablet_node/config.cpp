@@ -377,6 +377,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .InRange(0.0, 1.0)
         .Default(0.5);
 
+    registrar.Parameter("retry_read_on_ordered_store_rotation", &TThis::RetryReadOnOrderedStoreRotation)
+        .Default(false);
+
     registrar.Parameter("precache_chunk_replicas_on_mount", &TThis::PrecacheChunkReplicasOnMount)
         .Default(true);
     registrar.Parameter("register_chunk_replicas_on_stores_update", &TThis::RegisterChunkReplicasOnStoresUpdate)
