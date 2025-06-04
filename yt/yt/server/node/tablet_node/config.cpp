@@ -440,13 +440,26 @@ void TServiceMethodConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOverloadTrackerConfig::Register(TRegistrar registrar)
+void TOverloadTrackerConfigBase::Register(TRegistrar registrar)
+{
+    registrar.Parameter("methods_to_throttle", &TThis::MethodsToThrottle)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TOverloadTrackerMeanWaitTimeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("mean_wait_time_threshold", &TThis::MeanWaitTimeThreshold)
         .Default(TDuration::MilliSeconds(20));
+}
 
-    registrar.Parameter("methods_to_throttle", &TThis::MethodsToThrottle)
-        .Default();
+////////////////////////////////////////////////////////////////////////////////
+
+void TOverloadTrackerBacklogQueueFillFractionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("backlog_queue_fill_fraction_threshold", &TThis::BacklogQueueFillFractionThreshold)
+        .Default(0.9);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
