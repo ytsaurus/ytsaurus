@@ -1,15 +1,15 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/core/rpc/public.h>
 
-namespace NYT::NApi {
+namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IChannelPtr CreateTargetClusterInjectingChannel(
-    NRpc::IChannelPtr underlying,
-    std::optional<std::string> cluster);
+NRpc::IServicePtr CreateCypressTransactionService(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NApi
+} // namespace NYT::NCypressProxy

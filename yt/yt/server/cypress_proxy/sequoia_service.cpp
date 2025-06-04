@@ -6,7 +6,6 @@
 #include "helpers.h"
 #include "master_proxy.h"
 #include "node_proxy.h"
-#include "node_proxy_base.h"
 #include "path_resolver.h"
 #include "rootstock_proxy.h"
 
@@ -24,6 +23,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
+
+#include <yt/yt/core/ytree/ypath_detail.h>
 
 #include <yt/yt/core/ypath/tokenizer.h>
 

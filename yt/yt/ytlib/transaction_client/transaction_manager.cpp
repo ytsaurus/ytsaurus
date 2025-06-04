@@ -10,6 +10,8 @@
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/cypress_client/proto/rpc.pb.h>
+
 #include <yt/yt/ytlib/cypress_transaction_client/cypress_transaction_service_proxy.h>
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
@@ -991,15 +993,10 @@ private:
         }
 
         auto connection = connectionOrError.Value();
-        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
 
         if (options.StartCypressTransaction) {
-            channel = CreateRetryingChannel(
-                Owner_->Config_.Acquire(),
-                std::move(channel),
-                BIND([] (const TError& error) {
-                    return error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError;
-                }));
+            auto channel = connection->GetCypressChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
+
             TCypressTransactionServiceProxy proxy(channel);
             auto req = proxy.StartTransaction();
 
@@ -1010,6 +1007,7 @@ private:
                     MakeStrong(this)));
         }
 
+        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
         TTransactionServiceProxy proxy(channel);
         auto req = proxy.StartTransaction();
 
