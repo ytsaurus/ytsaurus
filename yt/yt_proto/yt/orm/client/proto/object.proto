@@ -215,7 +215,7 @@ message TLocalAttributeMigration
 // Next field number 55.
 message TObjectTypeOption
 {
-    reserved 6, 7, 15, 17, 20, 21, 28, 29, 38, 46;
+    reserved 6, 7, 15, 17, 20, 21, 28, 29, 37, 38, 46;
     reserved "use_custom_default_permissions";
     reserved "history_indexed_attributes";
     reserved "history_attributes";
@@ -224,6 +224,7 @@ message TObjectTypeOption
     reserved "primary_key_data_group";
     reserved "labels_data_group";
     reserved "forbid_parent_removal";
+    reserved "yp_compat_includes";
 
     // Snake case names of fields in /meta comprising the primary key, in order.
     repeated string primary_key = 13;
@@ -298,9 +299,6 @@ message TObjectTypeOption
     optional bool yp_generate_cpp = 35;
 
     repeated TAttributeSensor attribute_sensors = 36;
-
-    // Use to migrate objects with not generated dependencies.
-    repeated string yp_compat_includes = 37;
 
     optional bool use_custom_default_acl = 39;
     repeated TAccessControlEntry default_acl = 40;
