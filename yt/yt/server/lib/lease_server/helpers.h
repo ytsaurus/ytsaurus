@@ -19,7 +19,7 @@ TFuture<void> IssueLeasesForCell(
     const NLeaseServer::ILeaseManagerPtr& leaseManager,
     const NHiveServer::IHiveManagerPtr& hiveManager,
     NObjectClient::TCellId selfCellId,
-    bool synWithAllLeaseTransactionCoordinators,
+    bool syncWithAllLeaseTransactionCoordinators,
     std::function<NObjectClient::TCellId(NObjectClient::TCellTag)> getMasterCellId,
     std::function<NRpc::IChannelPtr(NObjectClient::TCellTag)> findMasterChannel);
 
