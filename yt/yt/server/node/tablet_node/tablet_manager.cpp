@@ -4284,7 +4284,8 @@ private:
                 CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
                 EWorkloadCategory::SystemTabletReplication,
                 Bootstrap_->GetOutThrottler(EWorkloadCategory::SystemTabletReplication),
-                Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TableReplication));
+                Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TableReplication),
+                Bootstrap_->GetErrorManager());
             replicaInfo->SetReplicator(replicator);
 
             if (replicaInfo->GetState() == ETableReplicaState::Enabled) {
@@ -4321,7 +4322,8 @@ private:
             Bootstrap_->GetTabletSnapshotStore(),
             CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
             Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletReplication),
-            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::ChaosReplicationIncoming)));
+            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::ChaosReplicationIncoming),
+            Bootstrap_->GetErrorManager()));
     }
 
     void RemoveChaosAgent(TTablet* tablet)

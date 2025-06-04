@@ -4,6 +4,7 @@
 #include "alien_cluster_client_cache_base.h"
 #include "chaos_agent.h"
 #include "config.h"
+#include "error_manager.h"
 #include "private.h"
 #include "tablet.h"
 #include "tablet_slot.h"
@@ -210,7 +211,8 @@ public:
         ITabletSnapshotStorePtr tabletSnapshotStore,
         IInvokerPtr workerInvoker,
         IThroughputThrottlerPtr nodeInThrottler,
-        IMemoryUsageTrackerPtr memoryTracker)
+        IMemoryUsageTrackerPtr memoryTracker,
+        IErrorManagerPtr errorManager)
         : Config_(std::move(config))
         , Slot_(std::move(slot))
         , TabletSnapshotStore_(std::move(tabletSnapshotStore))
@@ -232,6 +234,7 @@ public:
             ReplicationThrottler_
         }))
         , MemoryTracker_(std::move(memoryTracker))
+        , ErrorManager_(std::move(errorManager))
         , ChaosAgent_(tablet->GetChaosAgent())
         , BannedReplicaTracker_(Logger, MountConfig_->Testing.TablePullerReplicaBanIterationsCount)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
@@ -291,6 +294,8 @@ private:
     const IReconfigurableThroughputThrottlerPtr ReplicationThrottler_;
     const IThroughputThrottlerPtr Throttler_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
+
+    const IErrorManagerPtr ErrorManager_;
 
     IChaosAgentPtr ChaosAgent_;
     TBannedReplicaTracker BannedReplicaTracker_;
@@ -514,6 +519,7 @@ private:
             YT_LOG_ERROR(error, "Error pulling rows, backing off");
             if (tabletSnapshot) {
                 UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, error);
+                ErrorManager_->HandleError(error, "PullRows", tabletSnapshot);
             }
 
             if (error.Attributes().Get<bool>("hard", false)) {
@@ -1054,7 +1060,8 @@ ITablePullerPtr CreateTablePuller(
     ITabletSnapshotStorePtr tabletSnapshotStore,
     IInvokerPtr workerInvoker,
     IThroughputThrottlerPtr nodeInThrottler,
-    IMemoryUsageTrackerPtr memoryTracker)
+    IMemoryUsageTrackerPtr memoryTracker,
+    IErrorManagerPtr errorManager)
 {
     return New<TTablePuller>(
         std::move(config),
@@ -1064,7 +1071,8 @@ ITablePullerPtr CreateTablePuller(
         std::move(tabletSnapshotStore),
         std::move(workerInvoker),
         std::move(nodeInThrottler),
-        std::move(memoryTracker));
+        std::move(memoryTracker),
+        std::move(errorManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
