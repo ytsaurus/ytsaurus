@@ -37,7 +37,7 @@ message TRspRegisterChunks
 
 message TReqFetchChunks
 {
-    message IndexRange
+    message TIndexRange
     {
         required int32 begin = 1;
         required int32 end = 2;
@@ -45,7 +45,7 @@ message TReqFetchChunks
 
     required bytes shuffle_handle = 1; // YSON-serialized TShuffleHandle
     required int32 partition_index = 2;
-    optional IndexRange writer_index_range = 3;
+    optional TIndexRange writer_index_range = 3;
 }
 
 message TRspFetchChunks
