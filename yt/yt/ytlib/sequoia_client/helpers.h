@@ -19,12 +19,13 @@ struct TSelectRowsQuery
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline const char MangledPathSeparator = '\0';
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf rawPath);
 
 NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
-
-TMangledSequoiaPath MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(
-    const TMangledSequoiaPath& prefix);
 
 //! Unescapes special characters.
 TString ToStringLiteral(TStringBuf key);

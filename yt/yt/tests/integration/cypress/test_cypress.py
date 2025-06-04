@@ -1471,6 +1471,7 @@ class TestCypress(YTEnvSetup):
             link("//tmp/t1", "//tmp/t2")
 
     @authors("babenko", "danilalexeev")
+    @not_implemented_in_sequoia
     def test_link6(self):
         create("table", "//tmp/a")
         link("//tmp/a", "//tmp/b")

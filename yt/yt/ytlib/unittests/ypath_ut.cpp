@@ -14,12 +14,17 @@ TEST(TYPathTest, Correctness)
     auto p3 = TYPath("/foo");
     auto p4 = TYPath("&");
 
-    EXPECT_THROW_THAT(
+    EXPECT_THROW_WITH_SUBSTRING(
         auto p5 = TAbsoluteYPath("/bar"),
-        ::testing::HasSubstr("does not start with a valid root-designator"));
-    EXPECT_THROW_THAT(
-        auto p6 = TYPath("bar"),
-        ::testing::HasSubstr("Expected \"slash\" in YPath but found \"literal\""));
+        "does not start with a valid root-designator");
+    EXPECT_THROW_WITH_SUBSTRING(
+        auto p2 = TYPath("bar"),
+        "Expected \"slash\" in YPath but found \"literal\"");
+
+    auto raw = std::string{'/', '/', 'f', '\0', 'o'};
+    EXPECT_THROW_WITH_SUBSTRING(
+        TAbsoluteYPathBuf(TStringBuf(raw)),
+        "Path contains forbidden symbol");
 }
 
 TEST(TYPathTest, RootDesignator)
@@ -132,6 +137,24 @@ TEST(TYPathTest, Append)
     absolute = TAbsoluteYPath("//first");
     absolute.Append("second");
     EXPECT_EQ(absolute, TAbsoluteYPath("//first/second"));
+}
+
+TEST(TYPathTest, Mangling)
+{
+    {
+        auto p = TAbsoluteYPath("//foo/bar");
+        auto m = p.ToMangledSequoiaPath();
+        auto r = std::string{'/', '\0', 'f', 'o', 'o', '\0', 'b', 'a', 'r', '\0'};
+        EXPECT_EQ(m.Underlying(), r);
+        EXPECT_EQ(TAbsoluteYPath(m), p);
+    }
+    {
+        auto p = TAbsoluteYPath(R"(//\\\/\@\&\*\[\{)");
+        auto m = p.ToMangledSequoiaPath();
+        auto r = std::string{'/', '\0', '\\', '/', '@', '&', '*', '[', '{', '\0'};
+        EXPECT_EQ(m.Underlying(), r);
+        EXPECT_EQ(TAbsoluteYPath(m), p);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
