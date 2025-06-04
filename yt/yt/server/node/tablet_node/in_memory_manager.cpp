@@ -2,6 +2,7 @@
 
 #include "bootstrap.h"
 #include "config.h"
+#include "error_manager.h"
 #include "in_memory_service_proxy.h"
 #include "private.h"
 #include "slot_manager.h"
@@ -432,9 +433,11 @@ private:
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Preload);
 
+            Bootstrap_->GetErrorManager()->HandleError(error, "Preload", tabletSnapshot);
+
             failed = true;
             tabletSnapshot->TabletRuntimeData->Errors
-                .BackgroundErrors[ETabletBackgroundActivity::Preload].Store(error);
+                .BackgroundErrors[ETabletBackgroundActivity::Preload].Store(std::move(error));
         } catch (const TFiberCanceledException&) {
             YT_LOG_DEBUG("Preload cancelled");
             throw;

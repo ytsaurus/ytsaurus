@@ -3,6 +3,7 @@
 #include "background_activity_orchid.h"
 #include "bootstrap.h"
 #include "config.h"
+#include "error_manager.h"
 #include "hunk_chunk.h"
 #include "in_memory_manager.h"
 #include "partition.h"
@@ -1731,6 +1732,8 @@ private:
                 storeManager->BackoffStoreCompaction(store);
             }
 
+            Bootstrap_->GetErrorManager()->HandleError(error, "Partitioning", tabletSnapshot);
+
             task->OnFailed(std::move(error));
         }
 
@@ -2127,6 +2130,8 @@ private:
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
             }
+
+            Bootstrap_->GetErrorManager()->HandleError(error, "Compaction", tabletSnapshot);
 
             task->OnFailed(std::move(error));
         }
