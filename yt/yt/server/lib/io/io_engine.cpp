@@ -878,11 +878,11 @@ private:
     TRequestSlicer GetRequestSlicer() const
     {
         auto config = Config_.Acquire();
-        return TRequestSlicer{
+        return TRequestSlicer(
             config->DesiredRequestSize,
             config->MinRequestSize,
-            config->EnableSlicing,
-        };
+            config->EnableSlicing
+        );
     }
 
     void DoReconfigure(const NYTree::INodePtr& node) override
@@ -1290,11 +1290,11 @@ private:
     TIORequestSlicer GetRequestSlicer() const
     {
         auto config = Config_.Acquire();
-        return TIORequestSlicer{
+        return TIORequestSlicer(
             config->DesiredRequestSize,
             config->MinRequestSize,
-            config->EnableSlicing,
-        };
+            config->EnableSlicing
+        );
     }
 
     template <class TResponse>

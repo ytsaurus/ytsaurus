@@ -997,9 +997,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     // Need blocks ext.
     auto blocksExt = FindCachedBlocksExt();
     if (blocksExt) {
-        YT_UNUSED_FUTURE(BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this), session, blocksExt)
-            .AsyncVia(session->Invoker)
-            .Run());
+        session->Invoker->Invoke(BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this), session, blocksExt));
     } else {
         auto cookie = Context_->ChunkMetaManager->BeginInsertCachedBlocksExt(Id_);
         auto asyncBlocksExt = cookie.GetValue();
