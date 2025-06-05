@@ -7,7 +7,14 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from .common import build_versions, build_resource_usage, add_common_dashboard_parameters
+from .common import (
+    build_versions,
+    build_resource_usage,
+    build_extra_cpu,
+    add_common_dashboard_parameters,
+    add_partitions_by_current_job_status_cell,
+    build_yt_rpc,
+)
 
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
@@ -21,8 +28,16 @@ def build_flow_layout():
         .row()
             .cell("Registered workers count", FlowController("yt.flow.controller.worker_count").unit("UNIT_COUNT"))
             .cell("Computations count", FlowController("yt.flow.controller.computation_count").unit("UNIT_COUNT"))
-            .cell("Partitions count", FlowController("yt.flow.controller.partition_count").unit("UNIT_COUNT"))
-            .cell("", EmptyCell())
+            .cell(
+                "Active partitions count",
+                FlowController("yt.flow.controller.partition_count")
+                    .all("computation_id")
+                    .value("state", "*ing")
+                    .unit("UNIT_COUNT"))
+            .cell(
+                "Finished partitions rate",
+                FlowController("yt.flow.controller.finished_partitions.rate")
+                    .unit("UNIT_COUNTS_PER_SECOND"))
     ).owner
 
 
@@ -30,12 +45,7 @@ def build_flow_layout_mutations():
     return (Rowset()
         .stack(False)
         .row()
-            .cell("Job statuses", FlowController("yt.flow.controller.job_status.*")
-                .aggr("computation_id")
-                .aggr("job_finish_reason")
-                .min(0.8)
-                .unit("UNIT_COUNT")
-                .axis_type("YAXIS_TYPE_LOGARITHMIC"))
+            .apply_func(add_partitions_by_current_job_status_cell)
             .cell("Layout mutations", FlowController("yt.flow.controller.mutations.*.rate").unit("UNIT_COUNTS_PER_SECOND"))
             .cell("Job manage mutations", FlowController("yt.flow.controller.job_manager.*.rate").unit("UNIT_COUNTS_PER_SECOND"))
             .cell(
@@ -57,23 +67,63 @@ def build_heartbeats():
                     MonitoringExpr(FlowController("yt.rpc.server.request_count.rate").value("method", "Handshake"))
                 )
                     .unit("UNIT_REQUESTS_PER_SECOND")
-                    .aggr("host"),
-            )
+                    .aggr("host"))
             .cell(
                 "Worker heartbeat prepare time",
                 FlowWorker("yt.flow.worker.controller_connector.heartbeat.prepare_request_time.max")
-                    .unit("UNIT_SECONDS")
-            )
+                    .unit("UNIT_SECONDS"))
             .cell(
                 "Worker heartbeat wait response time",
                 FlowWorker("yt.flow.worker.controller_connector.heartbeat.wait_response_time.max")
-                    .unit("UNIT_SECONDS")
-            )
+                    .unit("UNIT_SECONDS"))
             .cell(
                 "Worker heartbeat process response time",
                 FlowWorker("yt.flow.worker.controller_connector.heartbeat.process_response_time.max")
-                    .unit("UNIT_SECONDS")
-            )
+                    .unit("UNIT_SECONDS"))
+    )
+
+
+def build_watermark_heuristics():
+    description = (
+        "[Documentation about idle/unavailable]"
+        "(https://yt.yandex-team.ru/docs/flow/concepts/spec#watermark-generator)"
+    )
+
+    confirmed_unavailable_description = description + "\n" + (
+        "Availability group is considered as unavailable if all its partitions are unavailable. "
+        "Confirmed unavailable partitions are partitions from unavailable availability groups. "
+        "So only they are really ignored in watermark evaluation."
+    )
+
+    def build_availability_partitions(suffix):
+        return (
+            FlowController(f"yt.flow.controller.computation.{suffix}")
+                .all("computation_id")
+                .all("availability_group")
+                .unit("UNIT_COUNT")
+        )
+
+    return (Rowset()
+        .stack(False)
+        .row()
+            .cell(
+                "Idle partitions",
+                FlowController("yt.flow.controller.computation.idle_partitions")
+                    .all("computation_id")
+                    .unit("UNIT_COUNT"),
+                description=description)
+            .cell(
+                "Unavailable partitions",
+                build_availability_partitions("unavailable_partitions"),
+                description=description)
+            .cell(
+                "Unavailable idle partitions",
+                build_availability_partitions("unavailable_idle_partitions"),
+                description=description)
+            .cell(
+                "Confirmed unavailable partitions",
+                build_availability_partitions("confirmed_unavailable_partitions"),
+                description=confirmed_unavailable_description)
     )
 
 
@@ -84,6 +134,9 @@ def build_flow_controller():
     d.add(build_flow_layout())
     d.add(build_flow_layout_mutations())
     d.add(build_heartbeats())
+    d.add(build_watermark_heuristics())
+    d.add(build_extra_cpu("controller"))
+    d.add(build_yt_rpc("controller"))
 
     d.set_title("[YT Flow] Pipeline controller")
     add_common_dashboard_parameters(d)

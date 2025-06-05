@@ -15,13 +15,15 @@ from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import Text, EmptyCell
 
 
-def add_one_core_diagnostic(row):
+def add_single_core_diagnostic(row):
     transformation = "sign(ramp(moving_avg({query}, 5m) - 0.8))"
 
     description_text = (
-        "**One core overflow &rarr;**\n"
-        "If you see values greater than 0, check that your partitions "
-        "is not too large for one-core processing. Check heavy_hitters."
+        "**Single core overflow &rarr;**\n"
+        "If you see values greater than 0, pipeline has a partition that cannot be processed in single thread mode:\n"
+        "* Check if the desired partition count is too small.\n"
+        "* Check heavy_hitters (heavy hitter is a key with very significant messages rate)\n\n"
+        "It may slow down whole pipeline.\n"
     )
 
     return (row
@@ -41,8 +43,9 @@ def add_slow_input_messages_lookup_diagnostic(row):
     description_text = (
         "**Slow input messages lookup &rarr;**\n"
         "If you see values greater than 0, check your input messages table:\n"
-        "* Check that table is properly resharded (`reshard_flow_tables`).\n"
-        "* Check you bundle UI for bundle problems.\n"
+        "* Check that the table is properly resharded (`reshard_flow_tables`).\n"
+        "* Check you bundle UI for bundle problems.\n\n"
+        "It may slow down whole pipeline.\n"
     )
 
     return (row
@@ -52,7 +55,6 @@ def add_slow_input_messages_lookup_diagnostic(row):
             MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.lookup_time.max"))
                 .aggr("computation_id")
                 .query_transformation(transformation)
-
                 .alias("{{computation_id}}")
                 .stack(True))
     )
@@ -73,7 +75,7 @@ def add_empty_diagnostic(row):
 def build_diagnostics():
     return (Rowset().set_cell_per_row(4)
         .row()
-            .apply_func(add_one_core_diagnostic)
+            .apply_func(add_single_core_diagnostic)
             .apply_func(add_slow_input_messages_lookup_diagnostic)
         .row()
             .apply_func(add_empty_diagnostic)
@@ -85,7 +87,8 @@ def build_flow_diagnostics():
     d = Dashboard()
     d.add(build_versions())
     d.add(build_text_row(
-        "# If you see values greater than 0, something is wrong\n"
+        "# If you see values &ge; 0, something is wrong\n"
+        "Values on graphs have no physical meaning. Consider anything &ge; 0 as lit warning.\n\n"
         "[Diagnostic documentation](https://yt.yandex-team.ru/docs/flow/release/problems)"
     ))
     d.add(build_diagnostics())

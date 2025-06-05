@@ -32,7 +32,7 @@ class ComputationCellGenerator:
                 .stack(True),
             description=dedent("""\
                 It is what jobs do at every moment.
-                ---
+
                 **Init** - loading timers and output messages after start of job (do you understand why previous jobs were finished?).
                 **Input.Empty/Input.Fetch** - just waiting for input messages.
                 **Input.InjectionDelay** - has input messages but waits for watermark to be advanced because of injection delay logic.
@@ -46,7 +46,7 @@ class ComputationCellGenerator:
                 **DeduplicateInput** - deduplicating input messages (IO-bound work).
                 **StartTransaction** - opening transaction (IO-bound work).
                 **Commit** - committing transaction (IO-bound work).
-            """).replace("\n", "\n\n"),
+            """),
             colors={
                 "Unknown": "#999999",
 
@@ -110,7 +110,8 @@ class ComputationCellGenerator:
                     "Computation memory usage",
                     MonitoringExpr(FlowWorker("yt.flow.worker.computation.memory_usage"))
                         .alias("{{computation_id}}")
-                        .unit("UNIT_BYTES_SI"))
+                        .unit("UNIT_BYTES_SI"),
+                    description="Metric is not very accurate due to sampling nature of measuring")
                 .cell(
                     "Input buffers size",
                     MonitoringExpr(FlowWorker("yt.flow.worker.buffer_state.computations.input.size"))
@@ -134,7 +135,7 @@ class ComputationCellGenerator:
             .all("stream_id")
             .row()
                 .cell(
-                    "Registered processed messages rate",
+                    "Processed messages rate",
                     MultiSensor(
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.input_streams.persisted_count.rate"))
                             .alias(f"input - {stream_alias}"),
@@ -143,18 +144,20 @@ class ComputationCellGenerator:
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.unregistered_count.rate"))
                             .alias(f"timer - {stream_alias}")
                     )
-                        .unit("UNIT_COUNTS_PER_SECOND"))
+                        .unit("UNIT_COUNTS_PER_SECOND"),
+                    description="Input/source/timer messages that are processed and can be forgotten")
                 .cell(
-                    "Registered generated messages rate",
+                    "Generated messages rate",
                     MultiSensor(
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_streams.registered_count.rate"))
                             .alias(f"output - {stream_alias}"),
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.registered_count.rate"))
                             .alias(f"timer - {stream_alias}")
                     )
-                        .unit("UNIT_COUNTS_PER_SECOND"))
+                        .unit("UNIT_COUNTS_PER_SECOND"),
+                    description="Output/timer messages that was generated in pipeline")
                 .cell(
-                    "Registered processed messages bytes rate",
+                    "Processed messages bytes rate",
                     MultiSensor(
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.input_streams.persisted_bytes.rate"))
                             .alias(f"input - {stream_alias}"),
@@ -165,7 +168,7 @@ class ComputationCellGenerator:
                     )
                         .unit("UNIT_BYTES_SI_PER_SECOND"))
                 .cell(
-                    "Registered generated messages bytes rate",
+                    "Gnerated messages bytes rate",
                     MultiSensor(
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_streams.registered_bytes.rate"))
                             .alias(f"output - {stream_alias}"),
@@ -179,6 +182,10 @@ class ComputationCellGenerator:
         stream_alias = "{{computation_id}} - {{stream_id}}" if not self._has_computation_id_tag else "{{stream_id}}"
 
         def add_cpu_cell(row, title_prefix, metric_suffix):
+            description = (
+                "Each partition is processed in a single thread mode. "
+                "Consumption of ≥ 0.5 of a processor core per partition is a bad indicator."
+            )
             return row.cell(
                 f"{title_prefix} partition cpu usage",
                 MultiSensor(
@@ -188,7 +195,8 @@ class ComputationCellGenerator:
                         .alias("One core - limit")),
                 colors={
                     "One core - limit": "#f4cccc",
-                })
+                },
+                description=description)
 
         return (Rowset()
             .stack(False)
