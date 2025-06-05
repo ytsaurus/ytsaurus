@@ -7,9 +7,9 @@ VERSION(1.1.0)
 LICENSE(MIT)
 
 PEERDIR(
-    contrib/libs/brotli/common
-    contrib/libs/brotli/dec
-    contrib/libs/brotli/enc
+    contrib/libs/brotli/c/common
+    contrib/libs/brotli/c/dec
+    contrib/libs/brotli/c/enc
 )
 
 NO_COMPILER_WARNINGS()
