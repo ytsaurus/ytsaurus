@@ -2439,16 +2439,39 @@ public:
         };
     }
 
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Chunk, TChunk);
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkView, TChunkView);
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(DynamicStore, TDynamicStore);
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkList, TChunkList);
-    DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(Medium, Media, TMedium);
+    // Chunks needs special care.
+    TChunk* FindChunk(const TChunkId& id) const override
+    {
+        YT_LOG_ALERT_IF(
+            IsErasureChunkPartId(id),
+            "Erasure chunk part type passed to FindChunk (ChunkId: %v)",
+            id);
+        return ChunkMap_.Find(id);
+    }
+
+    TChunk* GetChunk(const TChunkId& id) const override
+    {
+        YT_LOG_ALERT_IF(
+            IsErasureChunkPartId(id),
+            "Erasure chunk part type passed to GetChunk (ChunkId: %v)",
+            id);
+        return ChunkMap_.Get(id);
+    }
+
+    const TReadOnlyEntityMap<TChunk>& Chunks() const override
+    {
+        return ChunkMap_;
+    }
 
     TEntityMap<TChunk>& MutableChunks() override
     {
         return ChunkMap_;
     }
+
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkView, TChunkView);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(DynamicStore, TDynamicStore);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkList, TChunkList);
+    DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(Medium, Media, TMedium);
 
     TEntityMap<TChunkList>& MutableChunkLists() override
     {
@@ -6626,7 +6649,6 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, ChunkMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkView, TChunkView, ChunkViewMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, DynamicStore, TDynamicStore, DynamicStoreMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, ChunkListMap_);
