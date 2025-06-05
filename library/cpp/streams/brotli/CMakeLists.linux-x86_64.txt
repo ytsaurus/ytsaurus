@@ -21,8 +21,8 @@ target_link_libraries(cpp-streams-brotli PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  libs-brotli-enc
-  libs-brotli-dec
+  brotli-c-enc
+  brotli-c-dec
 )
 
 target_sources(cpp-streams-brotli PRIVATE

@@ -14,25 +14,25 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_library(libs-brotli-common)
+add_library(brotli-c-common)
 
 
-target_compile_options(libs-brotli-common PRIVATE
+target_compile_options(brotli-c-common PRIVATE
   -DBROTLI_BUILD_PORTABLE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
-target_include_directories(libs-brotli-common PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/include
+target_include_directories(brotli-c-common PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/include
 )
 
-target_link_libraries(libs-brotli-common PUBLIC
+target_link_libraries(brotli-c-common PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
 )
 
-target_sources(libs-brotli-common PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/common/dictionary.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/common/transform.c
+target_sources(brotli-c-common PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/common/dictionary.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/common/transform.c
 )
 

@@ -42,8 +42,8 @@ target_include_directories(contrib-libs-curl PRIVATE
 
 target_link_libraries(contrib-libs-curl PUBLIC
   linux-headers-generic::linux-headers-generic
-  libs-brotli-dec
-  libs-brotli-enc
+  brotli-c-dec
+  brotli-c-enc
   contrib-libs-libc_compat
   contrib-libs-libssh2
   contrib-libs-nghttp2

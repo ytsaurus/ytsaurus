@@ -14,27 +14,27 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_library(libs-brotli-dec)
+add_library(brotli-c-dec)
 
 
-target_compile_options(libs-brotli-dec PRIVATE
+target_compile_options(brotli-c-dec PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
-target_include_directories(libs-brotli-dec PUBLIC
-  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/include
+target_include_directories(brotli-c-dec PUBLIC
+  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/include
 )
 
-target_link_libraries(libs-brotli-dec PUBLIC
+target_link_libraries(brotli-c-dec PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
-  libs-brotli-common
+  brotli-c-common
 )
 
-target_sources(libs-brotli-dec PRIVATE
-  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/dec/bit_reader.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/dec/decode.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/dec/huffman.c
-  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/dec/state.c
+target_sources(brotli-c-dec PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/bit_reader.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/decode.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/huffman.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/dec/state.c
 )
 
