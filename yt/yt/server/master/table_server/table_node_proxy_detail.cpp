@@ -1393,7 +1393,7 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();
-            lockedTable->CustomRuntimeData() = {};
+            lockedTable->MutableCustomRuntimeData() = {};
 
             Bootstrap_->GetTabletManager()->SetCustomRuntimeData(lockedTable, {});
 
@@ -1814,7 +1814,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();
-            lockedTable->CustomRuntimeData() = value;
+            lockedTable->MutableCustomRuntimeData() = value;
 
             Bootstrap_->GetTabletManager()->SetCustomRuntimeData(lockedTable, value);
 

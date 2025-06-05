@@ -56,11 +56,14 @@ private:
     using TSecondaryIndexList = std::vector<TSecondaryIndexId>;
 
     struct TDynamicTableAttributes
+        : public TRefTracked<TDynamicTableAttributes>
     {
         NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
         NTransactionClient::ECommitOrdering CommitOrdering = NTransactionClient::ECommitOrdering::Weak;
         NTabletClient::TTableReplicaId UpstreamReplicaId;
         NTransactionClient::TTimestamp LastCommitTimestamp = NTransactionClient::NullTimestamp;
+        NTransactionClient::TTimestamp RetainedTimestamp = NTransactionClient::NullTimestamp;
+        NTransactionClient::TTimestamp UnflushedTimestamp = NTransactionClient::NullTimestamp;
         std::optional<NHydra::TRevision> ForcedCompactionRevision;
         std::optional<NHydra::TRevision> ForcedStoreCompactionRevision;
         std::optional<NHydra::TRevision> ForcedHunkCompactionRevision;
@@ -91,6 +94,8 @@ private:
         NTabletServer::THunkStorageNodePtr HunkStorage;
         THashSet<TSecondaryIndexRawPtr> SecondaryIndices;
         TSecondaryIndexRawPtr IndexTo;
+        TTableCollocationRawPtr ReplicationCollocation;
+        NYson::TYsonString CustomRuntimeData;
 
         TDynamicTableAttributes();
 
@@ -103,11 +108,6 @@ private:
     };
 
 public:
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp, NTransactionClient::NullTimestamp);
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp, NTransactionClient::NullTimestamp);
-    DEFINE_BYVAL_RW_PROPERTY(TTableCollocationRawPtr, ReplicationCollocation);
-    DEFINE_BYREF_RW_PROPERTY(NYson::TYsonString, CustomRuntimeData);
-
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TTableNode, NTableClient::EOptimizeFor, OptimizeFor);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TTableNode, NChunkClient::EChunkFormat, ChunkFormat);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TTableNode, NErasure::ECodec, HunkErasureCodec);
@@ -117,6 +117,8 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, CommitOrdering);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, UpstreamReplicaId);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, LastCommitTimestamp);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, RetainedTimestamp);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, UnflushedTimestamp);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletBalancerConfig);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedCompactionRevision);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedStoreCompactionRevision);
@@ -145,6 +147,8 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, TreatAsQueueProducer);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, SecondaryIndices);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, IndexTo);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ReplicationCollocation);
+    DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, CustomRuntimeData);
 
     // COMPAT(ifsmirnov)
     DECLARE_BYVAL_RW_PROPERTY(std::optional<bool>, EnableTabletBalancer);
@@ -237,7 +241,7 @@ private:
 DEFINE_MASTER_OBJECT_TYPE(TTableNode)
 
 // Think twice before increasing this.
-YT_STATIC_ASSERT_SIZEOF_SANITY(TTableNode, 704);
+YT_STATIC_ASSERT_SIZEOF_SANITY(TTableNode, 648);
 
 ////////////////////////////////////////////////////////////////////////////////
 
