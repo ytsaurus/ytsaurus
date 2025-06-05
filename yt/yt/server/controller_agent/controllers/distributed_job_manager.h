@@ -29,7 +29,7 @@ public:
 
     int GetTotalJobCount() const override final;
 
-    std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> PeekJobCandidate() const;
+    std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> PeekJobCandidate();
 
     bool OnJobAborted(const TJobletPtr& joblet, EAbortReason reason) override final;
     bool OnJobFailed(const TJobletPtr& joblet) override final;
