@@ -5,6 +5,9 @@
 #include "profiler.h"
 #include "protocol.h"
 
+// This is a dirty one-time include for 25.1.
+#include <yt/yt/server/node/exec_node/private.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -843,7 +846,8 @@ private:
         auto layerBlockCache = CreateClientBlockCache(
             blockCacheConfig,
             NChunkClient::EBlockType::CompressedData,
-            GetNullMemoryUsageTracker());
+            GetNullMemoryUsageTracker(),
+            NExecNode::ExecNodeProfiler().WithPrefix("/layer_block_cache"));
         LayerReaderHost_ = New<TChunkReaderHost>(
             client,
             /*localDescriptor*/ NNodeTrackerClient::TNodeDescriptor{},
