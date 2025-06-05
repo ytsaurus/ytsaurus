@@ -25,7 +25,6 @@ using namespace NYTree;
 
 TJobNodeDescriptor::TJobNodeDescriptor(const TExecNodeDescriptorPtr& other)
     : Id(other->Id)
-    , Address(other->Address)
     , Addresses(other->Addresses)
     , IOWeight(other->IOWeight)
 { }
@@ -35,7 +34,7 @@ void TJobNodeDescriptor::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, Id);
     PHOENIX_REGISTER_FIELD(2, Addresses);
     PHOENIX_REGISTER_FIELD(3, IOWeight);
-    PHOENIX_REGISTER_FIELD(4, Address);
+    // COMPAT(aleksandr.gaev): index 4 is reserved for deleted field `Address`
 }
 
 PHOENIX_DEFINE_TYPE(TJobNodeDescriptor);
