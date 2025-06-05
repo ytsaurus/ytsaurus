@@ -50,6 +50,7 @@ static inline void Run(void* arg) {
 #if defined(USE_JUMP_CONT)
 extern "C" void __mylongjmp(__myjmp_buf env, int val) __attribute__((__noreturn__));
 extern "C" int __mysetjmp(__myjmp_buf env) __attribute__((__returns_twice__));
+extern "C" void __stacktrampoline(void) __attribute__((__noreturn__));
 
 namespace {
     class TStackType {
@@ -114,26 +115,13 @@ namespace {
         return JmpBufReg(buf, FRAME_CNT);
     }
 
-    #if defined(_x86_64_)
-    // not sure if Y_NO_SANITIZE is needed
-    Y_NO_SANITIZE("address")
-    Y_NO_SANITIZE("memory") extern "C" void
-    ContextTrampoLine(void*, void*, void*, void*, void*, void*, // register arguments, no defined value
-                      /* first argument passed through the stack */ void* t1,
-                      /* second argument passed through the stack */ void* t2) {
-        Y_ASSERT(t1 == t2);
-        Run(t1);
+    static inline void*& JmpBufFunction(__myjmp_buf& buf) noexcept {
+        return JmpBufReg(buf, JUMP_FUNCTION);
     }
-    #else
-    Y_NO_SANITIZE("address")
-    Y_NO_SANITIZE("memory") static void
-    ContextTrampoLine() {
-        void** argPtr = (void**)((char*)AlignUp(&argPtr + EXTRA_PUSH_ARGS, STACK_ALIGN) + STACK_ALIGN);
-        Y_ASSERT(*(argPtr - 1) == *(argPtr - 2));
 
-        Run(*(argPtr - 1));
+    static inline void*& JmpBufArgument(__myjmp_buf& buf) noexcept {
+        return JmpBufReg(buf, JUMP_ARGUMENT);
     }
-    #endif
 } // namespace
 
     #if defined(USE_SANITIZER_CONTEXT)
@@ -173,30 +161,15 @@ TContMachineContext::TContMachineContext(const TContClosure& c)
     auto trampoline = c.TrampoLine;
     #endif
 
-    #if defined(_x86_64_)
     stack.ReAlign();
-    // push twice to preserve alignment by 16
-    stack.Push(trampoline); // second stack argument
-    stack.Push(trampoline); // first stack argument
-
-    stack.Push(nullptr); // fake return address
-    #else
-    stack.Push(trampoline);
-    stack.Push(trampoline);
-    stack.ReAlign();
-    /*
-     * fake return address
-     */
-    for (size_t i = 0; i < EXTRA_PUSH_ARGS; ++i) {
-        stack.Push(nullptr);
-    }
-    #endif
 
     __mysetjmp(Buf_);
 
-    JmpBufProgrReg(Buf_) = reinterpret_cast<void*>(ContextTrampoLine);
+    JmpBufProgrReg(Buf_) = reinterpret_cast<void*>(__stacktrampoline);
     JmpBufStackReg(Buf_) = stack.StackPtr();
     JmpBufFrameReg(Buf_) = nullptr;
+    JmpBufFunction(Buf_) = reinterpret_cast<void*>(Run);
+    JmpBufArgument(Buf_) = reinterpret_cast<void*>(trampoline);
 }
 
 void TContMachineContext::SwitchTo(TContMachineContext* next) noexcept {
