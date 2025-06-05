@@ -121,6 +121,9 @@ static constexpr i64 MaxRowsPerRemoteDynamicStoreRead = 1024;
 static const std::string DefaultQLExecutionPoolName = "default";
 static const std::string DefaultQLExecutionTag = "default";
 
+static const std::string DefaultPullRowsPoolName = "ChaosPullRows";
+static const std::string DefaultPullRowsTag = "ChaosPullRows";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -221,7 +224,7 @@ public:
             .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullRows)
             .SetCancelable(true)
-            .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
+            .SetInvoker(Bootstrap_->GetQueryPoolInvoker(DefaultPullRowsPoolName, DefaultPullRowsTag))
             .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
             .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
