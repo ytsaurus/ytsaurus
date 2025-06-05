@@ -8,9 +8,9 @@
 #include <yt/yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/yt/server/node/exec_node/bootstrap.h>
-#include <yt/yt/server/node/exec_node/job_controller.h>
 #include <yt/yt/server/node/exec_node/chunk_cache.h>
 #include <yt/yt/server/node/exec_node/gpu_manager.h>
+#include <yt/yt/server/node/exec_node/job_controller.h>
 #include <yt/yt/server/node/exec_node/slot.h>
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 
@@ -31,9 +31,9 @@
 
 #include <yt/yt/core/net/helpers.h>
 
-#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
-
 #include <library/cpp/yt/threading/atomic_object.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <google/protobuf/util/message_differencer.h>
 
@@ -72,14 +72,6 @@ bool AreNonDiskResourcesEqual(TJobResources lhs, TJobResources rhs)
 class TResourceHolder::TAcquiredResources
 {
 public:
-    TAcquiredResources(
-        TJobResourceManager::TImpl* jobResourceManagerImpl,
-        TMemoryUsageTrackerGuard&& userMemoryGuard,
-        TMemoryUsageTrackerGuard&& systemMemoryGuard,
-        ISlotPtr&& userSlot,
-        std::vector<ISlotPtr>&& gpuSlots,
-        std::vector<int> ports) noexcept;
-
     TAcquiredResources(TAcquiredResources&&) noexcept = default;
     TAcquiredResources& operator=(TAcquiredResources&&) noexcept = default;
 
@@ -91,6 +83,7 @@ public:
     ISlotPtr UserSlot;
     std::vector<ISlotPtr> GpuSlots;
     std::vector<int> Ports;
+    std::optional<int> JobProxyRpcServerPort;
 
 private:
     TJobResourceManager::TImpl* const JobResourceManagerImpl_;
@@ -824,27 +817,37 @@ public:
 
         YT_VERIFY(resourceAcquisitionFailedGuard);
 
-        if (allocationAttributes.PortCount > 0) {
-            YT_LOG_INFO("Allocating ports (PortCount: %v)", allocationAttributes.PortCount);
+        int requiredPortCount = allocationAttributes.PortCount + (allocationAttributes.AllocateJobProxyRpcServerPort ? 1 : 0);
+        if (requiredPortCount > 0) {
+            YT_LOG_INFO(
+                "Allocating ports (PortCount: %v, AllocateJobProxyRpcServerPort: %v)",
+                allocationAttributes.PortCount,
+                allocationAttributes.AllocateJobProxyRpcServerPort);
 
+            std::vector<int> allocatedPorts;
             try {
                 THashSet<int> freePorts;
                 {
                     auto guard = ReaderGuard(ResourcesLock_);
                     freePorts = FreePorts_;
                 }
-                acquiredResources.Ports = AllocateFreePorts(allocationAttributes.PortCount, freePorts, Logger);
+                allocatedPorts = AllocateFreePorts(requiredPortCount, freePorts, Logger);
             } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Error while allocating free ports (PortCount: %v)", allocationAttributes.PortCount);
+                YT_LOG_ERROR(
+                    ex,
+                    "Error while allocating free ports (PortCount: %v, AllocateJobProxyRpcServerPort: %v)",
+                    allocationAttributes.PortCount,
+                    allocationAttributes.AllocateJobProxyRpcServerPort);
                 return false;
             }
 
-            if (std::ssize(acquiredResources.Ports) < allocationAttributes.PortCount) {
-                acquiredResources.Ports.clear();
+            if (std::ssize(allocatedPorts) < requiredPortCount) {
+                YT_VERIFY(acquiredResources.Ports.empty());
 
                 YT_LOG_DEBUG(
-                    "Not enough bindable free ports (PortCount: %v, FreePortCount: %v)",
+                    "Not enough bindable free ports (PortCount: %v, AllocateJobProxyRpcServerPort: %v, FreePortCount: %v)",
                     allocationAttributes.PortCount,
+                    allocationAttributes.AllocateJobProxyRpcServerPort,
                     acquiredResources.Ports.size());
                 return false;
             }
@@ -852,12 +855,22 @@ public:
             {
                 auto guard = WriterGuard(ResourcesLock_);
 
-                for (int port : acquiredResources.Ports) {
+                for (int port : allocatedPorts) {
                     FreePorts_.erase(port);
                 }
             }
 
-            YT_LOG_DEBUG("Ports allocated (PortCount: %v, Ports: %v)", acquiredResources.Ports.size(), acquiredResources.Ports);
+            if (allocationAttributes.AllocateJobProxyRpcServerPort) {
+                acquiredResources.JobProxyRpcServerPort = allocatedPorts.back();
+                allocatedPorts.pop_back();
+            }
+            acquiredResources.Ports = std::move(allocatedPorts);
+
+            YT_LOG_DEBUG(
+                "Ports allocated (PortCount: %v, JobProxyRpcServerPort: %v, Ports: %v)",
+                acquiredResources.Ports.size(),
+                acquiredResources.JobProxyRpcServerPort,
+                acquiredResources.Ports);
         }
 
         if (Bootstrap_->IsExecNode()) {
@@ -911,12 +924,13 @@ public:
         const TJobResources& baseResources,
         const TJobResources& additionalResources,
         const std::vector<int>& ports,
+        std::optional<int> jobProxyRpcServerPort,
         EResourcesState currentState,
         bool resourceHolderStarted)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        YT_VERIFY(resourceHolderStarted || ports.empty());
+        YT_VERIFY(resourceHolderStarted || (ports.empty() && !jobProxyRpcServerPort.has_value()));
 
         TJobResources pendingResources;
         TJobResources acquiredResources;
@@ -944,7 +958,7 @@ public:
                     break;
             }
 
-            DoReleasePorts(Logger, ports);
+            DoReleasePorts(Logger, ports, jobProxyRpcServerPort);
 
             pendingResources = ResourceUsages_[EResourcesState::Pending];
             acquiredResources = ResourceUsages_[EResourcesState::Acquired];
@@ -1056,11 +1070,11 @@ public:
         return resourceUsageOverdraftOccurred;
     }
 
-    void ReleasePorts(const TLogger& Logger, const std::vector<int>& ports)
+    void ReleasePorts(const TLogger& Logger, const std::vector<int>& ports, std::optional<int> jobProxyRpcServerPort)
     {
         auto guard = WriterGuard(ResourcesLock_);
 
-        DoReleasePorts(Logger, ports);
+        DoReleasePorts(Logger, ports, jobProxyRpcServerPort);
     }
 
     TResourceAcquiringContext GetResourceAcquiringContext() final
@@ -1284,16 +1298,20 @@ private:
         .EndMap();
     }
 
-    void DoReleasePorts(const TLogger& Logger, const std::vector<int>& ports)
+    void DoReleasePorts(const TLogger& Logger, const std::vector<int>& ports, std::optional<int> jobProxyRpcServerPort)
     {
         YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
 
-        YT_LOG_INFO_UNLESS(
-            ports.empty(),
-            "Releasing ports (Ports: %v)",
-            ports);
-        for (auto port : ports) {
+        YT_LOG_INFO_IF(
+            !ports.empty() || jobProxyRpcServerPort.has_value(),
+            "Releasing ports (Ports: %v, JobProxyRpcServerPort: %v)",
+            ports,
+            jobProxyRpcServerPort);
+        for (int port : ports) {
             InsertOrCrash(FreePorts_, port);
+        }
+        if (jobProxyRpcServerPort.has_value()) {
+            InsertOrCrash(FreePorts_, *jobProxyRpcServerPort);
         }
     }
 
@@ -1659,6 +1677,8 @@ void TResourceHolder::SetAcquiredResources(TAcquiredResources&& acquiredResource
     YT_VERIFY(State_ == EResourcesState::Pending);
 
     Ports_ = std::move(acquiredResources.Ports);
+    JobProxyRpcServerPort_ = acquiredResources.JobProxyRpcServerPort;
+    acquiredResources.JobProxyRpcServerPort.reset();
 
     YT_VERIFY(AllocationAttributes_.PortCount == std::ssize(Ports_));
 
@@ -1747,6 +1767,7 @@ void TResourceHolder::ReleaseBaseResources()
         BaseResourceUsage_,
         AdditionalResourceUsage_,
         Ports_,
+        JobProxyRpcServerPort_,
         State_,
         HasStarted_);
 
@@ -1760,6 +1781,13 @@ const std::vector<int>& TResourceHolder::GetPorts() const noexcept
     auto guard = ReaderGuard(ResourcesLock_);
 
     return Ports_;
+}
+
+std::optional<int> TResourceHolder::GetJobProxyRpcServerPort() const noexcept
+{
+    auto guard = ReaderGuard(ResourcesLock_);
+
+    return JobProxyRpcServerPort_;
 }
 
 const ISlotPtr& TResourceHolder::GetUserSlot() const noexcept
@@ -2014,29 +2042,14 @@ bool TResourceHolder::DoSetResourceUsage(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceHolder::TAcquiredResources::TAcquiredResources(
-    TJobResourceManager::TImpl* jobResourceManagerImpl,
-    TMemoryUsageTrackerGuard&& userMemoryGuard,
-    TMemoryUsageTrackerGuard&& systemMemoryGuard,
-    ISlotPtr&& userSlot,
-    std::vector<ISlotPtr>&& gpuSlots,
-    std::vector<int> ports) noexcept
-    : UserMemoryGuard(std::move(userMemoryGuard))
-    , SystemMemoryGuard(std::move(systemMemoryGuard))
-    , UserSlot(std::move(userSlot))
-    , GpuSlots(std::move(gpuSlots))
-    , Ports(std::move(ports))
-    , JobResourceManagerImpl_(jobResourceManagerImpl)
-{ }
-
 TResourceHolder::TAcquiredResources::TAcquiredResources(TJobResourceManager::TImpl* jobResourceManagerImpl) noexcept
     : JobResourceManagerImpl_(jobResourceManagerImpl)
 { }
 
 TResourceHolder::TAcquiredResources::~TAcquiredResources()
 {
-    if (!std::empty(Ports)) {
-        JobResourceManagerImpl_->ReleasePorts(NJobAgent::Logger(), Ports);
+    if (!std::empty(Ports) || JobProxyRpcServerPort.has_value()) {
+        JobResourceManagerImpl_->ReleasePorts(NJobAgent::Logger(), Ports, JobProxyRpcServerPort);
     }
 }
 

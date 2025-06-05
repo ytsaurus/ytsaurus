@@ -26,6 +26,10 @@ TEST_SRCS(
     test_vanilla_operation.py
 )
 
+PEERDIR(
+    yt/yt/python/yt_driver_rpc_bindings
+)
+
 IF (NOT OPENSOURCE)
     PEERDIR(
         yt/yt/tests/integration/helpers

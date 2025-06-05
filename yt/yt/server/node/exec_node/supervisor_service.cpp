@@ -127,15 +127,19 @@ private:
             }
         };
 
-        auto [job, jobPhase, resourceUsage, ports] = WaitFor(BIND([bootstrap = Bootstrap_, jobId] {
+        auto [job, jobPhase, resourceUsage, ports, jobProxyRpcServerPort] = WaitFor(BIND([bootstrap = Bootstrap_, jobId] {
                 auto job = bootstrap->GetJobController()->GetJobOrThrow(jobId);
 
                 auto jobPhase = job->GetPhase();
 
                 auto resourceUsage = job->GetResourceUsage();
-                auto ports = job->GetPorts();
 
-                return std::make_tuple(job, jobPhase, resourceUsage, ports);
+                return std::make_tuple(
+                    job,
+                    jobPhase,
+                    resourceUsage,
+                    job->GetPorts(),
+                    job->GetJobProxyRpcServerPort());
             })
             .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run())
@@ -161,6 +165,9 @@ private:
         resourceUsageProto->set_network(resourceUsage.Network);
 
         ToProto(response->mutable_ports(), ports);
+        if (jobProxyRpcServerPort.has_value()) {
+            response->set_job_proxy_rpc_server_port(*jobProxyRpcServerPort);
+        }
 
         context->Reply();
     }

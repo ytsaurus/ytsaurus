@@ -135,6 +135,8 @@ public:
 
     const std::vector<int>& GetPorts() const;
 
+    std::optional<int> GetJobProxyRpcServerPort() const;
+
     EJobState GetState() const;
 
     TInstant GetCreationTime() const;

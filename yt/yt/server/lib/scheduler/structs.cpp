@@ -43,6 +43,7 @@ void ToProto(
     protoAttributes->set_allow_idle_cpu_policy(attributes.AllowIdleCpuPolicy);
     protoAttributes->set_port_count(attributes.PortCount);
     protoAttributes->set_enable_multiple_jobs(attributes.EnableMultipleJobs);
+    protoAttributes->set_allocate_job_proxy_rpc_server_port(attributes.AllocateJobProxyRpcServerPort);
 }
 
 void FromProto(
@@ -74,6 +75,9 @@ void FromProto(
     attributes->PortCount = protoAttributes.port_count();
     if (protoAttributes.has_enable_multiple_jobs()) {
         attributes->EnableMultipleJobs = protoAttributes.enable_multiple_jobs();
+    }
+    if (protoAttributes.has_allocate_job_proxy_rpc_server_port()) {
+        attributes->AllocateJobProxyRpcServerPort = protoAttributes.allocate_job_proxy_rpc_server_port();
     }
 }
 

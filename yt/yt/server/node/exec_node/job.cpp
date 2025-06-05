@@ -1231,6 +1231,13 @@ const std::vector<int>& TJob::GetPorts() const
     return ResourceHolder_->GetPorts();
 }
 
+std::optional<int> TJob::GetJobProxyRpcServerPort() const
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    return ResourceHolder_->GetJobProxyRpcServerPort();
+}
+
 const TError& TJob::GetJobError() const
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -1461,10 +1468,12 @@ TBriefJobInfo TJob::GetBriefInfo() const
     NClusterNode::TJobResources baseResourceUsage{};
     NClusterNode::TJobResources additionalResourceUsage{};
     std::vector<int> jobPorts;
+    std::optional<int> jobProxyRpcServerPort;
 
     if (ResourceHolder_) {
         std::tie(baseResourceUsage, additionalResourceUsage) = ResourceHolder_->GetDetailedResourceUsage();
         jobPorts = GetPorts();
+        jobProxyRpcServerPort = GetJobProxyRpcServerPort();
     }
 
     auto tryGetMonitoringDescriptor = [&] () -> std::optional<std::string> {
@@ -1497,6 +1506,7 @@ TBriefJobInfo TJob::GetBriefInfo() const
         additionalResourceUsage,
         InitialResourceDemand_,
         std::move(jobPorts),
+        jobProxyRpcServerPort,
         JobEvents_,
         CoreInfos_,
         ExecAttributes_,
