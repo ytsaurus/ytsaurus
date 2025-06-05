@@ -48,7 +48,8 @@ jobs:
   tag:
     name: Parse tag
     needs:
-      - prepare
+      - start-vm
+      - checkout
     outputs:
       image-tag: stable-${{ steps.tag.outputs.IMAGE_TAG }}
     runs-on: ${{ needs.start-vm.outputs.label }}
