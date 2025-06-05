@@ -160,12 +160,8 @@ public:
     TTableNode* GetTrunkNode();
     const TTableNode* GetTrunkNode() const;
 
-    // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
-    void ParseCommonUploadContext(const TCommonUploadContext& context) override;
-
     void BeginUpload(const TBeginUploadContext& context) override;
 
-    // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
     void EndUpload(const TEndUploadContext& context) override;
 
     NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const override;
