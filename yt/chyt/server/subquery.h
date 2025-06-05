@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "index_stats.h"
 #include "query_analyzer.h"
 
 #include <yt/yt/server/lib/chunk_pools/chunk_pool.h>
@@ -28,6 +29,7 @@ struct TQueryInput
     THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr> MiscExtMap;
     NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory;
     NChunkPools::TInputStreamDirectory InputStreamDirectory;
+    std::vector<std::shared_ptr<IChytIndexStat>> IndexStats;
 };
 
 //! Fetch data slices for given input tables.

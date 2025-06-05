@@ -67,6 +67,7 @@ SRCS(
     host.cpp
     http_handler.cpp
     index.cpp
+    index_stats.cpp
     invoker_liveness_checker.cpp
     job_size_constraints.cpp
     launcher_compatibility.cpp
@@ -82,6 +83,7 @@ SRCS(
     query_progress.cpp
     query_registry.cpp
     query_service.cpp
+    read_from_yt_step.cpp
     read_plan.cpp
     remote_source.cpp
     revision_tracker.cpp
