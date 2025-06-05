@@ -235,8 +235,8 @@ TEST_F(TMultiproxyTest, TestTokens)
     auto token = CreateUser(ReadAccessClient_, "test-tokens-user");
 
     {
-        // create `//home/test-tokens that is readable for test-tokens-user
-        // and '//home/test-tokens/hidden' is acl closed for test-tokens-user
+        // Create `//home/test-tokens that is readable for test-tokens-user
+        // and '//home/test-tokens/hidden' that is acl closed for test-tokens-user.
         auto directTargetClient = CreateDirectClient("YT_PROXY_TARGET");
         TCreateNodeOptions createOptions;
         createOptions.Recursive = true;
