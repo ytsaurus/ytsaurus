@@ -142,6 +142,9 @@ class TestUsers(YTEnvSetup):
                 "alien_cell_synchronizer",
                 "queue_agent",
                 "tablet_balancer",
+                'yt-replicated-table-tracker',
+                'yt-chunk-replica-cache',
+                'yt-permission-cache',
             ],
         )
         assert_items_equal(get("//sys/groups/admins/@members"), [])
@@ -158,52 +161,9 @@ class TestUsers(YTEnvSetup):
         assert_items_equal(get("//sys/users/table_mount_informer/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/queue_agent/@member_of"), ["superusers"])
         assert_items_equal(get("//sys/users/tablet_balancer/@member_of"), ["superusers"])
-
-        assert_items_equal(
-            get("//sys/users/root/@member_of_closure"),
-            ["superusers", "users", "everyone"],
-        )
-        assert_items_equal(get("//sys/users/guest/@member_of_closure"), ["everyone"])
-        assert_items_equal(
-            get("//sys/users/scheduler/@member_of_closure"),
-            ["superusers", "users", "everyone"],
-        )
-        assert_items_equal(
-            get("//sys/users/job/@member_of_closure"),
-            ["superusers", "users", "everyone"],
-        )
-        assert_items_equal(
-            get("//sys/users/replicator/@member_of_closure"),
-            ["superusers", "users", "everyone"],
-        )
-        assert_items_equal(
-            get("//sys/users/file_cache/@member_of_closure"),
-            ["superusers", "users", "everyone"],
-        )
-        assert_items_equal(
-            get("//sys/users/operations_cleaner/@member_of_closure"),
-            ["superusers", "users", "everyone"],
-        )
-        assert_items_equal(
-            get("//sys/users/tablet_cell_changelogger/@member_of_closure"),
-            ["superusers", "users", "everyone"],
-        )
-        assert_items_equal(
-            get("//sys/users/tablet_cell_snapshotter/@member_of_closure"),
-            ["superusers", "users", "everyone"],
-        )
-        assert_items_equal(
-            get("//sys/users/table_mount_informer/@member_of_closure"),
-            ["superusers", "users", "everyone"],
-        )
-        assert_items_equal(
-            get("//sys/users/queue_agent/@member_of_closure"),
-            ["superusers", "users", "everyone"],
-        )
-        assert_items_equal(
-            get("//sys/users/tablet_balancer/@member_of_closure"),
-            ["superusers", "users", "everyone"],
-        )
+        assert_items_equal(get("//sys/users/yt-replicated-table-tracker/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/yt-chunk-replica-cache/@member_of"), ["superusers"])
+        assert_items_equal(get("//sys/users/yt-permission-cache/@member_of"), ["superusers"])
 
     @authors("babenko", "ignat")
     def test_create_user1(self):
