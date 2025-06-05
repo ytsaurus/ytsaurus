@@ -1,1 +1,1 @@
-{% include [Secondary indices](../../_includes/user-guide/dynamic-tables/secondary-indices.md) %}
+{% include [Вторичные индексы](../../_includes/user-guide/dynamic-tables/secondary-indices.md) %}
