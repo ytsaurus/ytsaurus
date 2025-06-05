@@ -962,6 +962,12 @@ class YtClient(ClientState):
         """
         return client_api.get_current_transaction_id(client=self)
 
+    def get_current_user(self):
+        """
+        Get current user info
+        """
+        return client_api.get_current_user(client=self)
+
     def get_file_from_cache(
             self,
             md5,

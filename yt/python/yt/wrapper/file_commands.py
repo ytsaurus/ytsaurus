@@ -1,4 +1,5 @@
 import yt.logger as logger
+from .auth_commands import get_current_user
 from .config import get_config, get_option
 from .common import require, parse_bool, set_param, get_value, get_disk_size, MB, chunk_iter_stream, update
 from .compression import try_enable_parallel_write_gzip
@@ -11,11 +12,12 @@ from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .parallel_reader import make_read_parallel_request
 from .parallel_writer import make_parallel_write_request
 from .retries import Retrier, default_chaos_monkey
+from .transaction import Transaction
 from .ypath import FilePath, ypath_join, ypath_dirname, ypath_split
 from .local_mode import is_local_mode
 from .stream import RawStream
 
-from yt.common import to_native_str
+from yt.common import to_native_str, YT_NULL_TRANSACTION_ID
 from yt.yson.parser import YsonParser
 from yt.yson import to_yson_type
 
@@ -288,11 +290,21 @@ def write_file(destination, stream,
             client=client)
 
 
+def _append_default_path_with_user_level(path, client=None):
+    if path in ("//tmp/yt_wrapper/file_storage", "//tmp/yt_wrapper/table_storage"):
+        current_user = get_current_user(client=client)
+        if current_user:
+            path = ypath_join(path, current_user["user"])
+            with Transaction(transaction_id=YT_NULL_TRANSACTION_ID, client=client):
+                create("map_node", path, ignore_existing=True, recursive=True, client=client)
+    return path
+
+
 def _get_remote_temp_files_directory(client=None):
     path = get_config(client)["remote_temp_files_directory"]
-    if path is not None:
-        return path
-    return "//tmp/yt_wrapper/file_storage"
+    if path is None:
+        path = "//tmp/yt_wrapper/file_storage"
+    return path
 
 
 def _get_cache_path(client):
