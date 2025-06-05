@@ -1407,6 +1407,11 @@
         "8559585510": "{registry_endpoint}/8559585510",
         "2980468199": "{registry_endpoint}/2980468199",
         "5562224408": "{registry_endpoint}/5562224408",
+        "8734866686": "{registry_endpoint}/8734866686",
+        "8735571670": "{registry_endpoint}/8735571670",
+        "8735700393": "{registry_endpoint}/8735700393",
+        "8735421610": "{registry_endpoint}/8735421610",
+        "8735472831": "{registry_endpoint}/8735472831",
         "7663495611": "{registry_endpoint}/7663495611"
     },
     "resources_descriptions": {
@@ -1428,6 +1433,11 @@
         "4598408410": "Clang 16.0.0 for linux-aarch64",
         "4597592901": "Clang 16.0.0 for linux-x86_64",
         "4597657641": "Clang 16.0.0 for windows-x86_64",
+        "8734866686": "ynd-clang-18-d-darwin-arm64-d2cdf1a5dd01799b0ce7a64e64d7808dc49fcaad",
+        "8735571670": "ynd-clang-18-d-darwin-x86_64-d2cdf1a5dd01799b0ce7a64e64d7808dc49fcaad",
+        "8735700393": "ynd-clang-18-d-linux-aarch64-d2cdf1a5dd01799b0ce7a64e64d7808dc49fcaad",
+        "8735421610": "ynd-clang-18-d-linux-x86_64-d2cdf1a5dd01799b0ce7a64e64d7808dc49fcaad",
+        "8735472831": "ynd-clang-18-d-mingw-w64-x86_64-d2cdf1a5dd01799b0ce7a64e64d7808dc49fcaad",
         "2319130389": "GDB 8.3 toolkit for darwin-arm64",
         "4561497708": "JAVA_JDK_ENVIRONMENT-darwin-17.0.7+7-jdk-darwin-x86_64.yandex.tgz",
         "3676726364": "JAVA_JDK_ENVIRONMENT-darwin-19.0.1.1-jdk-darwin-x86_64.yandex.tgz",
