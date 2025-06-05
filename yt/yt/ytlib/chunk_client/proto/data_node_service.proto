@@ -40,7 +40,7 @@ message TPeerDescriptor
 
     reserved 2;
 
-    optional TP2PBarrier delivery_barier = 4;
+    optional TP2PBarrier delivery_barrier = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

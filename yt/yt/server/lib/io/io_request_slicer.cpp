@@ -67,7 +67,7 @@ std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
         return {
             TSlicedReadRequest{
                 .Request = std::move(request),
-                .OutputBuffer = std::move(buffer)
+                .OutputBuffer = std::move(buffer),
             }
         };
     }

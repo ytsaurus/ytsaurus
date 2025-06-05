@@ -51,7 +51,7 @@ func emitZero(w *writer, op fieldOp) {
 	if op.optional {
 		w.writeByte(0x0)
 	} else {
-		switch op.wt {
+		switch op.schema.Type {
 		case TypeInt8:
 			w.writeInt8(0)
 		case TypeInt16:
@@ -92,7 +92,7 @@ func (e *Encoder) encodeStruct(ops []fieldOp, value reflect.Value) error {
 					e.w.writeByte(1)
 				}
 
-				switch op.wt {
+				switch op.schema.Type {
 				case TypeInt8:
 					e.w.writeInt8(int8(f.Int()))
 				case TypeInt16:
@@ -261,11 +261,8 @@ func (e *Encoder) WriteRow(cols []any) error {
 		return err
 	}
 	for i, v := range cols {
-		wt, isOpt, err := unpackSimpleVariant(&e.schema.Children[i])
-		if err != nil {
-			return err
-		}
-		switch wt {
+		schema, isOpt := unpackOptional(&e.schema.Children[i])
+		switch wt := schema.Type; wt {
 		case TypeInt8:
 			switch vv := v.(type) {
 			case int8:
@@ -462,11 +459,11 @@ func (e *Encoder) encodeMap(ops []fieldOp, value reflect.Value) error {
 				e.w.writeByte(1)
 			}
 
-			if err := checkTypes(f.Type(), op.wt); err != nil {
+			if err := checkTypes(f.Type(), op.schema.Type); err != nil {
 				return xerrors.Errorf("skiff: can't encode field %q: %w", key, err)
 			}
 
-			switch op.wt {
+			switch op.schema.Type {
 			case TypeInt8:
 				e.w.writeInt8(int8(f.Int()))
 			case TypeInt16:
@@ -521,7 +518,7 @@ func (e *Encoder) getTranscoder(typ reflect.Type) (ops []fieldOp, err error) {
 		return
 	}
 
-	ops, err = newTranscoder(e.schema, typ)
+	ops, err = newTranscoder(e.schema, nil, typ)
 	if err != nil {
 		return
 	}

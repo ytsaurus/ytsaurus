@@ -2,6 +2,7 @@
 
 #include "bootstrap.h"
 #include "config.h"
+#include "error_manager.h"
 #include "public.h"
 #include "slot_manager.h"
 #include "store_detail.h"
@@ -611,6 +612,8 @@ private:
             YT_LOG_ERROR(error, "Error flushing tablet store, backing off");
 
             storeManager->BackoffStoreFlush(store);
+
+            Bootstrap_->GetErrorManager()->HandleError(error, "Flush", tabletSnapshot);
 
             task->OnFailed(std::move(error));
         }

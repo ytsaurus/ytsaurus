@@ -35,13 +35,6 @@ class TOverloadController
     : public TRefCounted
 {
 public:
-    struct TTrackerSensors
-    {
-        NProfiling::TCounter Overloaded;
-        NProfiling::TEventTimer MeanWaitTime;
-        NProfiling::TTimeGauge MeanWaitTimeThreshold;
-    };
-
     using TMethodIndex = std::pair<TString, TString>;
     using TMethodsCongestionControllers = THashMap<TMethodIndex, TCongestionControllerPtr>;
 
@@ -51,8 +44,7 @@ public:
 
         TOverloadControllerConfigPtr Config;
         TMethodsCongestionControllers CongestionControllers;
-        THashMap<TString, IMeanWaitTimeTrackerPtr> Trackers;
-        THashMap<TString, TTrackerSensors> TrackerSensors;
+        THashMap<TString, TOverloadTrackerPtr> Trackers;
     };
 
     DEFINE_SIGNAL(void(), LoadAdjusted);
@@ -94,7 +86,7 @@ private:
     THazardPtr<TState> GetStateSnapshot() const;
     void UpdateStateSnapshot(const TState& state, TSpinLockGuard guard);
 
-    template <typename TTracker>
+    template <class TTracker>
     TIntrusivePtr<TTracker> CreateGenericTracker(TStringBuf trackerType, std::optional<TStringBuf> id = {});
 };
 

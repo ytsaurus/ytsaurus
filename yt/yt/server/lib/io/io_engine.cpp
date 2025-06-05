@@ -547,7 +547,7 @@ struct TThreadPoolIOEngineConfig
             .GreaterThanOrEqual(512)
             .Default(64_KB);
         registrar.Parameter("enable_slicing", &TThis::EnableSlicing)
-            .Default(true);
+            .Default(false);
 
         registrar.Parameter("default_pool_weight", &TThis::DefaultPoolWeight)
             .GreaterThan(0)
@@ -878,11 +878,11 @@ private:
     TRequestSlicer GetRequestSlicer() const
     {
         auto config = Config_.Acquire();
-        return TRequestSlicer{
+        return TRequestSlicer(
             config->DesiredRequestSize,
             config->MinRequestSize,
-            config->EnableSlicing,
-        };
+            config->EnableSlicing
+        );
     }
 
     void DoReconfigure(const NYTree::INodePtr& node) override
@@ -1290,11 +1290,11 @@ private:
     TIORequestSlicer GetRequestSlicer() const
     {
         auto config = Config_.Acquire();
-        return TIORequestSlicer{
+        return TIORequestSlicer(
             config->DesiredRequestSize,
             config->MinRequestSize,
-            config->EnableSlicing,
-        };
+            config->EnableSlicing
+        );
     }
 
     template <class TResponse>
@@ -1411,21 +1411,12 @@ IIOEnginePtr CreateIOEngine(
     using TFairShareThreadPoolIOEngine = TThreadPoolIOEngine<TFairShareThreadPool, TIORequestSlicer>;
 
     switch (engineType) {
-        // TODO(vvshlyaga): remove copy-paste after patching ytdyncfgen/ytcfgen.
-        case EIOEngineType::ThreadPool: {
-            auto config = New<TClassicThreadPoolIOEngine::TConfig>();
-            config->SetDefaults();
-            config->EnableSlicing = false;
-            if (ioConfig) {
-                config->Load(ioConfig);
-            }
-
-            return New<TClassicThreadPoolIOEngine>(
-                std::move(config),
+        case EIOEngineType::ThreadPool:
+            return CreateIOEngine<TClassicThreadPoolIOEngine>(
+                std::move(ioConfig),
                 std::move(locationId),
                 std::move(profiler),
                 std::move(logger));
-        }
 #ifdef _linux_
         case EIOEngineType::Uring:
         case EIOEngineType::FairShareUring:

@@ -213,7 +213,7 @@ private:
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
 
-        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+        SetErrorManagerContext(tabletSnapshot);
 
         Bootstrap_
             ->GetTabletSnapshotStore()
@@ -417,7 +417,7 @@ private:
 
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
 
-        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+        SetErrorManagerContext(tabletSnapshot);
 
         Bootstrap_
             ->GetTabletSnapshotStore()

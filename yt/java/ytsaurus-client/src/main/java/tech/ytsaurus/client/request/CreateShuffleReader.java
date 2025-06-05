@@ -6,7 +6,7 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.rpcproxy.TReqReadShuffleData;
-import tech.ytsaurus.rpcproxy.TReqReadShuffleData.IndexRange;
+import tech.ytsaurus.rpcproxy.TReqReadShuffleData.TIndexRange;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -37,7 +37,7 @@ public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder
         builder.setSignedShuffleHandle(handle.getPayload());
         builder.setPartitionIndex(partitionIndex);
         if (range != null) {
-            IndexRange indexRange = IndexRange.newBuilder().setBegin(range.begin).setEnd(range.end).build();
+            TIndexRange indexRange = TIndexRange.newBuilder().setBegin(range.begin).setEnd(range.end).build();
             builder.setWriterIndexRange(indexRange);
         }
 

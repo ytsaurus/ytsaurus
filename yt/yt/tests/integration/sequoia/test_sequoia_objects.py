@@ -51,8 +51,8 @@ class TestSequoiaReplicas(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     USE_SEQUOIA = True
     NUM_SECONDARY_MASTER_CELLS = 0
-
     NUM_NODES = 9
+    NUM_TEST_PARTITIONS = 2
 
     TABLE_MEDIUM_1 = "table_medium_1"
     TABLE_MEDIUM_2 = "table_medium_2"

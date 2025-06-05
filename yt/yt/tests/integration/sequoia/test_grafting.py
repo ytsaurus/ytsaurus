@@ -47,7 +47,7 @@ class TestGrafting(YTEnvSetup):
         assert get("//tmp/r&/@parent_id") == get("//tmp/@id")
         assert get("//tmp/r/@parent_id") == get("//tmp/@id")
 
-        assert select_paths_from_ground() == ["//tmp/r/"]
+        assert select_paths_from_ground() == ["//tmp/r"]
 
         assert get(f"#{rootstock_id}&/@type") == "rootstock"
         assert get(f"#{rootstock_id}&/@scion_id") == scion_id
@@ -192,11 +192,6 @@ class TestSequoiaSymlinks(YTEnvSetup):
             "enable_ground_update_queues": True
         },
     }
-
-    # COMPAT(kvk1920): drop when per-subrequest Sequoia error retries will be
-    # supported in native client.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
 
     def setup_method(self, method):
         super().setup_method(method)

@@ -30,7 +30,8 @@ ITablePullerPtr CreateTablePuller(
     ITabletSnapshotStorePtr tabletSnapshotStore,
     IInvokerPtr workerInvoker,
     NConcurrency::IThroughputThrottlerPtr nodeInThrottler,
-    IMemoryUsageTrackerPtr memoryTracker);
+    IMemoryUsageTrackerPtr memoryTracker,
+    IErrorManagerPtr errorManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -121,6 +121,9 @@ static constexpr i64 MaxRowsPerRemoteDynamicStoreRead = 1024;
 static const std::string DefaultQLExecutionPoolName = "default";
 static const std::string DefaultQLExecutionTag = "default";
 
+static const std::string DefaultPullRowsPoolName = "ChaosPullRows";
+static const std::string DefaultPullRowsTag = "ChaosPullRows";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
@@ -221,7 +224,7 @@ public:
             .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullRows)
             .SetCancelable(true)
-            .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
+            .SetInvoker(Bootstrap_->GetQueryPoolInvoker(DefaultPullRowsPoolName, DefaultPullRowsTag))
             .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
             .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
@@ -660,7 +663,7 @@ private:
             [&] {
                 auto tabletSnapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
 
-                SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+                SetErrorManagerContext(tabletSnapshot);
 
                 if (tabletSnapshot->UpstreamReplicaId != upstreamReplicaId) {
                     THROW_ERROR_EXCEPTION(
@@ -807,7 +810,7 @@ private:
 
             auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
-            SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+            SetErrorManagerContext(tabletSnapshot);
 
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
@@ -874,7 +877,7 @@ private:
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
-        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+        SetErrorManagerContext(tabletSnapshot);
 
         if (tabletSnapshot->IsPreallocatedDynamicStoreId(storeId)) {
             YT_LOG_DEBUG("Dynamic store is not created yet, sending nothing (TabletId: %v, StoreId: %v, "
@@ -1260,7 +1263,7 @@ private:
                     continue;
                 }
 
-                SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+                SetErrorManagerContext(tabletSnapshot);
 
                 if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
                     THROW_ERROR_EXCEPTION("Fetching tablet stores for ordered tablets is not implemented");
@@ -1420,7 +1423,7 @@ private:
             ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, FromProto<NHydra::TRevision>(request->mount_revision()))
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
-        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+        SetErrorManagerContext(tabletSnapshot);
 
         snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
         snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
@@ -1676,7 +1679,7 @@ private:
             ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, *mountRevision)
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
-        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+        SetErrorManagerContext(tabletSnapshot);
 
         snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
         snapshotStore->ValidateBundleNotBanned(tabletSnapshot);

@@ -80,8 +80,8 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
 }
 
 void TClient::DoAddMember(
-    const TString& group,
-    const TString& member,
+    const std::string& group,
+    const std::string& member,
     const TAddMemberOptions& options)
 {
     auto proxy = CreateObjectServiceWriteProxy();
@@ -101,8 +101,8 @@ void TClient::DoAddMember(
 }
 
 void TClient::DoRemoveMember(
-    const TString& group,
-    const TString& member,
+    const std::string& group,
+    const std::string& member,
     const TRemoveMemberOptions& options)
 {
     auto proxy = CreateObjectServiceWriteProxy();

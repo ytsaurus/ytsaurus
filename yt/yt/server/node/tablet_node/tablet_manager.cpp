@@ -3366,10 +3366,10 @@ private:
         TReqAdvanceReplicationEra* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        ui64 newReplicationEra = request->new_replication_era();
+        auto newReplicationEra = FromProto<TReplicationEra>(request->new_replication_era());
 
         auto* tablet = GetTabletOrThrow(tabletId);
-        if (ui64 era = tablet->RuntimeData()->ReplicationEra.load();
+        if (auto era = tablet->RuntimeData()->ReplicationEra.load();
             era == InvalidReplicationEra || era < newReplicationEra)
         {
             tablet->RuntimeData()->ReplicationEra.store(newReplicationEra);
@@ -4284,7 +4284,8 @@ private:
                 CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
                 EWorkloadCategory::SystemTabletReplication,
                 Bootstrap_->GetOutThrottler(EWorkloadCategory::SystemTabletReplication),
-                Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TableReplication));
+                Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::TableReplication),
+                Bootstrap_->GetErrorManager());
             replicaInfo->SetReplicator(replicator);
 
             if (replicaInfo->GetState() == ETableReplicaState::Enabled) {
@@ -4321,7 +4322,8 @@ private:
             Bootstrap_->GetTabletSnapshotStore(),
             CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
             Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletReplication),
-            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::ChaosReplicationIncoming)));
+            Bootstrap_->GetNodeMemoryUsageTracker()->WithCategory(EMemoryCategory::ChaosReplicationIncoming),
+            Bootstrap_->GetErrorManager()));
     }
 
     void RemoveChaosAgent(TTablet* tablet)

@@ -51,6 +51,7 @@ void SetProtobufFieldByPath(
     NProtoBuf::Message& message,
     const NYPath::TYPath& path,
     const TWireString& value,
+    bool discardUnknownFields = false,
     bool recursive = false);
 
 template <class T>

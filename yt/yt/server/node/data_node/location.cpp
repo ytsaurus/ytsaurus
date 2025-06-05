@@ -2054,7 +2054,7 @@ private:
             }
         }
 
-        if (auto storeLocation = StoreLocation_.Lock(); storeLocation) {
+        if (auto storeLocation = StoreLocation_.Lock()) {
             writer->AddGauge(
                 "/alive",
                 storeLocation->IsEnabled());

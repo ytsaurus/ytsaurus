@@ -7,6 +7,8 @@
 
 #include <yt/yt/client/api/client.h>
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/core/crypto/crypto.h>
 
 namespace NYT::NAuth {
@@ -17,6 +19,7 @@ using namespace NCrypto;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,10 +95,10 @@ private:
         auto tokenNode = ConvertTo<INodePtr>(rspOrError.ValueOrThrow());
         const auto& tokenAttributes = tokenNode->Attributes();
 
-        auto userIdAttribute = tokenAttributes.Find<std::string>("user_id");
+        auto userIdAttribute = tokenAttributes.Find<TObjectId>("user_id");
         if (userIdAttribute) {
             // New authentication schema: now we need to get the username given the user ID which we received.
-            auto path = Format("#%v/@name", ToYPathLiteral(*userIdAttribute));
+            auto path = Format("%v/@name", FromObjectId(*userIdAttribute));
             TGetNodeOptions options;
             options.ReadFrom = EMasterChannelKind::Cache;
             return Client_->GetNode(path, options)
@@ -117,7 +120,7 @@ private:
     }
 
     TAuthenticationResult OnCallUsernameResult(
-        const std::string& userId,
+        const TObjectId& userId,
         TErrorOr<TYsonString>&& rspOrError)
     {
         try {

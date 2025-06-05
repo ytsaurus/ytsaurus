@@ -1025,9 +1025,10 @@ public:
     {}
 
     void Bootstrap() {
-        TMaybe<TString> executionId = NKqp::ScriptExecutionIdFromOperation(Request->Get()->OperationId);
+        TString error;
+        TMaybe<TString> executionId = NKqp::ScriptExecutionIdFromOperation(Request->Get()->OperationId, error);
         if (!executionId) {
-            Reply(Ydb::StatusIds::BAD_REQUEST, "Incorrect operation id");
+            Reply(Ydb::StatusIds::BAD_REQUEST, error);
             return;
         }
         ExecutionId = *executionId;
@@ -1293,9 +1294,10 @@ public:
     {}
 
     void OnBootstrap() override {
-        TMaybe<TString> executionId = ScriptExecutionIdFromOperation(Request->Get()->OperationId);
+        TString error;
+        TMaybe<TString> executionId = ScriptExecutionIdFromOperation(Request->Get()->OperationId, error);
         if (!executionId) {
-            Reply(Ydb::StatusIds::BAD_REQUEST, "Incorrect operation id");
+            Reply(Ydb::StatusIds::BAD_REQUEST, error);
             return;
         }
         ExecutionId = *executionId;
@@ -1635,9 +1637,10 @@ public:
     {}
 
     void Bootstrap() {
-        const TMaybe<TString> executionId = NKqp::ScriptExecutionIdFromOperation(Request->Get()->OperationId);
+        TString error;
+        const TMaybe<TString> executionId = NKqp::ScriptExecutionIdFromOperation(Request->Get()->OperationId, error);
         if (!executionId) {
-            return Reply(Ydb::StatusIds::BAD_REQUEST, "Incorrect operation id");
+            return Reply(Ydb::StatusIds::BAD_REQUEST, error);
         }
         ExecutionId = *executionId;
 
@@ -1651,6 +1654,7 @@ public:
         hFunc(TEvKqp::TEvCancelScriptExecutionResponse, Handle);
         hFunc(NActors::TEvents::TEvUndelivered, Handle);
         hFunc(NActors::TEvInterconnect::TEvNodeDisconnected, Handle);
+        IgnoreFunc(NActors::TEvInterconnect::TEvNodeConnected);
     )
 
     void Handle(TEvPrivate::TEvLeaseCheckResult::TPtr& ev) {
@@ -1658,7 +1662,7 @@ public:
             KQP_PROXY_LOG_D("[TCancelScriptExecutionOperationActor] ExecutionId: " << ExecutionId << ", check lease success");
             RunScriptActor = ev->Get()->RunScriptActorId;
             if (ev->Get()->OperationStatus) {
-                Reply(Ydb::StatusIds::PRECONDITION_FAILED); // Already finished.
+                Reply(Ydb::StatusIds::PRECONDITION_FAILED, "Script execution operation is already finished");
             } else {
                 if (CancelSent) { // We have not found the actor, but after it status of the operation is not defined, something strage happened.
                     Reply(Ydb::StatusIds::INTERNAL_ERROR, "Failed to cancel script execution operation");
@@ -2311,7 +2315,7 @@ private:
         }
 
         NJsonWriter::TBuf serializedSinks;
-        serializedSinks.WriteJsonValue(&value);
+        serializedSinks.WriteJsonValue(&value, false, PREC_NDIGITS, 17);
 
         return serializedSinks.Str();
     }
@@ -2327,7 +2331,7 @@ private:
         }
 
         NJsonWriter::TBuf serializedSecretNames;
-        serializedSecretNames.WriteJsonValue(&value);
+        serializedSecretNames.WriteJsonValue(&value, false, PREC_NDIGITS, 17);
 
         return serializedSecretNames.Str();
     }
@@ -2546,7 +2550,14 @@ public:
             Ydb::TableStats::QueryStats queryStats;
             NGRpcService::FillQueryStats(queryStats, *Request.QueryStats);
             NProtobufJson::Proto2Json(queryStats, statsJson, NProtobufJson::TProto2JsonConfig());
-            serializedStats = NJson::WriteJson(statsJson);
+            TStringStream statsStream;
+            NJson::WriteJson(&statsStream, &statsJson, {
+                .DoubleNDigits = 17,
+                .FloatToStringMode = PREC_NDIGITS,
+                .ValidateUtf8 = false,
+                .WriteNanAsString = true,
+            });
+            serializedStats = statsStream.Str();
         }
 
         std::optional<TString> ast;

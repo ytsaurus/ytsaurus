@@ -24,6 +24,8 @@ DEPENDS(
     contrib/libs/openssl/apps
 )
 
+ENV(YT_ENABLE_TRACE_LOG=1)
+
 TEST_SRCS(
     conftest.py
     base.py

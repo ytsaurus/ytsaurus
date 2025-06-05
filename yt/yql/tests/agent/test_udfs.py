@@ -71,6 +71,8 @@ class TestUdfs(TestQueriesYqlBase):
         result = query.read_result(0)
         assert_items_equal(expected_rows, result)
 
+
+class TestPythonUdf(TestQueriesYqlBase):
     @authors("lucius")
     @pytest.mark.timeout(300)
     def test_simple_python_udf(self, query_tracker, yql_agent):
@@ -94,6 +96,8 @@ select a from primary.`//tmp/t` where $f(unwrap(a));
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 1}, {"a": 2}])
 
+
+class TestSecureParam(TestQueriesYqlBase):
     @authors("a-romanov")
     def test_secure_param(self, query_tracker, yql_agent):
         yql_with_python = """

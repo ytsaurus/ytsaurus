@@ -40,7 +40,7 @@ class TJobShellInfo
 public:
     TJobShellInfo(TJobShellPtr jobShell, TOperationJobShellRuntimeParametersPtr jobShellRuntimeParameters);
 
-    const std::vector<TString>& GetOwners();
+    const std::vector<std::string>& GetOwners();
 
     const TString& GetSubcontainerName();
 

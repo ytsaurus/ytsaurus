@@ -100,7 +100,7 @@ protected:
         auto client = DynamicPointerCast<NApi::NNative::IClient>(Client_);
         auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
         auto batchReq = proxy.ExecuteBatch();
-        batchReq->SetTimeout(TDuration::MilliSeconds(200));
+        batchReq->SetTimeout(TDuration::Seconds(1));
         MaybeSetMutationId(batchReq, subrequestTypes);
 
         FillWithSubrequests(batchReq, subrequestTypes);
@@ -845,9 +845,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_name("foo");
         column->set_stable_name("foo");
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("required fileds are not set"));
+            "required fileds are not set");
     }
 
     {
@@ -858,9 +858,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_stable_name("foo");
         column->set_type(ToProto(EValueType::Min));
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("has no corresponding logical type"));
+            "has no corresponding logical type");
     }
 
     {
@@ -871,9 +871,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_stable_name("foo");
         column->set_type(-1);
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Error casting"));
+            "Error casting");
     }
 
     {
@@ -885,9 +885,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_type(ToProto(EValueType::Any));
         column->set_simple_logical_type(-1);
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Error casting"));
+            "Error casting");
     }
 
     {
@@ -911,9 +911,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_type(ToProto(EValueType::Int64));
         column->mutable_logical_type()->set_simple(-1);
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Error casting"));
+            "Error casting");
     }
 
     {
@@ -925,9 +925,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_type(ToProto(EValueType::Int64));
         column->mutable_logical_type();
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Cannot parse unknown logical type from proto"));
+            "Cannot parse unknown logical type from proto");
     }
 
     {
@@ -941,9 +941,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         auto unknownFields = column->GetReflection()->MutableUnknownFields(column);
         unknownFields->AddVarint(100500, 0);
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Cannot parse unknown logical type from proto"));
+            "Cannot parse unknown logical type from proto");
     }
 }
 

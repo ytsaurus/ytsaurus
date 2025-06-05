@@ -7,12 +7,16 @@
 
 from ..common.sensors import FlowWorker
 
-from .common import build_versions, build_message_rate, add_common_dashboard_parameters
+from .common import build_versions, add_common_dashboard_parameters
+from .computation import ComputationCellGenerator
 
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.sensor import MultiSensor
+
+
+COMPUTATION_CELL_GENERATOR = ComputationCellGenerator(has_computation_id_tag=False)
 
 
 def build_message_distributor():
@@ -116,7 +120,7 @@ def build_buffers():
 def build_flow_message_transfering():
     d = Dashboard()
     d.add(build_versions())
-    d.add(build_message_rate())
+    d.add(COMPUTATION_CELL_GENERATOR.build_message_rate_rowset())
     d.add(build_buffers())
     d.add(build_message_distributor())
 

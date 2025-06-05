@@ -28,5 +28,8 @@
         object_service = {
             allow_bypass_master_resolve = %true;
         };
+        response_keeper = {
+            enable = %true;
+        };
     };
 }

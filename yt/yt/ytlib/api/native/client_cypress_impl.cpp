@@ -1668,8 +1668,6 @@ public:
             StartNestedInputTransactions();
             GetObjectAttributes();
             InferCommonType();
-            // COMPAT(ignat): drop in 25.1; chunk counts must be available in GetBasicAttributes response.
-            GetSrcObjectChunkCounts();
             if (CommonType_ == EObjectType::Table) {
                 InferOutputTableSchema();
             }
@@ -1938,51 +1936,6 @@ private:
                 srcObject->GetPath(),
                 srcObject->Type);
         }
-    }
-
-    void GetSrcObjectChunkCounts()
-    {
-        bool hasMissingChunkCounts = false;
-        for (auto& srcObject : SrcObjects_) {
-            if (srcObject.ChunkCount == TUserObject::UndefinedChunkCount) {
-                hasMissingChunkCounts = true;
-                break;
-            }
-        }
-
-        if (!hasMissingChunkCounts) {
-            YT_LOG_DEBUG("Skip fetching chunk counts of source objects");
-            return;
-        }
-
-        YT_LOG_DEBUG("Fetch chunk counts of source objects");
-
-        auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
-        auto batchReq = proxy.ExecuteBatch();
-
-        for (auto& srcObject : SrcObjects_) {
-            auto req = TYPathProxy::Get(srcObject.GetObjectIdPathIfAvailable() + "/@");
-            req->Tag() = &srcObject;
-            AddCellTagToSyncWith(req, srcObject.ObjectId);
-            NCypressClient::SetTransactionId(req, *srcObject.TransactionId);
-            req->mutable_attributes()->add_keys("chunk_count");
-            batchReq->AddRequest(req);
-        }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching source objects chunk counts");
-
-        auto rspsOrError = batchRspOrError.Value()->GetResponses<TYPathProxy::TRspGet>();
-        for (const auto& rspOrError : rspsOrError) {
-            const auto& rsp = rspOrError.Value();
-            auto* srcObject = std::any_cast<TUserObject*>(rsp->Tag());
-
-            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
-            auto chunkCount = attributes->Get<i64>("chunk_count");
-            srcObject->ChunkCount = chunkCount;
-        }
-
-        YT_LOG_DEBUG("Source objects chunk counts received");
     }
 
     void InferOutputTableSchema()

@@ -74,5 +74,6 @@ RECURSE(
 IF (NOT OPENSOURCE)
     RECURSE_FOR_TESTS(
         yt_dashboards/tests
+        yt_dashboards/flow/tests
     )
 ENDIF()

@@ -37,8 +37,6 @@ public:
 
     void RemoveLastSegment();
 
-    TMangledSequoiaPath ToMangledSequoiaPath() const;
-
     TRawYPath ToRawYPath() const &;
     TRawYPath ToRawYPath() &&;
 
@@ -111,6 +109,8 @@ public:
     //! Validates GUID in case of object root designator.
     std::pair<TRootDesignator, TYPathBuf> GetRootDesignator() const &;
     std::pair<TRootDesignator, TYPathBuf> GetRootDesignator() const && = delete;
+
+    TMangledSequoiaPath ToMangledSequoiaPath() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,8 +142,6 @@ public:
 
     using TBase::TBase;
 
-    explicit TBasicYPath(const TMangledSequoiaPath& mangledPath);
-
     template <class T>
     TBasicYPath(const TYPathBase<Absolute, T>& other);
 
@@ -163,6 +161,19 @@ public:
     // TODO(kvk1920): provide some sane methods like Rebase() or ReplacePrefix()
     // instead of accessing internal representation directly.
     using TBase::UnsafeMutableUnderlying;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAbsoluteYPath
+    : public TBasicYPath<true>
+{
+public:
+    using TBase = TBasicYPath<true>;
+
+    using TBase::TBase;
+
+    explicit TAbsoluteYPath(const TMangledSequoiaPath& mangledPath);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,6 +264,11 @@ struct THash<NYT::NSequoiaClient::TBasicYPathBuf<Absolute>>
 {
     size_t operator()(const NYT::NSequoiaClient::TBasicYPathBuf<Absolute>& path) const;
 };
+
+template <>
+struct THash<NYT::NSequoiaClient::TAbsoluteYPath>
+    : public THash<NYT::NSequoiaClient::TAbsoluteYPath::TBase>
+{ };
 
 #define YPATH_DETAIL_INL_H_
 #include "ypath_detail-inl.h"

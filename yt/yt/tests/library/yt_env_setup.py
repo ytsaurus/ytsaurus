@@ -852,6 +852,10 @@ class YTEnvSetup(object):
             if ("master" in components or "cypress_proxy" in components) and version in ("23_2", "24_1", "24_2", "25_1"):
                 return False
 
+            # COMPAT(h0pless): Disabling all Cypress proxies in compat tests. Remove this after trunk_vs_25_2 binaries are updated.
+            if len(cls.ARTIFACT_COMPONENTS.items()) != 0:
+                return False
+
         return True
 
     @classmethod
@@ -1968,6 +1972,12 @@ class YTEnvSetup(object):
             self._wait_for_scheduler_state_restored(driver=driver)
 
     def _apply_cypres_proxy_dynamic_config_patches(self, config, cluster_index):
+        if self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index):
+            update_inplace(config, {
+                "response_keeper": {
+                    "enable": True,
+                },
+            })
         delta_cypress_proxy_config = self.get_param("DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG", cluster_index)
         update_inplace(config, delta_cypress_proxy_config)
         return config

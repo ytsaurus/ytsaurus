@@ -3,6 +3,7 @@
 
 #include "blobstorage_vdiskid.h"
 #include <contrib/ydb/core/base/blobstorage.h>
+#include <contrib/ydb/core/base/bridge.h>
 #include <contrib/ydb/core/blobstorage/groupinfo/blobstorage_groupinfo.h>
 #include <contrib/ydb/core/blobstorage/pdisk/blobstorage_pdisk_config.h>
 #include <contrib/ydb/core/blobstorage/pdisk/blobstorage_pdisk_defs.h>
@@ -583,9 +584,11 @@ namespace NKikimr {
         std::unique_ptr<NKikimrBlobStorage::TStorageConfig> Config;
         std::unique_ptr<NKikimrBlobStorage::TStorageConfig> ProposedConfig;
         bool SelfManagementEnabled;
+        TBridgeInfo::TPtr BridgeInfo;
 
         TEvNodeWardenStorageConfig(const NKikimrBlobStorage::TStorageConfig& config,
-                const NKikimrBlobStorage::TStorageConfig *proposedConfig, bool selfManagementEnabled);
+                const NKikimrBlobStorage::TStorageConfig *proposedConfig, bool selfManagementEnabled,
+                TBridgeInfo::TPtr bridgeInfo);
         ~TEvNodeWardenStorageConfig();
     };
 

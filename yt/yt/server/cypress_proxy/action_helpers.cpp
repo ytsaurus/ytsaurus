@@ -92,8 +92,7 @@ TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
     auto mangledPath = path.ToMangledSequoiaPath();
     return transaction->SelectRows<NRecords::TPathToNodeId>({
         .WhereConjuncts = {
-            Format("path >= %Qv", mangledPath),
-            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
+            Format("is_prefix(%Qv, path)", mangledPath),
             BuildMultipleTransactionSelectCondition(cypressTransactionIds),
         },
         .OrderBy = {"path"},

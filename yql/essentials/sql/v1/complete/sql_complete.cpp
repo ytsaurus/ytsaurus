@@ -2,7 +2,10 @@
 
 #include <yql/essentials/sql/v1/complete/syntax/grammar.h>
 #include <yql/essentials/sql/v1/complete/text/word.h>
+#include <yql/essentials/sql/v1/complete/name/service/ranking/dummy.h>
+#include <yql/essentials/sql/v1/complete/name/service/binding/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/static/name_service.h>
+#include <yql/essentials/sql/v1/complete/name/service/union/name_service.h>
 #include <yql/essentials/sql/v1/complete/syntax/local.h>
 #include <yql/essentials/sql/v1/complete/syntax/format.h>
 #include <yql/essentials/sql/v1/complete/analysis/global/global.h>
@@ -53,7 +56,14 @@ namespace NSQLComplete {
                 });
             }
 
-            return Names_->Lookup(std::move(request))
+            TVector<INameService::TPtr> children;
+            children.emplace_back(MakeBindingNameService(std::move(global.Names)));
+            if (!context.Binding) {
+                children.emplace_back(Names_);
+            }
+
+            return MakeUnionNameService(std::move(children), MakeDummyRanking())
+                ->Lookup(std::move(request))
                 .Apply([this, input, context = std::move(context)](auto f) {
                     return ToCompletion(input, context, f.ExtractValue());
                 });
@@ -203,6 +213,13 @@ namespace NSQLComplete {
                     return {ECandidateKind::ClusterName, std::move(name.Indentifier)};
                 }
 
+                if constexpr (std::is_base_of_v<TBindingName, T>) {
+                    if (!context.Binding) {
+                        name.Indentifier.prepend('$');
+                    }
+                    return {ECandidateKind::BindingName, std::move(name.Indentifier)};
+                }
+
                 if constexpr (std::is_base_of_v<TUnkownName, T>) {
                     return {ECandidateKind::UnknownName, std::move(name.Content)};
                 }
@@ -229,7 +246,11 @@ namespace NSQLComplete {
 
     ISqlCompletionEngine::TConfiguration MakeYDBConfiguration() {
         return {
-            .IgnoredRules = {},
+            .IgnoredRules = {
+                "use_stmt",
+                "import_stmt",
+                "export_stmt",
+            },
         };
     }
 
@@ -290,6 +311,9 @@ void Out<NSQLComplete::ECandidateKind>(IOutputStream& out, NSQLComplete::ECandid
             break;
         case NSQLComplete::ECandidateKind::ClusterName:
             out << "ClusterName";
+            break;
+        case NSQLComplete::ECandidateKind::BindingName:
+            out << "BindingName";
             break;
         case NSQLComplete::ECandidateKind::UnknownName:
             out << "UnknownName";

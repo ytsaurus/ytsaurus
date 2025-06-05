@@ -819,7 +819,7 @@ struct TJobShell
 
     TString Subcontainer;
 
-    std::vector<TString> Owners;
+    std::vector<std::string> Owners;
 
     REGISTER_YSON_STRUCT(TJobShell);
 
@@ -2147,7 +2147,7 @@ DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParameters)
 struct TOperationJobShellRuntimeParameters
     : public NYTree::TYsonStruct
 {
-    std::vector<TString> Owners;
+    std::vector<std::string> Owners;
 
     REGISTER_YSON_STRUCT(TOperationJobShellRuntimeParameters);
 

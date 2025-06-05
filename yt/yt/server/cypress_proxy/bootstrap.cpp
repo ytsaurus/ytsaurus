@@ -2,8 +2,9 @@
 
 #include "private.h"
 
-#include "dynamic_config_manager.h"
 #include "config.h"
+#include "cypress_transaction_service.h"
+#include "dynamic_config_manager.h"
 #include "master_connector.h"
 #include "object_service.h"
 #include "response_keeper.h"
@@ -297,6 +298,7 @@ private:
         ResponseKeeper_ = CreateSequoiaResponseKeeper(GetDynamicConfigManager()->GetConfig()->ResponseKeeper, Logger());
         ObjectService_ = CreateObjectService(this);
         RpcServer_->RegisterService(ObjectService_->GetService());
+        RpcServer_->RegisterService(CreateCypressTransactionService(this));
     }
 
     void DoStart()

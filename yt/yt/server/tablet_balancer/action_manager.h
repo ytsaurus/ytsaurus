@@ -25,6 +25,9 @@ struct IActionManager
     virtual bool HasUnfinishedActions(const std::string& bundleName) const = 0;
     virtual bool IsKnownAction(const std::string& bundleName, TTabletActionId actionId) const = 0;
 
+    virtual bool HasPendingActions(const std::string& bundleName) const = 0;
+    virtual void CancelPendingActions(const std::string& bundleName) = 0;
+
     virtual void Start(NTransactionClient::TTransactionId prerequisiteTransactionId) = 0;
     virtual void Stop() = 0;
 
