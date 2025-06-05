@@ -1597,8 +1597,7 @@ void TChunkOwnerNodeProxy::ReplicateBeginUploadRequestToExternalCell(
 
 void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
     TChunkOwnerBase* node,
-    NChunkClient::NProto::TReqEndUpload* request,
-    TChunkOwnerBase::TEndUploadContext& uploadContext) const
+    NChunkClient::NProto::TReqEndUpload* request) const
 {
     auto externalCellTag = node->GetExternalCellTag();
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1625,17 +1624,6 @@ void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
     }
     if (request->has_security_tags()) {
         replicationRequest->mutable_security_tags()->CopyFrom(request->security_tags());
-    }
-
-    // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
-    // NB: Journals and files have no schema.
-    if (uploadContext.TableSchema) {
-        auto tableSchemaId = uploadContext.TableSchema->GetId();
-        // Schema was exported during EndUpload call, it's safe to send id only.
-        ToProto(replicationRequest->mutable_table_schema_id(), tableSchemaId);
-    }
-    if (request->has_schema_mode()) {
-        replicationRequest->set_schema_mode(request->schema_mode());
     }
 
     SetTransactionId(replicationRequest, externalizedTransactionId);
@@ -2107,22 +2095,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 {
     DeclareMutating();
 
-    TChunkOwnerBase::TEndUploadContext uploadContext(Bootstrap_);
-
-    // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
-    auto tableSchema = request->has_table_schema()
-        ? New<TCompactTableSchema>(request->table_schema())
-        : nullptr;
-
-    auto offloadedSchemaDestruction = Finally([&] {
-        if (tableSchema) {
-            NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
-                BIND([tableSchema = std::move(tableSchema)] { }));
-        }
-    });
-
-    auto tableSchemaId = FromProto<TMasterTableSchemaId>(request->table_schema_id());
-    uploadContext.SchemaMode = FromProto<ETableSchemaMode>(request->schema_mode());
+    TChunkOwnerBase::TEndUploadContext uploadContext;
 
     if (request->has_statistics()) {
         uploadContext.Statistics = FromProto<TChunkOwnerDataStatistics>(request->statistics());
@@ -2161,14 +2134,13 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     }
 
     context->SetRequestInfo("Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, ChunkFormat: %v, "
-        "MD5Hasher: %v, OptimizeFor: %v, IsTableSchemaPresent: %v",
+        "MD5Hasher: %v, OptimizeFor: %v",
         uploadContext.Statistics,
         uploadContext.CompressionCodec,
         uploadContext.ErasureCodec,
         uploadContext.ChunkFormat,
         uploadContext.MD5Hasher.has_value(),
-        uploadContext.OptimizeFor,
-        tableSchema || tableSchemaId);
+        uploadContext.OptimizeFor);
 
     ValidateTransaction();
     ValidateInUpdate();
@@ -2180,34 +2152,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->GetTransaction() == Transaction_);
 
-    const auto& tableManager = Bootstrap_->GetTableManager();
-    YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (tableSchema || tableSchemaId),
-        "Received a schema or schema ID while ending upload into a non-schemaful node (NodeId: %v, Schema: %v, SchemaId: %v)",
-        node->GetId(),
-        tableManager->GetHeavyTableSchemaSync(tableSchema),
-        tableSchemaId);
-
-    if (IsTableType(node->GetType())) {
-        tableManager->ValidateTableSchemaCorrespondence(
-            node->GetVersionedId(),
-            tableSchema,
-            tableSchemaId);
-
-        if (tableSchema || tableSchemaId) {
-            // Either a new client that sends schema info with BeginUpload,
-            // or an old client that aims for an empty schema.
-            // If the first case, we should leave the table schema intact.
-            // In the second case, BeginUpload would've already set table schema
-            // to empty, and we may as well leave it intact.
-            // COMPAT(shakurov): remove the above comment once all clients are "new".
-            uploadContext.TableSchema = CalculateEffectiveMasterTableSchema(node, tableSchema, tableSchemaId, Transaction_);
-        }
-    }
-
     node->EndUpload(uploadContext);
 
     if (node->IsExternal()) {
-        ReplicateEndUploadRequestToExternalCell(node, request, uploadContext);
+        ReplicateEndUploadRequestToExternalCell(node, request);
     }
 
     SetModified(EModificationType::Content);
