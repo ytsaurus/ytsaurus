@@ -1,4 +1,4 @@
-name: Release cron
+name: Release job-environment
 
 on:
   push:
@@ -62,6 +62,7 @@ jobs:
   release:
     name: Release
     needs:
+      - start-vm
       - tag
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
