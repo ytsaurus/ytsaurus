@@ -63,6 +63,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((GangRanks)                             (301803))
     ((ChunkStripeKeyNoIndex)                 (301804))
     ((OrderedAndSortedJobSizeAdjuster)       (301805))
+    ((RemoveAddressFromJob)                  (301806))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
