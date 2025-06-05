@@ -1048,8 +1048,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/correct")
 
         if in_memory_mode != "none":
-            self._wait_for_in_memory_stores_preload("//tmp/t")
-            self._wait_for_in_memory_stores_preload("//tmp/correct")
+            wait(lambda: get("//tmp/t/@preload_state") == "complete")
+            wait(lambda: get("//tmp/correct/@preload_state") == "complete")
 
         for iter in range(num_write_iterations):
             insert_keys = [random_row() for i in range(num_writes_per_iteration)]
