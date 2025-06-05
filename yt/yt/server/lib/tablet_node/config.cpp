@@ -105,6 +105,9 @@ void TTestingTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("simulated_store_preload_delay", &TThis::SimulatedStorePreloadDelay)
         .Default();
 
+    registrar.Parameter("sync_delay_in_write_transaction_commit", &TThis::SyncDelayInWriteTransactionCommit)
+        .Default();
+
     registrar.Parameter("sorted_store_manager_hash_check_probability", &TThis::SortedStoreManagerRowHashCheckProbability)
         .Default(0)
         .InRange(0, 1);
