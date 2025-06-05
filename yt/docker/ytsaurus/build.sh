@@ -176,7 +176,7 @@ elif [[ "${component}" == "local" ]]; then
 
 elif [[ "${component}" == "job-environment" ]]; then
 
-    # Do nothing.
+    echo "Do nothing" > /dev/null
 
 else
     echo "Unknown component: ${component}"
