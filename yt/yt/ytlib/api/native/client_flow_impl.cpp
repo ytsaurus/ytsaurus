@@ -74,7 +74,8 @@ TGetPipelineSpecResult TClient::DoGetPipelineSpec(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetSpec();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {
@@ -90,7 +91,8 @@ TSetPipelineSpecResult TClient::DoSetPipelineSpec(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.SetSpec();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     req->set_spec(spec.ToString());
     req->set_force(options.Force);
     if (options.ExpectedVersion) {
@@ -109,7 +111,8 @@ TGetPipelineDynamicSpecResult TClient::DoGetPipelineDynamicSpec(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetDynamicSpec();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {
@@ -125,7 +128,8 @@ TSetPipelineDynamicSpecResult TClient::DoSetPipelineDynamicSpec(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.SetDynamicSpec();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     req->set_spec(spec.ToString());
     if (options.ExpectedVersion) {
         req->set_expected_version(ToProto(*options.ExpectedVersion));
@@ -143,7 +147,8 @@ void TClient::DoStartPipeline(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.StartPipeline();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     WaitFor(req->Invoke())
         .ThrowOnError();
 }
@@ -154,7 +159,8 @@ void TClient::DoStopPipeline(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.StopPipeline();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     WaitFor(req->Invoke())
         .ThrowOnError();
 }
@@ -165,7 +171,8 @@ void TClient::DoPausePipeline(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.PausePipeline();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     WaitFor(req->Invoke())
         .ThrowOnError();
 }
@@ -176,7 +183,8 @@ TPipelineState TClient::DoGetPipelineState(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetPipelineState();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {
@@ -191,7 +199,8 @@ TGetFlowViewResult TClient::DoGetFlowView(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetFlowView();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     req->set_path(viewPath);
     req->set_cache(options.Cache);
     auto rsp = WaitFor(req->Invoke())
@@ -209,7 +218,8 @@ TFlowExecuteResult TClient::DoFlowExecute(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.FlowExecute();
-    req->SetTimeout(options.Timeout);
+    // TODO(nadya02): Set the correct timeout here.
+    req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     req->set_command(command);
     if (argument) {
         req->set_argument(argument.ToString());
