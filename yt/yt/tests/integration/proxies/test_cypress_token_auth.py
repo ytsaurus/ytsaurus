@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, create_user, issue_token, revoke_token, list_user_tokens,
-    wait, get, set, set_user_password, create, raises_yt_error, remove
+    wait, get, set, set_user_password, create, remove
 )
 from yt.environment.helpers import assert_items_equal
 
@@ -98,13 +98,6 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         create_user("u2")
         _, t3_hash = issue_token("u2")
         assert_items_equal(list_user_tokens("u2"), [t3_hash])
-
-    @authors("pavel-bash")
-    def test_old_user_attribute_is_not_created(self):
-        create_user("u1")
-        _, t_hash = issue_token("u1")
-        with raises_yt_error("Attribute \"user\" is not found"):
-            get(f"//sys/cypress_tokens/{t_hash}/@user")
 
     @authors("pavel-bash")
     def test_correct_user_id_in_token(self):
