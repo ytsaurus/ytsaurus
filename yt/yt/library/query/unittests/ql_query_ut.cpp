@@ -234,7 +234,8 @@ TEST_F(TQueryPrepareTest, KeywordAlias)
         "then",
         "else",
         "end",
-        "inf"
+        "inf",
+        "cast"
     };
 
     for (const auto* keyword : Keywords) {

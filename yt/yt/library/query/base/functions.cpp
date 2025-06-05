@@ -456,9 +456,72 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDummyTypeInferrer
+    : public ITypeInferrer
+{
+public:
+    TDummyTypeInferrer(std::string name, bool aggregate, bool supportedInV1, bool supportedInV2)
+        : Name_(std::move(name))
+        , Aggregate_(aggregate)
+        , SupportedInV1_(supportedInV1)
+        , SupportedInV2_(supportedInV2)
+    { }
+
+    bool IsAggregate() const override
+    {
+        return Aggregate_;
+    }
+
+    [[noreturn]] int GetNormalizedConstraints(
+        std::vector<TTypeSet>* /*typeConstraints*/,
+        std::vector<int>* /*formalArguments*/,
+        std::optional<std::pair<int, bool>>* /*repeatedType*/) const override
+    {
+        THROW_ERROR_EXCEPTION_UNLESS(SupportedInV1_, "Function %Qv is not supported in expression builder v1",
+            Name_);
+        YT_ABORT();
+    }
+
+    [[noreturn]] std::pair<int, int> GetNormalizedConstraints(
+        std::vector<TTypeSet>* /*typeConstraints*/,
+        std::vector<int>* /*argumentConstraintIndexes*/) const override
+    {
+        THROW_ERROR_EXCEPTION_UNLESS(SupportedInV1_, "Function %Qv is not supported in expression builder v1",
+            Name_);
+        YT_ABORT();
+    }
+
+    [[noreturn]] std::vector<TTypeId> InferTypes(
+        TTypingCtx* /*typingCtx*/,
+        TRange<TLogicalTypePtr> /*argumentTypes*/,
+        TStringBuf /*name*/) const override
+    {
+        THROW_ERROR_EXCEPTION_UNLESS(SupportedInV2_, "Function %Qv is not supported in expression builder v2",
+            Name_);
+        YT_ABORT();
+    }
+
+private:
+    const std::string Name_;
+    const bool Aggregate_;
+    const bool SupportedInV1_;
+    const bool SupportedInV2_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 ITypeInferrerPtr CreateArrayAggTypeInferrer()
 {
     return New<TArrayAggTypeInferrer>();
+}
+
+ITypeInferrerPtr CreateDummyTypeInferrer(
+    std::string name,
+    bool aggregate,
+    bool supportedInV1,
+    bool supportedInV2)
+{
+    return New<TDummyTypeInferrer>(std::move(name), aggregate, supportedInV1, supportedInV2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -477,7 +540,13 @@ const ITypeInferrerPtr& TTypeInferrerMap::GetFunction(const std::string& functio
 
 bool IsUserCastFunction(const std::string& name)
 {
-    return name == "int64" || name == "uint64" || name == "double";
+    return
+        name == "int64" ||
+        name == "uint64" ||
+        name == "double" ||
+        name == "boolean" ||
+        name == "to_any" ||
+        name == "cast_operator";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

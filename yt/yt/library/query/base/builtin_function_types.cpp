@@ -251,6 +251,12 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
 
     result->emplace("array_agg", CreateArrayAggTypeInferrer());
 
+    result->emplace("cast_operator", CreateDummyTypeInferrer(
+        "cast_operator",
+        /*aggregate*/ false,
+        /*supportedInV1*/ false,
+        /*supportedInV2*/ true));
+
     TTypeInferrerFunctionRegistryBuilder builder{result.Get()};
     RegisterBuiltinFunctions(&builder);
 
