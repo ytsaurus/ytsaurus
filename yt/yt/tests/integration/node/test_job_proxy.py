@@ -155,12 +155,24 @@ class TestJobProxyBinary(JobProxyTestBase):
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 1)
 
     @authors("ermolovd")
-    def test_rpc_proxy_socket_path_env_variable(self):
-        op = run_test_vanilla(with_breakpoint("echo $YT_JOB_PROXY_SOCKET_PATH >&2; BREAKPOINT"))
+    @pytest.mark.parametrize('spec,expected_env_presence', [
+        ({"enable_rpc_proxy_in_job_proxy": False}, False),
+        ({"enable_rpc_proxy_in_job_proxy": True}, True),
+    ])
+    def test_rpc_proxy_socket_path_env_variable(self, spec: dict, expected_env_presence: bool):
+        op = run_test_vanilla(
+            with_breakpoint("echo $YT_JOB_PROXY_SOCKET_PATH >&2; BREAKPOINT"),
+            task_patch=spec,
+        )
         job_id = wait_breakpoint()[0]
         content = op.read_stderr(job_id).decode("ascii").strip()
+
+        if expected_env_presence:
+            assert re.match(r"^.*/pipes/.*-job-proxy-[0-9]+$", content)
+        else:
+            assert content == ""
+
         release_breakpoint()
-        assert re.match(r"^.*/pipes/.*-job-proxy-[0-9]+$", content)
 
 
 class TestJobProxyUserJobFlagRedirectStdoutToStderr(YTEnvSetup):
@@ -318,13 +330,6 @@ class TestRpcProxyInJobProxyBase(YTEnvSetup):
 
 
 class TestRpcProxyInJobProxySingleCluster(TestRpcProxyInJobProxyBase):
-    @authors("ermolovd")
-    def test_disabled_rpc_proxy(self):
-        with raises_yt_error("Service is not registered"):
-            socket_file = self.run_job_proxy(enable_rpc_proxy=False)
-            client = self.create_client_from_uds(socket_file, config={"token": "tester_token"})
-            client.list("/")
-
     @authors("ermolovd")
     def test_rpc_proxy_simple_query(self):
         socket_file = self.run_job_proxy(enable_rpc_proxy=True)
