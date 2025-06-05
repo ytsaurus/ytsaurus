@@ -59,15 +59,15 @@ private:
             return CheckUser(Client_, user);
         }
 
-        std::vector<TFuture<void>> checks;
+        std::vector<TFuture<void>> futures;
         // Check user on local cluster first.
-        checks.push_back(Get(TUserBanCacheKey(user, std::nullopt)));
+        futures.push_back(Get(TUserBanCacheKey(user, std::nullopt)));
 
         // If remote multiproxy target specified check its ban status as well.
 
         NNative::IClientPtr remoteClient;
         try {
-            auto g = Guard(RemoteClientMapLock_);
+            auto guard = Guard(RemoteClientMapLock_);
 
             const auto& [it, inserted] = RemoteClientMap_.emplace(*cluster, nullptr);
             if (inserted) {
@@ -78,9 +78,9 @@ private:
         } catch (const std::exception& ex) {
             return MakeFuture<void>(ex);
         }
-        checks.push_back(CheckUser(remoteClient, user));
+        futures.push_back(CheckUser(remoteClient, user));
 
-        return AllSucceeded(std::move(checks));
+        return AllSucceeded(std::move(futures));
     }
 
     TFuture<void> CheckUser(const NNative::IClientPtr& client, const std::string& user) noexcept
@@ -109,7 +109,7 @@ private:
                 if (banned) {
                     THROW_ERROR_EXCEPTION("User %Qv is banned on cluster %Qv",
                         user,
-                        clusterName);
+                        clusterName.value_or("unknown"));
                 }
             }));
     }

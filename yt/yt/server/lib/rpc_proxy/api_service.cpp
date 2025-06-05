@@ -1109,7 +1109,7 @@ private:
 
         THROW_ERROR_EXCEPTION_IF_FAILED(AccessChecker_->CheckAccess(identity.User));
 
-        const auto& multiproxyTargetCluster = GetMultiproxyTargetCluster(context);
+        auto multiproxyTargetCluster = GetMultiproxyTargetCluster(context);
         if (multiproxyTargetCluster) {
             MultiproxyAccessValidator_->ValidateMultiproxyAccess(*multiproxyTargetCluster, context->GetMethod());
         }
@@ -1126,7 +1126,7 @@ private:
                 request->ShortDebugString());
         }
 
-        const auto& connection = multiproxyTargetCluster
+        auto connection = multiproxyTargetCluster
             ? LocalConnection_->GetClusterDirectory()->GetConnectionOrThrow(*multiproxyTargetCluster)
             : LocalConnection_;
 
