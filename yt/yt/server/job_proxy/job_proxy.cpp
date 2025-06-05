@@ -24,6 +24,8 @@
 #include <yt/yt/server/lib/rpc_proxy/api_service.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
+#include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
+
 #include <yt/yt/server/lib/user_job/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -137,6 +139,7 @@ using namespace NScheduler::NProto;
 using namespace NScheduler;
 using namespace NScheduler;
 using namespace NServer;
+using namespace NShuffleServer;
 using namespace NSignature;
 using namespace NStatisticPath;
 using namespace NTracing;
@@ -504,6 +507,7 @@ void TJobProxy::RetrieveJobSpec()
     const auto& resourceUsage = rsp->resource_usage();
 
     Ports_ = FromProto<std::vector<int>>(rsp->ports());
+    JobProxyRpcServerPort_ = YT_OPTIONAL_FROM_PROTO(*rsp, job_proxy_rpc_server_port);
 
     auto authenticatedUser = GetJobSpecHelper()->GetJobSpecExt().authenticated_user();
     YT_LOG_INFO(
@@ -741,7 +745,7 @@ void TJobProxy::SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment)
     JobProxyEnvironment_.Store(std::move(environment));
 }
 
-void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
+void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool enableShuffleService)
 {
     YT_VERIFY(Config_->OriginalClusterConnection);
 
@@ -753,7 +757,29 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
     }
     connection->GetMasterCellDirectorySynchronizer()->Start();
 
+    ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
+
     auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+    if (enableShuffleService) {
+        YT_VERIFY(!PublicRpcServer_);
+        YT_VERIFY(!Config_->BusServer->Port.has_value());
+        YT_VERIFY(JobProxyRpcServerPort_.has_value());
+        Config_->BusServer->Port = *JobProxyRpcServerPort_;
+
+        PublicRpcServer_ = NRpc::NBus::CreateBusServer(CreatePublicTcpBusServer(Config_->BusServer));
+        PublicRpcServer_->Start();
+        YT_LOG_INFO("Public RPC server started (JobProxyRpcServerPort: %v)", JobProxyRpcServerPort_);
+
+        auto localServerAddress = BuildServiceAddress(GetLocalHostName(), *Config_->BusServer->Port);
+        auto shuffleService = CreateShuffleService(
+            ApiServiceThreadPool_->GetInvoker(),
+            rootClient,
+            localServerAddress);
+        PublicRpcServer_->RegisterService(std::move(shuffleService));
+        connection->RegisterShuffleService(localServerAddress);
+        YT_LOG_INFO("Shuffle Service registered (LocalServerAddress: %v)", localServerAddress);
+    }
 
     auto proxyCoordinator = CreateProxyCoordinator();
     proxyCoordinator->SetAvailableState(true);
@@ -762,7 +788,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         Config_->AuthenticationManager,
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
         rootClient);
-    ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
+
     auto apiService = CreateApiService(
         Config_->JobProxyApiServiceStatic,
         GetControlInvoker(),
@@ -774,7 +800,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         New<TSampler>(),
         RpcProxyLogger(),
         TProfiler(),
-        NSignature::CreateAlwaysThrowingSignatureValidator());
+        CreateDummySignatureValidator());
     apiService->OnDynamicConfigChanged(Config_->JobProxyApiService);
     // TODO(pavook) do signature generation and validation in job proxies.
 
@@ -825,7 +851,7 @@ TJobResult TJobProxy::RunJob()
 
         InitializeOrchid();
 
-        RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
+        RpcServer_ = NRpc::NBus::CreateBusServer(CreateLocalTcpBusServer(Config_->BusServer));
         RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));
         RpcServer_->RegisterService(NOrchid::CreateOrchidService(
             OrchidRoot_,
@@ -927,8 +953,13 @@ TJobResult TJobProxy::RunJob()
                 NProfiling::TTag{"job_descriptor", jobProxyDescriptor},
                 NProfiling::TTag{"slot_index", ToString(Config_->SlotIndex)}});
         }
-        if (jobSpecExt.has_user_job_spec() && jobSpecExt.user_job_spec().enable_rpc_proxy_in_job_proxy()) {
-            EnableRpcProxyInJobProxy(jobSpecExt.user_job_spec().rpc_proxy_worker_thread_pool_size());
+        if (jobSpecExt.has_user_job_spec()) {
+            const auto& userJobSpec = jobSpecExt.user_job_spec();
+            if (userJobSpec.enable_rpc_proxy_in_job_proxy()) {
+                EnableRpcProxyInJobProxy(userJobSpec.rpc_proxy_worker_thread_pool_size(), userJobSpec.enable_shuffle_service_in_job_proxy());
+            } else {
+                YT_VERIFY(!userJobSpec.enable_shuffle_service_in_job_proxy());
+            }
         }
 
         JobProxyMemoryOvercommitLimit_ = jobSpecExt.has_job_proxy_memory_overcommit_limit()

@@ -21,6 +21,7 @@ message TRspGetJobSpec
     required NControllerAgent.NProto.TJobSpec job_spec = 1;
     required TJobProxyResources resource_usage = 2;
     repeated int32 ports = 3;
+    optional int32 job_proxy_rpc_server_port = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

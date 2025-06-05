@@ -41,6 +41,7 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   server-lib-exec_node
   server-lib-rpc_proxy
   server-lib-shell
+  server-lib-shuffle_server
   server-lib-user_job
   yt-server-tools
   yt-library-sparse_coredump

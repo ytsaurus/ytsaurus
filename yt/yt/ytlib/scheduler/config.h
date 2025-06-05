@@ -1464,6 +1464,7 @@ struct TUserJobSpec
     bool RedirectStdoutToStderr;
 
     bool EnableRpcProxyInJobProxy;
+    bool EnableShuffleServiceInJobProxy;
     int RpcProxyWorkerThreadPoolSize;
 
     bool StartQueueConsumerRegistrationManager;

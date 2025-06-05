@@ -4,15 +4,21 @@ from yt_commands import (
     authors, start_shuffle, write_shuffle_data, read_shuffle_data, start_transaction,
     abort_transaction, commit_transaction, wait, raises_yt_error, ls, create_user,
     create_account, create_domestic_medium, get_account_disk_space_limit,
-    set_account_disk_space_limit, get_account_disk_space, get_chunks, get
+    set_account_disk_space_limit, get_account_disk_space, get_chunks, get,
+    run_test_vanilla, with_breakpoint, wait_breakpoint, release_breakpoint, set
 )
 
+from yt_driver_rpc_bindings import Driver
 from yt.test_helpers import assert_items_equal
 from yt_helpers import profiler_factory
+from yt.yson import parser
 
 from copy import deepcopy
+from hashlib import sha1
 from random import shuffle, choice
 
+import builtins
+import os
 import pytest
 import string
 
@@ -325,3 +331,168 @@ class TestShuffleService(YTEnvSetup):
         assert read_shuffle_data(shuffle_handle, 0) == rows
         with raises_yt_error("Signature validation failed"):
             read_shuffle_data(modified_handle, 0)
+
+    @authors("apollo1321")
+    def test_job_proxy_shuffle_service_without_api_service(self):
+        with raises_yt_error("cannot be enabled when"):
+            run_test_vanilla(
+                "exit 0",
+                task_patch={
+                    "enable_rpc_proxy_in_job_proxy": False,
+                    "enable_shuffle_service_in_job_proxy": True,
+                },
+            )
+
+
+class TestShuffleServiceInJobProxy(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 5
+
+    DRIVER_BACKEND = "native"
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "job_proxy_authentication_manager": {
+                    "require_authentication": True,
+                    "cypress_token_authenticator": {
+                        "secure": True,
+                    },
+                },
+            }
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestShuffleServiceInJobProxy, self).setup_method(method)
+        self.work_dir = os.getcwd()
+        create_user("tester_name")
+        set("//sys/tokens/" + sha1(b"tester_token").hexdigest(), "tester_name")
+
+    def teardown_method(self, method):
+        os.chdir(self.work_dir)
+        super(TestShuffleServiceInJobProxy, self).teardown_method(method)
+
+    def create_driver_from_uds(self, socket_file):
+        return Driver(config={
+            "connection_type": "rpc",
+            "proxy_unix_domain_socket": socket_file,
+            "api_version": 4,
+        })
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("port_count", [0, 1])
+    def test_shuffle_service_in_job_proxy(self, port_count):
+        """
+        This test verifies that the Shuffle Service is accessible to all jobs
+        within a single vanilla operation, ensuring cross-job communication for
+        shuffle methods via IPv6 while maintaining user job API interactions
+        through Unix domain sockets (UDS).
+
+        Container Structure (simplified for 2 jobs):
+        +---------------------------------+ +---------------------------------+
+        |       Exec Node 1, slot K       | |        Exec Node 2, slot Q      |
+        |     /tmp/unix_domain_socket1    | |     /tmp/unix_domain_socket2    |
+        | +-----------------------------+ | | +-----------------------------+ |
+        | |         Job Proxy 1         | | | |         Job Proxy 2         | |
+        | | ApiService -> /mounted_uds  | | | | ApiService -> /mounted_uds  | |
+        | | ShuffleService -> [::]:P1   | | | | ShuffleService -> [::]:P2   | |
+        | +-----------------------------+ | | +-----------------------------+ |
+        | +-----------------------------+ | | +-----------------------------+ |
+        | |         User Job 1          | | | |         User Job 2          | |
+        | |  YtClient -> /mounted_uds   | | | |  YtClient -> /mounted_uds   | |
+        | +-----------------------------+ | | +-----------------------------+ |
+        +---------------------------------+ +---------------------------------+
+
+        When a user job enables shuffle service in job proxy:
+        - During initialization, the API service is configured with the shuffle
+          service address running on the job proxy.
+        - User job uses the mounted Unix domain socket to send requests to the
+          API service.
+        - Unlike the API service (which uses a Unix domain socket), the shuffle
+          service registers on an RPC server bound to IPv6 port. This allows
+          other jobs to access the current job's shuffle service.
+        """
+
+        job_count = 5
+
+        op = run_test_vanilla(
+            with_breakpoint(
+                "echo $YT_JOB_PROXY_SOCKET_PATH >&2; BREAKPOINT; "
+                f"if {'!' if port_count > 0 else ''} [[ -v YT_PORT_0 ]]; then exit 1; fi; "
+                "if [[ -v YT_PORT_1 ]]; then exit 2; fi; "
+            ),
+            task_patch={
+                "enable_rpc_proxy_in_job_proxy": True,
+                "enable_shuffle_service_in_job_proxy": True,
+                "port_count": port_count,
+            },
+            job_count=job_count,
+        )
+
+        # NB(apollo1321): Change current directory to make the Unix domain
+        # socket path relative, thus shorter. The maximum length for the socket
+        # path string is ~108 characters.
+        os.chdir(self.path_to_test)
+
+        job_ids = wait_breakpoint(job_count=job_count)
+        for job_id in job_ids:
+            wait(lambda: len(op.read_stderr(job_id)) > 0)
+
+        socket_files = [os.path.relpath(op.read_stderr(job_id).decode("ascii").strip()) for job_id in job_ids]
+
+        drivers = [self.create_driver_from_uds(socket_file) for socket_file in socket_files]
+
+        coordinator_addresses = builtins.set()
+        job_id_to_coordinator_port = {}
+        for index in range(len(job_ids)):
+            parent_transaction = start_transaction(
+                timeout=60000,
+                driver=drivers[index],
+                token="tester_token")
+
+            shuffle_handle = start_shuffle(
+                "intermediate",
+                partition_count=job_count + 1,
+                parent_transaction_id=parent_transaction,
+                driver=drivers[index],
+                token="tester_token")
+
+            coordinator_address = parser.loads(shuffle_handle["payload"].encode())["coordinator_address"]
+            assert coordinator_address not in coordinator_addresses
+            coordinator_addresses.add(coordinator_address)
+            coordinator_port = int(coordinator_address.split(":")[1])
+            assert coordinator_port > 0
+            job_id_to_coordinator_port[job_ids[index]] = coordinator_port
+
+            for job_id in range(job_count):
+                write_shuffle_data(
+                    shuffle_handle,
+                    "partition_id",
+                    [
+                        {"partition_id": partition_id, "job_id": job_id} for partition_id in range(job_count)
+                    ],
+                    driver=drivers[job_id],
+                    token="tester_token")
+
+            for job_id in range(job_count):
+                for partition_id in range(job_count):
+                    assert read_shuffle_data(shuffle_handle, partition_id, driver=drivers[job_id], token="tester_token") == [
+                        {"partition_id": partition_id, "job_id": job_id} for job_id in range(job_count)
+                    ]
+
+            abort_transaction(parent_transaction)
+
+        exec_nodes = ls("//sys/exec_nodes")
+        for node_id in exec_nodes:
+            allocations_path = f"//sys/cluster_nodes/{node_id}/orchid/exec_node/job_controller/allocations"
+            wait(lambda: len(ls(allocations_path)) > 0)
+            allocations = ls(allocations_path)
+            assert len(allocations) == 1
+            allocation_info = get(f"{allocations_path}/{allocations[0]}")
+            job_info = get(f"{allocations_path}/{allocations[0]}/job")
+            assert job_info["job_proxy_rpc_server_port"] == job_id_to_coordinator_port[allocation_info["last_job_id"]]
+
+        release_breakpoint()
+        op.track()

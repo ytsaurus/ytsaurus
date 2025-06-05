@@ -67,12 +67,13 @@ public:
 
             auto driverConfig = ConvertTo<TDriverConfigPtr>(configNode);
 
-            // NB(pavook): signature generation and validation is unsupported
-            // as we do not have the neccessary accesses anyway.
+            // NB(pavook): We do not need to do any validation here: all calls go through the RPC
+            // proxy which acts as an entry point to the cluster's secure perimeter and does all
+            // the validation.
             driver = CreateDriver(
                 connection,
                 driverConfig,
-                CreateAlwaysThrowingSignatureValidator());
+                CreateDummySignatureValidator());
         } catch(const std::exception& ex) {
             throw Py::RuntimeError(TString("Error creating driver\n") + ex.what());
         }

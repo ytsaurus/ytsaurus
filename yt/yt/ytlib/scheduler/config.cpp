@@ -1322,6 +1322,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_rpc_proxy_in_job_proxy", &TThis::EnableRpcProxyInJobProxy)
         .Default(false);
+    registrar.Parameter("enable_shuffle_service_in_job_proxy", &TThis::EnableShuffleServiceInJobProxy)
+        .Default(false);
+
     registrar.Parameter("rpc_proxy_worker_thread_pool_size", &TThis::RpcProxyWorkerThreadPoolSize)
         .Default(1)
         .GreaterThan(0);
@@ -1435,6 +1438,10 @@ void TUserJobSpec::Register(TRegistrar registrar)
 
         if (spec->UseYamrDescriptors && spec->RedirectStdoutToStderr) {
             THROW_ERROR_EXCEPTION("Uncompatible options \"use_yamr_descriptors\" and \"redirect_stdout_to_stderr\" are both set");
+        }
+
+        if (spec->EnableShuffleServiceInJobProxy && !spec->EnableRpcProxyInJobProxy) {
+            THROW_ERROR_EXCEPTION("Option \"enable_shuffle_service_in_job_proxy\" cannot be enabled when \"enable_rpc_proxy_in_job_proxy\" is disabled");
         }
     });
 }
