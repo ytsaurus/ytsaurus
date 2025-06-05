@@ -7,7 +7,12 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from .common import build_versions, build_resource_usage, add_common_dashboard_parameters
+from .common import (
+    build_versions,
+    build_resource_usage,
+    add_common_dashboard_parameters,
+    add_partitions_by_current_job_status_cell,
+)
 
 from .computation import ComputationCellGenerator
 
@@ -23,20 +28,6 @@ COMPUTATION_CELL_GENERATOR = ComputationCellGenerator(has_computation_id_tag=Fal
 
 
 def build_flow_status():
-
-    def job_status(status, alias):
-        return (FlowController(f"yt.flow.controller.job_status.{status}")
-            .aggr("computation_id")
-            .aggr("previous_job_finish_reason")
-            .aggr("job_finish_reason")  # Temporary code.
-            .query_transformation(f'alias({{query}}, "{alias}")'))
-
-    job_status_description = dedent("""\
-        Statuses of jobs of not finished partitions.
-        If partition has no current job, consider it as `Unknown` job.
-        So sum of lines on graph must be equal to total partition count.
-    """)
-
 
     def recovery_by_reason(statuses, alias):
         return (FlowController("|".join(f"yt.flow.controller.job_status.{status}" for status in statuses))
@@ -62,26 +53,7 @@ def build_flow_status():
     return (Rowset()
         .stack(False)
         .row()
-            .cell("Partitions by current job status",
-                MultiSensor(
-                    job_status("ok", "Working"),
-                    job_status("working_old", "Stably working (≥ 5 min after recovering)"),
-                    job_status("working_young", "Warming up (working ≤ 5 min after recovering)"),
-                    job_status("working_with_retryable_error", "Has retryable errors"),
-                    job_status("preparing", "Recovering (new job is preparing)"),
-                    job_status("unknown", "Unknown"))
-                    .min(0.8)
-                    .unit("UNIT_COUNT")
-                    .axis_type("YAXIS_TYPE_LOGARITHMIC"),
-                colors={
-                    "Working": "#00b200",
-                    "Stably working (≥ 5 min after recovering)": "#00b200",
-                    "Warming up (working ≤ 5 min after recovering)": "#b7e500",
-                    "Has retryable errors": "#cc0000",
-                    "Recovering (new job is preparing)": "#ffa500",
-                    "Unknown": "#11114e",
-                },
-                description=job_status_description)
+            .apply_func(add_partitions_by_current_job_status_cell)
             .cell("Recovering/warming up by reason",
                 MultiSensor(
                     recovery_by_reason(["unknown", "preparing"], "Recovering after {{{{previous_job_finish_reason}}}}"),
