@@ -137,6 +137,8 @@ struct TTestingTableMountConfig
     TDuration SimulatedTabletSnapshotDelay;
     TDuration SimulatedStorePreloadDelay;
 
+    TDuration SyncDelayInWriteTransactionCommit;
+
     double SortedStoreManagerRowHashCheckProbability;
 
     std::optional<size_t> TablePullerReplicaBanIterationsCount;

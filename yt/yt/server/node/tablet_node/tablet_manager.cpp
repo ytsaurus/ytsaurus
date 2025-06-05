@@ -1604,13 +1604,6 @@ private:
         }
 
         auto state = tablet->GetState();
-        if (state == ETabletState::Mounted || state == ETabletState::Frozen) {
-            YT_LOG_DEBUG("Requested to cancel transition of a tablet in a stable state, ignored "
-                "(%v, State: %v)",
-                tablet->GetLoggingTag(),
-                state);
-            return;
-        }
 
         auto stableState = tablet->GetLastStableState();
 
@@ -1620,7 +1613,33 @@ private:
             state,
             stableState);
 
+        // Add dynamic store ids to the pool even if the state is incorrect
+        // because these stores are already added by master.
         PopulateDynamicStoreIdPool(tablet, request);
+
+        if (state == ETabletState::Mounted || state == ETabletState::Frozen) {
+            YT_LOG_DEBUG("Requested to cancel transition of a tablet in a stable state, ignored "
+                "(%v, State: %v)",
+                tablet->GetLoggingTag(),
+                state);
+            return;
+        }
+
+        // Adding new active store to an ordered tablet when an empty passive store
+        // is present will result in both stores having the same starting row index,
+        // which is invalid. Since we cannot reliably check for the store emptiness,
+        // we avoid canceling transition when active store is not present.
+        if (tablet->IsPhysicallyOrdered() &&
+            (tablet->GetState() != ETabletState::UnmountWaitingForLocks &&
+                 tablet->GetState() != ETabletState::FreezeWaitingForLocks))
+        {
+            YT_LOG_DEBUG("Will not cancel tablet transition since the tablet is "
+                "already flushing: cannot cancel rotation of an ordered tablet (%v, State: %v)",
+                tablet->GetLoggingTag(),
+                tablet->GetState());
+
+            return;
+        }
 
         DoSetTabletState(tablet, stableState, /*cancelTransition*/ true);
     }
@@ -1779,7 +1798,7 @@ private:
         ETabletState requestedState,
         bool cancelTransition = false)
     {
-        if (tablet->GetState()== ETabletState::Mounted || tablet->GetState() == ETabletState::Frozen) {
+        if (tablet->GetState() == ETabletState::Mounted || tablet->GetState() == ETabletState::Frozen) {
             YT_LOG_INFO("Improper tablet state transition requested after transition "
                 "cancelation, ignored (%v, CurrentState: %v, RequestedState: %v)",
                 tablet->GetLoggingTag(),
@@ -1955,9 +1974,6 @@ private:
         if (!tablet) {
             return;
         }
-        if (tablet->GetState() != ETabletState::Mounted) {
-            return;
-        }
 
         auto actualMountRevision = tablet->GetActiveServantMountRevision();
         if (mountRevision != actualMountRevision) {
@@ -1969,6 +1985,14 @@ private:
 
         const auto& storeManager = tablet->GetStoreManager();
 
+        if (tablet->GetState() != ETabletState::Mounted) {
+            YT_LOG_DEBUG("Rotation request received by a tablet in invalid state, ignored "
+                "(%v, State: %v)",
+                tablet->GetLoggingTag(),
+                tablet->GetState());
+            storeManager->UnscheduleRotation();
+            return;
+        }
 
         if (tablet->GetActiveStore() &&
             expectedActiveStoreId &&

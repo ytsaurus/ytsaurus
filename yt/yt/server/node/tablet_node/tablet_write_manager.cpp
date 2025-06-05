@@ -17,6 +17,8 @@
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
+#include <yt/yt/server/lib/tablet_node/config.h>
+
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/core/misc/codicil.h>
@@ -473,6 +475,21 @@ public:
         YT_VERIFY(HasHydraContext());
 
         auto codicilGuard = MakeCodicilGuard();
+
+        const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+        if (auto delay = mountConfig->Testing.SyncDelayInWriteTransactionCommit) {
+            YT_LOG_DEBUG("Started sleeping in transaction commit "
+                "(%v, TransactionId: %v)",
+                Tablet_->GetLoggingTag(),
+                transaction->GetId());
+
+            Sleep(delay);
+
+            YT_LOG_DEBUG("Finished sleeping in transaction commit "
+                "(%v, TransactionId: %v)",
+                Tablet_->GetLoggingTag(),
+                transaction->GetId());
+        }
 
         // Fast path.
         if (!HasWriteState(transaction->GetId())) {
