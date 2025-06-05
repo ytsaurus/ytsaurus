@@ -47,6 +47,7 @@ class ClientState(object):
         # request on each request to YT.
         self._token = None
         self._token_cached = False
+        self._current_user = None
 
         # Cache for API version (to check it only once).
         self._api_version = None

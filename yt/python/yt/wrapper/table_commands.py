@@ -16,7 +16,7 @@ from .cypress_commands import (exists, remove, get_attribute, copy,
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .driver import make_request, make_formatted_request
 from .retries import default_chaos_monkey, run_chaos_monkey
-from .errors import YtIncorrectResponse, YtError, YtResponseError
+from .errors import YtIncorrectResponse, YtError, YtResponseError, YtResolveError
 from .format import create_format, YsonFormat, StructuredSkiffFormat, Format  # noqa
 from .batch_response import apply_function_to_result
 from .heavy_commands import make_write_request, make_read_request
@@ -24,7 +24,7 @@ from .parallel_writer import make_parallel_write_request
 from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_command_format)
-from .file_commands import _get_remote_temp_files_directory
+from .file_commands import _get_remote_temp_files_directory, _append_default_path_with_user_level
 from .parallel_reader import make_read_parallel_request
 from .schema import _SchemaRuntimeCtx, TableSchema
 from .stream import ItemStream, _ChunkStream
@@ -126,6 +126,7 @@ def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeou
     """
     if path is None:
         path = get_config(client)["remote_temp_tables_directory"]
+        path = _append_default_path_with_user_level(path, client=client)
         mkdir(path, recursive=True, client=client)
     else:
         path = str(TablePath(path, client=client))
@@ -142,7 +143,13 @@ def create_temp_table(path=None, prefix=None, attributes=None, expiration_timeou
     attributes = update(
         {"expiration_time": datetime_to_string(utcnow() + timeout)},
         get_value(attributes, {}))
-    _create_table(name, attributes=attributes, client=client)
+    for i in range(3):
+        try:
+            _create_table(name, attributes=attributes, client=client)
+            break
+        except YtResolveError:
+            # New empty directory can be deleted by external process
+            mkdir(path, recursive=True, client=client)
     return name
 
 

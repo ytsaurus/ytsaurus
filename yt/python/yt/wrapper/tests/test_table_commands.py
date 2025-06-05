@@ -283,7 +283,7 @@ class TestTableCommands(object):
         with pytest.raises(yt.YtError):
             yt.create("table", table)
 
-    @authors("asaitgalin", "ostyakov")
+    @authors("asaitgalin", "ostyakov", "denvr")
     def test_create_temp_table(self):
         table = yt.create_temp_table(path=TEST_DIR)
         assert table.startswith(TEST_DIR)
@@ -301,6 +301,22 @@ class TestTableCommands(object):
         with client.TempTable() as table:
             assert client.exists(table)
             wait(lambda: not client.exists(table))
+
+        tx1 = yt.start_transaction(timeout=10_000)
+        tx2 = yt.start_transaction(timeout=10_000)
+        yt.remove(yt.config["remote_temp_tables_directory"], force=True, recursive=True)
+        yt.remove("//tmp/yt_wrapper/file_storage", force=True, recursive=True)
+        yt.file_commands.TEMP_DIR_CREATED_PATH = dict()
+        assert not yt.exists(yt.config["remote_temp_tables_directory"] + "/root")
+        with yt.Transaction(transaction_id=tx1):
+            table_tx1 = yt.create_temp_table()
+        with yt.Transaction(transaction_id=tx2):
+            table_tx2 = yt.create_temp_table()
+        assert yt.exists(yt.config["remote_temp_tables_directory"] + "/root")
+        yt.commit_transaction(tx1)
+        yt.commit_transaction(tx2)
+        assert table_tx1.startswith(yt.config["remote_temp_tables_directory"] + "/root")
+        assert table_tx2.startswith(yt.config["remote_temp_tables_directory"] + "/root")
 
     @authors("asaitgalin", "ignat")
     def test_write_many_chunks(self):

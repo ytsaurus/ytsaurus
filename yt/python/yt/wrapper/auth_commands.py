@@ -1,7 +1,10 @@
-from .config import get_config
+from .config import get_config, get_option, set_option
 from .driver import make_request, make_formatted_request
+from .errors import YtError
+from .http_helpers import get_user_name
 
 from hashlib import sha256
+from typing import TypedDict, Optional
 
 
 def validate_password_strength(password):
@@ -67,3 +70,36 @@ def list_user_tokens(user, password=None,
         "list_user_tokens",
         params=params,
         client=client)
+
+
+class DictCurrentUser(TypedDict):
+    user: str
+
+
+def get_current_user(client=None) -> Optional[DictCurrentUser]:
+    """Get current user info"""
+    # TODO: simplify after complet release `get_current_user`
+    current_user = get_option("_current_user", client)
+    if current_user:
+        return current_user
+
+    try:
+        # try new method
+        current_user = make_formatted_request(
+            "get_current_user",
+            params={},
+            format=None,
+            client=client)
+    except YtError as ex:
+        if ex.code == 1 and "is not supported" in ex.message:
+            # fallback
+            try:
+                current_user = {"user": get_user_name(client=client)}
+            except YtError:
+                return None
+
+    if current_user:
+        set_option("_current_user", current_user, client)
+        return current_user
+    else:
+        return None
