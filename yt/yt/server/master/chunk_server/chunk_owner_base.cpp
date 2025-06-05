@@ -50,22 +50,10 @@ static constexpr auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkOwnerBase::TCommonUploadContext::TCommonUploadContext(TBootstrap* bootstrap)
+TChunkOwnerBase::TBeginUploadContext::TBeginUploadContext(TBootstrap* bootstrap)
     : Bootstrap(bootstrap)
 { }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkOwnerBase::TBeginUploadContext::TBeginUploadContext(TBootstrap* bootstrap)
-    : TCommonUploadContext(bootstrap)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
-// COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
-TChunkOwnerBase::TEndUploadContext::TEndUploadContext(TBootstrap* bootstrap)
-    : TCommonUploadContext(bootstrap)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -355,9 +343,6 @@ const TChunkReplication& TChunkOwnerBase::EffectiveHunkReplication() const
         return HunkReplication_;
     }
 }
-
-void TChunkOwnerBase::ParseCommonUploadContext(const TCommonUploadContext& /*context*/)
-{ }
 
 void TChunkOwnerBase::BeginUpload(const TBeginUploadContext& context)
 {

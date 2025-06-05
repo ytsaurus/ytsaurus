@@ -261,11 +261,10 @@ const TTableNode* TTableNode::GetTrunkNode() const
     return TTabletOwnerBase::GetTrunkNode()->As<TTableNode>();
 }
 
-void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
+void TTableNode::BeginUpload(const TBeginUploadContext &context)
 {
     const auto& tableManager = context.Bootstrap->GetTableManager();
     if (IsDynamic()) {
-        // NB: EndUpload may (and eventually will) stop sending schema info.
         auto contextMode = context.SchemaMode;
         auto* contextSchema = context.TableSchema;
         if ((contextMode && SchemaMode_ != contextMode) ||
@@ -286,25 +285,14 @@ void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
         SchemaMode_ = *context.SchemaMode;
     }
 
-    if (context.TableSchema) {
-        tableManager->SetTableSchema(this, context.TableSchema);
-    }
-}
-
-void TTableNode::BeginUpload(const TBeginUploadContext &context)
-{
-    ParseCommonUploadContext(context);
-    YT_VERIFY(context.TableSchema);
+    YT_LOG_ALERT_AND_THROW_UNLESS(context.TableSchema, "Schema is missing in begin upload context");
+    tableManager->SetTableSchema(this, context.TableSchema);
 
     TTabletOwnerBase::BeginUpload(context);
 }
 
 void TTableNode::EndUpload(const TEndUploadContext &context)
 {
-    // COMPAT(h0pless): Change this to check that schema has not changed during upload when
-    // clients will send table schema options during begin upload.
-    ParseCommonUploadContext(context);
-
     if (context.OptimizeFor) {
         OptimizeFor_.Set(*context.OptimizeFor);
     }

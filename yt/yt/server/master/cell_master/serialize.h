@@ -177,6 +177,7 @@ DEFINE_ENUM(EMasterReign,
     ((TablesInSequoia)                                              (2940))  // kvk1920
     ((SequoiaTransactionTitle)                                      (2941))  // kvk1920
     ((SequoiaPathMangling)                                          (2942))  // danilalexeev
+    ((RemoveCompatsInEndUpload)                                     (2943))  // h0pless
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
