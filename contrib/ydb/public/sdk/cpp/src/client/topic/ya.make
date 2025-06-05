@@ -13,7 +13,7 @@ PEERDIR(
     contrib/ydb/public/sdk/cpp/src/client/proto
     contrib/ydb/public/sdk/cpp/src/client/driver
     contrib/ydb/public/sdk/cpp/src/client/table
-    
+
     contrib/ydb/public/api/grpc
     contrib/ydb/public/api/grpc/draft
     contrib/ydb/public/api/protos
