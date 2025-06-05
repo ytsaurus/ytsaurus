@@ -109,10 +109,10 @@ public:
     TReadersStatistics GetStatistics() const override
     {
         return TReadersStatistics{
-            .ReadBytes = ReadBytes_.load(),
-            .DataBytesReadFromCache = ReadBlockBytesFromCache_.load(),
-            .DataBytesReadFromDisk = ReadBlockBytesFromDisk_.load(),
-            .MetaBytesReadFromDisk = ReadBlockMetaBytesFromDisk_.load()
+            .ReadBytes = ReadBytes_.exchange(0),
+            .DataBytesReadFromCache = ReadBlockBytesFromCache_.exchange(0),
+            .DataBytesReadFromDisk = ReadBlockBytesFromDisk_.exchange(0),
+            .MetaBytesReadFromDisk = ReadBlockMetaBytesFromDisk_.exchange(0)
         };
     }
 
@@ -153,10 +153,10 @@ private:
 
     i64 Size_ = 0;
 
-    std::atomic<i64> ReadBytes_;
-    std::atomic<i64> ReadBlockBytesFromCache_;
-    std::atomic<i64> ReadBlockBytesFromDisk_;
-    std::atomic<i64> ReadBlockMetaBytesFromDisk_;
+    mutable std::atomic<i64> ReadBytes_;
+    mutable std::atomic<i64> ReadBlockBytesFromCache_;
+    mutable std::atomic<i64> ReadBlockBytesFromDisk_;
+    mutable std::atomic<i64> ReadBlockMetaBytesFromDisk_;
 
     TFuture<std::vector<std::vector<TSharedRef>>> ReadFromChunks(
         const std::vector<TChunk>& chunks,

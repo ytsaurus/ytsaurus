@@ -62,26 +62,16 @@ public:
 
     ~TFileSystemBlockDevice()
     {
+        UpdateReadBlockCounters();
+
         TNbdProfilerCounters::Get()->GetGauge(TagSet_, "/device/count")
             .Update(FileBlockDeviceCount().Decrement(TagSet_));
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/removed")
             .Increment(1);
 
-        auto statistics = Reader_->GetStatistics();
-        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_cache")
-            .Increment(statistics.DataBytesReadFromCache);
-        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_disk")
-            .Increment(statistics.DataBytesReadFromDisk);
-        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_meta_bytes_from_disk")
-            .Increment(statistics.MetaBytesReadFromDisk);
-
         auto guard = TCurrentTraceContextGuard(TraceContext_);
-        YT_LOG_INFO("Destroying file system block device (Path: %v, ReadBytes: %v, DataBytesReadFromCache: %v, DataBytesReadFromDisk: %v, MetaBytesReadFromDisk: %v)",
-            Reader_->GetPath(),
-            statistics.ReadBytes,
-            statistics.DataBytesReadFromCache,
-            statistics.DataBytesReadFromDisk,
-            statistics.MetaBytesReadFromDisk);
+        YT_LOG_INFO("Destroying file system block device (Path: %v)",
+            Reader_->GetPath());
     }
 
     i64 GetTotalSize() const override
@@ -111,8 +101,11 @@ public:
     {
         auto guard = TCurrentTraceContextGuard(TraceContext_);
 
+        UpdateReadBlockCounters();
+
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_count").Increment(1);
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_bytes").Increment(length);
+
         NProfiling::TEventTimerGuard readTimeGuard(TNbdProfilerCounters::Get()->GetTimer(TagSet_, "/device/read_time"));
 
         return Reader_->Read(offset, length, options)
@@ -135,6 +128,7 @@ public:
 
     TFuture<void> Flush() override
     {
+        UpdateReadBlockCounters();
         return VoidFuture;
     }
 
@@ -147,6 +141,7 @@ public:
 
     TFuture<void> Finalize() override
     {
+        UpdateReadBlockCounters();
         return VoidFuture;
     }
 
@@ -172,6 +167,17 @@ private:
     {
         static NProfiling::TTaggedCounters<int> result;
         return result;
+    }
+
+    void UpdateReadBlockCounters()
+    {
+        auto statistics = Reader_->GetStatistics();
+        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_cache")
+            .Increment(statistics.DataBytesReadFromCache);
+        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_disk")
+            .Increment(statistics.DataBytesReadFromDisk);
+        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_meta_bytes_from_disk")
+            .Increment(statistics.MetaBytesReadFromDisk);
     }
 };
 
