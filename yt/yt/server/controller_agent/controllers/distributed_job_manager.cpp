@@ -42,7 +42,7 @@ int TDistributedJobManager::GetTotalJobCount() const
     return JobCounter_->GetTotal();
 }
 
-std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> TDistributedJobManager::PeekJobCandidate() const
+std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> TDistributedJobManager::PeekJobCandidate()
 {
     YT_VERIFY(!PendingCookies_.empty());
     auto cookie = *PendingCookies_.begin();
@@ -154,8 +154,15 @@ bool TDistributedJobManager::OnUnsuccessfulJobFinish(
     if (replicasIt != CookieToReplicas_.end()) {
         auto& replicas = replicasIt->second;
         Task_->GetTaskHost()->AsyncAbortJob(replicas.MainJobId, abortReason);
-        for (const auto& secondary : replicas.Secondaries) {
-            Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, abortReason);
+        for (auto& secondary : replicas.Secondaries) {
+            if (secondary.JobId) {
+                Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, abortReason);
+            } else {
+                secondary.ProgressCounterGuard.SetCategory(EProgressCategory::None);
+            }
+        }
+        if (replicas.Pending) {
+            EraseOrCrash(PendingCookies_, joblet->OutputCookie);
         }
         CookieToReplicas_.erase(replicasIt);
         return true;

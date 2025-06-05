@@ -918,6 +918,47 @@ class TestVanillaOperationRevival(YTEnvSetup):
         wait(lambda: incarnation_switch_counter.get() == 0)
         wait(lambda: started_job_profiler.get(default=0) == 3 - jobs_were_scheduled)
 
+    @authors("faucct")
+    def test_revive_before_distributed_jobs_scheduled(self):
+        started_job_profiler = JobCountProfiler(
+            "started",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+
+        sleeping_op = run_sleeping_vanilla(spec={"pool": "test_pool"}, job_count=2)
+        wait(lambda: len(get(_get_job_tracker_orchid_path(sleeping_op) + f"/operations/{sleeping_op.id}/allocations")) == 2)
+
+        # Will not start jobs while sleeping_op is running.
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            task_patch={"cookie_group_size": 3},
+            spec={"pool": "fake_pool"},
+        )
+
+        wait(lambda: len(get(_get_job_tracker_orchid_path(op) + f"/operations/{op.id}/allocations")) == 1)
+
+        op.wait_for_fresh_snapshot()
+
+        wait(lambda: started_job_profiler.get_job_count_delta() == 3)
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            sleeping_op.abort()
+
+        started_job_profiler = JobCountProfiler(
+            "started",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+
+        wait_breakpoint(job_count=3)
+        release_breakpoint()
+
+        op.track()
+
+        assert started_job_profiler.get() == 3
+
 
 ##################################################################
 
