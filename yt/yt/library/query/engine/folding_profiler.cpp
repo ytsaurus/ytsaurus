@@ -97,6 +97,8 @@ protected:
     void Fold(const char* str);
     void Fold(const llvm::FoldingSetNodeID& id);
 
+    static void AddLogicalType(const TLogicalType& logicalType, llvm::FoldingSetNodeID* id);
+
     llvm::FoldingSetNodeID* Id_;
 };
 
@@ -169,6 +171,64 @@ void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
         if (column.Aggregate()) {
             Fold(column.Aggregate()->c_str());
         }
+    }
+}
+
+void TSchemaProfiler::AddLogicalType(const TLogicalType& logicalType, llvm::FoldingSetNodeID* id)
+{
+    auto metatype = logicalType.GetMetatype();
+    id->AddInteger(ToUnderlying(metatype));
+
+    auto addElements = [&] (TRange<TLogicalTypePtr> elements) {
+        for (const auto& element : elements) {
+            AddLogicalType(*element, id);
+        }
+    };
+    auto addFields = [&] (TRange<TStructField> fields) {
+        for (const auto& field : fields) {
+            AddLogicalType(*field.Type, id);
+            id->AddString(field.Name);
+        }
+    };
+
+    switch (metatype) {
+        case ELogicalMetatype::Optional:
+            AddLogicalType(*logicalType.AsOptionalTypeRef().GetElement(), id);
+            break;
+
+        case ELogicalMetatype::List:
+            AddLogicalType(*logicalType.AsListTypeRef().GetElement(), id);
+            break;
+
+        case ELogicalMetatype::Tagged:
+            AddLogicalType(*logicalType.AsTaggedTypeRef().GetElement(), id);
+            break;
+
+        case ELogicalMetatype::Tuple:
+            addElements(logicalType.AsTupleTypeRef().GetElements());
+            break;
+
+        case ELogicalMetatype::VariantTuple:
+            addElements(logicalType.AsVariantTupleTypeRef().GetElements());
+            break;
+
+        case ELogicalMetatype::Struct:
+            addFields(logicalType.AsStructTypeRef().GetFields());
+            break;
+
+        case ELogicalMetatype::VariantStruct:
+            addFields(logicalType.AsVariantStructTypeRef().GetFields());
+            break;
+
+        case ELogicalMetatype::Decimal:
+            break;
+        case ELogicalMetatype::Simple:
+            id->AddInteger(ToUnderlying(logicalType.AsSimpleTypeRef().GetElement()));
+            break;
+        case ELogicalMetatype::Dict:
+            AddLogicalType(*logicalType.AsDictTypeRef().GetKey(), id);
+            AddLogicalType(*logicalType.AsDictTypeRef().GetValue(), id);
+            break;
     }
 }
 
@@ -672,12 +732,12 @@ size_t TExpressionProfiler::Profile(
     llvm::FoldingSetNodeID id;
     id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::FunctionExpr));
-    id.AddInteger(static_cast<ui8>(functionExpr->GetWireType()));
+    AddLogicalType(*functionExpr->LogicalType, &id);
     id.AddString(functionExpr->FunctionName.c_str());
 
     int argumentCount = functionExpr->Arguments.size();
     std::vector<size_t> argIds(argumentCount);
-    std::vector<EValueType> argumentTypes(argumentCount);
+    std::vector<TLogicalTypePtr> argumentTypes(argumentCount);
     auto literalArgs = std::make_unique<bool[]>(argumentCount);
     id.AddInteger(argumentCount);
     for (int index = 0; index < argumentCount; ++index) {
@@ -685,7 +745,7 @@ size_t TExpressionProfiler::Profile(
         // If fold is called inside Profile(argument) than in current function Fold will be called too.
         argIds[index] = Profile(argument, referenceProvider, fragments, isolated);
         id.AddInteger(argIds[index]);
-        argumentTypes[index] = argument->GetWireType();
+        argumentTypes[index] = argument->LogicalType;
         literalArgs[index] = argument->As<TLiteralExpression>() != nullptr;
     }
 
@@ -709,7 +769,7 @@ size_t TExpressionProfiler::Profile(
             std::move(argIds),
             std::move(literalArgs),
             std::move(argumentTypes),
-            functionExpr->GetWireType(),
+            functionExpr->LogicalType,
             "{" + InferName(functionExpr, true) + "}",
             ExecutionBackend_,
             Id_),
@@ -1731,15 +1791,15 @@ void TQueryProfiler::Profile(
                 }
                 aggregateExprIdsByFunc.emplace_back(std::move(aggregateArgIds));
             }
-            std::vector<EValueType> wireTypes;
-            wireTypes.reserve(argumentCount);
+            std::vector<TLogicalTypePtr> logicalTypes;
+            logicalTypes.reserve(argumentCount);
             for (const auto& arg : aggregateItem.Arguments) {
-                wireTypes.push_back(arg->GetWireType());
+                logicalTypes.push_back(arg->LogicalType);
             }
             codegenAggregates.push_back(aggregate->Profile(
-                std::move(wireTypes),
-                GetWireType(aggregateItem.StateType),
-                GetWireType(aggregateItem.ResultType),
+                logicalTypes,
+                aggregateItem.StateType,
+                aggregateItem.ResultType,
                 aggregateItem.Name,
                 ExecutionBackend_,
                 Id_));

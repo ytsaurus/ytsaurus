@@ -71,7 +71,8 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
             if (auto nested = TryParseNestedAggregate(aggregateName)) {
                 continue;
             }
-            auto type = schema->Columns()[index].GetWireType();
+            auto type = schema->Columns()[index].LogicalType();
+            auto wireType = GetWireType(type);
             column.AggregateImage = CodegenAggregate(
                 GetBuiltinAggregateProfilers()->GetAggregate(aggregateName)->Profile(
                     {type},
@@ -79,8 +80,8 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                     type,
                     aggregateName,
                     EExecutionBackend::Native),
-                {type},
-                type,
+                {wireType},
+                wireType,
                 EExecutionBackend::Native);
             column.AggregateInstance = column.AggregateImage.Instantiate();
             isAggregate[index] = true;

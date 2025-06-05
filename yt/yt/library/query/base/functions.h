@@ -56,6 +56,11 @@ ITypeInferrerPtr CreateAggregateTypeInferrer(
 ////////////////////////////////////////////////////////////////////////////////
 
 ITypeInferrerPtr CreateArrayAggTypeInferrer();
+ITypeInferrerPtr CreateDummyTypeInferrer(
+    std::string name,
+    bool aggregate,
+    bool supportedInV1,
+    bool supportedInV2);
 
 ////////////////////////////////////////////////////////////////////////////////
 

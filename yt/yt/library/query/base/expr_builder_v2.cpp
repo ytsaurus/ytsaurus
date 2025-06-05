@@ -500,6 +500,24 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
     auto functionName = functionExpr->FunctionName;
     functionName.to_lower();
 
+    if (functionName == "cast_operator") {
+        THROW_ERROR_EXCEPTION_IF(functionExpr->Arguments.size() != 2,
+            "Expected two arguments for %Qv function, got %v",
+            functionName,
+            functionExpr->Arguments.size());
+
+        auto* literalArgument = functionExpr->Arguments[1]->As<NAst::TLiteralExpression>();
+
+        THROW_ERROR_EXCEPTION_UNLESS(literalArgument && std::holds_alternative<TString>(literalArgument->Value),
+            "Misuse of the %Qv function",
+            functionName);
+
+        return New<TFunctionExpression>(
+            NTableClient::ParseType(std::get<TString>(literalArgument->Value)),
+            functionName,
+            std::vector<TConstExpressionPtr>{OnExpression(functionExpr->Arguments[0])});
+    }
+
     const auto& descriptor = Functions_->GetFunction(functionName);
 
     std::vector<TConstExpressionPtr> typedOperands;

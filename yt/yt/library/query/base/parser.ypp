@@ -92,6 +92,7 @@
 %token KwAs "keyword `AS`"
 %token KwOn "keyword `ON`"
 %token KwUnnest "keyword `UNNEST`"
+%token KwCast "keyword `CAST`"
 
 %token KwAnd "keyword `AND`"
 %token KwOr "keyword `OR`"
@@ -939,6 +940,21 @@ atomic-expr-other
             $$ = MakeExpression<TQueryExpression>(head, @$, std::move($query), std::move(head->AliasMap));
             head->AliasMap = std::move(aliasMapStack.top());
             aliasMapStack.pop();
+        }
+    | KwCast LeftParenthesis or-op-expr[expr] KwAs Identifier[typename] RightParenthesis
+        {
+            THROW_ERROR_EXCEPTION_UNLESS($expr.size() == 1,
+                "Expected a single argument for CAST operator, got %v",
+                    $expr.size());
+
+            auto arguments = MakeExpression<TLiteralExpression>(head, @$, std::move($typename));
+            arguments.insert(arguments.begin(), $expr[0]);
+
+            $$ = MakeExpression<TFunctionExpression>(
+                head,
+                @$,
+                "cast_operator",
+                std::move(arguments));
         }
 ;
 

@@ -17,8 +17,8 @@ struct IFunctionCodegen
         TCGVariables* variables,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> literalArgs,
-        std::vector<EValueType> argumentTypes,
-        EValueType type,
+        const std::vector<TLogicalTypePtr>& argumentTypes,
+        const TLogicalTypePtr& type,
         const std::string& name,
         NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
@@ -35,9 +35,9 @@ struct IAggregateCodegen
     : public TRefCounted
 {
     virtual TCodegenAggregate Profile(
-        std::vector<EValueType> argumentTypes,
-        EValueType stateType,
-        EValueType resultType,
+        const std::vector<TLogicalTypePtr>& argumentTypes,
+        const TLogicalTypePtr& stateType,
+        const TLogicalTypePtr& resultType,
         const std::string& name,
         NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
@@ -56,14 +56,14 @@ struct ICallingConvention
         TCGBaseContext& baseBuilder,
         std::vector<TCodegenValue> codegenArguments,
         std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
-        EValueType type,
+        EValueType wireType,
         bool aggregate,
         const std::string& name) const = 0;
 
     virtual llvm::FunctionType* GetCalleeType(
         TCGBaseContext& builder,
-        std::vector<EValueType> argumentTypes,
-        EValueType resultType,
+        const std::vector<TLogicalTypePtr>& argumentTypes,
+        const TLogicalTypePtr& resultType,
         bool useFunctionContext) const = 0;
 };
 
@@ -79,14 +79,14 @@ public:
         TCGBaseContext& baseBuilder,
         std::vector<TCodegenValue> codegenArguments,
         std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
-        EValueType type,
+        EValueType wireType,
         bool aggregate,
         const std::string& name) const override;
 
     llvm::FunctionType* GetCalleeType(
         TCGBaseContext& builder,
-        std::vector<EValueType> argumentTypes,
-        EValueType resultType,
+        const std::vector<TLogicalTypePtr>& argumentTypes,
+        const TLogicalTypePtr& resultType,
         bool useFunctionContext) const override;
 
 private:
@@ -101,14 +101,14 @@ public:
         TCGBaseContext& baseBuilder,
         std::vector<TCodegenValue> codegenArguments,
         std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
-        EValueType type,
+        EValueType wireType,
         bool aggregate,
         const std::string& name) const override;
 
     llvm::FunctionType* GetCalleeType(
         TCGBaseContext& builder,
-        std::vector<EValueType> argumentTypes,
-        EValueType resultType,
+        const std::vector<TLogicalTypePtr>& argumentTypes,
+        const TLogicalTypePtr& resultType,
         bool useFunctionContext) const override;
 };
 
@@ -162,8 +162,8 @@ public:
         TCGVariables* variables,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> literalArgs,
-        std::vector<EValueType> argumentTypes,
-        EValueType type,
+        const std::vector<TLogicalTypePtr>& argumentTypes,
+        const TLogicalTypePtr& type,
         const std::string& name,
         NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id) const override;
@@ -195,9 +195,9 @@ public:
     { }
 
     TCodegenAggregate Profile(
-        std::vector<EValueType> argumentTypes,
-        EValueType stateType,
-        EValueType resultType,
+        const std::vector<TLogicalTypePtr>& argumentTypes,
+        const TLogicalTypePtr& stateType,
+        const TLogicalTypePtr& resultType,
         const std::string& name,
         NCodegen::EExecutionBackend executionBackend,
         llvm::FoldingSetNodeID* id) const override;

@@ -217,7 +217,7 @@ struct TRewriter
         }
 
         return New<TFunctionExpression>(
-            functionExpr->GetWireType(),
+            functionExpr->LogicalType,
             functionExpr->FunctionName,
             std::move(newArguments));
     }
