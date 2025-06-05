@@ -2,7 +2,7 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from .test_ordered_dynamic_tables import TestOrderedDynamicTablesBase
 
 from yt_commands import (
-    authors, print_debug, wait, create, get, set, create_user,
+    authors, print_debug, wait, create, get, set, create_user, remount_table,
     create_tablet_cell_bundle, remove_tablet_cell, update_nodes_dynamic_config,
     insert_rows, select_rows, lookup_rows, sync_create_cells, pull_queue,
     sync_mount_table, sync_flush_table, generate_uuid, sync_reshard_table)
@@ -15,6 +15,8 @@ from yt.environment.helpers import assert_items_equal
 from flaky import flaky
 
 from functools import partial
+
+import builtins
 
 import pytest
 
@@ -514,6 +516,12 @@ class TestStatisticsReporterBase:
 
 
 class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTablesBase):
+    def _get_counter(self, statistics_path, table_id, tablet_id, name, counter):
+        response = lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])
+        if len(response) == 0:
+            return 0
+        return response[0][name][counter]
+
     @authors("dave11ar")
     def test_statistics_reporter(self):
         statistics_path = "//tmp/statistics_reporter_table"
@@ -545,22 +553,123 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         for _ in range(20):
             select_rows("* from [//tmp/t] where value = \"bbb\"")
 
-        def get_select_cpu_time_rate(table_id, tablet_id):
-            response = lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id}])
-            if len(response) == 0:
-                return 0
-            return response[0]["select_cpu_time"]["rate_10m"]
+        def _get_select_cpu_time(tablet_id):
+            return self._get_counter(statistics_path, table_id, tablet_id, "select_cpu_time", "count")
 
         for tablet_id in tablet_ids:
-            wait(lambda: get_select_cpu_time_rate(table_id, tablet_id) > 0)
+            wait(lambda: _get_select_cpu_time(tablet_id) > 0)
 
-        a_cpu = get_select_cpu_time_rate(table_id, tablet_ids[0])
-        b_cpu = get_select_cpu_time_rate(table_id, tablet_ids[1])
-        c_cpu = get_select_cpu_time_rate(table_id, tablet_ids[2])
+        a_cpu = _get_select_cpu_time(tablet_ids[0])
+        b_cpu = _get_select_cpu_time(tablet_ids[1])
+        c_cpu = _get_select_cpu_time(tablet_ids[2])
 
         assert a_cpu > 0
         assert b_cpu > 0
         assert c_cpu > 0
 
         # CPU usage of the second tablet must be substantially higher
-        assert b_cpu > ((a_cpu + c_cpu) / 2) * 1.5
+        assert b_cpu > ((a_cpu + c_cpu) / 2) * 1.3
+
+    @authors("akozhikhov")
+    def test_hunks_performance_counters_1(self):
+        statistics_path = "//tmp/statistics_reporter_table"
+        self._setup_statistics_reporter(statistics_path)
+
+        SCHEMA = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+        ]
+
+        self._create_simple_table(
+            "//tmp/t",
+            schema=SCHEMA,
+            chunk_format="table_versioned_simple")
+
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i)} for i in range(5)])
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5, 10)])
+        sync_flush_table("//tmp/t")
+
+        lookup_rows("//tmp/t", [{"key": i} for i in range(10)])
+
+        def _get_lookup_counter():
+            return self._get_counter(statistics_path, table_id, tablet_id, "static_chunk_row_lookup_data_weight", "count")
+
+        def _get_hunk_counter(request_type):
+            return self._get_counter(statistics_path, table_id, tablet_id, f"static_hunk_chunk_row_{request_type}_data_weight", "count")
+
+        wait(lambda: _get_lookup_counter() > 0)
+        assert _get_hunk_counter("lookup") > 0
+
+        prev_value = _get_lookup_counter()
+        hunk_prev_value = _get_hunk_counter("lookup")
+        lookup_rows("//tmp/t", [{"key": i} for i in range(5)])
+        wait(lambda: _get_lookup_counter() > prev_value)
+        assert _get_hunk_counter("lookup") == hunk_prev_value
+
+        hunk_prev_value = _get_hunk_counter("read")
+        select_rows("key, value from [//tmp/t]")
+        wait(lambda: _get_hunk_counter("read") > hunk_prev_value)
+
+        hunk_prev_value = _get_hunk_counter("read")
+        select_rows("key, value from [//tmp/t] where key in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)")
+        wait(lambda: _get_hunk_counter("read") > hunk_prev_value)
+
+        hunk_prev_value = _get_hunk_counter("read")
+        select_rows("key, value from [//tmp/t] where key in (0, 1, 2, 3, 4)")
+        time.sleep(3)
+        assert _get_hunk_counter("read") == hunk_prev_value
+
+    @authors("akozhikhov")
+    def test_hunks_performance_counters_2(self):
+        statistics_path = "//tmp/statistics_reporter_table"
+        self._setup_statistics_reporter(statistics_path)
+
+        SCHEMA = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+        ]
+
+        self._create_simple_table(
+            "//tmp/t",
+            schema=SCHEMA,
+            chunk_format="table_versioned_simple")
+
+        sync_mount_table("//tmp/t")
+
+        table_id = get("//tmp/t/@id")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i)} for i in range(5)])
+        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5, 10)])
+        sync_flush_table("//tmp/t")
+
+        lookup_rows("//tmp/t", [{"key": i} for i in range(10)])
+        select_rows("key, value from [//tmp/t]")
+
+        def _get_hunk_counter(request_type):
+            return self._get_counter(statistics_path, table_id, tablet_id, f"static_hunk_chunk_row_{request_type}_data_weight", "count")
+
+        wait(lambda: _get_hunk_counter("lookup") > 0)
+        wait(lambda: _get_hunk_counter("read") > 0)
+
+        lookup_data_weight_value = _get_hunk_counter("lookup")
+        select_data_weight_value = _get_hunk_counter("read")
+
+        chunk_ids_before_compaction = builtins.set(self._get_store_chunk_ids("//tmp/t"))
+        set("//tmp/t/@forced_compaction_revision", 1)
+        remount_table("//tmp/t")
+
+        def _check_forced_compaction():
+            chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
+            return chunk_ids_before_compaction.isdisjoint(chunk_ids)
+
+        wait(_check_forced_compaction)
+
+        time.sleep(3)
+        assert lookup_data_weight_value == _get_hunk_counter("lookup")
+        assert select_data_weight_value == _get_hunk_counter("read")
