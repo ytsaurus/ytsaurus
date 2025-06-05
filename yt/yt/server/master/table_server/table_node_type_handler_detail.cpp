@@ -422,7 +422,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
                 refCounter);
         }
 
-        table->MutableSecondaryIndices().clear();
+        if (!table->SecondaryIndices().empty()) {
+            table->MutableSecondaryIndices().clear();
+        }
     }
 
     if (!table->IsExternal() &&

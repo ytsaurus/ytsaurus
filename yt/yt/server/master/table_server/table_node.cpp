@@ -106,6 +106,8 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, CommitOrdering);
     Save(context, UpstreamReplicaId);
     Save(context, LastCommitTimestamp);
+    Save(context, RetainedTimestamp);
+    Save(context, UnflushedTimestamp);
     Save(context, ForcedCompactionRevision);
     Save(context, ForcedStoreCompactionRevision);
     Save(context, ForcedHunkCompactionRevision);
@@ -136,6 +138,8 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, IndexTo);
     Save(context, TreatAsQueueProducer);
     Save(context, SerializationType);
+    Save(context, ReplicationCollocation);
+    Save(context, CustomRuntimeData);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -145,6 +149,13 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, CommitOrdering);
     Load(context, UpstreamReplicaId);
     Load(context, LastCommitTimestamp);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
+        Load(context, RetainedTimestamp);
+        Load(context, UnflushedTimestamp);
+    }
+
     Load(context, ForcedCompactionRevision);
     Load(context, ForcedStoreCompactionRevision);
     Load(context, ForcedHunkCompactionRevision);
@@ -187,6 +198,12 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     // COMPAT(ponasenko-rs)
     if (context.GetVersion() >= EMasterReign::TabletTransactionSerializationType) {
         Load(context, SerializationType);
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
+        Load(context, ReplicationCollocation);
+        Load(context, CustomRuntimeData);
     }
 }
 
@@ -361,10 +378,6 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, OptimizeFor_);
     Save(context, ChunkFormat_);
     Save(context, HunkErasureCodec_);
-    Save(context, RetainedTimestamp_);
-    Save(context, UnflushedTimestamp_);
-    Save(context, ReplicationCollocation_);
-    Save(context, CustomRuntimeData_);
     TUniquePtrSerializer<>::Save(context, DynamicTableAttributes_);
 }
 
@@ -401,13 +414,21 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         }
     }
     Load(context, HunkErasureCodec_);
-    Load(context, RetainedTimestamp_);
-    Load(context, UnflushedTimestamp_);
-    Load(context, ReplicationCollocation_);
 
-    // COMPAT(gryzlov-ad)
-    if (context.GetVersion() >= EMasterReign::AddTableNodeCustomRuntimeData) {
-        Load(context, CustomRuntimeData_);
+    // COMPAT(ifsmirnov)
+    TTimestamp retainedTimestamp;
+    TTimestamp unflushedTimestamp;
+    TTableCollocationRawPtr replicationCollocation;
+    TYsonString customRuntimeData;
+    if (context.GetVersion() < EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
+        Load(context, retainedTimestamp);
+        Load(context, unflushedTimestamp);
+        Load(context, replicationCollocation);
+
+        // COMPAT(gryzlov-ad)
+        if (context.GetVersion() >= EMasterReign::AddTableNodeCustomRuntimeData) {
+            Load(context, customRuntimeData);
+        }
     }
 
     // COMPAT(gritukan): Use TUniquePtrSerializer.
@@ -416,6 +437,20 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         DynamicTableAttributes_->Load(context);
     } else {
         DynamicTableAttributes_.reset();
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() < EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
+        SetRetainedTimestamp(retainedTimestamp);
+        SetUnflushedTimestamp(unflushedTimestamp);
+        SetReplicationCollocation(replicationCollocation);
+
+        // COMPAT(gryzlov-ad)
+        if (context.GetVersion() >= EMasterReign::AddTableNodeCustomRuntimeData) {
+            if (customRuntimeData) {
+                MutableCustomRuntimeData() = std::move(customRuntimeData);
+            }
+        }
     }
 
     // COMPAT(apachee): Remove user attributes conflicting with new producer attributes.
@@ -484,16 +519,18 @@ TTimestamp TTableNode::GetCurrentUnflushedTimestamp(
     TTimestamp latestTimestamp) const
 {
     // COMPAT(savrus) Consider saved value only for non-trunk nodes.
-    return !IsTrunk() && UnflushedTimestamp_ != NullTimestamp
-        ? UnflushedTimestamp_
+    auto unflushedTimestamp = GetUnflushedTimestamp();
+    return !IsTrunk() && unflushedTimestamp != NullTimestamp
+        ? unflushedTimestamp
         : CalculateUnflushedTimestamp(latestTimestamp);
 }
 
 TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
 {
     // COMPAT(savrus) Consider saved value only for non-trunk nodes.
-    return !IsTrunk() && RetainedTimestamp_ != NullTimestamp
-        ? RetainedTimestamp_
+    auto retainedTimestamp = GetRetainedTimestamp();
+    return !IsTrunk() && retainedTimestamp != NullTimestamp
+        ? retainedTimestamp
         : CalculateRetainedTimestamp();
 }
 
