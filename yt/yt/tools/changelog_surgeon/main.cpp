@@ -9,8 +9,6 @@
 
 #include <library/cpp/getopt/last_getopt.h>
 
-#include <fstream>
-
 namespace NYT {
 
 using namespace NFS;
@@ -21,7 +19,102 @@ using namespace NLastGetopt;
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "ChangelogSurgeonLogger");
-constexpr int DefaultMaxRecordsPerRead = 1000000;
+constexpr int MinRecordsPerRead = 1;
+constexpr int DefaultMaxRecordsPerRead = 1'000'000;
+constexpr int ResultingChangelogMaxRecordCount = 100'000'000;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSurgeonParams
+{
+    std::optional<int> FirstSequenceNumber;
+    std::optional<int> LastSequenceNumber;
+    TString ChangelogList;
+    TString ResultingChangelogName;
+    int MaxRecordsPerRead = DefaultMaxRecordsPerRead;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::pair<i64, i64> GetSequenceNumberRange(const TVector<TString>& changelogFileNames)
+{
+    bool changelogsEmpty = true;
+    auto minSequenceNumber = std::numeric_limits<i64>::max();
+    auto maxSequenceNumber = std::numeric_limits<i64>::min();
+
+    auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYT::NYTree::INodePtr());
+    auto config = New<TFileChangelogConfig>();
+
+    for (const auto& fileName : changelogFileNames) {
+        auto currentChangelog = CreateUnbufferedFileChangelog(
+            ioEngine,
+            /*memoryUsageTracker*/ nullptr,
+            fileName,
+            config);
+        currentChangelog->Open();
+
+        auto recordCount = currentChangelog->GetRecordCount();
+        if (recordCount == 0) {
+            YT_LOG_INFO("Changelog is empty (Filename: %v)",
+                fileName);
+            continue;
+        }
+        changelogsEmpty = false;
+
+        auto records = currentChangelog->Read(0, 1, std::numeric_limits<i64>::max());
+        THROW_ERROR_EXCEPTION_IF(records.empty(), "No records were read from a changelog");
+        YT_VERIFY(std::ssize(records) == 1);
+
+        NYT::NHydra::NProto::TMutationHeader mutationHeader;
+        TSharedRef mutationData;
+        DeserializeMutationRecord(records[0], &mutationHeader, &mutationData);
+
+        auto seqNumber = mutationHeader.sequence_number();
+        minSequenceNumber = std::min(minSequenceNumber, seqNumber);
+        maxSequenceNumber = std::max(maxSequenceNumber, seqNumber + recordCount);
+    }
+
+    if (changelogsEmpty) {
+        THROW_ERROR_EXCEPTION("All changelogs are empty");
+    }
+
+    YT_LOG_INFO(
+        "Computed the records range (MinSequenuceNumber: %v, MaxSequenceNumber: %v)",
+        minSequenceNumber,
+        maxSequenceNumber);
+
+    return {minSequenceNumber, maxSequenceNumber};
+}
+
+void ValidateSurgeonParams(const TSurgeonParams& params)
+{
+    auto changelogFileNames = StringSplitter(params.ChangelogList).Split(' ').ToList<TString>();
+    auto [minSequenceNumber, maxSequenceNumber] = GetSequenceNumberRange(changelogFileNames);
+
+    if (params.FirstSequenceNumber && params.FirstSequenceNumber < minSequenceNumber) {
+        THROW_ERROR_EXCEPTION("First sequence number should be not less than %v", minSequenceNumber)
+            << TErrorAttribute("first_sequence_number", params.FirstSequenceNumber);
+    }
+
+    if (params.LastSequenceNumber && params.LastSequenceNumber < maxSequenceNumber) {
+        THROW_ERROR_EXCEPTION("Last sequence number should be not greater than %v", maxSequenceNumber)
+            << TErrorAttribute("last_sequence_number", params.LastSequenceNumber);
+    }
+
+    if (params.MaxRecordsPerRead < MinRecordsPerRead || params.MaxRecordsPerRead > ResultingChangelogMaxRecordCount) {
+        THROW_ERROR_EXCEPTION(
+            "Max records per read should be in range %v",
+            Format("[%v, %v]", MinRecordsPerRead, ResultingChangelogMaxRecordCount))
+            << TErrorAttribute("max_records_per_read", params.MaxRecordsPerRead);
+    }
+
+    auto resultingChangelogRecordCount = maxSequenceNumber - minSequenceNumber + 1;
+    if (resultingChangelogRecordCount > ResultingChangelogMaxRecordCount) {
+        THROW_ERROR_EXCEPTION("Resulting changelog is too big")
+            << TErrorAttribute("resulting_changelog_record_count", resultingChangelogRecordCount)
+            << TErrorAttribute("resulting_changelog_max_record_count", resultingChangelogRecordCount);
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,7 +137,7 @@ bool ValidateRecordIdentity(const TSharedRef& lhs, const TSharedRef& rhs)
         return false;
     }
 
-    if (TRef::AreBitwiseEqual(lhsMutationData, rhsMutationData)) {
+    if (!TRef::AreBitwiseEqual(lhsMutationData, rhsMutationData)) {
         YT_LOG_ERROR("Mutation data of mutations with the same sequence number differ (FirstMutationHeader: %v, SecondMutationHeader: %v",
             serializedLhsMutationHeader,
             serializedRhsMutationHeader);
@@ -54,60 +147,15 @@ bool ValidateRecordIdentity(const TSharedRef& lhs, const TSharedRef& rhs)
     return true;
 }
 
-i64 DeduceFirstSequenceNumber(const TVector<TString>& changelogFileNames)
+void PerformSurgery(const TSurgeonParams& params)
 {
-    bool allRecordsEmpty = true;
-    i64 seqNumber = std::numeric_limits<i64>::max();
+    auto changelogFileNames = StringSplitter(params.ChangelogList).Split(' ').ToList<TString>();
+    auto [minSequenceNumber, maxSequenceNumber] = GetSequenceNumberRange(changelogFileNames);
 
-    auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYT::NYTree::INodePtr());
-    auto config = New<TFileChangelogConfig>();
+    auto firstSequenceNumber = params.FirstSequenceNumber.value_or(minSequenceNumber);
+    auto lastSequenceNumber = params.LastSequenceNumber.value_or(maxSequenceNumber);
 
-    for (const auto& fileName : changelogFileNames) {
-        auto currentChangelog = CreateUnbufferedFileChangelog(
-            ioEngine,
-            /*memoryUsageTracker*/ nullptr,
-            fileName,
-            config);
-        currentChangelog->Open();
-        auto recordCount = currentChangelog->GetRecordCount();
-        if (recordCount == 0) {
-            continue;
-        }
-        allRecordsEmpty = false;
-
-        auto records = currentChangelog->Read(0, 1, std::numeric_limits<i64>::max());
-        if (records.empty()) {
-            THROW_ERROR_EXCEPTION("No records were read from a changelog");
-        }
-        YT_VERIFY(std::ssize(records) == 1);
-
-        NYT::NHydra::NProto::TMutationHeader mutationHeader;
-        TSharedRef mutationData;
-
-        DeserializeMutationRecord(records[0], &mutationHeader, &mutationData);
-
-        seqNumber = std::min(seqNumber, mutationHeader.sequence_number());
-    }
-
-    if (allRecordsEmpty) {
-        THROW_ERROR_EXCEPTION("Error deducing first seqenuce number, all records are empty");
-    }
-
-    YT_LOG_INFO("Deduced first sequence number for a set of changelogs (FirstSequenuceNumber: %v)",
-        seqNumber);
-
-    return seqNumber;
-}
-
-void PerformSurgery(
-    i64 firstSeqNum,
-    i64 lastSeqNum,
-    const TVector<TString>& changelogFileNames,
-    const TString& resultingChangelogId,
-    int maxRecordsPerRead)
-{
-    std::vector<TSharedRef> resultingRecords(lastSeqNum - firstSeqNum + 1);
-    std::vector<bool> found(lastSeqNum - firstSeqNum + 1);
+    std::vector<TSharedRef> resultingRecords(lastSequenceNumber - firstSequenceNumber + 1);
 
     NYT::NHydra::NProto::TMutationHeader mutationHeader;
     TSharedRef mutationData;
@@ -122,74 +170,74 @@ void PerformSurgery(
             fileName,
             config);
         currentChangelog->Open();
+        auto guard = Finally([=] {
+            currentChangelog->Close();
+        });
+
         auto recordCount = currentChangelog->GetRecordCount();
         if (recordCount == 0) {
-            YT_LOG_INFO("Changelog is empty (Filename: %v)",
-                fileName);
-            currentChangelog->Close();
             continue;
         }
 
         // Read a part of a changelog.
         auto recordsRead = 0;
         while (recordsRead < recordCount) {
-            auto changelogRecords = currentChangelog->Read(recordsRead, maxRecordsPerRead, std::numeric_limits<i64>::max());
-            if (changelogRecords.size() == 0) {
-                THROW_ERROR_EXCEPTION("No records were read from a changelog");
-            }
-
+            auto changelogRecords = currentChangelog->Read(recordsRead, params.MaxRecordsPerRead, std::numeric_limits<i64>::max());
+            THROW_ERROR_EXCEPTION_IF(changelogRecords.size() == 0, "No records were read from a changelog");
             recordsRead += changelogRecords.size();
 
             for (const auto& record : changelogRecords) {
                 DeserializeMutationRecord(record, &mutationHeader, &mutationData);
-                auto seqNumber = mutationHeader.sequence_number();
-                if (firstSeqNum <= seqNumber && seqNumber <= lastSeqNum) {
-                    if (!found[seqNumber - firstSeqNum]) {
-                        resultingRecords[seqNumber - firstSeqNum] = record;
-                        found[seqNumber - firstSeqNum] = true;
-                    } else if (!ValidateRecordIdentity(record, resultingRecords[seqNumber - firstSeqNum])) {
-                        return;
+                auto sequenceNumber = mutationHeader.sequence_number();
+                if (firstSequenceNumber <= sequenceNumber && sequenceNumber <= lastSequenceNumber) {
+                    auto recordId = sequenceNumber - firstSequenceNumber;
+                    if (!resultingRecords[recordId]) {
+                        resultingRecords[recordId] = record;
+                    } else {
+                        ValidateRecordIdentity(record, resultingRecords[recordId]);
                     }
                 }
             }
         }
-        currentChangelog->Close();
     }
 
-    ui64 prevRandomSeed = 0;
-    i64 resultingId = FromString<i64>(resultingChangelogId);
-    for (int i = 0; i < std::ssize(resultingRecords); ++i) {
-        if (!found[i]) {
-            THROW_ERROR_EXCEPTION("Mutation is missing (SequenceNumber: %v)", i + firstSeqNum);
-        }
+    bool allRecordsFound = AllOf(
+        resultingRecords.begin(),
+        resultingRecords.end(),
+        [&] (const TSharedRef& record) {
+            return !record.Empty();
+        });
+    THROW_ERROR_EXCEPTION_UNLESS(allRecordsFound, "Some mutation records are missing");
 
+    auto resultingChangelogId = FromString<i64>(params.ResultingChangelogName);
+    std::optional<NHydra::NProto::TMutationHeader> prevMutationHeader;
+    for (int i = 0; i < ssize(resultingRecords); ++i) {
         DeserializeMutationRecord(resultingRecords[i], &mutationHeader, &mutationData);
-        if (mutationHeader.prev_random_seed() != prevRandomSeed && i != 0) {
-            auto secondMutationHeader = mutationHeader;
-            DeserializeMutationRecord(resultingRecords[i - 1], &mutationHeader, &mutationData);
+        if (prevMutationHeader && mutationHeader.prev_random_seed() != prevMutationHeader->random_seed()) {
             THROW_ERROR_EXCEPTION("Random seeds do not match (FirstMutationHeader: %v, SecondMutationHeader: %v)",
                 ToString(mutationHeader),
-                ToString(secondMutationHeader));
+                ToString(*prevMutationHeader));
         }
 
-        if (mutationHeader.segment_id() != resultingId) {
+        if (mutationHeader.segment_id() != resultingChangelogId) {
             YT_LOG_WARNING("An original mutation segment_id was substituted with a new one (OldSegmentId: %v, NewSegmentId: %v)",
                 mutationHeader.segment_id(),
-                resultingId);
+                resultingChangelogId);
         }
-        if (mutationHeader.record_id() != i) {
+
+        if (mutationHeader.record_id() != static_cast<i32>(i)) {
             YT_LOG_WARNING("An original mutation record_id was substituted with a new one (OldRecordId: %v, NewRecordId: %v)",
                 mutationHeader.record_id(),
                 i);
         }
-        mutationHeader.set_segment_id(resultingId);
+
+        mutationHeader.set_segment_id(resultingChangelogId);
         mutationHeader.set_record_id(i);
         resultingRecords[i] = SerializeMutationRecord(mutationHeader, mutationData);
-        prevRandomSeed = mutationHeader.random_seed();
+        prevMutationHeader = mutationHeader;
     }
 
-    auto resultingChangelogName = resultingChangelogId + ".log";
-    std::ofstream { resultingChangelogName };
+    auto resultingChangelogName = params.ResultingChangelogName + ".log";
     auto resultingChangelog = CreateUnbufferedFileChangelog(
         ioEngine,
         /*memoryUsageTracker*/ nullptr,
@@ -202,51 +250,37 @@ void PerformSurgery(
 
 void Run(int argc, char** argv)
 {
+    TSurgeonParams params;
     TOpts opts;
 
-    std::optional<i64> firstSeqNum;
     opts.AddCharOption('f', "[inclusive] Start of the range of sequence numbers to be used to build a new changelog")
         .RequiredArgument("FIRST_SEQUENCE_NUMBER")
         .Optional()
-        .StoreResult(&firstSeqNum);
+        .StoreResult(&params.FirstSequenceNumber);
 
-    i64 lastSeqNum = 0;
     opts.AddCharOption('t', "[inclusive] End of the range of sequence numbers to be used to build a new changelog")
         .RequiredArgument("LAST_SEQUENCE_NUMBER")
-        .Required()
-        .StoreResult(&lastSeqNum);
+        .Optional()
+        .StoreResult(&params.LastSequenceNumber);
 
-    TString resultingChangelogId;
     opts.AddCharOption('i', "Desired output changelog name, should be convertible to a number")
         .RequiredArgument("CHANGELOG_ID")
         .Required()
-        .StoreResult(&resultingChangelogId);
+        .StoreResult(&params.ResultingChangelogName);
 
-    TString changelogList;
     opts.AddCharOption('c', "List of all changelogs that can be used to transplant their entries to the new one")
         .RequiredArgument("CHANGELOG_LIST")
         .Required()
-        .StoreResult(&changelogList);
+        .StoreResult(&params.ChangelogList);
 
-    int maxRecordsPerRead = DefaultMaxRecordsPerRead;
     opts.AddLongOption("max-records-per-read", "Max number of records to read from a changelog at once")
         .RequiredArgument("RECORDS_PER_READ")
-        .StoreResult(&maxRecordsPerRead);
+        .StoreResult(&params.MaxRecordsPerRead);
 
     TOptsParseResult parseResult(&opts, argc, argv);
 
-    auto changelogFileNames = StringSplitter(changelogList).Split(' ').ToList<TString>();
-
-    if (!firstSeqNum) {
-        firstSeqNum = DeduceFirstSequenceNumber(changelogFileNames);
-    }
-
-    PerformSurgery(
-        *firstSeqNum,
-        lastSeqNum,
-        changelogFileNames,
-        resultingChangelogId,
-        maxRecordsPerRead);
+    ValidateSurgeonParams(params);
+    PerformSurgery(params);
 }
 
 } // namespace NYT
