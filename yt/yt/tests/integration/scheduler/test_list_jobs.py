@@ -425,10 +425,12 @@ class TestListJobsCommon(TestListJobsBase):
 
     @staticmethod
     def _check_after_finish(op, job_ids, operation_cleaned):
+        type_counts_full = {"partition_reduce": 1, "partition_map": 5}
+        state_counts_full = {"completed": 4, "failed": 1, "aborted": 1}
         res = checked_list_jobs(op.id)
         assert builtins.set(job["id"] for job in res["jobs"]) == builtins.set(job_ids["reduce"] + job_ids["map"])
-        assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 5}
-        assert res["state_counts"] == {"completed": 4, "failed": 1, "aborted": 1}
+        assert res["type_counts"] == type_counts_full
+        assert res["state_counts"] == state_counts_full
 
         if operation_cleaned:
             assert res["controller_agent_job_count"] == res["scheduler_job_count"] == 0
@@ -436,6 +438,28 @@ class TestListJobsCommon(TestListJobsBase):
             assert res["controller_agent_job_count"] == res["scheduler_job_count"] == 6
         assert res["cypress_job_count"] == yson.YsonEntity()
         assert res["archive_job_count"] == 6
+
+        @wait_no_assert
+        def check_statistics_with_filters():
+            res = checked_list_jobs(op.id, type="partition_reduce")
+            assert res["type_counts"] == type_counts_full
+            assert res["state_counts"] == {"completed": 1}
+
+            res = checked_list_jobs(op.id, state="completed")
+            assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 3}
+            assert res["state_counts"] == state_counts_full
+
+            res = checked_list_jobs(op.id, state="completed", type="partition_reduce")
+            assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 3}
+            assert res["state_counts"] == {"completed": 1}
+
+            res = checked_list_jobs(op.id, with_stderr=True)
+            assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 4}
+            assert res["state_counts"] == {"completed": 4, "failed": 1}
+
+            res = checked_list_jobs(op.id, with_stderr=True, state="completed")
+            assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 3}
+            assert res["state_counts"] == {"completed": 4, "failed": 1}
 
         answers_for_filters = TestListJobs._get_answers_for_filters_after_finish(job_ids)
         TestListJobs._validate_filters(
