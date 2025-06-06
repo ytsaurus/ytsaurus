@@ -2224,6 +2224,8 @@ struct TOperationRuntimeParametersUpdate
 
     bool ContainsPool() const;
 
+    bool IsAllowedForPoolManagers() const;
+
     NYTree::EPermissionSet GetRequiredPermissions() const;
 
     REGISTER_YSON_STRUCT(TOperationRuntimeParametersUpdate);
