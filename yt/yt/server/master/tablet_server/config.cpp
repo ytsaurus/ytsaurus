@@ -185,6 +185,8 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("synchronize_tablet_cell_leader_switches", &TThis::SynchronizeTabletCellLeaderSwitches)
         .Default(true);
+    registrar.Parameter("max_preload_wait_time_before_leader_switch", &TThis::MaxPreloadWaitTimeBeforeLeaderSwitch)
+        .Default(TDuration::Minutes(10));
     registrar.Parameter("decommissioned_leader_reassignment_timeout", &TThis::DecommissionedLeaderReassignmentTimeout)
         .Default();
     registrar.Parameter("abandon_leader_lease_during_recovery", &TThis::AbandonLeaderLeaseDuringRecovery)

@@ -40,7 +40,7 @@ private:
 
     void OnCellPeersReassigned();
 
-    const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig();
+    const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig() const;
 
     void Profile(const std::vector<TCellMoveDescriptor>& moveDescriptors);
 
@@ -70,7 +70,7 @@ private:
         const TCellBase* cell);
 
     static int FindGoodPeer(const TCellBase* cell);
-    static int FindGoodFollower(const TCellBase* cell);
+    int FindGoodFollower(const TCellBase* cell) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
