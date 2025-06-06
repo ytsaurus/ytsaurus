@@ -134,11 +134,11 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 	var configPath string
 	var oneShotConfigPath string
 	var version bool
-	var isRestart bool
+	var prevExitCode int
 	flag.BoolVar(&version, "version", false, "print version and exit")
 	flag.StringVar(&configPath, "config", "", "path to configuration, timbertruck will be launched as daemon")
 	flag.StringVar(&oneShotConfigPath, "one-shot-config", "", "path to task configuration, timbertruck executes tasks and exits")
-	flag.BoolVar(&isRestart, "is-restart", false, "indicates that the timbertruck daemon process has been restarted")
+	flag.IntVar(&prevExitCode, "prev-exit-code", -1, "exit code of the previous timbertruck process on restart")
 	flag.Parse()
 
 	if version {
@@ -185,7 +185,7 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 				return
 			}
 		}
-		app, err = newDaemonApp(*appConfig, isRestart)
+		app, err = newDaemonApp(*appConfig, prevExitCode)
 	} else if oneShotConfigPath != "" {
 		err = readConfiguration(oneShotConfigPath, userConfig)
 		if err != nil {
@@ -221,7 +221,7 @@ type daemonApp struct {
 	adminPanel  *adminPanel
 }
 
-func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
+func newDaemonApp(config Config, prevExitCode int) (app *daemonApp, err error) {
 	app = &daemonApp{
 		config: config,
 	}
@@ -303,8 +303,13 @@ func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 
 	restartCounter := app.metrics.Counter("tt.application.restart_count")
 	restartCounter.Add(0)
-	if isRestart {
-		restartCounter.Inc()
+	if prevExitCode >= 0 {
+		if prevExitCode >= 128 {
+			app.logger.Warn("Timbertruck process was restarted after being killed by signal", "signal", prevExitCode-128)
+		} else {
+			app.logger.Warn("Timbertruck process was restarted", "exit_code", prevExitCode)
+			restartCounter.Inc()
+		}
 	}
 
 	app.ctx, app.cancelFunc = context.WithCancel(context.Background())
