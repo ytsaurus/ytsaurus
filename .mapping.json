@@ -17,6 +17,7 @@
   ".github/workflows/issue_notifications.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/issue_notifications.yaml",
   ".github/workflows/java.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/java.yaml",
   ".github/workflows/java_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/java_release.yaml",
+  ".github/workflows/job_environment_release.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/job_environment_release.yaml",
   ".github/workflows/pr-check-is-allowed.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/pr-check-is-allowed.yaml",
   ".github/workflows/pr-check.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/pr-check.yaml",
   ".github/workflows/pr-tests.yaml":"yt/opensource/repos/ytsaurus/github_toplevel/.github/workflows/pr-tests.yaml",
