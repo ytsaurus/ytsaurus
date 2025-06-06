@@ -3099,6 +3099,7 @@ void TOperationControllerBase::OnJobStarted(const TJobletPtr& joblet)
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
 
     ReportJobCookieToArchive(joblet);
+    ReportJobCookieGroupInfo(joblet);
     ReportControllerStateToArchive(joblet, EJobState::Running);
     ReportStartTimeToArchive(joblet);
 
@@ -11660,7 +11661,12 @@ bool TOperationControllerBase::IsMemoryLimitExceeded() const
 void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet) const
 {
     HandleJobReport(joblet, TControllerJobReport()
-        .JobCookie(joblet->OutputCookie)
+        .JobCookie(joblet->OutputCookie));
+}
+
+void TOperationControllerBase::ReportJobCookieGroupInfo(const TJobletPtr& joblet) const
+{
+    HandleJobReport(joblet, TControllerJobReport()
         .JobCookieGroupIndex(joblet->CookieGroupInfo.OutputIndex)
         .MainJobId(joblet->CookieGroupInfo.MainJobId));
 }
