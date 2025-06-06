@@ -7,7 +7,7 @@ from yt_commands import (
     map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
     update_controller_agent_config, print_debug, exists, get_allocation_id_from_job_id,
-    make_random_string, raises_yt_error, clear_metadata_caches, ls)
+    make_random_string, raises_yt_error, clear_metadata_caches, ls, get_job)
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
 
@@ -1363,6 +1363,25 @@ class TestListJobs(TestListJobsCommon):
             assert len(jobs) == 1
             job = jobs[0]
             assert job.get("brief_statistics") != {}
+
+    @authors("bystrovserg")
+    def test_stale_for_completed_jobs(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+        )
+        jobs = wait_breakpoint()
+        release_breakpoint(job_id=jobs[0])
+
+        wait(lambda: get_job(op.id, jobs[0])["state"] == "completed")
+        orchid_path = op.get_orchid_path()
+        wait(lambda: len(get(orchid_path + "/retained_finished_jobs", default=1)) == 0)
+
+        wait(lambda: len(list_jobs(op.id)["jobs"]) == 2)
+        wait(lambda: all(not job["is_stale"] for job in list_jobs(op.id)["jobs"]))
+
+        release_breakpoint()
+        op.track()
 
 
 class TestListJobsAllocation(TestListJobsBase):
