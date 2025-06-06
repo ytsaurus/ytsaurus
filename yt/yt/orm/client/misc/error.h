@@ -44,6 +44,7 @@ DEFINE_ENUM(EErrorCode,
     ((RemovalForbidden) (100033))
     ((InvalidAccessControlPermission) (100034))
     ((MaxInstantiatedObjectsLimitExceeded) (100035))
+    ((InvalidReferenceMode) (100036))
 );
 
 } // NYT::NOrm::NClient
