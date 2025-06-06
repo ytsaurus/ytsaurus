@@ -76,11 +76,9 @@ using NNodeTrackerServer::TNodeList;
 
 using NTabletClient::TDynamicStoreId;
 
-using TChunkLocationId = NObjectClient::TObjectId;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENTITY_TYPE(TChunkLocation, TChunkLocationId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TChunkLocation, NObjectClient::TObjectId, ::THash<NObjectClient::TObjectId>)
 DECLARE_ENTITY_TYPE(TChunk, TChunkId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TChunkView, TChunkViewId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TDynamicStore, TDynamicStoreId, NObjectClient::TObjectIdEntropyHash)
