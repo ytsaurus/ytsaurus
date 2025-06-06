@@ -216,6 +216,8 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"monitoring_descriptor", {}},
     {"core_infos", {}},
     {"job_cookie", {}},
+    {"job_cookie_group_index", 59},
+    {"main_job_id", 59},
     {"brief_statistics", {}},
     {"statistics", {}},
     {"exec_attributes", {}},
@@ -1483,6 +1485,14 @@ static TQueryBuilder GetListJobsQueryBuilder(
     if (options.Address) {
         builder.AddWhereConjunct(Format("is_prefix(%Qv, address)", *options.Address));
     }
+    if (options.MainJobId) {
+        auto mainJobId = options.MainJobId.Underlying();
+
+        builder.AddWhereConjunct(Format(
+            "(main_job_id_hi, main_job_id_lo) = (%vu, %vu)",
+            mainJobId.Parts64[0],
+            mainJobId.Parts64[1]));
+    }
 
     return builder;
 }
@@ -1736,9 +1746,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.JobCompetitionId = TJobId(TGuid::FromString(*record.JobCompetitionId));
         }
 
-        if (record.MainJobId) {
-            job.MainJobId = TJobId(TGuid::FromString(*record.MainJobId));
-        }
+        job.MainJobId = TJobId(TGuid(*record.MainJobIdHi, *record.MainJobIdLo));
 
         if (record.ProbingJobCompetitionId) {
             job.ProbingJobCompetitionId = TJobId(TGuid::FromString(*record.ProbingJobCompetitionId));
