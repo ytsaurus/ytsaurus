@@ -664,11 +664,6 @@ void TSequoiaSession::LockNodeImplicitly(
     // some contention on dynamic tables.
     YT_VERIFY(!JustCreated(nodeId));
 
-    // TODO(h0pless): Add IsLockRedundant check.
-    // if (IsLockRedundant) {
-    //     return;
-    // }
-
     if (lockMode == ELockMode::Snapshot) {
         auto record = LookupNodeById(SequoiaTransaction_, nodeId, CypressTransactionAncestry_);
         // This should have been already resolved.
