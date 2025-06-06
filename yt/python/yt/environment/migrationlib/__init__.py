@@ -293,7 +293,7 @@ class Migration(object):
     :param actions:
         dictionary containing for each version a list of actions to be performed when switching from the previous version to it
     :param table_init_callback:
-        a function for custom initialization of tables, called after tables creation, but before mount
+        a function for custom initialization of tables, called for each table after creation, but before mount
     """
 
     def __init__(
@@ -338,7 +338,8 @@ class Migration(object):
             self._create_table(client, table_info, ypath_join(tables_path, table_name), shard_count=shard_count)
 
         if self.table_init_callback:
-            self.table_init_callback(client, tables_path)
+            for table_name in table_infos.keys():
+                self.table_init_callback(client, ypath_join(tables_path, table_name))
 
         client.set(tables_path + "/@version", version)
 
@@ -364,6 +365,7 @@ class Migration(object):
         if retransform:
             transform_begin -= 1
 
+        new_tables = set()
         for version in range(transform_begin, transform_end + 1):
             logging.info("Transforming to version %d", version)
             swap_tasks = []
@@ -383,6 +385,9 @@ class Migration(object):
                         if table_exists:
                             client.remove(table_path)
                         continue
+
+                    if not table_exists:
+                        new_tables.add(table)
 
                     shard_count = shard_count
                     if table_exists:
@@ -415,6 +420,8 @@ class Migration(object):
 
         for table in table_infos.keys():
             path = ypath_join(tables_path, table)
+            if self.table_init_callback and table in new_tables:
+                self.table_init_callback(client, path)
             if client.get(path + "/@tablet_state") != "mounted":
                 _mount_table(client, path)
 
