@@ -86,7 +86,7 @@ protected:
 template <class T>
 class TSetVisitor;
 
-template<>
+template <>
 class TSetVisitor<NYTree::INodePtr> final
     : public TSetVisitorBase<TSetVisitor<NYTree::INodePtr>, INodePtr>
 {

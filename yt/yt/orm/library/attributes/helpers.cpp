@@ -459,10 +459,10 @@ std::partial_ordering CompareScalarFields(
         case FieldDescriptor::CppType::CPPTYPE_STRING: {
             TString lhsScratch;
             TString rhsScratch;
-            return lhsReflection->
-                GetStringReference(*lhsMessage, lhsFieldDescriptor, &lhsScratch).ConstRef()
-                <=> rhsReflection->
-                GetStringReference(*rhsMessage, rhsFieldDescriptor, &rhsScratch).ConstRef();
+            return lhsReflection
+                ->GetStringReference(*lhsMessage, lhsFieldDescriptor, &lhsScratch).ConstRef()
+                <=> rhsReflection
+                ->GetStringReference(*rhsMessage, rhsFieldDescriptor, &rhsScratch).ConstRef();
         }
         default:
             return std::partial_ordering::unordered;
