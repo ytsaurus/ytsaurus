@@ -438,6 +438,11 @@ public:
         Neighbors_[*Current_].Next = std::nullopt;
         Neighbors_[*Current_].Prev = std::nullopt;
 
+        YT_VERIFY(FirstCookie_);
+        if (*Current_ == *FirstCookie_) {
+            FirstCookie_ = next;
+        }
+
         auto oldCurrent = *Current_;
         Current_ = next;
         return oldCurrent;
