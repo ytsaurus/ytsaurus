@@ -145,7 +145,7 @@ jobs:
           docker push ghcr.io/ytsaurus/local-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
 
       - name: Job environment
-        if: ${{ inputs.publish-job-environment }}
+        if: ${{ inputs.publish-job-environment && matrix.build-type == 'release' }}
         run: |
           output_path=../docker-job-environment
           mkdir -p $output_path
