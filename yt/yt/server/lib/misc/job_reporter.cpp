@@ -102,6 +102,8 @@ public:
             Report_.ProbingJobCompetitionId(),
             Report_.ExecAttributes(),
             Report_.JobCookie(),
+            Report_.JobCookieGroupIndex(),
+            Report_.MainJobId(),
             Report_.ControllerState(),
             Report_.ArchiveFeatures(),
             Report_.Ttl(),
@@ -223,7 +225,11 @@ public:
         // COMPAT(faucct)
         if (archiveVersion >= 61) {
             record.JobCookieGroupIndex = Report_.JobCookieGroupIndex();
-            record.MainJobId = ToString(Report_.MainJobId());
+            if (Report_.MainJobId()) {
+                auto mainJobId = Report_.MainJobId().Underlying();
+                record.MainJobIdHi = mainJobId.Parts64[0];
+                record.MainJobIdLo = mainJobId.Parts64[1];
+            }
         }
 
         return FromRecord(record);
