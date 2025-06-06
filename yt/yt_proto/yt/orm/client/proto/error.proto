@@ -153,6 +153,9 @@ enum EErrorCode
         (NYT.NYson.NProto.enum_value_name) = "max_instantiated_objects_limit_exceeded"
     ];
 
+    EC_INVALID_REFERENCE_MODE = 100036 [
+        (NYT.NYson.NProto.enum_value_name) = "invalid_reference_mode"
+    ];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
