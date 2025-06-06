@@ -168,7 +168,7 @@ class ComputationCellGenerator:
                     )
                         .unit("UNIT_BYTES_SI_PER_SECOND"))
                 .cell(
-                    "Gnerated messages bytes rate",
+                    "Generated messages bytes rate",
                     MultiSensor(
                         MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_streams.registered_bytes.rate"))
                             .alias(f"output - {stream_alias}"),
