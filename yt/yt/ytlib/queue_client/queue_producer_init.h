@@ -8,7 +8,7 @@ namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NCypressClient::TNodeId CreateProducerNode(
+NCypressClient::TNodeId CreateQueueProducerNode(
     const NApi::IClientPtr& client,
     const NYPath::TYPath& path,
     const NApi::TCreateNodeOptions& options);

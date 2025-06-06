@@ -1,4 +1,4 @@
-#include "producer_init.h"
+#include "queue_producer_init.h"
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
@@ -15,14 +15,14 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeId CreateProducerNode(
+TNodeId CreateQueueProducerNode(
     const NApi::IClientPtr& client,
     const NYPath::TYPath& path,
     const NApi::TCreateNodeOptions& options)
 {
     auto transaction = [&] {
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Create producer %v", path));
+        attributes->Set("title", Format("Create queue producer %v", path));
         TTransactionStartOptions startOptions{
             .ParentId = options.TransactionId,
             .Attributes = std::move(attributes),
@@ -35,6 +35,7 @@ TNodeId CreateProducerNode(
         auto attributes = options.Attributes ? options.Attributes->Clone() : CreateEphemeralAttributes();
 
         attributes->Set("dynamic", true);
+        attributes->Set("treat_as_queue_producer", true);
         attributes->Set("schema", NRecords::TQueueProducerSessionDescriptor::Get()->GetSchema());
 
         auto createNodeOptions = options;
