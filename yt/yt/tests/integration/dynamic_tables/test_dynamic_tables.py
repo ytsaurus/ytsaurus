@@ -239,6 +239,45 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}/config_version".format(leaders[0], cell_id))
         assert lookup_rows("//tmp/t", keys) == rows
 
+    @authors("ifsmirnov")
+    def test_decommission_through_extra_peers_limited_preload_wait(self):
+        set(
+            "//sys/@config/tablet_manager/decommission_through_extra_peers",
+            True,
+        )
+
+        cell_id = sync_create_cells(1)[0]
+        self._create_sorted_table("//tmp/t", in_memory_mode="uncompressed")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": 1, "value": "2"}]
+        insert_rows("//tmp/t", rows)
+        sync_freeze_table("//tmp/t")
+
+        update_nodes_dynamic_config({
+            "resource_limits": {
+                "tablet_static": {
+                    "value": 0,
+                    "type": "static",
+                }
+            }
+        })
+
+        leader_address = get("//tmp/t/@tablets/0/cell_leader_address")
+        set_node_decommissioned(leader_address, True)
+        wait(lambda: len(get(f"#{cell_id}/@peers")) == 2)
+
+        time.sleep(5)
+        peers = get(f"#{cell_id}/@peers")
+        assert len(peers) == 2
+        assert peers[0]["address"] == leader_address
+        assert peers[0]["state"] == "leading"
+
+        set("//sys/@config/tablet_manager/max_preload_wait_time_before_leader_switch", 1000)
+        wait(lambda: len(get(f"#{cell_id}/@peers")) == 1)
+        assert get(f"#{cell_id}/@peers/0/address") != leader_address
+        assert get("//tmp/t/@preload_state") != "complete"
+
     @authors("gritukan")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_run_reassign_all_peers(self, decommission_through_extra_peers):

@@ -96,7 +96,7 @@ public:
     //! Overrides `peer_count` in cell bundle.
     DEFINE_BYREF_RW_PROPERTY(std::optional<int>, PeerCount);
 
-    //! Last `peer_count` update time. Only for testing purposes.
+    //! Last `peer_count` update time.
     DEFINE_BYREF_RW_PROPERTY(TInstant, LastPeerCountUpdateTime);
 
     //! Last time when leader was changed.
