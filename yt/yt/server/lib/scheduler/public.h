@@ -193,8 +193,7 @@ DEFINE_ENUM(EOperationManagementAction,
     (Resume)
     (Abort)
     (Complete)
-    // TODO(ignat): YT-23056: support more sophisticated checks for UpdateOperationParameters.
-    // (UpdateParameters)
+    (UpdateParameters)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

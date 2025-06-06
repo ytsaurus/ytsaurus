@@ -1048,16 +1048,12 @@ public:
 
         auto update = ConvertTo<TOperationRuntimeParametersUpdatePtr>(parameters);
 
-        WaitFor(ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions()))
-            .ThrowOnError();
-
-        // TODO(ignat): YT-23056: support more sophisticated checks for UpdateOperationParameters.
-        // std::vector<TFuture<void>> validateFutures{ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions())};
-        // if (Config_->OperationActionsAllowedForPoolManagers.contains(EOperationManagementAction::UpdateParameters)) {
-        //     validateFutures.push_back(Strategy_->ValidateOperationPoolPermissions(operation.Get(), user, update->GetRequiredPermissions()));
-        // }
-        // WaitFor(AnySucceeded(validateFutures))
-        //     .ThrowOnError();
+        if (update->IsAllowedForPoolManagers()) {
+            ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::UpdateParameters);
+        } else {
+            WaitFor(ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions()))
+                .ThrowOnError();
+        }
 
         for (const auto& [jobShellName, _] : update->OptionsPerJobShell) {
             WaitFor(ValidateJobShellAccess(user, jobShellName, operation->GetJobShellOwners(jobShellName)))
@@ -4108,7 +4104,9 @@ private:
                 YT_VERIFY(future.IsSet());
                 errors.push_back(future.Get());
             }
-            THROW_ERROR_EXCEPTION("Access to perform %v of operation %v denied", action, operation->GetId())
+            THROW_ERROR_EXCEPTION("Access to perform %Qlv of operation %v denied",
+                action,
+                operation->GetId())
                 << errors;
         }
     }

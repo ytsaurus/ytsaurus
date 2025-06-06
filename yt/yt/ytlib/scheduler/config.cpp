@@ -2939,6 +2939,29 @@ bool TOperationRuntimeParametersUpdate::ContainsPool() const
     return result;
 }
 
+bool TOperationRuntimeParametersUpdate::IsAllowedForPoolManagers() const
+{
+    // Manage access on ancestor pool in one of pool trees:
+    // - Do not allow to change operation pool, acl settings, job shell settings and annotations.
+    // - Allow to change weight in all pool trees.
+    if (Acl.has_value() ||
+        AcoName.has_value() ||
+        Pool.has_value() ||
+        OptionsPerJobShell ||
+        Annotations.has_value())
+    {
+        return false;
+    }
+
+    for (const auto& [treeId, options] : SchedulingOptionsPerPoolTree) {
+        if (options->Pool.has_value() || options->EnableDetailedLogs.has_value()) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 EPermissionSet TOperationRuntimeParametersUpdate::GetRequiredPermissions() const
 {
     auto requiredPermissions = EPermissionSet(EPermission::Manage);
