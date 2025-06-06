@@ -21,13 +21,13 @@
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 #include <util/system/byteorder.h>
-#include <util/system/hp_timer.h>
 
 namespace NYT::NNbd {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNet;
+using namespace NProfiling;
 using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -529,19 +529,16 @@ private:
                 length,
                 flags);
 
-            NHPTimer::STime startTime;
-            NHPTimer::GetTime(&startTime);
-
+            TWallTimer timer;
             Device_->Read(offset, length, {.Cookie = cookie})
                 .Subscribe(
                     BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TReadResponse>& result) {
-                        NHPTimer::STime nowTime = startTime;
-                        double durationSeconds = NHPTimer::GetTimePassed(&nowTime);
+                        auto duration = timer.GetElapsedTime().SecondsFloat();
 
                         if (!result.IsOK()) {
                             YT_LOG_WARNING(result, "NBD_CMD_READ request failed (Cookie: %x, Duration: %v)",
                                 cookie,
-                                durationSeconds);
+                                duration);
 
                             Device_->SetError(result);
 
@@ -556,7 +553,7 @@ private:
                         YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x, ShouldStopUsingDevice: %v, Duration: %v)",
                             cookie,
                             response.ShouldStopUsingDevice,
-                            durationSeconds);
+                            duration);
 
                         const auto& payload = response.Data;
                         YT_VERIFY(payload.size() == length);
@@ -630,19 +627,16 @@ private:
                 options.Flush = true;
             }
 
-            NHPTimer::STime startTime;
-            NHPTimer::GetTime(&startTime);
-
+            TWallTimer timer;
             Device_->Write(offset, payload, options)
                 .Subscribe(
                     BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TWriteResponse>& result) {
-                        NHPTimer::STime nowTime = startTime;
-                        double durationSeconds = NHPTimer::GetTimePassed(&nowTime);
+                        auto duration = timer.GetElapsedTime().SecondsFloat();
 
                         if (!result.IsOK()) {
                             YT_LOG_WARNING(result, "NBD_CMD_WRITE request failed (Cookie: %x, Duration: %v)",
                                 cookie,
-                                durationSeconds);
+                                duration);
 
                             Device_->SetError(result);
 
@@ -658,7 +652,7 @@ private:
                         YT_LOG_DEBUG("Finished serving NBD_CMD_WRITE request (Cookie: %x, ShouldStopUsingDevice: %v, Duration: %v)",
                             cookie,
                             response.ShouldStopUsingDevice,
-                            durationSeconds);
+                            duration);
 
                         WriteServerResponse(EServerError::NBD_OK, cookie);
                     }));
