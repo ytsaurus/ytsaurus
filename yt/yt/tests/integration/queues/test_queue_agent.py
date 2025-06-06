@@ -1692,9 +1692,7 @@ class TestMasterIntegration(TestQueueAgentBase):
     def test_producer_attributes(self):
         create("queue_producer", "//tmp/p")
 
-        # TODO(apachee): Remove the following code after update to create queue_producer.
-        assert not get("//tmp/p/@treat_as_queue_producer")
-        set("//tmp/p/@treat_as_queue_producer", True)
+        assert get("//tmp/p/@treat_as_queue_producer")
 
         assert get("//tmp/p/@queue_agent_stage") == "production"
 
@@ -1794,11 +1792,8 @@ class TestMasterIntegration(TestQueueAgentBase):
     def test_revision_changes_on_producer_attribute_change(self):
         create("queue_producer", "//tmp/p")
 
-        # TODO(apachee): Remove the following code after update to create queue_producer.
-        assert not get("//tmp/p/@treat_as_queue_producer")
-        set("//tmp/p/@treat_as_queue_producer", True)
+        assert get("//tmp/p/@treat_as_queue_producer")
 
-        self._set_and_assert_revision_change("//tmp/p", "treat_as_queue_producer", True)
         self._set_and_assert_revision_change("//tmp/p", "queue_agent_stage", "testing")
 
 

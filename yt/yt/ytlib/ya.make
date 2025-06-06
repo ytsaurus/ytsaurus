@@ -363,7 +363,7 @@ SRCS(
     queue_client/queue_consumer_init.cpp
     queue_client/dynamic_state.cpp
     queue_client/helpers.cpp
-    queue_client/producer_init.cpp
+    queue_client/queue_producer_init.cpp
     queue_client/registration_manager.cpp
 
     replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
