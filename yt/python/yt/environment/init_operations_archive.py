@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 import yt.yson as yson
-from yt.wrapper import YtClient, config, ypath_join
+from yt.wrapper import YtClient, config, ypath_split
 
 from yt.environment.init_cluster import get_default_resource_limits
 
@@ -51,17 +51,20 @@ def set_table_ttl(client, table, ttl=None, auto_compaction_period=None, forbid_o
         client.remount_table(table)
 
 
-def table_init_callback(client, tables_path):
+def table_init_callback(client, table_path):
     one_day = 1000 * 3600 * 24
     one_week = one_day * 7
     one_month = one_day * 30
     two_years = one_month * 12 * 2
-    for name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids"]:
-        table = ypath_join(tables_path, name)
-        set_table_ttl(client, table, ttl=one_week, auto_compaction_period=one_day, forbid_obsolete_rows=True)
-    for name in ["ordered_by_id", "ordered_by_start_time"]:
-        table = ypath_join(tables_path, name)
-        set_table_ttl(client, table, ttl=two_years, auto_compaction_period=one_month, forbid_obsolete_rows=True)
+
+    _, table_name = ypath_split(table_path)
+    if not client.exists(table_path):
+        return
+
+    if table_name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids"]:
+        set_table_ttl(client, table_path, ttl=one_week, auto_compaction_period=one_day, forbid_obsolete_rows=True)
+    if table_name in ["ordered_by_id", "ordered_by_start_time"]:
+        set_table_ttl(client, table_path, ttl=two_years, auto_compaction_period=one_month, forbid_obsolete_rows=True)
 
 
 def update_tablet_cell_bundle(client, tablet_cell_bundle):
