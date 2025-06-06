@@ -29,6 +29,7 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/validate_logical_type.h>
 
 #include <yt/yt/core/yson/lexer.h>
 #include <yt/yt/core/yson/parser.h>
@@ -2143,12 +2144,11 @@ template <typename TStringType>
 void CopyString(TExpressionContext* context, TPIValue* result, const TStringType& str)
 {
     auto* offset = AllocateBytes(context, str.size());
-    ::memcpy(ConvertPointerFromWasmToHost(offset, str.size()), str.data(), str.size());
+    auto* offsetAtHost = ConvertPointerFromWasmToHost(offset, str.size());
+    ::memcpy(offsetAtHost, str.data(), str.size());
     MakePositionIndependentStringValue(
         ConvertPointerFromWasmToHost(result),
-        TStringBuf(
-            ConvertPointerFromWasmToHost(offset, str.size()),
-            str.size()));
+        TStringBuf(offsetAtHost, str.size()));
 }
 
 template <typename TStringType>
@@ -2163,12 +2163,11 @@ template <typename TStringType>
 void CopyAny(TExpressionContext* context, TPIValue* result, const TStringType& str)
 {
     auto* offset = AllocateBytes(context, str.size());
-    ::memcpy(ConvertPointerFromWasmToHost(offset, str.size()), str.data(), str.size());
+    auto* offsetAtHost = ConvertPointerFromWasmToHost(offset, str.size());
+    ::memcpy(offsetAtHost, str.data(), str.size());
     MakePositionIndependentAnyValue(
         ConvertPointerFromWasmToHost(result),
-        TStringBuf(
-            ConvertPointerFromWasmToHost(offset, str.size()),
-            str.size()));
+        TStringBuf(offsetAtHost, str.size()));
 }
 
 } // namespace NDetail
@@ -2466,8 +2465,8 @@ DEFINE_YPATH_GET_ANY
             MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(result)); \
             return; \
         } \
-        NYson::TToken token; \
         NYson::TStatelessLexer lexer; \
+        NYson::TToken token; \
         auto anyString = anyValue->AsStringBuf(); \
         lexer.ParseToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
@@ -2488,8 +2487,7 @@ DEFINE_CONVERT_ANY_NUMERIC_IMPL(Uint64)
 DEFINE_CONVERT_ANY_NUMERIC_IMPL(Double)
 DEFINE_CONVERT_ANY(
     Boolean,
-    MakePositionIndependentBooleanValue(ConvertPointerFromWasmToHost(result),
-    token.GetBooleanValue());)
+    MakePositionIndependentBooleanValue(ConvertPointerFromWasmToHost(result), token.GetBooleanValue());)
 DEFINE_CONVERT_ANY(String, NDetail::CopyString(context, result, token.GetStringValue());)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2553,6 +2551,7 @@ int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 void ToAny(TExpressionContext* context, TValue* result, TValue* value)
 {
     auto* valueAtHost = ConvertPointerFromWasmToHost(value);
+    auto* resultAtHost = ConvertPointerFromWasmToHost(result);
 
     auto valueCopy = *valueAtHost;
     if (IsStringLikeType(valueAtHost->Type)) {
@@ -2562,20 +2561,42 @@ void ToAny(TExpressionContext* context, TValue* result, TValue* value)
     // TODO(babenko): for some reason, flags are garbage here.
     valueCopy.Flags = {};
 
-    if (value->Type == EValueType::Null) {
-        result->Type = EValueType::Null;
+    if (valueAtHost->Type == EValueType::Null) {
+        resultAtHost->Type = EValueType::Null;
         return;
     }
 
     // NB: TRowBuffer should be used with caution while executing via WebAssembly engine.
     TValue buffer = EncodeUnversionedAnyValue(valueCopy, context->GetRowBuffer().Get()->GetPool());
 
-    *(ConvertPointerFromWasmToHost(result)) = buffer;
+    *resultAtHost = buffer;
     if (HasCurrentCompartment()) {
         auto* data = AllocateBytes(context, buffer.Length);
         ::memcpy(ConvertPointerFromWasmToHost(data, buffer.Length), buffer.Data.String, buffer.Length);
-        (ConvertPointerFromWasmToHost(result))->Data.String = data;
+        resultAtHost->Data.String = data;
     }
+}
+
+void CastToV3TypeWithValidation(TPIValue* result, TPIValue* value, TLogicalTypePtr* type)
+{
+    auto* valueAtHost = ConvertPointerFromWasmToHost(value);
+    auto* resultAtHost = ConvertPointerFromWasmToHost(result);
+
+    CopyPositionIndependent(resultAtHost, *value);
+
+    if (valueAtHost->Type == EValueType::Null) {
+        THROW_ERROR_EXCEPTION_UNLESS((*type)->IsNullable(),
+            "Encountered a null value during cast to a non-nullable type");
+
+        return;
+    }
+
+    YT_VERIFY(valueAtHost->Type == EValueType::Composite || valueAtHost->Type == EValueType::Any);
+
+    resultAtHost->Type = GetWireType(*type);
+
+    auto ysonView = TStringBuf(GetStringPosition(*value), valueAtHost->Length);
+    ValidateComplexLogicalType(ysonView, *type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2953,6 +2974,20 @@ extern "C" void NumericToString(
     NDetail::CopyString(context, result, resultYson);
 }
 
+extern "C" void NumericToStringPI(
+    TExpressionContext* context,
+    TPIValue* positionIndependentResult,
+    TPIValue* positionIndependentValue)
+{
+    TValue value;
+    MakeUnversionedFromPositionIndependent(&value, *ConvertPointerFromWasmToHost(positionIndependentValue));
+
+    TValue result;
+    NumericToString(context, &result, &value);
+
+    MakePositionIndependentFromUnversioned(positionIndependentResult, result);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_CONVERT_STRING(TYPE) \
@@ -2984,6 +3019,20 @@ extern "C" void NumericToString(
 DEFINE_CONVERT_STRING(Int64)
 DEFINE_CONVERT_STRING(Uint64)
 DEFINE_CONVERT_STRING(Double)
+
+#define DEFINE_CONVERT_STRING_PI(TYPE) \
+    extern "C" void StringTo ## TYPE ## PI(TExpressionContext* context, TPIValue* pIResult, TPIValue* pIValue) \
+    { \
+        TValue value; \
+        MakeUnversionedFromPositionIndependent(&value, *ConvertPointerFromWasmToHost(pIValue)); \
+        TValue result; \
+        StringTo ## TYPE(context, &result, &value); \
+        MakePositionIndependentFromUnversioned(pIResult, result); \
+    }
+
+DEFINE_CONVERT_STRING_PI(Int64)
+DEFINE_CONVERT_STRING_PI(Uint64)
+DEFINE_CONVERT_STRING_PI(Double)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4130,6 +4179,7 @@ REGISTER_ROUTINE(CompareAnyUint64);
 REGISTER_ROUTINE(CompareAnyDouble);
 REGISTER_ROUTINE(CompareAnyString);
 REGISTER_ROUTINE(ToAny);
+REGISTER_ROUTINE(CastToV3TypeWithValidation);
 REGISTER_YPATH_GET_ROUTINE(Int64);
 REGISTER_YPATH_GET_ROUTINE(Uint64);
 REGISTER_YPATH_GET_ROUTINE(Double);
@@ -4147,9 +4197,13 @@ REGISTER_ROUTINE(ListContains);
 REGISTER_ROUTINE(ListHasIntersection);
 REGISTER_ROUTINE(AnyToYsonString);
 REGISTER_ROUTINE(NumericToString);
+REGISTER_ROUTINE(NumericToStringPI);
 REGISTER_ROUTINE(StringToInt64);
 REGISTER_ROUTINE(StringToUint64);
 REGISTER_ROUTINE(StringToDouble);
+REGISTER_ROUTINE(StringToInt64PI);
+REGISTER_ROUTINE(StringToUint64PI);
+REGISTER_ROUTINE(StringToDoublePI);
 REGISTER_ROUTINE(HyperLogLogAllocate);
 REGISTER_ROUTINE(HyperLogLogAdd);
 REGISTER_ROUTINE(HyperLogLogMerge);

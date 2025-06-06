@@ -21,6 +21,8 @@ from yt_type_helpers import (
     struct_type,
 )
 
+import yt_error_codes
+
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
@@ -2588,6 +2590,45 @@ class TestQuery(DynamicTablesBase):
         assert b"Timestamp" in res
         res = select_rows(f"ts_column from [{table}]", output_format=format)
         assert b"Timestamp" in res
+
+    @authors("sabdenovch")
+    def test_cast(self):
+        sync_create_cells(1)
+        self._create_replicated_table(
+            "//tmp/table",
+            [
+                make_sorted_column("key", "int64"),
+                make_column("value", "string"),
+                {"name": "lvalue", "type": "any"},
+            ],
+            [{"key": 15, "value": "[1;2.0;\"string\"]", "lvalue": [13, 23, 33]}])
+
+        expected = [{
+            "bool_to_int": 1,
+            "int_to_double": 15.0,
+            "typed_struct": {
+                "integer_field": 1,
+                "float_field": 2.0,
+                "string_field": "string",
+            },
+        }]
+
+        casting_query = """CAST(i = 13 AS Int64) AS bool_to_int, cast_operator(key, "Double?") as int_to_double,
+            CAST(yson_string_to_any(value) AS `Struct<integer_field:Int32?, float_field:Float, string_field:String>`) AS typed_struct
+            FROM `//tmp/table` ARRAY JOIN CAST(lvalue AS `List<Int64?>`) AS i LIMIT 1"""
+
+        assert select_rows(casting_query, expression_builder_version=2, syntax_version=2) == expected
+
+        with raises_yt_error("is not supported in expression builder v1"):
+            select_rows("CAST(key AS Int64) from [//tmp/table]")
+        with raises_yt_error("is not supported in expression builder v1"):
+            select_rows("cast_operator(key, 'Int64') from [//tmp/table]")
+        with raises_yt_error(yt_error_codes.SchemaViolation):
+            select_rows("CAST(lvalue AS `Struct<x:String, y:List<Bool>>`) from [//tmp/table]", expression_builder_version=2)
+        with raises_yt_error("Misuse of the \"cast_operator\" function"):
+            select_rows("cast_operator(1, 1) from [//tmp/table]", expression_builder_version=2)
+        with raises_yt_error("Expected two arguments for \"cast_operator\" function"):
+            select_rows("cast_operator(1) from [//tmp/table]", expression_builder_version=2)
 
 
 @pytest.mark.enabled_multidaemon

@@ -48,6 +48,7 @@ using NYT::NQueryClient::TSubqueryParameters;
 using NYT::NQueryClient::TSubqueryWriteOpClosure;
 
 using NYT::NTableClient::TRowBuffer;
+using NYT::NTableClient::TLogicalTypePtr;
 
 using NYT::TSharedRange;
 
@@ -89,6 +90,7 @@ struct TTypeBuilder<bool>
     OPAQUE_TYPE(TCompositeMemberAccessorPath*)
     OPAQUE_TYPE(TSubqueryParameters*)
     OPAQUE_TYPE(TSubqueryWriteOpClosure*)
+    OPAQUE_TYPE(TLogicalTypePtr*)
 
     OPAQUE_TYPE(struct tm*)
 
