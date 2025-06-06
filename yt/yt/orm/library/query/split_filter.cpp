@@ -295,7 +295,7 @@ private:
         return {.Place=EFilterPlace::Heterogenous};
     }
 
-    template<std::ranges::range TFilterTypes>
+    template <std::ranges::range TFilterTypes>
     TFilterType GetCommonType(TFilterTypes types)
     {
         TFilterType commonType;

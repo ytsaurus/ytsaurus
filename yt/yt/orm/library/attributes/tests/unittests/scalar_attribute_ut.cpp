@@ -20,7 +20,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename TProtoMessage>
+template <typename TProtoMessage>
 NYTree::INodePtr MessageToNode(const TProtoMessage& message)
 {
     TString newYsonString;
