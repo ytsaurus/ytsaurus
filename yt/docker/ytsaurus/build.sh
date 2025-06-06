@@ -180,6 +180,10 @@ elif [[ "${component}" == "local" ]]; then
     cp -r ${ytserver_all_credits}/*.CREDITS ${output_path}/credits
     cp -r ${qt_credits}/*.CREDITS ${output_path}/credits
 
+elif [[ "${component}" == "job-environment" ]]; then
+
+    echo "Do nothing" > /dev/null
+
 else
     echo "Unknown component: ${component}"
 fi

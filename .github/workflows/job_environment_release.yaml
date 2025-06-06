@@ -1,0 +1,92 @@
+name: Release job-environment
+
+on:
+  push:
+    tags:
+      - 'docker/job-environment/0\.[0-9]+\.[0-9]+'
+
+jobs:
+  start-vm:
+    name: Start VM
+    runs-on: trampoline
+    outputs:
+      label: ${{ steps.start-yc-runner.outputs.label }}
+      instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
+    steps:
+      - name: Start YC runner
+        id: start-yc-runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: start
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          folder-id: ${{ vars.YC_FOLDER_ID }}
+          image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+          zone-id: ${{ vars.YC_ZONE_ID }}
+          subnet-id: ${{ vars.YC_SUBNET_ID }}
+          cores: 8
+          memory: 16GB
+          core-fraction: 100
+          disk-type: network-ssd-nonreplicated
+          disk-size: 93GB
+          user: ${{ secrets.YC_VM_USERNAME }}
+          ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+          public-ip: false
+          ttl: PT24H
+          runner-home-dir: /actions-runner
+
+  checkout:
+    name: Checkout
+    needs: start-vm
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: ytsaurus
+
+  tag:
+    name: Parse tag
+    needs:
+      - start-vm
+      - checkout
+    outputs:
+      image-tag: ${{ steps.tag.outputs.IMAGE_TAG }}
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Parse tag
+        id: tag
+        run: |
+          echo "IMAGE_TAG=$(echo ${GITHUB_REF#refs/*/docker/job-environment/})" >> $GITHUB_OUTPUT
+
+  release:
+    name: Release
+    needs:
+      - start-vm
+      - tag
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      publish-job-environment: true
+      image-tag: ${{ needs.tag.outputs.image-tag }}
+      nightly-image-tag: ${{ needs.tag.outputs.image-tag }}
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      GH_USERNAME: ${{ secrets.GH_USERNAME }}
+    uses: ./.github/workflows/docker-jobs.yaml
+
+  stop-vm:
+    name: Stop VM
+    needs:
+      - start-vm
+      - release
+    runs-on: trampoline
+    if: ${{ always() }}
+    steps:
+      - name: Stop YC runner
+        uses: yc-actions/yc-github-runner@v1
+        with:
+          mode: stop
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+          label: ${{ needs.start-vm.outputs.label }}
+          instance-id: ${{ needs.start-vm.outputs.instance-id }}

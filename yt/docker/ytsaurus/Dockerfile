@@ -106,6 +106,28 @@ EOT
 
 ##########################################################################################
 
+FROM base AS job-environment
+
+# Libpython shared objects that are needed for YQL system python UDFs to work.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  libpython3.8 \
+  libpython3.9 \
+  libpython3.10 \
+  libpython3.11 \
+  libpython3.12
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  openjdk-11-jdk \
+  openjdk-17-jdk \
+  java-common
+
+RUN HOST_ARCH=$(dpkg --print-architecture) \
+  && ln -s /usr/lib/jvm/java-11-openjdk-${HOST_ARCH} /opt/jdk11 \
+  && ln -s /usr/lib/jvm/java-17-openjdk-${HOST_ARCH} /opt/jdk17 \
+  && update-java-alternatives --set java-1.11.0-openjdk-${HOST_ARCH}
+
+##########################################################################################
+
 FROM base AS build-ytsaurus-python-binaries
 
 ARG PROTOC_VERSION="3.20.1"

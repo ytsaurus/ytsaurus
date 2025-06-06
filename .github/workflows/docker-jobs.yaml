@@ -30,6 +30,10 @@ on:
         required: false
         default: false
         type: boolean
+      publish-job-environment:
+        required: false
+        default: false
+        type: boolean
       image-tag:
         required: true
         type: string
@@ -139,3 +143,13 @@ jobs:
           docker push ghcr.io/ytsaurus/local:${{ steps.vars.outputs.IMAGE_TAG }}
           docker tag ghcr.io/ytsaurus/local:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/local-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
           docker push ghcr.io/ytsaurus/local-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
+
+      - name: Job environment
+        if: ${{ inputs.publish-job-environment && matrix.build-type == 'release' }}
+        run: |
+          output_path=../docker-job-environment
+          mkdir -p $output_path
+
+          ./ytsaurus/yt/docker/ytsaurus/build.sh --component job-environment --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/
+
+          docker push ghcr.io/ytsaurus/job-environment:${{ steps.vars.outputs.IMAGE_TAG }}
