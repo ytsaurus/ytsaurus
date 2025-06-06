@@ -63,21 +63,14 @@ public:
     {
         YT_VERIFY(ForeignInputDataWeight_ >= 0);
 
-        if (GetSamplingRateImpl()) {
+        if (GetSamplingRate()) {
             InitializeSampling();
         }
     }
 
-    // NB: Helper method to avoid calling virtual method from constructor.
-    // Even though it should be technically fine in this case.
-    std::optional<double> GetSamplingRateImpl() const
-    {
-        return SamplingConfig_ ? SamplingConfig_->SamplingRate : std::nullopt;
-    }
-
     std::optional<double> GetSamplingRate() const override
     {
-        return GetSamplingRateImpl();
+        return SamplingConfig_ ? SamplingConfig_->SamplingRate : std::nullopt;
     }
 
     i64 GetSamplingDataWeightPerJob() const override
@@ -207,11 +200,6 @@ protected:
     i64 JobCountByCompressedDataSize_ = -1;
 
     TSerializableLogger Logger;
-
-    i64 GetSortedOperationInputSliceDataWeight() const
-    {
-        return TJobSizeConstraintsBase::GetInputSliceDataWeight();
-    }
 
 private:
     i64 InitialInputDataWeight_ = -1;
@@ -411,15 +399,6 @@ public:
         return std::max<i64>(maxDataSlicesPerJob, Spec_->JobCount && *Spec_->JobCount > 0
             ? DivCeil<i64>(InputChunkCount_, *Spec_->JobCount)
             : 1);
-    }
-
-    i64 GetInputSliceDataWeight() const override
-    {
-        if (!SortedOperation_ || GetSamplingRate()) {
-            return TJobSizeConstraintsBase::GetInputSliceDataWeight();
-        }
-
-        return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
     }
 
     i64 GetMaxCompressedDataSizePerJob() const override
@@ -624,15 +603,6 @@ public:
     i64 GetInputSliceRowCount() const override
     {
         return std::numeric_limits<i64>::max() / 4;
-    }
-
-    i64 GetInputSliceDataWeight() const override
-    {
-        if (GetSamplingRate()) {
-            return TJobSizeConstraintsBase::GetInputSliceDataWeight();
-        }
-
-        return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
     }
 
 private:
