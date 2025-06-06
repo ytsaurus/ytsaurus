@@ -13,6 +13,7 @@
 #include "node_disposal_manager.h"
 #include "data_center_type_handler.h"
 #include "node_tracker_cache.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -1077,21 +1078,8 @@ private:
 
     TNodeId GenerateNodeId()
     {
-        TNodeId id;
-        while (true) {
-            id = TNodeId(NodeIdGenerator_.Next());
-            // Beware of sentinels!
-            if (id == InvalidNodeId) {
-                // Just wait for the next attempt.
-            } else if (id > MaxNodeId) {
-                NodeIdGenerator_.Reset();
-            } else {
-                break;
-            }
-        }
-        return id;
+        return GenerateCounterId(NodeIdGenerator_, InvalidNodeId, MaxNodeId);
     }
-
 
     static TYPath GetNodePath(const std::string& address)
     {
