@@ -806,7 +806,7 @@ private:
             header);
     }
 
-    static void RewriteRequestForForwardingToMaster(
+    void RewriteRequestForForwardingToMaster(
         TSubrequest* subrequest,
         const TResolveResult& resolveResult)
     {
@@ -815,14 +815,19 @@ private:
         auto& header = *subrequest->RequestHeader;
         SetAllowResolveFromSequoiaObject(&header, true);
 
+        auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         // Replace "<unresolved-suffix>"" with "#<object-id>/<unresolved-suffix>".
         if (const auto* sequoiaResolveResult = std::get_if<TSequoiaResolveResult>(&resolveResult)) {
-            auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             ypathExt->set_target_path(
                 FromObjectId(sequoiaResolveResult->Id) + sequoiaResolveResult->UnresolvedSuffix.Underlying());
         }
 
         subrequest->RequestMessage = SetRequestHeader(subrequest->RequestMessage, header);
+
+        YT_LOG_DEBUG(
+            "Forwarding subrequest to master (SubrequestIndex: %v, TargetPath: %v)",
+            subrequest->Index,
+            ypathExt->target_path());
     }
 
     //! Either executes subrequest in Sequoia or marks it as non-Sequoia. May
@@ -835,7 +840,6 @@ private:
 
         auto originalTargetPath = TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader));
         auto cypressTransactionId = GetTransactionId(*subrequest->RequestHeader);
-        auto isMutating = IsRequestMutating(*subrequest->RequestHeader);
         auto prerequisiteTransactionIds = ParsePrerequisiteTransactionIds(*subrequest->RequestHeader);
 
         if (cypressTransactionId && !IsCypressTransactionType(TypeFromId(cypressTransactionId))) {
@@ -843,10 +847,6 @@ private:
             subrequest->Target = ERequestTarget::Master;
             return std::nullopt;
         }
-
-        THROW_ERROR_EXCEPTION_IF(
-            !isMutating && !prerequisiteTransactionIds.empty(),
-            "Read requests with prerequisites are forbidden in Sequoia");
 
         TSequoiaSessionPtr session;
         TResolveResult resolveResult;
@@ -878,15 +878,16 @@ private:
 
         auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
             ->TryInvoke(context, session, resolveResult);
+        // TODO(kvk1920): check prerequisite transaction liveness after read
+        // request.
         switch (invokeResult) {
             case EInvokeResult::Executed:
                 return context->GetResponseMessage();
+
             case EInvokeResult::ForwardToMaster:
                 RewriteRequestForForwardingToMaster(subrequest, resolveResult);
                 subrequest->Target = ERequestTarget::Master;
                 return std::nullopt;
-            default:
-                YT_ABORT();
         }
     }
 
@@ -938,19 +939,6 @@ private:
             response.Attachments().end(),
             subresponseMessage.Begin(),
             subresponseMessage.End());
-    }
-
-    bool CheckSubresponseError(const TSharedRefArray& message, TErrorCode errorCode)
-    {
-        try {
-            auto subresponse = New<NYTree::TYPathResponse>();
-            subresponse->Deserialize(message);
-        } catch (const std::exception& ex) {
-            auto error = TError(ex);
-            return error.FindMatching(errorCode).has_value();
-        }
-
-        return false;
     }
 };
 

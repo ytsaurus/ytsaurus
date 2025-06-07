@@ -2211,6 +2211,7 @@ void TObjectManager::HydraExecuteLeader(
             ? responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage())
             : responseKeeper->EndRequest(mutationId, CreateErrorResponseMessage(error)))
         {
+
             setResponseKeeperPromise();
         }
     }
@@ -2231,6 +2232,11 @@ void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
         std::move(requestMessage),
         ObjectServerLogger(),
         NLogging::ELogLevel::Debug);
+
+    // If request was sent via Hive all resolve validation is already done.
+    if (NHiveServer::IsHiveMutation()) {
+        SetAllowResolveFromSequoiaObject(&context->RequestHeader(), true);
+    }
 
     auto identity = ParseAuthenticationIdentityFromProto(*request);
 

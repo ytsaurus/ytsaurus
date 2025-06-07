@@ -356,8 +356,10 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@key2") == "value2"
 
         # error cases
+        # typo (extra slash)
         with raises_yt_error("Expected \"literal\" in YPath but found \"slash\" token"):
             get("//tmp/t/@/key1")
+        # change type
         with raises_yt_error("Attributes can only be set from a map"):
             set("//tmp/t/@", 1)
         with raises_yt_error("Attributes can only be set from a map"):
@@ -5199,9 +5201,8 @@ class TestCypressSequoia(TestCypressMulticell):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_TEST_PARTITIONS = 12
-
+    NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
         # Master cell with tag 11 is reserved for portals.

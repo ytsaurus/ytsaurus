@@ -109,7 +109,7 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
                 return std::nullopt;
             }
             if (!ampersandSkipped && PrimaryMaster_ && CellTagFromId(rootId) != CellTagFromId(RootNodeId_)) {
-                return TResolveResult{
+                return TRemoteResolveResult{
                     rootId,
                     TYPath(tokenizer.GetInput())
                 };
@@ -167,7 +167,7 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
                 return std::nullopt;
             }
 
-            return TResolveResult{
+            return TRemoteResolveResult{
                 entrancePayload->PortalExitId,
                 TYPath(unresolvedPathSuffix)
             };
@@ -176,9 +176,9 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
                 return std::nullopt;
             }
 
-            return TResolveResult{
+            return TSequoiaResolveResult{
                 rootstockPayload->ScionNodeId,
-                TYPath(unresolvedPathSuffix)
+                rootstockPayload->RootstockPath,
             };
         } else {
             return std::nullopt;

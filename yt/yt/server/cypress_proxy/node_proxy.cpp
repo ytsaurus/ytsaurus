@@ -5,7 +5,7 @@
 #include "master_connector.h"
 #include "node_proxy_base.h"
 #include "path_resolver.h"
-#include "private.h"
+#include "sequoia_tree_visitor.h"
 #include "sequoia_session.h"
 #include "sequoia_tree_visitor.h"
 
@@ -41,7 +41,9 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/client/transaction_client/timestamp_provider.h>
+#include <yt/yt/client/table_client/public.h>
+
+#include <yt/yt/client/tablet_client/public.h>
 
 #include <yt/yt/core/ypath/helpers.h>
 
@@ -52,8 +54,6 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 #include <yt/yt/core/ytree/ypath_proxy.h>
-
-#include <util/random/random.h>
 
 #include <stack>
 
@@ -232,7 +232,6 @@ protected:
         DISPATCH_YPATH_SERVICE_METHOD(Lock);
         DISPATCH_YPATH_SERVICE_METHOD(Unlock);
         DISPATCH_YPATH_SERVICE_METHOD(Alter);
-
         DISPATCH_YPATH_SERVICE_METHOD(LockCopyDestination);
         DISPATCH_YPATH_SERVICE_METHOD(LockCopySource);
         DISPATCH_YPATH_SERVICE_METHOD(CalculateInheritedAttributes);
@@ -1023,9 +1022,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
         client,
         {Id_, SequoiaSession_->GetCurrentCypressTransactionId()},
         TAttributeFilter({externalCellTagAttribute, revisionAttribute}));
-
-    // There can be a race between attribute getting and tx finishing.
-    // TODO(kvk1920): detect such situations and retry.
 
     auto nodeLocked = WaitForFast(asyncLockAcquired)
         .ValueOrThrow();
@@ -2049,7 +2045,10 @@ INodeProxyPtr CreateNodeProxy(
     } else if (IsSequoiaCompositeNodeType(type)) {
         return New<TMapLikeNodeProxy>(bootstrap, std::move(session), std::move(resolveResult));
     } else {
-        return New<TNodeProxy>(bootstrap, std::move(session), std::move(resolveResult));
+        return New<TNodeProxy>(
+            bootstrap,
+            std::move(session),
+            std::move(resolveResult));
     }
 }
 

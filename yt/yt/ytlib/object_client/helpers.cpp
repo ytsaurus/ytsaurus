@@ -57,8 +57,9 @@ void SetSuppressTransactionCoordinatorSync(NRpc::NProto::TRequestHeader* request
 
 bool IsRetriableObjectServiceError(int /*attempt*/, const TError& error)
 {
-    // COMPAT(kvk1920): drop it when SequoiaRetriableError will be used
-    // everywhere.
+    // TODO(kvk1920): consider using .GetCode() instead of .FindMatching().
+
+    // COMPAT(kvk1920): drop when SequoiaRetriableError will be used everywhere.
     if (error.FindMatching(NRpc::EErrorCode::TransientFailure)) {
         return true;
     }
@@ -72,4 +73,3 @@ bool IsRetriableObjectServiceError(int /*attempt*/, const TError& error)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectClient
-

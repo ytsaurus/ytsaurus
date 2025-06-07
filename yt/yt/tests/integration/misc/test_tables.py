@@ -3314,6 +3314,42 @@ class TestTablesSequoia(TestTablesMirroredTx):
         "15": {"roles": ["sequoia_node_host"]},
     }
 
+    @authors("kvk1920")
+    def test_read_table_in_sequoia(self):
+        content = [{"a": i * 2 - 1, "b": i * 2} for i in range(50)]
+        t1_id = create("table", "//tmp/t1")
+        write_table("//tmp/t1", content)
+
+        def check_path(path):
+            for _ in range(self.NUM_MASTERS + 1):
+                assert read_table(path, verbose=False) == content
+                assert get(f"{path}/@native_cell_tag") in (14, 15)
+
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path("//tmp/t1")
+
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path(f"#{t1_id}")
+
+        tmp_id = get("//tmp/@id")
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path(f"#{tmp_id}/t1")
+
+        m_id = create("map_node", "//tmp/m")
+        t2_id = copy("//tmp/t1", "//tmp/m/t2")
+
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path("//tmp/m/t2")
+
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path(f"#{t2_id}")
+
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path(f"#{tmp_id}/m/t2")
+
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path(f"#{m_id}/t2")
+
 
 @pytest.mark.enabled_multidaemon
 class TestTablesRpcProxy(TestTables):

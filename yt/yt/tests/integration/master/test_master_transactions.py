@@ -903,6 +903,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         wait(lambda: tx not in ls("//sys/foreign_transactions", driver=get_driver(3)))
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
 class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
     ENABLE_MULTIDAEMON = True
@@ -920,8 +921,9 @@ class TestMasterTransactionsRpcProxy(TestMasterTransactions):
 
 ##################################################################
 
+
 @pytest.mark.enabled_multidaemon
-class TestSequoiaCypressTransactionReplication(YTEnvSetup):
+class TestCypressTransactionExternalization(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = False
     NUM_MASTERS = 3
@@ -1066,8 +1068,9 @@ class TestSequoiaCypressTransactionReplication(YTEnvSetup):
         assert read_table("//tmp/t") == content
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestSequoiaCypressTransactionReplicationMirroredTx(TestSequoiaCypressTransactionReplication):
+class TestCypressTransactionExternalizationMirroredTx(TestCypressTransactionExternalization):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True

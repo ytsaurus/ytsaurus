@@ -84,9 +84,6 @@ class TestSequoiaResponseKeeper(YTEnvSetup):
     }
 
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
-        "object_service": {
-            "allow_bypass_master_resolve": True,
-        },
         "response_keeper": {
             "enable": True,
         },

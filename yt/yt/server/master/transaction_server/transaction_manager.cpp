@@ -1787,9 +1787,10 @@ public:
             }
         }
 
-        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0 ||
-            (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases &&
-            IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
+        // NB: even if lease issuing or transaction mirroring is disabled leases
+        // still have to be revoked properly since Cypress transaction may be
+        // started before leases were disabled.
+        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0 || IsCypressTransactionMirroredToSequoia(transactionId);
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1864,9 +1865,9 @@ public:
             }
         }
 
-        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0 ||
-            (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases &&
-            IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
+        auto revokeLeases =
+            transaction->GetSuccessorTransactionLeaseCount() > 0 ||
+            IsCypressTransactionMirroredToSequoia(transactionId);
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1974,15 +1975,11 @@ public:
         auto authenticationIdentity = context->GetAuthenticationIdentity();
 
         if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
-            if (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases) {
-                context->ReplyFrom(
-                    RevokeTransactionLeases(transactionId)
-                    .Apply(BIND([transactionId, force, authenticationIdentity, this, this_ = MakeStrong(this)] {
-                        return AbortCypressTransactionInSequoia(Bootstrap_, transactionId, force, authenticationIdentity);
-                    })));
-                return;
-            }
-            context->ReplyFrom(AbortCypressTransactionInSequoia(Bootstrap_, transactionId, force, authenticationIdentity));
+            context->ReplyFrom(
+                RevokeTransactionLeases(transactionId)
+                .Apply(BIND([transactionId, force, authenticationIdentity, this, this_ = MakeStrong(this)] {
+                    return AbortCypressTransactionInSequoia(Bootstrap_, transactionId, force, authenticationIdentity);
+                })));
             return;
         }
 
@@ -2532,7 +2529,7 @@ private:
             YT_LOG_WARNING(ex,
                 "Failed to commit transaction (TransactionId: %v)",
                 transaction->GetId());
-            SetTransactionTimeout(transaction, TDuration::Zero());
+            SetTransactionTimeout(transaction, TDuration::MilliSeconds(250));
         }
     }
 
@@ -3410,8 +3407,8 @@ private:
                         LeaseTracker_->UnregisterTransaction(transactionId);
                         LeaseTracker_->RegisterTransaction(
                             transactionId,
-                            /* parentId*/ {},
-                            /*timeout*/ TDuration::Zero(),
+                            /*parentId*/ {},
+                            /*timeout*/ TDuration::MilliSeconds(250),
                             /*deadline*/ std::nullopt,
                             BIND(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
                                 .Via(automatonInvoker));
@@ -3447,10 +3444,7 @@ private:
             TCompactVector<TTransaction*, 16> dependentTransactions(
                 currentTransaction->DependentTransactions().begin(),
                 currentTransaction->DependentTransactions().end());
-            std::sort(
-                dependentTransactions.begin(),
-                dependentTransactions.end(),
-                TObjectIdComparer());
+            SortUniqueBy(dependentTransactions, std::mem_fn(&TTransaction::GetId));
             for (auto* nextTransaction : dependentTransactions) {
                 tryEnqueue(nextTransaction);
             }
@@ -3497,6 +3491,7 @@ private:
         NProto::TReqRevokeLeases request;
         ToProto(request.mutable_transaction_id(), transactionId);
         auto mutation = CreateMutation(HydraManager_, request);
+        mutation->SetCurrentTraceContext();
         return mutation->Commit().AsVoid().Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -3613,6 +3608,18 @@ private:
                 const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
                 transactionSupervisor->RecomputeStronglyOrderedTransactionRefsOnCoordinator();
             }
+        }
+
+        auto getCypressTransactionMirroringEnabled = [] (const TDynamicClusterConfigPtr& config) {
+            const auto& sequoiaManager = config->SequoiaManager;
+            return sequoiaManager->Enable && sequoiaManager->EnableCypressTransactionsInSequoia;
+        };
+
+        auto mirroringWasEnabled = getCypressTransactionMirroringEnabled(oldConfig);
+        auto mirroringEnabled = getCypressTransactionMirroringEnabled(Bootstrap_->GetDynamicConfig());
+        if (mirroringEnabled != mirroringWasEnabled) {
+            YT_LOG_INFO("Cypress transaction mirroring %v",
+                mirroringEnabled ? "enabled" : "disabled");
         }
     }
 

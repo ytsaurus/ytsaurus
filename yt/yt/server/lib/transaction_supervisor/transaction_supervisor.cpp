@@ -268,7 +268,9 @@ public:
         auto guard = Guard(SequencerLock_);
 
         if (UncommittedTransactionSequenceNumbers_.empty()) {
-            YT_LOG_DEBUG("No prepared transactions (NextStronglyOrderedTxSequenceNumber: %v)", NextStronglyOrderedTransactionSequenceNumber_);
+            YT_LOG_DEBUG(
+                "No prepared transactions (NextStronglyOrderedTxSequenceNumber: %v)",
+                NextStronglyOrderedTransactionSequenceNumber_);
             return VoidFuture;
         }
 
@@ -3201,6 +3203,7 @@ private:
                         NTransactionClient::EErrorCode::ParticipantFailedToPrepare,
                         "Participant %v has failed to prepare",
                         participantCellId)
+                        << TErrorAttribute("participant_cell_id", participantCellId)
                         << error;
                     ChangeCommitTransientState(commit, ECommitState::Aborting, wrappedError);
                     break;
