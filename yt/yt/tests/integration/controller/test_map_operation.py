@@ -2383,11 +2383,13 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
     NUM_TEST_PARTITIONS = 15
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    CHUNK_HOST_CELL_TAGS = [11, 12]
+
     @authors("babenko")
     def test_multicell_input_fetch(self):
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[0]})
         write_table("//tmp/t1", [{"a": 1}])
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[1]})
         write_table("//tmp/t2", [{"a": 2}])
 
         create("table", "//tmp/t_in", attributes={"external": False})
@@ -2414,7 +2416,7 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
     NUM_SECONDARY_MASTER_CELLS = 5
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["cypress_node_host"]},
         "14": {"roles": ["transaction_coordinator"]},
@@ -2428,6 +2430,29 @@ class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTx):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 24
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMapCommandsSysOperationsRootstock(TestSchedulerMapCommandsMirroredTx):
+    ENABLE_MULTIDAEMON = True
+    ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
+
+    CHUNK_HOST_CELL_TAGS = [12, 14]
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["sequoia_node_host"]},
+        "14": {"roles": ["chunk_host"]},
+        "15": {"roles": ["transaction_coordinator"]},
+    }
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMapCommandsSequoia(TestSchedulerMapCommandsSysOperationsRootstock):
+    ENABLE_MULTIDAEMON = True
+    ENABLE_TMP_ROOTSTOCK = True
 
 
 ##################################################################

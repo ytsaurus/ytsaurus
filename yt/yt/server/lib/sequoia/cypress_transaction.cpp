@@ -681,9 +681,6 @@ private:
         // (cell2, ancestor1), ...
         std::vector<std::optional<NRecords::TTransactionReplica>> Replicas;
         std::vector<std::optional<NRecords::TTransaction>> Ancestors;
-
-        // TODO(kvk1920): add method IsReplicatedToCell() and use it instead of
-        // looking into #Replicas directly.
     };
 
     void ReplicateTransactions(TFetchedInfo&& fetchedInfo)
@@ -1619,8 +1616,6 @@ private:
         }
 
         // Remove transactions from Sequoia tables.
-
-        // TODO(kvk1920): remove branches.
 
         // "transaction_replicas"
         for (const auto& replica : replicas) {

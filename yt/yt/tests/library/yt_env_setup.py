@@ -375,6 +375,7 @@ class YTEnvSetup(object):
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = False
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = False
     ENABLE_GROUND_TABLE_MOUNT_CACHE = True
+    ENABLE_SYS_OPERATIONS_ROOTSTOCK = False
 
     # Ground cluster should be lean by default.
     NUM_MASTERS_GROUND = 1
@@ -706,27 +707,9 @@ class YTEnvSetup(object):
 
         # NB: all Sequoia-related flags should be set before other components
         # start.
-        if cls.get_param("USE_SEQUOIA", index):
+        if index < cls.get_ground_index_offset() and cls.get_param("USE_SEQUOIA", index):
             def modify_master_dynamic_configs_func(config, ytserver_version):
-                update_inplace(config, {
-                    "sequoia_manager": {
-                        "enable": True,
-                    },
-                })
-
-                if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index):
-                    update_inplace(config, {
-                        "sequoia_manager": {
-                            "enable_cypress_transactions_in_sequoia": True,
-                        },
-                        "transaction_manager": {
-                            "enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases": True,
-                            "forbid_transaction_actions_for_cypress_transactions": True,
-                        },
-                    })
-
-                return config
-
+                return cls._apply_master_dynamic_config_patches(config, index)
         else:
             modify_master_dynamic_configs_func = None
 
@@ -770,6 +753,9 @@ class YTEnvSetup(object):
     @classmethod
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
+
+        # COMPAT(kvk1920): drop when compat tests version will become >= 25.2.
+        cls._maybe_skip_compat_tests_for_sequoia()
 
         cls._start_time = time()
 
@@ -856,6 +842,22 @@ class YTEnvSetup(object):
                 return False
 
         return True
+
+    @classmethod
+    def _maybe_skip_compat_tests_for_sequoia(cls):
+        if not cls.ENABLE_TMP_ROOTSTOCK and not cls.ENABLE_SYS_OPERATIONS_ROOTSTOCK:
+            return
+
+        master_version = None
+        for version, components in cls.ARTIFACT_COMPONENTS.items():
+            if "master" in components:
+                try:
+                    master_version = tuple(map(int, version.split("_")))
+                except ValueError:
+                    pass
+
+        if master_version is not None and master_version < (25, 2):
+            pytest.skip(reason="Sequoia doesn't work before 25.2")
 
     @classmethod
     def _setup_cluster_configuration(cls, index, clusters, client):
@@ -961,9 +963,24 @@ class YTEnvSetup(object):
         if cls.remote_envs:
             sleep(1.0)
 
-        if yt_commands.is_multicell and not cls.DEFER_SECONDARY_CELL_START:
-            yt_commands.remove("//sys/operations")
-            yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 11})
+        for cluster_index in range(1 + len(cls.remote_envs)):
+            if cls.get_param("NUM_SCHEDULERS", cluster_index) == 0:
+                continue
+
+            driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
+            if yt_commands.is_multicell and not cls.DEFER_SECONDARY_CELL_START:
+                if cls.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", cluster_index):
+                    cls._wait_for_sequoia_node_host_available(driver)
+                    yt_commands.remove("//sys/operations", force=True, driver=driver)
+                    yt_commands.create("rootstock", "//sys/operations", force=True, driver=driver)
+                elif "11" in cls.get_param("MASTER_CELL_DESCRIPTORS", 0) and \
+                        "cypress_node_host" in cls.MASTER_CELL_DESCRIPTORS["11"]["roles"]:
+                    yt_commands.remove("//sys/operations", force=True, driver=driver)
+                    yt_commands.create(
+                        "portal_entrance",
+                        "//sys/operations",
+                        attributes={"exit_cell_tag": 11},
+                        driver=driver)
 
         if cls.USE_DYNAMIC_TABLES:
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
@@ -1125,9 +1142,9 @@ class YTEnvSetup(object):
             if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", cluster_index):
                 # TODO(kvk1920): wait_for_ground_sync().
                 # NB: default backoff is 15 seconds, but primary cluster's
-                # cluster directory syncs in about 2 seconds.
+                # cluster directory syncs in about 1 second.
                 config = update_inplace(config, {
-                    "connect_retry_backoff_time": 2000,
+                    "connect_retry_backoff_time": 1000,
                 })
 
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
@@ -1170,7 +1187,10 @@ class YTEnvSetup(object):
 
         for index, config in enumerate(configs["controller_agent"]):
             config = update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG)
-            if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index):
+            if not cls._is_ground_cluster(index) and \
+                    (cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index) or
+                     cls.get_param("ENABLE_SYS_OPERATIONS_ROOTSTOCK", index)):
+                assert cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", index)
                 config = update_inplace(config, {
                     "set_committed_attribute_via_transaction_action": False,
                     "commit_operation_cypress_node_changes_via_system_transaction": True,
@@ -1343,6 +1363,17 @@ class YTEnvSetup(object):
             env.restore_default_node_dynamic_config()
             env.restore_default_bundle_dynamic_config()
 
+    @classmethod
+    def _wait_for_sequoia_node_host_available(cls, driver):
+        yt_commands.print_debug("Waiting for cell with \"sequoia_node_host\" role")
+        wait(lambda: yt_commands.create(
+            "rootstock",
+            "//check_cell_role",
+            force=True,
+            driver=driver),
+            ignore_exceptions=True)
+        yt_commands.remove("//check_cell_role", force=True, driver=driver)
+
     def setup_cluster(self, method, cluster_index):
         driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
         if driver is None:
@@ -1475,25 +1506,15 @@ class YTEnvSetup(object):
                         "MASTER_CELL_DESCRIPTORS",
                         cluster_index
                     ).values()):
-            yt_commands.print_debug("Waiting for cell with \"sequoia_node_host\" role")
-            wait(lambda: yt_commands.create(
-                "rootstock",
-                "//check_cell_role",
-                force=True,
-                driver=driver),
-                ignore_exceptions=True)
-            yt_commands.remove("//check_cell_role", force=True)
+            self._wait_for_sequoia_node_host_available(driver)
 
         if self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index) and not self._is_ground_cluster(cluster_index):
             assert self.get_param("USE_SEQUOIA", cluster_index)
-            # NB: Sometimes roles will not be applied to cells yet, which can lead to an error. Just retrying helps.
-            wait(lambda: yt_commands.create(
-                "rootstock",
-                "//tmp",
-                force=True,
-                driver=driver),
-                ignore_exceptions=True)
+
+            yt_commands.remove("//tmp", force=True, driver=driver)
+            yt_commands.create("rootstock", "//tmp", force=True, driver=driver)
         elif self.ENABLE_TMP_PORTAL and cluster_index == 0:
+            yt_commands.remove("//tmp", force=True, driver=driver)
             yt_commands.create(
                 "portal_entrance",
                 "//tmp",
@@ -1617,27 +1638,57 @@ class YTEnvSetup(object):
         if self.get_param("USE_SEQUOIA", cluster_index):
             scions = yt_commands.ls("//sys/scions", driver=driver)
             for scion in scions:
+                if yt_commands.get(f"#{scion}/@path", driver=driver) == "//sys/operations":
+                    continue
                 yt_commands.remove(f"#{scion}", driver=driver)
             yt_commands.gc_collect(driver=driver)
 
             if self._is_ground_cluster(cluster_index):
-                # Links for system stuff will still be present in sequoia tables during teardown.
-                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.path_to_node_id.get_default_path()}] where not is_substr('//sys', path)", driver=driver) == [])
-                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.node_id_to_path.get_default_path()}] where not is_substr('//sys', path)", driver=driver) == [])
-                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.path_forks.get_default_path()}]", driver=driver) == [])
-                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.node_forks.get_default_path()}]", driver=driver) == [])
-                wait(lambda: yt_commands.select_rows(f"* from [{DESCRIPTORS.child_forks.get_default_path()}]", driver=driver) == [])
-
-                # There is a bug: select returns rows which were locked but not
-                # written. So we need a temporary workaround for tests.
-                child_nodes = yt_commands.select_rows(f"* from [{DESCRIPTORS.child_node.get_default_path()}]", driver=driver)
-                for child_node in child_nodes:
-                    assert child_node["transaction_id"] in ("0-0-0-0", None, yson.YsonEntity)
-                    assert child_node["child_id"] in ("0-0-0-0", None, yson.YsonEntity)
-                yt_sequoia_helpers.clear_table_in_ground(DESCRIPTORS.child_node, driver=driver)
 
                 for table in DESCRIPTORS.get_group("transactions"):
                     wait(lambda: yt_commands.select_rows(f"* from [{table.get_default_path()}]", driver=driver) == [])
+
+                mangled_sys_operations = yt_sequoia_helpers.mangle_sequoia_path("//sys/operations")
+
+                non_empty_tables = list(DESCRIPTORS.get_group("resolve_tables"))
+
+                def sequoia_tables_empty():
+                    def condition(descriptor):
+                        if descriptor is DESCRIPTORS.node_id_to_path:
+                            return " where path != '//sys/operations'"
+                        if descriptor is DESCRIPTORS.path_to_node_id:
+                            return f" where path != '{mangled_sys_operations}'"
+                        return ""
+
+                    nonlocal non_empty_tables
+                    table_contents = [
+                        yt_commands.select_rows(
+                            f"* from [{descriptor.get_default_path()}]" + condition(descriptor), driver=driver)
+                        for descriptor in non_empty_tables
+                    ]
+
+                    new_non_empty_tables = []
+                    for descriptor, rows in zip(non_empty_tables, table_contents):
+                        for record in rows:
+                            if (descriptor is DESCRIPTORS.node_id_to_path and
+                                    record["path"] in (None, yson.YsonEntity) and
+                                    record["target_path"] in (None, yson.YsonEntity) and
+                                    record["fork_kind"] in (None, yson.YsonEntity)):
+                                # Workaround until YT-23209 is done.
+                                # If unexisting row is locked it can be observed
+                                # as if it was written with null at all non-key
+                                # columns.
+                                continue
+                            new_non_empty_tables.append(descriptor)
+                            break
+
+                    if new_non_empty_tables:
+                        non_empty_tables = new_non_empty_tables
+                        return False
+
+                    return True
+
+                wait(sequoia_tables_empty)
 
         # Ground cluster can't have rootstocks or portals.
         # Do not remove tmp if ENABLE_TMP_ROOTSTOCK, since it will be removed with scions.
@@ -1883,7 +1934,7 @@ class YTEnvSetup(object):
                          scheduler_pool_trees_root,
                          driver=None):
         dynamic_master_config = self._apply_master_dynamic_config_patches(get_dynamic_master_config(), cluster_index)
-        cypres_proxy_dynamic_config = self._apply_cypres_proxy_dynamic_config_patches(get_dynamic_cypress_proxy_config(), cluster_index)
+        cypress_proxy_dynamic_config = self._apply_cypress_proxy_dynamic_config_patches(get_dynamic_cypress_proxy_config(), cluster_index)
 
         default_pool_tree_config = {
             "nodes_filter": "",
@@ -1921,7 +1972,7 @@ class YTEnvSetup(object):
                     input={},
                 ),
                 yt_commands.make_batch_request("set", path="//sys/@config", input=dynamic_master_config),
-                yt_commands.make_batch_request("set", path="//sys/cypress_proxies/@config", input=cypres_proxy_dynamic_config),
+                yt_commands.make_batch_request("set", path="//sys/cypress_proxies/@config", input=cypress_proxy_dynamic_config),
             ],
             driver=driver,
         ):
@@ -1969,7 +2020,7 @@ class YTEnvSetup(object):
         if scheduler_count > 0:
             self._wait_for_scheduler_state_restored(driver=driver)
 
-    def _apply_cypres_proxy_dynamic_config_patches(self, config, cluster_index):
+    def _apply_cypress_proxy_dynamic_config_patches(self, config, cluster_index):
         if self.get_param("ENABLE_TMP_ROOTSTOCK", cluster_index):
             update_inplace(config, {
                 "response_keeper": {
@@ -1980,35 +2031,40 @@ class YTEnvSetup(object):
         update_inplace(config, delta_cypress_proxy_config)
         return config
 
-    def _apply_master_dynamic_config_patches(self, config, cluster_index):
-        master_cell_descriptors = self.get_param("MASTER_CELL_DESCRIPTORS", cluster_index)
+    @classmethod
+    def _apply_master_dynamic_config_patches(cls, config, cluster_index):
+        master_cell_descriptors = cls.get_param("MASTER_CELL_DESCRIPTORS", cluster_index)
 
         update_inplace(
-            config, self.get_param("DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
+            config, cls.get_param("DELTA_DYNAMIC_MASTER_CONFIG", cluster_index)
         )
         config["multicell_manager"]["cell_descriptors"] = master_cell_descriptors
         config["enable_descending_sort_order"] = True
         config["enable_descending_sort_order_dynamic"] = True
         config["enable_table_column_renaming"] = True
-        config["enable_dynamic_table_column_renaming"] = self.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
-        config["enable_static_table_drop_column"] = self.ENABLE_STATIC_DROP_COLUMN
-        config["enable_dynamic_table_drop_column"] = self.ENABLE_DYNAMIC_DROP_COLUMN
-        config["allow_everyone_create_secondary_indices"] = self.ENABLE_ALLOW_SECONDARY_INDICES
+        config["enable_dynamic_table_column_renaming"] = cls.ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES
+        config["enable_static_table_drop_column"] = cls.ENABLE_STATIC_DROP_COLUMN
+        config["enable_dynamic_table_drop_column"] = cls.ENABLE_DYNAMIC_DROP_COLUMN
+        config["allow_everyone_create_secondary_indices"] = cls.ENABLE_ALLOW_SECONDARY_INDICES
 
         # COMPAT(kvk1920)
-        if self.Env.get_component_version("ytserver-master").abi < (24, 2):
+        if cls.Env.get_component_version("ytserver-master").abi < (24, 2):
             config["node_tracker"]["full_node_states_gossip_period"] = 6 * 60 * 60 * 1000
 
-        if self.USE_SEQUOIA:
+        if not cls._is_ground_cluster(cluster_index) and cls.get_param("USE_SEQUOIA", cluster_index):
             config["sequoia_manager"]["enable"] = True
-            if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            if cls.get_param("ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA", cluster_index):
                 config["sequoia_manager"]["enable_cypress_transactions_in_sequoia"] = True
+                update_inplace(config["transaction_manager"], {
+                    "enable_cypress_mirrorred_to_sequoia_prerequisite_transaction_validation_via_leases": True,
+                    "forbid_transaction_actions_for_cypress_transactions": True,
+                })
 
         # COMPAT(kvk1920)
-        if self.Env.get_component_version("ytserver-master").abi >= (24, 2):
+        if cls.Env.get_component_version("ytserver-master").abi >= (24, 2):
             config["transaction_manager"]["alert_transaction_is_not_compatible_with_method"] = True
 
-        if not self.TEST_MAINTENANCE_FLAGS and self.Env.get_component_version("ytserver-master").abi >= (23, 1):
+        if not cls.TEST_MAINTENANCE_FLAGS and cls.Env.get_component_version("ytserver-master").abi >= (23, 1):
             config["node_tracker"]["forbid_maintenance_attribute_writes"] = True
 
         config.setdefault("chunk_service", {})

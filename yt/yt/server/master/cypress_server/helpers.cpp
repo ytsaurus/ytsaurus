@@ -442,6 +442,8 @@ std::optional<std::string> FindNodeKey(
     YT_ASSERT(trunkNode->IsTrunk());
     if (trunkNode->GetType() == EObjectType::PortalExit) {
         return trunkNode->As<TPortalExitNode>()->GetKey();
+    } else if (trunkNode->IsSequoia() && trunkNode->ImmutableSequoiaProperties()) {
+        return trunkNode->ImmutableSequoiaProperties()->Key;
     } else {
         auto* parent = trunkNode->GetParent();
         if (!parent || parent->GetNodeType() != ENodeType::Map) {

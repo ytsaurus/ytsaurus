@@ -19,7 +19,7 @@ from yt_commands import (
     start_transaction, abort_transaction, sync_mount_table, sync_unmount_table,
     sync_compact_table, set_nodes_banned, set_node_banned,
     get_account_disk_space_limit, set_account_disk_space_limit,
-    get_active_primary_master_leader_address,
+    get_active_primary_master_leader_address, gc_collect,
 )
 
 from yt.wrapper import yson
@@ -664,20 +664,22 @@ class TestSequoiaObjects(YTEnvSetup):
         },
     }
 
-    @authors("cherepashka")
-    def test_read_with_prerequisite_transactions_is_forbidden(self):
+    @authors("kvk1920")
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_read_with_prerequisites(self, finish_tx):
         tx = start_transaction()
+        t = create("table", "//tmp/t")
 
-        with raises_yt_error("Read requests with prerequisites are forbidden"):
-            get("//tmp/@id", prerequisite_transaction_ids=[tx])
-        with raises_yt_error("Read requests with prerequisites are forbidden"):
-            exists("//tmp", prerequisite_transaction_ids=[tx])
-        with raises_yt_error("Read requests with prerequisites are forbidden"):
-            ls("//tmp", prerequisite_transaction_ids=[tx])
+        assert get("//tmp/t/@id", prerequisite_transaction_ids=[tx]) == t
 
-        commit_transaction(tx)
+        finish_tx(tx)
+        gc_collect()
+        assert not exists(f"//sys/transactions/{tx}")
 
-    @authors("cherepashka")
+        with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
+            get("//tmp/t/@id", prerequisite_transaction_ids=[tx])
+
+    @authors("cherepashka", "kvk1920")
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
     def test_write_with_prerequisites(self, finish_tx):
         tx = start_transaction()
@@ -686,7 +688,15 @@ class TestSequoiaObjects(YTEnvSetup):
         commit_transaction(tx2, prerequisite_transaction_ids=[tx])
 
         finish_tx(tx)
+        gc_collect()
         assert not exists(f"//sys/transactions/{tx}")
+
+        with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
+            create("table", "//tmp/t", prerequisite_transaction_ids=[tx])
+
+        tx3 = start_transaction()
+        with raises_yt_error(f"No such transaction {tx}"):
+            commit_transaction(tx3, prerequisite_transaction_ids=[tx])
 
     @authors("cherepashka")
     def test_commited_prerequisite_tx(self):

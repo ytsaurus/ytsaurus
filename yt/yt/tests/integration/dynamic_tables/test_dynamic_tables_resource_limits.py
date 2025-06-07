@@ -587,6 +587,7 @@ class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPo
     }
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
 class TestDynamicTablesResourceLimitsMirroredTx(TestDynamicTablesResourceLimitsShardedTx):
     ENABLE_MULTIDAEMON = True
@@ -990,6 +991,7 @@ class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
     }
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingMirroredTx(TestPerBundleAccountingShardedTx):
     ENABLE_MULTIDAEMON = True

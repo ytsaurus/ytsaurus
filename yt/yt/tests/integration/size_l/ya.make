@@ -1,6 +1,6 @@
 PY3TEST()
 
-SET(YT_SPLIT_FACTOR 40)
+SET(YT_SPLIT_FACTOR 50)
 
 IF (SANITIZER_TYPE)
     SET(YT_TIMEOUT 2000)
@@ -18,7 +18,7 @@ IF (SANITIZER_TYPE)
 ELSE()
     REQUIREMENTS(
         cpu:28
-        ram:16
+        ram:18
     )
 ENDIF()
 

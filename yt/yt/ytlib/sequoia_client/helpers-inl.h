@@ -11,6 +11,14 @@ namespace NYT::NSequoiaClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+TErrorOr<T> WrapSequoiaRetriableError(
+    std::conditional_t<std::is_void_v<T>, const TError&, TErrorOr<T>&&> result)
+{
+    return TError(EErrorCode::SequoiaRetriableError, "Sequoia retriable error")
+        << std::forward<decltype(result)>(result);
+}
+
+template <class T>
 TErrorOr<T> MaybeWrapSequoiaRetriableError(
     std::conditional_t<std::is_void_v<T>, const TError&, TErrorOr<T>&&> result)
 {
@@ -18,8 +26,7 @@ TErrorOr<T> MaybeWrapSequoiaRetriableError(
         !result.FindMatching(EErrorCode::SequoiaRetriableError) &&
         IsRetriableSequoiaError(result))
     {
-        return TError(EErrorCode::SequoiaRetriableError, "Sequoia retriable error")
-            << std::forward<decltype(result)>(result);
+        return WrapSequoiaRetriableError<T>(std::forward<decltype(result)>(result));
     }
 
     return result;

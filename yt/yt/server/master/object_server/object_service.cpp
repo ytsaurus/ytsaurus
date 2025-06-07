@@ -414,6 +414,7 @@ DEFINE_ENUM(EExecutionSessionSubrequestType,
     (LocalWrite)
     (Remote)
     (Cache)
+    (Sequoia)
 );
 
 DEFINE_ENUM(ESyncPhase,
@@ -1156,6 +1157,27 @@ private:
         subrequest->ProfilingCounters->CrossCellForwardingRequestCounter.Increment();
     }
 
+    void MarkSubrequestSequoia(
+        TSubrequest* subrequest,
+        const TResolveCache::TSequoiaResolveResult& resolveResult)
+    {
+        subrequest->Type = EExecutionSessionSubrequestType::Sequoia;
+        OnCompletedSubresponse(
+            subrequest,
+            CreateErrorResponseMessage(TError(
+                NObjectClient::EErrorCode::RequestInvolvesSequoia,
+                "Request resolved in Sequoia")
+                << TErrorAttribute("rootstock_node_id", resolveResult.RootstockNodeId)
+                << TErrorAttribute("rootstock_path", resolveResult.RootstockPath)));
+        YT_LOG_DEBUG(
+            "Request redirected to Sequoia (Subrequest index: %v, TargetPath: %v, "
+            "RootstockNodeId: %v, RootstockPath: %v)",
+            subrequest->Index,
+            subrequest->YPathExt->target_path(),
+            resolveResult.RootstockNodeId,
+            resolveResult.RootstockPath);
+    }
+
     void DecideSubrequestType(TSubrequest* subrequest)
     {
         if (subrequest->Type == EExecutionSessionSubrequestType::Cache) {
@@ -1171,10 +1193,17 @@ private:
             return;
         }
 
+        if (const auto* sequoiaResolveResult = std::get_if<TResolveCache::TSequoiaResolveResult>(&*targetResolveResult)) {
+            MarkSubrequestSequoia(subrequest, *sequoiaResolveResult);
+            return;
+        }
+
+        const auto& targetRemoteResolveResult = std::get<TResolveCache::TRemoteResolveResult>(*targetResolveResult);
+
         subrequest->TargetPathRewrite = MakeYPathRewrite(
             subrequest->YPathExt->target_path(),
-            targetResolveResult->RemoteNodeId,
-            targetResolveResult->UnresolvedPathSuffix);
+            targetRemoteResolveResult.RemoteNodeId,
+            targetRemoteResolveResult.UnresolvedPathSuffix);
 
         subrequest->AdditionalPathRewrites.emplace();
         subrequest->AdditionalPathRewrites->reserve(subrequest->YPathExt->additional_paths_size());
@@ -1185,15 +1214,22 @@ private:
                 return;
             }
 
-            if (CellTagFromId(additionalResolveResult->RemoteNodeId) != CellTagFromId(targetResolveResult->RemoteNodeId)) {
+            if (const auto* sequoiaResolveResult = std::get_if<TResolveCache::TSequoiaResolveResult>(&*additionalResolveResult)) {
+                MarkSubrequestSequoia(subrequest, *sequoiaResolveResult);
+                return;
+            }
+
+            const auto& additionalRemoteResolveResult = std::get<TResolveCache::TRemoteResolveResult>(*additionalResolveResult);
+
+            if (CellTagFromId(additionalRemoteResolveResult.RemoteNodeId) != CellTagFromId(targetRemoteResolveResult.RemoteNodeId)) {
                 MarkSubrequestLocal(subrequest);
                 return;
             }
 
             subrequest->AdditionalPathRewrites->push_back(MakeYPathRewrite(
                 additionalPath,
-                additionalResolveResult->RemoteNodeId,
-                additionalResolveResult->UnresolvedPathSuffix));
+                additionalRemoteResolveResult.RemoteNodeId,
+                additionalRemoteResolveResult.UnresolvedPathSuffix));
         }
 
         subrequest->PrerequisiteRevisionPathRewrites.emplace();
@@ -1205,23 +1241,30 @@ private:
                 return;
             }
 
-            if (CellTagFromId(prerequisiteResolveResult->RemoteNodeId) != CellTagFromId(targetResolveResult->RemoteNodeId)) {
+            if (const auto* sequoiaResolveResult = std::get_if<TResolveCache::TSequoiaResolveResult>(&*prerequisiteResolveResult)) {
+                MarkSubrequestSequoia(subrequest, *sequoiaResolveResult);
+                return;
+            }
+
+            const auto& prerequisiteRemoteResolveResult = std::get<TResolveCache::TRemoteResolveResult>(*prerequisiteResolveResult);
+
+            if (CellTagFromId(prerequisiteRemoteResolveResult.RemoteNodeId) != CellTagFromId(targetRemoteResolveResult.RemoteNodeId)) {
                 MarkSubrequestLocal(subrequest);
                 return;
             }
 
             subrequest->PrerequisiteRevisionPathRewrites->push_back(MakeYPathRewrite(
                 prerequisitePath,
-                prerequisiteResolveResult->RemoteNodeId,
-                prerequisiteResolveResult->UnresolvedPathSuffix));
+                prerequisiteRemoteResolveResult.RemoteNodeId,
+                prerequisiteRemoteResolveResult.UnresolvedPathSuffix));
         }
 
-        if (IsAlienType(TypeFromId(targetResolveResult->RemoteNodeId))) {
+        if (IsAlienType(TypeFromId(targetRemoteResolveResult.RemoteNodeId))) {
             MarkSubrequestLocal(subrequest);
             return;
         }
 
-        MarkSubrequestRemoteCrossCell(subrequest, CellTagFromId(targetResolveResult->RemoteNodeId));
+        MarkSubrequestRemoteCrossCell(subrequest, CellTagFromId(targetRemoteResolveResult.RemoteNodeId));
     }
 
     void DecideSubrequestTypes()
@@ -1282,6 +1325,10 @@ private:
             }
 
             // Phase two.
+            if (subrequest.Type == EExecutionSessionSubrequestType::Sequoia) {
+                continue;
+            }
+
             if (subrequest.Type == EExecutionSessionSubrequestType::Remote ||
                 subrequest.Type == EExecutionSessionSubrequestType::Cache)
             {

@@ -63,6 +63,7 @@ TBranchedNodeSet::TIterator TBranchedNodeSet::end() const noexcept
 
 TCypressNode* TBranchedNodeSet::GetAnyNode()
 {
+    YT_ASSERT(!Nodes_.empty());
     return Nodes_.back();
 }
 
@@ -567,4 +568,3 @@ TYsonString TTransaction::GetErrorDescription() const
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionServer
-

@@ -894,11 +894,16 @@ class TestConcatenateShardedTx(TestConcatenatePortal):
     }
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
 class TestConcatenateMirroredTx(TestConcatenateShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+
+
+# TODO(kvk1920): TestConcatenateSequoia. The main problem is concatenation
+# between secondary cells: in Sequoia node's cell tag cannot be chosen.
 
 
 @pytest.mark.enabled_multidaemon

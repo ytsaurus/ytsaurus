@@ -559,6 +559,72 @@ TEST_F(TSequoiaTest, TestResponseKeeper)
     EXPECT_GE(okWithRetries, RequestCount / 2);
 }
 
+TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
+{
+    constexpr auto IterationCount = 20;
+
+    auto threadPool = CreateThreadPool(2, "ConcurrentNodereplacement");
+    auto invoker = threadPool->GetInvoker();
+
+    for (int iteration : std::views::iota(0, IterationCount)) {
+        YT_LOG_DEBUG("Starting iteration %v", iteration);
+
+        WaitFor(Client_->CreateNode("//sequoia/a", EObjectType::MapNode))
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Node \"//sequoia/a\" craeted");
+
+        auto barrier = NewPromise<void>();
+        auto conncurrentReplaceFuture = BIND([client = Client_, barrier = barrier.ToFuture()] () {
+            WaitFor(barrier)
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("Concurrent worker started");
+
+            WaitFor(Client_->CreateNode("//sequoia/b", EObjectType::MapNode))
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("Node \"//sequoia/b\" created");
+
+            TMoveNodeOptions moveOptions = {};
+            moveOptions.Force = true;
+            WaitFor(Client_->MoveNode("//sequoia/b", "//sequoia/a", moveOptions))
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("\"//sequoia/b\" replaced with \"//sequoia/a\"");
+        })
+            .AsyncVia(invoker)
+            .Run();
+
+        auto now = TInstant::Now();
+        YT_LOG_DEBUG("(Old creation time: %v)", now);
+
+        TDelayedExecutor::Submit(BIND([&] { barrier.Set(); }), TDuration::MicroSeconds(50));
+
+        constexpr auto WaitIterationLimit = 1000;
+
+        for (int _ : std::views::iota(0, WaitIterationLimit)) {
+            auto creationTimeString = WaitFor(Client_->GetNode("//sequoia/a/@creation_time"))
+                .ValueOrThrow();
+
+            auto creationTime = ConvertTo<TInstant>(creationTimeString);
+            YT_LOG_DEBUG("Creation time fetched (CurrentCreationTime: %v)", creationTime);
+
+            if (creationTime >= now) {
+                break;
+            }
+
+            Sleep(TDuration::MicroSeconds(100));
+        }
+
+        WaitFor(conncurrentReplaceFuture)
+            .ThrowOnError();
+
+        WaitFor(Client_->RemoveNode("//sequoia/*"))
+            .ThrowOnError();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
