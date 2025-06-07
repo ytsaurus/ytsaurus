@@ -574,10 +574,12 @@ TCGBaseContext::TCGBaseContext(
 TCGOpaqueValuesContext::TCGOpaqueValuesContext(
     const TCGBaseContext& base,
     Value* literals,
-    Value* opaqueValues)
+    Value* opaqueValues,
+    Value* bindedValues)
     : TCGBaseContext(base)
     , Literals_(literals)
     , OpaqueValues_(opaqueValues)
+    , BindedValues_(bindedValues)
 { }
 
 TCGOpaqueValuesContext::TCGOpaqueValuesContext(
@@ -586,7 +588,7 @@ TCGOpaqueValuesContext::TCGOpaqueValuesContext(
     : TCGBaseContext(base)
     , Literals_(other.Literals_)
     , OpaqueValues_(other.OpaqueValues_)
-
+    , BindedValues_(other.BindedValues_)
 { }
 
 Value* TCGOpaqueValuesContext::GetLiterals() const
@@ -610,6 +612,11 @@ Value* TCGOpaqueValuesContext::GetOpaqueValue(size_t index) const
         Builder_->getPtrTy(),
         opaqueValuePtr,
         "opaqueValues." + Twine(index));
+}
+
+Value* TCGOpaqueValuesContext::GetBindedValues() const
+{
+    return Builder_->ViaClosure(BindedValues_, "bindedValues");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
