@@ -1168,6 +1168,10 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
     };
 
     auto fakePrepareDuration = JobTestingOptions_->FakePrepareDuration;
+    if (!ExecStartTime_) {
+        // FakePrepareDuration does not play well with PreempribleStartTime in scheduler.
+        fakePrepareDuration = std::nullopt;
+    }
 
     return {
         .WaitingForResourcesDuration = getDuration(std::make_optional(CreationTime_), ResourcesAcquiredTime_),

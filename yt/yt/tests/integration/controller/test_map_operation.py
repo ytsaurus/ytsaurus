@@ -2571,7 +2571,6 @@ class TestJobSizeAdjuster(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"map_operation_options": {"data_size_per_job": 1}}}
 
     @authors("max42")
-    @pytest.mark.skip(reason="YT-8228")
     def test_map_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i} for i in range(31)]
@@ -2579,6 +2578,17 @@ class TestJobSizeAdjuster(YTEnvSetup):
             write_table("<append=true>//tmp/t_input", row, verbose=False)
 
         create("table", "//tmp/t_output")
+
+        # A little hack to serialize job scheduling one-by-one.
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    }
+                }
+            }
+        })
 
         op = map(
             in_="//tmp/t_input",
@@ -2590,6 +2600,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
                 "job_testing_options": {
                     "fake_prepare_duration": 10000,
                 },
+                "enable_multiple_jobs_in_allocation": True,
             },
         )
 

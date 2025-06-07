@@ -1,7 +1,7 @@
 from yt_env_setup import NODES_SERVICE, Restarter, YTEnvSetup
 
 from yt_commands import (
-    authors, print_debug, wait, release_breakpoint, wait_breakpoint, with_breakpoint, events_on_fs, create, create_tmpdir,
+    authors, print_debug, update_nodes_dynamic_config, wait, release_breakpoint, wait_breakpoint, with_breakpoint, events_on_fs, create, create_tmpdir,
     ls, get, sorted_dicts,
     set, remove, exists, create_user, make_ace, start_transaction, commit_transaction, write_file, read_table,
     write_table, map, reduce, map_reduce, sort, alter_table, start_op,
@@ -71,6 +71,20 @@ class TestSchedulerMapReduceBase(YTEnvSetup):
         assert len(banned_nodes) >= 1
 
         return banned_nodes
+
+    def _enable_multiple_jobs(self):
+        """
+        A little hack to serialize job scheduling one-by-one.
+        """
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    }
+                }
+            }
+        })
 
 
 ##################################################################
@@ -1163,10 +1177,9 @@ print("x={0}\ty={1}".format(x, y))
     @authors("klyachin", "coteeq")
     @pytest.mark.parametrize("ordered", [True, False])
     def test_map_reduce_job_size_adjuster_boost(self, ordered):
-        if not ordered:
-            pytest.skip(reason="YT-8228")
-
-        skip_if_old(self.Env, (25, 3), "No ordered adjuster in 25.2")
+        skip_if_old(self.Env, (25, 2), "No multiple_jobs in 25.1")
+        if ordered:
+            skip_if_old(self.Env, (25, 3), "No ordered adjuster in 25.2")
 
         create("table", "//tmp/t_input")
         # original_data should have at least 1Mb of data
@@ -1175,6 +1188,8 @@ print("x={0}\ty={1}".format(x, y))
             write_table("<append=true>//tmp/t_input", row, verbose=False)
 
         create("table", "//tmp/t_output")
+
+        self._enable_multiple_jobs()
 
         map_reduce(
             in_="//tmp/t_input",
@@ -1190,6 +1205,7 @@ print("x={0}\ty={1}".format(x, y))
                 "job_testing_options": {
                     "fake_prepare_duration": 10000,
                 },
+                "enable_multiple_jobs_in_allocation": True,
             },
         )
 
@@ -1208,6 +1224,8 @@ print("x={0}\ty={1}".format(x, y))
 
         create("table", "//tmp/t_output")
 
+        self._enable_multiple_jobs()
+
         map_reduce(
             in_="//tmp/t_input",
             out="//tmp/t_output",
@@ -1224,6 +1242,7 @@ print("x={0}\ty={1}".format(x, y))
                 "job_testing_options": {
                     "fake_prepare_duration": 10000,
                 },
+                "enable_multiple_jobs_in_allocation": True,
             },
         )
 
