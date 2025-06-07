@@ -613,7 +613,7 @@ private:
 
             auto* netConfig = portoSpec.mutable_net()->add_cfg();
             netConfig->set_opt("L3");
-            netConfig->add_arg(DefaultPortoNetworkInterface);
+            netConfig->add_arg(spec.NetworkInterface.value_or(TString(DefaultPortoNetworkInterface)));
 
             for (const auto& address : spec.IPAddresses) {
                 auto* ipConfig = portoSpec.mutable_ip()->add_cfg();

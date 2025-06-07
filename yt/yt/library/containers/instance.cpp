@@ -353,6 +353,11 @@ public:
         Spec_.User = user;
     }
 
+    void SetNetworkInterface(const TString& networkInterface) override
+    {
+        Spec_.NetworkInterface = networkInterface;
+    }
+
     void SetIPAddresses(const std::vector<NNet::TIP6Address>& addresses, bool enableNat64) override
     {
         Spec_.IPAddresses = addresses;
@@ -402,7 +407,7 @@ public:
                     << error;
             }
 
-            return GetPortoInstance(Executor_, Spec_.Name);
+            return GetPortoInstance(Executor_, Spec_.Name, Spec_.NetworkInterface);
         };
 
         return Executor_->CreateContainer(Spec_, /*start*/ true)
@@ -419,7 +424,7 @@ public:
                     << error;
             }
 
-            return GetPortoInstance(Executor_, Spec_.Name);
+            return GetPortoInstance(Executor_, Spec_.Name, Spec_.NetworkInterface);
         };
 
         return Executor_->CreateContainer(Spec_, /*start*/ true)
@@ -452,6 +457,15 @@ public:
     {
         return New<TPortoInstance>(name, executor);
     }
+
+    static IInstancePtr GetInstance(IPortoExecutorPtr executor, const TString& name, const std::optional<TString>& networkInterface)
+    {
+        return New<TPortoInstance>(
+            name,
+            networkInterface.value_or(TString(DefaultPortoNetworkInterface)),
+            executor);
+    }
+
 
     void Kill(int signal) override
     {
@@ -508,7 +522,7 @@ public:
         bool layerCountRequested = false;
 
         auto makeNetworkProperty = [&] (const TString& name) {
-            return Format("%v[%v]", name, DefaultPortoNetworkInterface);
+            return Format("%v[%v]", name, NetworkInterface_);
         };
 
         for (auto field : fields) {
@@ -841,6 +855,7 @@ public:
 
 private:
     const TString Name_;
+    const TString NetworkInterface_;
     const IPortoExecutorPtr Executor_;
     const NLogging::TLogger Logger;
 
@@ -851,7 +866,12 @@ private:
     mutable THashMap<TString, i64> ContextSwitchMap_;
 
     TPortoInstance(TString name, IPortoExecutorPtr executor)
+        : TPortoInstance(name, TString(DefaultPortoNetworkInterface), executor)
+    { }
+
+    TPortoInstance(TString name, TString networkInterface, IPortoExecutorPtr executor)
         : Name_(std::move(name))
+        , NetworkInterface_(std::move(networkInterface))
         , Executor_(std::move(executor))
         , Logger(ContainersLogger().WithTag("Container: %v", Name_))
     { }
@@ -912,9 +932,9 @@ IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor)
     return TPortoInstance::GetSelf(executor);
 }
 
-IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name)
+IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name, const std::optional<TString>& networkInterface)
 {
-    return TPortoInstance::GetInstance(executor, name);
+    return TPortoInstance::GetInstance(executor, name, networkInterface);
 }
 
 IInstancePtr GetRootPortoInstance(IPortoExecutorPtr executor)
