@@ -1335,12 +1335,21 @@ TCodegenExpression MakeCodegenReferenceExpr(
     return [
             =
         ] (TCGExprContext& builder) {
-            return TCGValue::LoadFromRowValues(
-                builder,
-                builder.RowValues,
-                index,
-                type,
-                "reference." + Twine(name.c_str()));
+            if (index >= 0) {
+                return TCGValue::LoadFromRowValues(
+                    builder,
+                    builder.RowValues,
+                    index,
+                    type,
+                    "reference." + Twine(name.c_str()));
+            } else {
+                return TCGValue::LoadFromRowValues(
+                    builder,
+                    builder.GetBindedValues(),
+                    -index - 1,
+                    type,
+                    "bindedRef." + Twine(name.c_str()));
+            }
         };
 }
 
@@ -2640,11 +2649,39 @@ TLlvmClosure MakeConsumerWithPIConversion(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+size_t MakeCodegenSubqueryScanOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    int subqueryParametersIndex)
+{
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        subqueryParametersIndex
+    ] (TCGOperatorContext& builder) {
+        auto consume = MakeConsumer(
+            builder,
+            "SubqueryOpInner",
+            consumerSlot);
+
+        builder->CreateCall(
+            builder.Module->GetRoutine("SubqueryExprHelper"),
+            {
+                builder.GetExecutionContext(),
+                builder.GetOpaqueValue(subqueryParametersIndex),
+                consume.ClosurePtr,
+                consume.Function,
+            });
+    };
+
+    return consumerSlot;
+}
+
 void MakeCodegenSubqueryWriteOp(
     TCodegenSource* codegenSource,
     size_t producerSlot,
-    size_t rowSize,
-    Value* result)
+    size_t rowSize)
 {
     *codegenSource = [
         =,
@@ -2673,7 +2710,6 @@ void MakeCodegenSubqueryWriteOp(
             {
                 builder.GetExecutionContext(),
                 builder->getInt32(rowSize),
-                builder->ViaClosure(result),
                 collect.ClosurePtr,
                 collect.Function
             });
@@ -2681,14 +2717,15 @@ void MakeCodegenSubqueryWriteOp(
 }
 
 TCodegenExpression MakeCodegenSubqueryExpr(
+    TCodegenSource codegenSource,
     std::vector<size_t> fromExprIds,
     std::vector<size_t> bindedExprIds,
-    std::optional<size_t> predicateId,
-    std::vector<size_t> projectExprIds,
-    TCodegenFragmentInfosPtr nestedFragmentsInfos,
-    int subqueryParametersIndex)
+    size_t slotCount)
 {
-    return [=] (TCGExprContext& builder) -> TCGValue {
+    return [
+        =,
+        codegenSource = std::move(codegenSource)
+    ] (TCGExprContext& builder) -> TCGValue {
         Value* fromValues = CodegenAllocateValues(builder, std::ssize(fromExprIds));
         for (int index = 0; index < std::ssize(fromExprIds); ++index) {
             CodegenFragment(builder, fromExprIds[index])
@@ -2701,65 +2738,36 @@ TCodegenExpression MakeCodegenSubqueryExpr(
                 .StoreToValues(builder, bindedValues, index);
         }
 
-        Value* result = CodegenAllocateValues(builder, 1);
+        Type* nestedContextType = TTypeBuilder<TNestedExecutionContext>::Get(builder->getContext());
 
-        size_t slotCount = 0;
-        size_t currentSlot = slotCount++;
+        Value* nestedContext = builder->CreateAlignedAlloca(
+            nestedContextType,
+            8);
 
-        // ScanOpHelper
-        TCodegenSource codegenSource = [
-            currentSlot,
+        using TFields = TTypeBuilder<TNestedExecutionContext>::Fields;
+
+        builder->CreateStore(
+            builder.Buffer,
+            builder->CreateConstGEP2_32(nestedContextType, nestedContext, 0, TFields::ExpressionContext));
+
+        builder->CreateStore(
             fromValues,
-            bindedValues,
-            subqueryParametersIndex
-        ] (TCGOperatorContext& builder) {
-            auto consume = MakeConsumer(
-                builder,
-                "SubqueryOpInner",
-                currentSlot);
+            builder->CreateConstGEP2_32(nestedContextType, nestedContext, 0, TFields::FromValues));
 
-            builder->CreateCall(
-                builder.Module->GetRoutine("SubqueryExprHelper"),
-                {
-                    builder.GetExecutionContext(), // Buffer
-                    builder.GetOpaqueValue(subqueryParametersIndex),
-                    builder->ViaClosure(fromValues),
-                    builder->ViaClosure(bindedValues),
-                    consume.ClosurePtr,
-                    consume.Function,
-                });
-        };
-
-        if (predicateId) {
-            currentSlot = MakeCodegenFilterOp(
-                &codegenSource,
-                &slotCount,
-                currentSlot,
-                nestedFragmentsInfos,
-                *predicateId);
-        }
-
-        currentSlot = MakeCodegenProjectOp(
-            &codegenSource,
-            &slotCount,
-            currentSlot,
-            nestedFragmentsInfos,
-            projectExprIds);
-
-        MakeCodegenSubqueryWriteOp(
-            &codegenSource,
-            currentSlot,
-            std::ssize(projectExprIds),
-            result);
-
-        Value* executionContextPtr = builder.Buffer;
         std::vector<std::shared_ptr<TCodegenConsumer>> consumers(slotCount);
 
-        TCGOperatorContext operatorBuilder(builder, executionContextPtr, &consumers);
+        TCGOperatorContext operatorBuilder(
+            TCGOpaqueValuesContext(
+                builder,
+                builder.GetLiterals(),
+                builder.GetOpaqueValues(),
+                bindedValues),
+            nestedContext,
+            &consumers);
 
         codegenSource(operatorBuilder);
 
-        return TCGValue::LoadFromRowValue(builder, result, EValueType::Any);
+        return TCGValue::LoadFromRowValue(builder, builder->CreateConstGEP2_32(nestedContextType, nestedContext, 0, TFields::Result), EValueType::Any);
     };
 }
 

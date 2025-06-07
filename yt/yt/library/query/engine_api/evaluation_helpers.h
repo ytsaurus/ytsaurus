@@ -203,7 +203,6 @@ struct TWriteOpClosure
 struct TSubqueryParameters
 {
     std::vector<EValueType> FromTypes;
-    int BindedRowSize;
 };
 
 struct TSubqueryWriteOpClosure
@@ -238,6 +237,13 @@ struct TExecutionContext
     const TFeatureFlags* const RequestFeatureFlags;
     // NB: It is safe to read value of this future only after subquery requests are sent.
     TFuture<TFeatureFlags> ResponseFeatureFlags;
+};
+
+struct TNestedExecutionContext
+{
+    TExpressionContext* ExpressionContext;
+    TPIValue* FromValues;
+    TPIValue Result;
 };
 
 struct TRowSchemaInformation

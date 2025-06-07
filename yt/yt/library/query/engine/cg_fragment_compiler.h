@@ -158,13 +158,23 @@ TCodegenExpression MakeCodegenCompositeMemberAccessorExpr(
     std::optional<size_t> dictOrListItemAccessorId,
     EValueType resultType);
 
+////////////////////////////////////////////////////////////////////////////////
+
+size_t MakeCodegenSubqueryScanOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    int subqueryParametersIndex);
+
+void MakeCodegenSubqueryWriteOp(
+    TCodegenSource* codegenSource,
+    size_t producerSlot,
+    size_t rowSize);
+
 TCodegenExpression MakeCodegenSubqueryExpr(
+    TCodegenSource codegenSource,
     std::vector<size_t> fromExprIds,
     std::vector<size_t> bindedExprIds,
-    std::optional<size_t> predicateId,
-    std::vector<size_t> projectExprIds,
-    TCodegenFragmentInfosPtr nestedFragmentsInfos,
-    int subqueryParametersIndex);
+    size_t slotCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
