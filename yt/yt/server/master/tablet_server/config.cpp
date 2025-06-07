@@ -206,7 +206,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("increase_upload_replication_factor", &TThis::IncreaseUploadReplicationFactor)
         .Default(false);
     registrar.Parameter("enable_tablet_resource_validation", &TThis::EnableTabletResourceValidation)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("tablet_node_tracker", &TThis::TabletNodeTracker)
         .DefaultNew();
