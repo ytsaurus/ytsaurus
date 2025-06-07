@@ -1,4 +1,5 @@
 #include "environment.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/gpu_helpers.h>
@@ -423,6 +424,8 @@ public:
 
             launcher->SetIPAddresses(addresses, Options_.EnableNat64);
         }
+
+        launcher->SetNetworkInterface(TString(JobNetworkInterface));
 
         launcher->SetEnablePorto(Options_.EnablePorto);
         launcher->SetIsolate(Options_.EnablePorto != EEnablePorto::Full);
