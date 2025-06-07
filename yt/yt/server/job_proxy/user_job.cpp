@@ -1369,7 +1369,9 @@ private:
             SetEnvironment(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project_id()));
         }
 
-        SetEnvironment(Format("YT_JOB_PROXY_SOCKET_PATH=%v", Host_->GetJobProxyUnixDomainSocketPath()));
+        if (UserJobSpec_.enable_rpc_proxy_in_job_proxy()) {
+            SetEnvironment(Format("YT_JOB_PROXY_SOCKET_PATH=%v", Host_->GetJobProxyUnixDomainSocketPath()));
+        }
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             SetEnvironment(formatter.Format(UserJobSpec_.environment(i)));
