@@ -640,7 +640,8 @@ bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
     if (currentFree < 0) {
         overcommitted = true;
 
-        YT_LOG_WARNING("Total memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
+        YT_LOG_WARNING(
+            "Total memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
             -currentFree,
             category,
             size);
@@ -652,12 +653,25 @@ bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
         if (poolUsed > poolLimit) {
             overcommitted = true;
 
-            YT_LOG_WARNING("Per-pool memory overcommit detected (Debt: %v, RequestCategory: %v, PoolTag: %v, RequestSize: %v)",
+            YT_LOG_WARNING(
+                "Per-pool memory overcommit detected (Debt: %v, RequestCategory: %v, PoolTag: %v, RequestSize: %v)",
                 poolUsed - poolLimit,
                 category,
                 *poolTag,
                 size);
         }
+    }
+
+    auto categoryUsed = DoGetUsed(category);
+    auto categoryLimit = DoGetLimit(category);
+    if (categoryUsed > categoryLimit) {
+        overcommitted = true;
+
+        YT_LOG_WARNING(
+            "Per-category memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
+            categoryUsed - categoryLimit,
+            category,
+            size);
     }
 
     return !overcommitted;
