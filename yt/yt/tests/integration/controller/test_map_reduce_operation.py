@@ -432,6 +432,29 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
             spec={"reducer": {"format": "dsv"}, "ordered": ordered},
         )
 
+    @authors("faucct")
+    @pytest.mark.parametrize("ordered", [False, True])
+    def test_map_reduce_distributed(self, ordered):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", {"line": "some_data"})
+        with pytest.raises(YtError, match="echo: write error: Invalid argument"):
+            map_reduce(
+                in_="//tmp/t_in",
+                out=["//tmp/t_out"],
+                sort_by="line",
+                reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; else echo "{foo=bar}"; fi',
+                spec={"reducer": {"format": "dsv", "cookie_group_size": 2}, "ordered": ordered},
+            )
+        map_reduce(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out"],
+            sort_by="line",
+            reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
+            spec={"reducer": {"format": "dsv", "cookie_group_size": 2}, "ordered": ordered},
+        )
+        assert read_table("//tmp/t_out") == [{'line': 'some_data'}]
+
     @authors("coteeq")
     @pytest.mark.parametrize("op_type,mapper_tables", [
         ("map", None),
@@ -1376,6 +1399,56 @@ print("x={0}\ty={1}".format(x, y))
             reducer_command="cat",
             sort_by=[{"name": "key", "sort_order": sort_order}],
             spec={"mapper": {"cpu_limit": 1}, "reduce_combiner": {"cpu_limit": 1}},
+        )
+
+        assert_items_equal(read_table("//tmp/t_in"), read_table("//tmp/t_out"))
+
+    @authors("faucct")
+    def test_user_job_spec_distributed(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        for i in range(50):
+            write_table("<append=%true>//tmp/t_in", [{"key": i}])
+        with pytest.raises(YtError, match="echo: write error: Invalid argument"):
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; else echo "{foo=bar}"; fi',
+                reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
+                sort_by=[{"name": "key", "sort_order": "ascending"}],
+                spec={
+                    "mapper": {"cpu_limit": 1},
+                    "reducer": {"cookie_group_size": 2},
+                    "reduce_combiner": {"cpu_limit": 1, "cookie_group_size": 2},
+                    "force_reduce_combiners": True,
+                },
+            )
+        with pytest.raises(YtError, match="echo: write error: Invalid argument"):
+            map_reduce(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
+                reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; else echo "{foo=bar}"; fi',
+                sort_by=[{"name": "key", "sort_order": "ascending"}],
+                spec={
+                    "mapper": {"cpu_limit": 1},
+                    "reducer": {"cookie_group_size": 2},
+                    "reduce_combiner": {"cpu_limit": 1, "cookie_group_size": 2},
+                    "force_reduce_combiners": True,
+                },
+            )
+        map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reducer_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
+            reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
+            sort_by=[{"name": "key", "sort_order": "ascending"}],
+            spec={
+                "mapper": {"cpu_limit": 1},
+                "reducer": {"cookie_group_size": 2},
+                "reduce_combiner": {"cpu_limit": 1, "cookie_group_size": 2},
+                "force_reduce_combiners": True,
+            },
         )
 
         assert_items_equal(read_table("//tmp/t_in"), read_table("//tmp/t_out"))
