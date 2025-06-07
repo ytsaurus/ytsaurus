@@ -16,7 +16,10 @@ type compressor struct {
 }
 
 func newCompressor(compressedDataBufSize int, compressionCodecName string) (*compressor, error) {
-	e, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(newZstdEncoderLevel(compressionCodecName)))
+	e, err := zstd.NewWriter(nil,
+		zstd.WithEncoderLevel(newZstdEncoderLevel(compressionCodecName)),
+		zstd.WithEncoderConcurrency(1),
+	)
 	if err != nil {
 		return nil, err
 	}
