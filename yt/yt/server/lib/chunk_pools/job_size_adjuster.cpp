@@ -167,9 +167,8 @@ public:
         const TJobSizeAdjusterConfigPtr& config)
         : Underlying_(CreateJobSizeAdjuster(dataWeightPerJob, config))
         , DataWeightFactor_(config->DataWeightFactor)
-    {
-        LastEffectiveDataWeightPerJob_ = Underlying_->GetDataWeightPerJob();
-    }
+        , LastEffectiveDataWeightPerJob_(Underlying_->GetDataWeightPerJob())
+    { }
 
     EJobAdjustmentAction UpdateStatistics(const TCompletedJobSummary& jobSummary) override
     {
@@ -186,7 +185,7 @@ public:
 
     i64 GetDataWeightPerJob() const override
     {
-        return Underlying_->GetDataWeightPerJob();
+        return LastEffectiveDataWeightPerJob_;
     }
 
 private:
