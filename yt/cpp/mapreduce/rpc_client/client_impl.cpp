@@ -23,8 +23,8 @@ NYT::NApi::IClientPtr CreateApiClient(const TClientContext& context)
 {
     auto connectionConfig = New<NApi::NRpcProxy::TConnectionConfig>();
     connectionConfig->SetDefaults();
-    if (context.UseProxyUnixDomainSocket) {
-        connectionConfig->ProxyUnixDomainSocket = context.ServerName;
+    if (context.JobProxySocketPath) {
+        connectionConfig->ProxyUnixDomainSocket = *context.JobProxySocketPath;
     } else {
         connectionConfig->ClusterUrl = context.ServerName;
     }
@@ -43,8 +43,8 @@ NYT::NApi::IClientPtr CreateApiClient(const TClientContext& context)
     if (context.ImpersonationUser) {
         clientOptions.User = *context.ImpersonationUser;
     }
-    if (context.MultiproxyTargetCluster) {
-        clientOptions.MultiproxyTargetCluster = *context.MultiproxyTargetCluster;
+    if (context.JobProxySocketPath) {
+        clientOptions.MultiproxyTargetCluster = context.MultiproxyTargetCluster;
     }
 
     auto connection = NApi::NRpcProxy::CreateConnection(connectionConfig);
