@@ -863,9 +863,9 @@ class YTEnvSetup(object):
         cluster_name = cls.get_cluster_name(index)
 
         batch_client = client.create_batch_client(raise_errors=True)
-        client.set("//sys/@cluster_name", cluster_name)
-        client.set("//sys/clusters", clusters)
-        client.set("//sys/@cluster_connection", clusters[cluster_name])
+        batch_client.set("//sys/@cluster_name", cluster_name)
+        batch_client.set("//sys/clusters", clusters)
+        batch_client.set("//sys/@cluster_connection", clusters[cluster_name])
         batch_client.commit_batch()
 
     @classmethod
