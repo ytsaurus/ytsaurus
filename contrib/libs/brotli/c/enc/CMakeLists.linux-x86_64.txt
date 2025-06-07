@@ -28,7 +28,6 @@ target_include_directories(brotli-c-enc PUBLIC
 
 target_link_libraries(brotli-c-enc PUBLIC
   linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
   brotli-c-common
   brotli-c-dec
 )

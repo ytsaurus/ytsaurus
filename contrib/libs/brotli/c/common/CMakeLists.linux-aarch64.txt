@@ -22,13 +22,12 @@ target_compile_options(brotli-c-common PRIVATE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
-target_include_directories(brotli-c-common PRIVATE
+target_include_directories(brotli-c-common PUBLIC
   ${PROJECT_SOURCE_DIR}/contrib/libs/brotli/c/include
 )
 
 target_link_libraries(brotli-c-common PUBLIC
   linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
 )
 
 target_sources(brotli-c-common PRIVATE

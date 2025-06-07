@@ -18,6 +18,7 @@ add_library(brotli-c-dec)
 
 
 target_compile_options(brotli-c-dec PRIVATE
+  -DBROTLI_BUILD_PORTABLE
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
@@ -27,7 +28,6 @@ target_include_directories(brotli-c-dec PUBLIC
 
 target_link_libraries(brotli-c-dec PUBLIC
   linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
   brotli-c-common
 )
 
