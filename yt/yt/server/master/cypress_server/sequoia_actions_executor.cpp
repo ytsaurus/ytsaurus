@@ -556,7 +556,7 @@ private:
         // NB: lock is already checked in prepare. Nobody cannot lock this node
         // between prepare and commit of Sequoia tx due to:
         //   - exlusive lock in "node_id_to_path" Sequoia table;
-        //   - barrier for Sequoia tx
+        //   - barrier for Sequoia tx.
         if (cypressTransaction) {
             auto* branchedNode = cypressManager->LockNode(trunkNode, cypressTransaction, ELockMode::Exclusive);
             branchedNode->MutableSequoiaProperties()->Tombstone = true;

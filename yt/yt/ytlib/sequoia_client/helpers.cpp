@@ -128,7 +128,8 @@ bool IsMethodShouldBeHandledByMaster(const std::string& method)
         method == "Fetch" ||
         method == "BeginUpload" ||
         method == "GetUploadParams" ||
-        method == "EndUpload";
+        method == "EndUpload" ||
+        method == "GetMountInfo";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

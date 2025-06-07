@@ -77,11 +77,19 @@ public:
         TNodeId rootNodeId,
         bool primaryMaster);
 
-    struct TResolveResult
+    struct TRemoteResolveResult
     {
         TNodeId RemoteNodeId;
         NYPath::TYPath UnresolvedPathSuffix;
     };
+
+    struct TSequoiaResolveResult
+    {
+        TNodeId RootstockNodeId;
+        NYPath::TYPath RootstockPath;
+    };
+
+    using TResolveResult = std::variant<TRemoteResolveResult, TSequoiaResolveResult>;
 
     std::optional<TResolveResult> TryResolve(const NYPath::TYPath& path);
 

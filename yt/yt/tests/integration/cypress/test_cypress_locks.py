@@ -1679,6 +1679,7 @@ class TestCypressLocksShardedTx(TestCypressLocksMulticell):
     }
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
 class TestCypressLocksMirroredTx(TestCypressLocksShardedTx):
     ENABLE_MULTIDAEMON = True

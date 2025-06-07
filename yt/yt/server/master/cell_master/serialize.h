@@ -180,6 +180,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveCompatsInEndUpload)                                     (2943))  // h0pless
     ((MoveRetainedTimestampAndOthersToExtraAttributes)              (2944))  // ifsmirnov
     ((ChunkLocationCounterId)                                       (2945))  // aleksandra-zh
+    ((SysOperationsInSequoia)                                       (2946))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

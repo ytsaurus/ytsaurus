@@ -369,16 +369,28 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot(
                 return TMissingObjectPayload{};
             }
 
-            // Resolve from Sequoia object id is prohibited by default to prevent node request
-            // processing in a non-Sequoia way. The exeptions are:
-            // - if request has already been processed by a Cypress Proxy and was forwarded
-            //   to Master, hence the |AllowResolveFromSequoiaObject| flag is set;
-            // - if the request method should be handled by Master.
+            // Resolve from Sequoia object id is prohibited by default to
+            // prevent node request processing in a non-Sequoia way. The
+            // exceptions are:
+            // - if request has already been processed by a Cypress Proxy and
+            //   was forwarded to Master, hence the
+            //   |AllowResolveFromSequoiaObject| flag is set;
+            // - if the method should be handled by Master;
+            // - if request is sent to _external_ cell of some node. For now,
+            //   there is no a simple way to check if request was intentionally
+            //   sent to external cell. Thus, we just allow resolve if object is
+            //   not native for current cell.
+            // - if non-Cypress transaction is used. In such cases Cypress proxy
+            //   has no chances to handle it in Sequoia. Typical case is
+            //   requesting extended file attributes from external cell during
+            //   file upload. In such case we should check if current method is
+            //   not mutating.
             if (IsSequoiaId(objectId) &&
                 IsVersionedType(TypeFromId(objectId)) &&
-                CellTagFromId(objectId) == Bootstrap_->GetCellTag() &&
                 !options.AllowResolveFromSequoiaObject &&
-                !NSequoiaClient::IsMethodShouldBeHandledByMaster(Method_))
+                !NSequoiaClient::IsMethodShouldBeHandledByMaster(Method_) && // TODO(kvk1920): drop IsMethodShouldBeHandledByMaster().
+                CellTagFromId(objectId) == Bootstrap_->GetCellTag() &&
+                (!TransactionId_ || IsCypressTransactionType(TypeFromId(TransactionId_))))
             {
                 return TSequoiaRedirectPayload{};
             }

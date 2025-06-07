@@ -31,6 +31,8 @@
 
 #include <yt/yt/ytlib/cypress_transaction_client/cypress_transaction_service_proxy.h>
 
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
+
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
 
@@ -1220,6 +1222,9 @@ private:
         const IAttributeDictionaryPtr attributesPtr)
     {
         auto attributes = attributesPtr ? attributesPtr->Clone() : EmptyAttributes().Clone();
+        // For some reasons TObjectServiceProxy::FromDirectMasterChannel cannot
+        // be used here.
+        // TODO(kvk1920): investigate it.
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
         auto batchReq = proxy.ExecuteBatch();
 

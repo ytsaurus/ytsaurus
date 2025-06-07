@@ -13,6 +13,8 @@ from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, m
 
 from yt_helpers import skip_if_old
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 import yt_error_codes
 import yt.yson as yson
 
@@ -614,6 +616,7 @@ print("x={0}\ty={1}".format(x, y))
         assert len(read_table("//tmp/t_out", verbose=False)) > 0
 
     @authors("levysotsky")
+    @not_implemented_in_sequoia  # ACL
     def test_intermediate_live_preview(self):
         create_user("u")
         create("table", "//tmp/t1")
@@ -678,6 +681,7 @@ print("x={0}\ty={1}".format(x, y))
             wait(lambda: get("//sys/operations/@acl") == get("//sys/operations&/@acl"))
 
     @authors("levysotsky")
+    @not_implemented_in_sequoia  # ACL
     def test_intermediate_new_live_preview(self):
         partition_map_vertex = "partition_map(0)"
 
@@ -3847,7 +3851,14 @@ for line in sys.stdin:
 
 class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["transaction_coordinator"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################
@@ -3856,6 +3867,46 @@ class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):
 class TestSchedulerMapReduceCommandsPortal(TestSchedulerMapReduceCommandsMulticell):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     ENABLE_TMP_PORTAL = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
+
+##################################################################
+
+
+class TestSchedulerMapReduceCommandsSysOperationsRootstock(TestSchedulerMapReduceCommandsPortal):
+    ENABLE_MULTIDAEMON = False
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 4
+    NUM_TEST_PARTITIONS = 15
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["sequoia_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["chunk_host"]},
+    }
+
+
+class TestSchedulerMapReduceCommandsSequoia(TestSchedulerMapReduceCommandsSysOperationsRootstock):
+    ENABLE_MULTIDAEMON = False
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["sequoia_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################

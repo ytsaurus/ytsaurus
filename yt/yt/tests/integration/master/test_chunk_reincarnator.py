@@ -704,6 +704,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
 class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
     ENABLE_MULTIDAEMON = False  # Checks profiling.
     NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_TEST_PARTITIONS = 2
 
     @authors("kvk1920")
     @pytest.mark.parametrize("on_primary", [True, False])

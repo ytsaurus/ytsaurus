@@ -772,7 +772,11 @@ typename TMapNodeImpl<TChild>::TChildren& TMapNodeImpl<TChild>::MutableChildren(
 template <class TChild>
 ENodeType TMapNodeImpl<TChild>::GetNodeType() const
 {
-    return ENodeType::Map;
+    if constexpr (std::is_same_v<TChild, TNodeId>) {
+        return ENodeType::Entity;
+    } else {
+        return ENodeType::Map;
+    }
 }
 
 template <class TChild>
@@ -846,7 +850,11 @@ EObjectType TCypressMapNodeTypeHandlerImpl<TImpl>::GetObjectType() const
 template <class TImpl>
 ENodeType TCypressMapNodeTypeHandlerImpl<TImpl>::GetNodeType() const
 {
-    return ENodeType::Map;
+    if constexpr (std::is_same_v<TImpl, TCypressNode*>) {
+        return ENodeType::Map;
+    } else {
+        return ENodeType::Entity;
+    }
 }
 
 template <class TImpl>

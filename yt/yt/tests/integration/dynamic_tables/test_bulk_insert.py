@@ -2240,12 +2240,27 @@ class TestBulkInsertShardedTx(TestBulkInsertPortal):
     }
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
 class TestBulkInsertMirroredTx(TestBulkInsertShardedTx):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+
+
+@authors("kvk1920")
+@pytest.mark.enabled_multidaemon
+class TestBulkInsertSysOperationsRootstock(TestBulkInsertMirroredTx):
+    ENABLE_MULTIDAEMON = True
+    ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["transaction_coordinator", "sequoia_node_host"]},
+    }
 
 
 @pytest.mark.enabled_multidaemon
@@ -2268,11 +2283,13 @@ class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
     }
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
 class TestUnversionedUpdateFormatMirroredTx(TestUnversionedUpdateFormatShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    NUM_TEST_PARTITIONS = 3
 
 
 ##################################################################

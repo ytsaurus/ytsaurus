@@ -65,12 +65,15 @@ public:
         WaitFor(transactionSupervisor->WaitUntilPreparedTransactionsFinished())
             .ThrowOnError();
 
+        auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
+        ValidateWritePrerequisites(
+            FromProto<TTransactionId>(request->id()),
+            FromProto(request->attributes())->Find<std::string>("title"),
+            prerequisiteTransactionIds);
+
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         auto mutation = CreateMutation(hydraManager, *request);
         mutation->SetCurrentTraceContext();
-
-        auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
-        ValidateWritePrerequisites(prerequisiteTransactionIds);
 
         WaitFor(mutation->Commit())
             .ThrowOnError();
@@ -79,12 +82,27 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    void ValidateWritePrerequisites(const std::vector<TTransactionId>& prerequisiteTransactionIds) const
+    void ValidateWritePrerequisites(
+        TTransactionId sequoiaTransactionId,
+        std::optional<std::string> sequoiaTransactionTitle,
+        const std::vector<TTransactionId>& prerequisiteTransactionIds) const
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // Fast path.
+        if (prerequisiteTransactionIds.empty()) {
+            return;
+        }
+
         if (!Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases) {
+            YT_LOG_ALERT(
+                "Sequoia transaction requires Cypress transaction prerequisites "
+                "but prerequisite validation via leases is disabled "
+                "(SequoiaTransactionId: %v, SequoiaTransactionTitle: %v, PrerequisiteTransactionIds: %v)",
+                sequoiaTransactionId,
+                sequoiaTransactionTitle,
+                prerequisiteTransactionIds);
+            THROW_ERROR_EXCEPTION("Prerequisite transaction validation via leases is disabled");
             return;
         }
 
@@ -140,9 +158,9 @@ private:
         }
 
         auto enableLeaseIssuing = Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases;
-
-        YT_LOG_DEBUG("Staring Sequoia transaction "
-            "(TransactionId: %v, Timeout: %v, Title: %v, IssuedLeaseIds: %v)",
+        YT_LOG_DEBUG(
+            "Starting Sequoia transaction "
+            "(TransactionId: %v, Timeout: %v, Title: %v, LeasesToIssue: %v)",
             transactionId,
             timeout,
             title,
