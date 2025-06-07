@@ -375,8 +375,10 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             commit_transaction(tx)
 
+    # It actually works with RPC proxies so we use "run=False" here to avoid
+    # XPASS test result.
     @authors("kvk1920")
-    @pytest.mark.xfail(reason="YT-23209")
+    @pytest.mark.xfail(run=False, reason="YT-23209")
     def test_lock_unexisting_key(self):
         sync_create_cells(1)
 
