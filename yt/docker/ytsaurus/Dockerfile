@@ -95,9 +95,15 @@ packages=(
   netcat-openbsd
   tcpdump
   wget
+  llvm
 )
 
 apt-get install -y "${packages[@]}"
+
+RUN wget https://github.com/google/pprof/releases/latest/download/pprof_linux_amd64.zip \
+    && unzip pprof_linux_amd64.zip -d /usr/local/bin \
+    && chmod +x /usr/local/bin/pprof \
+    && rm pprof_linux_amd64.zip
 
 apt-get clean
 rm -rf /var/lib/apt/lists/*
