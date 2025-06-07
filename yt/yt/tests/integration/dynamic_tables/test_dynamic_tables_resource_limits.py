@@ -75,6 +75,11 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
 
         self._multicell_wait(resource_usage_matches)
 
+    def setup_method(self, method):
+        super().setup_method(method)
+        set("//sys/@config/security_manager/enable_tablet_resource_validation", True)
+        set("//sys/@config/tablet_manager/enable_tablet_resource_validation", False)
+
     @authors("savrus")
     @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
     def test_resource_limits(self, resource):
