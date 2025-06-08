@@ -7,6 +7,6 @@
 
 namespace NSQLComplete {
 
-    THashSet<TString> CollectClusters(const NYql::TExprNode& expr);
+    THashSet<TString> CollectClusters(const NYql::TExprNode& root);
 
 } // namespace NSQLComplete
