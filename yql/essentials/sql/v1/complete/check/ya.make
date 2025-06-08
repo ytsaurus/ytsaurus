@@ -2,6 +2,7 @@ LIBRARY()
 
 SRCS(
     collect_clusters.cpp
+    collect_tables.cpp
     check_complete.cpp
 )
 
