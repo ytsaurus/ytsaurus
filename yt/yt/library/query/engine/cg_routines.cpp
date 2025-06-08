@@ -868,7 +868,7 @@ void MultiJoinOpHelper(
     closure.ProcessJoinBatch();
 }
 
-std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValueType> types, TPIValue* lists, TRange<TPIValue> bindedValues = {})
+std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValueType> types, TPIValue* lists)
 {
     int arrayCount = types.size();
     std::vector<TPIValue*> nestedRows;
@@ -944,7 +944,7 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
             }
 
             if (currentArrayIndex >= std::ssize(nestedRows)) {
-                int nestedRowSize = arrayCount + bindedValues.Size();
+                int nestedRowSize = arrayCount;
                 auto mutableRange = AllocatePIValueRange(context, nestedRowSize, EAddressSpace::WebAssembly);
                 for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
                     MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(&mutableRange[leadingRowIndex]));
@@ -961,14 +961,6 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
 
         for (int trailingIndex = currentArrayIndex; trailingIndex < std::ssize(nestedRows); ++trailingIndex) {
             MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(&nestedRows[trailingIndex][index]));
-        }
-    }
-
-    for (auto* nestedRow : nestedRows) {
-        for (int index = 0; index < std::ssize(bindedValues); ++index) {
-            CopyPositionIndependent(
-                ConvertPointerFromWasmToHost(&nestedRow[arrayCount + index]),
-                bindedValues[index]);
         }
     }
 
@@ -3883,26 +3875,24 @@ void CompositeMemberAccessorHelper(
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SubqueryExprHelper(
-    TExpressionContext* context,
+    TNestedExecutionContext* context,
     TSubqueryParameters* parameters,
-    TPIValue* fromValues,
-    TPIValue* bindedValues,
     void** consumeRowsClosure,
     TRowsConsumer consumeRowsFunction)
 {
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
     // Unpack lists of fromValues.
-    auto nestedRows = UnpackRows(context, parameters->FromTypes, fromValues, TRange(bindedValues, parameters->BindedRowSize));
+    auto nestedRows = UnpackRows(context->ExpressionContext, parameters->FromTypes, context->FromValues);
 
     std::vector<const TPIValue*> castedRows(nestedRows.begin(), nestedRows.end());
 
-    return consumeRows(consumeRowsClosure, context, castedRows.data(), castedRows.size());
+    return consumeRows(consumeRowsClosure, context->ExpressionContext, castedRows.data(), castedRows.size());
 }
 
-bool SubqueryWriteRow(TExpressionContext* context, TSubqueryWriteOpClosure* closure, TPIValue* values)
+bool SubqueryWriteRow(TNestedExecutionContext* context, TSubqueryWriteOpClosure* closure, TPIValue* values)
 {
-    closure->OutputRowsBatch.push_back(CopyAndConvertFromPI(context, TRange(values, values + closure->RowSize), EAddressSpace::WebAssembly).Begin());
+    closure->OutputRowsBatch.push_back(CopyAndConvertFromPI(context->ExpressionContext, TRange(values, values + closure->RowSize), EAddressSpace::WebAssembly).Begin());
 
     return false;
 }
@@ -3955,9 +3945,8 @@ TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRowBuffer* rowBu
 }
 
 void SubqueryWriteHelper(
-    TExpressionContext* context,
+    TNestedExecutionContext* context,
     int resultColumns,
-    TPIValue* result,
     void** collectRowsClosure,
     void (*collectRowsFunction)(void** closure, TSubqueryWriteOpClosure* writeOpClosure))
 {
@@ -3969,14 +3958,14 @@ void SubqueryWriteHelper(
 
     // Produce yson with complex_type_mode=positional.
 
-    auto* buffer = context->GetRowBuffer().Get();
+    auto* buffer = context->ExpressionContext->GetRowBuffer().Get();
     std::vector<TValue> packedResult;
 
     for (auto row : closure.OutputRowsBatch) {
-        packedResult.push_back(PackValues(TRange(row, row + closure.RowSize), context->GetRowBuffer().Get()));
+        packedResult.push_back(PackValues(TRange(row, row + closure.RowSize), buffer));
     }
 
-    MakePositionIndependentFromUnversioned(result, PackValues(packedResult, buffer));
+    MakePositionIndependentFromUnversioned(&context->Result, PackValues(packedResult, buffer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
