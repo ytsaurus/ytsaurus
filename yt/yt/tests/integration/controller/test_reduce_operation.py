@@ -3289,3 +3289,142 @@ class TestSchedulerReduceCommandsNewSortedPool(TestSchedulerReduceCommands):
             },
         }
     }
+
+
+@pytest.mark.enabled_multidaemon
+class TestMergeJobSizeAdjuster(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "reduce_operation_options": {
+                "job_size_adjuster": {},
+                "spec_template": {
+                    "data_size_per_job": 1,
+                    "force_job_size_adjuster": True,
+                    "use_new_sorted_pool": True,
+                },
+            }
+        }
+    }
+
+    def _prepare_tables(self, data, sort_order, add_foreign):
+        schema = [
+            {"name": "key", "type": "string", "sort_order": sort_order},
+            {"name": "index", "type": "string"},
+        ]
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"schema": schema},
+        )
+        if sort_order == "descending":
+            data = data[::-1]
+        for row in data:
+            write_table("<append=%true>//tmp/in", row, verbose=False)
+
+        if add_foreign:
+            schema.append(
+                {"name": "foreign_index", "type": "string"},
+            )
+
+        create(
+            "table",
+            "//tmp/out",
+            attributes={"schema": schema},
+        )
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_reduce_adjustment(self, sort_order):
+        data = [{"key": "single_key", "index": "%05d" % i} for i in range(31)]
+        self._prepare_tables(data, sort_order, add_foreign=False)
+        create("table", "//tmp/line_counts")
+
+        reduce(
+            in_="//tmp/in",
+            out=["//tmp/line_counts", "//tmp/out"],
+            command="echo lines=$(tee /proc/self/fd/4 | wc -l) cookie=$YT_JOB_COOKIE",
+            spec={
+                "reducer": {"format": yson.loads(b"<field_separator=\" \">dsv")},
+                "resource_limits": {"user_slots": 3},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "reduce_by": [{"name": "key", "sort_order": sort_order}],
+                "enable_key_guarantee": False,
+            },
+        )
+
+        assert sorted_dicts(data) == sorted_dicts(read_table("//tmp/out"))
+
+        counts = read_table("//tmp/line_counts")
+        print_debug(counts)
+
+        assert any(
+            # NB: 5 is chosen kind of arbitrarily. I just wanted to assert that the latter jobs
+            # are large enough (5 means enlargement happened at least 3 times).
+            int(row["lines"]) > 5 for row in counts
+        )
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_join_reduce_no_adjustment(self, sort_order):
+        data = [{"key": "single_key", "index": "%05d" % i} for i in range(31)]
+        self._prepare_tables(data, sort_order, add_foreign=True)
+        create("table", "//tmp/line_counts")
+
+        create("table", "//tmp/foreign", attributes={"schema": [
+            {"name": "key", "type": "string", "sort_order": sort_order},
+            {"name": "foreign_index", "type": "string"},
+        ]})
+
+        foreign_data = [{"key": "single_key", "foreign_index": "00123"}]
+        write_table("//tmp/foreign", foreign_data)
+
+        reduce(
+            in_=["//tmp/in", "<foreign=%true>//tmp/foreign"],
+            out=["//tmp/line_counts", "//tmp/out"],
+            command="echo lines=$(tee /proc/self/fd/4 | wc -l) cookie=$YT_JOB_COOKIE",
+            spec={
+                "reducer": {"format": yson.loads(b"<field_separator=\" \">dsv")},
+                "resource_limits": {"user_slots": 3},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "join_by": [{"name": "key", "sort_order": sort_order}],
+                "enable_key_guarantee": False,
+            },
+        )
+
+        # Creepy hack to be able to compare entities in python code.
+        def replace_entity(rows):
+            result = []
+            for row in rows:
+                res_row = {}
+                for key, val in row.items():
+                    if isinstance(val, yson.YsonEntity):
+                        val = "__entity__"
+                    res_row[key] = val
+                result.append(res_row)
+            return result
+
+        expected_data = data + foreign_data * len(data)
+        expected_data = [
+            {
+                "index": row.get("index", yson.YsonEntity()),
+                "foreign_index": row.get("foreign_index", yson.YsonEntity()),
+                "key": "single_key",
+            }
+            for row in expected_data
+        ]
+        assert sorted_dicts(replace_entity(expected_data)) == sorted_dicts(replace_entity(read_table("//tmp/out")))
+
+        counts = read_table("//tmp/line_counts")
+        print_debug(counts)
+
+        # 1 primary row + 1 foreign row == 2
+        assert all(int(row["lines"]) == 2 for row in counts)

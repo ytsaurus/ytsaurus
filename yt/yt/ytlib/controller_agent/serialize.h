@@ -59,6 +59,8 @@ DEFINE_ENUM(ESnapshotVersion,
     // 25.2 starts here
     ((BumpTo_25_2)                           (301800))
     ((GangRanks)                             (301801))
+    ((ChunkStripeKeyNoIndex)                 (301802))
+    ((OrderedAndSortedJobSizeAdjuster)       (301803))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

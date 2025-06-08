@@ -1167,9 +1167,15 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
         }
     };
 
+    auto fakePrepareDuration = JobTestingOptions_->FakePrepareDuration;
+    if (!ExecStartTime_) {
+        // FakePrepareDuration does not play well with PreempribleStartTime in scheduler.
+        fakePrepareDuration = std::nullopt;
+    }
+
     return {
         .WaitingForResourcesDuration = getDuration(std::make_optional(CreationTime_), ResourcesAcquiredTime_),
-        .PrepareDuration = getDuration(PreparationStartTime_, ExecStartTime_),
+        .PrepareDuration = sumOptionals(getDuration(PreparationStartTime_, ExecStartTime_), fakePrepareDuration),
         .ArtifactsDownloadDuration = getDuration(PreparationStartTime_, CopyFinishTime_),
         .PrepareRootFSDuration = getDuration(PrepareRootVolumeStartTime_, PrepareRootVolumeFinishTime_),
         .ExecDuration = getDuration(ExecStartTime_, FinishTime_),

@@ -2571,7 +2571,6 @@ class TestJobSizeAdjuster(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"map_operation_options": {"data_size_per_job": 1}}}
 
     @authors("max42")
-    @pytest.mark.skipif("True", reason="YT-8228")
     def test_map_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i} for i in range(31)]
@@ -2580,11 +2579,29 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
         create("table", "//tmp/t_output")
 
+        # A little hack to serialize job scheduling one-by-one.
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    }
+                }
+            }
+        })
+
         op = map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command="echo lines=`wc -l`",
-            spec={"mapper": {"format": "dsv"}, "resource_limits": {"user_slots": 1}},
+            spec={
+                "mapper": {"format": "dsv"},
+                "resource_limits": {"user_slots": 1},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "enable_multiple_jobs_in_allocation": True,
+            },
         )
 
         expected = [{"lines": str(2 ** i)} for i in range(5)]
@@ -2593,7 +2610,9 @@ class TestJobSizeAdjuster(YTEnvSetup):
         estimated = get(op.get_path() + "/@progress/tasks/0/estimated_input_data_weight_histogram")
         histogram = get(op.get_path() + "/@progress/tasks/0/input_data_weight_histogram")
         assert estimated == histogram
-        assert histogram["max"] / histogram["min"] == 16
+        # NB(coteeq): THistogram is a little weird here and will pessimize max.
+        # assert histogram["max"] / histogram["min"] == 16
+        assert histogram["max"] / histogram["min"] >= 16
         assert histogram["count"][0] == 1
         assert sum(histogram["count"]) == 5
 
@@ -2620,6 +2639,42 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
         for row in read_table("//tmp/t_output"):
             assert int(row["lines"]) < 5
+
+    @authors("coteeq")
+    def test_ordered_map_adjustment(self):
+        create("table", "//tmp/in")
+        data = [{"index": "%05d" % i} for i in range(31)]
+        for row in data:
+            write_table("<append=true>//tmp/in", row, verbose=False)
+
+        create("table", "//tmp/out")
+        create("table", "//tmp/line_counts")
+
+        map(
+            in_="//tmp/in",
+            out=["//tmp/line_counts", "//tmp/out"],
+            command="echo lines=$(tee /proc/self/fd/4 | wc -l) cookie=$YT_JOB_COOKIE",
+            spec={
+                "ordered": True,
+                "mapper": {"format": yson.loads(b"<field_separator=\" \">dsv")},
+                "resource_limits": {"user_slots": 3},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "force_job_size_adjuster": True,
+            },
+        )
+
+        assert data == read_table("//tmp/out")
+
+        counts = read_table("//tmp/line_counts")
+        print_debug(counts)
+
+        assert any(
+            # NB: 5 is chosen kind of arbitrarily. I just wanted to assert that the latter jobs
+            # are large enough (5 means enlargement happened at least 3 times).
+            int(row["lines"]) > 5 for row in counts
+        )
 
     @authors("ignat")
     def test_map_unavailable_chunk(self):

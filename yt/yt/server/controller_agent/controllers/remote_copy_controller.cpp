@@ -142,7 +142,7 @@ protected:
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
-            TChunkStripeKey key = TOutputOrder::TEntry(joblet->OutputCookie);
+            TChunkStripeKey key(TOutputOrder::TEntry(joblet->OutputCookie));
             RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /*processEmptyStripes*/ true);
 
             return result;

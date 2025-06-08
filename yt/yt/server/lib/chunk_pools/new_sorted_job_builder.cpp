@@ -1048,11 +1048,10 @@ private:
             }
         }
 
-        StagingArea_->PutBarrier();
-
         AttachForeignSlices(TKeyBound::MakeUniversal(/*isUpper*/ true));
 
         StagingArea_->Finish();
+        StagingArea_->PutBarrier();
 
         for (auto& preparedJob : StagingArea_->PreparedJobs()) {
             PeriodicYielder_.TryYield();
