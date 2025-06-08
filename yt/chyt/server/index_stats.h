@@ -24,7 +24,7 @@ struct IChytIndexStat
 
 std::shared_ptr<IChytIndexStat> CreateVirtualColumnIndexStat(int discardedTableCount, int inputTablesCount);
 
-std::shared_ptr<IChytIndexStat> CreateKeyConditionIndexStat(int rowCount, int dataWeight, int filteredRowCount, int filteredDataWeight);
+std::shared_ptr<IChytIndexStat> CreateKeyConditionIndexStat(i64 rowCount, i64 dataWeight, i64 filteredRowCount, i64 filteredDataWeight);
 
 ////////////////////////////////////////////////////////////////////////////////
 
