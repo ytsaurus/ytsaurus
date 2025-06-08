@@ -3667,7 +3667,7 @@ private:
         for (const auto& [operationId, operation] : IdToOperation_) {
             builder.AppendString(operation->GetSuspiciousJobs().AsStringBuf());
         }
-        return TYsonString(builder.Flush(), EYsonType::MapFragment);
+        return TYsonString(TString(builder.Flush()), EYsonType::MapFragment);
     }
 
     void BuildStaticOrchid(IYsonConsumer* consumer)
