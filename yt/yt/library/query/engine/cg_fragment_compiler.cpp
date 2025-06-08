@@ -2678,6 +2678,149 @@ size_t MakeCodegenSubqueryScanOp(
     return consumerSlot;
 }
 
+size_t MakeCodegenNestedGroupOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> groupExprsIds,
+    std::vector<std::vector<size_t>> aggregateExprIds,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<EValueType> keyTypes,
+    std::vector<EValueType> stateTypes,
+    TComparerManagerPtr comparerManager)
+{
+    size_t newSlot = (*slotCount)++;
+
+    i64 groupKeySize = std::ssize(keyTypes);
+    i64 groupStateSize = std::ssize(stateTypes);
+    i64 rowSize = groupKeySize + groupStateSize;
+
+    *codegenSource = [
+        =,
+        codegenSource = std::move(*codegenSource),
+        fragmentInfos = std::move(fragmentInfos),
+        groupExprsIds = std::move(groupExprsIds),
+        aggregateExprIds = std::move(aggregateExprIds),
+        codegenAggregates = std::move(codegenAggregates),
+        keyTypes = std::move(keyTypes),
+        stateTypes = std::move(stateTypes),
+        comparerManager = std::move(comparerManager)
+    ] (TCGOperatorContext& builder) {
+
+        auto collect = MakeClosure<void(TGroupByClosure*, TExpressionContext*)>(builder, "NestedGroupCollect", [&] (
+            TCGOperatorContext& builder,
+            Value* groupByClosure,
+            Value* buffer) {
+            Value* newValuesPtr = builder->CreateAlloca(TTypeBuilder<TPIValue*>::Get(builder->getContext()));
+
+            builder->CreateCall(
+                builder.Module->GetRoutine("AllocatePermanentRow"),
+                {
+                    builder.GetExecutionContext(),
+                    buffer,
+                    builder->getInt32(rowSize),
+                    newValuesPtr
+                });
+
+            Type* closureType = TClosureTypeBuilder::Get(
+                builder->getContext(),
+                fragmentInfos->Functions.size());
+            Value* groupExpressionClosurePtr = builder->CreateAlloca(
+                closureType,
+                nullptr,
+                "expressionClosurePtr");
+
+            builder[producerSlot] = [&] (TCGContext& builder, Value* values) -> Value* {
+                Value* bufferRef = builder->ViaClosure(buffer);
+                Value* newValuesPtrRef = builder->ViaClosure(newValuesPtr);
+                Value* newValuesRef = builder->CreateLoad(
+                    TTypeBuilder<TValue*>::Get(builder->getContext()),
+                    newValuesPtrRef);
+
+                auto innerBuilder = TCGExprContext::Make(
+                    builder,
+                    *fragmentInfos,
+                    values,
+                    builder.Buffer,
+                    builder->ViaClosure(groupExpressionClosurePtr));
+
+                Value* dstValues = newValuesRef;
+
+                for (i64 index = 0; index < std::ssize(groupExprsIds); index++) {
+                    CodegenFragment(innerBuilder, groupExprsIds[index])
+                        .StoreToValues(builder, dstValues, index);
+                }
+
+                Value* groupByClosureRef = builder->ViaClosure(groupByClosure);
+
+                Value* groupValues = builder->CreateCall(
+                    builder.Module->GetRoutine("SubqueryInsertGroupRow"),
+                    {
+                        builder.GetExecutionContext(),
+                        groupByClosureRef,
+                        newValuesRef,
+                    });
+
+                Value* incomingRowIsNew = builder->CreateICmpEQ(groupValues, newValuesRef);
+
+                CodegenIf<TCGContext>(builder, incomingRowIsNew, [&] (TCGContext& builder) {
+                    for (i64 index = 0; index < std::ssize(codegenAggregates); index++) {
+                        codegenAggregates[index].Initialize(builder, bufferRef)
+                            .StoreToValues(builder, groupValues, groupKeySize + index);
+                    }
+
+                    builder->CreateCall(
+                        builder.Module->GetRoutine("AllocatePermanentRow"),
+                        {
+                            builder.GetExecutionContext(),
+                            bufferRef,
+                            builder->getInt32(rowSize),
+                            newValuesPtrRef
+                        });
+                });
+
+                for (i64 index = 0; index < std::ssize(codegenAggregates); index++) {
+                    auto aggState = TCGValue::LoadFromRowValues(
+                        builder,
+                        groupValues,
+                        groupKeySize + index,
+                        stateTypes[index]);
+
+                    std::vector<TCGValue> newValues;
+                    for (size_t argId : aggregateExprIds[index]) {
+                        newValues.emplace_back(CodegenFragment(innerBuilder, argId));
+                    }
+                    codegenAggregates[index].Update(builder, bufferRef, aggState, newValues)
+                        .StoreToValues(builder, groupValues, groupKeySize + index);
+                }
+
+                return builder->getFalse();
+            };
+
+            codegenSource(builder);
+
+            builder->CreateRetVoid();
+        });
+
+        auto consumeRows = MakeConsumer(builder, "SubqueryConsumeGroupedRows", newSlot);
+
+        builder->CreateCall(
+            builder.Module->GetRoutine("SubqueryGroupOpHelper"),
+            {
+                builder.GetExecutionContext(),
+                comparerManager->GetHasher(keyTypes, builder.Module, 0, keyTypes.size()),
+                comparerManager->GetEqComparer(keyTypes, builder.Module, 0, keyTypes.size()),
+                collect.ClosurePtr,
+                collect.Function,
+                consumeRows.ClosurePtr,
+                consumeRows.Function,
+            });
+    };
+
+    return newSlot;
+}
+
 void MakeCodegenSubqueryWriteOp(
     TCodegenSource* codegenSource,
     size_t producerSlot,
