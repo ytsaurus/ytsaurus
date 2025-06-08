@@ -3968,6 +3968,46 @@ void SubqueryWriteHelper(
     MakePositionIndependentFromUnversioned(&context->Result, PackValues(packedResult, buffer));
 }
 
+const TPIValue* SubqueryInsertGroupRow(
+    TNestedExecutionContext* /*context*/,
+    TNestedGroupByClosure* closure,
+    TPIValue* row)
+{
+    return *closure->insert(row).first;
+}
+
+void SubqueryGroupOpHelper(
+    TNestedExecutionContext* context,
+    THasherFunction* groupHasherFunction,
+    TComparerFunction* groupComparerFunction,
+    void** collectRowsClosure,
+    void (*collectRowsFunction)(void** closure, TNestedGroupByClosure* writeOpClosure, TExpressionContext* context),
+    void** consumeRowsClosure,
+    TRowsConsumer consumeRowsFunction)
+{
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+
+    auto groupHasher = PrepareFunction(groupHasherFunction);
+    auto groupComparer = PrepareFunction(groupComparerFunction);
+
+    TNestedGroupByClosure closure(
+        /*default capacity*/ 10,
+        groupHasher,
+        groupComparer
+    );
+
+    closure.set_empty_key(
+        NQueryClient::NDetail::TRowComparer::MakeSentinel(NQueryClient::NDetail::TRowComparer::ESentinelType::Empty));
+
+    collectRows(collectRowsClosure, &closure, context->ExpressionContext);
+
+    for (auto it = closure.begin(); it != closure.end(); ++it) {
+        const TPIValue* ptr = *it;
+        consumeRows(consumeRowsClosure, context->ExpressionContext, &ptr, 1);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 int CompareYsonValuesHelper(const char* lhsOffset, ui32 lhsLength, const char* rhsOffset, ui32 rhsLength)
@@ -4224,6 +4264,8 @@ REGISTER_ROUTINE(ArrayAggFinalize);
 REGISTER_ROUTINE(SubqueryExprHelper);
 REGISTER_ROUTINE(SubqueryWriteRow);
 REGISTER_ROUTINE(SubqueryWriteHelper);
+REGISTER_ROUTINE(SubqueryInsertGroupRow);
+REGISTER_ROUTINE(SubqueryGroupOpHelper);
 
 REGISTER_ROUTINE(memcmp);
 REGISTER_ROUTINE(gmtime_r);
