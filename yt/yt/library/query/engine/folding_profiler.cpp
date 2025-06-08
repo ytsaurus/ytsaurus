@@ -1304,10 +1304,6 @@ size_t TExpressionProfiler::Profile(
     TExpressionFragments* fragments,
     bool isolated)
 {
-    if (subqueryExpr->GroupClause) {
-        THROW_ERROR_EXCEPTION("Group clause in subquery is not supported");
-    }
-
     llvm::FoldingSetNodeID id;
     id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::Subquery));
@@ -1363,6 +1359,92 @@ size_t TExpressionProfiler::Profile(
 
             MakeCodegenFragmentBodies(&codegenSource, filterExprInfos);
         }
+    }
+
+    if (auto groupClause = subqueryExpr->GroupClause.Get()) {
+        Fold(EFoldingObjectType::GroupOp);
+
+        std::vector<EValueType> keyTypes;
+        std::vector<EValueType> stateTypes;
+
+        std::vector<size_t> groupExprIds;
+        std::vector<std::vector<size_t>> aggregateExprIdsByFunc;
+        std::vector<TCodegenAggregate> codegenAggregates;
+
+        TExpressionFragments expressionFragments;
+
+        TExpressionFragments groupFragments;
+        for (const auto& groupItem : groupClause->GroupItems) {
+            auto groupExprId = Profile(groupItem, &nestedReferenceProvider, &expressionFragments);
+            groupExprIds.push_back(groupExprId);
+
+            keyTypes.push_back(groupItem.Expression->GetWireType());
+        }
+
+        for (const auto& aggregateItem : groupClause->AggregateItems) {
+            Fold(EFoldingObjectType::AggregateItem);
+            Fold(aggregateItem.AggregateFunction.c_str());
+            Fold(aggregateItem.Name.c_str());
+
+            const auto& aggregate = AggregateProfilers_->GetAggregate(aggregateItem.AggregateFunction);
+
+            int argumentCount = aggregateItem.Arguments.size();
+
+            {
+                std::vector<size_t> aggregateArgIds;
+                aggregateArgIds.reserve(argumentCount);
+                for (auto& arg : aggregateItem.Arguments) {
+                    aggregateArgIds.push_back(Profile(TNamedItem{arg, ""}, &nestedReferenceProvider, &expressionFragments));
+                }
+                aggregateExprIdsByFunc.emplace_back(std::move(aggregateArgIds));
+            }
+
+            std::vector<TLogicalTypePtr> logicalTypes;
+            logicalTypes.reserve(argumentCount);
+            for (const auto& arg : aggregateItem.Arguments) {
+                logicalTypes.push_back(arg->LogicalType);
+            }
+            codegenAggregates.push_back(aggregate->Profile(
+                logicalTypes,
+                aggregateItem.StateType,
+                aggregateItem.ResultType,
+                aggregateItem.Name,
+                ExecutionBackend_,
+                Id_));
+            stateTypes.push_back(GetWireType(aggregateItem.StateType));
+        }
+
+        auto fragmentInfos = expressionFragments.ToFragmentInfos("groupExpression");
+        for (const auto& funcArgs : aggregateExprIdsByFunc) {
+            expressionFragments.DumpArgs(funcArgs);
+        }
+        expressionFragments.DumpArgs(groupExprIds);
+
+        currentSlot = MakeCodegenNestedGroupOp(
+            &codegenSource,
+            &slotCount,
+            currentSlot,
+            fragmentInfos,
+            std::move(groupExprIds),
+            std::move(aggregateExprIdsByFunc),
+            codegenAggregates,
+            keyTypes,
+            stateTypes,
+            ComparerManager_);
+
+        currentSlot = MakeCodegenFinalizeOp(
+            &codegenSource,
+            &slotCount,
+            currentSlot,
+            std::ssize(keyTypes),
+            codegenAggregates,
+            stateTypes);
+
+        nestedSchema = groupClause->GetTableSchema(true);
+
+        nestedReferenceProvider.Schema = nestedSchema;
+
+        MakeCodegenFragmentBodies(&codegenSource, fragmentInfos);
     }
 
     if (auto projectClause = subqueryExpr->ProjectClause.Get()) {

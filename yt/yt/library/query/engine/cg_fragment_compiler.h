@@ -176,6 +176,18 @@ TCodegenExpression MakeCodegenSubqueryExpr(
     std::vector<size_t> bindedExprIds,
     size_t slotCount);
 
+size_t MakeCodegenNestedGroupOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> groupExprsIds,
+    std::vector<std::vector<size_t>> aggregateExprIds,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<EValueType> keyTypes,
+    std::vector<EValueType> stateTypes,
+    TComparerManagerPtr comparerManager);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void CodegenEmptyOp(TCGOperatorContext& builder);
