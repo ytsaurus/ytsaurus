@@ -8,6 +8,18 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.6.5**" %}
+
+**Release date:** 2025-06-08
+
+Maintenance release with minor enhancements
+
+- Support for Spark 3.5.6
+- Minor improvements for Spark Streaming support in YTsaurus
+
+{% endcut %}
+
+
 {% cut "**2.6.4**" %}
 
 **Release date:** 2025-05-16

@@ -179,9 +179,9 @@ RUN python3.12 -m pip install -r requirements.txt
 
 ```text
 # requirements.txt
-ytsaurus-client==0.13.20
-ytsaurus-spyt==2.6.4
-pyspark==3.5.5
+ytsaurus-client==0.13.29
+ytsaurus-spyt==2.6.5
+pyspark==3.5.6
 ```
 
 #### Create a cluster with a docker image
