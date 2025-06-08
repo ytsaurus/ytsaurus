@@ -490,22 +490,6 @@ public:
         ChunkWiseAccountingMigrationAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffc);
         SequoiaAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffa);
 
-        RootUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffff);
-        GuestUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffe);
-        JobUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffd);
-        SchedulerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffc);
-        ReplicatorUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffb);
-        OwnerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xfffffffffffffffa);
-        FileCacheUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffef);
-        OperationsCleanerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffee);
-        OperationsClientUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffed);
-        TabletCellChangeloggerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffec);
-        TabletCellSnapshotterUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffeb);
-        TableMountInformerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffea);
-        AlienCellSynchronizerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffe9);
-        QueueAgentUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffe8);
-        TabletBalancerUserId_ = MakeWellKnownId(EObjectType::User, cellTag, 0xffffffffffffffe7);
-
         EveryoneGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xffffffffffffffff);
         UsersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffe);
         SuperusersGroupId_ = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffd);
@@ -1608,17 +1592,20 @@ public:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::User, hintId);
         auto* user = DoCreateUser(id, name);
-        if (user) {
-            if (!GetDynamicConfig()->DisableUpdateUserLastSeen) {
-                user->SetLastSeenTime(GetCurrentMutationContext()->GetTimestamp());
-            }
 
-            YT_LOG_DEBUG("User created (User: %v)", name);
-            LogStructuredEventFluently(Logger(), ELogLevel::Info)
-                .Item("event").Value(EAccessControlEvent::UserCreated)
-                .Item("name").Value(user->GetName());
+        DoAddMember(UsersGroup_, user);
+        MaybeRecomputeMembershipClosure();
+
+        if (!GetDynamicConfig()->DisableUpdateUserLastSeen) {
+            user->SetLastSeenTime(GetCurrentMutationContext()->GetTimestamp());
         }
-        return user;
+
+        YT_LOG_DEBUG("User created (User: %v)", name);
+        LogStructuredEventFluently(Logger(), ELogLevel::Info)
+            .Item("event").Value(EAccessControlEvent::UserCreated)
+            .Item("name").Value(user->GetName());
+
+            return user;
     }
 
     void DestroyUser(TUser* user)
@@ -2876,50 +2863,40 @@ private:
     NHydra::TEntityMap<TUser> UserMap_;
     THashMap<std::string, TUser*> UserNameMap_;
 
-    TUserId RootUserId_;
     TUser* RootUser_ = nullptr;
-
-    TUserId GuestUserId_;
     TUser* GuestUser_ = nullptr;
-
-    TUserId JobUserId_;
-    TUser* JobUser_ = nullptr;
-
-    TUserId SchedulerUserId_;
-    TUser* SchedulerUser_ = nullptr;
-
-    TUserId ReplicatorUserId_;
+    TUser* OwnerUser_ = nullptr;
     TUser* ReplicatorUser_ = nullptr;
 
-    TUserId OwnerUserId_;
-    TUser* OwnerUser_ = nullptr;
+    struct TBuiltinUserDescriptor
+    {
+        ui64 IdCounter = 0;
+        std::string Name;
+        bool Unlimited = false;
+        TGroup** Group = nullptr;
+        TUser** User = nullptr;
+    };
 
-    TUserId FileCacheUserId_;
-    TUser* FileCacheUser_ = nullptr;
-
-    TUserId OperationsCleanerUserId_;
-    TUser* OperationsCleanerUser_ = nullptr;
-
-    TUserId OperationsClientUserId_;
-    TUser* OperationsClientUser_ = nullptr;
-
-    TUserId TabletCellChangeloggerUserId_;
-    TUser* TabletCellChangeloggerUser_ = nullptr;
-
-    TUserId TabletCellSnapshotterUserId_;
-    TUser* TabletCellSnapshotterUser_ = nullptr;
-
-    TUserId TableMountInformerUserId_;
-    TUser* TableMountInformerUser_ = nullptr;
-
-    TUserId AlienCellSynchronizerUserId_;
-    TUser* AlienCellSynchronizerUser_ = nullptr;
-
-    TUserId QueueAgentUserId_;
-    TUser* QueueAgentUser_ = nullptr;
-
-    TUserId TabletBalancerUserId_;
-    TUser* TabletBalancerUser_ = nullptr;
+    const std::vector<TBuiltinUserDescriptor> BuiltinUserDescriptors_{
+        {0xffffffffffffffff, RootUserName,                   true,  &SuperusersGroup_, &RootUser_      },
+        {0xfffffffffffffffe, GuestUserName,                  false, &EveryoneGroup_,   &GuestUser_     },
+        {0xfffffffffffffffd, JobUserName,                    true,  &SuperusersGroup_                  },
+        {0xfffffffffffffffc, SchedulerUserName,              true,  &SuperusersGroup_                  },
+        {0xfffffffffffffffb, ReplicatorUserName,             true,  &SuperusersGroup_, &ReplicatorUser_},
+        {0xfffffffffffffffa, OwnerUserName,                  true,  &UsersGroup_,      &OwnerUser_     },
+        {0xffffffffffffffef, FileCacheUserName,              true,  &SuperusersGroup_                  },
+        {0xffffffffffffffee, OperationsCleanerUserName,      true,  &SuperusersGroup_                  },
+        {0xffffffffffffffed, OperationsClientUserName,       true,  &SuperusersGroup_                  },
+        {0xffffffffffffffec, TabletCellChangeloggerUserName, true,  &SuperusersGroup_                  },
+        {0xffffffffffffffeb, TabletCellSnapshotterUserName,  true,  &SuperusersGroup_                  },
+        {0xffffffffffffffea, TableMountInformerUserName,     true,  &SuperusersGroup_                  },
+        {0xffffffffffffffe9, AlienCellSynchronizerUserName,  false, &SuperusersGroup_                  },
+        {0xffffffffffffffe8, QueueAgentUserName,             false, &SuperusersGroup_                  },
+        {0xffffffffffffffe7, TabletBalancerUserName,         false, &SuperusersGroup_                  },
+        {0xffffffffffffffe6, PermissionCacheUserName,        true,  &SuperusersGroup_                  },
+        {0xffffffffffffffe5, ReplicatedTableTrackerUserName, false, &SuperusersGroup_                  },
+        {0xffffffffffffffe4, ChunkReplicaCacheUserName,      false, &SuperusersGroup_                  },
+    };
 
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<std::string, TGroup*> GroupNameMap_;
@@ -3061,35 +3038,6 @@ private:
         return account;
     }
 
-    TGroup* GetBuiltinGroupForUser(TUser* user)
-    {
-        // "guest" is a member of "everyone" group.
-        // "root", "job", "scheduler", "replicator", "file_cache", "operations_cleaner", "operations_client",
-        // "tablet_cell_changelogger", "tablet_cell_snapshotter" and "table_mount_informer" are members of "superusers" group.
-        // others are members of "users" group.
-        const auto& id = user->GetId();
-        if (id == GuestUserId_) {
-            return EveryoneGroup_;
-        } else if (
-            id == RootUserId_ ||
-            id == JobUserId_ ||
-            id == SchedulerUserId_ ||
-            id == ReplicatorUserId_ ||
-            id == FileCacheUserId_ ||
-            id == OperationsCleanerUserId_ ||
-            id == OperationsClientUserId_ ||
-            id == TabletCellChangeloggerUserId_ ||
-            id == TabletCellSnapshotterUserId_ ||
-            id == TableMountInformerUserId_ ||
-            id == AlienCellSynchronizerUserId_ ||
-            id == QueueAgentUserId_ ||
-            id == TabletBalancerUserId_)
-        {
-            return SuperusersGroup_;
-        } else {
-            return UsersGroup_;
-        }
-    }
 
     TUser* DoCreateUser(TUserId id, const std::string& name)
     {
@@ -3102,10 +3050,7 @@ private:
 
         auto* user = UserMap_.Insert(id, std::move(userHolder));
         YT_VERIFY(UserNameMap_.emplace(user->GetName(), user).second);
-
         YT_VERIFY(user->RefObject() == 1);
-        DoAddMember(GetBuiltinGroupForUser(user), user);
-        MaybeRecomputeMembershipClosure();
 
         if (!IsRecovery()) {
             RequestTracker_->ReconfigureUserRequestRateThrottlers(user);
@@ -3764,21 +3709,12 @@ private:
             ProxyRoleNameMaps_[proxyKind].clear();
         }
 
+
         RootUser_ = nullptr;
         GuestUser_ = nullptr;
-        JobUser_ = nullptr;
-        SchedulerUser_ = nullptr;
-        OperationsCleanerUser_ = nullptr;
-        OperationsClientUser_ = nullptr;
-        TabletCellChangeloggerUser_ = nullptr;
-        TabletCellSnapshotterUser_ = nullptr;
-        TableMountInformerUser_ = nullptr;
-        AlienCellSynchronizerUser_ = nullptr;
-        QueueAgentUser_ = nullptr;
-        TabletBalancerUser_ = nullptr;
-        ReplicatorUser_ = nullptr;
         OwnerUser_ = nullptr;
-        FileCacheUser_ = nullptr;
+        ReplicatorUser_ = nullptr;
+
         EveryoneGroup_ = nullptr;
         UsersGroup_ = nullptr;
         SuperusersGroup_ = nullptr;
@@ -3878,115 +3814,23 @@ private:
             DoAddMember(UsersGroup_, AdminsGroup_);
         }
 
+        // Users
+
+        for (const auto& descriptor : BuiltinUserDescriptors_) {
+            auto cellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+            auto userId = MakeWellKnownId(EObjectType::User, cellTag, descriptor.IdCounter);
+            auto* user = EnsureBuiltinUserInitialized(userId, descriptor.Name, descriptor.Unlimited, *descriptor.Group);
+            if (descriptor.User) {
+                *descriptor.User = user;
+            }
+        }
+
         DoRecomputeMembershipClosure();
 
-        // Users
-        const auto unlimitedThrottlerConfig = New<TThroughputThrottlerConfig>();
-
-        // root
-        if (EnsureBuiltinUserInitialized(RootUser_, RootUserId_, RootUserName)) {
-            RootUser_->SetRequestRateLimit(std::nullopt, EUserWorkloadType::Read);
-            RootUser_->SetRequestRateLimit(std::nullopt, EUserWorkloadType::Write);
-            RootUser_->SetRequestQueueSizeLimit(1'000'000);
-            RootUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            RootUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-        }
-
-        // guest
-        EnsureBuiltinUserInitialized(GuestUser_, GuestUserId_, GuestUserName);
-
-        if (EnsureBuiltinUserInitialized(JobUser_, JobUserId_, JobUserName)) {
-            // job
-            JobUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
-            JobUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
-            JobUser_->SetRequestQueueSizeLimit(1'000'000);
-        }
-
-        // scheduler
-        if (EnsureBuiltinUserInitialized(SchedulerUser_, SchedulerUserId_, SchedulerUserName)) {
-            SchedulerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
-            SchedulerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
-            SchedulerUser_->SetRequestQueueSizeLimit(1'000'000);
-            SchedulerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            SchedulerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-        }
-
-        // replicator
-        if (EnsureBuiltinUserInitialized(ReplicatorUser_, ReplicatorUserId_, ReplicatorUserName)) {
-            ReplicatorUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
-            ReplicatorUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
-            ReplicatorUser_->SetRequestQueueSizeLimit(1'000'000);
-            ReplicatorUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            ReplicatorUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-        }
-
-        // owner
-        EnsureBuiltinUserInitialized(OwnerUser_, OwnerUserId_, OwnerUserName);
-
-        // file cache
-        if (EnsureBuiltinUserInitialized(FileCacheUser_, FileCacheUserId_, FileCacheUserName)) {
-            FileCacheUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
-            FileCacheUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
-            FileCacheUser_->SetRequestQueueSizeLimit(1'000'000);
-            FileCacheUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            FileCacheUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-        }
-
-        // operations cleaner
-        if (EnsureBuiltinUserInitialized(OperationsCleanerUser_, OperationsCleanerUserId_, OperationsCleanerUserName)) {
-            OperationsCleanerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
-            OperationsCleanerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
-            OperationsCleanerUser_->SetRequestQueueSizeLimit(1'000'000);
-            OperationsCleanerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            OperationsCleanerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-        }
-
-        // operations client
-        if (EnsureBuiltinUserInitialized(OperationsClientUser_, OperationsClientUserId_, OperationsClientUserName)) {
-            OperationsClientUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
-            OperationsClientUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
-            OperationsClientUser_->SetRequestQueueSizeLimit(1'000'000);
-            OperationsClientUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            OperationsClientUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-        }
-
-        // tablet cell changelogger
-        if (EnsureBuiltinUserInitialized(TabletCellChangeloggerUser_, TabletCellChangeloggerUserId_, TabletCellChangeloggerUserName)) {
-            TabletCellChangeloggerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
-            TabletCellChangeloggerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
-            TabletCellChangeloggerUser_->SetRequestQueueSizeLimit(1'000'000);
-            TabletCellChangeloggerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            TabletCellChangeloggerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-        }
-
-        // tablet cell snapshotter
-        if (EnsureBuiltinUserInitialized(TabletCellSnapshotterUser_, TabletCellSnapshotterUserId_, TabletCellSnapshotterUserName)) {
-            TabletCellSnapshotterUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
-            TabletCellSnapshotterUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
-            TabletCellSnapshotterUser_->SetRequestQueueSizeLimit(1'000'000);
-            TabletCellSnapshotterUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            TabletCellSnapshotterUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-        }
-
-        // table mount informer
-        if (EnsureBuiltinUserInitialized(TableMountInformerUser_, TableMountInformerUserId_, TableMountInformerUserName)) {
-            TableMountInformerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Read);
-            TableMountInformerUser_->SetRequestRateLimit(1'000'000, EUserWorkloadType::Write);
-            TableMountInformerUser_->SetRequestQueueSizeLimit(1'000'000);
-            TableMountInformerUser_->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
-            TableMountInformerUser_->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
-        }
-
-        // alien cell synchronizer
-        EnsureBuiltinUserInitialized(AlienCellSynchronizerUser_, AlienCellSynchronizerUserId_, AlienCellSynchronizerUserName);
-
-        // queue agent
-        EnsureBuiltinUserInitialized(QueueAgentUser_, QueueAgentUserId_, QueueAgentUserName);
-
-        // tablet balancer
-        EnsureBuiltinUserInitialized(TabletBalancerUser_, TabletBalancerUserId_, TabletBalancerUserName);
+        RequestTracker_->ReconfigureAllUserRequestRateThrottlers();
 
         // Accounts
+
         // root, infinite resources, not meant to be used
         InitializeRootAccount();
 
@@ -4080,17 +3924,35 @@ private:
         return true;
     }
 
-    bool EnsureBuiltinUserInitialized(TUser*& user, TUserId id, const std::string& name)
+    TUser* EnsureBuiltinUserInitialized(
+        TUserId id,
+        const std::string& name,
+        bool unlimited,
+        TGroup* group)
     {
-        if (user) {
-            return false;
+        if (auto* user = FindUser(id)) {
+            return user;
         }
-        user = FindUser(id);
-        if (user) {
-            return false;
+
+        if (auto* user = FindUserByName(name, /*activeLifeStageOnly*/ false)) {
+            // User could have been created manually.
+            return user;
         }
-        user = DoCreateUser(id, name);
-        return true;
+
+        auto* user = DoCreateUser(id, name);
+
+        DoAddMember(group, user);
+
+        if (unlimited) {
+            user->SetRequestRateLimit(std::nullopt, EUserWorkloadType::Read);
+            user->SetRequestRateLimit(std::nullopt, EUserWorkloadType::Write);
+            user->SetRequestQueueSizeLimit(1'000'000);
+            static const auto unlimitedThrottlerConfig = New<TThroughputThrottlerConfig>();
+            user->SetChunkServiceUserRequestWeightThrottlerConfig(unlimitedThrottlerConfig);
+            user->SetChunkServiceUserRequestBytesThrottlerConfig(unlimitedThrottlerConfig);
+        }
+
+        return user;
     }
 
     bool EnsureBuiltinAccountInitialized(TAccount*& account, TAccountId id, const std::string& name)

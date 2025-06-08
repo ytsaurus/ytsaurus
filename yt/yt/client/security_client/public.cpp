@@ -28,6 +28,9 @@ const TString AlienCellSynchronizerUserName("alien_cell_synchronizer");
 const TString QueueAgentUserName("queue_agent");
 const TString YqlAgentUserName("yql_agent");
 const TString TabletBalancerUserName("tablet_balancer");
+const TString PermissionCacheUserName("yt-permission-cache");
+const TString ReplicatedTableTrackerUserName("yt-replicated-table-tracker");
+const TString ChunkReplicaCacheUserName("yt-chunk-replica-cache");
 
 const TString EveryoneGroupName("everyone");
 const TString UsersGroupName("users");
