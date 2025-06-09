@@ -3,6 +3,7 @@ from .config import get_config, get_option, get_command_param
 from .common import flatten, get_value, YtError, set_param, deprecated
 from .errors import YtResponseError
 from .driver import make_request, make_formatted_request, set_master_read_params, get_api_version, get_structured_format
+from .format import Format
 from .transaction import Transaction
 from .ypath import YPath, escape_ypath_literal, ypath_join, ypath_dirname
 from .batch_response import apply_function_to_result
@@ -17,6 +18,7 @@ from yt.yson import is_unicode, get_bytes
 import builtins
 import string
 from copy import deepcopy, copy as shallowcopy
+from typing import Union, Optional, Literal, Callable, Any, List, Dict
 
 
 # XXX(asaitgalin): Used in get_attribute function for `default` argument
@@ -56,9 +58,17 @@ def _is_batch_client(client):
     return isinstance(client, BatchClient)
 
 
-def get(path, max_size=None, attributes=None, format=None, read_from=None,
-        cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None,
-        suppress_upstream_sync=None, client=None):
+def get(
+    path: Union[str, YPath],
+    max_size: Optional[int] = None,
+    attributes: Optional[List[str]] = None,
+    format: Optional[Union[str, Format]] = None,
+    read_from: Optional[Literal["cache"]] = None,
+    cache_sticky_group_size: Optional[bool] = None,
+    suppress_transaction_coordinator_sync: Optional[bool] = None,
+    suppress_upstream_sync: Optional[bool] = None,
+    client=None,
+):
     """Gets Cypress node content (attribute tree).
 
     :param path: path to tree, it must exist!
@@ -91,8 +101,16 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None,
     return result
 
 
-def set(path, value, format=None, recursive=False, force=None, suppress_transaction_coordinator_sync=None,
-        suppress_upstream_sync=None, client=None):
+def set(
+    path: Union[str, YPath],
+    value,
+    format=None,
+    recursive: bool = False,
+    force: bool = None,
+    suppress_transaction_coordinator_sync: bool = None,
+    suppress_upstream_sync: bool = None,
+    client=None,
+):
     """Sets new value to Cypress node.
 
     :param path: path.
@@ -170,12 +188,24 @@ class _CrosscellCopyMoveRetrier(Retrier):
                 raise
 
 
-def copy(source_path, destination_path,
-         recursive=None, force=None, ignore_existing=None, lock_existing=None,
-         preserve_account=None, preserve_owner=None, preserve_acl=None,
-         preserve_expiration_time=None, preserve_expiration_timeout=None,
-         preserve_creation_time=None, preserve_modification_time=None,
-         pessimistic_quota_check=None, enable_cross_cell_copying=None, client=None):
+def copy(
+    source_path: Union[str, YPath],
+    destination_path: Union[str, YPath],
+    recursive: bool = None,
+    force: bool = None,
+    ignore_existing: bool = None,
+    lock_existing: bool = None,
+    preserve_account: bool = None,
+    preserve_owner: bool = None,
+    preserve_acl: bool = None,
+    preserve_expiration_time: bool = None,
+    preserve_expiration_timeout: bool = None,
+    preserve_creation_time: bool = None,
+    preserve_modification_time: bool = None,
+    pessimistic_quota_check: bool = None,
+    enable_cross_cell_copying: bool = None,
+    client=None
+):
     """Copies Cypress node.
 
     :param source_path: source path.
@@ -222,12 +252,22 @@ def copy(source_path, destination_path,
         return _CrosscellCopyMoveRetrier.copy(params, client)
 
 
-def move(source_path, destination_path,
-         recursive=None, force=None,
-         preserve_account=None, preserve_owner=None, preserve_acl=None,
-         preserve_expiration_time=None, preserve_expiration_timeout=None,
-         preserve_creation_time=None, preserve_modification_time=None,
-         pessimistic_quota_check=None, enable_cross_cell_copying=None, client=None):
+def move(
+    source_path: Union[str, YPath],
+    destination_path: Union[str, YPath],
+    recursive: bool = None,
+    force: bool = None,
+    preserve_account: bool = None,
+    preserve_owner: bool = None,
+    preserve_acl: bool = None,
+    preserve_expiration_time: bool = None,
+    preserve_expiration_timeout: bool = None,
+    preserve_creation_time: bool = None,
+    preserve_modification_time: bool = None,
+    pessimistic_quota_check: bool = None,
+    enable_cross_cell_copying: bool = None,
+    client=None,
+):
     """Moves (renames) Cypress node.
 
     :param source_path: source path.
@@ -296,7 +336,11 @@ class _ConcatenateRetrier(Retrier):
         logger.warning("Concatenate failed with error %s", repr(error))
 
 
-def concatenate(source_paths, destination_path, client=None):
+def concatenate(
+    source_paths: Union[str, YPath],
+    destination_path: Union[str, YPath],
+    client=None,
+):
     """Concatenates cypress nodes. This command applicable only to files and tables.
 
     :param source_paths: source paths.
@@ -316,8 +360,16 @@ def concatenate(source_paths, destination_path, client=None):
     retrier.run()
 
 
-def link(target_path, link_path, recursive=False, ignore_existing=False, lock_existing=None,
-         force=False, attributes=None, client=None):
+def link(
+    target_path: Union[str, YPath],
+    link_path: Union[str, YPath],
+    recursive: bool = False,
+    ignore_existing: bool = False,
+    lock_existing: bool = None,
+    force: bool = False,
+    attributes: Optional[Dict[str, Any]] = None,
+    client=None,
+):
     """Makes link to Cypress node.
 
     :param target_path: target path.
@@ -347,10 +399,19 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, lock_ex
         client=client)
 
 
-def list(path,
-         max_size=None, format=None, absolute=None, attributes=None, sort=True, read_from=None,
-         cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None,
-         suppress_upstream_sync=None, client=None):
+def list(
+    path: Union[str, YPath],
+    max_size: Optional[int] = None,
+    format: Optional[Format] = None,
+    absolute: bool = None,
+    attributes: Optional[List[str]] = None,
+    sort: bool = True,
+    read_from=None,
+    cache_sticky_group_size: int = None,
+    suppress_transaction_coordinator_sync: bool = None,
+    suppress_upstream_sync: bool = None,
+    client=None,
+):
     """Lists directory (map_node) content. Node type must be "map_node".
 
     :param path: path.
@@ -406,7 +467,13 @@ def list(path,
     return apply_function_to_result(_process_result, result)
 
 
-def exists(path, read_from=None, cache_sticky_group_size=None, suppress_transaction_coordinator_sync=None, client=None):
+def exists(
+    path: Union[str, YPath],
+    read_from: str = None,
+    cache_sticky_group_size: int = None,
+    suppress_transaction_coordinator_sync: bool = None,
+    client=None,
+):
     """Checks if Cypress node exists.
 
     :param path: path.
@@ -427,7 +494,12 @@ def exists(path, read_from=None, cache_sticky_group_size=None, suppress_transact
     return apply_function_to_result(_process_result, result)
 
 
-def remove(path, recursive=False, force=False, client=None):
+def remove(
+    path: Union[str, YPath],
+    recursive: bool = False,
+    force: bool = False,
+    client=None,
+):
     """Removes Cypress node.
 
     :param path: path.
@@ -445,8 +517,17 @@ def remove(path, recursive=False, force=False, client=None):
     return make_request("remove", params, client=client)
 
 
-def create(type, path=None, recursive=False, ignore_existing=False, lock_existing=None,
-           force=None, attributes=None, ignore_type_mismatch=False, client=None):
+def create(
+    type: Literal["table", "file", "map_node", "list_node"],
+    path: Union[str, YPath, None] = None,
+    recursive: bool = False,
+    ignore_existing: bool = False,
+    lock_existing: bool = None,
+    force: bool = None,
+    attributes: Optional[Dict[str, Any]] = None,
+    ignore_type_mismatch: bool = False,
+    client=None,
+):
     """Creates Cypress node.
 
     :param str type: one of ["table", "file", "map_node", "list_node", ...].
@@ -487,7 +568,11 @@ def create(type, path=None, recursive=False, ignore_existing=False, lock_existin
     return apply_function_to_result(_process_result, result)
 
 
-def externalize(path, cell_tag, client=None):
+def externalize(
+    path: Union[str, YPath],
+    cell_tag: int,
+    client=None,
+):
     """Externalize cypress node
 
     :param path: path.
@@ -501,7 +586,7 @@ def externalize(path, cell_tag, client=None):
     return make_request("externalize", params, client=client)
 
 
-def internalize(path, client=None):
+def internalize(path: Union[str, YPath], client=None):
     """Internalize cypress node
 
     :param path: path.
@@ -513,7 +598,11 @@ def internalize(path, client=None):
     return make_request("internalize", params, client=client)
 
 
-def mkdir(path, recursive=None, client=None):
+def mkdir(
+    path: Union[str, YPath],
+    recursive: bool = None,
+    client=None,
+):
     """Makes directory (Cypress node of map_node type).
 
     :param path: path.
@@ -531,7 +620,7 @@ def _check_attribute_name(attribute_name):
         raise YtError("Attribute commands forbid to use '@' in attribute names")
 
 
-def get_attribute(path, attribute, default=_KWARG_SENTINEL, client=None):
+def get_attribute(path: Union[str, YPath], attribute: str, default=_KWARG_SENTINEL, client=None):
     """Gets attribute of Cypress node.
 
     :param str path: path.
@@ -563,7 +652,7 @@ def get_attribute(path, attribute, default=_KWARG_SENTINEL, client=None):
             raise
 
 
-def has_attribute(path, attribute, client=None):
+def has_attribute(path: Union[str, YPath], attribute: str, client=None):
     """Checks if Cypress node has attribute.
 
     :param str path: path.
@@ -573,7 +662,7 @@ def has_attribute(path, attribute, client=None):
     return exists("%s/@%s" % (path, attribute), client=client)
 
 
-def set_attribute(path, attribute, value, client=None):
+def set_attribute(path: Union[str, YPath], attribute: str, value, client=None):
     """Sets Cypress node `attribute` to `value`.
 
     :param str path: path.
@@ -584,7 +673,7 @@ def set_attribute(path, attribute, value, client=None):
     return set("%s/@%s" % (path, attribute), value, client=client)
 
 
-def remove_attribute(path, attribute, client=None):
+def remove_attribute(path: Union[str, YPath], attribute: str, client=None):
     """Removes Cypress node `attribute`
 
     :param str path: path.
@@ -595,7 +684,7 @@ def remove_attribute(path, attribute, client=None):
 
 
 @deprecated(alternative="get 'type' attribute")
-def get_type(path, client=None):
+def get_type(path: Union[str, YPath], client=None):
     """Gets Cypress node attribute type.
 
     :param str path: path.
@@ -603,7 +692,7 @@ def get_type(path, client=None):
     return get_attribute(path, "type", client=client)
 
 
-def find_free_subpath(path, client=None):
+def find_free_subpath(path: Union[str, YPath], client=None):
     """Generates some free random subpath.
 
     :param str path: path.
@@ -617,10 +706,23 @@ def find_free_subpath(path, client=None):
             return name
 
 
-def search(root="", node_type=None, path_filter=None, object_filter=None, subtree_filter=None,
-           map_node_order=MAP_ORDER_SORTED, list_node_order=None, attributes=None,
-           exclude=None, depth_bound=None, follow_links=False, read_from=None, cache_sticky_group_size=None,
-           enable_batch_mode=None, client=None):
+def search(
+    root: Union[str, YPath, Literal[""]] = "",
+    node_type: List[str] = None,
+    path_filter: Callable[[str], bool] = None,
+    object_filter: Callable[[Any], bool] = None,
+    subtree_filter: Callable[[str, Any], bool] = None,
+    map_node_order: Callable[[str, List[Any]], List[int]] = MAP_ORDER_SORTED,
+    list_node_order: Callable[[str, List[Any]], List[int]] = None,
+    attributes: List[str] = None,
+    exclude: List[str] = None,
+    depth_bound: int = None,
+    follow_links: bool = False,
+    read_from: Literal["cache"] = None,
+    cache_sticky_group_size: int = None,
+    enable_batch_mode: bool = None,
+    client=None,
+):
     """Searches for some nodes in Cypress subtree.
 
     :param root: path to search.
@@ -852,7 +954,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
                 yield yson_path
 
 
-def remove_with_empty_dirs(path, force=True, client=None):
+def remove_with_empty_dirs(path: Union[str, YPath], force: bool = True, client=None):
     """Removes path and all empty dirs that appear after deletion.
 
     :param path: path.
@@ -882,7 +984,7 @@ def remove_with_empty_dirs(path, force=True, client=None):
                 raise
 
 
-def create_revision_parameter(path, transaction_id=None, revision=None, client=None):
+def create_revision_parameter(path: Union[str, YPath], transaction_id=None, revision=None, client=None):
     """Creates revision parameter of the path.
 
     :param str path: path.
@@ -897,7 +999,7 @@ def create_revision_parameter(path, transaction_id=None, revision=None, client=N
     return {"path": path, "transaction_id": transaction_id, "revision": revision}
 
 
-def get_table_schema(table_path, client=None):
+def get_table_schema(table_path: Union[str, YPath], client=None):
     """Gets schema of table.
 
     :param table_path: path to table.
