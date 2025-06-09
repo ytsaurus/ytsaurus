@@ -17,7 +17,6 @@ namespace NSQLComplete {
         TString Name;
 
         friend bool operator==(const TFolderEntry& lhs, const TFolderEntry& rhs) = default;
-        friend bool operator<(const TFolderEntry& lhs, const TFolderEntry& rhs);
     };
 
     struct TListFilter {

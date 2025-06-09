@@ -100,7 +100,8 @@ bool TestFormat(
     const TString& queryFile,
     const NYql::TAstParseResult& parseRes,
     const TString& outFileName,
-    const bool checkDoubleFormatting) {
+    const bool checkDoubleFormatting
+) {
     TStringStream yqlProgram;
     parseRes.Root->PrettyPrintTo(yqlProgram, NYql::TAstPrintFlags::PerLine | NYql::TAstPrintFlags::ShortQuote);
 
@@ -120,7 +121,7 @@ bool TestFormat(
     NYql::TAstParseResult frmParseRes = NSQLTranslation::SqlToYql(translators, frmQuery, settings);
     if (!frmParseRes.Issues.Empty()) {
         frmParseRes.Issues.PrintWithProgramTo(Cerr, queryFile, frmQuery);
-        if (AnyOf(frmParseRes.Issues, [](const auto& issue) { return issue.GetSeverity() == NYql::TSeverityIds::S_ERROR; })) {
+        if (AnyOf(frmParseRes.Issues, [](const auto& issue) { return issue.GetSeverity() == NYql::TSeverityIds::S_ERROR;})) {
             return false;
         }
     }
@@ -203,7 +204,6 @@ int BuildAST(int argc, char* argv[]) {
     TString queryString;
     ui16 syntaxVersion;
     TString outFileNameFormat;
-
     THashMap<TString, TString> clusterMapping;
     clusterMapping["plato"] = NYql::YtProviderName;
     clusterMapping["pg_catalog"] = NYql::PgProviderName;
@@ -261,7 +261,8 @@ int BuildAST(int argc, char* argv[]) {
     NSQLTranslation::TTranslators translators(
         nullptr,
         NSQLTranslationV1::MakeTranslator(lexers, parsers),
-        NSQLTranslationPG::MakeTranslator());
+        NSQLTranslationPG::MakeTranslator()
+    );
 
     TVector<TString> queries;
     int errors = 0;
@@ -298,7 +299,7 @@ int BuildAST(int argc, char* argv[]) {
             queries.push_back(queryString);
         }
 
-        for (const auto& query : queries) {
+        for (const auto& query: queries) {
             if (query.empty()) {
                 continue;
             }
@@ -332,7 +333,7 @@ int BuildAST(int argc, char* argv[]) {
                     issues.PrintTo(Cerr);
                 }
 
-                bool hasError = AnyOf(issues, [](const auto& issue) { return issue.GetSeverity() == NYql::TSeverityIds::S_ERROR; });
+                bool hasError = AnyOf(issues, [](const auto& issue) { return issue.GetSeverity() == NYql::TSeverityIds::S_ERROR;});
                 if (hasError) {
                     ++errors;
                 }
@@ -345,7 +346,7 @@ int BuildAST(int argc, char* argv[]) {
             } else {
                 if (res.Has("tree") || res.Has("diff") || res.Has("dump")) {
                     google::protobuf::Message* ast(NSQLTranslation::SqlAST(translators, query, queryFile, parseRes.Issues,
-                                                                           NSQLTranslation::SQL_MAX_PARSER_ERRORS, settings));
+                        NSQLTranslation::SQL_MAX_PARSER_ERRORS, settings));
                     if (ast) {
                         if (res.Has("tree")) {
                             out << ast->DebugString() << Endl;
@@ -362,7 +363,7 @@ int BuildAST(int argc, char* argv[]) {
                         NSQLTranslation::TSQLHints hints;
                         auto lexer = SqlLexer(translators, query, parseRes.Issues, settings);
                         if (lexer && CollectSqlHints(*lexer, query, queryFile, settings.File, hints, parseRes.Issues,
-                                                     settings.MaxErrors, settings.Antlr4Parser)) {
+                            settings.MaxErrors, settings.Antlr4Parser)) {
                             parseRes = NSQLTranslation::SqlASTToYql(translators, query, *ast, hints, settings);
                         }
                     }
@@ -386,7 +387,7 @@ int BuildAST(int argc, char* argv[]) {
             bool hasError = false;
             if (!parseRes.Issues.Empty()) {
                 parseRes.Issues.PrintWithProgramTo(Cerr, queryFile, query);
-                hasError = AnyOf(parseRes.Issues, [](const auto& issue) { return issue.GetSeverity() == NYql::TSeverityIds::S_ERROR; });
+                hasError = AnyOf(parseRes.Issues, [](const auto& issue) { return issue.GetSeverity() == NYql::TSeverityIds::S_ERROR;});
             }
 
             if (!parseRes.IsOk() && !hasError) {

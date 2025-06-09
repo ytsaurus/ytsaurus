@@ -32,13 +32,10 @@ namespace NSQLComplete {
 
         INameService::TPtr MakeClusterNameService(const TYqlContext& ctx) {
             THashSet<TString> clusterSet = ctx.Clusters();
-
-            TVector<TString> clusterVec(begin(clusterSet), std::end(clusterSet));
+            TVector<TString> clusterVec(begin(clusterSet), end(clusterSet));
             Sort(clusterVec);
 
-            auto discovery = MakeStaticClusterDiscovery(std::move(clusterVec));
-
-            return MakeClusterNameService(std::move(discovery));
+            return MakeClusterNameService(MakeStaticClusterDiscovery(std::move(clusterVec)));
         }
 
         INameService::TPtr MakeSchemaNameService(const TYqlContext& ctx) {
@@ -57,7 +54,7 @@ namespace NSQLComplete {
 
     } // namespace
 
-    bool CheckComplete(TStringBuf query, TYqlContext ctx, NYql::TIssues& issues) try {
+    bool CheckComplete(TStringBuf query, TYqlContext ctx) {
         constexpr size_t Seed = 97651231;
         constexpr size_t Attempts = 64;
         constexpr size_t MaxAttempts = 256;
@@ -90,14 +87,10 @@ namespace NSQLComplete {
         }
 
         return true;
-    } catch (...) {
-        issues.AddIssue(CurrentExceptionMessage());
-        return false;
     }
 
     bool CheckComplete(TStringBuf query, NYql::TExprNode::TPtr root, NYql::TExprContext& ctx, NYql::TIssues& issues) try {
-        auto yqlCtx = MakeYqlAnalysis()->Analyze(root, ctx);
-        return CheckComplete(query, std::move(yqlCtx), issues);
+        return CheckComplete(query, MakeYqlAnalysis()->Analyze(root, ctx));
     } catch (...) {
         issues.AddIssue(CurrentExceptionMessage());
         return false;
@@ -106,7 +99,7 @@ namespace NSQLComplete {
     bool CheckComplete(TStringBuf query, NYql::TAstNode& root, NYql::TIssues& issues) try {
         return MakeYqlAnalysis()
             ->Analyze(root, issues)
-            .Transform([&](auto&& ctx) { return CheckComplete(query, std::move(ctx), issues); })
+            .Transform([&](auto&& ctx) { return CheckComplete(query, std::move(ctx)); })
             .GetOrElse(false);
     } catch (...) {
         issues.AddIssue(CurrentExceptionMessage());
