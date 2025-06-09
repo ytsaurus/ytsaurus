@@ -748,6 +748,12 @@ struct TDynamicChunkManagerConfig
     bool EnableTwoRandomChoicesWriteTargetAllocation;
     int NodesToCheckBeforeGivingUpOnWriteTargetAllocation;
 
+    // COMPAT(koloshmet)
+    bool EnableNodeWriteSessionLimitOnWriteTargetAllocation;
+    // NB: For testing purposes only.
+    bool EnableNodeWriteSessionLimitForUserOnWriteTargetAllocation;
+    double NodeWriteSessionLimitFractionOnWriteTargetAllocation;
+
     // COMPAT(danilalexeev)
     bool ValidateResourceUsageIncreaseOnPrimaryMediumChange;
 

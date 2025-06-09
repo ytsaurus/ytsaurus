@@ -20,9 +20,12 @@ from flaky import flaky
 
 from collections import defaultdict
 
+import yt.wrapper as yt
+
 import json
 import os
-from time import sleep
+import threading
+from time import sleep, time
 
 ##################################################################
 
@@ -492,6 +495,157 @@ class TestChunkServer(YTEnvSetup):
 
 ##################################################################
 
+
+class TestMaxWriteSessionLimit(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_MASTERS = 3
+    NUM_NODES = 6
+    ENABLE_HTTP_PROXY = True
+    NUM_HTTP_PROXIES = 1
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "max_write_sessions": 1000,
+            "incremental_heartbeat_period": 100,
+        },
+    }
+
+    @authors("koloshmet")
+    def test_zero_limits(self):
+        set("//sys/@config/chunk_manager/enable_node_write_session_limit_on_write_target_allocation", True)
+        set("//sys/@config/chunk_manager/enable_node_write_session_limit_for_user_on_write_target_allocation", True)
+
+        def trivial(c):
+            c[0] += 1
+            with raises_yt_error("Not enough data nodes available to write chunk"):
+                create("table", f"//tmp/t{c[0]}")
+                write_table(f"//tmp/t{c[0]}", {"a": "b"})
+            return True
+
+        set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", .0)
+
+        counter = [0]
+        trivial(counter)
+
+        set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", 1.0)
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "session_count_limit": 0,
+                    }
+                }
+            }
+        })
+
+        wait(lambda: trivial(counter), ignore_exceptions=True)
+
+    @authors("koloshmet")
+    @flaky(max_runs=3)
+    def test_dynamic_limits(self):
+        set("//sys/@config/chunk_manager/enable_node_write_session_limit_on_write_target_allocation", True)
+        set("//sys/@config/chunk_manager/enable_node_write_session_limit_for_user_on_write_target_allocation", True)
+
+        def gen():
+            start = time()
+            while start + 10 > time():
+                yield yson.dumps({"a": "b"}) + ';'.encode()
+                sleep(0.1)
+            return None
+
+        def write_tables(table_prefix, expect_exceptions):
+            tables = []
+            for i in range(10):
+                table_name = table_prefix.format(i)
+                create("table", table_name)
+                tables.append(table_name)
+
+            writers = []
+            exceptions = []
+
+            for table_name in tables:
+                yw = yt.YtClient(proxy=self.Env.get_proxy_address(), config={"write_retries": {"enable": False}})
+
+                def writer():
+                    try:
+                        yw.write_table(table_name, gen(), raw=True, format=yt.YsonFormat())
+                    except Exception as e:
+                        exceptions.append(e)
+
+                t = threading.Thread(target=writer)
+                t.start()
+                writers.append(t)
+
+            for t in writers:
+                t.join()
+
+            not_enough_data_nodes_available = False
+            for e in exceptions:
+                if "Not enough data nodes available to write chunk" in str(e):
+                    not_enough_data_nodes_available = True
+
+            if expect_exceptions:
+                assert exceptions
+                assert not_enough_data_nodes_available
+            else:
+                assert not exceptions
+                for table_name in tables:
+                    chunk_id = get_singular_chunk_id(table_name)
+                    wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "session_count_limit": 10,
+                    }
+                }
+            }
+        })
+
+        sleep(1)
+
+        write_tables("//tmp/t1{}", False)
+
+        set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", 0.1)
+
+        sleep(1)
+
+        write_tables("//tmp/t2{}", True)
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "session_count_limit": 100,
+                    }
+                }
+            }
+        })
+
+        sleep(1)
+
+        write_tables("//tmp/t3{}", False)
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "session_count_limit": 100000,
+                    }
+                }
+            }
+        })
+
+        set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", 0.001)
+
+        sleep(1)
+
+        write_tables("//tmp/t4{}", True)
+
+
+##################################################################
 
 def _find_median(series):
     sorted_series = sorted(series)
