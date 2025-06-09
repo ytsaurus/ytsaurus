@@ -629,6 +629,9 @@ int TFacadeRunner::DoMain(int argc, const char *argv[]) {
                 settings.SyntaxVersion = 1;
 
                 auto ast = NSQLTranslationV1::SqlToYql(lexers, parsers, query, settings);
+                if (!ast.IsOk()) {
+                    return true;
+                }
 
                 TIssues issues;
                 if (!NSQLComplete::CheckComplete(query, *ast.Root, issues)) {
