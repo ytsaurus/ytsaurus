@@ -3230,6 +3230,9 @@ private:
                 req->set_start_replication_row_index(*ReplicationRowIndex_);
             }
 
+            auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
+            ext->set_execution_tag(ToString(Options_.SelfTabletId));
+
             YT_LOG_DEBUG("Issuing pull rows request (Progress: %v, StartRowIndex: %v)",
                 ReplicationProgress_,
                 ReplicationRowIndex_);
