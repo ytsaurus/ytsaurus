@@ -197,6 +197,10 @@ public:
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
             auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
+            for (auto& dataSlice : foreignSlices) {
+                dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, ForeignPrefixLength_, RowBuffer_);
+                dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, ForeignPrefixLength_, RowBuffer_);
+            }
             auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount);
             RegisterChildCookies(cookie, std::move(childCookies));
         }
