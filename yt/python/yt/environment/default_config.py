@@ -899,6 +899,10 @@ def get_cypress_proxy_config():
         "dynamic_config_manager": {
             "update_period": 100,
         },
+        "user_directory_synchronizer": {
+            "sync_period": 500,
+            "sync_period_splay": 100,
+        },
         "heartbeat_period": 1000,
     }
 
