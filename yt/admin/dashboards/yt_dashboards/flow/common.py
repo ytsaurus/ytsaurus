@@ -34,7 +34,7 @@ def build_versions():
             "message-transfering"
         ]
     ]
-    description_text = "\n\n".join(description_rows)
+    description_text = "\n".join(description_rows)
 
     return (Rowset()
         .stack(True)
