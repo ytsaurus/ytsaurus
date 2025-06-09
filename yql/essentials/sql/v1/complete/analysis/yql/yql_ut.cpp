@@ -3,7 +3,6 @@
 #include <yql/essentials/ast/yql_ast.h>
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 
-#include <yql/essentials/sql/sql.h>
 #include <yql/essentials/sql/settings/translation_settings.h>
 #include <yql/essentials/sql/v1/sql.h>
 #include <yql/essentials/sql/v1/lexer/lexer.h>
@@ -25,24 +24,14 @@ public:
         };
         Settings_.SyntaxVersion = 1;
 
-        NSQLTranslationV1::TLexers lexers;
-        lexers.Antlr4 = NSQLTranslationV1::MakeAntlr4LexerFactory();
-
-        NSQLTranslationV1::TParsers parsers;
-        parsers.Antlr4 = NSQLTranslationV1::MakeAntlr4ParserFactory();
-
-        Translator_ = NSQLTranslationV1::MakeTranslator(lexers, parsers);
+        Lexers_.Antlr4 = NSQLTranslationV1::MakeAntlr4LexerFactory();
+        Parsers_.Antlr4 = NSQLTranslationV1::MakeAntlr4ParserFactory();
     }
 
     NYql::TAstParseResult Parse(const TString& query) {
         Arena_.Reset();
 
-        NSQLTranslation::TTranslators translators(
-            /* V0 = */ nullptr,
-            /* V1 = */ Translator_,
-            /* PG = */ nullptr);
-
-        auto result = NSQLTranslation::SqlToYql(translators, query, Settings_);
+        auto result = NSQLTranslationV1::SqlToYql(Lexers_, Parsers_, query, Settings_);
         Y_ENSURE(result.IsOk());
         return result;
     }
@@ -50,7 +39,8 @@ public:
 private:
     google::protobuf::Arena Arena_;
     NSQLTranslation::TTranslationSettings Settings_;
-    NSQLTranslation::TTranslatorPtr Translator_;
+    NSQLTranslationV1::TLexers Lexers_;
+    NSQLTranslationV1::TParsers Parsers_;
 };
 
 TYqlContext Analyze(const TString& query) {
