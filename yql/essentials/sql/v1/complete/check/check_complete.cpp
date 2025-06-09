@@ -1,26 +1,13 @@
 #include "check_complete.h"
 
-#include "collect_clusters.h"
-#include "collect_tables.h"
-
 #include <yql/essentials/sql/v1/complete/sql_complete.h>
+#include <yql/essentials/sql/v1/complete/analysis/yql/yql.h>
 #include <yql/essentials/sql/v1/complete/name/cluster/static/discovery.h>
 #include <yql/essentials/sql/v1/complete/name/object/simple/static/schema.h>
 #include <yql/essentials/sql/v1/complete/name/service/cluster/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/schema/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/static/name_service.h>
 #include <yql/essentials/sql/v1/complete/name/service/union/name_service.h>
-
-#include <yql/essentials/ast/yql_expr.h>
-
-#define USE_CURRENT_UDF_ABI_VERSION
-#include <yql/essentials/core/services/yql_transform_pipeline.h>
-#include <yql/essentials/core/yql_expr_optimize.h>
-#include <yql/essentials/core/services/yql_eval_expr.h>
-#include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
-#include <yql/essentials/minikql/mkql_function_registry.h>
-#include <yql/essentials/providers/common/provider/yql_provider_names.h>
-#include <yql/essentials/providers/result/provider/yql_result_provider.h>
 
 #include <yql/essentials/sql/v1/lexer/antlr4_pure/lexer.h>
 #include <yql/essentials/sql/v1/lexer/antlr4_pure_ansi/lexer.h>
@@ -43,8 +30,8 @@ namespace NSQLComplete {
             };
         }
 
-        INameService::TPtr MakeClusterNameService(NYql::TExprNode& expr) {
-            THashSet<TString> clusterSet = CollectClusters(expr);
+        INameService::TPtr MakeClusterNameService(const TYqlContext& ctx) {
+            THashSet<TString> clusterSet = ctx.Clusters();
 
             TVector<TString> clusterVec(begin(clusterSet), std::end(clusterSet));
             Sort(clusterVec);
@@ -59,8 +46,16 @@ namespace NSQLComplete {
             return MakeClusterNameService(std::move(discovery));
         }
 
-        INameService::TPtr MakeSchemaNameService(NYql::TExprNode& expr) {
-            THashMap<TString, THashMap<TString, TVector<TFolderEntry>>> fs = CollectTables(expr);
+        INameService::TPtr MakeSchemaNameService(const TYqlContext& ctx) {
+            THashMap<TString, THashMap<TString, TVector<TFolderEntry>>> fs;
+            for (const auto& [cluster, tables] : ctx.TablesByCluster) {
+                for (TString table : tables) {
+                    fs[cluster]["/"].push_back(TFolderEntry{
+                        .Type = TFolderEntry::Table,
+                        .Name = std::move(table),
+                    });
+                }
+            }
 
             Cerr << "[complete] " << "TablesByCluster Mapping" << Endl;
             for (const auto& [cluster, tree] : fs) {
@@ -84,36 +79,17 @@ namespace NSQLComplete {
         constexpr size_t MaxAttempts = 256;
         SetRandomSeed(Seed);
 
-        NYql::TExprContext ctx;
-        NYql::TExprNode::TPtr expr;
-        if (!NYql::CompileExpr(
-                root, expr, ctx,
-                /* resolver = */ nullptr,
-                /* urlListerManager = */ nullptr)) {
-            error = ctx.IssueManager.GetIssues().ToOneLineString();
+        NYql::TIssues issues;
+        auto ctx = MakeYqlAnalysis()->Analyze(root, issues);
+        if (ctx.Empty()) {
+            error = issues.ToOneLineString();
             return false;
         }
 
-        auto builtins = NKikimr::NMiniKQL::CreateBuiltinRegistry();
-        auto functionRegistry = NKikimr::NMiniKQL::CreateFunctionRegistry(std::move(builtins));
-
-        auto types = MakeIntrusive<NYql::TTypeAnnotationContext>();
-
-        // FIXME: Use apply NoRepeat from transformers
-        for (size_t i = 0; i < 128; ++i) {
-            auto status = NYql::EvaluateExpression(expr, expr, *types, ctx, *functionRegistry);
-            if (status.Level != NYql::IGraphTransformer::TStatus::Repeat) {
-                Y_ENSURE(status == NYql::IGraphTransformer::TStatus::Ok, "" << status);
-                break;
-            }
-        }
-
-        ConvertToAst(*expr, ctx, NYql::TExprAnnotationFlags::None, true).Root->PrettyPrintTo(Cerr, NYql::TAstPrintFlags::PerLine | NYql::TAstPrintFlags::ShortQuote);
-
         auto service = MakeUnionNameService(
             {
-                MakeClusterNameService(*expr),
-                MakeSchemaNameService(*expr),
+                MakeClusterNameService(*ctx),
+                MakeSchemaNameService(*ctx),
             },
             MakeDefaultRanking());
 

@@ -1,35 +1,11 @@
-#include "collect.h"
+#include "table.h"
+
+#include "cluster.h"
+
+#define USE_CURRENT_UDF_ABI_VERSION
+#include <yql/essentials/core/yql_expr_optimize.h>
 
 namespace NSQLComplete {
-
-    TMaybe<TString> ToCluster(const NYql::TExprNode& node) {
-        if (!node.IsCallable("DataSource") && !node.IsCallable("DataSink")) {
-            return Nothing();
-        }
-
-        TStringBuf provider;
-        TStringBuf cluster;
-        if (node.ChildrenSize() == 2 &&
-            node.Child(1)->IsAtom()) {
-            provider = "";
-            cluster = node.Child(1)->Content();
-        } else if (node.ChildrenSize() == 3 &&
-                   node.Child(1)->IsAtom() &&
-                   node.Child(2)->IsAtom()) {
-            provider = node.Child(1)->Content();
-            cluster = node.Child(2)->Content();
-        } else {
-            return Nothing();
-        }
-
-        TString qualified;
-        if (!provider.Empty()) {
-            qualified += provider;
-            qualified += ":";
-        }
-        qualified += cluster;
-        return qualified;
-    }
 
     TMaybe<TString> ToTablePath(const NYql::TExprNode& node) {
         if (node.IsCallable("MrTableConcat")) {
@@ -62,6 +38,28 @@ namespace NSQLComplete {
         }
 
         return TString(string->Child(0)->Content());
+    }
+
+    THashMap<TString, THashSet<TString>> CollectTablesByCluster(const NYql::TExprNode& node) {
+        THashMap<TString, THashSet<TString>> tablesByCluster;
+        NYql::VisitExpr(node, [&](const NYql::TExprNode& node) -> bool {
+            if (!node.IsCallable("Read!") && !node.IsCallable("Write!")) {
+                return true; // FIXME: try to return false
+            }
+            if (node.ChildrenSize() < 4) {
+                return true; // FIXME: try to return false
+            }
+
+            TString cluster = ToCluster(*node.Child(1)).GetOrElse("");
+            TMaybe<TString> table = ToTablePath(*node.Child(2));
+            if (table.Empty()) {
+                return true; // FIXME: try to return false
+            }
+
+            tablesByCluster[std::move(cluster)].emplace(std::move(*table));
+            return true;
+        });
+        return tablesByCluster;
     }
 
 } // namespace NSQLComplete
