@@ -79,8 +79,10 @@ namespace NSQLComplete {
         constexpr size_t MaxAttempts = 256;
         SetRandomSeed(Seed);
 
+        auto analysis = MakeYqlAnalysis();
+
         NYql::TIssues issues;
-        auto ctx = MakeYqlAnalysis()->Analyze(root, issues);
+        auto ctx = analysis->Analyze(root, issues);
         if (ctx.Empty()) {
             error = issues.ToOneLineString();
             return false;

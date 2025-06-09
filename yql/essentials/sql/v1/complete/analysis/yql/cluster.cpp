@@ -9,29 +9,10 @@ namespace NSQLComplete {
         if (!node.IsCallable("DataSource") && !node.IsCallable("DataSink")) {
             return Nothing();
         }
-
-        TStringBuf provider;
-        TStringBuf cluster;
-        if (node.ChildrenSize() == 2 &&
-            node.Child(1)->IsAtom()) {
-            provider = "";
-            cluster = node.Child(1)->Content();
-        } else if (node.ChildrenSize() == 3 &&
-                   node.Child(1)->IsAtom() &&
-                   node.Child(2)->IsAtom()) {
-            provider = node.Child(1)->Content();
-            cluster = node.Child(2)->Content();
-        } else {
-            return Nothing();
+        if (node.ChildrenSize() == 2 && node.Child(1)->IsAtom()) {
+            return TString(node.Child(1)->Content());
         }
-
-        TString qualified;
-        if (!provider.Empty()) {
-            qualified += provider;
-            qualified += ":";
-        }
-        qualified += cluster;
-        return qualified;
+        return Nothing();
     }
 
     THashSet<TString> CollectClusters(const NYql::TExprNode& root) {

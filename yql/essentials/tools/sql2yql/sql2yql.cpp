@@ -224,6 +224,7 @@ int BuildAST(int argc, char* argv[]) {
     opts.AddLongOption('a', "ann", "print Yql annotations").NoArgument();
     opts.AddLongOption('C', "cluster", "set cluster to service mapping").RequiredArgument("name@service").Handler(new TStoreMappingFunctor(&clusterMapping));
 
+    // TODO: remove
     opts.AddLongOption('T', "table", "set table to filename mapping")
         .RequiredArgument("table@file")
         .KVHandler([&](TString table, TString file) {
