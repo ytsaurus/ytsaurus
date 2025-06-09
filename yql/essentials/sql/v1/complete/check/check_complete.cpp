@@ -99,6 +99,7 @@ namespace NSQLComplete {
 
         auto types = MakeIntrusive<NYql::TTypeAnnotationContext>();
 
+        // FIXME: Use apply NoRepeat from transformers
         for (size_t i = 0; i < 128; ++i) {
             auto status = NYql::EvaluateExpression(expr, expr, *types, ctx, *functionRegistry);
             if (status.Level != NYql::IGraphTransformer::TStatus::Repeat) {
