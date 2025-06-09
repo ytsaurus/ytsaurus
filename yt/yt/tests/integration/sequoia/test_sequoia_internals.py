@@ -90,13 +90,6 @@ class TestSequoiaInternals(YTEnvSetup):
         },
     }
 
-    DELTA_CYPRESS_PROXY_CONFIG = {
-        "user_directory_synchronizer": {
-            "sync_period": 100,
-        },
-        "heartbeat_period": 1000,
-    }
-
     @authors("kvk1920")
     def test_map_node_set_doesnt_cause_detach(self):
         set("//tmp/m1/m2/m3", {"abcde": 4}, recursive=True, force=True)

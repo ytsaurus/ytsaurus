@@ -26,6 +26,7 @@
 
 #include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
@@ -896,6 +897,8 @@ private:
         const auto& masterConnector = Owner_->Bootstrap_->GetMasterConnector();
         masterConnector->ValidateRegistration();
 
+        MaybeSyncWithMaster();
+
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
             auto& subrequest = Subrequests_[index];
             auto target = subrequest.Target;
@@ -939,6 +942,51 @@ private:
             response.Attachments().end(),
             subresponseMessage.Begin(),
             subresponseMessage.End());
+    }
+
+    // When #TTestConfig::SyncMode is true, this ensures consistency by synchronizing with
+    // - the user directory,
+    // - the ground update queues across all master cells.
+    void MaybeSyncWithMaster() const
+    {
+        const auto& config = Owner_->Bootstrap_->GetConfig();
+        if (!config->Testing->EnableSyncMode) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Synchronizing with master before Sequoia request invocation");
+
+        std::vector<TFuture<void>> futures;
+
+        const auto& userDirectorySynchronizer = Owner_->Bootstrap_->GetUserDirectorySynchronizer();
+        futures.push_back(userDirectorySynchronizer->NextSync());
+
+        static constexpr auto SyncRequestTimeout = TDuration::Seconds(5);
+
+        const auto& connection = Owner_->Bootstrap_->GetNativeConnection();
+        const auto& masterCellDirectory = connection->GetMasterCellDirectory();
+        auto cellTagsToSyncWith = masterCellDirectory->GetMasterCellTagsWithRole(
+            NCellMasterClient::EMasterCellRole::CypressNodeHost);
+
+        auto syncWithCell = [&] (TCellTag cellTag) {
+            const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(
+                EMasterChannelKind::Follower,
+                cellTag);
+            auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(nakedMasterChannel));
+            proxy.SetDefaultTimeout(SyncRequestTimeout);
+
+            auto request = TMasterYPathProxy::SyncWithGroundUpdateQueue();
+            return proxy.Execute(request).AsVoid();
+        };
+
+        for (auto cellTag : cellTagsToSyncWith) {
+            futures.push_back(syncWithCell(cellTag));
+        }
+
+        WaitFor(AllSucceeded(std::move(futures)))
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Successfully synchronized with master");
     }
 };
 
