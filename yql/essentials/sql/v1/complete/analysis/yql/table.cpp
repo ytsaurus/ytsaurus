@@ -44,16 +44,16 @@ namespace NSQLComplete {
         THashMap<TString, THashSet<TString>> tablesByCluster;
         NYql::VisitExpr(node, [&](const NYql::TExprNode& node) -> bool {
             if (!node.IsCallable("Read!") && !node.IsCallable("Write!")) {
-                return true; // FIXME: try to return false
+                return true;
             }
             if (node.ChildrenSize() < 4) {
-                return true; // FIXME: try to return false
+                return true;
             }
 
             TString cluster = ToCluster(*node.Child(1)).GetOrElse("");
             TMaybe<TString> table = ToTablePath(*node.Child(2));
             if (table.Empty()) {
-                return true; // FIXME: try to return false
+                return true;
             }
 
             tablesByCluster[std::move(cluster)].emplace(std::move(*table));

@@ -72,6 +72,11 @@ namespace NSQLComplete {
                                     << AttemptsLimit << "attempts";
             }
 
+            static void Print(IOutputStream& out, const NYql::TExprNode& root, NYql::TExprContext& ctx) {
+                auto ast = ConvertToAst(root, ctx, NYql::TExprAnnotationFlags::None, true);
+                ast.Root->PrettyPrintTo(out, NYql::TAstPrintFlags::PerLine | NYql::TAstPrintFlags::ShortQuote);
+            }
+
             TIntrusivePtr<NKikimr::NMiniKQL::IFunctionRegistry> FunctionRegistry_;
             NYql::TTypeAnnotationContextPtr Types_;
         };

@@ -22,7 +22,7 @@ namespace NSQLComplete {
                 clusters.emplace(std::move(*cluster));
                 return true;
             }
-            return true; // FIXME: try to return false
+            return true;
         });
         return clusters;
     }
