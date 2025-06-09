@@ -97,6 +97,7 @@ struct TCpuLimits
     std::optional<int> WriteThreadPoolSize;
     std::optional<int> LookupThreadPoolSize;
     std::optional<int> QueryThreadPoolSize;
+    std::optional<int> PullRowsThreadPoolSize;
 
     REGISTER_YSON_STRUCT(TCpuLimits);
 

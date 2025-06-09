@@ -783,8 +783,10 @@ private:
                 options.OrderRowsByTimestamp = selfReplica->ContentType == ETableReplicaContentType::Queue;
                 options.TableSchema = TableSchema_;
                 options.MemoryTracker = reservingTracker;
+                options.SelfTabletId = TabletId_;
 
-                YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %v)",
+                YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, "
+                    "ReplicationRowIndexes: %v, UpperTimestamp: %v)",
                     clusterName,
                     replicaPath,
                     options.ReplicationProgress,

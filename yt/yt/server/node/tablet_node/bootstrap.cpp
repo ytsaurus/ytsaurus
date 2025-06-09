@@ -56,6 +56,7 @@
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
+#include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/poller.h>
 
@@ -86,6 +87,7 @@ static const std::string BusXferThreadPoolName = "BusXfer";
 static const std::string CompressionThreadPoolName = "Compression";
 static const std::string LookupThreadPoolName = "TabletLookup";
 static const std::string QueryThreadPoolName = "Query";
+static const std::string PullRowsThreadPoolName = "PullRows";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -218,6 +220,10 @@ public:
                     GetClient(),
                     GetControlInvoker())
             });
+
+        PullRowsThreadPool_ = CreateFairShareThreadPool(
+            GetConfig()->QueryAgent->PullRowsThreadPoolSize,
+            PullRowsThreadPoolName);
 
         TableReplicatorThreadPool_ = CreateThreadPool(
             GetConfig()->TabletNode->TabletManager->ReplicatorThreadPoolSize,
@@ -499,6 +505,11 @@ public:
         return QueryThreadPool_->GetInvoker(poolName, tag);
     }
 
+    IInvokerPtr GetPullRowsInvoker(const NConcurrency::TFairShareThreadPoolTag& tag) const override
+    {
+        return PullRowsThreadPool_->GetInvoker(tag);
+    }
+
     const IThroughputThrottlerPtr& GetThrottler(NTabletNode::ETabletNodeThrottlerKind kind) const override
     {
         return Throttlers_[kind];
@@ -597,6 +608,7 @@ private:
     IThreadPoolPtr TableRowFetchThreadPool_;
 
     ITwoLevelFairShareThreadPoolPtr QueryThreadPool_;
+    IFairShareThreadPoolPtr PullRowsThreadPool_;
 
     TEnumIndexedArray<ETabletNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
     TEnumIndexedArray<ETabletNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
@@ -680,6 +692,13 @@ private:
                 GetConfig()->QueryAgent->LookupThreadPoolSize);
             TabletLookupThreadPool_->SetThreadCount(
                 bundleConfig->CpuLimits->LookupThreadPoolSize.value_or(fallbackLookupThreadCount));
+        }
+
+        {
+            auto fallbackPullRowsThreadCount = nodeConfig->QueryAgent->PullRowsThreadPoolSize.value_or(
+                GetConfig()->QueryAgent->PullRowsThreadPoolSize);
+            PullRowsThreadPool_->SetThreadCount(
+                bundleConfig->CpuLimits->PullRowsThreadPoolSize.value_or(fallbackPullRowsThreadCount));
         }
     }
 
