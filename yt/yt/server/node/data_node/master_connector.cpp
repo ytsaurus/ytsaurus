@@ -50,6 +50,7 @@
 #include <yt/yt/core/utilex/random.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 
 #include <util/random/shuffle.h>
 
@@ -648,20 +649,16 @@ protected:
         auto state = GetMasterConnectorState(cellTag);
         EmplaceOrCrash(CellTagToMasterConnectorState_, cellTag, state);
 
-        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
-        TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
-        proxy.SetDefaultTimeout(GetDynamicConfig()->FullHeartbeatTimeout);
-
         switch (state) {
             case EMasterConnectorState::Registered: {
                 TFuture<void> voidFuture;
                 // COMPAT(danilalexeev): YT-23781.
                 if (PerLocationFullHeartbeatsEnabled_) {
-                    auto future = ScheduleFullHeartbeatSession(std::move(proxy), cellTag);
+                    auto future = ScheduleFullHeartbeatSession(cellTag);
                     variantResult = future;
                     voidFuture = future.AsVoid();
                 } else {
-                    auto future = InvokeFullHeartbeatRequest(std::move(proxy), cellTag);
+                    auto future = InvokeFullHeartbeatRequest(cellTag);
                     variantResult = future;
                     voidFuture = future.AsVoid();
                 }
@@ -670,7 +667,7 @@ protected:
             }
 
             case EMasterConnectorState::Online: {
-                auto future = InvokeIncrementalHeartbeatRequest(std::move(proxy), cellTag);
+                auto future = InvokeIncrementalHeartbeatRequest(cellTag);
                 variantResult = future;
                 EmplaceOrCrash(CellTagToVariantHeartbeatRspFuture_, cellTag, std::move(variantResult));
                 return future.AsVoid();
@@ -1179,13 +1176,15 @@ private:
     }
 
     // COMPAT(danilalexeev): YT-23781.
-    TFuture<TDataNodeRspFullHeartbeat> InvokeFullHeartbeatRequest(
-        TDataNodeTrackerServiceProxy proxy,
-        TCellTag cellTag)
+    TFuture<TDataNodeRspFullHeartbeat> InvokeFullHeartbeatRequest(TCellTag cellTag)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ClearChunksDeltaForCell(cellTag);
+
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
+        TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
+        proxy.SetDefaultTimeout(GetDynamicConfig()->FullHeartbeatTimeout);
 
         auto nodeId = Bootstrap_->GetNodeId();
         // Full heartbeat construction can take a while; offload it RPC Heavy thread pool.
@@ -1204,15 +1203,29 @@ private:
         return req->Invoke();
     }
 
-    TFuture<TFullHeartbeatSessionResult> ScheduleFullHeartbeatSession(
-        TDataNodeTrackerServiceProxy proxy,
-        TCellTag cellTag)
+    TFuture<TFullHeartbeatSessionResult> ScheduleFullHeartbeatSession(TCellTag cellTag)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto nodeId = Bootstrap_->GetNodeId();
 
         ClearChunksDeltaForCell(cellTag);
+
+        auto masterChannel = CreateRetryingChannel(
+            GetDynamicConfig()->FullHeartbeatSessionRetryingChannel,
+            Bootstrap_->GetMasterChannel(cellTag),
+            BIND([&] (const TError& error) -> bool {
+                if (IsRetriableError(error) || error.FindMatching(HeartbeatRetriableErrors)) {
+                    YT_LOG_DEBUG(
+                        error,
+                        "Failed to report location full heartbeat (CellTag: %v)",
+                        cellTag);
+                    return true;
+                }
+                return false;
+            }));
+        TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
+        proxy.SetDefaultTimeout(GetDynamicConfig()->LocationFullHeartbeatTimeout);
 
         auto buildLocationHeartbeatRequests = BIND([=, this, this_ = MakeStrong(this)] {
             const auto& chunkStore = Bootstrap_->GetChunkStore();
@@ -1279,10 +1292,13 @@ private:
     }
 
     TFuture<TDataNodeRspIncrementalHeartbeat> InvokeIncrementalHeartbeatRequest(
-        TDataNodeTrackerServiceProxy proxy,
         TCellTag cellTag)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
+        TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
+        proxy.SetDefaultTimeout(GetDynamicConfig()->IncrementalHeartbeatTimeout);
 
         auto nodeId = Bootstrap_->GetNodeId();
 
