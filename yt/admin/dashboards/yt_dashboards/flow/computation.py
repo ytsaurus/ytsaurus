@@ -184,7 +184,8 @@ class ComputationCellGenerator:
         def add_cpu_cell(row, title_prefix, metric_suffix):
             description = (
                 "Each partition is processed in a single thread mode. "
-                "Consumption of ≥ 0.5 of a processor core per partition is a bad indicator."
+                "Consumption of ≥ 0.5 of a processor core per partition is a bad indicator. "
+                "(Job also does some IO-bound work, so saturation is often reached below 1.0.)"
             )
             return row.cell(
                 f"{title_prefix} partition cpu usage",
@@ -192,9 +193,13 @@ class ComputationCellGenerator:
                     MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_cpu_usage.{metric_suffix}"))
                         .alias("{{computation_id}}"),
                     PlainMonitoringExpr("constant_line(1)")
-                        .alias("One core - limit")),
+                        .alias("One core - hard limit"),
+                    PlainMonitoringExpr("constant_line(0.5)")
+                        .alias("Warning level"))
+                    .min(0),
                 colors={
-                    "One core - limit": "#f4cccc",
+                    "One core - hard limit": "#f4cccc",
+                    "Warning level": "#ffedcc",
                 },
                 description=description)
 
@@ -262,9 +267,8 @@ def build_epoch_timings():
             .apply_func(GENERATOR.add_epoch_count_total_cell)
             .cell(
                 "Computation list (copy id from here)",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.epoch_parts_time.rate"))
-                    .aggr("host")
-                    .value("part", "-")
+                MonitoringExpr(FlowController("yt.flow.controller.partition_count"))
+                    .aggr("state")
                     .all("computation_id")
                     .query_transformation("sign({query})")
                     .stack(True)
