@@ -1363,10 +1363,26 @@ private:
             }
         }
 
+        auto mediumDirectory = Bootstrap_->GetMediumDirectoryManager()->GetMediumDirectory();
         for (auto [mediumIndex, ioWeight] : mediumIndexToIOWeight) {
             auto* protoStatistics = statistics->add_media();
             protoStatistics->set_medium_index(mediumIndex);
             protoStatistics->set_io_weight(ioWeight);
+
+            const auto& mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
+            if (!mediumDescriptor) {
+                continue;
+            }
+
+            const auto& locationConfigPerMedium = GetNodeDynamicConfig()->StoreLocationConfigPerMedium;
+            auto config = locationConfigPerMedium.find(mediumDescriptor->Name);
+            if (config == locationConfigPerMedium.end()) {
+                continue;
+            }
+
+            if (auto sessionCountLimit = config->second->SessionCountLimit) {
+                protoStatistics->set_max_write_sessions_per_location(*sessionCountLimit);
+            }
         }
 
         int totalCachedChunkCount = 0;
@@ -1386,6 +1402,8 @@ private:
         statistics->set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User) + sessionManager->GetSessionCount(ESessionType::Nbd));
         statistics->set_total_replication_session_count(sessionManager->GetSessionCount(ESessionType::Replication));
         statistics->set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
+
+        statistics->set_max_write_sessions(Bootstrap_->GetConfig()->DataNode->MaxWriteSessions);
     }
 
     bool IsLocationWriteable(const TStoreLocationPtr& location) const

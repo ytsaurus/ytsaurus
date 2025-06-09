@@ -194,6 +194,9 @@ private:
     int NodesToCheckBeforeGivingUpOnWriteTargetAllocation_ = 0;
     bool IsDataCenterAware_ = false;
     bool IsDataCenterFailureDetectorEnabled_ = false;
+    bool IsNodeWriteSessionLimitEnabled_ = false;
+    // NB: For testing purposes only.
+    bool IsNodeWriteSessionLimitForUserAllocationEnabled_ = false;
 
     THashSet<const NNodeTrackerServer::TDataCenter*> StorageDataCenters_;
     THashSet<const NNodeTrackerServer::TDataCenter*> BannedStorageDataCenters_;
@@ -223,7 +226,8 @@ private:
         const TNodeList* forbiddenNodes = nullptr,
         const TNodeList* allocatedNodes = nullptr,
         const std::optional<std::string>& preferredHostName = {},
-        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {});
+        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {},
+        bool systemAllocation = false);
 
     std::optional<TNodeList> FindConsistentPlacementWriteTargets(
         TDomesticMedium* medium,
@@ -247,8 +251,8 @@ private:
         TNode* node,
         TTargetCollector<TGenericChunk>* collector,
         bool enableRackAwareness,
-        bool enableDataCenterAwareness);
-
+        bool enableDataCenterAwareness,
+        bool enableNodeWriteSessionLimit);
     bool IsValidWriteTargetCore(TNode* node);
     // Preferred nodes are special: they don't come from load-factor maps and
     // thus may not have been vetted by #IsValidWriteTargetToInsert. Thus,
