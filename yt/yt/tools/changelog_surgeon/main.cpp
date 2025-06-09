@@ -27,8 +27,8 @@ constexpr int ResultingChangelogMaxRecordCount = 100'000'000;
 
 struct TSurgeonParams
 {
-    std::optional<int> FirstSequenceNumber;
-    std::optional<int> LastSequenceNumber;
+    std::optional<i64> FirstSequenceNumber;
+    std::optional<i64> LastSequenceNumber;
     TString ChangelogList;
     TString ResultingChangelogName;
     int MaxRecordsPerRead = DefaultMaxRecordsPerRead;
@@ -44,6 +44,8 @@ std::pair<i64, i64> GetSequenceNumberRange(const TVector<TString>& changelogFile
 
     auto ioEngine = CreateIOEngine(EIOEngineType::ThreadPool, NYT::NYTree::INodePtr());
     auto config = New<TFileChangelogConfig>();
+
+    YT_VERIFY(ssize(changelogFileNames) > 0);
 
     for (const auto& fileName : changelogFileNames) {
         auto currentChangelog = CreateUnbufferedFileChangelog(
@@ -71,7 +73,7 @@ std::pair<i64, i64> GetSequenceNumberRange(const TVector<TString>& changelogFile
 
         auto seqNumber = mutationHeader.sequence_number();
         minSequenceNumber = std::min(minSequenceNumber, seqNumber);
-        maxSequenceNumber = std::max(maxSequenceNumber, seqNumber + recordCount);
+        maxSequenceNumber = std::max(maxSequenceNumber, seqNumber + recordCount - 1);
     }
 
     if (changelogsEmpty) {
@@ -86,26 +88,44 @@ std::pair<i64, i64> GetSequenceNumberRange(const TVector<TString>& changelogFile
     return {minSequenceNumber, maxSequenceNumber};
 }
 
-void ValidateSurgeonParams(const TSurgeonParams& params)
+void ValidateSurgeonParams(TSurgeonParams* params)
 {
-    auto changelogFileNames = StringSplitter(params.ChangelogList).Split(' ').ToList<TString>();
+    auto changelogFileNames = StringSplitter(params->ChangelogList).Split(' ').ToList<TString>();
     auto [minSequenceNumber, maxSequenceNumber] = GetSequenceNumberRange(changelogFileNames);
 
-    if (params.FirstSequenceNumber && params.FirstSequenceNumber < minSequenceNumber) {
+    if (!params->FirstSequenceNumber.has_value()) {
+        YT_LOG_INFO("Deduced the first sequence number (FirstSequenceNumber: %v)",
+            minSequenceNumber);
+        params->FirstSequenceNumber = minSequenceNumber;
+    }
+
+    if (!params->LastSequenceNumber.has_value()) {
+        YT_LOG_INFO("Deduced the last sequence number (LastSequenceNumber: %v)",
+            maxSequenceNumber);
+        params->LastSequenceNumber = maxSequenceNumber;
+    }
+
+    if (params->FirstSequenceNumber < minSequenceNumber) {
         THROW_ERROR_EXCEPTION("First sequence number should be not less than %v", minSequenceNumber)
-            << TErrorAttribute("first_sequence_number", params.FirstSequenceNumber);
+            << TErrorAttribute("first_sequence_number", params->FirstSequenceNumber);
     }
 
-    if (params.LastSequenceNumber && params.LastSequenceNumber < maxSequenceNumber) {
+    if (params->LastSequenceNumber > maxSequenceNumber) {
         THROW_ERROR_EXCEPTION("Last sequence number should be not greater than %v", maxSequenceNumber)
-            << TErrorAttribute("last_sequence_number", params.LastSequenceNumber);
+            << TErrorAttribute("last_sequence_number", params->LastSequenceNumber);
     }
 
-    if (params.MaxRecordsPerRead < MinRecordsPerRead || params.MaxRecordsPerRead > ResultingChangelogMaxRecordCount) {
+    if (params->FirstSequenceNumber > params->LastSequenceNumber) {
+        THROW_ERROR_EXCEPTION("The first sequence number should be not greater than the last sequence number")
+            << TErrorAttribute("first_sequence_number", params->FirstSequenceNumber)
+            << TErrorAttribute("last_sequence_number", params->LastSequenceNumber);
+    }
+
+    if (params->MaxRecordsPerRead < MinRecordsPerRead || params->MaxRecordsPerRead > ResultingChangelogMaxRecordCount) {
         THROW_ERROR_EXCEPTION(
-            "Max records per read should be in range %v",
+            "Max records per read should be in the range %v",
             Format("[%v, %v]", MinRecordsPerRead, ResultingChangelogMaxRecordCount))
-            << TErrorAttribute("max_records_per_read", params.MaxRecordsPerRead);
+            << TErrorAttribute("max_records_per_read", params->MaxRecordsPerRead);
     }
 
     auto resultingChangelogRecordCount = maxSequenceNumber - minSequenceNumber + 1;
@@ -118,7 +138,7 @@ void ValidateSurgeonParams(const TSurgeonParams& params)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ValidateRecordIdentity(const TSharedRef& lhs, const TSharedRef& rhs)
+void ValidateRecordIdentity(const TSharedRef& lhs, const TSharedRef& rhs)
 {
     NYT::NHydra::NProto::TMutationHeader lhsMutationHeader;
     NYT::NHydra::NProto::TMutationHeader rhsMutationHeader;
@@ -131,29 +151,24 @@ bool ValidateRecordIdentity(const TSharedRef& lhs, const TSharedRef& rhs)
     auto serializedLhsMutationHeader = ToString(lhsMutationHeader);
     auto serializedRhsMutationHeader = ToString(rhsMutationHeader);
     if (serializedLhsMutationHeader != serializedRhsMutationHeader) {
-        YT_LOG_ERROR("Mutation headers of mutations with the same sequence number differ (FirstMutationHeader: %v, SecondMutationHeader: %v",
-            serializedLhsMutationHeader,
-            serializedRhsMutationHeader);
-        return false;
+        THROW_ERROR_EXCEPTION("Mutation headers of mutations with the same sequence number differ")
+            << TErrorAttribute("first_mutation_header", serializedLhsMutationHeader)
+            << TErrorAttribute("second_mutation_header", serializedRhsMutationHeader);
     }
 
     if (!TRef::AreBitwiseEqual(lhsMutationData, rhsMutationData)) {
-        YT_LOG_ERROR("Mutation data of mutations with the same sequence number differ (FirstMutationHeader: %v, SecondMutationHeader: %v",
-            serializedLhsMutationHeader,
-            serializedRhsMutationHeader);
-        return false;
+        THROW_ERROR_EXCEPTION("Mutation data of mutations with the same sequence number differ")
+            << TErrorAttribute("first_mutation_header", serializedLhsMutationHeader)
+            << TErrorAttribute("second_mutation_header", serializedRhsMutationHeader);
     }
-
-    return true;
 }
 
 void PerformSurgery(const TSurgeonParams& params)
 {
     auto changelogFileNames = StringSplitter(params.ChangelogList).Split(' ').ToList<TString>();
-    auto [minSequenceNumber, maxSequenceNumber] = GetSequenceNumberRange(changelogFileNames);
 
-    auto firstSequenceNumber = params.FirstSequenceNumber.value_or(minSequenceNumber);
-    auto lastSequenceNumber = params.LastSequenceNumber.value_or(maxSequenceNumber);
+    auto firstSequenceNumber = *params.FirstSequenceNumber;
+    auto lastSequenceNumber = *params.LastSequenceNumber;
 
     std::vector<TSharedRef> resultingRecords(lastSequenceNumber - firstSequenceNumber + 1);
 
@@ -191,7 +206,7 @@ void PerformSurgery(const TSurgeonParams& params)
                 auto sequenceNumber = mutationHeader.sequence_number();
                 if (firstSequenceNumber <= sequenceNumber && sequenceNumber <= lastSequenceNumber) {
                     auto recordId = sequenceNumber - firstSequenceNumber;
-                    if (!resultingRecords[recordId]) {
+                    if (resultingRecords[recordId].Empty()) {
                         resultingRecords[recordId] = record;
                     } else {
                         ValidateRecordIdentity(record, resultingRecords[recordId]);
@@ -201,15 +216,14 @@ void PerformSurgery(const TSurgeonParams& params)
         }
     }
 
-    bool allRecordsFound = AllOf(
-        resultingRecords.begin(),
-        resultingRecords.end(),
-        [&] (const TSharedRef& record) {
-            return !record.Empty();
-        });
-    THROW_ERROR_EXCEPTION_UNLESS(allRecordsFound, "Some mutation records are missing");
+    for (int i = 0; i < ssize(resultingRecords); ++i) {
+        if (resultingRecords[i].Empty()) {
+            THROW_ERROR_EXCEPTION("Mutation record is missing")
+                << TErrorAttribute("missing_sequence_number", firstSequenceNumber + i);
+        }
+    }
 
-    auto resultingChangelogId = FromString<i64>(params.ResultingChangelogName);
+    auto resultingChangelogId = FromString<i32>(params.ResultingChangelogName);
     std::optional<NHydra::NProto::TMutationHeader> prevMutationHeader;
     for (int i = 0; i < ssize(resultingRecords); ++i) {
         DeserializeMutationRecord(resultingRecords[i], &mutationHeader, &mutationData);
@@ -220,13 +234,13 @@ void PerformSurgery(const TSurgeonParams& params)
         }
 
         if (mutationHeader.segment_id() != resultingChangelogId) {
-            YT_LOG_WARNING("An original mutation segment_id was substituted with a new one (OldSegmentId: %v, NewSegmentId: %v)",
+            YT_LOG_DEBUG("An original mutation segment_id was substituted with a new one (OldSegmentId: %v, NewSegmentId: %v)",
                 mutationHeader.segment_id(),
                 resultingChangelogId);
         }
 
-        if (mutationHeader.record_id() != static_cast<i32>(i)) {
-            YT_LOG_WARNING("An original mutation record_id was substituted with a new one (OldRecordId: %v, NewRecordId: %v)",
+        if (mutationHeader.record_id() != i) {
+            YT_LOG_DEBUG("An original mutation record_id was substituted with a new one (OldRecordId: %v, NewRecordId: %v)",
                 mutationHeader.record_id(),
                 i);
         }
@@ -258,7 +272,7 @@ void Run(int argc, char** argv)
         .Optional()
         .StoreResult(&params.FirstSequenceNumber);
 
-    opts.AddCharOption('t', "[inclusive] End of the range of sequence numbers to be used to build a new changelog")
+    opts.AddCharOption('l', "[inclusive] End of the range of sequence numbers to be used to build a new changelog")
         .RequiredArgument("LAST_SEQUENCE_NUMBER")
         .Optional()
         .StoreResult(&params.LastSequenceNumber);
@@ -279,8 +293,12 @@ void Run(int argc, char** argv)
 
     TOptsParseResult parseResult(&opts, argc, argv);
 
-    ValidateSurgeonParams(params);
-    PerformSurgery(params);
+    try {
+        ValidateSurgeonParams(&params);
+        PerformSurgery(params);
+    } catch (const TErrorException& ex) {
+        YT_LOG_ERROR(ex, "Changelog surgery failed");
+    }
 }
 
 } // namespace NYT
