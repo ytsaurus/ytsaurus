@@ -92,11 +92,11 @@ protected:
         deviceConfig->DataNodeNbdServiceMakeTimeout = config->DataNodeNbdServiceMakeTimeout;
 
         auto handler = NYT::NNbd::CreateChunkHandler(
-            nullptr /*blockDevice*/,
+            /*blockDevice*/ nullptr,
             std::move(deviceConfig),
             queue->GetInvoker(),
             std::move(channel),
-            std::nullopt /*sessionId*/,
+            /*sessionId*/ NChunkClient::TSessionId(),
             Logger());
 
         handler->Initialize().Get().ThrowOnError();
