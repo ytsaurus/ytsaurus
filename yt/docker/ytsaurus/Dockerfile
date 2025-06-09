@@ -103,11 +103,13 @@ packages=(
 apt-get install -y "${packages[@]}"
 
 # Install pprof
-GO_VERSION=1.22.3 wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
+export GO_VERSION=1.22.3
+wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
     tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
     rm go${GO_VERSION}.linux-amd64.tar.gz
 
 export PATH="/usr/local/go/bin:$PATH"
+export PATH="bin:${PATH}"
 go install github.com/google/pprof@latest
 
 apt-get clean
