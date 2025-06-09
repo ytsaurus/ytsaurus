@@ -69,7 +69,7 @@ namespace NSQLComplete {
                 }
 
                 ythrow yexception() << "Optimization was not converged after "
-                                    << AttemptsLimit << "attempts";
+                                    << AttemptsLimit << " attempts";
             }
 
             static void Print(IOutputStream& out, const NYql::TExprNode& root, NYql::TExprContext& ctx) {

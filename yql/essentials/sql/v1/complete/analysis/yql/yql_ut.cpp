@@ -62,16 +62,19 @@ TYqlContext Analyze(const TString& query) {
 
 Y_UNIT_TEST_SUITE(YqlAnalysisTests) {
 
-    Y_UNIT_TEST(ClustersAreExtracted) {
+    Y_UNIT_TEST(NamesAreCollected) {
         TString input = R"(
             USE yt:socrates;
+
             SELECT * FROM Input;
+
+            CREATE TABLE Newbie (x Unit);
 
             INSERT INTO plato.Input (id) VALUES (1);
         )";
 
         THashMap<TString, THashSet<TString>> expected = {
-            {"socrates", {"Input"}},
+            {"socrates", {"Input", "Newbie"}},
             {"plato", {"Input"}},
         };
 
