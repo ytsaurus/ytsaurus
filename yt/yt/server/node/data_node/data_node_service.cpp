@@ -397,7 +397,7 @@ private:
 
         const auto& config = GetDynamicConfig()->TestingOptions;
         if (config->ChunkCancellationDelay) {
-            NConcurrency::TDelayedExecutor::WaitForDuration(config->ChunkCancellationDelay.value());
+            TDelayedExecutor::WaitForDuration(config->ChunkCancellationDelay.value());
         }
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
