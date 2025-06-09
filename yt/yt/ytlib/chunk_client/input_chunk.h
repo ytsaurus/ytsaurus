@@ -89,7 +89,7 @@ public:
     bool IsOrderedDynamicStore() const;
     bool IsFile() const;
     bool IsHunk() const;
-    bool RowCountIsMeaningless() const;
+    bool IsRowCountMeaningless() const;
 
     bool IsUnavailable(EChunkAvailabilityPolicy policy) const;
 

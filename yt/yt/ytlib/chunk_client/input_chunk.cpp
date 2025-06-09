@@ -147,7 +147,7 @@ bool TInputChunkBase::IsHunk() const
     return ChunkFormat_ == EChunkFormat::HunkDefault;
 }
 
-bool TInputChunkBase::RowCountIsMeaningless() const
+bool TInputChunkBase::IsRowCountMeaningless() const
 {
     // NB: Hunk and file chunks have no rows (well, they do not hold tabular data),
     // but their size statistics (data weight, (un)compressed data size)
@@ -354,7 +354,7 @@ double TInputChunk::GetDataWeightSelectivityFactor() const
 
 i64 TInputChunk::GetDataWeight() const
 {
-    if (RowCountIsMeaningless()) {
+    if (IsRowCountMeaningless()) {
         return TotalDataWeight_;
     }
 
@@ -365,7 +365,7 @@ i64 TInputChunk::GetDataWeight() const
 
 i64 TInputChunk::GetUncompressedDataSize() const
 {
-    if (RowCountIsMeaningless()) {
+    if (IsRowCountMeaningless()) {
         return TotalUncompressedDataSize_;
     }
     return ApplySelectivityFactors(TotalUncompressedDataSize_, /*applyReadSizeSelectivityFactors*/ true);
@@ -373,7 +373,7 @@ i64 TInputChunk::GetUncompressedDataSize() const
 
 i64 TInputChunk::GetCompressedDataSize() const
 {
-    if (RowCountIsMeaningless()) {
+    if (IsRowCountMeaningless()) {
         return CompressedDataSize_;
     }
     return ApplySelectivityFactors(CompressedDataSize_, /*applyReadSizeSelectivityFactors*/ true);
