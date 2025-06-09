@@ -402,6 +402,10 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(true)
         .DontSerializeDefault();
 
+    registrar.Parameter("partition_reader_prefetch_key_limit", &TThis::PartitionReaderPrefetchKeyLimit)
+        .Default()
+        .DontSerializeDefault();
+
     registrar.Parameter("testing", &TThis::Testing)
         .Default();
 
