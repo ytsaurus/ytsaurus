@@ -11,7 +11,7 @@ PEERDIR(
     yql/essentials/core
     yql/essentials/core/services
     yql/essentials/minikql
-    yql/essentials/minikql/invoke_builtins/no_llvm
+    yql/essentials/minikql/invoke_builtins
 )
 
 END()
