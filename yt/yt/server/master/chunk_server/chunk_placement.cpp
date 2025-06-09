@@ -156,6 +156,8 @@ void TChunkPlacement::Clear()
     MediumToLoadFactorToNode_.clear();
     IsDataCenterAware_ = false;
     IsDataCenterFailureDetectorEnabled_ = false;
+    IsNodeWriteSessionLimitEnabled_ = false;
+    IsNodeWriteSessionLimitForUserAllocationEnabled_ = false;
     StorageDataCenters_.clear();
     BannedStorageDataCenters_.clear();
     FaultyStorageDataCenters_.clear();
@@ -182,6 +184,8 @@ void TChunkPlacement::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfi
     IsDataCenterFailureDetectorEnabled_ = GetDynamicConfig()->DataCenterFailureDetector->Enable;
     EnableTwoRandomChoicesWriteTargetAllocation_ = GetDynamicConfig()->EnableTwoRandomChoicesWriteTargetAllocation;
     NodesToCheckBeforeGivingUpOnWriteTargetAllocation_ = GetDynamicConfig()->NodesToCheckBeforeGivingUpOnWriteTargetAllocation;
+    IsNodeWriteSessionLimitEnabled_ = GetDynamicConfig()->EnableNodeWriteSessionLimitOnWriteTargetAllocation;
+    IsNodeWriteSessionLimitForUserAllocationEnabled_ = GetDynamicConfig()->EnableNodeWriteSessionLimitForUserOnWriteTargetAllocation;
 
     if (!IsDataCenterFailureDetectorEnabled_) {
         FaultyStorageDataCenters_.clear();
@@ -787,7 +791,7 @@ void TChunkPlacement::AddSessionHint(TNode* node, int mediumIndex, ESessionType 
 {
     node->AddSessionHint(mediumIndex, sessionType);
 
-    RemoveFromLoadFactorMaps(node);
+    // NB: Insert removes node if it's present.
     InsertToLoadFactorMaps(node);
 }
 

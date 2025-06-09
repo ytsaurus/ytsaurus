@@ -62,7 +62,7 @@ class TKeyConditionIndexStat
     : public TChytIndexStatBase
 {
 public:
-    TKeyConditionIndexStat(int rowCount, int dataWeight, int filteredRowCount, int filteredDataWeight)
+    TKeyConditionIndexStat(i64 rowCount, i64 dataWeight, i64 filteredRowCount, i64 filteredDataWeight)
         : RowCount_(rowCount)
         , DataWeight_(dataWeight)
         , FilteredRowCount_(filteredRowCount)
@@ -96,17 +96,17 @@ public:
     }
 
 private:
-    int RowCount_;
-    int DataWeight_;
-    int FilteredRowCount_;
-    int FilteredDataWeight_;
+    i64 RowCount_;
+    i64 DataWeight_;
+    i64 FilteredRowCount_;
+    i64 FilteredDataWeight_;
 };
 
 std::shared_ptr<IChytIndexStat> CreateVirtualColumnIndexStat(int discardedTableCount, int inputTablesCount) {
     return std::make_shared<TVirtualColumnIndexStat>(discardedTableCount, inputTablesCount);
 }
 
-std::shared_ptr<IChytIndexStat> CreateKeyConditionIndexStat(int rowCount, int dataWeight, int filteredRowCount, int filteredDataWeight) {
+std::shared_ptr<IChytIndexStat> CreateKeyConditionIndexStat(i64 rowCount, i64 dataWeight, i64 filteredRowCount, i64 filteredDataWeight) {
     return std::make_shared<TKeyConditionIndexStat>(rowCount, dataWeight, filteredRowCount, filteredDataWeight);
 }
 

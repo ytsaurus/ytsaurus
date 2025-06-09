@@ -239,6 +239,8 @@ struct TExecutionContext
     TFuture<TFeatureFlags> ResponseFeatureFlags;
 };
 
+using TNestedGroupByClosure = TLookupRows;
+
 struct TNestedExecutionContext
 {
     TExpressionContext* ExpressionContext;
