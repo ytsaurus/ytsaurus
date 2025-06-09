@@ -36,11 +36,6 @@ namespace NSQLComplete {
             TVector<TString> clusterVec(begin(clusterSet), std::end(clusterSet));
             Sort(clusterVec);
 
-            Cerr << "[complete] " << "Cluster List" << Endl;
-            for (const auto& cluster : clusterVec) {
-                Cerr << "[complete] " << "  " << cluster << Endl;
-            }
-
             auto discovery = MakeStaticClusterDiscovery(std::move(clusterVec));
 
             return MakeClusterNameService(std::move(discovery));
@@ -54,17 +49,6 @@ namespace NSQLComplete {
                         .Type = TFolderEntry::Table,
                         .Name = std::move(table),
                     });
-                }
-            }
-
-            Cerr << "[complete] " << "TablesByCluster Mapping" << Endl;
-            for (const auto& [cluster, tree] : fs) {
-                Cerr << "[complete] " << "  " << cluster << ":" << Endl;
-                for (const auto& [path, entries] : tree) {
-                    Cerr << "[complete] " << "    " << path << ":" << Endl;
-                    for (const auto& entry : entries) {
-                        Cerr << "[complete] " << "      " << entry << Endl;
-                    }
                 }
             }
 
