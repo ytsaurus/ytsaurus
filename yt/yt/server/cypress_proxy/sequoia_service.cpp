@@ -130,6 +130,8 @@ private:
         YT_LOG_DEBUG(logMessage);
 
         Timer_.emplace();
+
+        RequestInfoState_ = ERequestInfoState::Flushed;
     }
 
     void LogResponse() override
