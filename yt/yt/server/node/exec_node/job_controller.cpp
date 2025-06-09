@@ -683,15 +683,13 @@ private:
             const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
             auto agentDescriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
 
-            // TODO(pogorelov): Move this logic to job resource manager.
-            startInfoProto.mutable_resource_limits()->set_vcpu(
-                static_cast<double>(NVectorHdrf::TCpuResource(
-                    startInfoProto.resource_limits().cpu() * JobResourceManager_->GetCpuToVCpuFactor())));
+            auto resourceDemand = FromNodeResources(startInfoProto.resource_limits());
+            JobResourceManager_->CalculateAndSetVCpu(GetPtr(resourceDemand));
 
             auto allocation = CreateAllocation(
                 allocationId,
                 operationId,
-                FromNodeResources(startInfoProto.resource_limits()),
+                resourceDemand,
                 std::move(allocationAttributes),
                 agentDescriptor,
                 Bootstrap_->GetExecNodeBootstrap());

@@ -1528,15 +1528,17 @@ class Operation(object):
                 and date_string_to_datetime(get(snapshot_path + "/@creation_time", driver=self._driver)) > timepoint
             )
 
+    def get_job_tracker_orchid_path(self):
+        controller_agent_address = self.get_controller_agent_address()
+        return f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
+
     def wait_for_job_revival_finished(self):
         print_debug("Waiting for job revival to finish")
 
         operation_controller_registered_check_path = self.get_path() + "/controller_orchid/progress/state"
         wait(lambda: exists(operation_controller_registered_check_path))
 
-        controller_agent_address = self.get_controller_agent_address()
-
-        job_tracker_orchid_path = f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
+        job_tracker_orchid_path = self.get_job_tracker_orchid_path()
 
         def check():
             allocation_ids = get(f"{job_tracker_orchid_path}/operations/{self.id}/allocations")
@@ -3493,8 +3495,7 @@ def get_first_chunk_id(path, **kwargs):
 
 
 def get_applied_node_dynamic_config(node, driver=None):
-    return get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/applied_config".format(node),
-               driver=driver)
+    return get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/applied_config".format(node), driver=driver)
 
 
 def _update_config_by_path(config, path, replace, value):
