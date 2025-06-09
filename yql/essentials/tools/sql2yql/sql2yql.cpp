@@ -203,12 +203,12 @@ int BuildAST(int argc, char* argv[]) {
     TString queryString;
     ui16 syntaxVersion;
     TString outFileNameFormat;
+
     THashMap<TString, TString> clusterMapping;
     clusterMapping["plato"] = NYql::YtProviderName;
     clusterMapping["pg_catalog"] = NYql::PgProviderName;
     clusterMapping["information_schema"] = NYql::PgProviderName;
 
-    THashMap<TString, TVector<TString>> tablesByCluster;
     THashSet<TString> flags;
 
     opts.AddLongOption('o', "output", "save output to file").RequiredArgument("file").StoreResult(&outFileName);
@@ -223,30 +223,6 @@ int BuildAST(int argc, char* argv[]) {
     opts.AddLongOption("pg", "use pg_query parser").NoArgument();
     opts.AddLongOption('a', "ann", "print Yql annotations").NoArgument();
     opts.AddLongOption('C', "cluster", "set cluster to service mapping").RequiredArgument("name@service").Handler(new TStoreMappingFunctor(&clusterMapping));
-
-    // TODO: remove
-    opts.AddLongOption('T', "table", "set table to filename mapping")
-        .RequiredArgument("table@file")
-        .KVHandler([&](TString table, TString file) {
-            TVector<TString> words;
-            Split(table, ".", words);
-
-            if (file.empty() || words.size() != 3 ||
-                words[0].empty() || words[1].empty() || words[2].empty()) {
-                ythrow yexception()
-                    << "Incorrect table mapping '" << table
-                    << "', expected form provider.cluster.table_name@file, "
-                    << "e.g. yt.plato.Input@input.txt";
-            }
-
-            const TString& provider = words[0];
-            const TString& cluster = words[1];
-            const TString& tableName = words[2];
-
-            Y_UNUSED(provider);
-            tablesByCluster[cluster].emplace_back(tableName);
-        }, '@');
-
     opts.AddLongOption('R', "replace", "replace Output table with each statement result").NoArgument();
     opts.AddLongOption("sqllogictest", "input files are in sqllogictest format").NoArgument();
     opts.AddLongOption("syntax-version", "SQL syntax version").StoreResult(&syntaxVersion).DefaultValue(1);
