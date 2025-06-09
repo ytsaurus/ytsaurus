@@ -31,8 +31,8 @@ message TNbdDisk
 
     //! Params to get suitable data nodes from master.
     optional int64 master_rpc_timeout = 3 [default = 2000];
-    optional int32 min_data_nodes_count = 4 [default = 0];
-    optional int32 max_data_nodes_count = 5 [default = 3];
+    optional int32 min_data_node_count = 4 [default = 0];
+    optional int32 max_data_node_count = 5 [default = 3];
 }
 
 message TDiskRequest

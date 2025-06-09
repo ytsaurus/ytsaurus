@@ -65,8 +65,8 @@ struct TSandboxNbdRootVolumeData
 
     //! Params to get suitable data nodes from master.
     TDuration MasterRpcTimeout;
-    int MinDataNodesCount;
-    int MaxDataNodesCount;
+    int MinDataNodeCount;
+    int MaxDataNodeCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

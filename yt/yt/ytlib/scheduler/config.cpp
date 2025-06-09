@@ -530,19 +530,19 @@ void TNbdDiskConfig::Register(TRegistrar registrar)
     registrar.Parameter("data_node_address", &TThis::DataNodeAddress)
         .Default();
     registrar.Parameter("master_rpc_timeout", &TThis::MasterRpcTimeout)
-        .Default(TDuration::Seconds(2));
-    registrar.Parameter("min_data_nodes_count", &TThis::MinDataNodesCount)
-        .GreaterThanOrEqual(0)
-        .Default(0);
-    registrar.Parameter("max_data_nodes_count", &TThis::MaxDataNodesCount)
-        .GreaterThanOrEqual(0)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("min_data_node_count", &TThis::MinDataNodeCount)
+        .GreaterThanOrEqual(1)
+        .Default(1);
+    registrar.Parameter("max_data_node_count", &TThis::MaxDataNodeCount)
+        .GreaterThanOrEqual(1)
         .Default(3);
 
     registrar.Postprocessor([&] (TNbdDiskConfig* config) {
-        if (config->MinDataNodesCount > config->MaxDataNodesCount) {
-            THROW_ERROR_EXCEPTION("Invalid \"min_data_nodes_count\", \"max_data_nodes_count\" pair.")
-                << TErrorAttribute("min_data_nodes_count", config->MinDataNodesCount)
-                << TErrorAttribute("max_data_nodes_count", config->MaxDataNodesCount);
+        if (config->MinDataNodeCount > config->MaxDataNodeCount) {
+            THROW_ERROR_EXCEPTION("Invalid \"min_data_node_count\", \"max_data_node_count\" pair")
+                << TErrorAttribute("min_data_node_count", config->MinDataNodeCount)
+                << TErrorAttribute("max_data_node_count", config->MaxDataNodeCount);
         }
     });
 }
@@ -592,8 +592,8 @@ void ToProto(
         }
         nbd_disk->set_data_node_rpc_timeout(ToProto(diskRequestConfig.NbdDisk->DataNodeRpcTimeout));
         nbd_disk->set_master_rpc_timeout(ToProto(diskRequestConfig.NbdDisk->MasterRpcTimeout));
-        nbd_disk->set_min_data_nodes_count(diskRequestConfig.NbdDisk->MinDataNodesCount);
-        nbd_disk->set_max_data_nodes_count(diskRequestConfig.NbdDisk->MaxDataNodesCount);
+        nbd_disk->set_min_data_node_count(diskRequestConfig.NbdDisk->MinDataNodeCount);
+        nbd_disk->set_max_data_node_count(diskRequestConfig.NbdDisk->MaxDataNodeCount);
     }
 }
 
