@@ -941,8 +941,7 @@ private:
 
         auto chunkState = chunkStore->PrepareChunkState(chunkMeta);
 
-        if (chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
-        {
+        if (chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
             auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
                 std::move(backendReaders.ReaderConfig),
                 std::move(backendReaders.ChunkReader),
