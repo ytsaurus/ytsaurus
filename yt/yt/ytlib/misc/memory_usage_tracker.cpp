@@ -198,6 +198,7 @@ private:
     TPool* GetOrRegisterPool(const TPoolTag& poolTag);
     TPool* GetOrRegisterPool(const std::optional<TPoolTag>& poolTag);
     i64 CalculatePoolLimit(i64 limit, const TPool* pool) const;
+    void SetupPoolProfilers(ECategory category, const TPoolTag& poolTag);
 
     TReferenceKey GetReferenceKey(TRef ref);
     TReferenceAddressMapShard& GetReferenceAddressMapShard(TReferenceKey key);
@@ -784,6 +785,24 @@ i64 TNodeMemoryTracker::UpdateUsage(ECategory category, i64 newUsage)
     return oldUsage;
 }
 
+void TNodeMemoryTracker::SetupPoolProfilers(ECategory category, const TPoolTag& poolTag)
+{
+    auto* pool = GetOrRegisterPool(poolTag);
+
+    auto categoryProfiler = Profiler_
+        .WithTag("category", FormatEnum(category))
+        .WithTag("pool", ToString(poolTag));
+
+    categoryProfiler.AddFuncGauge("/pool_used", pool, [pool, category] {
+        return pool->Used[category].load();
+    });
+
+    categoryProfiler.AddFuncGauge("/pool_limit", pool, [this, pool, this_ = MakeStrong(this), category] {
+        auto guard = Guard(SpinLock_);
+        return DoGetLimit(category, pool);
+    });
+}
+
 IMemoryUsageTrackerPtr TNodeMemoryTracker::WithCategory(
     ECategory category,
     std::optional<TPoolTag> poolTag)
@@ -795,12 +814,13 @@ IMemoryUsageTrackerPtr TNodeMemoryTracker::WithCategory(
 
         if (it.IsEnd()) {
             TEnumIndexedArray<EMemoryCategory, IMemoryUsageTrackerPtr> trackers;
+            SetupPoolProfilers(category, *poolTag);
             auto tracker = New<TMemoryUsageTracker>(
                 this,
                 category,
-                std::move(poolTag));
+                poolTag);
             trackers[category] = tracker;
-            PoolTrackers_.insert({poolTag.value(), std::move(trackers)});
+            PoolTrackers_.insert_or_assign(std::move(poolTag.value()), std::move(trackers));
             return tracker;
         } else {
             auto& trackers = it->second;
@@ -808,6 +828,7 @@ IMemoryUsageTrackerPtr TNodeMemoryTracker::WithCategory(
             if (auto tracker = trackers[category]) {
                 return tracker;
             } else {
+                SetupPoolProfilers(category, *poolTag);
                 tracker = New<TMemoryUsageTracker>(
                     this,
                     category,
@@ -1069,19 +1090,6 @@ TNodeMemoryTracker::GetOrRegisterPool(const TPoolTag& poolTag)
     pool->Tag = poolTag;
     for (auto category : TEnumTraits<ECategory>::GetDomainValues()) {
         pool->Used[category].store(0);
-
-        auto categoryProfiler = Profiler_
-            .WithTag("category", FormatEnum(category))
-            .WithTag("pool", ToString(poolTag));
-
-        categoryProfiler.AddFuncGauge("/pool_used", pool, [pool = pool.Get(), category] {
-            return pool->Used[category].load();
-        });
-
-        categoryProfiler.AddFuncGauge("/pool_limit", pool, [this, pool = pool.Get(), this_ = MakeStrong(this), category] {
-            auto guard = Guard(SpinLock_);
-            return DoGetLimit(category, pool);
-        });
     }
 
     Pools_.emplace(poolTag, pool);
