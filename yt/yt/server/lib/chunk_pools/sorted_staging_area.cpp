@@ -601,10 +601,10 @@ private:
                 actualLowerBound = PrimaryComparator_.WeakerKeyBound(dataSlice->LowerLimit().KeyBound, actualLowerBound);
                 actualUpperBound = PrimaryComparator_.WeakerKeyBound(dataSlice->UpperLimit().KeyBound, actualUpperBound);
                 YT_VERIFY(dataSlice->Tag);
+                const auto& Logger = domain->Logger;
                 if (!PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
                     auto tag = *dataSlice->Tag;
                     job.AddDataSlice(std::move(dataSlice), tag, /*isPrimary*/ true);
-                    const auto& Logger = domain->Logger;
                     YT_LOG_TRACE(
                         "Adding primary data slice to job (DataSlice: %v)",
                         GetDataSliceDebugString(dataSlice));
