@@ -2,6 +2,8 @@ package ytqueue
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"time"
@@ -95,10 +97,15 @@ func NewOutput(ctx context.Context, config OutputConfig) (out pipelines.Output[p
 }
 
 type ytRow struct {
-	Value          []byte `yson:"value"`
-	Codec          string `yson:"codec"`
-	SourceURI      string `yson:"source_uri"`
-	SequenceNumber int64  `yson:"$sequence_number"`
+	Value          []byte    `yson:"value"`
+	Codec          string    `yson:"codec"`
+	SourceURI      string    `yson:"source_uri"`
+	Meta           ytRowMeta `yson:"meta"`
+	SequenceNumber int64     `yson:"$sequence_number"`
+}
+
+type ytRowMeta struct {
+	FirstBytesHash string `yson:"first_bytes_hash,omitempty"`
 }
 
 type output struct {
@@ -114,6 +121,14 @@ type output struct {
 }
 
 func (o *output) Add(ctx context.Context, meta pipelines.RowMeta, row pipelines.Row) {
+	var rowMeta ytRowMeta
+	if meta.Begin.LogicalOffset == 0 {
+		// The buffer used to accumulate the row is assumed to be large enough (default is 16 MB),
+		// so if len(row.Payload) < 1024, it means the entire file is smaller than 1024 bytes,
+		// and we're hashing the whole file.
+		hash := sha256.Sum256(row.Payload[:min(1024, len(row.Payload))])
+		rowMeta.FirstBytesHash = hex.EncodeToString(hash[:])
+	}
 	codec := "null"
 	value := row.Payload
 	if o.compressor != nil {
@@ -125,6 +140,7 @@ func (o *output) Add(ctx context.Context, meta pipelines.RowMeta, row pipelines.
 		Codec:          codec,
 		SourceURI:      o.sessionID,
 		SequenceNumber: row.SeqNo,
+		Meta:           rowMeta,
 	}
 
 	retry(
