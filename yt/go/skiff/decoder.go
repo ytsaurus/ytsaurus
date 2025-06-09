@@ -16,8 +16,6 @@ import (
 	"go.ytsaurus.tech/yt/go/yson"
 )
 
-var ysonDurationType = reflect.TypeOf(yson.Duration(0))
-
 type opCache map[reflect.Type][]fieldOp
 
 type decoderOption func(s *Decoder)

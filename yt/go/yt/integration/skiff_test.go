@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strconv"
+	"reflect"
 	"testing"
 	"time"
 
@@ -284,22 +284,29 @@ func (tr *tableRow) EqualTo(other tableRow) bool {
 	return true
 }
 
-type ysonStreamUnmarshaler struct {
-	str string
-}
+func asMap(value any) map[string]any {
+	result := make(map[string]any)
+	v := reflect.ValueOf(value)
+	t := reflect.TypeOf(value)
 
-func (u *ysonStreamUnmarshaler) UnmarshalYSON(r *yson.Reader) error {
-	u.str = strconv.FormatInt(r.Int64(), 10)
-	return nil
-}
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		fieldValue := v.Field(i)
+		fieldName := field.Tag.Get("yson")
+		if fieldName == "" {
+			fieldName = field.Name
+		} else if fieldName == "-" {
+			continue
+		}
 
-func (u *ysonStreamUnmarshaler) MarshalYSON(w *yson.Writer) error {
-	i, err := strconv.ParseInt(u.str, 10, 64)
-	if err != nil {
-		return err
+		if fieldValue.Kind() == reflect.Struct {
+			result[fieldName] = asMap(fieldValue.Interface())
+		} else {
+			result[fieldName] = fieldValue.Interface()
+		}
 	}
-	w.Int64(i)
-	return nil
+
+	return result
 }
 
 func mustNoError[T any](value T, err error) T {
@@ -320,6 +327,19 @@ func TestReadTableSkiff(t *testing.T) {
 		{Name: "SkiffReadTableCompatibleStructs", Test: suite.TestSkiffReadTableCompatibleStructs, SkipRPC: true},
 		{Name: "SkiffReadTableIncompatibleStructs", Test: suite.TestSkiffReadTableIncompatibleStructs, SkipRPC: true},
 		{Name: "SkiffReadTableIntegerOverflow", Test: suite.TestSkiffReadTableIntegerOverflow, SkipRPC: true},
+	})
+}
+
+func TestWriteTableSkiff(t *testing.T) {
+	suite := NewSuite(t)
+
+	suite.RunClientTests(t, []ClientTest{
+		{Name: "SkiffWriteTableStruct", Test: suite.TestSkiffWriteTableStruct, SkipRPC: true},
+		{Name: "SkiffWriteTableMap", Test: suite.TestSkiffWriteTableMap, SkipRPC: true},
+		{Name: "SkiffHighLevelTableWriter", Test: suite.TestSkiffHighLevelTableWriter, SkipRPC: true},
+		{Name: "SkiffWriteTableCompatibleStructs", Test: suite.TestSkiffWriteTableCompatibleStructs, SkipRPC: true},
+		{Name: "SkiffWriteTableIncompatibleStructs", Test: suite.TestSkiffWriteTableIncompatibleStructs, SkipRPC: true},
+		{Name: "SkiffWriteTableIntegerOverflow", Test: suite.TestSkiffWriteTableIntegerOverflow, SkipRPC: true},
 	})
 }
 
@@ -491,28 +511,212 @@ func (s *Suite) TestSkiffReadTableIntegerOverflow(ctx context.Context, t *testin
 	require.ErrorContains(t, err, fmt.Sprintf("value %d overflows type int8", math.MaxInt32))
 }
 
-func mustCreateTableAndWriteRowsYSON[T any](ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.Path, rows []T) {
-	t.Helper()
-	mustCreateTableWithInferredSchema[T](ctx, t, yc, testTable)
-	mustWriteRowsYSON(ctx, t, yc, testTable, rows)
+func (s *Suite) TestSkiffWriteTableStruct(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	testTable := s.TmpPath()
+	tableRows := make([]tableRow, 3)
+	for i := range tableRows {
+		tableRows[i].Init()
+	}
+
+	mustCreateTableAndWriteRowsFormat(ctx, t, yc, testTable, tableRows, skiff.MustInferFormat(&tableRow{}))
+
+	readTableRows := mustReadRowsYSON[tableRow](ctx, t, yc, testTable)
+
+	var expectedTableRows []tableRow
+	for _, row := range tableRows {
+		expectedRow := row
+		expectedRow.IgnoredField = ""
+		expectedTableRows = append(expectedTableRows, expectedRow)
+	}
+	require.Equal(t, len(tableRows), len(readTableRows))
+	for i, expectedTableRow := range expectedTableRows {
+		require.True(t, expectedTableRow.EqualTo(readTableRows[i]), "expected:\n %+v\n actual:\n %+v", expectedTableRow, readTableRows[i])
+	}
 }
 
-func mustCreateTableWithInferredSchema[T any](ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.Path) {
+func (s *Suite) TestSkiffWriteTableMap(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	tableRows := make([]map[string]any, 3)
+	for i := range tableRows {
+		tr := tableRow{}
+		tr.Init()
+		tableRows[i] = asMap(tr)
+	}
+
+	testTableYSON := s.TmpPath()
+	testTableSkiff := s.TmpPath()
+	mustCreateTable(ctx, t, yc, testTableYSON, schema.MustInfer(&tableRow{}))
+	mustCreateTable(ctx, t, yc, testTableSkiff, schema.MustInfer(&tableRow{}))
+	mustWriteRowsFormat(ctx, t, yc, testTableYSON, tableRows, nil)
+	mustWriteRowsFormat(ctx, t, yc, testTableSkiff, tableRows, skiff.MustInferFormat(&tableRow{}))
+
+	rowsWrittenInYSON := mustReadRowsYSON[map[string]any](ctx, t, yc, testTableYSON)
+	rowsWrittenInSkiff := mustReadRowsYSON[map[string]any](ctx, t, yc, testTableSkiff)
+
+	require.Equal(t, len(rowsWrittenInYSON), len(rowsWrittenInSkiff))
+	for i := range rowsWrittenInSkiff {
+		requireMapsEqual(t, rowsWrittenInYSON[i], rowsWrittenInSkiff[i])
+	}
+}
+
+func (s *Suite) TestSkiffHighLevelTableWriter(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	testTable := s.TmpPath()
+	tableRows := make([]tableRow, 3)
+	for i := range tableRows {
+		tableRows[i].Init()
+	}
+
+	w, err := yt.WriteTable(ctx, yc, testTable, yt.WithWriteTableFormat(skiff.MustInferFormat(&tableRow{})))
+	require.NoError(t, err)
+	for i := range tableRows {
+		require.NoError(t, w.Write(tableRows[i]))
+	}
+	require.NoError(t, w.Commit())
+
+	readTableRows := mustReadRowsYSON[tableRow](ctx, t, yc, testTable)
+
+	var expectedTableRows []tableRow
+	for _, row := range tableRows {
+		expectedRow := row
+		expectedRow.IgnoredField = ""
+		expectedTableRows = append(expectedTableRows, expectedRow)
+	}
+	require.Equal(t, len(tableRows), len(readTableRows))
+	for i, expectedTableRow := range expectedTableRows {
+		require.True(t, expectedTableRow.EqualTo(readTableRows[i]), "expected:\n %+v\n actual:\n %+v", expectedTableRow, readTableRows[i])
+	}
+}
+
+func (s *Suite) TestSkiffWriteTableCompatibleStructs(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	type firstStruct struct {
+		Int8   int8    `yson:"int"`
+		String *string `yson:"string"`
+	}
+	type secondStruct struct {
+		Int32 int32 `yson:"int"`
+	}
+
+	firstTestTable := s.TmpPath()
+	w, err := yt.WriteTable(ctx, yc, firstTestTable,
+		yt.WithCreateOptions(yt.WithInferredSchema(firstStruct{})),
+		yt.WithWriteTableFormat(skiff.MustInferFormat(firstStruct{})),
+	)
+	require.NoError(t, err)
+	require.NoError(t, w.Write(secondStruct{Int32: 42}))
+	require.NoError(t, w.Commit())
+
+	w, err = yt.WriteTable(ctx, yc, firstTestTable,
+		yt.WithExistingTable(),
+		yt.WithAppend(),
+		yt.WithWriteTableFormat(skiff.MustInferFormat(secondStruct{})),
+	)
+	require.NoError(t, err)
+	require.NoError(t, w.Write(secondStruct{Int32: -7}))
+	require.NoError(t, w.Commit())
+
+	firstTableReadRows := mustReadRowsYSON[firstStruct](ctx, t, yc, firstTestTable)
+	require.Equal(t, []firstStruct{firstStruct{Int8: 42}, firstStruct{Int8: -7}}, firstTableReadRows)
+
+	secondTestTable := s.TmpPath()
+	w, err = yt.WriteTable(ctx, yc, secondTestTable,
+		yt.WithCreateOptions(yt.WithInferredSchema(secondStruct{})),
+		yt.WithWriteTableFormat(skiff.MustInferFormat(secondStruct{})),
+	)
+	require.NoError(t, err)
+	require.NoError(t, w.Write(firstStruct{Int8: -15}))
+	require.NoError(t, w.Commit())
+
+	secondTableReadRows := mustReadRowsYSON[secondStruct](ctx, t, yc, secondTestTable)
+	require.Equal(t, []secondStruct{secondStruct{Int32: -15}}, secondTableReadRows)
+}
+
+func (s *Suite) TestSkiffWriteTableIncompatibleStructs(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	type firstStruct struct {
+		Int int `yson:"int"`
+	}
+	type secondStruct struct {
+		String string `yson:"int"`
+	}
+
+	testTable := s.TmpPath()
+	w, err := yt.WriteTable(ctx, yc, testTable,
+		yt.WithCreateOptions(yt.WithInferredSchema(firstStruct{})),
+		yt.WithWriteTableFormat(skiff.MustInferFormat(firstStruct{})),
+	)
+	defer w.Rollback()
+	require.NoError(t, err)
+
+	require.NoError(t, w.Write(firstStruct{Int: 20}))
+	err = w.Write(secondStruct{String: "some-str"})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "type string is not compatible with wire type int64")
+}
+
+func (s *Suite) TestSkiffWriteTableIntegerOverflow(ctx context.Context, t *testing.T, yc yt.Client) {
+	t.Parallel()
+
+	type int32Struct struct {
+		Int int32 `yson:"int"`
+	}
+	type int8Struct struct {
+		Int int8 `yson:"int"`
+	}
+
+	testTable := s.TmpPath()
+	w, err := yt.WriteTable(ctx, yc, testTable,
+		yt.WithCreateOptions(yt.WithInferredSchema(int8Struct{})),
+		yt.WithWriteTableFormat(skiff.MustInferFormat(int8Struct{})),
+	)
+	defer w.Rollback()
+	require.NoError(t, err)
+
+	require.NoError(t, w.Write(int32Struct{Int: 20}))
+	err = w.Write(int32Struct{Int: math.MaxInt32})
+	require.Error(t, err)
+	require.ErrorContains(t, err, fmt.Sprintf("value %d overflows type int8", math.MaxInt32))
+}
+
+func mustCreateTableAndWriteRowsYSON[T any](ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.Path, rows []T) {
+	t.Helper()
 	var row T
 	mustCreateTable(ctx, t, yc, testTable, schema.MustInfer(row))
+	mustWriteRowsFormat[T](ctx, t, yc, testTable, rows, nil)
 }
 
 func mustCreateTable(ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.Path, schema schema.Schema) {
+	t.Helper()
 	_, err := yt.CreateTable(ctx, yc, testTable, yt.WithSchema(schema))
 	require.NoError(t, err)
 }
 
-func mustWriteRowsYSON[T any](ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.Path, rows []T) {
-	require.NoError(t, writeRows(ctx, yc, testTable, rows))
+func mustCreateTableAndWriteRowsFormat[T any](ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.Path, rows []T, format any) {
+	t.Helper()
+	var v T
+	mustCreateTable(ctx, t, yc, testTable, schema.MustInfer(&v))
+	mustWriteRowsFormat(ctx, t, yc, testTable, rows, format)
 }
 
-func writeRows[T any](ctx context.Context, yc yt.Client, testTable ypath.Path, rows []T) error {
-	w, err := yc.WriteTable(ctx, testTable, &yt.WriteTableOptions{})
+func mustWriteRowsYSON[T any](ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.Path, rows []T) {
+	t.Helper()
+	mustWriteRowsFormat(ctx, t, yc, testTable, rows, nil)
+}
+
+func mustWriteRowsFormat[T any](ctx context.Context, t *testing.T, yc yt.Client, testTable ypath.Path, rows []T, format any) {
+	t.Helper()
+	require.NoError(t, writeRowsFormat(ctx, yc, testTable, rows, format))
+}
+
+func writeRowsFormat[T any](ctx context.Context, yc yt.Client, testTable ypath.Path, rows []T, format any) error {
+	w, err := yc.WriteTable(ctx, testTable, &yt.WriteTableOptions{Format: format})
 	if err != nil {
 		return err
 	}

@@ -437,6 +437,10 @@ func writeWriteTableOptions(w *yson.Writer, o *yt.WriteTableOptions) {
 	}
 	w.MapKeyString("table_writer")
 	w.Any(o.TableWriter)
+	if o.Format != nil {
+		w.MapKeyString("input_format")
+		w.Any(o.Format)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 }

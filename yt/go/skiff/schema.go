@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 
+	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/schema"
 	"go.ytsaurus.tech/yt/go/yson"
 )
@@ -242,6 +243,22 @@ type Format struct {
 
 	// schemas shared between multiple tables
 	SchemaRegistry map[string]*Schema `yson:"skiff_schema_registry,attr"`
+}
+
+func SingleSchema(f *Format) (*Schema, error) {
+	if len(f.TableSchemas) != 1 {
+		return nil, xerrors.Errorf("expected 1 table schema in skiff.Format, but got %d", len(f.TableSchemas))
+	}
+	schema, ok := f.TableSchemas[0].(*Schema)
+	if !ok {
+		return nil, xerrors.Errorf(
+			"expected type of table schema in skiff.Format is *skiff.Schema, actual type is %T", f.TableSchemas[0],
+		)
+	}
+	if schema == nil {
+		return nil, xerrors.New("schema in skiff.Format is nil")
+	}
+	return schema, nil
 }
 
 // InferFormat infers skiff.Format from go struct.

@@ -661,9 +661,21 @@ func (e *Encoder) WriteTable(
 	path ypath.YPath,
 	options *yt.WriteTableOptions,
 ) (w yt.TableWriter, err error) {
+	var format any
+	if options != nil && options.Format != nil {
+		format = options.Format
+		skiffFormat, ok := options.Format.(skiff.Format)
+		if !ok {
+			return nil, xerrors.Errorf("unexpected format: %+v", format)
+		}
+		path, err = ypathWithSkiffColumns(path, skiffFormat)
+		if err != nil {
+			return
+		}
+	}
 	call := e.newCall(NewWriteTableParams(path, options))
-	w, err = e.InvokeWriteRow(ctx, call)
-	return
+	call.Format = format
+	return e.InvokeWriteRow(ctx, call)
 }
 
 func (e *Encoder) ReadTable(
@@ -683,18 +695,13 @@ func (e *Encoder) ReadTable(
 		if err != nil {
 			return nil, err
 		}
-		var columns []string
-		columns, err = columnNames(skiffFormat)
-		if err != nil {
-			return
-		}
-		path, err = ypathWithColumns(path, columns)
+		path, err = ypathWithSkiffColumns(path, skiffFormat)
 		if err != nil {
 			return
 		}
 	}
 	call := e.newCall(NewReadTableParams(path, options))
-	call.OutputFormat = format
+	call.Format = format
 	call.TableSchema = tableSchema
 	return e.InvokeReadRow(ctx, call)
 }
@@ -714,15 +721,23 @@ func (e *Encoder) tableSchema(ctx context.Context, path ypath.YPath) (*schema.Sc
 	return &attrs.Schema, nil
 }
 
-func columnNames(skiffFormat skiff.Format) ([]string, error) {
-	if len(skiffFormat.TableSchemas) != 1 {
-		return nil, xerrors.Errorf("expected 1 table schema in skiff.Format, but got %d", len(skiffFormat.TableSchemas))
+func ypathWithSkiffColumns(path ypath.YPath, skiffFormat skiff.Format) (ypath.YPath, error) {
+	var columns []string
+	columns, err := skiffFormatColumnNames(skiffFormat)
+	if err != nil {
+		return nil, err
 	}
-	tableSkiffSchema, ok := skiffFormat.TableSchemas[0].(*skiff.Schema)
-	if !ok {
-		return nil, xerrors.Errorf(
-			"expected type of table schema in skiff.Format is *skiff.Schema, actual type is %T", skiffFormat.TableSchemas[0],
-		)
+	pathWithColumns, err := ypathWithColumns(path, columns)
+	if err != nil {
+		return nil, err
+	}
+	return pathWithColumns, nil
+}
+
+func skiffFormatColumnNames(skiffFormat skiff.Format) ([]string, error) {
+	tableSkiffSchema, err := skiff.SingleSchema(&skiffFormat)
+	if err != nil {
+		return nil, err
 	}
 	var columns []string
 	for _, columnSchema := range tableSkiffSchema.Children {

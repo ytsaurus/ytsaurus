@@ -509,6 +509,12 @@ type FileClient interface {
 type WriteTableOptions struct {
 	TableWriter any `http:"table_writer"`
 
+	// Format is YSON-serializable input format. If not specified "yson" will be used.
+	//
+	// Possible values:
+	//   - ​​skiff.Format (see skiff.MustInferFormat).
+	Format any `http:"input_format,omitnil"`
+
 	*TransactionOptions
 	*AccessTrackingOptions
 }
