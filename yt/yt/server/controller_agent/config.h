@@ -802,6 +802,8 @@ struct TRemoteOperationsConfig
 
     std::optional<i64> MaxTotalDataWeight;
 
+    std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
+
     REGISTER_YSON_STRUCT(TRemoteOperationsConfig);
 
     static void Register(TRegistrar registrar);

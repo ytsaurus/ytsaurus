@@ -93,17 +93,11 @@ void TJob::Initialize()
 
 void TJob::PopulateInputNodeDirectory() const
 {
-    auto connection = Host_->GetClient()->GetNativeConnection();
-    const auto& jobSpecExt = Host_->GetJobSpecHelper()->GetJobSpecExt();
-    connection->GetNodeDirectory()->MergeFrom(jobSpecExt.input_node_directory());
-
-    for (const auto& [clusterName, protoRemoteCluster] : jobSpecExt.remote_input_clusters()) {
-        connection
-            ->GetClusterDirectory()
-            ->GetConnectionOrThrow(clusterName)
-            ->GetNodeDirectory()
-            ->MergeFrom(protoRemoteCluster.node_directory());
-    }
+    Host_
+        ->GetClient()
+        ->GetNativeConnection()
+        ->GetNodeDirectory()
+        ->MergeFrom(Host_->GetJobSpecHelper()->GetJobSpecExt().input_node_directory());
 }
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext(TTransactionId /*transactionId*/)

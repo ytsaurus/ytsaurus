@@ -1,11 +1,14 @@
 #include "chunk_reader_host.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
+
+#include <library/cpp/iterator/zip.h>
 
 namespace NYT::NChunkClient {
 
@@ -61,31 +64,22 @@ namespace {
 
 THashMap<TClusterName, TChunkReaderHostPtr> CreateHostsMap(
     const TChunkReaderHostPtr& baseHost,
-    const std::vector<TClusterName>& clusterList)
+    std::vector<TMultiChunkReaderHost::TClusterOptions> clusterOptionsList)
 {
     THashMap<TClusterName, TChunkReaderHostPtr> hosts;
-    const auto& baseClient = baseHost->Client;
-    for (const auto& clusterName : clusterList) {
-        auto client = baseClient;
-
-        if (!IsLocal(clusterName)) {
-            client = baseClient
-                    ->GetNativeConnection()
-                    ->GetClusterDirectory()
-                    ->GetConnectionOrThrow(clusterName.Underlying())
-                    ->CreateNativeClient(baseClient->GetOptions());
-        }
-
-        hosts[clusterName] = New<TChunkReaderHost>(
-            std::move(client),
-            baseHost->LocalDescriptor,
-            baseHost->BlockCache,
-            baseHost->ChunkMetaCache,
-            baseHost->NodeStatusDirectory,
-            baseHost->BandwidthThrottler,
-            baseHost->RpsThrottler,
-            baseHost->MediumThrottler,
-            baseHost->TrafficMeter);
+    for (auto& clusterOptions : clusterOptionsList) {
+        hosts.emplace(
+            std::move(clusterOptions.Name),
+            New<TChunkReaderHost>(
+                std::move(clusterOptions.Client),
+                baseHost->LocalDescriptor,
+                baseHost->BlockCache,
+                baseHost->ChunkMetaCache,
+                baseHost->NodeStatusDirectory,
+                baseHost->BandwidthThrottler,
+                baseHost->RpsThrottler,
+                baseHost->MediumThrottler,
+                baseHost->TrafficMeter));
     }
     return hosts;
 }
@@ -97,10 +91,10 @@ THashMap<TClusterName, TChunkReaderHostPtr> CreateHostsMap(
 TMultiChunkReaderHost::TMultiChunkReaderHost(
     TChunkReaderHostPtr baseHost,
     TBandwidthThrottlerFactory bandwidthThrottlerFactory,
-    const std::vector<TClusterName>& clusterList)
+    std::vector<TClusterOptions> clusterOptionsList)
     : BaseHost_(std::move(baseHost))
     , BandwidthThrottlerFactory_(std::move(bandwidthThrottlerFactory))
-    , Hosts_(CreateHostsMap(BaseHost_, clusterList))
+    , Hosts_(CreateHostsMap(BaseHost_, std::move(clusterOptionsList)))
 { }
 
 TChunkReaderHostPtr TMultiChunkReaderHost::CreateHostForCluster(
@@ -135,22 +129,29 @@ TTrafficMeterPtr TMultiChunkReaderHost::GetTrafficMeter() const
 TMultiChunkReaderHostPtr CreateMultiChunkReaderHost(
     TChunkReaderHostPtr baseHost,
     TMultiChunkReaderHost::TBandwidthThrottlerFactory bandwidthThrottlerFactory,
-    const std::vector<NScheduler::TClusterName>& clusterList)
+    std::vector<TMultiChunkReaderHost::TClusterOptions> clusterOptionsList)
 {
-    YT_VERIFY(AnyOf(clusterList, [] (const auto& clusterName) { return IsLocal(clusterName); }));
+    YT_VERIFY(AnyOf(clusterOptionsList, [] (const auto& clusterOptions) { return IsLocal(clusterOptions.Name); }));
     return New<TMultiChunkReaderHost>(
         std::move(baseHost),
         std::move(bandwidthThrottlerFactory),
-        clusterList);
+        std::move(clusterOptionsList));
 }
 
 TMultiChunkReaderHostPtr CreateSingleSourceMultiChunkReaderHost(
     TChunkReaderHostPtr baseHost)
 {
+    std::vector<TMultiChunkReaderHost::TClusterOptions> clusterOptionsList = {
+        TMultiChunkReaderHost::TClusterOptions{
+            .Name = LocalClusterName,
+            .Client = baseHost->Client,
+        },
+    };
+
     return CreateMultiChunkReaderHost(
         std::move(baseHost),
         /*bandwidthThrottlerFactory*/ {},
-        /*clusterList*/ {LocalClusterName});
+        std::move(clusterOptionsList));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

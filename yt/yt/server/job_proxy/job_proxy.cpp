@@ -44,8 +44,6 @@
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
-
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
@@ -53,9 +51,12 @@
 #include <yt/yt/ytlib/job_proxy/config.h>
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
@@ -1039,7 +1040,7 @@ TJobResult TJobProxy::RunJob()
     return job->Run();
 }
 
-NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config)
+NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const
 {
     if (TvmBridge_ && config->Dynamic->TvmId) {
         YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", *config->Dynamic->TvmId);
@@ -1598,11 +1599,34 @@ TMultiChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
         return GetInBandwidthThrottler(LocalClusterName);
     });
 
-    std::vector<TClusterName> clusterNames {
-        LocalClusterName
+    std::vector<TMultiChunkReaderHost::TClusterOptions> clusterOptionsList {
+        {
+            .Name = LocalClusterName,
+            .Client = Client_,
+        },
     };
     for (const auto& [clusterName, protoRemoteCluster] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
-        clusterNames.emplace_back(clusterName);
+        auto remoteConnection = Client_
+            ->GetNativeConnection()
+            ->GetClusterDirectory()
+            ->GetConnectionOrThrow(clusterName);
+
+        if (!protoRemoteCluster.networks().empty()) {
+            auto connectionConfig = remoteConnection
+                ->GetCompoundConfig()
+                ->Clone();
+            connectionConfig->Static->Networks = FromProto<NNodeTrackerClient::TNetworkPreferenceList>(
+                protoRemoteCluster.networks());
+            remoteConnection = CreateNativeConnection(std::move(connectionConfig));
+        }
+
+        remoteConnection->GetNodeDirectory()->MergeFrom(protoRemoteCluster.node_directory());
+
+        clusterOptionsList.emplace_back(
+            TMultiChunkReaderHost::TClusterOptions{
+                .Name = TClusterName(clusterName),
+                .Client = remoteConnection->CreateNativeClient(Client_->GetOptions()),
+            });
     }
 
     return CreateMultiChunkReaderHost(
@@ -1617,7 +1641,7 @@ TMultiChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
             /*mediumThrottler*/ GetUnlimitedThrottler(),
             GetTrafficMeter()),
         std::move(bandwidthThrottlerFactory),
-        clusterNames);
+        clusterOptionsList);
 }
 
 IBlockCachePtr TJobProxy::GetReaderBlockCache() const

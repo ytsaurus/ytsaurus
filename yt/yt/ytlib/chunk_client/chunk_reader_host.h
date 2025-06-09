@@ -60,10 +60,16 @@ class TMultiChunkReaderHost
 public:
     using TBandwidthThrottlerFactory = TCallback<NConcurrency::IThroughputThrottlerPtr(const NScheduler::TClusterName& clusterName)>;
 
+    struct TClusterOptions
+    {
+        NScheduler::TClusterName Name;
+        NApi::NNative::IClientPtr Client;
+    };
+
     TMultiChunkReaderHost(
         TChunkReaderHostPtr baseHost,
         TBandwidthThrottlerFactory bandwidthThrottlerFactory,
-        const std::vector<NScheduler::TClusterName>& clusterList);
+        std::vector<TClusterOptions> clusterOptionsList);
 
     TChunkReaderHostPtr CreateHostForCluster(const NScheduler::TClusterName& clusterName);
     TTrafficMeterPtr GetTrafficMeter() const;
@@ -80,7 +86,7 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderHost)
 TMultiChunkReaderHostPtr CreateMultiChunkReaderHost(
     TChunkReaderHostPtr baseHost,
     TMultiChunkReaderHost::TBandwidthThrottlerFactory bandwidthThrottlerFactory,
-    const std::vector<NScheduler::TClusterName>& clusterList);
+    std::vector<TMultiChunkReaderHost::TClusterOptions> clusterOptionsList);
 
 TMultiChunkReaderHostPtr CreateSingleSourceMultiChunkReaderHost(
     TChunkReaderHostPtr baseHost);
