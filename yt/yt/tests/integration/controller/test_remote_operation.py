@@ -1,3 +1,4 @@
+from functools import partial
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
@@ -708,6 +709,73 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
 
         write_table("//tmp/t1", [{"value": "x" * 10}], driver=self.remote_driver)
         try_run_map()
+
+    @authors("coteeq")
+    def test_seed_replicas(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        create("table", "//tmp/t2")
+
+        data = [{"a": 1}, {"a": 2}]
+        write_table("<append=%true>//tmp/t1", data, driver=self.remote_driver)
+
+        map(
+            in_=self.to_remote_path("//tmp/t1"),
+            out="//tmp/t2",
+            command="cat",
+            spec={
+                "job_io": {
+                    "table_reader": {
+                        # Forbid reader from locating seeds and populating node directory.
+                        "retry_count": 1,
+                    }
+                },
+            }
+        )
+
+        assert sorted_dicts(read_table("//tmp/t2")) == sorted_dicts(data)
+        assert not get("//tmp/t2/@sorted")
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerRemoteOperationNetworks(TestSchedulerRemoteOperationCommandsBase):
+    ENABLE_MULTIDAEMON = True
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        if cls.get_cluster_name(cluster_index) == cls.REMOTE_CLUSTER_NAME:
+            config["addresses"].append(["custom_network", dict(config["addresses"])["default"]])
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("operation_type", ["map", "merge", "map_reduce"])
+    def test_custom_network(self, operation_type):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+
+        run_operation = {
+            "map": partial(map, command="cat"),
+            "merge": merge,
+            "map_reduce": partial(map_reduce, mapper_command="cat", reducer_command="cat", reduce_by=["a"]),
+        }
+
+        def run_and_assert():
+            run_operation[operation_type](
+                in_=self.to_remote_path("//tmp/t1"),
+                out="//tmp/t2",
+            )
+            assert read_table("//tmp/t2") == [{"a": "b"}]
+
+        run_and_assert()
+
+        update_controller_agent_config("remote_operations/remote_0/networks", ["custom_network"])
+
+        run_and_assert()
+
+        update_controller_agent_config("remote_operations/remote_0/networks", ["unexisting"])
+
+        with raises_yt_error():
+            run_and_assert()
 
 
 @pytest.mark.enabled_multidaemon

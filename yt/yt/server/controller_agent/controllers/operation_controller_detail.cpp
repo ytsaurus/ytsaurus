@@ -4795,6 +4795,16 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     jobSpecExt->set_use_cluster_throttlers(Spec_->UseClusterThrottlers);
 
+    for (auto& [clusterName, protoRemoteCluster] : *(jobSpecExt->mutable_remote_input_clusters())) {
+        auto clusterConfigIt = Config_->RemoteOperations.find(TClusterName(clusterName));
+        if (clusterConfigIt != Config_->RemoteOperations.end()) {
+            const auto& networks = clusterConfigIt->second->Networks;
+            if (networks) {
+                ToProto(protoRemoteCluster.mutable_networks(), *networks);
+            }
+        }
+    }
+
     if (OutputTransaction_) {
         ToProto(jobSpecExt->mutable_output_transaction_id(), OutputTransaction_->GetId());
     }

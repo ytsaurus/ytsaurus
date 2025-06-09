@@ -772,6 +772,8 @@ void TRemoteOperationsConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("max_total_data_weight", &TThis::MaxTotalDataWeight)
         .Default();
+    registrar.Parameter("networks", &TThis::Networks)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
