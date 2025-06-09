@@ -17,8 +17,9 @@ const (
 )
 
 var (
-	emptyStructType = reflect.TypeOf(struct{}{})
-	genericMapType  = reflect.TypeOf(map[string]any{})
+	emptyStructType  = reflect.TypeOf(struct{}{})
+	genericMapType   = reflect.TypeOf(map[string]any{})
+	ysonDurationType = reflect.TypeOf(yson.Duration(0))
 )
 
 type fieldOp struct {

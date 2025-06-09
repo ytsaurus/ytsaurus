@@ -116,3 +116,16 @@ func (w *writer) writeBytes(b []byte) {
 
 	_, w.err = w.w.Write(b)
 }
+
+func (w *writer) writeString(s string) {
+	if w.err != nil {
+		return
+	}
+
+	w.writeUint32(uint32(len(s)))
+	if w.err != nil {
+		return
+	}
+
+	_, w.err = w.w.WriteString(s)
+}
