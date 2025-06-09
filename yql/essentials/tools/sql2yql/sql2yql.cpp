@@ -93,15 +93,6 @@ static void ExtractQuery(TPosOutput& out, const google::protobuf::Message& node)
     }
 }
 
-bool TestComplete(const TString& query, NYql::TAstNode& root) {
-    TString error;
-    if (!NSQLComplete::CheckComplete(query, root, error)) {
-        Cerr << error << Endl;
-        return false;
-    }
-    return true;
-}
-
 bool TestFormat(
     const NSQLTranslation::TTranslators& translators,
     const TString& query,
@@ -170,6 +161,15 @@ bool TestLexers(const TString& query) {
         return false;
     }
 
+    return true;
+}
+
+bool TestComplete(const TString& query, NYql::TAstNode& root) {
+    NYql::TIssues issues;
+    if (!NSQLComplete::CheckComplete(query, root, issues)) {
+        Cerr << issues.ToString() << Endl;
+        return false;
+    }
     return true;
 }
 

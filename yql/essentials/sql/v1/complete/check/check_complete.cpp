@@ -57,25 +57,16 @@ namespace NSQLComplete {
 
     } // namespace
 
-    bool CheckComplete(TStringBuf query, NYql::TAstNode& root, TString& error) try {
+    bool CheckComplete(TStringBuf query, TYqlContext ctx, NYql::TIssues& issues) try {
         constexpr size_t Seed = 97651231;
         constexpr size_t Attempts = 64;
         constexpr size_t MaxAttempts = 256;
         SetRandomSeed(Seed);
 
-        auto analysis = MakeYqlAnalysis();
-
-        NYql::TIssues issues;
-        auto ctx = analysis->Analyze(root, issues);
-        if (ctx.Empty()) {
-            error = issues.ToOneLineString();
-            return false;
-        }
-
         auto service = MakeUnionNameService(
             {
-                MakeClusterNameService(*ctx),
-                MakeSchemaNameService(*ctx),
+                MakeClusterNameService(ctx),
+                MakeSchemaNameService(ctx),
             },
             MakeDefaultRanking());
 
@@ -100,7 +91,25 @@ namespace NSQLComplete {
 
         return true;
     } catch (...) {
-        error = CurrentExceptionMessage();
+        issues.AddIssue(CurrentExceptionMessage());
+        return false;
+    }
+
+    bool CheckComplete(TStringBuf query, NYql::TExprNode::TPtr root, NYql::TExprContext& ctx, NYql::TIssues& issues) try {
+        auto yqlCtx = MakeYqlAnalysis()->Analyze(root, ctx);
+        return CheckComplete(query, std::move(yqlCtx), issues);
+    } catch (...) {
+        issues.AddIssue(CurrentExceptionMessage());
+        return false;
+    }
+
+    bool CheckComplete(TStringBuf query, NYql::TAstNode& root, NYql::TIssues& issues) try {
+        return MakeYqlAnalysis()
+            ->Analyze(root, issues)
+            .Transform([&](auto&& ctx) { return CheckComplete(query, std::move(ctx), issues); })
+            .GetOrElse(false);
+    } catch (...) {
+        issues.AddIssue(CurrentExceptionMessage());
         return false;
     }
 
