@@ -355,6 +355,13 @@ void TNode::ComputeSessionCount()
             SessionCount_[mediumIndex] = SessionCount_[mediumIndex].value_or(0) + location.session_count();
         }
     }
+
+    // COMPAT(koloshmet)
+    if (DataNodeStatistics_.has_max_write_sessions()) {
+        SetWriteSessionLimit(DataNodeStatistics_.max_write_sessions());
+    } else {
+        SetWriteSessionLimit(std::nullopt);
+    }
 }
 
 TNodeId TNode::GetId() const
@@ -457,13 +464,22 @@ void TNode::InitializeStates(
     ComputeAggregatedState();
 }
 
-void TNode::RecomputeIOWeights(const IChunkManagerPtr& chunkManager)
+void TNode::RecomputeMediumStatistics(const IChunkManagerPtr& chunkManager)
 {
     IOWeights_.clear();
+    MediumToWriteSessionCountLimit_.clear();
+
     for (const auto& statistics : DataNodeStatistics_.media()) {
         auto mediumIndex = statistics.medium_index();
-        if (chunkManager->FindMediumByIndex(mediumIndex)) {
-            IOWeights_[mediumIndex] = statistics.io_weight();
+        if (!chunkManager->FindMediumByIndex(mediumIndex)) {
+            continue;
+        }
+
+        IOWeights_[mediumIndex] = statistics.io_weight();
+        if (statistics.has_max_write_sessions_per_location()) {
+            MediumToWriteSessionCountLimit_[mediumIndex] = statistics.max_write_sessions_per_location();
+        } else {
+            MediumToWriteSessionCountLimit_.erase(mediumIndex);
         }
     }
 }
@@ -980,6 +996,18 @@ int TNode::GetTotalSessionCount() const
         DataNodeStatistics_.total_repair_session_count() + TotalHintedRepairSessionCount_;
 }
 
+int TNode::GetTotalHintedSessionCount(int chunkHostMasterCellCount) const
+{
+    return
+        DataNodeStatistics_.total_user_session_count() +
+        DataNodeStatistics_.total_replication_session_count() +
+        DataNodeStatistics_.total_repair_session_count() +
+        chunkHostMasterCellCount * (
+            TotalHintedUserSessionCount_ +
+            TotalHintedRepairSessionCount_ +
+            TotalHintedReplicationSessionCount_);
+}
+
 TNode::TCellSlot* TNode::FindCellSlot(const TCellBase* cell)
 {
     if (auto* cellar = FindCellar(cell->GetCellarType())) {
@@ -1085,7 +1113,7 @@ void TNode::SetDataNodeStatistics(
     DataNodeStatistics_.Swap(&statistics);
     ComputeFillFactorsAndTotalSpace();
     ComputeSessionCount();
-    RecomputeIOWeights(chunkManager);
+    RecomputeMediumStatistics(chunkManager);
 }
 
 void TNode::ValidateNotBanned()

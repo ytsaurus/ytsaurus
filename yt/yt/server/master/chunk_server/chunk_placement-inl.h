@@ -77,9 +77,14 @@ public:
     bool CheckNode(
         TNode* node,
         bool enableRackAwareness,
-        bool enableDataCenterAwareness) const
+        bool enableDataCenterAwareness,
+        bool enableNodeWriteSessionLimit) const
     {
         if (std::find(ForbiddenNodes_.begin(), ForbiddenNodes_.end(), node) != ForbiddenNodes_.end()) {
+            return false;
+        }
+
+        if (enableNodeWriteSessionLimit && !CheckWriteSessionUsage(node)) {
             return false;
         }
 
@@ -178,6 +183,34 @@ private:
             dataCenter,
             ReplicationFactorOverride_);
     }
+
+    bool CheckWriteSessionUsage(TNode* node) const
+    {
+        auto limitFraction = ChunkPlacement_->GetDynamicConfig()->NodeWriteSessionLimitFractionOnWriteTargetAllocation;
+        const auto& multicellManager = ChunkPlacement_->Bootstrap_->GetMulticellManager();
+        auto chunkHostMasterCellCount = multicellManager->GetRoleMasterCellCount(
+            NCellMaster::EMasterCellRole::ChunkHost);
+
+        if (auto maxNodeWriteSessions = node->GetWriteSessionLimit()) {
+            auto sessionCount = node->GetTotalHintedSessionCount(chunkHostMasterCellCount);
+            if (sessionCount >= *maxNodeWriteSessions * limitFraction) {
+                return false;
+            }
+        }
+
+        auto mediumIndex = Medium_->GetIndex();
+        auto it = node->MediumToWriteSessionCountLimit().find(mediumIndex);
+        if (it != node->MediumToWriteSessionCountLimit().end()) {
+            auto maxSessionPerMediumLocation = it->second;
+            auto mediumIOWeight = GetOrDefault(node->IOWeights(), mediumIndex, 0.0);
+            auto mediumSessionCount = node->GetHintedSessionCount(mediumIndex, chunkHostMasterCellCount);
+            if (mediumSessionCount >= mediumIOWeight * maxSessionPerMediumLocation * limitFraction) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,7 +261,8 @@ TNodeList TChunkPlacement::GetWriteTargets(
     const TNodeList* forbiddenNodes,
     const TNodeList* allocatedNodes,
     const std::optional<std::string>& preferredHostName,
-    TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica)
+    TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica,
+    bool systemAllocation)
 {
     auto* preferredNode = FindPreferredNode(preferredHostName, medium);
 
@@ -288,12 +322,18 @@ TNodeList TChunkPlacement::GetWriteTargets(
         allocatedNodes,
         unsafelyPlacedReplica);
 
-    auto tryAdd = [&] (TNode* node, bool enableRackAwareness, bool enableDataCenterAwareness) {
+    auto tryAdd = [&] (
+        TNode* node,
+        bool enableRackAwareness,
+        bool enableDataCenterAwareness,
+        bool enableNodeWriteSessionLimit)
+    {
         if (!IsValidWriteTargetToAllocate(
             node,
             &collector,
             enableRackAwareness,
-            enableDataCenterAwareness))
+            enableDataCenterAwareness,
+            enableNodeWriteSessionLimit))
         {
             return false;
         }
@@ -312,7 +352,11 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
-    auto tryAddAll = [&] (bool enableRackAwareness, bool enableDataCenterAwareness) {
+    auto tryAddAll = [&] (
+        bool enableRackAwareness,
+        bool enableDataCenterAwareness,
+        bool enableNodeWriteSessionLimit)
+    {
         YT_VERIFY(!hasEnoughTargets());
 
         bool hasProgress = false;
@@ -321,7 +365,11 @@ TNodeList TChunkPlacement::GetWriteTargets(
             while (!allocationSession.HasFailed() && !hasEnoughTargets()) {
                 auto nodeId = allocationSession.PickRandomNode();
                 auto* node = nodeTracker->GetNode(nodeId);
-                hasProgress |= tryAdd(node, enableRackAwareness, enableDataCenterAwareness);
+                hasProgress |= tryAdd(
+                    node,
+                    enableRackAwareness,
+                    enableDataCenterAwareness,
+                    enableNodeWriteSessionLimit);
             }
             return hasProgress;
         } else {
@@ -331,21 +379,31 @@ TNodeList TChunkPlacement::GetWriteTargets(
 
             for ( ; !hasEnoughTargets() && loadFactorToNodeIterator != loadFactorToNodeMap->end(); ++loadFactorToNodeIterator) {
                 auto* node = loadFactorToNodeIterator->second;
-                hasProgress |= tryAdd(node, enableRackAwareness, enableDataCenterAwareness);
+                hasProgress |= tryAdd(
+                    node,
+                    enableRackAwareness,
+                    enableDataCenterAwareness,
+                    enableNodeWriteSessionLimit);
             }
         }
         return hasProgress;
     };
 
+    auto enableNodeWriteSessionLimit = systemAllocation || IsNodeWriteSessionLimitForUserAllocationEnabled_;
+
     if (preferredNode) {
         tryAdd(
             preferredNode,
             /*enableRackAwareness*/ true,
-            /*enableDataCenterAwareness*/ IsDataCenterAware_);
+            /*enableDataCenterAwareness*/ IsDataCenterAware_,
+            /*enableNodeWriteSessionLimit*/ enableNodeWriteSessionLimit && IsNodeWriteSessionLimitEnabled_);
     }
 
     if (!hasEnoughTargets()) {
-        tryAddAll(/*enableRackAwareness*/ true, /*enableDataCenterAwareness*/ IsDataCenterAware_);
+        tryAddAll(
+            /*enableRackAwareness*/ true,
+            /*enableDataCenterAwareness*/ IsDataCenterAware_,
+            /*enableNodeWriteSessionLimit*/ enableNodeWriteSessionLimit && IsNodeWriteSessionLimitEnabled_);
     }
 
     bool forceRackAwareness = sessionType == NChunkClient::ESessionType::Replication ||
@@ -354,7 +412,11 @@ TNodeList TChunkPlacement::GetWriteTargets(
     if (!forceRackAwareness) {
         while (!hasEnoughTargets()) {
             // Disabling rack awareness also disables data center awareness.
-            if (!tryAddAll(/*enableRackAwareness*/ false, /*enableDataCenterAwareness*/ false)) {
+            bool hasProgress = tryAddAll(
+                /*enableRackAwareness*/ false,
+                /*enableDataCenterAwareness*/ false,
+                /*enableNodeWriteSessionLimit*/ enableNodeWriteSessionLimit && IsNodeWriteSessionLimitEnabled_);
+            if (!hasProgress) {
                 break;
             }
             if (!chunk->IsErasure() || !Config_->AllowMultipleErasurePartsPerNode) {
@@ -391,7 +453,8 @@ TNodeList TChunkPlacement::AllocateWriteTargets(
         /*forbiddenNodes*/ nullptr,
         /*allocatedNodes*/ nullptr,
         /*preferredHostName*/ std::nullopt,
-        unsafelyPlacedReplica);
+        unsafelyPlacedReplica,
+        /*systemAllocation*/ true);
 
     for (auto* target : targetNodes) {
         AddSessionHint(target, medium->GetIndex(), sessionType);
@@ -405,7 +468,8 @@ bool TChunkPlacement::IsValidWriteTargetToAllocate(
     TNode* node,
     TTargetCollector<TGenericChunk>* collector,
     bool enableRackAwareness,
-    bool enableDataCenterAwareness)
+    bool enableDataCenterAwareness,
+    bool enableNodeWriteSessionLimit)
 {
     // Check node first.
     if (!IsValidWriteTargetCore(node)) {
@@ -417,7 +481,7 @@ bool TChunkPlacement::IsValidWriteTargetToAllocate(
         return false;
     }
 
-    if (!collector->CheckNode(node, enableRackAwareness, enableDataCenterAwareness)) {
+    if (!collector->CheckNode(node, enableRackAwareness, enableDataCenterAwareness, enableNodeWriteSessionLimit)) {
         // The collector does not like this node.
         return false;
     }

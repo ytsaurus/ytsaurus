@@ -1891,7 +1891,7 @@ private:
             node->RebuildTags();
             SubscribeToAggregatedNodeStateChanged(node);
             InitializeNodeStates(node);
-            InitializeNodeIOWeights(node);
+            InitializeNodeMediumStatistics(node);
             InsertToAddressMaps(node);
             InsertToFlavorSets(node);
             UpdateNodeCounters(node, +1);
@@ -2119,9 +2119,9 @@ private:
             Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
     }
 
-    void InitializeNodeIOWeights(TNode* node)
+    void InitializeNodeMediumStatistics(TNode* node)
     {
-        node->RecomputeIOWeights(Bootstrap_->GetChunkManager());
+        node->RecomputeMediumStatistics(Bootstrap_->GetChunkManager());
     }
 
     void UpdateNodeCounters(TNode* node, int delta)
