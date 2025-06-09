@@ -100,7 +100,7 @@ struct TBuiltinTableMountConfig
         "Consider promoting master reign");
 
 public:
-std::string TabletCellBundle;
+    std::string TabletCellBundle;
 
     NTabletClient::EInMemoryMode InMemoryMode;
 
@@ -288,6 +288,10 @@ struct TCustomTableMountConfig
     NTableClient::TDictionaryCompressionConfigPtr ValueDictionaryCompression;
 
     bool InsertMetaUponStoreUpdate;
+
+    //! In case of non-block reads will open partition readers instantly at the start of the lookup session
+    //! so chunk read sessions corresponding to this amount of keys will be opened.
+    std::optional<int> PartitionReaderPrefetchKeyLimit;
 
     TTestingTableMountConfig Testing;
 
