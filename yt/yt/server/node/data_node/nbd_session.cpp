@@ -26,7 +26,7 @@ TNbdSession::TNbdSession(
     TLockedChunkGuard lockedChunkGuard)
     : Config_(std::move(config))
     , Bootstrap_(std::move(bootstrap))
-    , Id_(std::move(sessionId))
+    , Id_(sessionId)
     , Options_(std::move(options))
     , StoreLocation_(std::move(storeLocation))
     , Lease_(std::move(lease))

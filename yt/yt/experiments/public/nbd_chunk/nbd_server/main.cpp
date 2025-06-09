@@ -90,7 +90,7 @@ protected:
                 NConcurrency::GetUnlimitedThrottler(),
                 threadPool->GetInvoker(),
                 std::move(channel),
-                std::nullopt /*sessionId*/,
+                /*sessionId*/ NChunkClient::TSessionId(),
                 logger);
 
             NConcurrency::WaitFor(device->Initialize()).ThrowOnError();

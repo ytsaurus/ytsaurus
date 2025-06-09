@@ -15,7 +15,7 @@ IBlockDevicePtr CreateChunkBlockDevice(
     NConcurrency::IThroughputThrottlerPtr writeThrottler,
     IInvokerPtr invoker,
     NRpc::IChannelPtr channel,
-    std::optional<NChunkClient::TSessionId> sessionId,
+    NChunkClient::TSessionId sessionId,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

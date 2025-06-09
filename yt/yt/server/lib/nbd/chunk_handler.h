@@ -34,7 +34,7 @@ IChunkHandlerPtr CreateChunkHandler(
     TChunkBlockDeviceConfigPtr config,
     IInvokerPtr invoker,
     NRpc::IChannelPtr channel,
-    std::optional<NChunkClient::TSessionId> sessionId,
+    NChunkClient::TSessionId sessionId,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

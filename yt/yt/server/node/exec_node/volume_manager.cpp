@@ -3647,28 +3647,34 @@ private:
         TChunkServiceProxy proxy(channel);
         auto req = proxy.AllocateWriteTargets();
         req->SetTimeout(data.MasterRpcTimeout);
-        auto* subRequest = req->add_subrequests();
-        ToProto(subRequest->mutable_session_id(), sessionId);
-        subRequest->set_min_target_count(data.MinDataNodesCount);
-        subRequest->set_desired_target_count(data.MaxDataNodesCount);
-        subRequest->set_is_nbd_chunk(true);
+        auto* subrequest = req->add_subrequests();
+        ToProto(subrequest->mutable_session_id(), sessionId);
+        subrequest->set_min_target_count(data.MinDataNodeCount);
+        subrequest->set_desired_target_count(data.MaxDataNodeCount);
+        subrequest->set_is_nbd_chunk(true);
 
         // Invoke AllocateWriteTargets request and process response.
         return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this), mediumIndex = data.MediumIndex] (const TErrorOr<TChunkServiceProxy::TRspAllocateWriteTargetsPtr>& rspOrError) {
-            THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to find data nodes with medium: %v", mediumIndex);
+            if (!rspOrError.IsOK()) {
+                THROW_ERROR_EXCEPTION("Failed to find suitable data nodes")
+                    << TErrorAttribute("medium_index", mediumIndex)
+                    << TErrorAttribute("error", rspOrError);
+            }
 
             const auto& rsp = rspOrError.Value();
-            const auto& subResponse = rsp->subresponses(0);
-            if (subResponse.has_error()) {
-                THROW_ERROR(FromProto<TError>(subResponse.error()));
+            const auto& subresponse = rsp->subresponses(0);
+            if (subresponse.has_error()) {
+                THROW_ERROR_EXCEPTION("Failed to find suitable data nodes")
+                    << TErrorAttribute("medium_index", mediumIndex)
+                    << TErrorAttribute("error", FromProto<TError>(subresponse.error()));
             }
 
             // TODO(yuryalekseev): nodeDirectory->MergeFrom(response->node_directory()); ?
 
-            auto replicas = FromProto<TChunkReplicaWithMediumList>(subResponse.replicas());
+            auto replicas = FromProto<TChunkReplicaWithMediumList>(subresponse.replicas());
             std::vector<std::string> result;
             result.reserve(replicas.size());
-            for (const auto& replica : replicas) {
+            for (auto replica : replicas) {
                 auto desc = Bootstrap_->GetConnection()->GetNodeDirectory()->FindDescriptor(replica.GetNodeId());
                 if (!desc) {
                     continue;
@@ -3725,7 +3731,7 @@ private:
                 data.Size,
                 data.FsType);
 
-            return std::make_tuple(std::move(channel), std::move(sessionId));
+            return std::make_tuple(std::move(channel), sessionId);
         }
 
         return std::nullopt;
@@ -3764,7 +3770,7 @@ private:
                 return BIND(
                     &TPortoVolumeManager::TryOpenNbdSession,
                         MakeStrong(this),
-                        Passed(std::move(sessionId)),
+                        sessionId,
                         Passed(std::move(dataNodeAddresses)),
                         Passed(std::move(data)))
                     // TODO(yuryalekseev): use more appropriate invoker.

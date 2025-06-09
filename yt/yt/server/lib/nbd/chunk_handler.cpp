@@ -28,13 +28,13 @@ public:
         TChunkBlockDeviceConfigPtr config,
         IInvokerPtr invoker,
         IChannelPtr channel,
-        std::optional<TSessionId> sessionId,
+        TSessionId sessionId,
         TLogger logger)
         : BlockDevice_(blockDevice)
         , Config_(std::move(config))
         , Invoker_(std::move(invoker))
         , Channel_(std::move(channel))
-        , SessionId_(sessionId.value_or(GenerateSessionId(Config_->MediumIndex)))
+        , SessionId_(sessionId.ChunkId ? sessionId : GenerateSessionId(Config_->MediumIndex))
         , Proxy_(Channel_)
         , Logger(logger.WithTag("SessionId: %v", SessionId_))
     {
@@ -243,7 +243,7 @@ IChunkHandlerPtr CreateChunkHandler(
     TChunkBlockDeviceConfigPtr config,
     IInvokerPtr invoker,
     IChannelPtr channel,
-    std::optional<TSessionId> sessionId,
+    TSessionId sessionId,
     NLogging::TLogger logger)
 {
     return New<TChunkHandler>(
@@ -251,7 +251,7 @@ IChunkHandlerPtr CreateChunkHandler(
         std::move(config),
         std::move(invoker),
         std::move(channel),
-        std::move(sessionId),
+        sessionId,
         std::move(logger));
 }
 
@@ -259,10 +259,10 @@ IChunkHandlerPtr CreateChunkHandler(
 
 TSessionId GenerateSessionId(int mediumIndex)
 {
-    TSessionId sessionId;
-    sessionId.ChunkId = MakeRandomId(EObjectType::NbdChunk, InvalidCellTag);
-    sessionId.MediumIndex = mediumIndex;
-    return sessionId;
+    return TSessionId(
+        MakeRandomId(EObjectType::NbdChunk, InvalidCellTag),
+        mediumIndex
+    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////
