@@ -3257,6 +3257,7 @@ private:
             return DoCheckLock(trunkNode, transaction, request);
         };
 
+
         // Validate all potential locks to see if we need to take at least one of them.
         // This throws an exception in case the validation fails.
         return CheckSubtreeTrunkNodes(trunkNode, transaction, recursive, doCheck);
@@ -3353,24 +3354,22 @@ private:
                 currentTransaction = currentTransaction->GetParent();
             }
 
-            if (trunkNode->IsNative()) {
-                // Validate lock count.
-                const auto& config = GetDynamicConfig();
-                auto lockCountLimit = config->MaxLocksPerTransactionSubtree;
-                currentTransaction = transaction;
-                while (currentTransaction) {
-                    auto recursiveLockCount = currentTransaction->GetRecursiveLockCount();
-                    if (recursiveLockCount >= lockCountLimit) {
-                        return TError(
-                            NCypressClient::EErrorCode::TooManyLocksOnTransaction,
-                            "Cannot create %Qlv lock for node %v since transaction %v and its descendants already have %v locks associated with them",
-                            request.Mode,
-                            GetNodePath(trunkNode, transaction),
-                            currentTransaction->GetId(),
-                            recursiveLockCount);
-                    }
-                    currentTransaction = currentTransaction->GetParent();
+            // Validate lock count.
+            const auto& config = GetDynamicConfig();
+            auto lockCountLimit = config->MaxLocksPerTransactionSubtree;
+            currentTransaction = transaction;
+            while (currentTransaction) {
+                auto recursiveLockCount = currentTransaction->GetRecursiveLockCount();
+                if (recursiveLockCount >= lockCountLimit) {
+                    return TError(
+                        NCypressClient::EErrorCode::TooManyLocksOnTransaction,
+                        "Cannot create %Qlv lock for node %v since transaction %v and its descendants already have %v locks associated with them",
+                        request.Mode,
+                        GetNodePath(trunkNode, transaction),
+                        currentTransaction->GetId(),
+                        recursiveLockCount);
                 }
+                currentTransaction = currentTransaction->GetParent();
             }
         }
 
