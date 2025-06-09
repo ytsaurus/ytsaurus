@@ -1257,6 +1257,10 @@ class TestChunkServerMulticell(TestChunkServer):
         with raises_yt_error("it still hosts chunks"):
             set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
 
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["dedicated_chunk_host", "cypress_node_host"]}})
+        with raises_yt_error("it still hosts chunks"):
+            set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
+
 
 class TestChunkServerPortal(TestChunkServerMulticell):
     ENABLE_TMP_PORTAL = True
