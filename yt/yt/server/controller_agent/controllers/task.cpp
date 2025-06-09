@@ -881,6 +881,11 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         abortJob(EAbortReason::SchedulingOther);
         // Seems like cached min needed resources are too optimistic.
         ResetCachedMinNeededResources();
+
+        // NB(pogorelov): In case of next job scheduling, we consider only disk resources.
+        // And since allocation preserves task, disk resources are not changed.
+        YT_VERIFY(!allocation.LastJobInfo);
+
         return std::unexpected(EScheduleFailReason::NotEnoughResources);
     }
 
@@ -2000,11 +2005,16 @@ void TTask::OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& 
 
     YT_LOG_DEBUG(
         "Job was aborted with resource overdraft "
-        "(HasUserJobMemoryOverdraft: %v, HasJobProxyMemoryOverdraft: %v, UserJobOverdraftStatus: %v, JobProxyOverdraftStatus: %v)",
+        "(HasUserJobMemoryOverdraft: %v, HasJobProxyMemoryOverdraft: %v, UserJobOverdraftStatus: %v, JobProxyOverdraftStatus: %v, "
+        "DedicatedUserJobMemoryReserveFactor: %v, DedicatedJobProxyMemoryReserveFactor: %v, UserJobMemoryMultiplier: %v, JobProxyMemoryMultiplier: %v)",
         hasUserJobMemoryOverdraft,
         hasJobProxyMemoryOverdraft,
         state.UserJobStatus,
-        state.JobProxyStatus);
+        state.JobProxyStatus,
+        state.DedicatedUserJobMemoryReserveFactor,
+        state.DedicatedJobProxyMemoryReserveFactor,
+        UserJobMemoryMultiplier_,
+        JobProxyMemoryMultiplier_);
 }
 
 void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
@@ -2057,6 +2067,9 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
     auto jobSpec = ObjectPool<TJobSpec>().Allocate();
 
     BuildJobSpec(joblet, jobSpec.get());
+
+    *jobSpec->mutable_resource_limits() = ToNodeResources(joblet->ResourceLimits);
+
     jobSpec->set_version(GetJobSpecVersion());
     TaskHost_->CustomizeJobSpec(joblet, jobSpec.get());
 

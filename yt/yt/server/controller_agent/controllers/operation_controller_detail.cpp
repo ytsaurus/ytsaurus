@@ -4996,7 +4996,7 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
 
     TJobSchedulingContext context(
         allocation.Id,
-        allocation.Resources,
+        allocation.Resources.DiskQuota(),
         allocation.NodeDescriptor,
         allocation.PoolPath);
 

@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_service.h>
@@ -45,6 +47,12 @@ NClusterNode::TJobResources PatchJobResources(
     initial.InodeRequest = diskRequest.InodeCount.value_or(0);
 
     return initial;
+}
+
+void RecalculateCpu(TNonNullPtr<NClusterNode::TJobResources> jobResources, double cpuToVCpuFactor)
+{
+    jobResources->VCpu = jobResources->Cpu;
+    jobResources->Cpu = static_cast<double>(NVectorHdrf::TCpuResource(jobResources->VCpu / cpuToVCpuFactor));
 }
 
 } // namespace
@@ -400,8 +408,10 @@ void TAllocation::OnSettledJobReceived(
 
     YT_VERIFY(State_ == EAllocationState::Running || State_ == EAllocationState::Waiting);
 
-    YT_VERIFY(ResourceHolder_);
-    ResourceHolder_->RestoreResources();
+    YT_LOG_DEBUG("Creating and settling job (JobId: %v)", jobInfo.JobId);
+
+    auto resourceLimits = YT_OPTIONAL_FROM_PROTO(jobInfo.JobSpec, resource_limits);
+    auto jobNumber = TotalJobCount_;
 
     try {
         CreateAndSettleJob(jobInfo.JobId, std::move(jobInfo.JobSpec));
@@ -419,6 +429,41 @@ void TAllocation::OnSettledJobReceived(
             "Unexpected failure during job creation (JobId: %v, OperationId: %v)",
             jobInfo.JobId,
             OperationId_);
+    }
+
+    YT_VERIFY(ResourceHolder_);
+    // We are making efforts to ensure that the node retains the cpuToVcpuFactor
+    // from the moment the heartbeat is sent to the shader until the response is received,
+    // so as not to receive an allocationsToStart with a cpu overcommit.
+    // So we do not update first job resources.
+    if (jobNumber != 0) {
+        // COMPAT(pogorelov): Remove this after all CAs are 25.2.
+        if (resourceLimits) {
+            auto newDemand = FromNodeResources(*resourceLimits);
+            RecalculateCpu(GetPtr(newDemand), Bootstrap_->GetJobResourceManager()->GetCpuToVCpuFactor());
+            YT_LOG_INFO("Got new demand for allocation, setting it (ResourceLimits: %v)", newDemand);
+            if (!ResourceHolder_->TrySetBaseResourceUsage(newDemand)) {
+                YT_LOG_DEBUG(
+                    "Failed to set new job resources to allocation; Aborting allocation (PreviousResourceUsage: %v, NewResourceUsage: %v)",
+                    ResourceHolder_->GetResourceUsage(),
+                    newDemand);
+                Abort(TError("Failed to set new job resources to allocation")
+                    << TErrorAttribute("new_job_resources", newDemand)
+                    << TErrorAttribute("previous_job_resources", ResourceHolder_->GetResourceUsage())
+                    << TErrorAttribute("abort_reason", EAbortReason::NodeResourceOvercommit));
+                return;
+            }
+        } else {
+            YT_LOG_INFO(
+                "No new demand received in spec, restoring resources to initial demand (InitialDemand: %v)",
+                InitialResourceDemand_);
+            ResourceHolder_->RestoreResources();
+        }
+    }
+
+    YT_LOG_DEBUG("Resources reset; starting job (JobId: %v)", jobInfo.JobId);
+    if (State_ == EAllocationState::Running) {
+        Job_->Start();
     }
 }
 
@@ -455,9 +500,7 @@ void TAllocation::CreateAndSettleJob(
 
     LastJobId_ = jobId;
 
-    if (State_ == EAllocationState::Running) {
-        Job_->Start();
-    }
+    ++TotalJobCount_;
 
     JobSettled_.Fire(Job_);
 

@@ -31,6 +31,9 @@
 
 #include <yt/yt/core/net/helpers.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 #include <library/cpp/yt/threading/atomic_object.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
@@ -490,6 +493,13 @@ public:
         return 1.0;
     }
 
+    void CalculateAndSetVCpu(TNonNullPtr<NClusterNode::TJobResources> jobResources) final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        jobResources->VCpu = static_cast<double>(NVectorHdrf::TCpuResource(jobResources->Cpu * GetCpuToVCpuFactor()));
+    }
+
     ISlotPtr AcquireUserSlot(
         const TJobResources& neededResources,
         const NScheduler::TAllocationAttributes& allocationAttributes)
@@ -625,7 +635,8 @@ public:
             releasingResources = ResourceUsages_[EResourcesState::Releasing];
 
             if (auto error = VerifyHasEnoughResources(resources, acquiredUsage + releasingResources, resourceLimits);
-                !error.IsOK()) {
+                !error.IsOK())
+            {
                 YT_LOG_DEBUG(
                     error,
                     "Not enough resources (NeededResources: %v, ResourceUsage: %v, AcquiredResources: %v, ReleasingResources: %v)",
@@ -642,7 +653,6 @@ public:
             acquiredResources =
                 acquiredUsage += resources;
 
-
             --PendingResourceHolderCount_;
         }
 
@@ -657,7 +667,7 @@ public:
     }
 
     void OnResourcesAcquisitionFailed(
-        const TResourceHolderPtr& resourceHolder,
+        TNonNullPtr<TResourceHolder> resourceHolder,
         TJobResources resources)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -729,7 +739,7 @@ public:
             releasingResources);
     }
 
-    auto TryAcquirePhysicalResources(const TResourceHolderPtr& resourceHolder, const TJobResources& neededResources)
+    auto TryAcquirePhysicalResources(TNonNullPtr<TResourceHolder> resourceHolder, const TJobResources& neededResources)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -737,7 +747,7 @@ public:
 
         TResourceHolder::TAcquiredResources acquiredResources(this);
 
-        auto onResourcesAcquisitionFailed = [resourceHolder, neededResources, this] () mutable {
+        auto onResourcesAcquisitionFailed = [resourceHolder, neededResources, this] () {
             OnResourcesAcquisitionFailed(
                 resourceHolder,
                 neededResources);
@@ -754,6 +764,9 @@ public:
 
         i64 userMemory = neededResources.UserMemory;
         i64 systemMemory = neededResources.SystemMemory;
+
+        YT_VERIFY(userMemory == 0 || systemMemory == 0);
+
         if (userMemory > 0 || systemMemory > 0) {
             bool reachedWatermark = NodeMemoryUsageTracker_->GetTotalFree() <= GetFreeMemoryWatermark();
             if (reachedWatermark) {
@@ -762,6 +775,7 @@ public:
             }
         }
 
+        // NB(pogorelov): Some of user or system memory is zero. So we can not release memory and then not be able to acquire memory.
         if (userMemory > 0) {
             auto errorOrGuard = TMemoryUsageTrackerGuard::TryAcquire(UserMemoryUsageTracker_, userMemory);
             if (!errorOrGuard.IsOK()) {
@@ -770,6 +784,9 @@ public:
             }
 
             acquiredResources.UserMemoryGuard = std::move(errorOrGuard.Value());
+        }
+        if (userMemory < 0) {
+            UserMemoryUsageTracker_->Release(-userMemory);
         }
 
         if (systemMemory > 0) {
@@ -781,11 +798,14 @@ public:
 
             acquiredResources.SystemMemoryGuard = std::move(errorOrGuard.Value());
         }
+        if (systemMemory < 0) {
+            SystemMemoryUsageTracker_->Release(-systemMemory);
+        }
 
         return std::tuple(true, std::move(acquiredResources), std::optional(std::move(finallyGuard)));
     }
 
-    bool AcquireResourcesFor(const TResourceHolderPtr& resourceHolder)
+    bool AcquireResourcesFor(TNonNullPtr<TResourceHolder> resourceHolder)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1037,12 +1057,18 @@ public:
         auto userMemory = resourceDelta.UserMemory;
         if (userMemory > 0) {
             resourceUsageOverdraftOccurred |= !UserMemoryUsageTracker_->Acquire(userMemory);
+
+            YT_LOG_DEBUG(
+                "User memory acquired (UserMemory: %v, Usage: %v, Limit: %v, Overdraft: %v)",
+                userMemory,
+                UserMemoryUsageTracker_->GetUsed(),
+                UserMemoryUsageTracker_->GetLimit(),
+                resourceUsageOverdraftOccurred);
         } else if (userMemory < 0) {
             UserMemoryUsageTracker_->Release(-userMemory);
         }
 
         auto resourceLimits = GetResourceLimits();
-
 
         if (!Dominates(resourceDelta, ZeroJobResources())) {
             NotifyResourcesReleased();
@@ -1835,17 +1861,21 @@ bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
             State_);
 
         // TODO(pogorelov): Uncomment when UpdateResourceDemande will be removed
-        // auto error = VerifyEquals(BaseResourceUsage_, InitialResourceDemand_, "Resources are unequal");
-        // YT_LOG_FATAL_UNLESS(
-        //     error.IsOK(),
-        //     error,
-        //     "Base resource usage is not the same as initial resource demand");
+        // {
+        //     auto error = VerifyEquals(BaseResourceUsage_, InitialResourceDemand_, "Resources are unequal");
+        //     YT_LOG_FATAL_UNLESS(
+        //         error.IsOK(),
+        //         error,
+        //         "Base resource usage is not the same as initial resource demand");
+        // }
 
-        auto error = VerifyEquals(InitialResourceDemand_, newResourceUsage, "Resources are unequal");
-        YT_LOG_FATAL_UNLESS(
-            error.IsOK(),
-            error,
-            "Trying to set unexpected resources value");
+        {
+            auto error = VerifyEquals(InitialResourceDemand_, newResourceUsage, "Resources are unequal");
+            YT_LOG_FATAL_UNLESS(
+                error.IsOK(),
+                error,
+                "Trying to set unexpected resources value");
+        }
 
         return false;
     }
@@ -1877,6 +1907,65 @@ bool TResourceHolder::SetBaseResourceUsage(TJobResources newResourceUsage)
 
             return resourceDelta;
         });
+}
+
+bool TResourceHolder::TrySetBaseResourceUsage(TJobResources newResourceUsage)
+{
+    auto guard = WriterGuard(ResourcesLock_);
+
+    if (!HasStarted_) {
+        {
+            auto error = VerifyEquals(InitialResourceDemand_, newResourceUsage, "Resources are unequal");
+            YT_LOG_FATAL_UNLESS(
+                error.IsOK(),
+                error,
+                "Setting unexpected resources value");
+        }
+
+        return true;
+    }
+
+    YT_LOG_FATAL_IF(
+        State_ == EResourcesState::Released,
+        "Can not trying to set resource usage when resources are released");
+
+    YT_VERIFY(newResourceUsage.UserSlots == BaseResourceUsage_.UserSlots);
+    YT_VERIFY(newResourceUsage.Gpu == BaseResourceUsage_.Gpu);
+
+    // COMPAT(pogorelov): Remove when UpdateResourceDemand is removed.
+    if (AreNonDiskResourcesEqual(newResourceUsage, BaseResourceUsage_)) {
+        YT_LOG_DEBUG(
+            "New resource usage is equal to previous, skipping update try (ResourceUsage: %v, ResourcesState: %v)",
+            BaseResourceUsage_,
+            State_);
+
+        // If there is an overdraft, some other call to DoSetResourceUsage will return true.
+        return true;
+    }
+
+    auto resourceDelta = newResourceUsage - BaseResourceUsage_;
+
+    auto success = DoTrySetResourceUsage(
+        resourceDelta,
+        "ResourceDelta");
+
+    if (success) {
+        BaseResourceUsage_ = newResourceUsage;
+
+        YT_LOG_DEBUG(
+            "New resource usage successfully set (ResourceUsage: %v, ResourcesState: %v, Delta: %v)",
+            newResourceUsage,
+            State_,
+            resourceDelta);
+    } else {
+        YT_LOG_DEBUG(
+            "Failed to set new resource usage (ResourceUsage: %v, ResourcesState: %v, Delta: %v)",
+            newResourceUsage,
+            State_,
+            resourceDelta);
+    }
+
+    return success;
 }
 
 bool TResourceHolder::UpdateAdditionalResourceUsage(TJobResources additionalResourceUsageDelta)
@@ -2064,6 +2153,52 @@ bool TResourceHolder::DoSetResourceUsage(
         isReleasing);
 
     return !overdraftOccurred;
+}
+
+bool TResourceHolder::DoTrySetResourceUsage(
+    const NClusterNode::TJobResources& resourceUsageDelta,
+    TStringBuf argumentName)
+{
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
+
+    YT_LOG_DEBUG(
+        "Trying to set resources to holder (CurrentState: %v, %v: %v)",
+        State_,
+        argumentName,
+        resourceUsageDelta);
+
+    auto stateFacade = State_;
+    if (stateFacade == EResourcesState::Released) {
+        // ReleaseBaseResources has already happened.
+        // It moved AdditionalResources to Releasing.
+        // Past such point we cannot have modifications of
+        // BaseResources thus it must be a modification of
+        // AdditionalResources which are in Releasing state.
+        stateFacade = EResourcesState::Releasing;
+    }
+
+    auto [success, acquiredResources, finallyGuard] = ResourceManagerImpl_->TryAcquirePhysicalResources(
+        GetPtr(*this),
+        resourceUsageDelta);
+
+    YT_LOG_DEBUG(
+        "TryAcquirePhysicalResources result (Success: %v, AcquiredMemory: %v, FinallyGuard: %v)",
+        success,
+        acquiredResources.UserMemoryGuard.GetSize(),
+        static_cast<bool>(finallyGuard));
+
+    if (!success) {
+        return false;
+    }
+
+    acquiredResources.SystemMemoryGuard.ReleaseNoReclaim();
+    acquiredResources.UserMemoryGuard.ReleaseNoReclaim();
+
+    YT_VERIFY(finallyGuard);
+
+    finallyGuard->Release();
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -119,6 +119,8 @@ private:
 
     TEvent SettlementNewJobOnAbortRequested_;
 
+    int TotalJobCount_ = 0;
+
     const TAllocationConfigPtr& GetConfig() const noexcept;
 
     void SettleJob();
