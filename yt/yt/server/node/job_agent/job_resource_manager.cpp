@@ -79,6 +79,8 @@ public:
         ISlotPtr&& userSlot,
         std::vector<ISlotPtr>&& gpuSlots,
         std::vector<int> ports) noexcept;
+
+    TAcquiredResources(TJobResourceManager::TImpl* jobResourceManagerImpl) noexcept;
     ~TAcquiredResources();
 
     TMemoryUsageTrackerGuard UserMemoryGuard;
@@ -660,17 +662,11 @@ public:
 
     void OnResourcesAcquisitionFailed(
         const TResourceHolderPtr& resourceHolder,
-        ISlotPtr&& userSlot,
-        std::vector<ISlotPtr>&& gpuSlots,
-        std::vector<int>&& ports,
         TJobResources resources)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         const auto& Logger = resourceHolder->GetLogger();
-
-        userSlot.Reset();
-        gpuSlots.clear();
 
         TJobResources pendingResources;
         TJobResources acquiredResources;
@@ -685,8 +681,6 @@ public:
             pendingUsage += resources;
             acquiredUsage -= resources;
             ++PendingResourceHolderCount_;
-
-            DoReleasePorts(Logger, ports);
 
             pendingResources = pendingUsage;
             acquiredResources = acquiredUsage;
@@ -755,23 +749,6 @@ public:
             neededResources,
             allocationAttributes.PortCount);
 
-        ISlotPtr userSlot;
-        std::vector<ISlotPtr> gpuSlots;
-        std::vector<int> ports;
-
-        if (!TryReserveResources(Logger, neededResources)) {
-            return false;
-        }
-
-        auto resourceAcquisitionFailedGuard = Finally([&] {
-            OnResourcesAcquisitionFailed(
-                resourceHolder,
-                std::move(userSlot),
-                std::move(gpuSlots),
-                std::move(ports),
-                neededResources);
-        });
-
         if (allocationAttributes.CudaToolkitVersion) {
             YT_VERIFY(Bootstrap_->IsExecNode());
 
@@ -780,6 +757,18 @@ public:
                 ->GetGpuManager()
                 ->VerifyCudaToolkitDriverVersion(allocationAttributes.CudaToolkitVersion.value());
         }
+
+        TResourceHolder::TAcquiredResources acquiredResources(this);
+
+        if (!TryReserveResources(Logger, neededResources)) {
+            return false;
+        }
+
+        auto resourceAcquisitionFailedGuard = Finally([&] {
+            OnResourcesAcquisitionFailed(
+                resourceHolder,
+                neededResources);
+        });
 
         i64 userMemory = neededResources.UserMemory;
         i64 systemMemory = neededResources.SystemMemory;
@@ -791,9 +780,6 @@ public:
             }
         }
 
-        TMemoryUsageTrackerGuard userMemoryGuard;
-        TMemoryUsageTrackerGuard systemMemoryGuard;
-
         if (userMemory > 0) {
             auto errorOrGuard = TMemoryUsageTrackerGuard::TryAcquire(UserMemoryUsageTracker_, userMemory);
             if (!errorOrGuard.IsOK()) {
@@ -801,7 +787,7 @@ public:
                 return false;
             }
 
-            userMemoryGuard = std::move(errorOrGuard.Value());
+            acquiredResources.UserMemoryGuard = std::move(errorOrGuard.Value());
         }
 
         if (systemMemory > 0) {
@@ -811,7 +797,7 @@ public:
                 return false;
             }
 
-            systemMemoryGuard = std::move(errorOrGuard.Value());
+            acquiredResources.SystemMemoryGuard = std::move(errorOrGuard.Value());
         }
 
         if (neededResources.UserSlots == 0 && SystemMemoryUsageTracker_->IsExceeded()) {
@@ -828,31 +814,31 @@ public:
                     auto guard = ReaderGuard(ResourcesLock_);
                     freePorts = FreePorts_;
                 }
-                ports = AllocateFreePorts(allocationAttributes.PortCount, freePorts, Logger);
+                acquiredResources.Ports = AllocateFreePorts(allocationAttributes.PortCount, freePorts, Logger);
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Error while allocating free ports (PortCount: %v)", allocationAttributes.PortCount);
                 return false;
             }
 
-            if (std::ssize(ports) < allocationAttributes.PortCount) {
-                ports.clear();
+            if (std::ssize(acquiredResources.Ports) < allocationAttributes.PortCount) {
+                acquiredResources.Ports.clear();
 
                 YT_LOG_DEBUG(
                     "Not enough bindable free ports (PortCount: %v, FreePortCount: %v)",
                     allocationAttributes.PortCount,
-                    ports.size());
+                    acquiredResources.Ports.size());
                 return false;
             }
 
             {
                 auto guard = WriterGuard(ResourcesLock_);
 
-                for (int port : ports) {
+                for (int port : acquiredResources.Ports) {
                     FreePorts_.erase(port);
                 }
             }
 
-            YT_LOG_DEBUG("Ports allocated (PortCount: %v, Ports: %v)", ports.size(), ports);
+            YT_LOG_DEBUG("Ports allocated (PortCount: %v, Ports: %v)", acquiredResources.Ports.size(), acquiredResources.Ports);
         }
 
         if (Bootstrap_->IsExecNode()) {
@@ -881,25 +867,19 @@ public:
         if (neededResources.UserSlots > 0) {
             YT_VERIFY(Bootstrap_->IsExecNode());
 
-            userSlot = AcquireUserSlot(neededResources, allocationAttributes);
+            acquiredResources.UserSlot = AcquireUserSlot(neededResources, allocationAttributes);
         }
 
         if (neededResources.Gpu > 0) {
             YT_VERIFY(Bootstrap_->IsExecNode());
 
-            gpuSlots = AcquireGpuSlots(neededResources);
+            acquiredResources.GpuSlots = AcquireGpuSlots(neededResources);
         }
 
         resourceAcquisitionFailedGuard.Release();
         ShouldNotifyResourcesUpdated_ = true;
 
-        resourceHolder->SetAcquiredResources({
-            this,
-            std::move(userMemoryGuard),
-            std::move(systemMemoryGuard),
-            std::move(userSlot),
-            std::move(gpuSlots),
-            std::move(ports)});
+        resourceHolder->SetAcquiredResources(std::move(acquiredResources));
 
         YT_LOG_DEBUG("Resources successfully allocated");
 
@@ -2028,6 +2008,10 @@ TResourceHolder::TAcquiredResources::TAcquiredResources(
     , GpuSlots(std::move(gpuSlots))
     , Ports(std::move(ports))
     , JobResourceManagerImpl_(jobResourceManagerImpl)
+{ }
+
+TResourceHolder::TAcquiredResources::TAcquiredResources(TJobResourceManager::TImpl* jobResourceManagerImpl) noexcept
+    : JobResourceManagerImpl_(jobResourceManagerImpl)
 { }
 
 TResourceHolder::TAcquiredResources::~TAcquiredResources()
