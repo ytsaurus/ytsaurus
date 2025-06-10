@@ -526,7 +526,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceFullSync
         }
     }
 
-    return MakeFuture(MakeSharedRange(std::move(secondaryModifications), MakeStrong(this)));
+    return MakeFuture(MakeSharedRange(std::move(secondaryModifications), RowBuffer_, LookedUpRows_));
 }
 
 TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldingModifications(
@@ -633,7 +633,7 @@ TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUnfoldin
         }
     }
 
-    return MakeFuture(MakeSharedRange(std::move(secondaryModifications), MakeStrong(this)));
+    return MakeFuture(MakeSharedRange(std::move(secondaryModifications), RowBuffer_, LookedUpRows_));
 }
 
 TFuture<TSharedRange<TRowModification>> TSecondaryIndexModifier::ProduceUniqueModifications(
