@@ -730,6 +730,30 @@ private:
             blockedJobCount = 0;
         }
 
+        if (JobSizeConstraints_->IsExplicitJobCount() &&
+            pendingJobCount + blockedJobCount == 0 &&
+            FreeDataWeightCounter_->GetTotal() > 0)
+        {
+            // This abnormal case occurs when actual input data weight exceeds initial estimates,
+            // typically due to unanticipated input chunks or chunks with higher weight than predicted.
+            //
+            // Under normal conditions (all below hold):
+            // - Accurate data weight estimates
+            // - No Max..PerJob violations
+            // - Explicit job count >= row count
+            // the algorithm preserves explicit job count via two guarantees:
+            //
+            // 1. Sliced job count cannot exceed the explicit job count. This is enforced by calculating
+            //    dataWeightPerJob = ceil(TotalInputDataWeight / explicitJobCount), ensuring each job's
+            //    data weight is >= dataWeightPerJob. Thus, ceil(actualTotalInputDataWeight / dataWeightPerJob) <= explicitJobCount
+            //    when estimates are accurate.
+            //
+            // 2. Sliced jobs cannot be fewer than the explicit job count. The algorithm prioritizes this by finalizing
+            //    a stripe early if remaining chunks are insufficient to produce the required number of jobs.
+            YT_LOG_ALERT("Explicit job count guarantee cannot be satisfied; scheduling an extra job");
+            ++pendingJobCount;
+        }
+
         bool canScheduleJobs = !FreeStripes_.empty();
 
         // NB(gritukan): YT-14498, if job count is explicit,
@@ -739,13 +763,6 @@ private:
             FreeDataWeightCounter_->GetSuspended() > 0)
         {
             canScheduleJobs = false;
-        }
-
-        if (JobSizeConstraints_->IsExplicitJobCount() &&
-            pendingJobCount + blockedJobCount == 0 &&
-            FreeDataWeightCounter_->GetTotal() > 0)
-        {
-            YT_LOG_ALERT("Explicit job count guarantee cannot be satisfied; scheduling an extra job");
         }
 
         if (canScheduleJobs) {
@@ -850,7 +867,14 @@ private:
         i64 pendingStripesCount = std::ssize(FreeStripes_);
         std::vector<int> addedStripeIndexes;
         for (auto it = begin; it != end; ++it) {
-            if (jobStub->GetDataWeight() >= idealDataWeightPerJob || jobStub->GetCompressedDataSize() >= idealCompressedDataSizePerJob) {
+            bool hasSufficientDataWeight = jobStub->GetDataWeight() >= idealDataWeightPerJob;
+            bool hasSufficientCompressedDataSize = jobStub->GetCompressedDataSize() >= idealCompressedDataSizePerJob;
+
+            if (JobSizeConstraints_->IsExplicitJobCount()) {
+                if (hasSufficientDataWeight) {
+                    break;
+                }
+            } else if (hasSufficientDataWeight || hasSufficientCompressedDataSize) {
                 break;
             }
 
