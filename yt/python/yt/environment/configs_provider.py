@@ -805,6 +805,7 @@ def _build_cell_balancer_configs(yt_config,
                 "hulk_deallocations_path" : "//sys/hulk/deallocation_requests",
                 "hulk_deallocations_history_path" : "//sys/hulk/deallocation_requests_history",
                 "decommission_released_nodes": False,
+                "enable_spare_node_assignment": False,
                 "bundle_scan_period" : "100ms",
             }
 
