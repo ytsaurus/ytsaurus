@@ -732,6 +732,18 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     return result;
 }
 
+void TOperationControllerBase::ValidateCookieGroupSize()
+{
+    if (PoolTreeControllerSettingsMap_.size() > 1) {
+        for (const auto& userJobSpec : GetUserJobSpecs()) {
+            if (userJobSpec->CookieGroupSize > 1) {
+                THROW_ERROR_EXCEPTION("Cannot combine offloading pool trees and cookie_group_size")
+                    << TErrorAttribute("task_title", userJobSpec->TaskTitle);
+            }
+        }
+    }
+}
+
 void TOperationControllerBase::ValidateSecureVault()
 {
     if (!SecureVault_) {
@@ -751,6 +763,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
         Spec_->Title);
 
     auto initializeAction = BIND([this_ = MakeStrong(this), this] {
+        ValidateCookieGroupSize();
         ValidateSecureVault();
         InitializeClients();
         InitializeInputTransactions();
@@ -3066,6 +3079,7 @@ void TOperationControllerBase::OnJobStarted(const TJobletPtr& joblet)
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
 
     ReportJobCookieToArchive(joblet);
+    ReportJobCookieGroupInfo(joblet);
     ReportControllerStateToArchive(joblet, EJobState::Running);
     ReportStartTimeToArchive(joblet);
 
@@ -3928,6 +3942,7 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("statistics").Value(joblet->BuildCombinedStatistics())
         .Item("suspicious").Value(joblet->Suspicious)
         .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
+        .Item("cookie_group_info").Value(joblet->CookieGroupInfo)
         .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
         .Item("has_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Speculative])
         .Item("has_probing_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Probing])
@@ -3935,6 +3950,8 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("speculative").Value(joblet->CompetitionType == EJobCompetitionType::Speculative)
         .Item("task_name").Value(joblet->TaskName)
         .Item("job_cookie").Value(joblet->OutputCookie)
+        .Item("job_cookie_group_index").Value(joblet->CookieGroupInfo.OutputIndex)
+        .Item("main_job_id").Value(joblet->CookieGroupInfo.MainJobId)
         .DoIf(joblet->UserJobMonitoringDescriptor.has_value(), [&] (TFluentMap fluent) {
             fluent.Item("monitoring_descriptor").Value(ToString(*joblet->UserJobMonitoringDescriptor));
         })
@@ -10304,6 +10321,8 @@ void TOperationControllerBase::InitUserJobSpec(
         setEnvironmentVariable("YT_TASK_JOB_INDEX", ToString(joblet->TaskJobIndex));
         setEnvironmentVariable("YT_JOB_ID", ToString(joblet->JobId));
         setEnvironmentVariable("YT_JOB_COOKIE", ToString(joblet->OutputCookie));
+        setEnvironmentVariable("YT_JOB_COOKIE_GROUP_INDEX", ToString(joblet->CookieGroupInfo.OutputIndex));
+        setEnvironmentVariable("YT_JOB_COOKIE_MAIN_JOB_ID", ToString(joblet->CookieGroupInfo.MainJobId));
 
         for (const auto& [key, value] : joblet->Task->BuildJobEnvironment()) {
             setEnvironmentVariable(key, value);
@@ -11588,6 +11607,13 @@ void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet
         .JobCookie(joblet->OutputCookie));
 }
 
+void TOperationControllerBase::ReportJobCookieGroupInfo(const TJobletPtr& joblet) const
+{
+    HandleJobReport(joblet, TControllerJobReport()
+        .JobCookieGroupIndex(joblet->CookieGroupInfo.OutputIndex)
+        .MainJobId(joblet->CookieGroupInfo.MainJobId));
+}
+
 void TOperationControllerBase::ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const
 {
     HandleJobReport(joblet, TControllerJobReport()
@@ -11696,6 +11722,32 @@ void TOperationControllerBase::OnOperationReady() const
 void TOperationControllerBase::OnOperationRevived()
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
+    std::unordered_map<TUserJobSpec*, std::unordered_map<int, std::vector<TJobletPtr>>> tasksCookiesJoblets;
+    for (auto& [allocationId, allocation] : AllocationMap_) {
+        if (const auto& joblet = allocation.Joblet) {
+            if (auto userJobSpec = joblet->Task->GetUserJobSpec()) {
+                if (userJobSpec->CookieGroupSize > 1) {
+                    tasksCookiesJoblets[&*userJobSpec][joblet->OutputCookie].push_back(joblet);
+                }
+            }
+        }
+    }
+    auto abortReason = EAbortReason::CookieGroupIncarnationChanged;
+    for (auto& [userJobSpec, cookiesJoblets] : tasksCookiesJoblets) {
+        for (auto& [cookie, joblets] : cookiesJoblets) {
+            if (joblets.size() < static_cast<std::size_t>(userJobSpec->CookieGroupSize)) {
+                for (auto joblet : joblets) {
+                    auto jobId = joblet->JobId;
+                    Host_->AbortJob(jobId, abortReason, /*requestNewJob*/ true);
+
+                    if ([[maybe_unused]] auto operationFinished = !OnJobAborted(joblet, std::make_unique<TAbortedJobSummary>(jobId, abortReason))) {
+                        YT_LOG_DEBUG("Operation finished during restarting jobs (JobId: %v)", jobId);
+                        return;
+                    }
+                }
+            }
+        }
+    }
 }
 
 void TOperationControllerBase::BuildControllerInfoYson(TFluentMap fluent) const

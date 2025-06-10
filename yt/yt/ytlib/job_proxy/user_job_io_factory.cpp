@@ -663,23 +663,8 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
     YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
 
     const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
-
-    YT_VERIFY(jobSpecExt.input_table_specs_size() == 1);
-
-    const auto& inputSpec = jobSpecExt.input_table_specs(0);
-    auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-    auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
-
     const auto& reduceJobSpecExt = jobSpecHelper->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
     auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
-    auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
-
-    // COMPAT(gritukan)
-    if (sortColumns.empty()) {
-        for (const auto& keyColumn : keyColumns) {
-            sortColumns.push_back({keyColumn, ESortOrder::Ascending});
-        }
-    }
 
     nameTable = TNameTable::FromKeyColumns(keyColumns);
 
@@ -709,6 +694,21 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
                 partitionTag),
             std::nullopt
         };
+    }
+
+    YT_VERIFY(jobSpecExt.input_table_specs_size() == 1);
+
+    const auto& inputSpec = jobSpecExt.input_table_specs(0);
+    auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
+    auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
+
+    auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
+
+    // COMPAT(gritukan)
+    if (sortColumns.empty()) {
+        for (const auto& keyColumn : keyColumns) {
+            sortColumns.push_back({keyColumn, ESortOrder::Ascending});
+        }
     }
 
     return {

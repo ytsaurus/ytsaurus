@@ -211,10 +211,32 @@ void TJoblet::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(45, OutputStreamDescriptors);
     PHOENIX_REGISTER_FIELD(46, InputStreamDescriptors);
     PHOENIX_REGISTER_FIELD(47, UserJobMonitoringDescriptor);
+    PHOENIX_REGISTER_FIELD(48, CookieGroupInfo,
+        .SinceVersion(ESnapshotVersion::DistributedJobManagers));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
        this_->Revived = true;
     });
+}
+
+void TJoblet::TCookieGroupInfo::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, MainJobId);
+    PHOENIX_REGISTER_FIELD(2, OutputIndex);
+}
+
+PHOENIX_DEFINE_TYPE(TJoblet::TCookieGroupInfo);
+
+void Serialize(const TJoblet::TCookieGroupInfo& cookieGroupInfo, NYson::IYsonConsumer* consumer)
+{
+    using NYT::Serialize;
+
+    consumer->OnBeginMap();
+    consumer->OnKeyedItem("main_job_id");
+    NYTree::Serialize(cookieGroupInfo.MainJobId, consumer);
+    consumer->OnKeyedItem("output_index");
+    NYTree::Serialize(cookieGroupInfo.OutputIndex, consumer);
+    consumer->OnEndMap();
 }
 
 PHOENIX_DEFINE_TYPE(TJoblet);
