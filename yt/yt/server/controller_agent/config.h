@@ -382,6 +382,9 @@ public:
     double CpuLimitOvercommitMultiplier;
     double InitialCpuLimitOvercommit;
 
+    //! Min allowed cpu limit specified by user.
+    double MinCpuLimit;
+
     //! Enforce slot container memory limit.
     bool SetSlotContainerMemoryLimit;
 

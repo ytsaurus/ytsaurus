@@ -4639,7 +4639,7 @@ private:
 
     TCpuResource GetPartitionCpuLimit() const override
     {
-        return TCpuResource(Spec->HasNontrivialMapper() ? Spec->Mapper->CpuLimit : 1);
+        return TCpuResource(Spec->HasNontrivialMapper() ? GetCpuLimit(Spec->Mapper) : 1);
     }
 
     TCpuResource GetSortCpuLimit() const override
@@ -4650,7 +4650,7 @@ private:
 
     TCpuResource GetMergeCpuLimit() const override
     {
-        return TCpuResource(Spec->Reducer->CpuLimit);
+        return TCpuResource(GetCpuLimit(Spec->Reducer));
     }
 
     TExtendedJobResources GetPartitionResources(
@@ -4667,7 +4667,7 @@ private:
         TExtendedJobResources result;
         result.SetUserSlots(1);
         if (Spec->HasNontrivialMapper() && isRoot) {
-            result.SetCpu(Spec->Mapper->CpuLimit);
+            result.SetCpu(GetCpuLimit(Spec->Reducer));
             result.SetJobProxyMemory(
                 GetInputIOMemorySize(PartitionJobIOConfig, stat) +
                 GetOutputWindowMemorySize(PartitionJobIOConfig) +
@@ -4725,7 +4725,7 @@ private:
         i64 jobProxyMemoryWithFixedWriteBufferSize = jobProxyMemory;
 
         if (isFinalSort) {
-            result.SetCpu(Spec->Reducer->CpuLimit);
+            result.SetCpu(GetCpuLimit(Spec->Reducer));
             jobProxyMemory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig, /*useEstimatedBufferSize*/ true);
             jobProxyMemoryWithFixedWriteBufferSize += GetFinalOutputIOMemorySize(FinalSortJobIOConfig, /*useEstimatedBufferSize*/ false);
             result.SetJobProxyMemory(jobProxyMemory);
@@ -4738,7 +4738,7 @@ private:
             result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
 
             if (Spec->HasNontrivialReduceCombiner()) {
-                result.SetCpu(Spec->ReduceCombiner->CpuLimit);
+                result.SetCpu(GetCpuLimit(Spec->ReduceCombiner));
             } else {
                 result.SetCpu(1);
             }
@@ -4756,7 +4756,7 @@ private:
     {
         TExtendedJobResources result;
         result.SetUserSlots(1);
-        result.SetCpu(Spec->Reducer->CpuLimit);
+        result.SetCpu(GetCpuLimit(Spec->Reducer));
         auto jobProxyMemory = GetFinalIOMemorySize(
             SortedMergeJobIOConfig,
             /*useEstimatedBufferSize*/ true,

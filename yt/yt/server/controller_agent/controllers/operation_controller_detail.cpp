@@ -863,6 +863,14 @@ void TOperationControllerBase::InitializeStructures()
                 files.push_back(std::move(file));
             }
         }
+
+        if (userJobSpec->CpuLimit < Options_->MinCpuLimit) {
+            SetOperationAlert(
+                EOperationAlertType::SpecifiedCpuLimitIsTooSmall,
+                TError("Specified CPU limit is too small: %v < %v",
+                    userJobSpec->CpuLimit,
+                    Options_->MinCpuLimit));
+        }
     }
 
     if (TLayerJobExperiment::IsEnabled(Spec_, GetUserJobSpecs())) {
@@ -10047,6 +10055,11 @@ i64 TOperationControllerBase::GetDataSliceCount() const
     return result;
 }
 
+double TOperationControllerBase::GetCpuLimit(const TUserJobSpecPtr& userJobSpec) const
+{
+    return std::max(userJobSpec->CpuLimit, Options_->MinCpuLimit);
+}
+
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TUserJobSpecPtr& jobSpecConfig,
@@ -10071,29 +10084,30 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options_->SetContainerCpuLimit);
     jobSpec->set_redirect_stdout_to_stderr(jobSpecConfig->RedirectStdoutToStderr);
 
+    auto specifiedCpuLimit = GetCpuLimit(jobSpecConfig);
     // This is common policy for all operations of given type.
     if (Options_->SetContainerCpuLimit) {
         double cpuLimit;
         switch (Options_->CpuLimitOvercommitMode) {
             case ECpuLimitOvercommitMode::Linear:
-                cpuLimit = Options_->CpuLimitOvercommitMultiplier * jobSpecConfig->CpuLimit + Options_->InitialCpuLimitOvercommit;
+                cpuLimit = Options_->CpuLimitOvercommitMultiplier * specifiedCpuLimit + Options_->InitialCpuLimitOvercommit;
                 break;
             case ECpuLimitOvercommitMode::Minimum:
                 cpuLimit = std::min(
-                    jobSpecConfig->CpuLimit * Options_->CpuLimitOvercommitMultiplier,
-                    jobSpecConfig->CpuLimit + Options_->InitialCpuLimitOvercommit);
+                    specifiedCpuLimit * Options_->CpuLimitOvercommitMultiplier,
+                    specifiedCpuLimit + Options_->InitialCpuLimitOvercommit);
                 break;
         }
         jobSpec->set_container_cpu_limit(cpuLimit);
     }
 
     // This is common policy for all operations of given type.
-    i64 threadLimit = ceil(userJobOptions->InitialThreadLimit + userJobOptions->ThreadLimitMultiplier * jobSpecConfig->CpuLimit);
+    i64 threadLimit = ceil(userJobOptions->InitialThreadLimit + userJobOptions->ThreadLimitMultiplier * specifiedCpuLimit);
     jobSpec->set_thread_limit(threadLimit);
 
     // Option in task spec overrides value in operation options.
     if (jobSpecConfig->SetContainerCpuLimit) {
-        jobSpec->set_container_cpu_limit(jobSpecConfig->CpuLimit);
+        jobSpec->set_container_cpu_limit(specifiedCpuLimit);
     }
 
     jobSpec->set_force_core_dump(jobSpecConfig->ForceCoreDump);
