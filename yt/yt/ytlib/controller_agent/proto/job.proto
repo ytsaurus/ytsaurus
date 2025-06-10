@@ -34,6 +34,8 @@ message TJobSpec
 {
     required int32 type = 1;
     optional int32 version = 2;
+    // COMPAT(pogorelov):
+    optional NNodeTrackerClient.NProto.TNodeResources resource_limits = 3;
 
     extensions 100 to max;
 }
