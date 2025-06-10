@@ -289,6 +289,7 @@ TExtendedJobResources TVanillaTask::GetMinNeededResourcesHeavy() const
     TExtendedJobResources result;
     result.SetUserSlots(1);
     result.SetCpu(Spec_->CpuLimit);
+    result.SetCpu(std::max(Spec_->CpuLimit, TaskHost_->GetOptions()->MinCpuLimit));
     // NB: JobProxyMemory is the only memory that is related to IO. Footprint is accounted below.
     result.SetJobProxyMemory(0);
     result.SetJobProxyMemoryWithFixedWriteBufferSize(0);

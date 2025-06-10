@@ -611,6 +611,7 @@ class TestContainerCpuProperties(YTEnvSetup):
                 "set_container_cpu_limit": True,
                 "cpu_limit_overcommit_multiplier": 2,
                 "initial_cpu_limit_overcommit": 0.05,
+                "min_cpu_limit": 0.01,
             },
         }
     }
