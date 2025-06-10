@@ -34,3 +34,4 @@ pragma yt.JobBlockTableContent;
 pragma BlockEngine='auto';
 pragma yt.BlockMapJoin;
 pragma FilterPushdownOverJoinOptionalSide;
+pragma yt.TableContentMinAvgChunkSize="0";
