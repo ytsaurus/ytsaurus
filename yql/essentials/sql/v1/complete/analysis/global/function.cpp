@@ -34,6 +34,7 @@ namespace NSQLComplete {
                 return function->getText();
             }
         };
+
     } // namespace
 
     TMaybe<TString> EnclosingFunction(

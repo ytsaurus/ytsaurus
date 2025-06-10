@@ -53,7 +53,7 @@ namespace NSQLComplete {
             // TODO(YQL-19747): Add ~ParseContext(Tokens, ParseTree, CursorPosition)
             ctx.Use = FindUseStatement(sqlQuery, &Tokens_, input.CursorPosition, env);
             ctx.Names = CollectNamedNodes(sqlQuery, &Tokens_, input.CursorPosition);
-            ctx.EnclosingFunctionName = EnclosingFunction(sqlQuery, &Tokens_, input.CursorPosition);
+            ctx.EnclosingFunction = EnclosingFunction(sqlQuery, &Tokens_, input.CursorPosition);
 
             return ctx;
         }

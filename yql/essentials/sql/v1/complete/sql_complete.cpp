@@ -134,7 +134,7 @@ namespace NSQLComplete {
                 request.Constraints.Cluster = std::move(constraints);
             }
 
-            if (auto name = global.EnclosingFunctionName.Transform(NormalizeName);
+            if (auto name = global.EnclosingFunction.Transform(NormalizeName);
                 name && name == "concat") {
                 auto& object = request.Constraints.Object;
                 object = object.Defined() ? object : TObjectNameConstraints();
