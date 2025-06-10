@@ -1273,7 +1273,7 @@ class TestHttpProxyDiscovery(YTEnvSetup):
         self.driver = Driver(driver_config)
 
     @classmethod
-    def modify_proxy_config(cls, multidaemon_config, configs):
+    def modify_proxy_config(cls, configs):
         for config in configs:
             addresses = [["default", "localhost"], ["fastbone", "fb-localhost"]]
             config["addresses"] = addresses
