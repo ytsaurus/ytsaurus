@@ -572,3 +572,6 @@ class TestGroupOutOfOrderBlocks(YTEnvSetup):
 
         assert extract_statistic_v2(chunk_reader_statistics, "data_io_requests") == expected_data_io_requests
         assert extract_statistic_v2(chunk_reader_statistics, "block_count") == column_count
+
+
+##################################################################
