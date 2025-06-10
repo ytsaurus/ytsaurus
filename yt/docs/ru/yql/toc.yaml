@@ -11,8 +11,6 @@ items:
   - name: Пользовательские функции (UDF)
     include: { mode: link, path: udf/toc_i.yaml }
   - name: Отличия от других систем
-    items:
-      - name: SQL ANSI
-        href: differences_from/ansi.md
+    include: { mode: link, path: differences_from/toc_i.yaml }
   - name: Список изменений
     include: { mode: link, path: changelog/toc_i.yaml }
