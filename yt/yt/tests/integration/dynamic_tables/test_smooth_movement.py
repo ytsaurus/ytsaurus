@@ -7,7 +7,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, raises_yt_error,
     sync_reshard_table, insert_rows, ls, abort_transaction,
     build_snapshot, select_rows, update_nodes_dynamic_config,
-    create_area, start_transaction, commit_transaction, sync_flush_table, remount_table,
+    create_area, start_transaction, commit_transaction,
 )
 
 from yt.common import YtError
@@ -214,7 +214,6 @@ class TestSmoothMovement(DynamicTablesBase):
         if recovery == "target":
             self._restart_cell(cell_ids[2])
             assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
-
 
     @authors("ifsmirnov")
     @pytest.mark.parametrize("two_phase", [True, False])
