@@ -1026,6 +1026,15 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
         }
     }
 
+    Y_UNIT_TEST(TableAsFunctionArgument) {
+        auto engine = MakeSqlCompletionEngineUT();
+
+        UNIT_ASSERT_VALUES_EQUAL(
+            CompleteTop(1, engine, "SELECT * FROM Concat(#)").at(0).Kind, FolderName);
+        UNIT_ASSERT_VALUES_EQUAL(
+            CompleteTop(1, engine, "SELECT * FROM CONCAT(#)").at(0).Kind, FolderName);
+    }
+
     Y_UNIT_TEST(Typing) {
         const auto queryUtf16 = TUtf16String::FromUtf8(
             "SELECT \n"
