@@ -108,7 +108,8 @@ rm -rf /var/lib/apt/lists/*
 EOT
 
 # Install pprof
-RUN GO_VERSION=1.22.3 wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
+ENV GO_VERSION=1.22.3
+RUN wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
     tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
     rm go${GO_VERSION}.linux-amd64.tar.gz
 
