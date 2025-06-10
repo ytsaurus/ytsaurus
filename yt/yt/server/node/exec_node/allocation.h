@@ -9,6 +9,19 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void InitAllocationProfiler(const NProfiling::TProfiler& profiler);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EAllocationFinishReason,
+    (Aborted)
+    (Preempted)
+    (MultipleJobsDisabled)
+    (NoNewJobSettled)
+    (AgentDisconnected)
+    (JobFinishedUnsuccessfully)
+);
+
 class TAllocation
     : public NJobAgent::TResourceOwner
 {
@@ -64,7 +77,7 @@ public:
     NClusterNode::TJobResources GetResourceUsage(bool excludeReleasing = false) const noexcept;
 
     void Abort(TError error);
-    void Complete();
+    void Complete(EAllocationFinishReason finishReason);
     void Preempt(
         TDuration timeout,
         TString preemptionReason,
@@ -126,13 +139,14 @@ private:
     void SettleJob();
 
     void OnSettledJobReceived(
+        const NProfiling::TWallTimer& timer,
         TErrorOr<TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo>&& jobInfoOrError);
 
     void CreateAndSettleJob(
         TJobId jobId,
         NControllerAgent::NProto::TJobSpec&& jobSpec);
 
-    void OnAllocationFinished();
+    void OnAllocationFinished(EAllocationFinishReason finishReason);
 
     void OnJobPrepared(TJobPtr job);
     void OnJobFinished(TJobPtr job);
