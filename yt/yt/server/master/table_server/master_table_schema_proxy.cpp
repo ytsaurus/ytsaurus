@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
@@ -19,6 +21,8 @@ using namespace NObjectServer;
 using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,7 +107,7 @@ private:
         const auto& tableManager = Bootstrap_->GetTableManager();
         tableManager->GetYsonTableSchemaAsync(schema).Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
-                response->set_value(resultOrError.Value().ToString());
+                response->set_value(ToProto(resultOrError.Value()));
                 context->Reply();
             } else {
                 context->Reply(resultOrError);

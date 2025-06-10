@@ -52,6 +52,8 @@
 
 #include <yt/yt/core/utilex/random.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/build/build.h>
 
 namespace NYT::NClusterNode {
@@ -595,7 +597,7 @@ private:
             req->add_flavors(static_cast<int>(flavor));
         }
 
-        req->set_cypress_annotations(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
+        req->set_cypress_annotations(ToProto(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations)));
         req->set_build_version(GetVersion());
 
         req->set_exec_node_is_not_data_node(Bootstrap_->GetConfig()->ExecNodeIsNotDataNode);

@@ -37,6 +37,8 @@
 
 #include <yt/yt/core/phoenix/type_decl.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <util/generic/cast.h>
@@ -542,7 +544,7 @@ protected:
     {
         JobSpecTemplate_.set_type(ToProto(GetJobType()));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO))));
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
@@ -560,7 +562,7 @@ protected:
             WriteInputQueryToJobSpec(jobSpecExt);
         }
 
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ToProto(ConvertToYsonString(JobIOConfig_)));
     }
 
     TDataFlowGraph::TVertexDescriptor GetOutputLivePreviewVertexDescriptor() const override

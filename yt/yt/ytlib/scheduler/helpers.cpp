@@ -26,6 +26,8 @@
 
 #include <yt/yt/client/security_client/access_control.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NScheduler {
@@ -770,7 +772,7 @@ void ToProto(
 
     if (allocationBriefInfo.OperationAcl) {
         auto aclYson = ConvertToYsonString(*allocationBriefInfo.OperationAcl);
-        allocationBriefInfoProto->set_operation_acl(aclYson.ToString());
+        allocationBriefInfoProto->set_operation_acl(ToProto(aclYson));
     }
     if (allocationBriefInfo.OperationAcoName) {
         allocationBriefInfoProto->set_operation_aco_name(*allocationBriefInfo.OperationAcoName);

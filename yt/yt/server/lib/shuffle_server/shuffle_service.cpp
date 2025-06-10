@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/rpc/service_detail.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NShuffleServer {
 
 using namespace NApi;
@@ -81,7 +83,7 @@ public:
             ? request->medium()
             : DefaultStoreMediumName;
 
-        response->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
+        response->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
 
         context->SetResponseInfo("TransactionId: %v", shuffleHandle->TransactionId);
 

@@ -62,6 +62,8 @@
 
 #include <yt/yt/core/phoenix/type_decl.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <algorithm>
@@ -3558,8 +3560,8 @@ private:
         {
             RootPartitionJobSpecTemplate_.set_type(ToProto(EJobType::Partition));
             auto* jobSpecExt = RootPartitionJobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-            jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig_)).ToString());
-            jobSpecExt->set_io_config(ConvertToYsonString(RootPartitionJobIOConfig_).ToString());
+            jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig_))));
+            jobSpecExt->set_io_config(ToProto(ConvertToYsonString(RootPartitionJobIOConfig_)));
             SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
@@ -3576,8 +3578,8 @@ private:
         {
             PartitionJobSpecTemplate_.set_type(ToProto(EJobType::Partition));
             auto* jobSpecExt = PartitionJobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-            jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig_)).ToString());
-            jobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig_).ToString());
+            jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig_))));
+            jobSpecExt->set_io_config(ToProto(ConvertToYsonString(PartitionJobIOConfig_)));
             SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
@@ -3596,12 +3598,12 @@ private:
             auto* jobSpecExt = sortJobSpecTemplate.MutableExtension(TJobSpecExt::job_spec_ext);
 
             if (SimpleSort_) {
-                jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->PartitionJobIO)).ToString());
+                jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->PartitionJobIO))));
                 SetProtoExtension<TDataSourceDirectoryExt>(
                     jobSpecExt->mutable_extensions(),
                     BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
             } else {
-                jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
+                jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(intermediateReaderOptions)));
                 SetProtoExtension<TDataSourceDirectoryExt>(
                     jobSpecExt->mutable_extensions(),
                     BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
@@ -3618,7 +3620,7 @@ private:
             SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
-            jobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig_).ToString());
+            jobSpecExt->set_io_config(ToProto(ConvertToYsonString(IntermediateSortJobIOConfig_)));
         }
 
         {
@@ -3628,7 +3630,7 @@ private:
             SetProtoExtension<TDataSinkDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryFromOutputTables(OutputTables_));
-            jobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig_).ToString());
+            jobSpecExt->set_io_config(ToProto(ConvertToYsonString(FinalSortJobIOConfig_)));
         }
 
         {
@@ -3636,7 +3638,7 @@ private:
             auto* jobSpecExt = SortedMergeJobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
             auto* mergeJobSpecExt = SortedMergeJobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
-            jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
+            jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(intermediateReaderOptions)));
             SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSourceDirectory(
@@ -3646,7 +3648,7 @@ private:
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
-            jobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig_).ToString());
+            jobSpecExt->set_io_config(ToProto(ConvertToYsonString(SortedMergeJobIOConfig_)));
 
             ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(Spec_->SortBy));
             ToProto(mergeJobSpecExt->mutable_sort_columns(), Spec_->SortBy);
@@ -3657,7 +3659,7 @@ private:
             auto* jobSpecExt = UnorderedMergeJobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
             auto* mergeJobSpecExt = UnorderedMergeJobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
 
-            jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
+            jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(intermediateReaderOptions)));
             SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSourceDirectory(GetSpec()->IntermediateDataAccount));
@@ -3665,7 +3667,7 @@ private:
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
-            jobSpecExt->set_io_config(ConvertToYsonString(UnorderedMergeJobIOConfig_).ToString());
+            jobSpecExt->set_io_config(ToProto(ConvertToYsonString(UnorderedMergeJobIOConfig_)));
 
             ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(Spec_->SortBy));
         }
@@ -4463,7 +4465,7 @@ private:
 
             auto* jobSpecExt = RootPartitionJobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
 
-            jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig_)).ToString());
+            jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(RootPartitionJobIOConfig_))));
             SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
@@ -4475,7 +4477,7 @@ private:
                 WriteInputQueryToJobSpec(jobSpecExt);
             }
 
-            jobSpecExt->set_io_config(ConvertToYsonString(RootPartitionJobIOConfig_).ToString());
+            jobSpecExt->set_io_config(ToProto(ConvertToYsonString(RootPartitionJobIOConfig_)));
 
             auto* partitionJobSpecExt = RootPartitionJobSpecTemplate_.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec_->ReduceBy.size());
@@ -4495,7 +4497,7 @@ private:
         {
             PartitionJobSpecTemplate_.set_type(ToProto(EJobType::Partition));
             auto* jobSpecExt = PartitionJobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-            jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig_)).ToString());
+            jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(PartitionJobIOConfig_))));
 
             SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
@@ -4504,7 +4506,7 @@ private:
                 jobSpecExt->mutable_extensions(),
                 BuildIntermediateDataSinkDirectory(GetSpec()->IntermediateDataAccount));
 
-            jobSpecExt->set_io_config(ConvertToYsonString(PartitionJobIOConfig_).ToString());
+            jobSpecExt->set_io_config(ToProto(ConvertToYsonString(PartitionJobIOConfig_)));
 
             auto* partitionJobSpecExt = PartitionJobSpecTemplate_.MutableExtension(TPartitionJobSpecExt::partition_job_spec_ext);
             partitionJobSpecExt->set_reduce_key_column_count(Spec_->ReduceBy.size());
@@ -4521,8 +4523,8 @@ private:
         auto intermediateReaderOptions = New<TTableReaderOptions>();
         {
             auto* jobSpecExt = IntermediateSortJobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-            jobSpecExt->set_io_config(ConvertToYsonString(IntermediateSortJobIOConfig_).ToString());
-            jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
+            jobSpecExt->set_io_config(ToProto(ConvertToYsonString(IntermediateSortJobIOConfig_)));
+            jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(intermediateReaderOptions)));
             SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 intermediateDataSourceDirectory);
@@ -4557,7 +4559,7 @@ private:
             auto* jobSpecExt = FinalSortJobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
             auto* reduceJobSpecExt = FinalSortJobSpecTemplate_.MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
 
-            jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
+            jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(intermediateReaderOptions)));
             SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 intermediateDataSourceDirectory);
@@ -4565,7 +4567,7 @@ private:
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryForReducer());
 
-            jobSpecExt->set_io_config(ConvertToYsonString(FinalSortJobIOConfig_).ToString());
+            jobSpecExt->set_io_config(ToProto(ConvertToYsonString(FinalSortJobIOConfig_)));
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(Spec_->SortBy));
             reduceJobSpecExt->set_reduce_key_column_count(Spec_->ReduceBy.size());
@@ -4589,7 +4591,7 @@ private:
                 GetSpec()->IntermediateDataAccount,
                 std::vector<TTableSchemaPtr>(IntermediateStreamSchemas_.size(), IntermediateChunkSchema_));
 
-            jobSpecExt->set_table_reader_options(ConvertToYsonString(intermediateReaderOptions).ToString());
+            jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(intermediateReaderOptions)));
             SetProtoExtension<TDataSourceDirectoryExt>(
                 jobSpecExt->mutable_extensions(),
                 intermediateDataSourceDirectory);
@@ -4597,7 +4599,7 @@ private:
                 jobSpecExt->mutable_extensions(),
                 BuildDataSinkDirectoryForReducer());
 
-            jobSpecExt->set_io_config(ConvertToYsonString(SortedMergeJobIOConfig_).ToString());
+            jobSpecExt->set_io_config(ToProto(ConvertToYsonString(SortedMergeJobIOConfig_)));
 
             ToProto(reduceJobSpecExt->mutable_key_columns(), GetColumnNames(Spec_->SortBy));
             reduceJobSpecExt->set_reduce_key_column_count(Spec_->ReduceBy.size());

@@ -6,12 +6,16 @@
 
 #include <yt/yt/client/tablet_client/config.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT {
 
 using namespace NChaosClient;
 using namespace NChaosNode;
 using namespace NElection;
 using namespace NYson;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,7 +88,7 @@ void ToProto(
     }
 
     if (fetchOptions.IncludeReplicatedTableOptions) {
-        protoReplicationCard->set_replicated_table_options(ConvertToYsonString(replicationCard.GetReplicatedTableOptions()).ToString());
+        protoReplicationCard->set_replicated_table_options(ToProto(ConvertToYsonString(replicationCard.GetReplicatedTableOptions())));
     }
 }
 

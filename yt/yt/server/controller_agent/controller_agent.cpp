@@ -59,6 +59,8 @@
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/service_combiner.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/build/build.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
@@ -1621,7 +1623,7 @@ private:
             }
 
             if (preparedRequest.SuspiciousJobsSent) {
-                protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().ToString());
+                protoOperation->set_suspicious_jobs(ToProto(controller->GetSuspiciousJobsYson()));
             }
 
             ToProto(

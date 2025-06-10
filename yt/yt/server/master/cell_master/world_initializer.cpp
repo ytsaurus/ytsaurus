@@ -58,6 +58,8 @@
 
 #include <yt/yt/core/ytree/ypath_client.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NCellMaster {
@@ -1248,7 +1250,7 @@ private:
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Set(path);
         SetTransactionId(req, transactionId);
-        req->set_value(value.ToString());
+        req->set_value(ToProto(value));
         ScheduledMutations_.push_back(ExecuteVerb(service, req).AsVoid());
     }
 

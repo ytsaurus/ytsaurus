@@ -20,6 +20,8 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/memory/non_null_ptr.h>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -380,7 +382,7 @@ void TVanillaTask::InitJobSpecTemplate()
     JobSpecTemplate_.set_type(ToProto(EJobType::Vanilla));
     auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
 
-    jobSpecExt->set_io_config(ConvertToYsonString(Spec_->JobIO).ToString());
+    jobSpecExt->set_io_config(ToProto(ConvertToYsonString(Spec_->JobIO)));
 
     TaskHost_->InitUserJobSpecTemplate(
         jobSpecExt->mutable_user_job_spec(),

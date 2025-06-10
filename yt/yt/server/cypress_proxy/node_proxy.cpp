@@ -49,6 +49,7 @@
 
 #include <yt/yt/core/yson/writer.h>
 #include <yt/yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/exception_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -2021,7 +2022,7 @@ private:
 
         auto result = WaitForFast(writer.Finish())
             .ValueOrThrow();
-        response->set_value(result.ToString());
+        response->set_value(ToProto(result));
 
         MaybeTouchCurrentNode(TYPathProxy::List, context);
         // Should not throw after this point.

@@ -112,6 +112,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <util/system/fs.h>
 
 #include <sys/resource.h>
@@ -166,7 +168,7 @@ namespace {
 void FillStatistics(auto& req, const IJobPtr& job, const TStatistics& enrichedStatistics)
 {
     auto extendedStatistics = job->GetStatistics();
-    req->set_statistics(ConvertToYsonString(enrichedStatistics).ToString());
+    req->set_statistics(ToProto(ConvertToYsonString(enrichedStatistics)));
     *req->mutable_total_input_data_statistics() = std::move(extendedStatistics.TotalInputStatistics.DataStatistics);
     for (auto& statistics : extendedStatistics.OutputStatistics) {
         *req->add_output_data_statistics() = std::move(statistics.DataStatistics);

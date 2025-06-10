@@ -20,6 +20,8 @@
 
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NChunkClient;
@@ -160,7 +162,7 @@ void TClient::DoRegisterShuffleChunks(
     auto req = shuffleProxy.RegisterChunks();
     req->SetTimeout(options.Timeout.value_or(GetNativeConnection()->GetConfig()->DefaultShuffleServiceTimeout));
 
-    req->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
+    req->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
     ToProto(req->mutable_chunk_specs(), chunkSpecs);
     if (writerIndex) {
         req->set_writer_index(*writerIndex);
@@ -184,7 +186,7 @@ std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
     auto req = shuffleProxy.FetchChunks();
     req->SetTimeout(options.Timeout.value_or(GetNativeConnection()->GetConfig()->DefaultShuffleServiceTimeout));
 
-    req->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
+    req->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
     req->set_partition_index(partitionIndex);
     if (writerIndexRange) {
         auto* writerIndexRangeProto = req->mutable_writer_index_range();

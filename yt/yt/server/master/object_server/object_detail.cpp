@@ -64,6 +64,7 @@
 #include <yt/yt/core/yson/async_consumer.h>
 #include <yt/yt/core/yson/async_writer.h>
 #include <yt/yt/core/yson/attribute_consumer.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <library/cpp/yt/misc/enum.h>
 
@@ -1160,7 +1161,7 @@ void TNontemplateNonversionedObjectProxyBase::GetSelf(
         writer.Finish()
             .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
                 if (resultOrError.IsOK()) {
-                    response->set_value(resultOrError.Value().ToString());
+                    response->set_value(ToProto(resultOrError.Value()));
                     context->Reply();
                 } else {
                     context->Reply(resultOrError);

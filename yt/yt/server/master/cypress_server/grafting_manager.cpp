@@ -20,6 +20,8 @@
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -37,6 +39,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
 
+using NYT::ToProto;
 using NCypressClient::NProto::TReqCreateRootstock;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,10 +257,10 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto effectiveAcl = securityManager->GetEffectiveAcl(trunkNode);
-        request.set_effective_acl(ConvertToYsonString(effectiveAcl).ToString());
+        request.set_effective_acl(ToProto(ConvertToYsonString(effectiveAcl)));
 
         const auto& directAcd = trunkNode->Acd();
-        request.set_direct_acl(ConvertToYsonString(directAcd.Acl()).ToString());
+        request.set_direct_acl(ToProto(ConvertToYsonString(directAcd.Acl())));
         request.set_inherit_acl(directAcd.Inherit());
 
         if (auto effectiveAnnotation = GetEffectiveAnnotation(rootstockNode)) {
