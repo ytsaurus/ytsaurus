@@ -61,6 +61,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((GangRanks)                             (301801))
     ((ChunkStripeKeyNoIndex)                 (301802))
     ((OrderedAndSortedJobSizeAdjuster)       (301803))
+    ((CompressedDataSizePerJob)              (301804))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

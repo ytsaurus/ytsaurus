@@ -96,6 +96,7 @@ protected:
             /*jobCount*/ 0,
             DataWeightPerJob_,
             PrimaryDataWeightPerJob_,
+            /*compressedDataSizePerJob*/ Inf64,
             MaxDataSlicesPerJob_,
             MaxDataWeightPerJob_,
             /*maxPrimaryDataWeightPerJob*/ Inf64,
