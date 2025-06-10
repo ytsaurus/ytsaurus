@@ -114,7 +114,7 @@ public:
 
     bool IsUp(const TCtxDiscoverPtr& /*context*/) override
     {
-        return Bootstrap_->GetMasterConnector()->IsRegistered();
+        return Bootstrap_->GetMasterConnector()->IsUp();
     }
 
     const TObjectServiceDynamicConfigPtr& GetDynamicConfig() const
