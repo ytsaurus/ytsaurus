@@ -67,7 +67,10 @@ namespace NSQLComplete {
             },
             MakeDefaultRanking());
 
-        auto engine = MakeSqlCompletionEngine(MakePureLexerSupplier(), std::move(service));
+        auto engine = MakeSqlCompletionEngine(
+            MakePureLexerSupplier(),
+            std::move(service),
+            MakeYQLConfiguration());
 
         for (size_t i = 0, j = 0; i < Attempts && j < MaxAttempts; ++j) {
             size_t pos = RandomNumber<size_t>(query.size() + 1);
