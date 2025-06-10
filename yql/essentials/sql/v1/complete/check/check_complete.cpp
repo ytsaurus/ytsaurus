@@ -95,7 +95,7 @@ namespace NSQLComplete {
     bool CheckComplete(TStringBuf query, NYql::TExprNode::TPtr root, NYql::TExprContext& ctx, NYql::TIssues& issues) try {
         return CheckComplete(query, MakeYqlAnalysis()->Analyze(root, ctx));
     } catch (...) {
-        issues.AddIssue(CurrentExceptionMessage());
+        issues.AddIssue(FormatCurrentException());
         return false;
     }
 
@@ -105,7 +105,7 @@ namespace NSQLComplete {
             .Transform([&](auto&& ctx) { return CheckComplete(query, std::move(ctx)); })
             .GetOrElse(false);
     } catch (...) {
-        issues.AddIssue(CurrentExceptionMessage());
+        issues.AddIssue(FormatCurrentException());
         return false;
     }
 
