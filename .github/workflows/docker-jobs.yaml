@@ -79,7 +79,7 @@ jobs:
       - name: YTsaurus image (${{ inputs.cpp-build-system }}, ${{ matrix.build-type }})
         if: ${{ inputs.publish-ytsaurus }}
         run: |
-          output_path=../docker-${{ inputs.component}}-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
+          output_path=../docker-${{ inputs.component }}-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
           ./ytsaurus/yt/docker/ytsaurus/build.sh --component ytsaurus --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }}
@@ -153,3 +153,12 @@ jobs:
           ./ytsaurus/yt/docker/ytsaurus/build.sh --component job-environment --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/
 
           docker push ghcr.io/ytsaurus/job-environment:${{ steps.vars.outputs.IMAGE_TAG }}
+
+      - name: Clear workspace
+        if: ${{ always() }}
+        run: |
+          rm -rf ../docker-${{ inputs.component }}-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
+          rm -rf ../docker-query-tracker-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
+          rm -rf ../docker-chyt-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
+          rm -rf ../docker-strawberry-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
+          rm -rf ../docker-local-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}

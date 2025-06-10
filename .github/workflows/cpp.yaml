@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/ilyaibraev/docker-build-clear-workspace
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -101,13 +102,24 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
       build-ytsaurus: true
-      build-chyt: ${{ github.ref_name == 'main' }}
+      build-chyt: ${{ github.ref_name == 'members/ilyaibraev/docker-build-clear-workspace' }}
       build-python: true
       update-remote-cache: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
+
+  check-available-disk-build-cmake:
+    name: Check available disk space
+    needs: build-cmake
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Check available disk space
+        run: |
+          cd /
+          du -hs * || true
+          df -h || true
 
   docker-cmake:
     name: Docker images with cmake
@@ -120,14 +132,25 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
       publish-ytsaurus: true
-      publish-chyt: ${{ github.ref_name == 'main' }}
-      publish-strawberry: ${{ github.ref_name == 'main' }}
+      publish-chyt: ${{ github.ref_name == 'members/ilyaibraev/docker-build-clear-workspace' }}
+      publish-strawberry: ${{ github.ref_name == 'members/ilyaibraev/docker-build-clear-workspace' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
     uses: ./.github/workflows/docker-jobs.yaml
+
+  check-available-disk-docker-cmake:
+    name: Check available disk space
+    needs: docker-cmake
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Check available disk space
+        run: |
+          cd /
+          du -hs * || true
+          df -h || true
 
   build-ya-make:
     name: Build with ya-make
@@ -140,13 +163,24 @@ jobs:
       cpp-build-system: ya-make
       build-ytsaurus: true
       build-ytsaurus-tests: true
-      build-query-tracker: ${{ github.ref_name == 'main' }}
+      build-query-tracker: ${{ github.ref_name == 'members/ilyaibraev/docker-build-clear-workspace' }}
       build-python: true
       update-remote-cache: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
+
+  check-available-disk-build-ya-make:
+    name: Check available disk space
+    needs: build-ya-make
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Check available disk space
+        run: |
+          cd /
+          du -hs * || true
+          df -h || true
 
   docker-ya-make:
     name: Docker images with ya-make
@@ -157,7 +191,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' }}
+      publish-query-tracker: ${{ github.ref_name == 'members/ilyaibraev/docker-build-clear-workspace' }}
       publish-local: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
@@ -166,22 +200,22 @@ jobs:
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
     uses: ./.github/workflows/docker-jobs.yaml
 
-  check:
-    name: Check
-    needs:
-      - start-vm
-      - build-cmake
-      - build-ya-make
-      - docker-cmake
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-    uses: ./.github/workflows/check-jobs.yaml
+  check-available-disk-docker-ya-make:
+    name: Check available disk space
+    needs: docker-ya-make
+    runs-on: ${{ needs.start-vm.outputs.label }}
+    steps:
+      - name: Check available disk space
+        run: |
+          cd /
+          du -hs * || true
+          df -h || true
 
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
-      - check
+      - check-available-disk-docker-ya-make
       - docker-ya-make
     runs-on: trampoline
     if: ${{ always() }}
