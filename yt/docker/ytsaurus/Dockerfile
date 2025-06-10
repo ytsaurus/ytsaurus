@@ -102,20 +102,19 @@ packages=(
 
 apt-get install -y "${packages[@]}"
 
-# Install pprof
-export GO_VERSION=1.22.3
-wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
-    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
-    rm go${GO_VERSION}.linux-amd64.tar.gz
-
-export PATH="/usr/local/go/bin:$PATH"
-export PATH="bin:${PATH}"
-go install github.com/google/pprof@latest
-
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 
 EOT
+
+# Install pprof
+RUN GO_VERSION=1.22.3 wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
+    rm go${GO_VERSION}.linux-amd64.tar.gz
+
+ENV GOPATH=/go
+ENV PATH="${GOPATH}/bin:/usr/local/go/bin:${PATH}"
+RUN go install github.com/google/pprof@latest
 
 ##########################################################################################
 
