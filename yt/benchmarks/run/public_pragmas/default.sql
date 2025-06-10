@@ -36,3 +36,4 @@ pragma BlockEngine='auto';
 pragma yt.BlockMapJoin;
 pragma CostBasedOptimizer="native";
 pragma FilterPushdownOverJoinOptionalSide;
+pragma yt.TableContentMinAvgChunkSize="0";
