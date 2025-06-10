@@ -756,6 +756,7 @@ private:
 
             YT_VERIFY(HunkTask_);
             HunkTask_->AddDependency(CompressionDictionaryTask_);
+            MainTask_->AddDependency(CompressionDictionaryTask_);
             CompressionDictionaryTask_->FinishInitialization();
         }
 
