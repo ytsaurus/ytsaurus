@@ -1321,7 +1321,11 @@ private:
                 cellTag)
 
             if (newConfig->MulticellManager->AllowMasterCellRoleInvariantCheck) {
-                if (Any(oldRoles & EMasterCellRoles::ChunkHost) && !Any(newRoles & EMasterCellRoles::ChunkHost)) {
+                auto canHostChunks = [] (auto roles) {
+                    return Any(roles & EMasterCellRoles::ChunkHost) || Any(roles & EMasterCellRoles::DedicatedChunkHost);
+                };
+
+                if (canHostChunks(oldRoles) && !canHostChunks(newRoles)) {
                     const auto& multicellNodeStatistics = Bootstrap_->GetMulticellStatisticsCollector()->GetMulticellNodeStatistics();
                     auto chunkCount = multicellNodeStatistics.GetChunkCount(cellTag);
                     auto error = TError(
