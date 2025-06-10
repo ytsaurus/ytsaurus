@@ -184,6 +184,7 @@ DEFINE_ENUM(EMasterReign,
     ((CheckNodeWriteSessions)                                       (2947))  // koloshmet
     ((DontValidateLockCountOnExternalCells)                         (2948))  // h0pless
     ((DedicatedChunkHostInRoleValidation)                           (2949))  // cherepashka
+    ((DocumentInSequoia)                                            (2950))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
