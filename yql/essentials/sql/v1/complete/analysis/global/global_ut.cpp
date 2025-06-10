@@ -77,6 +77,11 @@ Y_UNIT_TEST_SUITE(GlobalAnalysisTests) {
             UNIT_ASSERT_VALUES_EQUAL(ctx.EnclosingFunctionName, "Concat");
         }
         {
+            TString query = "SELECT * FROM Concat(a, #)";
+            TGlobalContext ctx = global->Analyze(SharpedInput(query), {});
+            UNIT_ASSERT_VALUES_EQUAL(ctx.EnclosingFunctionName, "Concat");
+        }
+        {
             TString query = "SELECT * FROM Concat(a#)";
             TGlobalContext ctx = global->Analyze(SharpedInput(query), {});
             UNIT_ASSERT_VALUES_EQUAL(ctx.EnclosingFunctionName, "Concat");

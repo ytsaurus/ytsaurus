@@ -1033,6 +1033,11 @@ Y_UNIT_TEST_SUITE(SqlCompleteTests) {
             CompleteTop(1, engine, "SELECT * FROM Concat(#)").at(0).Kind, FolderName);
         UNIT_ASSERT_VALUES_EQUAL(
             CompleteTop(1, engine, "SELECT * FROM CONCAT(#)").at(0).Kind, FolderName);
+        UNIT_ASSERT_VALUES_EQUAL(
+            CompleteTop(1, engine, "SELECT * FROM CONCAT(a, #)").at(0).Kind, FolderName);
+
+        UNIT_ASSERT_VALUES_UNEQUAL(
+            CompleteTop(1, engine, "SELECT Max(#)").at(0).Kind, FolderName);
     }
 
     Y_UNIT_TEST(Typing) {
