@@ -11,11 +11,12 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/rpc/authenticator.h>
-
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 namespace NYT::NDiscoveryServer {
 
@@ -95,7 +96,7 @@ private:
                 if (auto value = memberAttributes->FindYson(key)) {
                     auto* attr = protoMember->mutable_attributes()->add_attributes();
                     attr->set_key(key);
-                    attr->set_value(value.ToString());
+                    attr->set_value(ToProto(value));
                 }
             }
         }

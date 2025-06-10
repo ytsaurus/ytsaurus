@@ -40,6 +40,8 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/library/vector_hdrf/fair_share_update.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
@@ -55,6 +57,8 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NProfiling;
 using namespace NControllerAgent;
+
+using NYT::ToProto;
 
 using NVectorHdrf::TFairShareUpdateExecutor;
 using NVectorHdrf::TFairShareUpdateOptions;
@@ -1462,7 +1466,7 @@ private:
                 .EndAttributes()
                 .List(result);
 
-            response->set_value(ysonString.ToString());
+            response->set_value(ToProto(ysonString));
             context->Reply();
         }
 

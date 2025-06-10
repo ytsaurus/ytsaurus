@@ -51,6 +51,8 @@
 
 #include <yt/yt/core/phoenix/type_decl.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <util/generic/cast.h>
@@ -593,7 +595,7 @@ private:
     {
         JobSpecTemplate_.set_type(ToProto(EJobType::OrderedMerge));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO))));
 
         if (Spec_->InputQuery) {
             WriteInputQueryToJobSpec(jobSpecExt);
@@ -605,7 +607,7 @@ private:
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ToProto(ConvertToYsonString(JobIOConfig_)));
     }
 
     bool IsTeleportationSupported() const override
@@ -834,7 +836,7 @@ private:
     {
         JobSpecTemplate_.set_type(ToProto(EJobType::OrderedMap));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO))));
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
@@ -847,7 +849,7 @@ private:
             WriteInputQueryToJobSpec(jobSpecExt);
         }
 
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ToProto(ConvertToYsonString(JobIOConfig_)));
 
         InitUserJobSpecTemplate(
             jobSpecExt->mutable_user_job_spec(),
@@ -1113,7 +1115,7 @@ private:
     {
         JobSpecTemplate_.set_type(ToProto(EJobType::OrderedMerge));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO))));
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
@@ -1122,7 +1124,7 @@ private:
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ToProto(ConvertToYsonString(JobIOConfig_)));
 
         auto* mergejobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         const auto& table = OutputTables_[0];

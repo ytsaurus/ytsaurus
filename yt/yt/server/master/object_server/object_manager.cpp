@@ -79,6 +79,8 @@
 
 #include <yt/yt/core/ytree/node_detail.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/core/ypath/tokenizer.h>
 
 #include <yt/yt/core/misc/codicil.h>
@@ -109,6 +111,8 @@ using namespace NTransactionSupervisor;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+
+using NYT::ToProto;
 
 using TYPath = NYPath::TYPath;
 
@@ -2780,7 +2784,7 @@ void TObjectManager::DoReplicateObjectAttributesToSecondaryMaster(
 {
     auto request = TYPathProxy::Set(FromObjectId(object->GetId()) + "/@");
     auto replicatedAttributes = GetReplicatedAttributes(object, mandatory, /*writableOnly*/ true);
-    request->set_value(ConvertToYsonString(replicatedAttributes->ToMap()).ToString());
+    request->set_value(ToProto(ConvertToYsonString(replicatedAttributes->ToMap())));
 
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(request, cellTag);

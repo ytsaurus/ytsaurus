@@ -16,6 +16,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -59,7 +61,7 @@ ICellarOccupantPtr CreateFakeOccupant(
         TCreateCellSlotInfo protoInfo;
         ToProto(protoInfo.mutable_cell_id(), cellId);
         protoInfo.set_peer_id(0);
-        protoInfo.set_options(ConvertToYsonString(*options).ToString());
+        protoInfo.set_options(ToProto(ConvertToYsonString(*options)));
         protoInfo.set_cell_bundle(tabletCellBundle);
 
         cellar->CreateOccupant(protoInfo);

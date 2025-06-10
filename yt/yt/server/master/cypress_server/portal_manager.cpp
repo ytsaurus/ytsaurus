@@ -33,6 +33,8 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -167,7 +169,7 @@ public:
                 auto serializedEffectiveAcl = ConvertToYsonString(effectiveAcl).ToString();
                 portalExitInfo->set_effective_acl(serializedEffectiveAcl);
 
-                portalExitInfo->set_direct_acl(ConvertToYsonString(node->Acd().Acl()).ToString());
+                portalExitInfo->set_direct_acl(ToProto(ConvertToYsonString(node->Acd().Acl())));
 
                 portalExitInfo->set_inherit_acl(node->Acd().Inherit());
 
@@ -207,8 +209,8 @@ public:
         ToProto(request.mutable_entrance_node_id(), trunkNode->GetId());
         ToProto(request.mutable_account_id(), trunkNode->Account()->GetId());
         request.set_path(path);
-        request.set_effective_acl(ConvertToYsonString(effectiveAcl).ToString());
-        request.set_direct_acl(ConvertToYsonString(trunkNode->Acd().Acl()).ToString());
+        request.set_effective_acl(ToProto(ConvertToYsonString(effectiveAcl)));
+        request.set_direct_acl(ToProto(ConvertToYsonString(trunkNode->Acd().Acl())));
         request.set_inherit_acl(trunkNode->Acd().Inherit());
         ToProto(request.mutable_inherited_node_attributes(), inheritedAttributes);
         ToProto(request.mutable_explicit_node_attributes(), explicitAttributes);

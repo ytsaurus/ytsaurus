@@ -97,7 +97,10 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/range_formatters.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/library/query/secondary_index/transform.h>
 
@@ -3648,7 +3651,7 @@ void TClient::DoAlterReplicationCard(
     ToProto(req->mutable_replication_card_id(), replicationCardId);
 
     if (options.ReplicatedTableOptions) {
-        req->set_replicated_table_options(ConvertToYsonString(options.ReplicatedTableOptions).ToString());
+        req->set_replicated_table_options(ToProto(ConvertToYsonString(options.ReplicatedTableOptions)));
     }
     if (options.EnableReplicatedTableTracker) {
         req->set_enable_replicated_table_tracker(*options.EnableReplicatedTableTracker);
@@ -3657,7 +3660,7 @@ void TClient::DoAlterReplicationCard(
         ToProto(req->mutable_replication_card_collocation_id(), *options.ReplicationCardCollocationId);
     }
     if (options.CollocationOptions) {
-        req->set_collocation_options(ConvertToYsonString(options.CollocationOptions).ToString());
+        req->set_collocation_options(ToProto(ConvertToYsonString(options.CollocationOptions)));
     }
 
     auto result = WaitFor(req->Invoke());

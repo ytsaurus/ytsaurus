@@ -25,6 +25,7 @@
 
 #include <yt/yt/core/yson/consumer.h>
 #include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 namespace NYT::NControllerAgent {
 
@@ -46,9 +47,9 @@ using NYT::ToProto;
 
 void ToProto(NProto::TInitializeOperationResult* resultProto, const TOperationControllerInitializeResult& result)
 {
-    resultProto->set_brief_spec(result.Attributes.BriefSpec.ToString());
-    resultProto->set_full_spec(result.Attributes.FullSpec.ToString());
-    resultProto->set_unrecognized_spec(result.Attributes.UnrecognizedSpec.ToString());
+    resultProto->set_brief_spec(ToProto(result.Attributes.BriefSpec));
+    resultProto->set_full_spec(ToProto(result.Attributes.FullSpec));
+    resultProto->set_unrecognized_spec(ToProto(result.Attributes.UnrecognizedSpec));
     ToProto(resultProto->mutable_transaction_ids(), result.TransactionIds);
     resultProto->set_erase_offloading_trees(result.EraseOffloadingTrees);
 }
@@ -58,7 +59,7 @@ void ToProto(NProto::TInitializeOperationResult* resultProto, const TOperationCo
 void ToProto(NProto::TPrepareOperationResult* resultProto, const TOperationControllerPrepareResult& result)
 {
     if (result.Attributes) {
-        resultProto->set_attributes(result.Attributes.ToString());
+        resultProto->set_attributes(ToProto(result.Attributes));
     }
 }
 
@@ -75,7 +76,7 @@ void ToProto(NProto::TMaterializeOperationResult* resultProto, const TOperationC
 
 void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationControllerReviveResult& result)
 {
-    resultProto->set_attributes(result.Attributes.ToString());
+    resultProto->set_attributes(ToProto(result.Attributes));
     resultProto->set_revived_from_snapshot(result.RevivedFromSnapshot);
     for (const auto& allocation : result.RevivedAllocations) {
         auto* allocationProto = resultProto->add_revived_allocations();

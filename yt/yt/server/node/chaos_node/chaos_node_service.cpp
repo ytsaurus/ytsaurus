@@ -25,6 +25,8 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NChaosNode {
 
 using namespace NChaosClient;
@@ -436,7 +438,7 @@ private:
             replicationCardCollocationId,
             replicationCardIds);
         ToProto(response->mutable_replication_card_ids(), replicationCardIds);
-        response->set_options(ConvertToYsonString(collocation->Options()).ToString());
+        response->set_options(ToProto(ConvertToYsonString(collocation->Options())));
         context->Reply();
     }
 

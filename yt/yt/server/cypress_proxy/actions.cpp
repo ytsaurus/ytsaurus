@@ -23,6 +23,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NCypressProxy {
 
 using namespace NApi;
@@ -189,7 +191,7 @@ void SetNode(
     NCypressServer::NProto::TReqSetNode reqSetNode;
     ToProto(reqSetNode.mutable_node_id(), nodeId.ObjectId);
     reqSetNode.set_path(path.ToRawYPath().Underlying());
-    reqSetNode.set_value(value.ToString());
+    reqSetNode.set_value(ToProto(value));
     reqSetNode.set_force(force);
     ToProto(reqSetNode.mutable_transaction_id(), nodeId.TransactionId);
     ToProto(reqSetNode.mutable_access_tracking_options(), options);
@@ -610,7 +612,7 @@ void ToProto(
     const TMultisetAttributesSubrequest& subrequest)
 {
     protoSubrequest->set_attribute(ToProto(subrequest.AttributeKey));
-    protoSubrequest->set_value(subrequest.Value.ToString());
+    protoSubrequest->set_value(ToProto(subrequest.Value));
 }
 
 void ToProto(NCypressServer::NProto::TAccessTrackingOptions* protoOptions, const TSuppressableAccessTrackingOptions& options)

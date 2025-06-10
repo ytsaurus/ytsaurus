@@ -119,6 +119,8 @@
 
 #include <yt/yt/core/ytree/tree_builder.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <algorithm>
@@ -1597,7 +1599,7 @@ public:
             TReqSetCustomRuntimeData req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             if (data) {
-                req.set_custom_runtime_data(data.ToString());
+                req.set_custom_runtime_data(ToProto(data));
             }
             hiveManager->PostMessage(mailbox, req);
         }
@@ -4063,7 +4065,7 @@ private:
             }
 
             if (const auto& customRuntimeData = table->CustomRuntimeData()) {
-                reqReplicatable.set_custom_runtime_data(customRuntimeData.ToString());
+                reqReplicatable.set_custom_runtime_data(ToProto(customRuntimeData));
             }
 
             req.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));

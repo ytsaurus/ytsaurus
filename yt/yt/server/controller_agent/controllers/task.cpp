@@ -35,6 +35,8 @@
 
 #include <yt/yt/core/ypath/helpers.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
@@ -1824,9 +1826,9 @@ void TTask::AddOutputTableSpecs(
     for (int index = 0; index < std::ssize(outputStreamDescriptors); ++index) {
         const auto& streamDescriptor = outputStreamDescriptors[index];
         auto* outputSpec = jobSpecExt->add_output_table_specs();
-        outputSpec->set_table_writer_options(ConvertToYsonString(streamDescriptor->TableWriterOptions).ToString());
+        outputSpec->set_table_writer_options(ToProto(ConvertToYsonString(streamDescriptor->TableWriterOptions)));
         if (streamDescriptor->TableWriterConfig) {
-            outputSpec->set_table_writer_config(streamDescriptor->TableWriterConfig.ToString());
+            outputSpec->set_table_writer_config(ToProto(streamDescriptor->TableWriterConfig));
         }
         const auto& outputTableSchema = streamDescriptor->TableUploadOptions.TableSchema.Get();
         auto schemaId = streamDescriptor->TableUploadOptions.SchemaId;
@@ -2100,7 +2102,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
             ApproximateSizesBoostFactor));
     }
 
-    jobSpecExt->set_job_cpu_monitor_config(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor).ToString());
+    jobSpecExt->set_job_cpu_monitor_config(ToProto(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor)));
 
     auto failOperation = [&] (TError error) {
         TaskHost_->GetCancelableInvoker()->Invoke(BIND(

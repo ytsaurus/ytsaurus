@@ -6,6 +6,8 @@
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
 
@@ -16,6 +18,7 @@ using namespace NYson;
 using namespace NDiscoveryClient;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +63,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        response->set_value(GroupTree_->List(path, attributeFilter).ToString());
+        response->set_value(ToProto(GroupTree_->List(path, attributeFilter)));
 
         context->Reply();
     }
@@ -73,7 +76,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        response->set_value(GroupTree_->Get(path, attributeFilter).ToString());
+        response->set_value(ToProto(GroupTree_->Get(path, attributeFilter)));
 
         context->Reply();
     }

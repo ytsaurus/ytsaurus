@@ -43,8 +43,9 @@
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
-
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 namespace NYT::NQueryClient {
 
@@ -813,7 +814,7 @@ void ToProto(NProto::TExternalFunctionImpl* proto, const TExternalFunctionImpl& 
     TDescriptorType descriptorType;
     descriptorType.Type = object.RepeatedArgType;
 
-    proto->set_repeated_arg_type(ConvertToYsonString(descriptorType).ToString());
+    proto->set_repeated_arg_type(ToProto(ConvertToYsonString(descriptorType)));
     proto->set_repeated_arg_index(object.RepeatedArgIndex);
     proto->set_use_function_context(object.UseFunctionContext);
 }

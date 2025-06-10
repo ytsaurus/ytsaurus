@@ -15,6 +15,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -309,7 +310,7 @@ void TVirtualStaticTable::GetSelf(
     writer.Finish()
         .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
-                response->set_value(resultOrError.Value().ToString());
+                response->set_value(ToProto(resultOrError.Value()));
                 context->Reply();
             } else {
                 context->Reply(resultOrError);

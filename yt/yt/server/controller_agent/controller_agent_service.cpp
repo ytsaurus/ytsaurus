@@ -5,12 +5,14 @@
 #include "operation.h"
 #include "operation_controller.h"
 
-#include <yt/yt/core/rpc/service_detail.h>
-
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
+#include <yt/yt/core/rpc/service_detail.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 namespace NYT::NControllerAgent {
 
@@ -84,12 +86,12 @@ private:
         auto result = WaitFor(controllerAgent->BuildOperationInfo(operationId))
             .ValueOrThrow();
 
-        response->set_progress(result.Progress.ToString());
-        response->set_brief_progress(result.BriefProgress.ToString());
-        response->set_running_jobs(result.RunningJobs.ToString());
+        response->set_progress(ToProto(result.Progress));
+        response->set_brief_progress(ToProto(result.BriefProgress));
+        response->set_running_jobs(ToProto(result.RunningJobs));
         response->set_controller_memory_usage(result.MemoryUsage);
         response->set_controller_state(ToProto(result.ControllerState));
-        response->set_alerts(result.Alerts.ToString());
+        response->set_alerts(ToProto(result.Alerts));
 
         context->Reply();
     }

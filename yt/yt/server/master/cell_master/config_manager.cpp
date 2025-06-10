@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NCellMaster {
 
 using namespace NHydra;
@@ -154,7 +156,7 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto req = TYPathProxy::Set("//sys/@config");
-        req->set_value(ConvertToYsonString(GetConfig()).ToString());
+        req->set_value(ToProto(ConvertToYsonString(GetConfig())));
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(req, cellTag);
@@ -167,7 +169,7 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             auto req = TYPathProxy::Set("//sys/@config");
-            req->set_value(ConvertToYsonString(GetConfig()).ToString());
+            req->set_value(ToProto(ConvertToYsonString(GetConfig())));
             multicellManager->PostToSecondaryMasters(req);
         }
     }

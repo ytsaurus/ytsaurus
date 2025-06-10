@@ -63,6 +63,8 @@
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 namespace NYT::NTabletNode {
@@ -2579,7 +2581,7 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
     replicatableContent->set_retained_timestamp(RetainedTimestamp_);
     replicatableContent->set_cumulative_data_weight(CumulativeDataWeight_);
     if (CustomRuntimeData_) {
-        replicatableContent->set_custom_runtime_data(CustomRuntimeData_.ToString());
+        replicatableContent->set_custom_runtime_data(ToProto(CustomRuntimeData_));
     }
     ToProto(request->mutable_allocated_dynamic_store_ids(), this->DynamicStoreIdPool_);
 
