@@ -28,13 +28,15 @@ public:
 
     TFuture<void> RegisterChunks(
         std::vector<TInputChunkPtr> chunks,
-        std::optional<int> writerIndex) override
+        std::optional<int> writerIndex,
+        bool overwriteExistingWriterData) override
     {
         return BIND(
             &TShuffleController::DoRegisterChunks,
             MakeStrong(this),
             Passed(std::move(chunks)),
-            writerIndex)
+            writerIndex,
+            overwriteExistingWriterData)
             .AsyncVia(SerializedInvoker_)
             .Run();
     }
@@ -53,17 +55,38 @@ public:
     }
 
 private:
+    struct TWriterChunk
+    {
+        TInputChunkPtr Chunk;
+        std::optional<int> Epoch;
+        std::optional<int> WriterIndex;
+    };
+
     const int PartitionCount_;
 
     const IInvokerPtr SerializedInvoker_;
     const ITransactionPtr Transaction_;
 
-    std::vector<TInputChunkPtr> Chunks_;
+    std::vector<TWriterChunk> Chunks_;
 
     std::map<int, std::vector<int>> WriterIndexToChunkIndices_;
+    std::unordered_map<int, int> WriterIndexToEpoch_;
 
-    void DoRegisterChunks(std::vector<TInputChunkPtr> chunks, std::optional<int> writerIndex)
+    void DoRegisterChunks(std::vector<TInputChunkPtr> chunks, std::optional<int> writerIndex, bool overwriteExistingWriterData)
     {
+        std::optional<int> currentEpoch;
+        if (writerIndex) {
+            if (overwriteExistingWriterData) {
+                auto it = WriterIndexToEpoch_.find(*writerIndex);
+                if (it == WriterIndexToEpoch_.end()) {
+                    it = WriterIndexToEpoch_.insert({*writerIndex, 0}).first;
+                }
+                YT_VERIFY(it->second < std::numeric_limits<int>::max());
+                ++it->second;
+            }
+            currentEpoch = WriterIndexToEpoch_[*writerIndex];
+        }
+
         Chunks_.reserve(chunks.size());
         for (auto& chunk : chunks) {
             const auto* partitionsExt = chunk->PartitionsExt().get();
@@ -74,7 +97,12 @@ private:
             if (writerIndex) {
                 WriterIndexToChunkIndices_[*writerIndex].push_back(std::ssize(Chunks_));
             }
-            Chunks_.push_back(std::move(chunk));
+
+            Chunks_.push_back(TWriterChunk{
+                .Chunk = std::move(chunk),
+                .Epoch = currentEpoch,
+                .WriterIndex = writerIndex,
+            });
         }
     }
 
@@ -92,15 +120,19 @@ private:
 
         auto tryAddChunk = [&] (int index) {
             const auto& chunk = Chunks_[index];
-            const auto* partitionsExt = chunk->PartitionsExt().get();
+            if (chunk.WriterIndex.has_value() && chunk.Epoch < WriterIndexToEpoch_[*chunk.WriterIndex]) {
+                return;
+            }
+
+            const auto* partitionsExt = chunk.Chunk->PartitionsExt().get();
             i64 rowCount = partitionsExt->row_counts()[partitionIndex];
             i64 dataSize = partitionsExt->uncompressed_data_sizes()[partitionIndex];
             i64 compressedDataSize = DivCeil(
-                chunk->GetCompressedDataSize(),
-                chunk->GetRowCount()) * rowCount;
+                chunk.Chunk->GetCompressedDataSize(),
+                chunk.Chunk->GetRowCount()) * rowCount;
 
             if (rowCount > 0) {
-                result.push_back(New<TInputChunkSlice>(chunk));
+                result.push_back(New<TInputChunkSlice>(chunk.Chunk));
                 result.back()->OverrideSize(rowCount, dataSize, compressedDataSize);
             }
         };

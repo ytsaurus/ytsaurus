@@ -599,23 +599,23 @@ public:
         const TFlowExecuteOptions& options = {}) override;
 
     // Shuffle service client
-    TFuture<TShuffleHandlePtr> StartShuffle(
+    TFuture<TSignedShuffleHandlePtr> StartShuffle(
         const std::string& account,
         int partitionCount,
         NObjectClient::TTransactionId parentTransactionId,
         const TStartShuffleOptions& options) override;
 
     TFuture<IRowBatchReaderPtr> CreateShuffleReader(
-        const TShuffleHandlePtr& shuffleHandle,
+        const TSignedShuffleHandlePtr& shuffleHandle,
         int partitionIndex,
         std::optional<std::pair<int, int>> writerIndexRange,
-        const NTableClient::TTableReaderConfigPtr& config) override;
+        const TShuffleReaderOptions& options) override;
 
     TFuture<IRowBatchWriterPtr> CreateShuffleWriter(
-        const TShuffleHandlePtr& shuffleHandle,
+        const TSignedShuffleHandlePtr& shuffleHandle,
         const std::string& partitionColumn,
         std::optional<int> writerIndex,
-        const NTableClient::TTableWriterConfigPtr& config) override;
+        const TShuffleWriterOptions& options) override;
 
 private:
     const TConnectionPtr Connection_;

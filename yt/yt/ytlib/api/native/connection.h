@@ -181,6 +181,9 @@ struct IConnection
 
     using TReconfiguredSignature = void(const TConnectionDynamicConfigPtr& newConfig);
     DECLARE_INTERFACE_SIGNAL(TReconfiguredSignature, Reconfigured);
+
+    virtual NSignature::ISignatureGeneratorPtr GetSignatureGenerator() const = 0;
+    virtual void SetSignatureGenerator(NSignature::ISignatureGeneratorPtr generator) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IConnection)

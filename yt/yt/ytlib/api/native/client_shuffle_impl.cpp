@@ -15,6 +15,9 @@
 #include <yt/yt/client/api/row_batch_reader.h>
 #include <yt/yt/client/api/row_batch_writer.h>
 
+#include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/signature.h>
+
 #include <yt/yt/client/table_client/name_table.h>
 
 namespace NYT::NApi::NNative {
@@ -41,11 +44,13 @@ public:
         ISchemalessMultiChunkWriterPtr writer,
         TClientPtr client,
         TShuffleHandlePtr shuffleHandle,
-        std::optional<int> writerIndex)
+        std::optional<int> writerIndex,
+        bool overwriteExistingWriterData)
         : Writer_(std::move(writer))
         , Client_(std::move(client))
         , ShuffleHandle_(std::move(shuffleHandle))
         , WriterIndex_(writerIndex)
+        , OverwriteExistingWriterData_(overwriteExistingWriterData)
     { }
 
     bool Write(TRange<TUnversionedRow> rows) override
@@ -61,7 +66,11 @@ public:
     TFuture<void> Close() override
     {
         return Writer_->Close().Apply(BIND([this, this_ = MakeStrong(this)]() {
-            return Client_->RegisterShuffleChunks(ShuffleHandle_, Writer_->GetWrittenChunkSpecs(), WriterIndex_, /*options*/ {});
+            return Client_->RegisterShuffleChunks(
+                ShuffleHandle_,
+                Writer_->GetWrittenChunkSpecs(),
+                WriterIndex_,
+                /*options*/ {.OverwriteExistingWriterData = OverwriteExistingWriterData_});
         }));
     }
 
@@ -75,6 +84,7 @@ private:
     const TClientPtr Client_;
     const TShuffleHandlePtr ShuffleHandle_;
     const std::optional<int> WriterIndex_;
+    const bool OverwriteExistingWriterData_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,7 +118,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TShuffleHandlePtr TClient::DoStartShuffle(
+TSignedShuffleHandlePtr TClient::DoStartShuffle(
     const std::string& account,
     int partitionCount,
     TTransactionId parentTransactionId,
@@ -133,7 +143,8 @@ TShuffleHandlePtr TClient::DoStartShuffle(
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
 
-    return ConvertTo<TShuffleHandlePtr>(TYsonString(rsp->shuffle_handle()));
+    const auto& signatureGenerator = GetNativeConnection()->GetSignatureGenerator();
+    return TSignedShuffleHandlePtr(signatureGenerator->Sign(rsp->shuffle_handle()));
 }
 
 void TClient::DoRegisterShuffleChunks(
@@ -154,6 +165,7 @@ void TClient::DoRegisterShuffleChunks(
     if (writerIndex) {
         req->set_writer_index(*writerIndex);
     }
+    req->set_overwrite_existing_writer_data(options.OverwriteExistingWriterData);
 
     WaitFor(req->Invoke())
         .ThrowOnError();
@@ -189,11 +201,13 @@ std::vector<TChunkSpec> TClient::DoFetchShuffleChunks(
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
-    const TShuffleHandlePtr& shuffleHandle,
+    const TSignedShuffleHandlePtr& signedShuffleHandle,
     int partitionIndex,
     std::optional<std::pair<int, int>> writerIndexRange,
-    const TTableReaderConfigPtr& config)
+    const TShuffleReaderOptions& options)
 {
+    // TODO(pavook): friendly YSON wrapper.
+    auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
     return FetchShuffleChunks(
         shuffleHandle,
         partitionIndex,
@@ -219,7 +233,7 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
             }
 
             auto reader = CreateSchemalessSequentialMultiReader(
-                std::move(config),
+                options.Config,
                 New<TTableReaderOptions>(),
                 TChunkReaderHost::FromClient(this),
                 dataSourceDirectory,
@@ -237,11 +251,14 @@ TFuture<IRowBatchReaderPtr> TClient::CreateShuffleReader(
 }
 
 TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
-    const TShuffleHandlePtr& shuffleHandle,
+    const TSignedShuffleHandlePtr& signedShuffleHandle,
     const std::string& partitionColumn,
     std::optional<int> writerIndex,
-    const TTableWriterConfigPtr& config)
+    const TShuffleWriterOptions& options)
 {
+    // TODO(pavook): friendly YSON wrapper.
+    auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(signedShuffleHandle.Underlying()->Payload()));
+
     // The partition column index must be preserved for the partitioner.
     // However, the row is partitioned after the row value ids are mapped to
     // the chunk name table. As a result, the partition column id may differ
@@ -259,15 +276,15 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
         shuffleHandle->PartitionCount,
         nameTable->GetId(partitionColumn));
 
-    auto options = New<TTableWriterOptions>();
-    options->EvaluateComputedColumns = false;
-    options->Account = shuffleHandle->Account;
-    options->ReplicationFactor = shuffleHandle->ReplicationFactor;
-    options->MediumName = shuffleHandle->Medium;
+    auto tableWriterOptions = New<TTableWriterOptions>();
+    tableWriterOptions->EvaluateComputedColumns = false;
+    tableWriterOptions->Account = shuffleHandle->Account;
+    tableWriterOptions->ReplicationFactor = shuffleHandle->ReplicationFactor;
+    tableWriterOptions->MediumName = shuffleHandle->Medium;
 
     auto writer = CreatePartitionMultiChunkWriter(
-        config,
-        std::move(options),
+        options.Config,
+        std::move(tableWriterOptions),
         std::move(nameTable),
         std::move(schema),
         this,
@@ -280,7 +297,12 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
         /*dataSink*/ {},
         /*writeBlocksOptions*/ {});
 
-    return MakeFuture(New<TShuffleWriter>(std::move(writer), this, std::move(shuffleHandle), writerIndex))
+    return MakeFuture(New<TShuffleWriter>(
+        std::move(writer),
+        this,
+        std::move(shuffleHandle),
+        writerIndex,
+        options.OverwriteExistingWriterData))
         .As<IRowBatchWriterPtr>();
 }
 

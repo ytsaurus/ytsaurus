@@ -632,7 +632,6 @@ public:
         INodeMemoryTrackerPtr memoryTracker,
         IStickyTransactionPoolPtr stickyTransactionPool,
         ISignatureValidatorPtr signatureValidator,
-        ISignatureGeneratorPtr signatureGenerator,
         IQueryCorpusReporterPtr queryCorpusReporter)
         : TServiceBase(
             std::move(workerInvoker),
@@ -658,7 +657,6 @@ public:
             : nullptr)
         , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest))
         , SignatureValidator_(std::move(signatureValidator))
-        , SignatureGenerator_(std::move(signatureGenerator))
         , QueryCorpusReporter_(std::move(queryCorpusReporter))
         , UserAccessValidator_(CreateUserAccessValidator(
             ApiServiceConfig_->UserAccessValidator,
@@ -917,7 +915,6 @@ private:
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
     const ISignatureValidatorPtr SignatureValidator_;
-    const ISignatureGeneratorPtr SignatureGenerator_;
     const IQueryCorpusReporterPtr QueryCorpusReporter_;
     const IUserAccessValidatorPtr UserAccessValidator_;
 
@@ -6174,20 +6171,10 @@ private:
             options.AdjustDataWeightPerPartition,
             options.EnableCookies);
 
-        auto sign = [this_ = MakeStrong(this)] (TMultiTablePartitions&& partitions) {
-            for (auto& partition : partitions.Partitions) {
-                if (partition.Cookie) {
-                    partition.Cookie = this_->GenerateSignature<TTablePartitionCookiePtr>(std::move(partition.Cookie.Underlying()));
-                }
-            }
-            return std::move(partitions);
-        };
-
         ExecuteCall(
             context,
             [=] {
-                return client->PartitionTables(paths, options)
-                    .ApplyUnique(BIND(std::move(sign)));
+                return client->PartitionTables(paths, options);
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
@@ -6299,13 +6286,6 @@ private:
     ////////////////////////////////////////////////////////////////////////////////
 
     // Signature helpers.
-    template <std::constructible_from<TSignaturePtr> TFinal>
-    TFinal GenerateSignature(TSignaturePtr&& emptySignature) const
-    {
-        SignatureGenerator_->Resign(emptySignature);
-        return TFinal(std::move(emptySignature));
-    }
-
     TFuture<bool> ValidateSignature(const TSignaturePtr& signedValue) const
     {
         return SignatureValidator_->Validate(signedValue);
@@ -6323,21 +6303,10 @@ private:
             "Path: %v",
             path);
 
-        auto signSessionAndCookies = [&, this_ = MakeStrong(this)] (TDistributedWriteSessionWithCookies&& sessionAndCookies) {
-            sessionAndCookies.Session = GenerateSignature<TSignedDistributedWriteSessionPtr>(std::move(sessionAndCookies.Session.Underlying()));
-
-            for (auto& cookie : sessionAndCookies.Cookies) {
-                cookie = GenerateSignature<TSignedWriteFragmentCookiePtr>(std::move(cookie.Underlying()));
-            }
-
-            return std::move(sessionAndCookies);
-        };
-
         ExecuteCall(
             context,
             [=] {
-                return client->StartDistributedWriteSession(path, options)
-                    .ApplyUnique(BIND(std::move(signSessionAndCookies)));
+                return client->StartDistributedWriteSession(path, options);
             },
             [] (const auto& context, const auto& result) {
                 context->Response().set_signed_session(ConvertToYsonString(result.Session).ToString());
@@ -6431,8 +6400,8 @@ private:
             request,
             tableWriter,
             [&, tableWriter] {
-                auto signedWriteResult = GenerateSignature<TSignedWriteFragmentResultPtr>(tableWriter->GetWriteFragmentResult().Underlying());
-                response->set_signed_write_result(ConvertToYsonString(signedWriteResult).ToString());
+                auto writeResult = tableWriter->GetWriteFragmentResult();
+                response->set_signed_write_result(ConvertToYsonString(writeResult).ToString());
             });
     }
 
@@ -7027,9 +6996,11 @@ private:
                     parentTransactionId,
                     std::move(options));
             },
-            [] (const auto& context, const auto& shuffleHandle) {
+            [] (const auto& context, const auto& signedShuffleHandle) {
                 auto* response = &context->Response();
-                response->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
+                response->set_signed_shuffle_handle(ConvertToYsonString(signedShuffleHandle).ToString());
+                // TODO(pavook): friendly YSON wrapper.
+                auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
                 context->SetResponseInfo("TransactionId: %v", shuffleHandle->TransactionId);
             });
     }
@@ -7038,7 +7009,18 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+        auto signedShuffleHandle = ConvertTo<TSignedShuffleHandlePtr>(TYsonStringBuf(request->signed_shuffle_handle()));
+
+        // TODO(pavook): friendly YSON wrappers without double-conversions.
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
+
+        auto isValid = WaitFor(ValidateSignature(signedShuffleHandle.Underlying()))
+            .ValueOrThrow();
+
+        if (!isValid) {
+            THROW_ERROR_EXCEPTION("Signature validation failed for shuffle handle")
+                << TErrorAttribute("shuffle_handle", shuffleHandle);
+        }
 
         std::optional<std::pair<int, int>> writerIndexRange;
         if (request->has_writer_index_range()) {
@@ -7079,13 +7061,16 @@ private:
             request->partition_index(),
             writerIndexRange);
 
-        auto readerConfig = ConvertTo<NTableClient::TTableReaderConfigPtr>(TYsonString(request->reader_config()));
+        TShuffleReaderOptions options;
+        options.Config = request->has_reader_config()
+            ? ConvertTo<TTableReaderConfigPtr>(TYsonString(request->reader_config()))
+            : New<TTableReaderConfig>();
 
         auto reader = WaitFor(client->CreateShuffleReader(
-            shuffleHandle,
+            std::move(signedShuffleHandle),
             request->partition_index(),
             writerIndexRange,
-            readerConfig))
+            options))
             .ValueOrThrow();
 
         auto encoder = CreateWireRowStreamEncoder(reader->GetNameTable());
@@ -7120,9 +7105,18 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        auto writerConfig = ConvertTo<NTableClient::TTableWriterConfigPtr>(TYsonString(request->writer_config()));
+        auto signedShuffleHandle = ConvertTo<TSignedShuffleHandlePtr>(TYsonStringBuf(request->signed_shuffle_handle()));
 
-        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
+        // TODO(pavook): friendly YSON helpers without double conversions.
+        auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
+
+        auto isValid = WaitFor(ValidateSignature(signedShuffleHandle.Underlying()))
+            .ValueOrThrow();
+
+        if (!isValid) {
+            THROW_ERROR_EXCEPTION("Signature validation failed for shuffle handle")
+                << TErrorAttribute("shuffle_handle", shuffleHandle);
+        }
 
         auto partitionColumn = request->partition_column();
 
@@ -7139,8 +7133,24 @@ private:
             THROW_ERROR_EXCEPTION("Received negative writer index %v", *writerIndex);
         }
 
+        TShuffleWriterOptions options;
+        options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(
+            request->has_writer_config()
+            ? request->writer_config()
+            : "{}"));
+
+
+        options.Config = request->has_writer_config()
+            ? ConvertTo<TTableWriterConfigPtr>(TYsonString(request->writer_config()))
+            : New<TTableWriterConfig>();
+
+        options.OverwriteExistingWriterData = request->overwrite_existing_writer_data();
+        if (options.OverwriteExistingWriterData && !writerIndex.has_value()) {
+            THROW_ERROR_EXCEPTION("Writer index must be set when overwrite existing writer data option is enabled");
+        }
+
         auto writer = WaitFor(
-            client->CreateShuffleWriter(shuffleHandle, partitionColumn, writerIndex, writerConfig))
+            client->CreateShuffleWriter(std::move(signedShuffleHandle), partitionColumn, writerIndex, options))
             .ValueOrThrow();
 
         auto decoder = CreateWireRowStreamDecoder(writer->GetNameTable());
@@ -7223,12 +7233,11 @@ IApiServicePtr CreateApiService(
     NLogging::TLogger logger,
     TProfiler profiler,
     ISignatureValidatorPtr signatureValidator,
-    ISignatureGeneratorPtr signatureGenerator,
     INodeMemoryTrackerPtr memoryUsageTracker,
     IStickyTransactionPoolPtr stickyTransactionPool,
     IQueryCorpusReporterPtr queryCorpusReporter)
 {
-    YT_VERIFY(signatureValidator && signatureGenerator);
+    YT_VERIFY(signatureValidator);
     return New<TApiService>(
         std::move(config),
         std::move(controlInvoker),
@@ -7243,7 +7252,6 @@ IApiServicePtr CreateApiService(
         std::move(memoryUsageTracker),
         std::move(stickyTransactionPool),
         std::move(signatureValidator),
-        std::move(signatureGenerator),
         std::move(queryCorpusReporter));
 }
 

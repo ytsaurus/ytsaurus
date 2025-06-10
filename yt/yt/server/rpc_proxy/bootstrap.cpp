@@ -215,12 +215,13 @@ void TBootstrap::DoInitialize()
             Config_->SignatureGeneration->CypressKeyWriter,
             RootClient_))
             .ValueOrThrow();
-        SignatureGenerator_ = New<TSignatureGenerator>(Config_->SignatureGeneration->Generator);
+        auto signatureGenerator = New<TSignatureGenerator>(Config_->SignatureGeneration->Generator);
         SignatureKeyRotator_ = New<TKeyRotator>(
             Config_->SignatureGeneration->KeyRotator,
             GetControlInvoker(),
             CypressKeyWriter_,
-            SignatureGenerator_);
+            signatureGenerator);
+        Connection_->SetSignatureGenerator(std::move(signatureGenerator));
     }
 
     ProxyCoordinator_ = CreateProxyCoordinator();
@@ -333,7 +334,6 @@ void TBootstrap::DoStart()
             RpcProxyLogger(),
             RpcProxyProfiler(),
             (SignatureValidator_ ? SignatureValidator_ : CreateAlwaysThrowingSignatureValidator()),
-            (SignatureGenerator_ ? SignatureGenerator_ : CreateAlwaysThrowingSignatureGenerator()),
             MemoryUsageTracker_,
             /*stickyTransactionPool*/ {},
             QueryCorpusReporter_);

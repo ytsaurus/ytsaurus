@@ -605,6 +605,7 @@ NScheduler::TAllocationStartDescriptor TTask::CreateAllocationStartDescriptor(
             attributes.DiskRequest.InodeCount = diskRequest->InodeCount;
         }
         attributes.PortCount = userJobSpec->PortCount;
+        attributes.AllocateJobProxyRpcServerPort = userJobSpec->EnableShuffleServiceInJobProxy;
     }
 
     return startDescriptor;

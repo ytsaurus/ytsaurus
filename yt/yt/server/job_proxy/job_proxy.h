@@ -136,7 +136,12 @@ private:
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
+    // Local RPC server accessible only via Unix domain socket.
     NRpc::IServerPtr RpcServer_;
+
+    // Public RPC server that listens on TCP port for external access.
+    // Separated from the private server to limit exposed services.
+    NRpc::IServerPtr PublicRpcServer_;
 
     NConcurrency::IThreadPoolPtr ApiServiceThreadPool_;
 
@@ -159,6 +164,7 @@ private:
     IJobSpecHelperPtr JobSpecHelper_;
 
     std::vector<int> Ports_;
+    std::optional<int> JobProxyRpcServerPort_;
 
     NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
@@ -191,7 +197,7 @@ private:
     void SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment);
     IJobProxyEnvironmentPtr FindJobProxyEnvironment() const;
 
-    void EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize);
+    void EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool enableShuffleService);
 
     void DoRun();
     NControllerAgent::NProto::TJobResult RunJob();

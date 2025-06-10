@@ -931,7 +931,7 @@ public: \
         const TFlowExecuteOptions& options),
         (pipelinePath, command, argument, options))
 
-    IMPLEMENT_METHOD(TShuffleHandlePtr, StartShuffle, (
+    IMPLEMENT_METHOD(TSignedShuffleHandlePtr, StartShuffle, (
         const std::string& account,
         int partitionCount,
         NObjectClient::TTransactionId parentTransactionId,
@@ -956,15 +956,15 @@ public: \
         (chaosCellId, cordiantorCellId, options))
 
     TFuture<IRowBatchReaderPtr> CreateShuffleReader(
-        const TShuffleHandlePtr& shuffleHandle,
+        const TSignedShuffleHandlePtr& signedShuffleHandle,
         int partitionIndex,
         std::optional<std::pair<int, int>> writerIndexRange,
-        const NTableClient::TTableReaderConfigPtr& config) override;
+        const TShuffleReaderOptions& options) override;
     TFuture<IRowBatchWriterPtr> CreateShuffleWriter(
-        const TShuffleHandlePtr& shuffleHandle,
+        const TSignedShuffleHandlePtr& signedShuffleHandle,
         const std::string& partitionColumn,
         std::optional<int> writerIndex,
-        const NTableClient::TTableWriterConfigPtr& config) override;
+        const TShuffleWriterOptions& options) override;
 
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
@@ -1010,8 +1010,6 @@ private:
     TLazyIntrusivePtr<NQueryClient::IFunctionRegistry> FunctionRegistry_;
     std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
     std::unique_ptr<NBundleController::TBundleControllerServiceProxy> BundleControllerProxy_;
-
-    const NSignature::ISignatureGeneratorPtr DummySignatureGenerator_;
 
     struct TReplicaClient final
     {

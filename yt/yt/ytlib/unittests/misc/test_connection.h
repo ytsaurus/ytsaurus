@@ -86,6 +86,8 @@
 
 #include <yt/yt/client/sequoia_client/public.h>
 
+#include <yt/yt/client/signature/generator.h>
+
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/api/client.h>
@@ -210,6 +212,8 @@ public:
     MOCK_METHOD(void, Reconfigure, (const TConnectionDynamicConfigPtr&), (override));
     MOCK_METHOD(NRpc::IChannelPtr, GetShuffleServiceChannelOrThrow, (), (override));
     MOCK_METHOD(void, RegisterShuffleService, (const std::string&), (override));
+    MOCK_METHOD(NSignature::ISignatureGeneratorPtr, GetSignatureGenerator, (), (const, override));
+    MOCK_METHOD(void, SetSignatureGenerator, (NSignature::ISignatureGeneratorPtr), (override));
 
     const TConnectionStaticConfigPtr& GetStaticConfig() const override;
     const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const override;

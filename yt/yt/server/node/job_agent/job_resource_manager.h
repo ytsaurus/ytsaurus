@@ -152,6 +152,7 @@ public:
     TGuid GetId() const noexcept;
 
     const std::vector<int>& GetPorts() const noexcept;
+    std::optional<int> GetJobProxyRpcServerPort() const noexcept;
     const NClusterNode::ISlotPtr& GetUserSlot() const noexcept;
     const std::vector<NClusterNode::ISlotPtr>& GetGpuSlots() const noexcept;
 
@@ -213,6 +214,7 @@ private:
     const NClusterNode::TJobResources InitialResourceDemand_;
 
     std::vector<int> Ports_;
+    std::optional<int> JobProxyRpcServerPort_;
 
     EResourcesState State_ = EResourcesState::Pending;
     // NB(arkady-e1ppa): We can convert pending holder
