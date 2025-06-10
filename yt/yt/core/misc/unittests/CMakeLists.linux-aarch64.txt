@@ -69,9 +69,9 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/adjusted_exponential_moving_average_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/algorithm_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/arithmetic_formula_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/atomic_ptr_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/async_expiring_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/async_slru_cache_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/atomic_ptr_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/backoff_strategy_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/bit_packed_integer_vector_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/bitmap_ut.cpp
@@ -81,6 +81,7 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/codicil_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/collection_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/concurrent_cache_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/configurable_singleton_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/consistent_hashing_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/default_map_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/digest_ut.cpp
@@ -97,6 +98,7 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/hash_filter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/hazard_ptr_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/heap_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/hedging_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/histogram_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/hyperloglog_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/intern_registry_ut.cpp
@@ -105,11 +107,10 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/lru_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/maybe_inf_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/moving_average_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/mpsc_fair_share_queue_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/mpsc_stack_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/mpsc_queue_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/relaxed_mpsc_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/mpl_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/mpsc_fair_share_queue_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/mpsc_queue_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/mpsc_stack_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/pattern_formatter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/persistent_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/pool_allocator_ut.cpp
@@ -117,23 +118,23 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/random_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/range_helpers_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/ref_counted_tracker_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/relaxed_mpsc_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/ring_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/skip_list_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/slab_allocator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sliding_window_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sync_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/spsc_queue_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/statistic_path_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/statistics_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sync_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/sync_expiring_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/time_formula_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/three_level_stable_vector_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/tls_destructor_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/tls_expiring_cache_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/topological_ordering_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/yverify_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/zerocopy_output_writer_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/hedging_manager_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/configurable_singleton_ut.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/core/misc/unittests/proto/ref_counted_tracker_ut.pb.h
 )
 
