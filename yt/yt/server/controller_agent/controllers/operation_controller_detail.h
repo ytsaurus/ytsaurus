@@ -953,6 +953,8 @@ protected:
 
     i64 GetDataSliceCount() const;
 
+    double GetCpuLimit(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
+
     using TInputTableFilter = std::function<bool(const TInputTablePtr& table)>;
 
     NTableClient::TSortColumns CheckInputTablesSorted(

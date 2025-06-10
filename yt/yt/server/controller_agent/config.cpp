@@ -411,6 +411,10 @@ void TOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("set_container_cpu_limit", &TThis::SetContainerCpuLimit)
         .Default(false);
 
+    registrar.Parameter("min_cpu_limit", &TThis::MinCpuLimit)
+        .Default(0.0)
+        .GreaterThanOrEqual(0.0);
+
     registrar.Parameter("set_slot_container_memory_limit", &TThis::SetSlotContainerMemoryLimit)
         .Default(false);
 
