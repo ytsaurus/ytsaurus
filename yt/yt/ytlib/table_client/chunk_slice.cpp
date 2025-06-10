@@ -524,6 +524,7 @@ void ToProto(
     protoChunkSlice->set_data_weight_override(chunkSlice.DataWeight);
     protoChunkSlice->set_row_count_override(chunkSlice.RowCount);
     protoChunkSlice->set_compressed_data_size_override(chunkSlice.CompressedDataSize);
+    protoChunkSlice->set_uncompressed_data_size_override(chunkSlice.UncompressedDataSize);
 }
 
 void ToProto(
@@ -557,6 +558,7 @@ void ToProto(
     protoChunkSlice->set_data_weight_override(chunkSlice.DataWeight);
     protoChunkSlice->set_row_count_override(chunkSlice.RowCount);
     protoChunkSlice->set_compressed_data_size_override(chunkSlice.CompressedDataSize);
+    protoChunkSlice->set_uncompressed_data_size_override(chunkSlice.UncompressedDataSize);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

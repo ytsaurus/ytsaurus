@@ -370,11 +370,11 @@ protected:
                     Spec_,
                     Options_,
                     Logger,
-                    TotalEstimatedInputChunkCount_,
-                    PrimaryInputDataWeight_,
-                    PrimaryInputCompressedDataSize_,
-                    DataWeightRatio_,
-                    InputCompressionRatio_,
+                    EstimatedInputStatistics_->ChunkCount,
+                    EstimatedInputStatistics_->PrimaryDataWeight,
+                    EstimatedInputStatistics_->PrimaryCompressedDataSize,
+                    EstimatedInputStatistics_->DataWeightRatio,
+                    EstimatedInputStatistics_->CompressionRatio,
                     InputManager_->GetInputTables().size(),
                     GetPrimaryInputTableCount());
                 break;
@@ -384,10 +384,10 @@ protected:
                     Options_,
                     Logger,
                     OutputTables_.size(),
-                    DataWeightRatio_,
-                    TotalEstimatedInputChunkCount_,
-                    PrimaryInputDataWeight_,
-                    PrimaryInputCompressedDataSize_,
+                    EstimatedInputStatistics_->DataWeightRatio,
+                    EstimatedInputStatistics_->ChunkCount,
+                    EstimatedInputStatistics_->PrimaryDataWeight,
+                    EstimatedInputStatistics_->PrimaryCompressedDataSize,
                     /*inputRowCount*/ std::numeric_limits<i64>::max() / 4, // It is not important in sorted operations.
                     GetForeignInputDataWeight(),
                     InputManager_->GetInputTables().size(),
@@ -1003,11 +1003,11 @@ protected:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
             if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
-                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount_ != SortedTask_->GetTotalOutputRowCount(),
+                YT_LOG_ERROR_IF(EstimatedInputStatistics_->RowCount != SortedTask_->GetTotalOutputRowCount(),
                     "Input/output row count mismatch in sorted merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
-                    TotalEstimatedInputRowCount_,
+                    EstimatedInputStatistics_->RowCount,
                     SortedTask_->GetTotalOutputRowCount());
-                YT_VERIFY(TotalEstimatedInputRowCount_ == SortedTask_->GetTotalOutputRowCount());
+                YT_VERIFY(EstimatedInputStatistics_->RowCount == SortedTask_->GetTotalOutputRowCount());
             }
         }
 
@@ -1247,7 +1247,7 @@ public:
 
     i64 GetForeignInputDataWeight() const override
     {
-        return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight_;
+        return Spec_->ConsiderOnlyPrimarySize ? 0 : EstimatedInputStatistics_->ForeignDataWeight;
     }
 
     TYsonStructPtr GetTypedSpec() const override

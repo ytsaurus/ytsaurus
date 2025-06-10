@@ -15,6 +15,7 @@
 #include "task_host.h"
 
 #include <yt/yt/server/controller_agent/helpers.h>
+#include <yt/yt/server/controller_agent/input_statistics_collector.h>
 #include <yt/yt/server/controller_agent/operation_controller.h>
 
 #include <yt/yt/server/lib/chunk_pools/input_stream.h>
@@ -546,29 +547,9 @@ protected:
 
     std::atomic<EControllerState> State_ = {EControllerState::Preparing};
 
-    // These totals are approximate.
-    int TotalEstimatedInputChunkCount_ = 0;
-    i64 TotalEstimatedInputDataWeight_ = 0;
-    i64 TotalEstimatedInputRowCount_ = 0;
-    i64 TotalEstimatedInputValueCount_ = 0;
-    i64 TotalEstimatedInputCompressedDataSize_ = 0;
-    i64 TotalEstimatedInputUncompressedDataSize_ = 0;
-
     i64 TeleportedOutputRowCount_ = 0;
 
-    // Only used during materialization, not persisted.
-    double InputCompressionRatio_ = 0.0;
-
-    // Ratio DataWeight/UncomprssedDataSize for input data.
-    // Only used during materialization, not persisted.
-    double DataWeightRatio_ = 0.0;
-
-    // Total uncompressed data size for input tables.
-    // Used only during preparation, not persisted.
-    i64 PrimaryInputDataWeight_ = 0;
-    i64 PrimaryInputCompressedDataSize_ = 0;
-    i64 ForeignInputDataWeight_ = 0;
-    i64 ForeignInputCompressedDataSize_ = 0;
+    std::optional<TInputStatistics> EstimatedInputStatistics_;
 
     int UnavailableIntermediateChunkCount_ = 0;
 

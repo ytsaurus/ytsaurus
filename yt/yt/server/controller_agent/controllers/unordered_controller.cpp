@@ -293,38 +293,41 @@ protected:
 
     virtual i64 GetMinTeleportChunkSize() const = 0;
 
-    void InitJobSizeConstraints()
+    IJobSizeConstraintsPtr CreateJobSizeConstraints() const
     {
+        YT_VERIFY(EstimatedInputStatistics_);
         switch (OperationType_) {
             case EOperationType::Merge:
-                JobSizeConstraints_ = CreateMergeJobSizeConstraints(
+                return CreateMergeJobSizeConstraints(
                     Spec_,
                     Options_,
                     Logger,
-                    TotalEstimatedInputChunkCount_,
-                    PrimaryInputDataWeight_,
-                    PrimaryInputCompressedDataSize_,
-                    DataWeightRatio_,
-                    InputCompressionRatio_);
-                break;
+                    EstimatedInputStatistics_->ChunkCount,
+                    EstimatedInputStatistics_->PrimaryDataWeight,
+                    EstimatedInputStatistics_->PrimaryCompressedDataSize,
+                    EstimatedInputStatistics_->DataWeightRatio,
+                    EstimatedInputStatistics_->CompressionRatio);
 
             case EOperationType::Map:
-                JobSizeConstraints_ = CreateUserJobSizeConstraints(
+                return CreateUserJobSizeConstraints(
                     Spec_,
                     Options_,
                     Logger,
                     GetOutputTablePaths().size(),
-                    DataWeightRatio_,
-                    TotalEstimatedInputChunkCount_,
-                    PrimaryInputDataWeight_,
-                    PrimaryInputCompressedDataSize_,
-                    TotalEstimatedInputRowCount_);
-                break;
+                    EstimatedInputStatistics_->DataWeightRatio,
+                    EstimatedInputStatistics_->ChunkCount,
+                    EstimatedInputStatistics_->PrimaryDataWeight,
+                    EstimatedInputStatistics_->PrimaryCompressedDataSize,
+                    EstimatedInputStatistics_->RowCount);
 
             default:
                 YT_ABORT();
         }
+    }
 
+    void InitJobSizeConstraints()
+    {
+        JobSizeConstraints_ = CreateJobSizeConstraints();
         YT_LOG_INFO(
             "Calculated operation parameters (JobCount: %v, DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
             "MaxCompressedDataSizePerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, IsExplicitJobCount: %v)",
@@ -351,49 +354,83 @@ protected:
         return options;
     }
 
-    void ProcessInputs()
+    std::vector<TChunkStripePtr> CollectInputChunkStripes()
     {
-        YT_PROFILE_TIMING("/operations/unordered/input_processing_time") {
-            YT_LOG_INFO("Processing inputs");
+        YT_LOG_INFO("Collecting inputs");
 
-            TPeriodicYielder yielder(PrepareYieldPeriod);
+        TPeriodicYielder yielder(PrepareYieldPeriod);
 
-            UnorderedTask_->SetIsInput(true);
+        auto unversionedSlices = InputManager_->CollectPrimaryUnversionedChunks();
 
-            int unversionedSlices = 0;
-            int versionedSlices = 0;
-            // TODO(max42): use CollectPrimaryInputDataSlices() here?
-            for (auto& chunk : InputManager_->CollectPrimaryUnversionedChunks()) {
-                const auto& comparator = InputManager_->GetInputTables()[chunk->GetTableIndex()]->Comparator;
+        i64 inputSliceDataWeightEstimation = CreateJobSizeConstraints()->GetInputSliceDataWeight();
+        YT_LOG_DEBUG(
+            "Calculated input slice data weight estimation for versioned data slices (InputSliceDataWeightEstimation: %v)",
+            inputSliceDataWeightEstimation);
+        auto versionedSlices = CollectPrimaryVersionedDataSlices(inputSliceDataWeightEstimation);
 
-                const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
-                dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
+        YT_LOG_INFO("Collected inputs (UnversionedSlices: %v, VersionedSlices: %v)",
+            std::ssize(unversionedSlices),
+            std::ssize(versionedSlices));
 
-                if (comparator) {
-                    dataSlice->TransformToNew(RowBuffer_, comparator.GetLength());
-                    InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, comparator);
-                } else {
-                    dataSlice->TransformToNewKeyless();
-                }
+        std::vector<TChunkStripePtr> inputStripes;
+        inputStripes.reserve(std::size(unversionedSlices) + std::size(versionedSlices));
 
-                UnorderedTask_->AddInput(New<TChunkStripe>(std::move(dataSlice)));
-                ++unversionedSlices;
-                yielder.TryYield();
+        TInputStatisticsCollector statisticsCollector;
+
+        // TODO(max42): use CollectPrimaryInputDataSlices() here?
+        for (auto& chunk : unversionedSlices) {
+            const auto& comparator = InputManager_->GetInputTables()[chunk->GetTableIndex()]->Comparator;
+
+            auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
+
+            if (comparator) {
+                dataSlice->TransformToNew(RowBuffer_, comparator.GetLength());
+                InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, comparator);
+            } else {
+                dataSlice->TransformToNewKeyless();
             }
-            for (auto& slice : CollectPrimaryVersionedDataSlices(JobSizeConstraints_->GetInputSliceDataWeight())) {
-                UnorderedTask_->AddInput(New<TChunkStripe>(std::move(slice)));
-                ++versionedSlices;
-                yielder.TryYield();
-            }
 
-            YT_LOG_INFO("Processed inputs (UnversionedSlices: %v, VersionedSlices: %v)",
-                unversionedSlices,
-                versionedSlices);
+            statisticsCollector.AddChunk(chunk, /*isPrimary*/ true);
+
+            inputStripes.push_back(New<TChunkStripe>(std::move(dataSlice)));
+            yielder.TryYield();
+        }
+
+        for (auto& slice : versionedSlices) {
+            statisticsCollector.AddChunk(slice, /*isPrimary*/ true);
+
+            inputStripes.push_back(New<TChunkStripe>(std::move(slice)));
+            yielder.TryYield();
+        }
+
+
+        auto newStatisticsEstimate = std::move(statisticsCollector).Finish();
+        if (newStatisticsEstimate != *EstimatedInputStatistics_) {
+            YT_LOG_DEBUG(
+                "Estimated input statistics updated (NewEstimatedInputStatistics: %v)",
+                newStatisticsEstimate);
+            EstimatedInputStatistics_ = newStatisticsEstimate;
+        }
+
+        return inputStripes;
+    }
+
+    void ProcessInputs(std::vector<TChunkStripePtr> inputChunkStripes)
+    {
+        TPeriodicYielder yielder(PrepareYieldPeriod);
+
+        UnorderedTask_->SetIsInput(true);
+
+        for (auto& stripe : inputChunkStripes) {
+            UnorderedTask_->AddInput(std::move(stripe));
+            yielder.TryYield();
         }
     }
 
     void CustomMaterialize() override
     {
+        auto inputChunkStripes = CollectInputChunkStripes();
         InitJobSizeConstraints();
 
         auto autoMergeEnabled = TryInitAutoMerge(JobSizeConstraints_->GetJobCount());
@@ -414,7 +451,7 @@ protected:
 
         RegisterTask(UnorderedTask_);
 
-        ProcessInputs();
+        ProcessInputs(std::move(inputChunkStripes));
 
         FinishTaskInput(UnorderedTask_);
         if (AutoMergeTask_) {
@@ -947,12 +984,12 @@ private:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved()) {
-                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount_ != TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount(),
+                YT_LOG_ERROR_IF(EstimatedInputStatistics_->RowCount != TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount(),
                     "Input/output row count mismatch in unordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v, TeleportedOutputRowCount: %v)",
-                    TotalEstimatedInputRowCount_,
+                    EstimatedInputStatistics_->RowCount,
                     UnorderedTask_->GetTotalOutputRowCount(),
                     TeleportedOutputRowCount_);
-                YT_VERIFY(TotalEstimatedInputRowCount_ == TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount());
+                YT_VERIFY(EstimatedInputStatistics_->RowCount == TeleportedOutputRowCount_ + UnorderedTask_->GetTotalOutputRowCount());
                 if (Spec_->ForceTransform) {
                     YT_VERIFY(TeleportedOutputRowCount_ == 0);
                 }
