@@ -63,10 +63,12 @@ public:
         Executor_->ScheduleOutOfBand();
     }
 
-    bool IsRegistered() const override
+    bool IsUp() const override
     {
         return RegistrationError_.Read([] (const TError& error) {
-            return error.IsOK();
+            return
+                error.IsOK() ||
+                error.GetCode() == NSequoiaClient::EErrorCode::InvalidSequoiaReign;
         });
     }
 
@@ -134,11 +136,9 @@ private:
         MasterReign_.Store(reign);
         MaxCopiableSubtreeSize_.Store(rsp->limits().max_copiable_subtree_size());
 
-        if (!IsRegistered()) {
+        if (!RegistrationError_.Exchange(TError{}).IsOK()) {
             YT_LOG_DEBUG("Cypress proxy registered at primary master (MasterReign: %v)", reign);
         }
-
-        RegistrationError_.Store(TError{});
     }
 };
 
