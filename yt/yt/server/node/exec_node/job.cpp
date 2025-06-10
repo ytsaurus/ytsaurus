@@ -2064,6 +2064,11 @@ bool TJob::IsFinished() const noexcept
     }
 }
 
+bool TJob::IsFinishedUnsuccessfully() const noexcept
+{
+    return JobState_ == EJobState::Aborted || JobState_ == EJobState::Failed;
+}
+
 // Helpers.
 
 void TJob::SetJobState(EJobState state)

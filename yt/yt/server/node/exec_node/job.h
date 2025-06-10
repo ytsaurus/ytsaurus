@@ -260,6 +260,7 @@ public:
     const std::optional<NScheduler::TPreemptedFor>& GetPreemptedFor() const noexcept;
 
     bool IsFinished() const noexcept;
+    bool IsFinishedUnsuccessfully() const noexcept;
 
     TFuture<void> GetCleanupFinishedEvent();
 

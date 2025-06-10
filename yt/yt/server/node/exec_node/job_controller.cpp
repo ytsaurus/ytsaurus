@@ -142,6 +142,8 @@ public:
     {
         auto dynamicConfig = GetDynamicConfig();
 
+        InitAllocationProfiler(Profiler_);
+
         JobResourceManager_ = Bootstrap_->GetJobResourceManager();
         JobResourceManager_->RegisterResourcesConsumer(
             BIND_NO_PROPAGATE(&TJobController::OnResourceReleased, MakeWeak(this))
