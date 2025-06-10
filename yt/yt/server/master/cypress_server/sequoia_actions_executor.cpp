@@ -115,6 +115,7 @@ private:
     static bool CanCreateSequoiaType(EObjectType type)
     {
         return
+            type == EObjectType::Document ||
             type == EObjectType::Orchid ||
             IsSequoiaNode(type) ||
             IsScalarType(type) ||
