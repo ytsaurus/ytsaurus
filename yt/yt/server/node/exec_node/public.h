@@ -100,7 +100,7 @@ struct TArtifactDownloadOptions
 
 struct TVolumePreparationOptions
 {
-    std::optional<TJobId> JobId;
+    TJobId JobId;
     TUserSandboxOptions UserSandboxOptions;
     TArtifactDownloadOptions ArtifactDownloadOptions;
 };

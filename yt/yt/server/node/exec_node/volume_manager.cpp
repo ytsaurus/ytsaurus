@@ -359,7 +359,7 @@ struct TCreateNbdVolumeOptions
 
 struct TPrepareNbdVolumeOptions
 {
-    std::optional<TJobId> JobId;
+    TJobId JobId;
 
     TArtifactKey ArtifactKey;
     IImageReaderPtr ImageReader;
@@ -369,7 +369,7 @@ struct TPrepareNbdVolumeOptions
 
 struct TPrepareNbdRootVolumeOptions
 {
-    std::optional<TJobId> JobId;
+    TJobId JobId;
 
     i64 Size;
     int MediumIndex;
@@ -2952,7 +2952,7 @@ public:
                     TPrepareNbdVolumeOptions{
                         options.JobId,
                         artifactKey,
-                        std::move(reader)
+                        std::move(reader),
                     }));
             } else if (FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS) {
                 overlayDataFutures.push_back(PrepareSquashFSVolume(
@@ -2983,7 +2983,7 @@ public:
                 TPrepareNbdVolumeOptions{
                     options.JobId,
                     virtualArtifactKey,
-                    userSandboxOptions.VirtualSandboxData->Reader
+                    userSandboxOptions.VirtualSandboxData->Reader,
                 }));
         }
 
@@ -3146,7 +3146,7 @@ private:
                 nbdServer->GetLogger());
 
             if (options.JobId) {
-                device->SubscribeShouldStopUsingDevice(MakeJobInterrupter(*options.JobId));
+                device->SubscribeShouldStopUsingDevice(MakeJobInterrupter(options.JobId));
             }
 
             auto initializeFuture = device->Initialize();
@@ -3206,7 +3206,7 @@ private:
                 nbdServer->GetLogger());
 
             if (options.JobId) {
-                device->SubscribeShouldStopUsingDevice(MakeJobInterrupter(*options.JobId));
+                device->SubscribeShouldStopUsingDevice(MakeJobInterrupter(options.JobId));
             }
 
             auto initializeFuture = device->Initialize();
