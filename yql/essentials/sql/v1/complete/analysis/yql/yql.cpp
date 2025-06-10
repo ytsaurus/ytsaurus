@@ -3,7 +3,6 @@
 #include "cluster.h"
 #include "table.h"
 
-#define USE_CURRENT_UDF_ABI_VERSION
 #include <yql/essentials/core/yql_type_annotation.h>
 #include <yql/essentials/core/services/yql_eval_expr.h>
 #include <yql/essentials/minikql/mkql_function_registry.h>
