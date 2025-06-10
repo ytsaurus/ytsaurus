@@ -346,11 +346,11 @@ message TUserJobSpec
 
     optional bool start_queue_consumer_registration_manager = 77 [default = true];
 
-    map<string, TSidecarJobSpec> sidecars = 80;
-
     reserved 38, 48, 54, 61, 62;
 
     optional TNetworkProject network_project = 80;
+
+    map<string, TSidecarJobSpec> sidecars = 90;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
