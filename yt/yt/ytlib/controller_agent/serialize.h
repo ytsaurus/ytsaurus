@@ -62,6 +62,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ChunkStripeKeyNoIndex)                 (301802))
     ((OrderedAndSortedJobSizeAdjuster)       (301803))
     ((CompressedDataSizePerJob)              (301804))
+    ((DropSolidFromChunkStripe)              (301805))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
