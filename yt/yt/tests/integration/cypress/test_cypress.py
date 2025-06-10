@@ -2893,8 +2893,7 @@ class TestCypress(YTEnvSetup):
         assert creation_time1 == get("//tmp/t2/@creation_time")
         assert creation_time2 == get("//tmp/t2/x/@creation_time")
 
-    @authors("ignat")
-    @not_implemented_in_sequoia
+    @authors("kvk1920", "ignat")
     def test_document(self):
         create("document", "//tmp/d1")
 
@@ -2910,9 +2909,22 @@ class TestCypress(YTEnvSetup):
 
         set("//tmp/d1/some/path", "hello", recursive=True)
         assert get("//tmp/d1") == {"value": 10, "some": {"path": "hello"}}
+        assert get("//tmp/d1/some") == {"path": "hello"}
 
-    @authors("shakurov")
-    @not_implemented_in_sequoia
+        copy("//tmp/d1", "//tmp/d2")
+        assert get("//tmp/d1") == get("//tmp/d2")
+
+        remove("//tmp/d1/some")
+        assert get("//tmp/d1") == {"value": 10}
+
+        set("//tmp/d1", 123)
+        assert get("//tmp/d1") == 123
+
+        remove("//tmp/d1")
+        gc_collect()
+        assert not exists("//tmp/d1")
+
+    @authors("kvk1920", "shakurov")
     def test_setting_document_node_increases_revision_yt_7829(self):
         create("document", "//tmp/d1")
         revision1 = get("//tmp/d1/@revision")
