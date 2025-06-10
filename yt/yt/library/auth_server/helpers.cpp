@@ -76,6 +76,7 @@ static const THashSet<TString> PrivateUrlParams{
     "sessionid",
     "sslsessionid",
     "user_ticket",
+    "sessguard",
 };
 
 void TSafeUrlBuilder::AppendString(TStringBuf str)

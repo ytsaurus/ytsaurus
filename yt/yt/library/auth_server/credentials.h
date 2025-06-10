@@ -20,6 +20,7 @@ struct TCookieCredentials
     // subset of cookies here.
     THashMap<TString, TString> Cookies;
     NNet::TNetworkAddress UserIP;
+    std::optional<std::string> Origin;
 
     bool operator==(const TCookieCredentials&) const = default;
 };

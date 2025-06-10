@@ -108,6 +108,7 @@ struct TAuthenticationResult;
 
 constexpr TStringBuf BlackboxSessionIdCookieName = "Session_id";
 constexpr TStringBuf BlackboxSslSessionIdCookieName = "sessionid2";
+constexpr TStringBuf BlackboxSessguardCookieName = "sessguard";
 constexpr TStringBuf CypressCookieName = "YTCypressCookie";
 constexpr TStringBuf OAuthAccessTokenCookieName = "access_token";
 
