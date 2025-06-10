@@ -41,12 +41,6 @@ namespace NSQLComplete {
 
                 return yqlCtx;
             }
-
-        private:
-            static void Print(IOutputStream& out, const NYql::TExprNode& root, NYql::TExprContext& ctx) {
-                auto ast = ConvertToAst(root, ctx, NYql::TExprAnnotationFlags::None, true);
-                ast.Root->PrettyPrintTo(out, NYql::TAstPrintFlags::PerLine | NYql::TAstPrintFlags::ShortQuote);
-            }
         };
 
     } // namespace
