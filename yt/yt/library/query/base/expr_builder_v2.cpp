@@ -841,7 +841,7 @@ void TExprBuilderV2::InferArgumentTypes(
     std::unordered_set<std::string> columnNames;
 
     for (const auto& argument : expressions) {
-        auto typedArgument = DoBuildTypedExpression(argument, {});
+        auto typedArgument = OnExpression(argument);
 
         if (auto reference = typedArgument->As<TReferenceExpression>()) {
             if (!columnNames.insert(reference->ColumnName).second) {

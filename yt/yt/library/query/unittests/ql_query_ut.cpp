@@ -9070,6 +9070,33 @@ TEST_F(TQueryEvaluateTest, AverageAgg)
     Evaluate("avg(a) as x from [//t] group by 1", split, source, ResultMatcher(result));
 }
 
+TEST_F(TQueryEvaluateTest, GroupByTransform)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    auto source = TSource{
+        "a=3",
+        "a=53",
+        "a=8",
+        "a=24",
+        "a=33"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "x=30",
+        "x=0",
+        "x=80",
+    }, resultSplit);
+
+    Evaluate("transform(a, (3, 8), (30, 80), 0) as x from [//t] group by x", split, source, ResultMatcher(result));
+}
+
 TEST_F(TQueryEvaluateTest, AverageAgg2)
 {
     auto split = MakeSplit({
