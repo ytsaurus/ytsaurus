@@ -177,38 +177,46 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         """Ensure that compressed_data_size does not affect the explicitly set job_count."""
         # NB(apollo1321): Merge operation does not takes into account excplicitly set job_count.
 
-        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "col1", "type": "string", "group": "custom"},
+                {"name": "col2", "type": "string", "group": "custom"},
+            ]),
+            "optimize_for": "scan",
+        })
 
-        rows_batches = [
-            [{"k": self._make_random_string(10)}, {"k": self._make_random_string(10)}],
-            [{"k": self._make_random_string(5000)}],
-            [{"k": self._make_random_string(10)}, {"k": self._make_random_string(10)}],
-            [{"k": self._make_random_string(20)}],
-        ]
+        row_count = 8
+        for i in range(row_count):
+            if i % 2 == 0:
+                row = {
+                    "col1": "a",
+                    "col2": self._make_random_string(2000),
+                }
+            else:
+                row = {
+                    "col1": "a" * 2000,
+                }
 
-        for rows in rows_batches:
-            write_table("<append=true>//tmp/t_in", rows)
+            write_table("<append=%true>//tmp/t_in", row)
 
-        for job_count in [1, 4, 6]:
+        for job_count in [1, 4, 6, 7, 8, 9]:
             op = map(
-                in_="//tmp/t_in{small}",
+                in_="//tmp/t_in{col1}",
                 out="<create=true>//tmp/t_out",
                 command="cat > /dev/null",
                 spec={
                     "suspend_operation_after_materialization": True,
                     "ordered": False,
-                    "data_weight_per_job": 1,
-                    "compressed_data_size_per_job": 1,
                     "job_count": job_count,
                 },
                 track=False,
             )
 
-            self._check_initial_job_estimation_and_track(op, job_count)
+            self._check_initial_job_estimation_and_track(op, min(job_count, row_count))
 
             progress = get(op.get_path() + "/@progress")
 
-            assert progress["jobs"]["completed"]["total"] == job_count
+            assert progress["jobs"]["completed"]["total"] == min(job_count, row_count)
 
     @authors("apollo1321")
     @pytest.mark.parametrize("operation", ["map", "merge"])
