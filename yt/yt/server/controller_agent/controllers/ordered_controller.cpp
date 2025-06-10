@@ -341,10 +341,10 @@ protected:
                     Options_,
                     Logger,
                     OutputTables_.size(),
-                    DataWeightRatio_,
-                    TotalEstimatedInputChunkCount_,
-                    PrimaryInputDataWeight_,
-                    PrimaryInputCompressedDataSize_);
+                    EstimatedInputStatistics_->DataWeightRatio,
+                    EstimatedInputStatistics_->ChunkCount,
+                    EstimatedInputStatistics_->PrimaryDataWeight,
+                    EstimatedInputStatistics_->PrimaryCompressedDataSize);
                 break;
 
             default:
@@ -693,11 +693,11 @@ private:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
-                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount_ != OrderedTask_->GetTotalOutputRowCount(),
+                YT_LOG_ERROR_IF(EstimatedInputStatistics_->RowCount != OrderedTask_->GetTotalOutputRowCount(),
                     "Input/output row count mismatch in ordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
-                    TotalEstimatedInputRowCount_,
+                    EstimatedInputStatistics_->RowCount,
                     OrderedTask_->GetTotalOutputRowCount());
-                YT_VERIFY(TotalEstimatedInputRowCount_ == OrderedTask_->GetTotalOutputRowCount());
+                YT_VERIFY(EstimatedInputStatistics_->RowCount == OrderedTask_->GetTotalOutputRowCount());
             }
         }
 

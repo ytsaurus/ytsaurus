@@ -55,6 +55,7 @@ target_sources(yt-server-controller_agent PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controller_agent_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/counter_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/input_statistics_collector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/intermediate_chunk_scraper.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_monitoring_index_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/job_prober_service.cpp

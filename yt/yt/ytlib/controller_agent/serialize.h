@@ -64,6 +64,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ChunkStripeKeyNoIndex)                 (301804))
     ((OrderedAndSortedJobSizeAdjuster)       (301805))
     ((RemoveAddressFromJob)                  (301806))
+    ((IntroduceInputStatistics)              (301807))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

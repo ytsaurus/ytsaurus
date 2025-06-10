@@ -255,7 +255,8 @@ protected:
         std::vector<TLegacyKey> internalPoints,
         std::vector<i64> sliceSizes = std::vector<i64>(),
         std::vector<i64> sliceRowCounts = std::vector<i64>(),
-        std::vector<i64> sliceCompressedDataSizes = std::vector<i64>())
+        std::vector<i64> sliceCompressedDataSizes = std::vector<i64>(),
+        std::vector<i64> sliceUncompressedDataSizes = std::vector<i64>())
     {
         if (sliceSizes.empty()) {
             sliceSizes.assign(internalPoints.size() + 1, chunk->GetUncompressedDataSize() / (internalPoints.size() + 1));
@@ -276,6 +277,12 @@ protected:
         } else {
             YT_VERIFY(internalPoints.size() + 1 == sliceCompressedDataSizes.size());
         }
+        if (sliceUncompressedDataSizes.empty()) {
+            sliceUncompressedDataSizes.assign(internalPoints.size() + 1, chunk->GetUncompressedDataSize() / (internalPoints.size() + 1));
+            sliceUncompressedDataSizes[0] += chunk->GetRowCount() - (internalPoints.size() + 1) * sliceRowCounts[0];
+        } else {
+            YT_VERIFY(internalPoints.size() + 1 == sliceUncompressedDataSizes.size());
+        }
 
         YT_VERIFY(!InputTables_[chunk->GetTableIndex()].IsVersioned());
 
@@ -295,7 +302,7 @@ protected:
                 currentRow += sliceRowCounts[index];
                 slices.back()
                     ->LegacyUpperLimit().RowIndex = currentRow;
-                slices.back()->OverrideSize(sliceRowCounts[index], sliceSizes[index], sliceCompressedDataSizes[index]);
+                slices.back()->OverrideSize(sliceRowCounts[index], sliceSizes[index], sliceCompressedDataSizes[index], sliceUncompressedDataSizes[index]);
             }
             lastKey = upperLimit;
         }
@@ -2207,7 +2214,7 @@ TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
     auto chunk = CreateChunk(BuildRow({10}), BuildRow({20}), 0);
     std::vector<TInputChunkSlicePtr> slices;
     for (int index = 0; index < 100; ++index) {
-        slices.emplace_back(New<TInputChunkSlice>(chunk, 0 /*partIndex*/, 10 * index, 10 * (index + 1), 1_KB, 1_KB));
+        slices.emplace_back(New<TInputChunkSlice>(chunk, 0 /*partIndex*/, 10 * index, 10 * (index + 1), 1_KB, 1_KB, 1_KB));
         slices.back()
             ->LegacyLowerLimit().Key = BuildRow({10});
         slices.back()
