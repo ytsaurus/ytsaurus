@@ -1,5 +1,4 @@
 TAG(
-    sb:ttl=2
     ya:fat
     ya:full_logs
     ya:sys_info
