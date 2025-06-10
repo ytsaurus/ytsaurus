@@ -745,7 +745,7 @@ private:
     // Unsorted helpers.
     TCpuResource GetCpuLimit() const override
     {
-        return TCpuResource(Spec_->Mapper->CpuLimit);
+        return TCpuResource(TOperationControllerBase::GetCpuLimit(Spec_->Mapper));
     }
 
     void InitJobSpecTemplate() override

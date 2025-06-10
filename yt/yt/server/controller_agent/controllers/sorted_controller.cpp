@@ -1073,7 +1073,7 @@ public:
 
     TCpuResource GetCpuLimit() const override
     {
-        return TCpuResource(Spec_->Reducer->CpuLimit);
+        return TCpuResource(TOperationControllerBase::GetCpuLimit(Spec_->Reducer));
     }
 
     TUserJobSpecPtr GetUserJobSpec() const override
