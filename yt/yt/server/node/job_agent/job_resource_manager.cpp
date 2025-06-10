@@ -997,7 +997,8 @@ public:
         EResourcesConsumerType resourcesConsumerType,
         const TLogger& Logger,
         const TJobResources& resourceDelta,
-        EResourcesState state)
+        EResourcesState state,
+        bool isReleasing)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1019,6 +1020,12 @@ public:
         }
 
         bool resourceUsageOverdraftOccurred = false;
+
+        auto error = CheckResourceOverdraft(acquiredResources + releasingResources, GetResourceLimits());
+        if (!error.IsOK()) {
+            YT_LOG_INFO(error, "Resource overdraft detected");
+            resourceUsageOverdraftOccurred = true;
+        }
 
         auto systemMemory = resourceDelta.SystemMemory;
         if (systemMemory > 0) {
@@ -1053,7 +1060,11 @@ public:
                 resourceLimits,
                 pendingResources);
 
-            ResourceUsageOverdraftOccurred_.Fire(MakeStrong(resourceHolder));
+            if (!isReleasing) {
+                ResourceUsageOverdraftOccurred_.Fire(MakeStrong(resourceHolder));
+            } else {
+                YT_LOG_INFO("Resource holder is releasing, skipping resource usage overdraft handling");
+            }
         } else {
             YT_LOG_DEBUG(
                 "Resource usage updated "
@@ -1067,7 +1078,7 @@ public:
                 pendingResources);
         }
 
-        return resourceUsageOverdraftOccurred;
+        return !isReleasing && resourceUsageOverdraftOccurred;
     }
 
     void ReleasePorts(const TLogger& Logger, const std::vector<int>& ports, std::optional<int> jobProxyRpcServerPort)
@@ -1443,6 +1454,18 @@ private:
         return VerifyDominates(spareResources + TJobResources::Epsilon(), neededResources, "Not enough resources");
     }
 
+    TError CheckResourceOverdraft(const TJobResources& usage, const TJobResources& limits)
+    {
+        auto spareResources = limits - usage;
+        spareResources.ReplicationDataSize = InfiniteJobResources().ReplicationDataSize;
+        spareResources.RepairDataSize = InfiniteJobResources().RepairDataSize;
+        spareResources.MergeDataSize = InfiniteJobResources().MergeDataSize;
+
+        spareResources.DiskSpaceRequest = InfiniteJobResources().DiskSpaceRequest;
+
+        return VerifyNonNegative(spareResources + TJobResources::Epsilon(), "Resource overdraft detected");
+    }
+
     friend class TResourceHolder;
 };
 
@@ -1703,7 +1726,8 @@ void TResourceHolder::ReleaseAdditionalResources()
             AdditionalResourceUsage_ += resourceUsageDelta;
 
             return resourceUsageDelta;
-        });
+        },
+        /*isReleasing*/ true);
 }
 
 void TResourceHolder::ReleaseNonSlotResources()
@@ -2008,7 +2032,8 @@ template <CInvocable<TJobResources(const TJobResources&)> TResourceUsageUpdater>
 bool TResourceHolder::DoSetResourceUsage(
     const TJobResources& newResourceUsage,
     TStringBuf argumentName,
-    TResourceUsageUpdater resourceUsageUpdater)
+    TResourceUsageUpdater resourceUsageUpdater,
+    bool isReleasing)
 {
     YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
 
@@ -2035,7 +2060,8 @@ bool TResourceHolder::DoSetResourceUsage(
         ResourcesConsumerType,
         GetLogger(),
         resourceUsageDelta,
-        stateFacade);
+        stateFacade,
+        isReleasing);
 
     return !overdraftOccurred;
 }

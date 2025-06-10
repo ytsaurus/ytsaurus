@@ -249,7 +249,8 @@ private:
     bool DoSetResourceUsage(
         const NClusterNode::TJobResources& resourceUsage,
         TStringBuf argumentName,
-        TResourceUsageUpdater resourceUsageUpdater);
+        TResourceUsageUpdater resourceUsageUpdater,
+        bool isReleasing = false);
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceHolder)
