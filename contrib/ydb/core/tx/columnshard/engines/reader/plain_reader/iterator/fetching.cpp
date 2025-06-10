@@ -3,7 +3,7 @@
 
 #include <contrib/ydb/core/formats/arrow/accessor/plain/accessor.h>
 #include <contrib/ydb/core/tx/columnshard/engines/filter.h>
-#include <contrib/ydb/core/tx/conveyor/usage/service.h>
+#include <contrib/ydb/core/tx/conveyor_composite/usage/service.h>
 #include <contrib/ydb/core/tx/limiter/grouped_memory/usage/service.h>
 
 #include <contrib/ydb/library/formats/arrow/simple_arrays_cache.h>
@@ -90,7 +90,7 @@ TConclusion<bool> TDetectInMem::DoExecuteInplace(const std::shared_ptr<IDataSour
     TFetchingScriptCursor cursor(plan, 0);
     const auto& commonContext = *source->GetContext()->GetCommonContext();
     auto task = std::make_shared<TStepAction>(source, std::move(cursor), commonContext.GetScanActorId(), false);
-    NConveyor::TScanServiceOperator::SendTaskToExecute(task, commonContext.GetConveyorProcessId());
+    NConveyorComposite::TScanServiceOperator::SendTaskToExecute(task, commonContext.GetConveyorProcessId());
     return false;
 }
 
