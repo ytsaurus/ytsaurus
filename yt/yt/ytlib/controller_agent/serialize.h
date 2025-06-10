@@ -63,6 +63,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((OrderedAndSortedJobSizeAdjuster)       (301803))
     ((CompressedDataSizePerJob)              (301804))
     ((DropSolidFromChunkStripe)              (301805))
+    ((IntroduceInputStatistics)              (301806))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

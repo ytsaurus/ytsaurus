@@ -623,11 +623,11 @@ private:
             Spec_,
             Options_,
             Logger,
-            TotalEstimatedInputChunkCount_,
-            PrimaryInputDataWeight_,
-            PrimaryInputCompressedDataSize_,
-            DataWeightRatio_,
-            InputCompressionRatio_);
+            EstimatedInputStatistics_->ChunkCount,
+            EstimatedInputStatistics_->PrimaryDataWeight,
+            EstimatedInputStatistics_->PrimaryCompressedDataSize,
+            EstimatedInputStatistics_->DataWeightRatio,
+            EstimatedInputStatistics_->CompressionRatio);
 
         InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
 

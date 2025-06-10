@@ -2392,7 +2392,7 @@ protected:
         int partitionJobCount,
         TChunkWriterConfigPtr config) const
     {
-        i64 dataWeightAfterPartition = 1 + static_cast<i64>(TotalEstimatedInputDataWeight_ * Spec_->MapSelectivityFactor);
+        i64 dataWeightAfterPartition = 1 + static_cast<i64>(EstimatedInputStatistics_->DataWeight * Spec_->MapSelectivityFactor);
         partitionJobCount = std::max<i64>(partitionJobCount, 1);
         i64 bufferSize = std::min(config->MaxBufferSize, DivCeil<i64>(dataWeightAfterPartition, partitionJobCount));
         i64 partitionBufferSize = bufferSize / partitionCount;
@@ -2904,18 +2904,18 @@ protected:
             Spec_,
             Options_,
             Logger,
-            TotalEstimatedInputUncompressedDataSize_,
-            TotalEstimatedInputDataWeight_,
-            TotalEstimatedInputRowCount_,
-            InputCompressionRatio_);
+            EstimatedInputStatistics_->UncompressedDataSize,
+            EstimatedInputStatistics_->DataWeight,
+            EstimatedInputStatistics_->RowCount,
+            EstimatedInputStatistics_->CompressionRatio);
 
         PartitioningParametersEvaluator_ = CreatePartitioningParametersEvaluator(
             Spec_,
             Options_,
-            TotalEstimatedInputDataWeight_,
-            TotalEstimatedInputUncompressedDataSize_,
-            TotalEstimatedInputValueCount_,
-            InputCompressionRatio_,
+            EstimatedInputStatistics_->DataWeight,
+            EstimatedInputStatistics_->UncompressedDataSize,
+            EstimatedInputStatistics_->ValueCount,
+            EstimatedInputStatistics_->CompressionRatio,
             RootPartitionPoolJobSizeConstraints_->GetJobCount());
     }
 
@@ -3306,13 +3306,13 @@ private:
     {
         TSortControllerBase::CustomMaterialize();
 
-        if (TotalEstimatedInputDataWeight_ == 0) {
+        if (EstimatedInputStatistics_->DataWeight == 0) {
             return;
         }
 
-        if (TotalEstimatedInputDataWeight_ > Spec_->MaxInputDataWeight) {
+        if (EstimatedInputStatistics_->DataWeight > Spec_->MaxInputDataWeight) {
             THROW_ERROR_EXCEPTION("Failed to initialize sort operation, input data weight is too large")
-                << TErrorAttribute("estimated_input_data_weight", TotalEstimatedInputDataWeight_)
+                << TErrorAttribute("estimated_input_data_weight", EstimatedInputStatistics_->DataWeight)
                 << TErrorAttribute("max_input_data_weight", Spec_->MaxInputDataWeight);
         }
 
@@ -3428,8 +3428,8 @@ private:
             Spec_,
             Options_,
             Logger,
-            TotalEstimatedInputDataWeight_,
-            TotalEstimatedInputCompressedDataSize_);
+            EstimatedInputStatistics_->DataWeight,
+            EstimatedInputStatistics_->CompressedDataSize);
 
         InitSimpleSortPool(jobSizeConstraints);
 
@@ -4252,7 +4252,7 @@ private:
     {
         TSortControllerBase::CustomMaterialize();
 
-        if (TotalEstimatedInputDataWeight_ == 0) {
+        if (EstimatedInputStatistics_->DataWeight == 0) {
             return;
         }
 

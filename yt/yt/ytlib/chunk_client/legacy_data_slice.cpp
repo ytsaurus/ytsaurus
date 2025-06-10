@@ -100,6 +100,15 @@ i64 TLegacyDataSlice::GetCompressedDataSize() const
     return result;
 }
 
+i64 TLegacyDataSlice::GetUncompressedDataSize() const
+{
+    i64 result = 0;
+    for (const auto& chunkSlice : ChunkSlices) {
+        result += chunkSlice->GetUncompressedDataSize();
+    }
+    return result;
+}
+
 i64 TLegacyDataSlice::GetMaxBlockSize() const
 {
     i64 result = 0;

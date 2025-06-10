@@ -1148,6 +1148,7 @@ private:
         chunkSpec->set_row_count_override(miscExt.row_count());
         chunkSpec->set_data_weight_override(miscExt.data_weight());
         chunkSpec->set_compressed_data_size_override(miscExt.compressed_data_size());
+        chunkSpec->set_uncompressed_data_size_override(miscExt.uncompressed_data_size());
 
         *chunkSpec->mutable_chunk_meta() = chunkMeta;
         if (!fetchAllMetaExtensions) {
@@ -1176,6 +1177,7 @@ private:
         // For dynamic stores it is more or less the same.
         chunkSpec->set_data_weight_override(dynamicStore->GetUncompressedDataSize());
         chunkSpec->set_compressed_data_size_override(dynamicStore->GetCompressedDataSize());
+        chunkSpec->set_uncompressed_data_size_override(dynamicStore->GetUncompressedDataSize());
 
         auto localNodeId = Bootstrap_->GetNodeId();
         TChunkReplicaWithMedium replica(localNodeId, GenericChunkReplicaIndex, GenericMediumIndex);

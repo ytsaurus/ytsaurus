@@ -130,10 +130,13 @@ private:
             i64 compressedDataSize = DivCeil(
                 chunk.Chunk->GetCompressedDataSize(),
                 chunk.Chunk->GetRowCount()) * rowCount;
+            i64 uncompressedDataSize = DivCeil(
+                chunk.Chunk->GetUncompressedDataSize(),
+                chunk.Chunk->GetRowCount()) * rowCount;
 
             if (rowCount > 0) {
                 result.push_back(New<TInputChunkSlice>(chunk.Chunk));
-                result.back()->OverrideSize(rowCount, dataSize, compressedDataSize);
+                result.back()->OverrideSize(rowCount, dataSize, compressedDataSize, uncompressedDataSize);
             }
         };
 

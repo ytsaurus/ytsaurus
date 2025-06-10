@@ -1940,9 +1940,10 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
             YT_ABORT();
     }
 
+    YT_VERIFY(EstimatedInputStatistics_);
     const i64 desiredChunkSize = autoMergeSpec->JobIO->TableWriter->DesiredChunkSize;
     const i64 maxChunkDataWeight = std::max<i64>(std::min(autoMergeSpec->JobIO->TableWriter->DesiredChunkWeight / 2, Spec_->MaxDataWeightPerJob / 2), 1);
-    const i64 desiredChunkDataWeight = std::clamp<i64>(SignedSaturationConversion(desiredChunkSize / InputCompressionRatio_), 1, maxChunkDataWeight);
+    const i64 desiredChunkDataWeight = std::clamp<i64>(SignedSaturationConversion(desiredChunkSize / EstimatedInputStatistics_->CompressionRatio), 1, maxChunkDataWeight);
     const i64 dataWeightPerJob = desiredChunkDataWeight;
 
     // NB: If row count limit is set on any output table, we do not
@@ -2477,14 +2478,15 @@ void TOperationControllerBase::FinalizeFeatures()
         task->FinalizeFeatures();
     }
 
+    auto inputStatisticsOrZeros = EstimatedInputStatistics_.value_or(TInputStatistics());
     ControllerFeatures_.AddTag("authenticated_user", GetAuthenticatedUser());
     ControllerFeatures_.AddTag("operation_type", GetOperationType());
-    ControllerFeatures_.AddTag("total_estimated_input_data_weight", TotalEstimatedInputDataWeight_);
-    ControllerFeatures_.AddTag("total_estimated_input_row_count", TotalEstimatedInputRowCount_);
-    ControllerFeatures_.AddTag("total_estimated_input_value_count", TotalEstimatedInputValueCount_);
-    ControllerFeatures_.AddTag("total_estimated_input_chunk_count", TotalEstimatedInputChunkCount_);
-    ControllerFeatures_.AddTag("total_estimated_input_compressed_data_size", TotalEstimatedInputCompressedDataSize_);
-    ControllerFeatures_.AddTag("total_estimated_input_uncompressed_data_size", TotalEstimatedInputUncompressedDataSize_);
+    ControllerFeatures_.AddTag("total_estimated_input_data_weight", inputStatisticsOrZeros.DataWeight);
+    ControllerFeatures_.AddTag("total_estimated_input_row_count", inputStatisticsOrZeros.RowCount);
+    ControllerFeatures_.AddTag("total_estimated_input_value_count", inputStatisticsOrZeros.ValueCount);
+    ControllerFeatures_.AddTag("total_estimated_input_chunk_count", inputStatisticsOrZeros.ChunkCount);
+    ControllerFeatures_.AddTag("total_estimated_input_compressed_data_size", inputStatisticsOrZeros.CompressedDataSize);
+    ControllerFeatures_.AddTag("total_estimated_input_uncompressed_data_size", inputStatisticsOrZeros.UncompressedDataSize);
     ControllerFeatures_.AddTag("total_job_count", GetTotalJobCount());
 
     ControllerFeatures_.AddSingular("operation_count", 1);
@@ -7777,8 +7779,8 @@ void TOperationControllerBase::WriteInputQueryToJobSpec(TJobSpecExt* jobSpecExt)
 void TOperationControllerBase::CollectTotals()
 {
     // This is the sum across all input chunks not accounting lower/upper read limits.
-    // Used to calculate compression ratio.
-    i64 totalInputDataWeight = 0;
+    TInputStatisticsCollector statisticsCollector;
+
     THashMap<TClusterName, i64> totalInputDataWeightPerCluster;
 
     for (const auto& table : InputManager_->GetInputTables()) {
@@ -7807,35 +7809,13 @@ void TOperationControllerBase::CollectTotals()
 
             totalInputDataWeightPerCluster[table->ClusterName] += inputChunk->GetDataWeight();
 
-            if (table->IsPrimary()) {
-                PrimaryInputDataWeight_ += inputChunk->GetDataWeight();
-                PrimaryInputCompressedDataSize_ += inputChunk->GetCompressedDataSize();
-            } else {
-                ForeignInputDataWeight_ += inputChunk->GetDataWeight();
-                ForeignInputCompressedDataSize_ += inputChunk->GetCompressedDataSize();
-            }
-
-            totalInputDataWeight += inputChunk->GetTotalDataWeight();
-            TotalEstimatedInputUncompressedDataSize_ += inputChunk->GetUncompressedDataSize();
-            TotalEstimatedInputRowCount_ += inputChunk->GetRowCount();
-            TotalEstimatedInputValueCount_ += inputChunk->GetValuesPerRow() * inputChunk->GetRowCount();
-            TotalEstimatedInputCompressedDataSize_ += inputChunk->GetCompressedDataSize();
-            TotalEstimatedInputDataWeight_ += inputChunk->GetDataWeight();
-            ++TotalEstimatedInputChunkCount_;
+            statisticsCollector.AddChunk(inputChunk, table->IsPrimary());
         }
     }
 
-    InputCompressionRatio_ = static_cast<double>(TotalEstimatedInputCompressedDataSize_) / TotalEstimatedInputDataWeight_;
-    DataWeightRatio_ = static_cast<double>(totalInputDataWeight) / TotalEstimatedInputUncompressedDataSize_;
+    EstimatedInputStatistics_.emplace(std::move(statisticsCollector).Finish());
 
-    YT_LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v, TotalDataWeight: %v, TotalValueCount: %v)",
-        TotalEstimatedInputChunkCount_,
-        TotalEstimatedInputRowCount_,
-        TotalEstimatedInputUncompressedDataSize_,
-        TotalEstimatedInputCompressedDataSize_,
-        TotalEstimatedInputDataWeight_,
-        totalInputDataWeight,
-        TotalEstimatedInputValueCount_);
+    YT_LOG_INFO("Estimated input totals collected (EstimatedInputStatistics: %v)", *EstimatedInputStatistics_);
 
     for (const auto& [clusterName, dataWeight] : totalInputDataWeightPerCluster) {
         if (IsLocal(clusterName)) {
@@ -8278,7 +8258,8 @@ bool TOperationControllerBase::InputHasDynamicStores() const
 
 bool TOperationControllerBase::IsLocalityEnabled() const
 {
-    return Config_->EnableLocality && TotalEstimatedInputDataWeight_ > Spec_->MinLocalityInputDataWeight;
+    YT_VERIFY(EstimatedInputStatistics_);
+    return Config_->EnableLocality && EstimatedInputStatistics_->DataWeight > Spec_->MinLocalityInputDataWeight;
 }
 
 TString TOperationControllerBase::GetLoggingProgress() const
@@ -9347,11 +9328,9 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent)
         })
         .Item("peak_memory_usage").Value(PeakMemoryUsage_)
         .Item("estimated_input_statistics").BeginMap()
-            .Item("chunk_count").Value(TotalEstimatedInputChunkCount_)
-            .Item("uncompressed_data_size").Value(TotalEstimatedInputUncompressedDataSize_)
-            .Item("compressed_data_size").Value(TotalEstimatedInputCompressedDataSize_)
-            .Item("data_weight").Value(TotalEstimatedInputDataWeight_)
-            .Item("row_count").Value(TotalEstimatedInputRowCount_)
+            .Do([&] (TFluentMap fluent) {
+                Serialize(EstimatedInputStatistics_.value_or(TInputStatistics()), fluent);
+            })
             .Item("unavailable_chunk_count").Value(GetUnavailableInputChunkCount() + UnavailableIntermediateChunkCount_)
             .Item("data_slice_count").Value(GetDataSliceCount())
         .EndMap()
@@ -10778,12 +10757,6 @@ void TOperationControllerBase::ValidateOutputSchemaComputedColumnsCompatibility(
 void TOperationControllerBase::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, SnapshotIndex_);
-    PHOENIX_REGISTER_FIELD(2, TotalEstimatedInputChunkCount_);
-    PHOENIX_REGISTER_FIELD(3, TotalEstimatedInputUncompressedDataSize_);
-    PHOENIX_REGISTER_FIELD(4, TotalEstimatedInputRowCount_);
-    PHOENIX_REGISTER_FIELD(5, TotalEstimatedInputValueCount_);
-    PHOENIX_REGISTER_FIELD(6, TotalEstimatedInputCompressedDataSize_);
-    PHOENIX_REGISTER_FIELD(7, TotalEstimatedInputDataWeight_);
     PHOENIX_REGISTER_FIELD(8, UnavailableIntermediateChunkCount_);
 
     // COMPAT(yuryalekseev)
@@ -10924,6 +10897,8 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(77, InitialGroupedNeededResources_,
         .SinceVersion(ESnapshotVersion::GroupedNeededResources));
+
+    PHOENIX_REGISTER_FIELD(79, EstimatedInputStatistics_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.

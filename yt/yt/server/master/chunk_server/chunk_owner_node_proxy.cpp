@@ -62,6 +62,8 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
+#include <yt/yt/library/numeric/util.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/node.h>
@@ -231,13 +233,17 @@ void BuildReplicalessChunkSpec(
     if (chunkSpec->row_count_override() >= chunk->GetRowCount()) {
         chunkSpec->set_data_weight_override(dataWeight);
         chunkSpec->set_compressed_data_size_override(chunk->GetCompressedDataSize());
+        chunkSpec->set_uncompressed_data_size_override(chunk->GetUncompressedDataSize());
     } else {
         // NB: If overlayed chunk is nested into another, it has zero row count and non-zero data weight.
         i64 dataWeightPerRow = DivCeil(dataWeight, std::max<i64>(chunk->GetRowCount(), 1));
         chunkSpec->set_data_weight_override(dataWeightPerRow * chunkSpec->row_count_override());
 
         double compressedDataSizePerRow = static_cast<double>(chunk->GetCompressedDataSize()) / std::max<i64>(chunk->GetRowCount(), 1);
-        chunkSpec->set_compressed_data_size_override(compressedDataSizePerRow * chunkSpec->row_count_override());
+        chunkSpec->set_compressed_data_size_override(SignedSaturationConversion(compressedDataSizePerRow * chunkSpec->row_count_override()));
+
+        double uncompressedDataSizePerRow = static_cast<double>(chunk->GetUncompressedDataSize()) / std::max<i64>(chunk->GetUncompressedDataSize(), 1);
+        chunkSpec->set_uncompressed_data_size_override(SignedSaturationConversion(uncompressedDataSizePerRow * chunkSpec->row_count_override()));
     }
 
     if (modifier) {
@@ -312,6 +318,7 @@ void BuildDynamicStoreSpec(
     chunkSpec->set_row_count_override(1);
     chunkSpec->set_data_weight_override(1);
     chunkSpec->set_compressed_data_size_override(1);
+    chunkSpec->set_uncompressed_data_size_override(1);
 
     // NB: Table_row_index is not filled here since:
     // 1) dynamic store reader receives it from the node;
