@@ -20,16 +20,15 @@ public:
         indexMap->add("Type", GetType());
         return indexMap;
     }
-
 };
 
 class TVirtualColumnIndexStat
     : public TChytIndexStatBase
 {
 public:
-    TVirtualColumnIndexStat(int discardedTableCount, int inputTablesCount)
+    TVirtualColumnIndexStat(int discardedTableCount, int inputTableCount)
         : DiscardedTableCount_(discardedTableCount)
-        , InputTablesCount_(inputTablesCount)
+        , InputTableCount_(inputTableCount)
     { }
 
     void DescribeIndex(DB::IQueryPlanStep::FormatSettings& formatSettings) const override
@@ -37,14 +36,14 @@ public:
         TChytIndexStatBase::DescribeIndex(formatSettings);
         auto &out = formatSettings.out;
 
-        out << "Filtered tables: " << DiscardedTableCount_ << "/" << InputTablesCount_;
+        out << "Filtered tables: " << DiscardedTableCount_ << "/" << InputTableCount_;
     }
 
     std::unique_ptr<DB::JSONBuilder::JSONMap> DescribeIndex() const override
     {
         auto indexMap = TChytIndexStatBase::DescribeIndex();
         indexMap->add("Discarded tables", DiscardedTableCount_);
-        indexMap->add("Input tables", InputTablesCount_);
+        indexMap->add("Input tables", InputTableCount_);
         return indexMap;
     }
 
@@ -54,8 +53,8 @@ public:
     }
 
 private:
-    int DiscardedTableCount_;
-    int InputTablesCount_;
+    const int DiscardedTableCount_;
+    const int InputTableCount_;
 };
 
 class TKeyConditionIndexStat
@@ -96,17 +95,19 @@ public:
     }
 
 private:
-    i64 RowCount_;
-    i64 DataWeight_;
-    i64 FilteredRowCount_;
-    i64 FilteredDataWeight_;
+    const i64 RowCount_;
+    const i64 DataWeight_;
+    const i64 FilteredRowCount_;
+    const i64 FilteredDataWeight_;
 };
 
-std::shared_ptr<IChytIndexStat> CreateVirtualColumnIndexStat(int discardedTableCount, int inputTablesCount) {
+std::shared_ptr<IChytIndexStat> CreateVirtualColumnIndexStat(int discardedTableCount, int inputTablesCount)
+{
     return std::make_shared<TVirtualColumnIndexStat>(discardedTableCount, inputTablesCount);
 }
 
-std::shared_ptr<IChytIndexStat> CreateKeyConditionIndexStat(i64 rowCount, i64 dataWeight, i64 filteredRowCount, i64 filteredDataWeight) {
+std::shared_ptr<IChytIndexStat> CreateKeyConditionIndexStat(i64 rowCount, i64 dataWeight, i64 filteredRowCount, i64 filteredDataWeight)
+{
     return std::make_shared<TKeyConditionIndexStat>(rowCount, dataWeight, filteredRowCount, filteredDataWeight);
 }
 
