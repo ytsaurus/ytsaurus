@@ -2360,7 +2360,7 @@ static void FillIsStale(bool operationFinished, std::vector<TJob>* jobs) {
         auto jobState = job.GetState();
         job.IsStale = jobState && IsJobInProgress(*jobState);
         if (!operationFinished) {
-            job.IsStale = job.IsStale && !job.PresentInControllerAgent && job.PresentInArchive;
+            job.IsStale = *job.IsStale && !job.PresentInControllerAgent && job.PresentInArchive;
         }
     }
 }
