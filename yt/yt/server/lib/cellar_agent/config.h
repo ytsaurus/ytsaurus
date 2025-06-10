@@ -54,6 +54,7 @@ struct TCellarDynamicConfig
 {
     std::optional<int> Size;
 
+    NHydra::TDynamicRemoteChangelogStoreConfigPtr Changelogs;
     NHydra::TDynamicDistributedHydraManagerConfigPtr HydraManager;
 
     REGISTER_YSON_STRUCT(TCellarDynamicConfig);

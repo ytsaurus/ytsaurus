@@ -30,7 +30,6 @@
         };
         use_porto_memory_tracking=%false;
         layer_paths=[];
-        make_rootfs_writable=%false;
         use_smaps_memory_tracker=%true;
     };
     run_as_root=%true;

@@ -24,6 +24,8 @@ import string
 import random
 
 from time import sleep
+from math import ceil
+import itertools
 
 ##################################################################
 
@@ -3953,3 +3955,154 @@ class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
             mode="sorted"
         )
         assert read_table("//tmp/t_out") == [{"k": 0}] * 2 + [{"k": 2}] * 8 + [{"k": 4}] * 2
+
+
+@pytest.mark.enabled_multidaemon
+class TestMergeJobSizeAdjuster(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "sorted_merge_operation_options": {
+                "job_size_adjuster": {},
+                "spec_template": {
+                    "use_new_sorted_pool": True,
+                },
+            },
+            "ordered_merge_operation_options": {
+                "job_size_adjuster": {},
+            }
+        }
+    }
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("mode", ["sorted", "ordered"])
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_merge_adjustment(self, mode, sort_order):
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"schema": [{"name": "index", "type": "string", "sort_order": sort_order}]},
+        )
+        data = [{"index": "%05d" % i} for i in range(31)]
+        if sort_order == "descending":
+            data.reverse()
+        for row in data:
+            write_table("<append=true>//tmp/in", row, verbose=False)
+
+        create(
+            "table",
+            "//tmp/out",
+            attributes={"schema": [{"name": "index", "type": "string", "sort_order": sort_order}]},
+        )
+
+        merge(
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={
+                "merge_by": [{"name": "index", "sort_order": sort_order}],
+                "mode": mode,
+                "resource_limits": {"user_slots": 3},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "force_transform": True,
+                "data_size_per_job": len(data[0]),
+                "force_job_size_adjuster": True,
+            },
+        )
+
+        assert data == read_table("//tmp/out")
+
+        chunk_weights = [
+            get(f"#{chunk_id}/@data_weight")
+            for chunk_id in get("//tmp/out/@chunk_ids")
+        ]
+
+        assert sum(chunk_weights) % len(data) == 0
+        row_weight = sum(chunk_weights) // len(data)
+
+        assert any(
+            # NB: 5 is chosen kind of arbitrarily. I just wanted to assert that the latter jobs
+            # are large enough (5 means enlargement happened at least 3 times).
+            chunk_weight // row_weight > 5
+            for chunk_weight in chunk_weights
+        )
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
+    def test_sorted_merge_barrier_misplacement(self, sort_order):
+        """
+        This is a test for a bug in sorted job builder. It should place a barrier after the segment,
+        but it placed the barrier before the last job of the segment. So we try to build a repro here.
+
+        So we have one teleport chunk and two segments. We will try to build jobs such that
+        first segment's last job will happen to be _after_ the barrier that should've guarded this
+        segment. And after some jobs finished, during enlargement, last job of the first segment
+        and first job of the second segment will try to join.
+        """
+        create(
+            "table",
+            "//tmp/in",
+            attributes={"schema": [{"name": "index", "type": "string", "sort_order": sort_order}]},
+        )
+        data = [
+            [{"index": "%05d" % i} for i in range(0, 50)],  # Semi-huge guy to trigger enlargement
+            [{"index": "%05d" % i} for i in range(50, 60)],  # Small guy to be joined to the last chunk
+            [{"index": "%05d" % i} for i in range(60, 1000)],  # Fat guy to be teleported
+            [{"index": "%05d" % i} for i in range(1000, 1010)],  # Small guy to be joined with the second chunk
+        ]
+        if sort_order == "descending":
+            data.reverse()
+            for batch in data:
+                batch.reverse()
+        for batch in data:
+            write_table("<append=true>//tmp/in", batch, verbose=False)
+
+        create(
+            "table",
+            "//tmp/out",
+            attributes={"schema": [{"name": "index", "type": "string", "sort_order": sort_order}]},
+        )
+
+        chunk_ids = get("//tmp/in/@chunk_ids")
+        chunk_sizes = [get(f"#{chunk_id}/@compressed_data_size") for chunk_id in chunk_ids]
+        chunk_sizes.sort()
+
+        first_chunk_weight = min([get(f"#{chunk_id}/@data_weight") for chunk_id in chunk_ids])
+
+        assert len(chunk_sizes) == 4
+        assert chunk_sizes[0] == chunk_sizes[1]
+
+        # See TInputChunk::IsLargeCompleteChunk.
+        desired_chunk_size = ceil((chunk_sizes[2] + 1) / 0.9)
+
+        assert desired_chunk_size < chunk_sizes[3]
+
+        merge(
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={
+                "merge_by": [{"name": "index", "sort_order": sort_order}],
+                "mode": "sorted",
+                "resource_limits": {"user_slots": 1},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "force_transform": False,
+                "job_io": {
+                    "table_writer": {
+                        "desired_chunk_size": desired_chunk_size,
+                    },
+                },
+                "data_size_per_job": first_chunk_weight,
+                "force_job_size_adjuster": True,
+                "combine_chunks": True,
+            },
+        )
+
+        flat_data = list(itertools.chain.from_iterable(data))
+        assert flat_data == read_table("//tmp/out")

@@ -5,6 +5,7 @@
 #include "chunk_location.h"
 #include "config.h"
 #include "data_node_tracker.h"
+#include "domestic_medium.h"
 #include "chunk_manager.h"
 
 #include <yt/yt/server/master/object_server/object.h>
@@ -32,7 +33,6 @@
 
 namespace NYT::NChunkServer {
 
-using namespace NYson;
 using namespace NCellMaster;
 using namespace NSequoiaClient;
 using namespace NObjectServer;
@@ -44,44 +44,13 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
 
-TSequoiaChunkReplica ParseReplica(TYsonPullParserCursor* cursor, TChunkId chunkId)
-{
-    TSequoiaChunkReplica chunkReplica;
-    chunkReplica.ChunkId = chunkId;
-
-    auto consume = [&] (EYsonItemType type, const auto& fillField) {
-        const auto& current = cursor->GetCurrent();
-        if (current.GetType() != type) {
-            THROW_ERROR_EXCEPTION("Invalid YSON item type while parsing Sequoia replicas: expected %Qlv, actual %Qlv",
-                type,
-                current.GetType());
-        }
-        fillField(current);
-        cursor->Next();
-    };
-
-    consume(EYsonItemType::BeginList, [] (const TYsonItem&) {});
-    consume(EYsonItemType::StringValue, [&] (const TYsonItem& current) {
-        chunkReplica.LocationUuid = TGuid::FromString(current.UncheckedAsString());
-    });
-    consume(EYsonItemType::Int64Value, [&] (const TYsonItem& current) {
-        chunkReplica.ReplicaIndex = current.UncheckedAsInt64();
-    });
-    consume(EYsonItemType::Uint64Value, [&] (const TYsonItem& current) {
-        chunkReplica.NodeId = TNodeId(current.UncheckedAsUint64());
-    });
-    consume(EYsonItemType::EndList, [] (const TYsonItem&) {});
-
-    return chunkReplica;
-}
-
-std::vector<TSequoiaChunkReplica> ParseReplicas(
+    std::vector<TSequoiaChunkReplica> ParseReplicas(
     const auto& replicaRecords,
     const auto& extractReplicas)
 {
@@ -94,13 +63,16 @@ std::vector<TSequoiaChunkReplica> ParseReplicas(
         auto chunkId = replicaRecord->Key.ChunkId;
         auto extractedReplicas = extractReplicas(*replicaRecord);
 
-        TMemoryInput input(extractedReplicas.AsStringBuf().data(), extractedReplicas.AsStringBuf().size());
-        TYsonPullParser parser(&input, EYsonType::Node);
-        TYsonPullParserCursor cursor(&parser);
-
-        cursor.ParseList([&] (TYsonPullParserCursor* cursor) {
-            replicas.push_back(ParseReplica(cursor, chunkId));
-        });
+        ParseChunkReplicas(
+            extractedReplicas,
+            [&] (const TParsedChunkReplica& parsedReplica) {
+                replicas.push_back({
+                    .ChunkId = chunkId,
+                    .ReplicaIndex = parsedReplica.ReplicaIndex,
+                    .NodeId = parsedReplica.NodeId,
+                    .LocationUuid = parsedReplica.LocationUuid,
+                });
+            });
     }
 
     return replicas;

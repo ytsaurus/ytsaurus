@@ -6,7 +6,7 @@ from yt_commands import (
     write_file, read_table, write_table,
     map, vanilla, update_nodes_dynamic_config, update_controller_agent_config,
     sync_create_cells, get_job, create_pool,
-    run_test_vanilla, list_jobs,
+    run_test_vanilla, list_jobs, create_network_project,
     with_breakpoint, wait_breakpoint, release_breakpoint,
     print_debug, raises_yt_error)
 
@@ -1079,6 +1079,9 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
+                    "porto_executor": {
+                        "enable_network_isolation": False,
+                    },
                 },
             },
         },
@@ -1110,6 +1113,10 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         }
     }
 
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        config["cypress_annotations"]["infiniband_cluster_tag"] = "IBC"
+
     @pytest.mark.timeout(180)
     def test_gpu_check_success(self):
         self.setup_gpu_layer_and_reset_nodes()
@@ -1127,6 +1134,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
                 "mapper": {
                     "job_count": 1,
+                    "gpu_limit": 1,
                     "layer_paths": ["//tmp/base_layer"],
                     "enable_gpu_layers": True,
                     "gpu_check_layer_name": "0",
@@ -1145,9 +1153,18 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
     @pytest.mark.timeout(180)
     def test_gpu_check_with_separate_volume(self):
         self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
-        self.setup_gpu_check_options_for_separate_volume()
         self.setup_tables()
         self.init_operations_archive()
+
+        update_controller_agent_config(
+            "map_operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/bin/bash",
+                "binary_args": ["-c", "set -u; echo $YT_GPU_CHECK_TYPE >&2"],
+            }
+        )
 
         write_table("//tmp/t_in", [{"k": 0}])
         op = map(
@@ -1158,6 +1175,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
                 "mapper": {
                     "job_count": 1,
+                    "gpu_limit": 1,
                     "layer_paths": ["//tmp/base_layer"],
                     "enable_gpu_layers": True,
                     "enable_gpu_check": True,
@@ -1190,6 +1208,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
             "enable_gpu_layers": True,
             "enable_gpu_check": True,
             "gang_options": {},
+            "gpu_limit": 1,
         }
 
         op = vanilla(
@@ -1220,6 +1239,54 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                 assert int(parsed_task_job_count) == 1
             if parsed_task_name == "slave":
                 assert int(parsed_task_job_count) == 2
+
+    @pytest.mark.timeout(180)
+    def test_gpu_check_with_network_project_with_separate_volume(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.init_operations_archive()
+
+        project_id = 0xDEADBEEF
+
+        create_network_project("n")
+        set("//sys/network_projects/n/@project_id", project_id)
+
+        update_controller_agent_config(
+            "vanilla_operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/bin/bash",
+                "binary_args": ["-c", "set -u; echo $YT_NETWORK_PROJECT_ID >&2; hostname >&2"],
+                "network_project": "n",
+            }
+        )
+
+        op = run_test_vanilla(
+            "sleep 1",
+            task_patch={
+                "gpu_limit": 1,
+                "layer_paths": ["//tmp/base_layer"],
+                "enable_gpu_layers": True,
+                "enable_gpu_check": True,
+            },
+            track=True,
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+
+        job_id = job_ids[0]
+
+        events = get_job(op.id, job_id)["events"]
+        phases = [event["phase"] for event in events if "phase" in event]
+        assert "running_gpu_check_command" in phases
+
+        # TODO(ignat): check GPU check stderr.
+        # stderr = op.read_stderr(job_id).decode("ascii")
+        # network_project_id, hostname = stderr.strip().split()
+
+        # assert network_project_id == str(project_id)
+        # assert hostname.startswith("slot-")
 
     @pytest.mark.timeout(180)
     def test_gpu_check_setup_commands(self):
@@ -1260,6 +1327,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
                 "mapper": {
                     "job_count": 1,
+                    "gpu_limit": 1,
                     "layer_paths": ["//tmp/base_layer"],
                     "enable_gpu_layers": True,
                     "enable_gpu_check": True,
@@ -1291,6 +1359,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
                 "max_failed_job_count": 1,
                 "mapper": {
                     "job_count": 1,
+                    "gpu_limit": 1,
                     "layer_paths": ["//tmp/base_layer"],
                     "enable_gpu_layers": True,
                     "enable_gpu_check": True,
@@ -1619,6 +1688,41 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         print_debug(_get_core_infos(op))
         assert _get_core_table_content()
+
+    @pytest.mark.timeout(180)
+    def test_gpu_check_infiniband_cluster(self):
+        self.setup_gpu_layer_and_reset_nodes(prepare_gpu_base_layer=True)
+        self.init_operations_archive()
+
+        update_controller_agent_config(
+            "vanilla_operation_options/gpu_check",
+            {
+                "use_separate_root_volume": True,
+                "layer_paths": ["//tmp/gpu_check/0", "//tmp/gpu_base_layer"],
+                "binary_path": "/bin/bash",
+                "binary_args": ["-c", "set -u; echo $YT_INFINIBAND_CLUSTER;"],
+            }
+        )
+
+        op = run_test_vanilla(
+            "sleep 1",
+            task_patch={
+                "layer_paths": ["//tmp/base_layer"],
+                "enable_gpu_layers": True,
+                "enable_gpu_check": True,
+                "gpu_limit": 1,
+            },
+            track=True,
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+
+        job_id = job_ids[0]
+
+        events = get_job(op.id, job_id)["events"]
+        phases = [event["phase"] for event in events if "phase" in event]
+        assert "running_gpu_check_command" in phases
 
 
 @authors("ignat")

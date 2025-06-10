@@ -36,7 +36,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SequoiaServerLogger;
+constinit const auto Logger = SequoiaServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,6 +46,7 @@ struct TTableUpdateQueueRecord
     NTableClient::TUnversionedOwningRow Row;
     i64 SequenceNumber;
     EGroundUpdateAction Action;
+    TPromise<void> SyncPromise;
 
     void Persist(const NCellMaster::TPersistenceContext& context)
     {
@@ -146,6 +147,20 @@ public:
         queueState.Records.push_back(std::move(record));
     }
 
+    TFuture<void> Sync(EGroundUpdateQueue queue) override
+    {
+        auto& queueState = QueueStates_[queue];
+        if (queueState.Records.empty()) {
+            return VoidFuture;
+        }
+
+        auto& syncPromise = queueState.Records.back().SyncPromise;
+        if (!syncPromise) {
+            syncPromise = NewPromise<void>();
+        }
+        return syncPromise.ToFuture();
+    }
+
 private:
     TEnumIndexedArray<EGroundUpdateQueue, TPeriodicExecutorPtr> FlushExecutors_;
     TEnumIndexedArray<EGroundUpdateQueue, TTableUpdateQueueState> QueueStates_;
@@ -158,26 +173,27 @@ private:
     {
         auto queue = FromProto<EGroundUpdateQueue>(request->queue());
         auto& queueState = QueueStates_[queue];
+        auto& queueRecords = queueState.Records;
 
         if (queueState.OngoingFlushTransactionId) {
             THROW_ERROR_EXCEPTION("Queue is already being flushed by transaction %v", queueState.OngoingFlushTransactionId);
         }
 
-        if (queueState.Records.empty()) {
+        if (queueRecords.empty()) {
             auto error = TError("There are no updates to flush");
             YT_LOG_ALERT(error);
             THROW_ERROR_EXCEPTION(error);
         }
-        if (queueState.Records.front().SequenceNumber != request->start_sequence_number()) {
+        if (queueRecords.front().SequenceNumber != request->start_sequence_number()) {
             auto error = TError("First record sequence number %v is different from requested sequence number %v",
-                queueState.Records.front().SequenceNumber,
+                queueRecords.front().SequenceNumber,
                 request->start_sequence_number());
             YT_LOG_ALERT(error);
             THROW_ERROR_EXCEPTION(error);
         }
-        if (queueState.Records.back().SequenceNumber < request->end_sequence_number()) {
+        if (queueRecords.back().SequenceNumber < request->end_sequence_number()) {
             auto error = TError("Last queue sequence number %v is less than requested sequence number %v",
-                queueState.Records.back().SequenceNumber,
+                queueRecords.back().SequenceNumber,
                 request->end_sequence_number());
             YT_LOG_ALERT(error);
             THROW_ERROR_EXCEPTION(error);
@@ -197,6 +213,7 @@ private:
     {
         auto queue = FromProto<EGroundUpdateQueue>(request->queue());
         auto& queueState = QueueStates_[queue];
+        auto& queueRecords = queueState.Records;
 
         YT_VERIFY(queueState.OngoingFlushTransactionId == transaction->GetId());
         queueState.OngoingFlushTransactionId = {};
@@ -205,15 +222,18 @@ private:
         auto endSequenceNumber = request->end_sequence_number();
         YT_VERIFY(startSequenceNumber <= endSequenceNumber);
 
-        YT_VERIFY(!queueState.Records.empty() && queueState.Records.front().SequenceNumber == startSequenceNumber);
+        YT_VERIFY(!queueRecords.empty() && queueRecords.front().SequenceNumber == startSequenceNumber);
 
         i64 lastSequenceNumber = -1;
         int recordCount = 0;
 
-        while (!queueState.Records.empty() && queueState.Records.front().SequenceNumber <= endSequenceNumber) {
-            lastSequenceNumber = queueState.Records.front().SequenceNumber;
+        while (!queueRecords.empty() && queueRecords.front().SequenceNumber <= endSequenceNumber) {
+            lastSequenceNumber = queueRecords.front().SequenceNumber;
             ++recordCount;
-            queueState.Records.pop_front();
+            if (const auto& syncPromise = queueRecords.front().SyncPromise) {
+                syncPromise.Set();
+            }
+            queueRecords.pop_front();
         }
 
         // Ensure we actually have all requested records in queue.

@@ -387,7 +387,7 @@ DEFINE_REFCOUNTED_TYPE(THydraReadOnlyCheckCache)
 struct TBundleHealthKey
 {
     std::string ClusterKey;
-    TString BundleName;
+    std::string BundleName;
 
     bool operator == (const TBundleHealthKey& other) const
     {
@@ -793,9 +793,9 @@ public:
         // Right after such writes current instant may be much larger than previous replication timestamp.
         std::optional<TInstant> LastReplicaLagTimeUpdate_;
 
-        TFuture<TString> BundleNameFuture_ = MakeFuture<TString>(
+        TFuture<std::string> BundleNameFuture_ = MakeFuture<std::string>(
             TError("Bundle name has not been fetched yet"));
-        TErrorOr<TString> CurrentBundleName_ = BundleNameFuture_.Get();
+        TErrorOr<std::string> CurrentBundleName_ = BundleNameFuture_.Get();
         TInstant LastBundleNameUpdateTime_ = TInstant::Zero();
         i64 IterationsWithoutAcceptableBundleHealth_ = 0;
 
@@ -832,7 +832,7 @@ public:
             return {};
         }
 
-        TErrorOr<TString> GetBundleName(const NApi::IClientPtr& client)
+        TErrorOr<std::string> GetBundleName(const NApi::IClientPtr& client)
         {
             auto now = NProfiling::GetInstant();
 
@@ -851,7 +851,7 @@ public:
                     .Apply(BIND([] (const TErrorOr<TYsonString>& bundleNameOrError) {
                         THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError,
                             "Error getting table bundle name");
-                        return ConvertTo<TString>(bundleNameOrError.Value());
+                        return ConvertTo<std::string>(bundleNameOrError.Value());
                     }));
 
                 if (CurrentBundleName_.IsOK()) {
@@ -876,7 +876,7 @@ public:
             if (TableAttributesFuture_.IsSet()) {
                 CurrentTableAttributes_ = TableAttributesFuture_.Get();
 
-                std::vector<TString> keys;
+                std::vector<IAttributeDictionary::TKey> keys;
                 if (checkPreloadState) {
                     keys.push_back("preload_state");
                 }

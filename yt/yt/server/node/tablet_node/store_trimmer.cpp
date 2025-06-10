@@ -1,7 +1,9 @@
 #include "store_trimmer.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "ordered_chunk_store.h"
+#include "replication_log.h"
 #include "slot_manager.h"
 #include "store.h"
 #include "store_manager.h"
@@ -9,7 +11,6 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
-#include "replication_log.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -33,6 +34,8 @@
 #include <yt/yt/ytlib/api/native/transaction.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
+
+#include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/ytree/helpers.h>
 
@@ -59,8 +62,12 @@ class TChaosDataTrimProgressGuard
     : public TMoveOnly
 {
 public:
-    TChaosDataTrimProgressGuard(TChaosTabletDataPtr chaosTabletData, TLogger logger)
-        : Logger(std::move(logger))
+    TChaosDataTrimProgressGuard(
+        TChaosTabletDataPtr chaosTabletData,
+        TCancelableContextPtr tabletCancelableContext,
+        const TLogger& logger)
+        : Logger(logger.WithTag("TrimGuardId: %v", TGuid::Create()))
+        , TabletCancelableContext_(std::move(tabletCancelableContext))
         , ChaosTabletData_(std::move(chaosTabletData))
     {
         if (ChaosTabletData_) {
@@ -70,16 +77,29 @@ public:
 
     TChaosDataTrimProgressGuard(TChaosDataTrimProgressGuard&& guard)
         : Logger(std::move(guard.Logger))
+        , TabletCancelableContext_(std::move(guard.TabletCancelableContext_))
         , ChaosTabletData_(std::move(guard.ChaosTabletData_))
     { }
 
     ~TChaosDataTrimProgressGuard()
     {
-        if (ChaosTabletData_) {
-            ChaosTabletData_->IsTrimInProgress.store(false);
-
-            YT_LOG_DEBUG("Replication log trimming finished without actually trimming");
+        if (!ChaosTabletData_) {
+            return;
         }
+
+        if (TabletCancelableContext_ && TabletCancelableContext_->IsCanceled()) {
+            YT_LOG_DEBUG("Tablet epoch changed, do nothing");
+            return;
+        }
+
+        if (!ChaosTabletData_->IsTrimInProgress.load()) {
+            YT_LOG_ALERT("Chaos data trimming progress flag was reset unexpectedly");
+            return;
+        }
+
+        ChaosTabletData_->IsTrimInProgress.store(false);
+
+        YT_LOG_DEBUG("Replication log trimming finished without actually trimming");
     }
 
     void Release()
@@ -89,6 +109,7 @@ public:
 
 private:
     const TLogger Logger;
+    const TCancelableContextPtr TabletCancelableContext_;
 
     TChaosTabletDataPtr ChaosTabletData_;
 };
@@ -221,7 +242,10 @@ private:
 
         auto logger = TabletNodeLogger()
             .WithTag("%v", tablet->GetLoggingTag());
-        auto finallyGuard = TChaosDataTrimProgressGuard(nullptr, logger);
+        auto finallyGuard = TChaosDataTrimProgressGuard(
+            nullptr,
+            tablet->GetCancelableContext(),
+            logger);
         CommitTrimRowsMutation(
             std::move(slot),
             tablet->GetId(),
@@ -270,7 +294,10 @@ private:
             minTimestamp = std::min(minTimestamp, replicaMinTimestamp);
         }
 
-        auto finallyGuard = TChaosDataTrimProgressGuard(std::move(tabletChaosData), Logger);
+        auto finallyGuard = TChaosDataTrimProgressGuard(
+            std::move(tabletChaosData),
+            tablet->GetCancelableContext(),
+            Logger);
 
         TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("ChaosReplicationLogStoreTrim"));
 
@@ -392,8 +419,9 @@ private:
         ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
         hydraRequest.set_mount_revision(ToProto(tablet->GetMountRevision()));
         hydraRequest.set_trimmed_row_count(trimmedRowCount);
-        YT_UNUSED_FUTURE(CreateMutation(slot->GetHydraManager(), hydraRequest)
-            ->CommitAndLog(Logger));
+        auto mutation = CreateMutation(slot->GetHydraManager(), hydraRequest);
+        mutation->SetCurrentTraceContext();
+        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger));
         finallyGuard.Release();
     }
 

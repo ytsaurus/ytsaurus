@@ -184,11 +184,11 @@ private:
 
 
 TFairShareStrategyOperationState::TFairShareStrategyOperationState(
-    IOperationStrategyHost* host,
+    IOperationStrategyHostPtr host,
     const TFairShareStrategyOperationControllerConfigPtr& config,
     const std::vector<IInvokerPtr>& nodeShardInvokers)
-    : Host_(host)
-    , Controller_(New<TFairShareStrategyOperationController>(host, config, nodeShardInvokers))
+    : Host_(std::move(host))
+    , Controller_(New<TFairShareStrategyOperationController>(Host_, config, nodeShardInvokers))
 { }
 
 TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const
@@ -896,7 +896,7 @@ public:
         return {LastPoolsNodeUpdateError_, true};
     }
 
-    TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    TError ValidateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1324,7 +1324,7 @@ private:
 
     std::optional<TInstant> LastFairShareUpdateTime_;
 
-    THashMap<TString, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
+    THashMap<std::string, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
 
     THashMap<TString, THashSet<int>> PoolToSpareSlotIndices_;
     THashMap<TString, int> PoolToMinUnusedSlotIndex_;
@@ -1983,7 +1983,7 @@ private:
             parent->GetId());
     }
 
-    TSchedulerPoolElementPtr GetOrCreatePool(const TPoolName& poolName, TString userName)
+    TSchedulerPoolElementPtr GetOrCreatePool(const TPoolName& poolName, std::string userName)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2299,7 +2299,7 @@ private:
         return RootElement_;
     }
 
-    void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    void ActualizeEphemeralPoolParents(const THashMap<std::string, TString>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -3354,6 +3354,9 @@ private:
             .Item("unschedulable_reason").Value(element->GetUnschedulableReason())
             .Item("allocation_preemption_timeout").Value(element->GetEffectiveAllocationPreemptionTimeout())
             .Item("allocation_graceful_preemption_timeout").Value(element->GetEffectiveAllocationGracefulPreemptionTimeout())
+            .Item("user").Value(element->GetUserName())
+            .Item("type").Value(element->GetOperationType())
+            .Item("title").Value(element->GetTitle())
             .Do(BIND(&TFairShareTreeAllocationScheduler::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
             .Do(BIND(&TFairShareTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldsFilter{}));
     }

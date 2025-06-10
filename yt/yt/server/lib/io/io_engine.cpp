@@ -511,6 +511,7 @@ struct TThreadPoolIOEngineConfig
     // Request size in bytes.
     i64 DesiredRequestSize;
     i64 MinRequestSize;
+    bool EnableSlicing;
 
     // Fair-share thread pool settings.
     double DefaultPoolWeight;
@@ -545,6 +546,8 @@ struct TThreadPoolIOEngineConfig
         registrar.Parameter("min_request_size", &TThis::MinRequestSize)
             .GreaterThanOrEqual(512)
             .Default(64_KB);
+        registrar.Parameter("enable_slicing", &TThis::EnableSlicing)
+            .Default(false);
 
         registrar.Parameter("default_pool_weight", &TThis::DefaultPoolWeight)
             .GreaterThan(0)
@@ -702,7 +705,6 @@ public:
         , StaticConfig_(std::move(config))
         , Config_(StaticConfig_)
         , ThreadPool_(StaticConfig_, LocationId_, Logger)
-        , RequestSlicer_(StaticConfig_->DesiredRequestSize, StaticConfig_->MinRequestSize)
     { }
 
     TFuture<TReadResponse> Read(
@@ -725,7 +727,7 @@ public:
         auto config = Config_.Acquire();
 
         for (int index = 0; index < std::ssize(requests); ++index) {
-            for (auto& slice : RequestSlicer_.Slice(std::move(requests[index]), buffers[index])) {
+            for (auto& slice : GetRequestSlicer().Slice(std::move(requests[index]), buffers[index])) {
                 auto future = BIND([=, this, this_ = MakeStrong(this), category = category, sessionId = sessionId] (
                     const TReadRequest& request,
                     TSharedMutableRef buffer,
@@ -794,7 +796,7 @@ public:
         }
 
         std::vector<TFuture<TWriteResponse>> futures;
-        for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
+        for (auto& slice : GetRequestSlicer().Slice(std::move(request))) {
             auto future = BIND([=, this, this_ = MakeStrong(this)] (
                 const TWriteRequest &request,
                 TWallTimer timer,
@@ -848,7 +850,7 @@ public:
         TIOSessionId sessionId) override
     {
         std::vector<TFuture<TFlushFileRangeResponse>> futures;
-        for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
+        for (auto& slice : GetRequestSlicer().Slice(std::move(request))) {
             futures.push_back(
                 BIND(&DoFlushFileRange, std::move(slice), StaticConfig_->EnableSync, Sensors_)
                     .AsyncVia(ThreadPool_.GetWriteInvoker(category, sessionId))
@@ -872,7 +874,16 @@ private:
     TAtomicIntrusivePtr<TConfig> Config_;
 
     TThreadPool ThreadPool_;
-    TRequestSlicer RequestSlicer_;
+
+    TRequestSlicer GetRequestSlicer() const
+    {
+        auto config = Config_.Acquire();
+        return TRequestSlicer(
+            config->DesiredRequestSize,
+            config->MinRequestSize,
+            config->EnableSlicing
+        );
+    }
 
     void DoReconfigure(const NYTree::INodePtr& node) override
     {
@@ -913,7 +924,6 @@ public:
         , StaticConfig_(std::move(config))
         , Config_(StaticConfig_)
         , ThreadPool_(CreateThreadPool(StaticConfig_->FairShareThreadCount, Format("IOFS:%v", LocationId_)))
-        , RequestSlicer_(StaticConfig_->DesiredRequestSize, StaticConfig_->MinRequestSize)
         , FairShareQueue_(std::move(fairShareQueue))
     {
         RunActions();
@@ -939,7 +949,7 @@ public:
         auto guard = Guard(Lock_);
 
         for (int index = 0; index < std::ssize(requests); ++index) {
-            for (auto& slice : RequestSlicer_.Slice(std::move(requests[index]), buffers[index])) {
+            for (auto& slice : GetRequestSlicer().Slice(std::move(requests[index]), buffers[index])) {
                 auto slotId = requests[index].FairShareSlotId;
                 auto requestId = TGuid::Create();
                 auto promise = CreateRequestPromise<TInternalReadResponse>(
@@ -1029,7 +1039,7 @@ public:
         auto guard = Guard(Lock_);
         std::vector<TFuture<TWriteResponse>> futures;
         auto slotId = request.FairShareSlotId;
-        for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
+        for (auto& slice : GetRequestSlicer().Slice(std::move(request))) {
             auto requestId = TGuid::Create();
             auto promise = CreateRequestPromise<TWriteResponse>(
                 slotId,
@@ -1127,7 +1137,8 @@ public:
         auto slotId = request.FairShareSlotId;
 
         auto guard = Guard(Lock_);
-        for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
+
+        for (auto& slice : GetRequestSlicer().Slice(std::move(request))) {
             auto requestId = TGuid::Create();
             auto promise = CreateRequestPromise<TFlushFileRangeResponse>(
                 slotId,
@@ -1262,7 +1273,6 @@ private:
     std::atomic<int> LoopCount_ = 0;
 
     IThreadPoolPtr ThreadPool_;
-    TIORequestSlicer RequestSlicer_;
 
     TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_;
 
@@ -1276,6 +1286,16 @@ private:
     THashMap<TGuid, TRequestHandler<TFlushFileRangeResponse>> FlushFileRangeRequestStorage_;
 
     NThreading::TEventCount EventCount_;
+
+    TIORequestSlicer GetRequestSlicer() const
+    {
+        auto config = Config_.Acquire();
+        return TIORequestSlicer(
+            config->DesiredRequestSize,
+            config->MinRequestSize,
+            config->EnableSlicing
+        );
+    }
 
     template <class TResponse>
     TPromise<TResponse> CreateRequestPromise(
@@ -1387,7 +1407,7 @@ IIOEnginePtr CreateIOEngine(
     NLogging::TLogger logger,
     TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue)
 {
-    using TClassicThreadPoolIOEngine = TThreadPoolIOEngine<TFixedPriorityExecutor, TDummyRequestSlicer>;
+    using TClassicThreadPoolIOEngine = TThreadPoolIOEngine<TFixedPriorityExecutor, TIORequestSlicer>;
     using TFairShareThreadPoolIOEngine = TThreadPoolIOEngine<TFairShareThreadPool, TIORequestSlicer>;
 
     switch (engineType) {

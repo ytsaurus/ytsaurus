@@ -6,7 +6,7 @@ namespace NYT::NHydraStressTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static NYT::NLogging::TLogger HydraStressTestLogger("HydraStressTest");
+YT_DEFINE_GLOBAL(const NYT::NLogging::TLogger, HydraStressTestLogger, "HydraStressTest");
 
 using TValue = i64;
 

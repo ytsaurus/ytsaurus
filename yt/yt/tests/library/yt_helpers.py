@@ -157,6 +157,19 @@ def skip_if_component_old(env, version_at_least, component, message="too old"):
         pytest.skip(component + " " + message)
 
 
+# COMPAT(pogorelov)
+def skip_if_delivery_fenced_pipe_writer_not_supported(use_new_delivery_fenced_connection):
+    kernel_version = platform.release()
+    major_kernel_version = tuple(int(part) for part in kernel_version.split(".")[0:2])
+    print_debug("platform release:", major_kernel_version)
+
+    if major_kernel_version >= (5, 4) and major_kernel_version < (5, 15) and use_new_delivery_fenced_connection:
+        pytest.xfail("New delivery fenced pipe writer is not supported since linux kernel 5.4 and before 5.15")
+
+    if major_kernel_version >= (5, 15) and not use_new_delivery_fenced_connection:
+        pytest.xfail("Old delivery fenced pipe writer is not supported on kernels newer than 5.15")
+
+
 def write_log_barrier(address, category="Barrier", driver=None, cluster_name="primary"):
     if driver is None:
         driver = get_driver(cluster=cluster_name)

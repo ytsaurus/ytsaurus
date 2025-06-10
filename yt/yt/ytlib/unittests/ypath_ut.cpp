@@ -14,12 +14,17 @@ TEST(TYPathTest, Correctness)
     auto p3 = TYPath("/foo");
     auto p4 = TYPath("&");
 
-    EXPECT_THROW_THAT(
+    EXPECT_THROW_WITH_SUBSTRING(
         auto p5 = TAbsoluteYPath("/bar"),
-        ::testing::HasSubstr("does not start with a valid root-designator"));
-    EXPECT_THROW_THAT(
-        auto p6 = TYPath("bar"),
-        ::testing::HasSubstr("Expected \"slash\" in YPath but found \"literal\""));
+        "does not start with a valid root-designator");
+    EXPECT_THROW_WITH_SUBSTRING(
+        auto p2 = TYPath("bar"),
+        "Expected \"slash\" in YPath but found \"literal\"");
+
+    auto raw = std::string{'/', '/', 'f', '\0', 'o'};
+    EXPECT_THROW_WITH_SUBSTRING(
+        TAbsoluteYPathBuf(TStringBuf(raw)),
+        "Path contains forbidden symbol");
 }
 
 TEST(TYPathTest, RootDesignator)
@@ -49,6 +54,107 @@ TEST(TYPathTest, Segments)
     EXPECT_EQ(*it++, TYPath("&"));
     EXPECT_EQ(*it++, TYPath("/@baz"));
     EXPECT_EQ(it, segments.end());
+}
+
+TEST(TYPathTest, GetFirstSegment)
+{
+    // Basic tests.
+    auto path = TYPath("/first");
+    EXPECT_EQ(path.GetFirstSegment(), "first");
+    path = TYPath("/first/second/third");
+    EXPECT_EQ(path.GetFirstSegment(), "first");
+
+    // Edge cases.
+    path = TYPath("/");
+    EXPECT_EQ(path.GetFirstSegment(), "");
+    path = TYPath("/weird\\/path");
+    EXPECT_EQ(path.GetFirstSegment(), "weird\\/path");
+    path = TYPath("/weird\\\\/path");
+    EXPECT_EQ(path.GetFirstSegment(), "weird\\\\");
+}
+
+TEST(TYPathTest, RemoveLastSegment)
+{
+    // Basic tests.
+    auto path = TYPath("/first");
+    path.RemoveLastSegment();
+    EXPECT_EQ(path, TYPath(""));
+    path = TYPath("/first/second/third");
+    path.RemoveLastSegment();
+    EXPECT_EQ(path, TYPath("/first/second"));
+
+    // Edge cases.
+    path = TYPath("/first/second//");
+    path.RemoveLastSegment();
+    EXPECT_EQ(path, TYPath("/first/second/"));
+    path = TYPath("/first/second");
+    path.RemoveLastSegment();
+    path.RemoveLastSegment();
+    path.RemoveLastSegment();
+    EXPECT_EQ(path, TYPath(""));
+
+    // Basic tests.
+    auto absolute = TAbsoluteYPath("//");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute, TAbsoluteYPath("/"));
+    absolute = TAbsoluteYPath("#123-123-123-123/something");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute, TAbsoluteYPath("#123-123-123-123"));
+    absolute = TAbsoluteYPath("//first");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute, TAbsoluteYPath("/"));
+    absolute = TAbsoluteYPath("//first/second/third");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute, TAbsoluteYPath("//first/second"));
+
+    // Edge cases.
+    absolute = TAbsoluteYPath("/");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute, TAbsoluteYPath("/"));
+    absolute = TAbsoluteYPath("#123-123-123-123");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute, TAbsoluteYPath("#123-123-123-123"));
+}
+
+TEST(TYPathTest, Append)
+{
+    auto path = TYPath("/first");
+    path.Append("second");
+    EXPECT_EQ(path, TYPath("/first/second"));
+    path = TYPath("/first");
+    path.Append("/second");
+    EXPECT_EQ(path, TYPath("/first/\\/second"));
+
+    auto absolute = TAbsoluteYPath("/");
+    absolute.Append("first");
+    EXPECT_EQ(absolute, TAbsoluteYPath("//first"));
+    absolute = TAbsoluteYPath("#123-123-123-123");
+    absolute.Append("something");
+    EXPECT_EQ(absolute, TAbsoluteYPath("#123-123-123-123/something"));
+    absolute = TAbsoluteYPath("//");
+    absolute.Append("first");
+    EXPECT_EQ(absolute, TAbsoluteYPath("//first"));
+    absolute = TAbsoluteYPath("//first");
+    absolute.Append("second");
+    EXPECT_EQ(absolute, TAbsoluteYPath("//first/second"));
+}
+
+TEST(TYPathTest, Mangling)
+{
+    {
+        auto p = TAbsoluteYPath("//foo/bar");
+        auto m = p.ToMangledSequoiaPath();
+        auto r = std::string{'/', '\0', 'f', 'o', 'o', '\0', 'b', 'a', 'r', '\0'};
+        EXPECT_EQ(m.Underlying(), r);
+        EXPECT_EQ(TAbsoluteYPath(m), p);
+    }
+    {
+        auto p = TAbsoluteYPath(R"(//\\\/\@\&\*\[\{)");
+        auto m = p.ToMangledSequoiaPath();
+        auto r = std::string{'/', '\0', '\\', '/', '@', '&', '*', '[', '{', '\0'};
+        EXPECT_EQ(m.Underlying(), r);
+        EXPECT_EQ(TAbsoluteYPath(m), p);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

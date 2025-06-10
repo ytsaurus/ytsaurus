@@ -50,13 +50,12 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/hedging_manager.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/rpc/hedging_channel.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -452,7 +451,7 @@ protected:
         i64 BlockSize;
     };
 
-    struct TPeerProbeResult
+    struct TPeerProbingInfo
     {
         bool NetThrottling = false;
         bool DiskThrottling = false;
@@ -467,9 +466,11 @@ protected:
         i64 CachedBlockSize = 0;
     };
 
-    using TErrorOrPeerProbeResult = TErrorOr<TPeerProbeResult>;
+    using TErrorOrPeerProbingInfo = TErrorOr<TPeerProbingInfo>;
+    using TPeerProbingResult = std::pair<TPeer, TErrorOrPeerProbingInfo>;
+    using TProbingResults = std::vector<TPeerProbingResult>;
 
-    TPeerProbeResult ParseProbeResponse(const TDataNodeServiceProxy::TRspProbeBlockSetPtr& rsp)
+    TPeerProbingInfo ParseProbingResponse(const TDataNodeServiceProxy::TRspProbeBlockSetPtr& rsp)
     {
         std::vector<TBlockInfo> blockInfos;
         blockInfos.reserve(rsp->cached_blocks_size());
@@ -611,6 +612,10 @@ protected:
             Logger.AddTag("CompressionFairShareTag: %v", WorkloadDescriptor_.CompressionFairShareTag);
         }
 
+        if (SessionOptions_.Cookie) {
+            Logger.AddTag("Cookie: %x", *SessionOptions_.Cookie);
+        }
+
         SessionOptions_.ChunkReaderStatistics->RecordSession();
 
         ResetPeerQueue();
@@ -653,7 +658,10 @@ protected:
         auto throttlerFuture = throttler->Throttle(count);
         SetSessionFuture(throttlerFuture);
         throttlerFuture
-            .Subscribe(BIND([=, this, this_ = MakeStrong(this), onSuccess = std::move(onSuccess)] (const TError& throttleResult) {
+            .Subscribe(BIND(
+                [=, this, this_ = MakeStrong(this), onSuccess = std::move(onSuccess)]
+                (const TError& throttleResult)
+            {
                 if (!throttleResult.IsOK()) {
                     auto error = TError(
                         NChunkClient::EErrorCode::ReaderThrottlingFailed,
@@ -662,8 +670,10 @@ protected:
                     OnSessionFailed(true, error);
                     return;
                 }
+
                 onSuccess();
-            }).Via(SessionInvoker_));
+            })
+            .Via(SessionInvoker_));
     }
 
     // NB: Now we use this method only in case of failed session.
@@ -1173,10 +1183,13 @@ protected:
             return {candidates.begin(), candidates.end()};
         }
 
-        auto peerAndProbeResultsOrError = WaitFor(DoProbeAndSelectBestPeers(candidates, blockIndexes));
-        YT_VERIFY(peerAndProbeResultsOrError.IsOK());
+        auto probingResultsOrError = WaitFor(DoProbeAndSelectBestPeers(candidates, blockIndexes));
+        YT_VERIFY(probingResultsOrError.IsOK());
 
-        return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count, blockIndexes);
+        return OnPeersProbed(
+            std::move(probingResultsOrError.Value()),
+            count,
+            blockIndexes);
     }
 
     TFuture<TPeerList> AsyncProbeAndSelectBestPeers(
@@ -1194,11 +1207,15 @@ protected:
         return DoProbeAndSelectBestPeers(candidates, blockIndexes)
             .ApplyUnique(BIND(
                 [=, this, this_ = MakeStrong(this)]
-                (TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>&& peerAndProbeResultsOrError)
+                (TErrorOr<TProbingResults>&& probingResultsOrError)
             {
-                YT_VERIFY(peerAndProbeResultsOrError.IsOK());
-                return OnPeersProbed(std::move(peerAndProbeResultsOrError.Value()), count, blockIndexes);
-            }).AsyncVia(SessionInvoker_));
+                YT_VERIFY(probingResultsOrError.IsOK());
+                return OnPeersProbed(
+                    std::move(probingResultsOrError.Value()),
+                    count,
+                    blockIndexes);
+            })
+            .AsyncVia(SessionInvoker_));
     }
 
     bool ShouldThrottle(const std::string& address, bool condition) const
@@ -1417,24 +1434,24 @@ private:
         return false;
     }
 
-    std::pair<TPeer, TErrorOrPeerProbeResult> ParsePeerAndProbeResponse(
+    TPeerProbingResult ParsePeerAndProbingResponse(
         TPeer peer,
         const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError)
     {
         if (rspOrError.IsOK()) {
             return {
                 std::move(peer),
-                TErrorOrPeerProbeResult(ParseProbeResponse(rspOrError.Value()))
+                TErrorOrPeerProbingInfo(ParseProbingResponse(rspOrError.Value()))
             };
         } else {
             return {
                 std::move(peer),
-                TErrorOrPeerProbeResult(TError(rspOrError))
+                TErrorOrPeerProbingInfo(TError(rspOrError))
             };
         }
     }
 
-    std::pair<TPeer, TErrorOrPeerProbeResult> ParseSuspiciousPeerAndProbeResponse(
+    TPeerProbingResult ParseSuspiciousPeerAndProbingResponse(
         TPeer peer,
         const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError,
         const TFuture<TAllyReplicasInfo>& allyReplicasFuture,
@@ -1453,7 +1470,7 @@ private:
 
             return {
                 std::move(peer),
-                TErrorOrPeerProbeResult(ParseProbeResponse(rspOrError.Value()))
+                TErrorOrPeerProbingInfo(ParseProbingResponse(rspOrError.Value()))
             };
         }
 
@@ -1472,20 +1489,19 @@ private:
 
         return {
             std::move(peer),
-            TErrorOrPeerProbeResult(TError(rspOrError))
+            TErrorOrPeerProbingInfo(TError(rspOrError))
         };
     }
 
-    TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeer(
-        const IChannelPtr& channel,
-        const std::string& address,
+    TFuture<TPeerProbingResult> ProbePeer(
+        IChannelPtr channel,
         const TPeer& peer,
         const std::vector<int>& blockIndexes)
     {
         auto probeBlockSetResponseFuture = RequestBatcher_->ProbeBlockSet(
             IRequestBatcher::TRequest{
-                .Address = address,
-                .Channel = channel,
+                .Address = peer.Address,
+                .Channel = std::move(channel),
                 .BlockIndexes = blockIndexes,
                 .Session = MakeStrong(this),
             });
@@ -1495,7 +1511,7 @@ private:
                 [=, this, this_ = MakeStrong(this), seedsFuture = SeedsFuture_, totalPeerCount = std::ssize(Peers_)]
                 (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError)
                 {
-                    return ParseSuspiciousPeerAndProbeResponse(
+                    return ParseSuspiciousPeerAndProbingResponse(
                         std::move(peer),
                         rspOrError,
                         seedsFuture,
@@ -1503,38 +1519,38 @@ private:
                 })
                 .AsyncVia(SessionInvoker_));
         } else {
-            return probeBlockSetResponseFuture.Apply(BIND([peer, this, this_ = MakeStrong(this)] (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError) {
-                return ParsePeerAndProbeResponse(std::move(peer), rspOrError);
-            }));
+            return probeBlockSetResponseFuture.Apply(BIND(
+                [peer, this, this_ = MakeStrong(this)]
+                (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError)
+                {
+                    return ParsePeerAndProbingResponse(std::move(peer), rspOrError);
+                }));
         }
     }
 
-    TFuture<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>> DoProbeAndSelectBestPeers(
+    TFuture<TProbingResults> DoProbeAndSelectBestPeers(
         const TPeerList& candidates,
         const std::vector<int>& blockIndexes)
     {
         // Multiple candidates - send probing requests.
-        std::vector<TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>>> asyncResults;
-        std::vector<TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>>> asyncSuspiciousResults;
+        std::vector<TFuture<TPeerProbingResult>> asyncResults;
+        std::vector<TFuture<TPeerProbingResult>> asyncSuspiciousResults;
         asyncResults.reserve(candidates.size());
+
         for (const auto& peer : candidates) {
             auto channel = GetChannel(peer.Address);
             if (!channel) {
                 continue;
             }
 
+            auto peerProbingFuture = ProbePeer(
+                std::move(channel),
+                peer,
+                blockIndexes);
             if (peer.NodeSuspicionMarkTime) {
-                asyncSuspiciousResults.push_back(ProbePeer(
-                    channel,
-                    peer.Address,
-                    peer,
-                    blockIndexes));
+                asyncSuspiciousResults.push_back(std::move(peerProbingFuture));
             } else {
-                asyncResults.push_back(ProbePeer(
-                    channel,
-                    peer.Address,
-                    peer,
-                    blockIndexes));
+                asyncResults.push_back(std::move(peerProbingFuture));
             }
         }
 
@@ -1548,18 +1564,18 @@ private:
             return AllSucceeded(std::move(asyncSuspiciousResults));
         } else {
             return AllSucceeded(std::move(asyncResults))
-                .Apply(BIND(
+                .ApplyUnique(BIND(
                 [
                     this,
                     this_ = MakeStrong(this),
                     asyncSuspiciousResults = std::move(asyncSuspiciousResults)
-                ] (const TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>& resultsOrError) {
-                    YT_VERIFY(resultsOrError.IsOK());
-                    auto results = resultsOrError.Value();
-                    int totalCandidateCount = results.size() + asyncSuspiciousResults.size();
+                ] (TErrorOr<TProbingResults>&& probingResultsOrError) {
+                    YT_VERIFY(probingResultsOrError.IsOK());
+                    auto probingResults = std::move(probingResultsOrError.Value());
+                    int totalCandidateCount = probingResults.size() + asyncSuspiciousResults.size();
 
                     for (const auto& asyncSuspiciousResult : asyncSuspiciousResults) {
-                        auto maybeSuspiciousResult = asyncSuspiciousResult.TryGet();
+                        auto maybeSuspiciousResult = asyncSuspiciousResult.TryGetUnique();
                         if (!maybeSuspiciousResult) {
                             continue;
                         }
@@ -1568,7 +1584,7 @@ private:
 
                         auto suspiciousResultValue = std::move(maybeSuspiciousResult->Value());
                         if (suspiciousResultValue.second.IsOK()) {
-                            results.push_back(std::move(suspiciousResultValue));
+                            probingResults.push_back(std::move(suspiciousResultValue));
                         } else {
                             ProcessError(
                                 suspiciousResultValue.second,
@@ -1580,30 +1596,30 @@ private:
                         }
                     }
 
-                    auto omittedSuspiciousNodeCount = totalCandidateCount - results.size();
+                    auto omittedSuspiciousNodeCount = totalCandidateCount - probingResults.size();
                     if (omittedSuspiciousNodeCount > 0) {
                         SessionOptions_.ChunkReaderStatistics->OmittedSuspiciousNodeCount.fetch_add(
                             omittedSuspiciousNodeCount,
                             std::memory_order::relaxed);
                     }
 
-                    return results;
+                    return probingResults;
                 })
                 .AsyncVia(SessionInvoker_));
         }
     }
 
     TPeerList OnPeersProbed(
-        std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>> peerAndProbeResults,
+        TProbingResults probingResults,
         int count,
         const std::vector<int>& blockIndexes)
     {
-        std::vector<std::pair<TPeer, TPeerProbeResult>> peerAndSuccessfulProbeResults;
         bool receivedNewPeers = false;
-        for (auto& [peer, probeResultOrError] : peerAndProbeResults) {
-            if (!probeResultOrError.IsOK()) {
+        std::vector<std::pair<TPeer, TPeerProbingInfo>> successfulPeerAndProbingInfoList;
+        for (auto& [peer, probingInfoOrError] : probingResults) {
+            if (!probingInfoOrError.IsOK()) {
                 ProcessError(
-                    probeResultOrError,
+                    probingInfoOrError,
                     peer,
                     TError(
                         NChunkClient::EErrorCode::NodeProbeFailed,
@@ -1612,39 +1628,39 @@ private:
                 continue;
             }
 
-            auto& probeResult = probeResultOrError.Value();
+            auto probingInfo = std::move(probingInfoOrError.Value());
 
-            if (UpdatePeerBlockMap(peer, probeResult.PeerDescriptors, probeResult.AllyReplicas)) {
+            if (UpdatePeerBlockMap(peer, probingInfo.PeerDescriptors, probingInfo.AllyReplicas)) {
                 receivedNewPeers = true;
             }
 
             // Exclude throttling peers from current pass.
-            if (probeResult.NetThrottling || probeResult.DiskThrottling) {
+            if (probingInfo.NetThrottling || probingInfo.DiskThrottling) {
                 YT_LOG_DEBUG("Peer is throttling (Address: %v, NetThrottling: %v, DiskThrottling: %v)",
                     peer.Address,
-                    probeResult.NetThrottling,
-                    probeResult.DiskThrottling);
+                    probingInfo.NetThrottling,
+                    probingInfo.DiskThrottling);
                 continue;
             }
 
-            if (!probeResult.HasCompleteChunk && peer.Type == EPeerType::Seed) {
+            if (!probingInfo.HasCompleteChunk && peer.Type == EPeerType::Seed) {
                 YT_LOG_DEBUG("Peer has no complete chunk (Address: %v)",
                     peer.Address);
                 BanPeer(peer.Address, /*forever*/ false);
                 continue;
             }
 
-            peerAndSuccessfulProbeResults.emplace_back(std::move(peer), std::move(probeResult));
+            successfulPeerAndProbingInfoList.emplace_back(std::move(peer), std::move(probingInfo));
         }
 
-        if (peerAndSuccessfulProbeResults.empty()) {
+        if (successfulPeerAndProbingInfoList.empty()) {
             YT_LOG_DEBUG("All peer candidates were discarded");
             return {};
         }
 
         if (receivedNewPeers) {
             YT_LOG_DEBUG("P2P was activated");
-            for (const auto& [peer, probeResult] : peerAndSuccessfulProbeResults) {
+            for (const auto& [peer, probingInfo] : successfulPeerAndProbingInfoList) {
                 ReinstallPeer(peer.Address);
             }
             return {};
@@ -1670,29 +1686,29 @@ private:
             return {cachedBlockCount, cachedBlockSize};
         };
 
-        for (auto& [peer, probeResult] : peerAndSuccessfulProbeResults) {
-            auto cacheHits = calculateCacheHits(probeResult.CachedBlocks);
-            probeResult.CachedBlockCount = cacheHits.first;
-            probeResult.CachedBlockSize = cacheHits.second;
+        for (auto& [peer, probingInfo] : successfulPeerAndProbingInfoList) {
+            auto cacheHits = calculateCacheHits(probingInfo.CachedBlocks);
+            probingInfo.CachedBlockCount = cacheHits.first;
+            probingInfo.CachedBlockSize = cacheHits.second;
         }
 
         std::sort(
-            peerAndSuccessfulProbeResults.begin(),
-            peerAndSuccessfulProbeResults.end(),
+            successfulPeerAndProbingInfoList.begin(),
+            successfulPeerAndProbingInfoList.end(),
             [&] (const auto& first, const auto& second) {
-                const auto& [firstPeer, firstProbeResult] = first;
-                const auto& [secondPeer, secondProbeResult] = second;
+                const auto& [firstPeer, firstProbingInfo] = first;
+                const auto& [secondPeer, secondProbingInfo] = second;
 
-                if (firstProbeResult.MediumPriority != secondProbeResult.MediumPriority) {
+                if (firstProbingInfo.MediumPriority != secondProbingInfo.MediumPriority) {
                     // Higher priorities must come first.
-                    return firstProbeResult.MediumPriority > secondProbeResult.MediumPriority;
+                    return firstProbingInfo.MediumPriority > secondProbingInfo.MediumPriority;
                 }
 
-                auto firstNetQueueSize = firstProbeResult.NetQueueSize;
-                auto secondNetQueueSize = secondProbeResult.NetQueueSize;
+                auto firstNetQueueSize = firstProbingInfo.NetQueueSize;
+                auto secondNetQueueSize = secondProbingInfo.NetQueueSize;
 
-                auto firstDiskQueueSize = firstProbeResult.DiskQueueSize;
-                auto secondDiskQueueSize = secondProbeResult.DiskQueueSize;
+                auto firstDiskQueueSize = firstProbingInfo.DiskQueueSize;
+                auto secondDiskQueueSize = secondProbingInfo.DiskQueueSize;
 
                 auto netQueueSize = firstNetQueueSize + secondNetQueueSize;
                 auto diskQueueSize = firstDiskQueueSize + secondDiskQueueSize;
@@ -1710,11 +1726,11 @@ private:
                     secondHit += (diskQueueSizeFactor * secondDiskQueueSize) / diskQueueSize;
                 }
 
-                auto firstCachedBlockCount = firstProbeResult.CachedBlockCount;
-                auto firstCachedBlockSize = firstProbeResult.CachedBlockSize;
+                auto firstCachedBlockCount = firstProbingInfo.CachedBlockCount;
+                auto firstCachedBlockSize = firstProbingInfo.CachedBlockSize;
 
-                auto secondCachedBlockCount = secondProbeResult.CachedBlockCount;
-                auto secondCachedBlockSize = secondProbeResult.CachedBlockSize;
+                auto secondCachedBlockCount = secondProbingInfo.CachedBlockCount;
+                auto secondCachedBlockSize = secondProbingInfo.CachedBlockSize;
 
                 auto cachedBlockCount = firstCachedBlockCount + secondCachedBlockCount;
                 auto cachedBlockSize = firstCachedBlockSize + secondCachedBlockSize;
@@ -1733,10 +1749,10 @@ private:
                 return firstHit < secondHit;
             });
 
-        count = std::min<int>(count, std::ssize(peerAndSuccessfulProbeResults));
+        count = std::min<int>(count, std::ssize(successfulPeerAndProbingInfoList));
         TPeerList bestPeers;
-        for (int index = 0; index < std::ssize(peerAndSuccessfulProbeResults); ++index) {
-            const auto& [peer, probeResult] = peerAndSuccessfulProbeResults[index];
+        for (int index = 0; index < std::ssize(successfulPeerAndProbingInfoList); ++index) {
+            const auto& [peer, probingInfo] = successfulPeerAndProbingInfoList[index];
             if (index < count) {
                 bestPeers.push_back(peer);
             } else {
@@ -1746,15 +1762,16 @@ private:
 
         YT_LOG_DEBUG("Best peers selected (Peers: %v)",
             MakeFormattableView(
-                TRange(peerAndSuccessfulProbeResults.begin(), peerAndSuccessfulProbeResults.begin() + count),
-                [] (auto* builder, const auto& peerAndSuccessfulProbeResult) {
-                    const auto& [peer, probeResult] = peerAndSuccessfulProbeResult;
-                    builder->AppendFormat("{Address: %v, DiskQueueSize: %v, NetQueueSize: %v, CachedBlockCount: %v, CachedBlockSize: %v}",
+                TRange(successfulPeerAndProbingInfoList.begin(), successfulPeerAndProbingInfoList.begin() + count),
+                [] (auto* builder, const auto& peerAndProbingInfo) {
+                    const auto& [peer, probingInfo] = peerAndProbingInfo;
+                    builder->AppendFormat(
+                        "{Address: %v, DiskQueueSize: %v, NetQueueSize: %v, CachedBlockCount: %v, CachedBlockSize: %v}",
                         peer.Address,
-                        probeResult.DiskQueueSize,
-                        probeResult.NetQueueSize,
-                        probeResult.CachedBlockCount,
-                        probeResult.CachedBlockSize);
+                        probingInfo.DiskQueueSize,
+                        probingInfo.NetQueueSize,
+                        probingInfo.CachedBlockCount,
+                        probingInfo.CachedBlockSize);
                 }));
 
         return bestPeers;
@@ -1923,10 +1940,10 @@ private:
                         *suggestedAddress,
                         suggestorPeer.Address);
 
-                    if (peerDescriptor.has_delivery_barier()) {
+                    if (peerDescriptor.has_delivery_barrier()) {
                         P2PDeliveryBarrier_[peerNodeId].emplace(
                             blockIndex,
-                            peerDescriptor.delivery_barier());
+                            peerDescriptor.delivery_barrier());
                     }
                 } else {
                     YT_LOG_WARNING("Peer suggestion ignored, required network is missing "
@@ -2124,10 +2141,10 @@ private:
             }
 
             std::vector<std::vector<TBlockWithCookie>> subrequests;
-            size_t totalElements = blocks.size();
+            int totalElements = blocks.size();
             int chunkSize = totalElements / batchCount;
             int remainder = totalElements % batchCount;
-            size_t start = 0;
+            int start = 0;
 
             for (int i = 0; i < batchCount; ++i) {
                 size_t end = start + chunkSize + (i < remainder ? 1 : 0);
@@ -2164,7 +2181,7 @@ private:
                 peerIndex++;
             }
 
-            auto results = WaitFor(AllSucceeded(futures))
+            auto results = WaitFor(AllSucceeded(std::move(futures)))
                 .ValueOrThrow();
             return std::any_of(results.begin(), results.end(), [] (bool result) { return result; });
         }
@@ -2357,7 +2374,6 @@ private:
         }
 
         auto channel = MakePeersChannel(primaryPeer, backupPeer, hedgingOptions);
-
         YT_VERIFY(channel);
 
         const auto& primaryAddress = primaryPeer.Address;
@@ -2389,7 +2405,7 @@ private:
                 .BackupPeer = backupPeer,
             },
             // If hedging is enabled, then get block batching is not allowed.
-            hedgingOptions.has_value());
+            hedgingOptions.has_value() /*hedgingEnabled*/);
 
         SetSessionFuture(getBlockSetResponseFuture.As<void>());
         return getBlockSetResponseFuture
@@ -2655,12 +2671,6 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Requesting blocks from peer (Address: %v, Blocks: %v, EstimatedSize: %v, BytesThrottled: %v)",
-            peerAddress,
-            FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
-            EstimatedSize_,
-            BytesThrottled_);
-
         if (ShouldThrottle(peerAddress, BytesThrottled_ == 0 && EstimatedSize_)) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we check BytesThrottled_ is zero.
@@ -2678,6 +2688,11 @@ private:
 
         auto req = proxy.GetBlockRange();
         req->SetResponseHeavy(true);
+        req->SetRequestInfo("Blocks: %v, EstimatedSize: %v, BytesThrottled: %v, Cookie: %x",
+            FormatBlocks(FirstBlockIndex_, FirstBlockIndex_ + BlockCount_ - 1),
+            EstimatedSize_,
+            BytesThrottled_,
+            SessionOptions_.Cookie);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -2958,8 +2973,6 @@ private:
 
         YT_VERIFY(channel);
 
-        YT_LOG_DEBUG("Requesting chunk meta (Addresses: %v)", peers);
-
         if (ShouldThrottle(primaryPeer.Address, BytesThrottled_ == 0 && MetaSize_ > 0)) {
             BytesThrottled_ = *MetaSize_;
             if (!CombinedDataByteThrottler_->IsOverdraft()) {
@@ -2975,6 +2988,14 @@ private:
 
         auto req = proxy.GetChunkMeta();
         req->SetResponseHeavy(true);
+        req->SetRequestInfo(
+            "ChunkId: %v, ExtensionTags: %v, PartitionTag: %v, Workload: %v, EnableThrottling: %v, Cookie: %x",
+            ChunkId_,
+            ExtensionTags_,
+            PartitionTag_,
+            WorkloadDescriptor_,
+            true,
+            SessionOptions_.Cookie);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -3361,6 +3382,15 @@ private:
 
         auto req = proxy.LookupRows();
         req->SetResponseHeavy(true);
+        req->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, "
+            "PopulateCache: %v, EnableHashChunkIndex: %v, ContainsSchema: %v, Cookie: %x",
+            ChunkId_,
+            SessionOptions_.ReadSessionId,
+            WorkloadDescriptor_,
+            true,
+            Options_->EnableHashChunkIndex,
+            schemaRequested,
+            SessionOptions_.Cookie);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
@@ -3843,10 +3873,17 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
 
         auto req = proxy.ProbeBlockSet();
+        auto blockIndexes = std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
         SetRequestWorkloadDescriptor(req, queuedBatch.Session->SessionOptions_.WorkloadDescriptor);
         req->SetResponseHeavy(true);
+        req->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v, Cookie: %x",
+            ChunkId_,
+            MakeCompactIntervalView(blockIndexes),
+            blockIndexes.size(),
+            queuedBatch.Session->SessionOptions_.WorkloadDescriptor,
+            queuedBatch.Session->SessionOptions_.Cookie);
         ToProto(req->mutable_chunk_id(), ChunkId_);
-        ToProto(req->mutable_block_indexes(), std::vector<int>(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end()));
+        ToProto(req->mutable_block_indexes(), std::move(blockIndexes));
         req->SetAcknowledgementTimeout(std::nullopt);
         req->set_ally_replicas_revision(ToProto(queuedBatch.Session->SeedReplicas_.Revision));
 
@@ -3868,6 +3905,14 @@ private:
 
         auto blockIndexes = std::vector(queuedBatch.BlockIds.begin(), queuedBatch.BlockIds.end());
         std::sort(blockIndexes.begin(), blockIndexes.end());
+
+        req->SetRequestInfo("ChunkId: %v, Blocks: %v, "
+            "PopulateCache: %v, Workload: %v, Cookie: %x",
+            ChunkId_,
+            MakeCompactIntervalView(blockIndexes),
+            ReaderConfig_->PopulateCache,
+            queuedBatch.Session->SessionOptions_.WorkloadDescriptor,
+            queuedBatch.Session->SessionOptions_.Cookie);
 
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);

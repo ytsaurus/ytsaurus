@@ -23,15 +23,6 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TArtifactDownloadOptions
-{
-    NChunkClient::TTrafficMeterPtr TrafficMeter;
-
-    std::vector<TString> WorkloadDescriptorAnnotations;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Manages chunks cached at Exec Node.
 /*!
  *  \note

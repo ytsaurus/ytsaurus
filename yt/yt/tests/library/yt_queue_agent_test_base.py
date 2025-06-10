@@ -5,7 +5,7 @@ from yt_chaos_test_base import ChaosTestBase
 from yt_commands import (execute_batch, get, get_batch_output, make_batch_request, multiset_attributes, read_table, set, ls, wait, create, remove, sync_mount_table, sync_create_cells, exists,
                          select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer,
                          sync_freeze_table, sync_unfreeze_table, create_table_replica, sync_enable_table_replica,
-                         advance_consumer, insert_rows, wait_for_tablet_state)
+                         advance_consumer, insert_rows, wait_for_tablet_state, abort_transactions)
 
 from yt_helpers import parse_yt_time
 
@@ -479,7 +479,25 @@ class QueueStaticExportHelpers(ABC):
         for export_dir in export_dirs:
             self._add_active_export_destination(export_dir, cluster_name)
 
+    def _abort_transactions_in_subtree(self, path, driver):
+        transactions = builtins.set()
+        traverse_stack = [get(path, attributes=["locks"], driver=driver)]
+        while traverse_stack:
+            node = traverse_stack.pop(-1)
+            for lock in node.attributes["locks"]:
+                if lock["mode"] in ("shared", "exclusive"):
+                    transactions.add(lock["transaction_id"])
+            if isinstance(node, dict):
+                traverse_stack += list(node.values())
+
+        if not transactions:
+            return
+
+        print_debug(f"Aborting transactions in subtree {path}")
+        abort_transactions(transactions, driver=driver, verbose=True)
+
     def remove_export_destination(self, export_dir, cluster_name="primary", **kwargs):
+        print_debug(f"Removing export destination {export_dir} on cluster {cluster_name}")
         self._initialize_active_export_destinations()
 
         assert self._contains_active_export_destination(export_dir, cluster_name)
@@ -490,7 +508,12 @@ class QueueStaticExportHelpers(ABC):
             driver = get_driver(cluster=cluster_name)
 
         def try_remove():
-            remove(export_dir, force=True, driver=driver, **kwargs)
+            self._abort_transactions_in_subtree(export_dir, driver)
+            try:
+                remove(export_dir, force=True, driver=driver, **kwargs)
+            except YtError as ex:
+                print_debug(f"Failed to remove {export_dir}: {ex}; retrying")
+                raise
             return True
 
         wait(try_remove, ignore_exceptions=True)

@@ -31,7 +31,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = RpcProxyLogger;
+constinit const auto Logger = RpcProxyLogger;
 
 static const auto QueryCorpusTableSchema = TTableSchema({{"query", EValueType::String, ESortOrder::Ascending}});
 static const auto QueryCorpusNameTable = TNameTable::FromSchema(QueryCorpusTableSchema);

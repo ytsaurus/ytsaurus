@@ -24,10 +24,8 @@ TError TAlert::GetTaggedError() const
     std::vector<TErrorAttribute> errorAttributes;
     errorAttributes.reserve(Tags.size());
     for (const auto& tag : Tags) {
-        // TODO(babenko): switch to std::string
-        errorAttributes.emplace_back(TString(tag.first), TString(tag.second));
+        errorAttributes.emplace_back(tag.first, tag.second);
     }
-
     return Error << errorAttributes;
 }
 

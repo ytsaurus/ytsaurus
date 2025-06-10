@@ -22,7 +22,7 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 static const auto& Profiler = TabletNodeProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,7 +55,7 @@ private:
 
     struct TCounters
     {
-        explicit TCounters(const TString& bundleName)
+        explicit TCounters(const std::string& bundleName)
             : RetentionTime(Profiler()
                 .WithTag("tablet_cell_bundle", bundleName)
                 .TimeGauge("/backing_store_retention_time"))
@@ -64,9 +64,9 @@ private:
         NProfiling::TTimeGauge RetentionTime;
     };
 
-    THashMap<TString, TCounters> Counters_;
+    THashMap<std::string, TCounters> Counters_;
 
-    TCounters* GetCounters(const TString& bundleName)
+    TCounters* GetCounters(const std::string& bundleName)
     {
         if (auto it = Counters_.find(bundleName); it != Counters_.end()) {
             return &it->second;
@@ -90,7 +90,7 @@ private:
         std::vector<TStoreData> Stores;
     };
 
-    THashMap<TString, TTabletCellBundleData> NameToBundleData_;
+    THashMap<std::string, TTabletCellBundleData> NameToBundleData_;
 
     void EnsureBundleDataCreated(const ITabletSlotPtr& slot)
     {
@@ -107,7 +107,7 @@ private:
         if (dynamicOptions->MaxBackingStoreMemoryRatio) {
             const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
             auto poolTag = dynamicOptions->EnableTabletDynamicMemoryLimit
-                ? std::optional(slot->GetTabletCellBundleName())
+                ? std::optional<std::string>(slot->GetTabletCellBundleName())
                 : std::nullopt;
             memoryLimit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, poolTag) *
                 *dynamicOptions->MaxBackingStoreMemoryRatio;
@@ -232,7 +232,7 @@ private:
         }
 
         // Do not send profiling for bundles that do not exist anymore.
-        std::vector<TString> bundlesToRemove;
+        std::vector<std::string> bundlesToRemove;
         for (const auto& [bundleName, counters] : Counters_) {
             if (!NameToBundleData_.contains(bundleName)) {
                 bundlesToRemove.push_back(bundleName);

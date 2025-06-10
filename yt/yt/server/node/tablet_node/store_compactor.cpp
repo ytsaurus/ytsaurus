@@ -2,6 +2,8 @@
 
 #include "background_activity_orchid.h"
 #include "bootstrap.h"
+#include "config.h"
+#include "error_manager.h"
 #include "hunk_chunk.h"
 #include "in_memory_manager.h"
 #include "partition.h"
@@ -186,7 +188,7 @@ struct TCompactionTaskInfo
         TTabletId tabletId,
         NHydra::TRevision mountRevision,
         TString tablePath,
-        TString tabletCellBundle,
+        std::string tabletCellBundle,
         TPartitionId partitionId,
         EStoreCompactionReason reason,
         bool discardStores,
@@ -488,11 +490,7 @@ private:
             Bootstrap_->GetControlInvoker(),
             Bootstrap_->GetLocalDescriptor(),
             Bootstrap_->GetRpcServer(),
-            Bootstrap_
-                ->GetClient()
-                ->GetNativeConnection()
-                ->GetCellDirectory()
-                ->GetDescriptorByCellIdOrThrow(TabletSnapshot_->CellId),
+            TabletSnapshot_,
             TabletSnapshot_->Settings.MountConfig->InMemoryMode,
             Bootstrap_->GetInMemoryManager()->GetConfig());
 
@@ -513,6 +511,11 @@ private:
                 .ThrowOnError();
         }
 
+        const auto& smoothMovementData = TabletSnapshot_->TabletRuntimeData->SmoothMovementData;
+        auto targetServantMountRevision = smoothMovementData.Role == ESmoothMovementRole::Source
+            ? smoothMovementData.SiblingServantMountRevision.load()
+            : TRevision{};
+
         std::vector<TChunkInfo> chunkInfos;
         for (const auto& writer : Writers_) {
             result.WriterStatistics.push_back(writer->GetDataStatistics());
@@ -521,7 +524,8 @@ private:
                     .ChunkId = FromProto<TChunkId>(chunkSpec.chunk_id()),
                     .ChunkMeta = New<TRefCountedChunkMeta>(chunkSpec.chunk_meta()),
                     .TabletId = TabletSnapshot_->TabletId,
-                    .MountRevision = TabletSnapshot_->MountRevision
+                    .MountRevision = TabletSnapshot_->MountRevision,
+                    .TargetServantMountRevision = targetServantMountRevision,
                 });
             }
         }
@@ -1728,6 +1732,8 @@ private:
                 storeManager->BackoffStoreCompaction(store);
             }
 
+            Bootstrap_->GetErrorManager()->HandleError(error, "Partitioning", tabletSnapshot);
+
             task->OnFailed(std::move(error));
         }
 
@@ -2124,6 +2130,8 @@ private:
             for (const auto& store : stores) {
                 storeManager->BackoffStoreCompaction(store);
             }
+
+            Bootstrap_->GetErrorManager()->HandleError(error, "Compaction", tabletSnapshot);
 
             task->OnFailed(std::move(error));
         }

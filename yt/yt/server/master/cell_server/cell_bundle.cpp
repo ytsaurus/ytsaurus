@@ -74,9 +74,7 @@ void TCellBundle::Load(NCellMaster::TLoadContext& context)
     Load(context, DynamicConfigVersion_);
     Load(context, *CellBalancerConfig_);
     Load(context, Health_);
-    if (context.GetVersion() >= EMasterReign::TabletCellsHydraPersistenceMigration) {
-        Load(context, ConfigVersion_);
-    }
+    Load(context, ConfigVersion_);
 
     InitializeProfilingCounters();
 }
@@ -128,7 +126,7 @@ void TCellBundle::InitializeProfilingCounters()
     ProfilingCounters_.PeerAssignment = profiler.Counter("/tablet_tracker/peer_assignment");
 }
 
-TString TCellBundleProfilingCounters::FormatErrorCode(TErrorCode errorCode)
+std::string TCellBundleProfilingCounters::FormatErrorCode(TErrorCode errorCode)
 {
     auto enumValue = static_cast<EErrorCode>(static_cast<int>(errorCode));
     if (TEnumTraits<EErrorCode>::FindLiteralByValue(enumValue) != nullptr) {

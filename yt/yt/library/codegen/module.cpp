@@ -72,7 +72,7 @@ namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CodegenLogger;
+constinit const auto Logger = CodegenLogger;
 
 static bool IsIRDumpEnabled()
 {

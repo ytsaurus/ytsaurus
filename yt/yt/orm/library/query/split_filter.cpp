@@ -295,7 +295,7 @@ private:
         return {.Place=EFilterPlace::Heterogenous};
     }
 
-    template<std::ranges::range TFilterTypes>
+    template <std::ranges::range TFilterTypes>
     TFilterType GetCommonType(TFilterTypes types)
     {
         TFilterType commonType;
@@ -316,6 +316,7 @@ private:
             case EFilterPlace::Having:
                 Having_ = BuildAndExpression(ObjectsHolder_, Having_, expression);
                 return;
+            case EFilterPlace::Unknown:
             case EFilterPlace::Where:
                 Where_ = BuildAndExpression(ObjectsHolder_, Where_, expression);
                 return;
@@ -329,9 +330,6 @@ private:
             }
             case EFilterPlace::Heterogenous:
                 return;
-            case EFilterPlace::Unknown:
-                ThrowSplitError(TError("Failed to determine filter place")
-                    << TErrorAttribute("expression", FormatExpression(*expression)));
         }
     }
 

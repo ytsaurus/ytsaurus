@@ -41,7 +41,7 @@ using NCypressClient::NProto::TReqCreateRootstock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CypressServerLogger;
+constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -305,7 +305,7 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto accountId = FromProto<TAccountId>(request->account_id());
-        auto* account = securityManager->GetAccountOrThrow(accountId);
+        auto* account = securityManager->GetAccount(accountId);
 
         auto explicitAttributes = FromProto(request->explicit_node_attributes());
 
@@ -355,9 +355,6 @@ private:
             })->As<TScionNode>();
         YT_VERIFY(scionNode->GetId() == scionNodeId);
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(scionNode);
-
         cypressManager->SetShard(scionNode, shard);
 
         if (effectiveInheritableAttributes) {
@@ -406,6 +403,8 @@ private:
         scionNode->SetRootstockId(rootstockNodeId);
 
         EmplaceOrCrash(ScionNodes_, scionNodeId, scionNode);
+
+        typeHandler->SetReachable(scionNode);
 
         YT_LOG_DEBUG("Scion created "
             "(RootstockNodeId: %v, ScionNodeId: %v)",

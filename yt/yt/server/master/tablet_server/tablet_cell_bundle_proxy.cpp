@@ -89,6 +89,8 @@ private:
             .SetReplicated(true));
         attributes->push_back(EInternedAttributeKey::ViolatedResourceLimits);
         attributes->push_back(EInternedAttributeKey::ResourceUsage);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceQuota)
+            .SetWritable(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Abc)
             .SetWritable(true)
             .SetWritePermission(EPermission::Administer)
@@ -142,8 +144,8 @@ private:
 
                 BuildYsonFluently(consumer)
                     .BeginMap()
-                        .Item("tablet_count").Value(usage.TabletCount > limits.TabletCount)
-                        .Item("tablet_static_memory").Value(usage.TabletStaticMemory > limits.TabletStaticMemory)
+                        .Item("tablet_count").Value(usage.GetTabletCount() > limits.GetTabletCount())
+                        .Item("tablet_static_memory").Value(usage.GetTabletStaticMemory() > limits.GetTabletStaticMemory())
                     .EndMap();
 
                 return true;
@@ -151,6 +153,12 @@ private:
 
             case EInternedAttributeKey::ResourceUsage:
                 Serialize(cellBundle->ResourceUsage().Cluster(), consumer);
+                return true;
+
+            case EInternedAttributeKey::ResourceQuota:
+                Serialize(
+                    static_cast<const TTabletCellBundleQuota&>(cellBundle->ResourceLimits()),
+                    consumer);
                 return true;
 
             case EInternedAttributeKey::Abc: {
@@ -269,7 +277,13 @@ private:
                 return true;
 
             case EInternedAttributeKey::ResourceLimits: {
-                cellBundle->ResourceLimits() = ConvertTo<TTabletResources>(value);
+                cellBundle->ResourceLimits() = ConvertTo<TTabletCellBundleResources>(value);
+                return true;
+            }
+
+            case EInternedAttributeKey::ResourceQuota: {
+                static_cast<TTabletCellBundleQuota&>(cellBundle->ResourceLimits()) =
+                    ConvertTo<TTabletCellBundleQuota>(value);
                 return true;
             }
 

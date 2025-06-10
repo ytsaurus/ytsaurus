@@ -1,11 +1,12 @@
 #include "lsm_interop.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "partition_balancer.h"
 #include "private.h"
 #include "slot_manager.h"
-#include "store.h"
 #include "sorted_chunk_store.h"
+#include "store.h"
 #include "store_compactor.h"
 #include "store_manager.h"
 #include "store_rotator.h"
@@ -19,9 +20,10 @@
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 
+#include <yt/yt/server/lib/lsm/config.h>
+#include <yt/yt/server/lib/lsm/lsm_backend.h>
 #include <yt/yt/server/lib/lsm/partition.h>
 #include <yt/yt/server/lib/lsm/store.h>
-#include <yt/yt/server/lib/lsm/lsm_backend.h>
 #include <yt/yt/server/lib/lsm/tablet.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -43,7 +45,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,6 +136,24 @@ private:
         StoreRotator_->ProcessLsmActionBatch(/*slot*/ nullptr, actions);
     }
 
+    NLsm::TLsmTabletNodeConfigPtr GenerateLsmConfig(
+        const TTabletNodeConfigPtr& staticConfig,
+        const TTabletNodeDynamicConfigPtr& dynamicConfig)
+    {
+        auto lsmConfig = New<NLsm::TLsmTabletNodeConfig>();
+
+        lsmConfig->ForcedRotationMemoryRatio = dynamicConfig->StoreFlusher->ForcedRotationMemoryRatio.value_or(
+            staticConfig->ForcedRotationMemoryRatio);
+        lsmConfig->MinForcedFlushDataSize = dynamicConfig->StoreFlusher->MinForcedFlushDataSize.value_or(
+            staticConfig->StoreFlusher->MinForcedFlushDataSize);
+
+        lsmConfig->ResamplingPeriod = staticConfig->PartitionBalancer->ResamplingPeriod;
+
+        lsmConfig->CompactionBackoffTime = staticConfig->TabletManager->CompactionBackoffTime;
+
+        return lsmConfig;
+    }
+
     void SetBackendState()
     {
         NLsm::TLsmBackendState backendState;
@@ -144,8 +164,9 @@ private:
             ->GetTimestampProvider();
         backendState.CurrentTimestamp = timestampProvider->GetLatestTimestamp();
 
-        backendState.TabletNodeConfig = Bootstrap_->GetConfig()->TabletNode;
-        backendState.TabletNodeDynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode;
+        backendState.TabletNodeConfig = GenerateLsmConfig(
+            Bootstrap_->GetConfig()->TabletNode,
+            Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode);
 
         const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
         const auto& cellar = Bootstrap_->GetCellarManager()->GetCellar(NCellarClient::ECellarType::Tablet);
@@ -169,10 +190,8 @@ private:
             NLsm::TTabletCellBundleState bundleState{
                 .ForcedRotationMemoryRatio = options->ForcedRotationMemoryRatio,
                 .EnablePerBundleMemoryLimit = options->EnableTabletDynamicMemoryLimit,
-                .DynamicMemoryLimit =
-                    memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, bundleName),
-                .DynamicMemoryUsage =
-                    memoryTracker->GetUsed(EMemoryCategory::TabletDynamic, bundleName),
+                .DynamicMemoryLimit = memoryTracker->GetLimit(EMemoryCategory::TabletDynamic, bundleName),
+                .DynamicMemoryUsage = memoryTracker->GetUsed(EMemoryCategory::TabletDynamic, bundleName),
             };
 
             backendState.Bundles[bundleName] = bundleState;

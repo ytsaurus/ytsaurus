@@ -53,15 +53,25 @@ private:
 
 } // namespace NDetail
 
-TIORequestSlicer::TIORequestSlicer(i64 desiredSize, i64 minSize)
+TIORequestSlicer::TIORequestSlicer(i64 desiredSize, i64 minSize, bool enableSlicing)
     : DesiredRequestSize_(desiredSize)
     , MinRequestSize_(minSize)
+    , EnableSlicing_(enableSlicing)
 { }
 
 std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
     TReadRequest request,
     const TSharedMutableRef& buffer) const
 {
+    if (!EnableSlicing_) {
+        return {
+            TSlicedReadRequest{
+                .Request = std::move(request),
+                .OutputBuffer = std::move(buffer),
+            }
+        };
+    }
+
     YT_VERIFY(std::ssize(buffer) >= request.Size);
     return SliceRequest<TSlicedReadRequest>(request, [&] (TSlicedReadRequest& slice, i64 offset, i64 sliceSize) {
         auto bufferOffset = offset - request.Offset;
@@ -74,6 +84,10 @@ std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
 
 std::vector<TWriteRequest> TIORequestSlicer::Slice(TWriteRequest request) const
 {
+    if (!EnableSlicing_) {
+        return {std::move(request)};
+    }
+
     NDetail::TBuffersIterator iterator(request.Buffers);
     return SliceRequest<TWriteRequest>(request, [&] (TWriteRequest& slice, i64 offset, i64 sliceSize) {
         slice.Offset = offset;
@@ -85,6 +99,10 @@ std::vector<TWriteRequest> TIORequestSlicer::Slice(TWriteRequest request) const
 
 std::vector<TFlushFileRangeRequest> TIORequestSlicer::Slice(TFlushFileRangeRequest request) const
 {
+    if (!EnableSlicing_) {
+        return {std::move(request)};
+    }
+
     return SliceRequest<TFlushFileRangeRequest>(request, [&] (TFlushFileRangeRequest& slice, i64 offset, i64 sliceSize) {
         slice.Handle = request.Handle;
         slice.Offset = offset;
@@ -109,31 +127,6 @@ std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& 
     }
 
     return results;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TDummyRequestSlicer::TDummyRequestSlicer(i64 /*desiredSize*/, i64 /*minSize*/)
-{ }
-
-std::array<TSlicedReadRequest, 1> TDummyRequestSlicer::Slice(TReadRequest request, TSharedMutableRef buffer) const
-{
-    return {
-        TSlicedReadRequest{
-            .Request = std::move(request),
-            .OutputBuffer = std::move(buffer)
-        }
-    };
-}
-
-std::array<TWriteRequest, 1> TDummyRequestSlicer::Slice(TWriteRequest request) const
-{
-    return {std::move(request)};
-}
-
-std::array<TFlushFileRangeRequest, 1> TDummyRequestSlicer::Slice(TFlushFileRangeRequest request) const
-{
-    return {std::move(request)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

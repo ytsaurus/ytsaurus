@@ -51,6 +51,9 @@ struct IBootstrap
         const std::string& poolName,
         const NConcurrency::TFairShareThreadPoolTag& tag) const = 0;
 
+    virtual IInvokerPtr GetPullRowsInvoker(
+        const NConcurrency::TFairShareThreadPoolTag& tag) const = 0;
+
     // Throttlers.
     virtual const NConcurrency::IThroughputThrottlerPtr& GetThrottler(NTabletNode::ETabletNodeThrottlerKind kind) const = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(EWorkloadCategory category) const = 0;

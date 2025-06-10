@@ -1,10 +1,9 @@
 #include "data_node_nbd_service.h"
 
 #include "bootstrap.h"
-#include "config.h"
-// TODO: remove me.
-#include "session.h"
+#include "chunk_store.h"
 #include "nbd_session.h"
+#include "session.h"
 #include "session_manager.h"
 
 #include <yt/yt/server/lib/nbd/chunk_block_device.h>
@@ -86,6 +85,13 @@ private:
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
 
+        if (sessionManager->FindSession(sessionId.ChunkId)) {
+            // Session is already opened.
+            context->Reply();
+            return;
+        }
+
+        // Open a new session.
         TSessionOptions options;
         options.WorkloadDescriptor.Category = EWorkloadCategory::UserInteractive;
         options.NbdChunkSize = size;
@@ -128,11 +134,13 @@ private:
         .AsyncVia(Bootstrap_->GetStorageLightInvoker()));
 
         response->set_cookie(cookie);
-        response->set_close_session(session->GetStoreLocation()->IsSick());
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %x",
+        context->SetResponseInfo("SessionId: %v, Cookie: %x, ShouldCloseSession: %v",
             sessionId,
-            cookie);
+            cookie,
+            shouldCloseSession);
 
         context->ReplyFrom(future);
     }
@@ -155,12 +163,14 @@ private:
         auto session = GetSessionOrThrow(sessionId);
         auto future = session->Write(offset, blocks[0], cookie);
 
-        request->set_cookie(cookie);
-        response->set_close_session(session->GetStoreLocation()->IsSick());
+        response->set_cookie(cookie);
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_should_close_session(shouldCloseSession);
 
-        context->SetResponseInfo("SessionId: %v, Cookie: %x",
+        context->SetResponseInfo("SessionId: %v, Cookie: %x ShouldCloseSession: %v",
             sessionId,
-            cookie);
+            cookie,
+            shouldCloseSession);
 
         context->ReplyFrom(future.AsVoid());
     }
@@ -175,7 +185,13 @@ private:
         auto session = GetSessionOrThrow(sessionId);
         session->Ping();
 
-        response->set_close_session(session->GetStoreLocation()->IsSick());
+        auto shouldCloseSession = ShouldCloseSession(session);
+        response->set_should_close_session(shouldCloseSession);
+
+        context->SetResponseInfo("SessionId: %v, ShouldCloseSession: %v",
+            sessionId,
+            shouldCloseSession);
+
         context->Reply();
     }
 
@@ -183,6 +199,12 @@ private:
     {
         return DynamicPointerCast<TNbdSession>(
             Bootstrap_->GetSessionManager()->GetSessionOrThrow(sessionId.ChunkId));
+    }
+
+    bool ShouldCloseSession(const ISessionPtr& session)
+    {
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
+        return session->GetStoreLocation()->IsSick() || sessionManager->GetDisableWriteSessions();
     }
 };
 

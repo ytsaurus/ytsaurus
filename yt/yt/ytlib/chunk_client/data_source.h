@@ -44,7 +44,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TColumnRenameDescriptors, ColumnRenameDescriptors);
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::TVirtualValueDirectoryPtr, VirtualValueDirectory);
     DEFINE_BYVAL_RW_PROPERTY(int, VirtualKeyPrefixLength, 0);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Account);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<std::string>, Account);
     DEFINE_BYVAL_RW_PROPERTY(NScheduler::TClusterName, ClusterName);
 
     //! Returns comparator built from data source schema. Crashes in case if data source is not sorted.

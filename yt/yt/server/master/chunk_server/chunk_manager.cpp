@@ -195,7 +195,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -212,6 +212,19 @@ struct TChunkToLinkedListNode
 DEFINE_ENUM(EChunkReplicaEventType,
     ((Add)      (0))
     ((Remove)   (1))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(ESequoiaReplicaModificationPhase,
+    (StartTransaction)
+    (ParseLocationDirectory)
+    (GatherModifiedAddedReplicas)
+    (ParseRemovedReplicas)
+    (LookupRemovedLocationReplicas)
+    (GatherModifiedRemovedReplicas)
+    (WriteRowsAndAddTransactionActions)
+    (CommitTransaction)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -521,6 +534,25 @@ public:
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", CrpBufferedProducer_);
 
+        // NB: most ESequoiaTransactionType do not deal with replicas at all, hence WithDefaultDisabled.
+        auto sequoiaReplicaModificationProfiler = ChunkServerProfiler()
+            .WithPrefix("/sequoia_replica_modification")
+            .WithDefaultDisabled()
+            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()));
+        for (auto sequoiaTransactionType : TEnumTraits<ESequoiaTransactionType>::GetDomainValues()) {
+            auto& profile = SequoiaReplicaModificationProfiles_[sequoiaTransactionType];
+
+            auto typeSpecificProfiler = sequoiaReplicaModificationProfiler
+                .WithTag("sequoia_transaction_type", Format("%lv", sequoiaTransactionType));
+            profile.Counter = typeSpecificProfiler.Counter("/count");
+
+            for (auto phase : TEnumTraits<ESequoiaReplicaModificationPhase>::GetDomainValues()) {
+                auto typeAndPhaseSpecificProfiler = typeSpecificProfiler
+                    .WithTag("phase", Format("%lv", phase));
+                profile.CumulativeTime[phase] = typeAndPhaseSpecificProfiler.TimeCounter("/cumulative_time");
+            }
+        }
+
         auto taggedHistogramProfiler = ChunkServerHistogramProfiler()
             .WithDefaultDisabled()
             .WithSparse()
@@ -763,7 +795,53 @@ public:
 
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
+        TDummyNbdChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        int desiredCount,
+        int minCount,
+        std::optional<int> replicationFactorOverride,
+        const TNodeList* forbiddenNodes,
+        const TNodeList* allocatedNodes,
+        const std::optional<std::string>& preferredHostName) override
+    {
+        return ChunkPlacement_->AllocateWriteTargets(
+            medium,
+            chunk,
+            replicas,
+            desiredCount,
+            minCount,
+            replicationFactorOverride,
+            forbiddenNodes,
+            allocatedNodes,
+            preferredHostName,
+            ESessionType::User);
+    }
+
+    TNodeList AllocateWriteTargets(
+        TDomesticMedium* medium,
         TChunk* chunk,
+        const TChunkLocationPtrWithReplicaInfoList& replicas,
+        int replicaIndex,
+        int desiredCount,
+        int minCount,
+        std::optional<int> replicationFactorOverride) override
+    {
+        return ChunkPlacement_->AllocateWriteTargets(
+            medium,
+            chunk,
+            replicas,
+            replicaIndex == GenericChunkReplicaIndex
+                ? TChunkReplicaIndexList()
+                : TChunkReplicaIndexList{replicaIndex},
+            desiredCount,
+            minCount,
+            replicationFactorOverride,
+            ESessionType::User);
+    }
+
+    TNodeList AllocateWriteTargets(
+        TDomesticMedium* medium,
+        TDummyNbdChunk* chunk,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
         int replicaIndex,
         int desiredCount,
@@ -888,6 +966,10 @@ public:
                 referencedHunkChunks.push_back(hunkChunk);
             }
         }
+
+        chunk->ValidateConfirmation(chunkInfo, chunkMeta);
+
+        // No exceptions below this point, please. Thank you kindly.
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto* hunkChunk : referencedHunkChunks) {
@@ -2357,16 +2439,39 @@ public:
         };
     }
 
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Chunk, TChunk);
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkView, TChunkView);
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(DynamicStore, TDynamicStore);
-    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkList, TChunkList);
-    DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(Medium, Media, TMedium);
+    // Chunks needs special care.
+    TChunk* FindChunk(const TChunkId& id) const override
+    {
+        YT_LOG_ALERT_IF(
+            IsErasureChunkPartId(id),
+            "Erasure chunk part type passed to FindChunk (ChunkId: %v)",
+            id);
+        return ChunkMap_.Find(id);
+    }
+
+    TChunk* GetChunk(const TChunkId& id) const override
+    {
+        YT_LOG_ALERT_IF(
+            IsErasureChunkPartId(id),
+            "Erasure chunk part type passed to GetChunk (ChunkId: %v)",
+            id);
+        return ChunkMap_.Get(id);
+    }
+
+    const TReadOnlyEntityMap<TChunk>& Chunks() const override
+    {
+        return ChunkMap_;
+    }
 
     TEntityMap<TChunk>& MutableChunks() override
     {
         return ChunkMap_;
     }
+
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkView, TChunkView);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(DynamicStore, TDynamicStore);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChunkList, TChunkList);
+    DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS_OVERRIDE(Medium, Media, TMedium);
 
     TEntityMap<TChunkList>& MutableChunkLists() override
     {
@@ -2449,6 +2554,14 @@ private:
     TGaugeHistogram ChunkCompressedDataSizeHistogram_;
     TGaugeHistogram ChunkUncompressedDataSizeHistogram_;
     TGaugeHistogram ChunkDataWeightHistogram_;
+
+    struct TSequoiaReplicaModificationProfile
+    {
+        TEnumIndexedArray<ESequoiaReplicaModificationPhase, NProfiling::TTimeCounter> CumulativeTime;
+        NProfiling::TCounter Counter;
+    };
+
+    TEnumIndexedArray<ESequoiaTransactionType, TSequoiaReplicaModificationProfile> SequoiaReplicaModificationProfiles_;
 
     TMediumMap<std::vector<i64>> ConsistentReplicaPlacementTokenDistribution_;
 
@@ -3325,6 +3438,9 @@ private:
             request->dead_chunk_ids_size(),
             transactionType);
 
+        SequoiaReplicaModificationProfiles_[transactionType].Counter.Increment();
+        NProfiling::TWallTimer timer;
+
         const auto& config = GetDynamicConfig();
         const auto& sequoiaConfig = config->SequoiaChunkReplicas;
         auto enableChunkRefresh = config->EnableChunkRefresh;
@@ -3337,11 +3453,18 @@ private:
         return Bootstrap_
             ->GetSequoiaClient()
             ->StartTransaction(transactionType, {.CellTag = Bootstrap_->GetCellTag()})
-            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
+            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) mutable {
+                auto& profile = SequoiaReplicaModificationProfiles_[transactionType];
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::StartTransaction].Add(timer.GetElapsedTime());
+                timer.Restart();
+
                 auto nodeId = FromProto<TNodeId>(request->node_id());
 
                 const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
                 auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
+
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::ParseLocationDirectory].Add(timer.GetElapsedTime());
+                timer.Restart();
 
                 auto deadChunkIds = FromProto<THashSet<TChunkId>>(request->dead_chunk_ids());
 
@@ -3381,6 +3504,9 @@ private:
                         locationUuid);
                 }
 
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::GatherModifiedAddedReplicas].Add(timer.GetElapsedTime());
+                timer.Restart();
+
                 std::vector<NRecords::TLocationReplicasKey> keys;
                 for (const auto& chunkInfo : request->removed_chunks()) {
                     auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
@@ -3408,8 +3534,15 @@ private:
                         locationUuid);
                 }
 
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::ParseRemovedReplicas].Add(timer.GetElapsedTime());
+                timer.Restart();
+
                 auto replicasFuture = transaction->LookupRows(keys);
                 auto removedReplicasOrError = WaitFor(replicasFuture);
+
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::LookupRemovedLocationReplicas].Add(timer.GetElapsedTime());
+                timer.Restart();
+
                 ThrowOnSequoiaReplicasError(removedReplicasOrError, retriableErrorCodes);
 
                 const auto& removedReplicas = removedReplicasOrError
@@ -3450,6 +3583,9 @@ private:
                         chunkIdWithIndex.ReplicaIndex,
                         locationUuid);
                 }
+
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::GatherModifiedRemovedReplicas].Add(timer.GetElapsedTime());
+                timer.Restart();
 
                 for (const auto& [chunkId, chunkModifiedReplicas] : modifiedReplicas) {
                     NRecords::TChunkReplicas chunkReplicas{
@@ -3544,6 +3680,9 @@ private:
                     Bootstrap_->GetCellTag(),
                     NTransactionClient::MakeTransactionActionData(*request));
 
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::WriteRowsAndAddTransactionActions].Add(timer.GetElapsedTime());
+                timer.Restart();
+
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
@@ -3551,6 +3690,9 @@ private:
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
+
+                profile.CumulativeTime[ESequoiaReplicaModificationPhase::CommitTransaction].Add(timer.GetElapsedTime());
+
                 ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
 
                 // TODO(aleksandra-zh): add ally replica info.
@@ -3569,7 +3711,9 @@ private:
         std::vector<TChunk*> announceReplicaRequests;
         for (const auto& chunkInfo : addedReplicas) {
             if (chunkInfo.caused_by_medium_change()) {
-                auto* chunk = FindChunk(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                auto* chunk = FindChunk(chunkIdWithIndex.Id);
+
                 if (IsObjectAlive(chunk)) {
                     if (chunk->IsBlob()) {
                         ScheduleEndorsement(chunk);
@@ -6425,6 +6569,8 @@ private:
         responseFutures.reserve(channels.size());
         for (const auto& channel : channels) {
             auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
+            // TODO(nadya02): Set the correct timeout here.
+            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
             auto req = TYPathProxy::Get("//sys/local_lost_vital_chunks/@count");
             responseFutures.push_back(proxy.Execute(req));
         }
@@ -6503,7 +6649,6 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, ChunkMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkView, TChunkView, ChunkViewMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, DynamicStore, TDynamicStore, DynamicStoreMap_);
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, ChunkListMap_);

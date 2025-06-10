@@ -214,7 +214,7 @@ TFuture<ITablePartitionReaderPtr> TClient::CreateTablePartitionReader(
 
     auto nameTable = New<TNameTable>();
 
-    auto chunkReaderHost = TChunkReaderHost::FromClient(MakeStrong(this));
+    auto chunkReaderHost = CreateSingleSourceMultiChunkReaderHost(TChunkReaderHost::FromClient(MakeStrong(this)));
 
     auto columnFilter = TColumnFilter{};
     auto tableReaderOptions = ToInternalTableReaderOptions(options);

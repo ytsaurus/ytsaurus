@@ -14,5 +14,6 @@ IF (NOT OPENSOURCE)
         tablet_balancer_dry_run_snapshot_maker
         zone_supervisor
         bundle_hotfix
+        sequoia_bundle_configuration
     )
 ENDIF()

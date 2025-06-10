@@ -962,6 +962,12 @@ class YtClient(ClientState):
         """
         return client_api.get_current_transaction_id(client=self)
 
+    def get_current_user(self):
+        """
+        Get current user info
+        """
+        return client_api.get_current_user(client=self)
+
     def get_file_from_cache(
             self,
             md5,
@@ -1178,7 +1184,8 @@ class YtClient(ClientState):
 
     def get_pipeline_state(
             self,
-            pipeline_path):
+            pipeline_path,
+            timeout=None):
         """
         Get YT Flow pipeline state
 
@@ -1187,7 +1194,8 @@ class YtClient(ClientState):
         """
         return client_api.get_pipeline_state(
             pipeline_path,
-            client=self)
+            client=self,
+            timeout=timeout)
 
     def get_query(
             self,
@@ -2878,7 +2886,8 @@ class YtClient(ClientState):
 
     def start_pipeline(
             self,
-            pipeline_path):
+            pipeline_path,
+            timeout=None):
         """
         Start YT Flow pipeline.
 
@@ -2887,7 +2896,8 @@ class YtClient(ClientState):
         """
         return client_api.start_pipeline(
             pipeline_path,
-            client=self)
+            client=self,
+            timeout=timeout)
 
     def start_query(
             self,

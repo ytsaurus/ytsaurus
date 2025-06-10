@@ -39,6 +39,7 @@ target_link_options(unittester-query-v2 PRIVATE
 
 target_sources(unittester-query-v2 PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/v2/init.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/unittests/v2/ql_cast_ut.cpp
 )
 
 

@@ -93,16 +93,46 @@ void TCypressProxyConnectionConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSequoiaRetriesConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+
+    registrar.Preprocessor([] (TSequoiaRetriesConfig* config) {
+        config->StartBackoff = TDuration::MilliSeconds(150); // Average duration of Sequoia tx.
+        config->MaxBackoff = TDuration::Seconds(10);
+        config->BackoffMultiplier = 2;
+        config->RetryCount = 15;
+    });
+}
+
+TReqExecuteBatchRetriesConfigPtr TSequoiaRetriesConfig::ToRetriesConfig() const
+{
+    auto adjustedConfig = New<TReqExecuteBatchRetriesConfig>();
+    static_cast<TReqExecuteBatchRetriesOptions&>(*adjustedConfig) = static_cast<const TReqExecuteBatchRetriesOptions&>(*this);
+    if (!Enable) {
+        adjustedConfig->RetryCount = 0;
+    }
+    return adjustedConfig;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TSequoiaConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("ground_cluster_name", &TThis::GroundClusterName)
         .Default();
+    registrar.Parameter("ground_cluster_connection_update_period", &TThis::GroundClusterConnectionUpdatePeriod)
+        .Default(TDuration::Seconds(5));
 
-    registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
+        registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
         .Default("//sys/sequoia");
 
     registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)
         .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("retries", &TThis::Retries)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -415,7 +445,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
 
     registrar.Parameter("read_operations_archive_state_from", &TThis::ReadOperationsArchiveStateFrom)
-        .Default(EMasterChannelKind::LocalCache);
+        .Default(EMasterChannelKind::ClientSideCache);
 
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;
@@ -451,7 +481,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("group_by_with_limit_is_unordered", &TThis::GroupByWithLimitIsUnordered)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("flow_pipeline_controller_rpc_timeout", &TThis::FlowPipelineControllerRpcTimeout)
         .Default(TDuration::Seconds(10));
@@ -464,6 +494,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("banned_in_sync_replica_clusters", &TThis::BannedInSyncReplicaClusters)
         .Default();
+
+    registrar.Parameter("request_full_statistics_for_brief_statistics_in_list_jobs", &TThis::RequestFullStatisticsForBriefStatisticsInListJobs)
+        .Default(true);
 
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {

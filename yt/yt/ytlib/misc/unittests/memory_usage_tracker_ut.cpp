@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
-
 namespace NYT {
 namespace {
 
@@ -295,6 +293,17 @@ TEST(TMemoryUsageTrackerTest, Pool)
     tracker->Acquire(category, 6, "some_pool");
     EXPECT_TRUE(tracker->IsExceeded(category, "some_pool"));
     EXPECT_TRUE(tracker->IsPoolExceeded("some_pool"));
+    tracker->ClearTrackers();
+}
+
+TEST(TMemoryUsageTrackerTest, Overflow)
+{
+    auto tracker = New<TTestNodeMemoryTracker>();
+
+    tracker->SetTotalLimit(std::numeric_limits<i64>::max());
+    tracker->SetPoolRatio("some_pool", 1);
+    auto limit = tracker->GetPoolLimit("some_pool");
+    EXPECT_EQ(limit, std::numeric_limits<i64>::max());
     tracker->ClearTrackers();
 }
 

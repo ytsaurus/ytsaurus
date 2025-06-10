@@ -75,7 +75,7 @@ TUnversionedLookupRowsResult MakeEmptyLookupActiveRowsResult(int rows)
 }
 
 template <typename TRecord>
-TRecord CreateSimpleQuery(const TQueryId& queryId, ui64 startTime = 0, const std::vector<TString>& acos = {})
+TRecord CreateSimpleQuery(const TQueryId& queryId, ui64 startTime = 0, const std::vector<std::string>& acos = {})
 {
     return {
         .Key = {.QueryId = queryId},
@@ -108,7 +108,7 @@ public:
             .WillOnce(Return(MakeFuture((ITransactionPtr)MockTransaction)));
     }
 
-    void ExpectAcosExist(const std::vector<TString>& acos)
+    void ExpectAcosExist(const std::vector<std::string>& acos)
     {
         for (const auto& aco : acos) {
             EXPECT_CALL(*MockClient, NodeExists(TYPath(Format("//sys/access_control_object_namespaces/queries/%v", aco)), _))
@@ -141,7 +141,7 @@ TEST_F(TQueryTrackerProxyTest, StartDraftQuery)
         "query",
         TStartQueryOptions {
             .Draft = true,
-            .AccessControlObjects = std::vector<TString>{"aco1", "aco2"},
+            .AccessControlObjects = std::vector<std::string>{"aco1", "aco2"},
         },
         "user");
 }
@@ -173,7 +173,7 @@ TEST_F(TQueryTrackerProxyTest, AlterAnnotationAndAcoInFinishedQuery)
         queryId,
         TAlterQueryOptions {
             .Annotations = ConvertToNode(ConvertToYsonString(std::map<TString, TString>{{"qwe", "asd"}}))->AsMap(),
-            .AccessControlObjects = std::vector<TString>{"aco2", "aco3"},
+            .AccessControlObjects = std::vector<std::string>{"aco2", "aco3"},
         },
         "user");
 }
@@ -227,7 +227,7 @@ TEST_F(TQueryTrackerProxyTest, AlterAcoInFinishedQuery)
     Proxy->AlterQuery(
         queryId,
         TAlterQueryOptions {
-            .AccessControlObjects = std::vector<TString>{"aco2", "aco3"},
+            .AccessControlObjects = std::vector<std::string>{"aco2", "aco3"},
         },
         "user");
 }
@@ -272,7 +272,7 @@ public:
                 .WillOnce(Return(MakeFuture(existAcos)));
         }
 
-        std::vector<TString> memberOfClosure({"users", "everyone"});
+        std::vector<std::string> memberOfClosure({"users", "everyone"});
         if (isSuperuser) {
             memberOfClosure.push_back(NSecurityClient::SuperusersGroupName);
         }

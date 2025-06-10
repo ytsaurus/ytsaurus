@@ -10,9 +10,12 @@ using namespace NQueryTrackerClient::NRecords;
 using namespace NYTree;
 using namespace NYson;
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
-TString FormatAcoList(const std::optional<TYsonString> accessControlObjects) {
+TString FormatAcoList(const std::optional<TYsonString>& accessControlObjects)
+{
     if (!accessControlObjects) {
         return "[]";
     }

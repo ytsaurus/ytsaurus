@@ -1,9 +1,9 @@
 #include "security_manager.h"
+
 #include "bootstrap.h"
+#include "config.h"
 #include "private.h"
 #include "tablet.h"
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -23,15 +23,15 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TResourceLimitsKey
 {
-    TString Account;
-    TString MediumName;
-    std::optional<TString> TabletCellBundle;
+    std::string Account;
+    std::string MediumName;
+    std::optional<std::string> TabletCellBundle;
     EInMemoryMode InMemoryMode;
 
     // Hasher.
@@ -233,9 +233,9 @@ public:
     { }
 
     TFuture<void> CheckResourceLimits(
-        const TString& account,
-        const TString& mediumName,
-        const std::optional<TString>& tabletCellBundle,
+        const std::string& account,
+        const std::string& mediumName,
+        const std::optional<std::string>& tabletCellBundle,
         EInMemoryMode inMemoryMode)
     {
         return ResourceLimitsCache_->Get(TResourceLimitsKey{
@@ -247,9 +247,9 @@ public:
     }
 
     void ValidateResourceLimits(
-        const TString& account,
-        const TString& mediumName,
-        const std::optional<TString>& tabletCellBundle,
+        const std::string& account,
+        const std::string& mediumName,
+        const std::optional<std::string>& tabletCellBundle,
         EInMemoryMode inMemoryMode)
     {
         auto asyncResult = CheckResourceLimits(account, mediumName, tabletCellBundle, inMemoryMode);
@@ -283,18 +283,18 @@ TSecurityManager::TSecurityManager(
 TSecurityManager::~TSecurityManager() = default;
 
 TFuture<void> TSecurityManager::CheckResourceLimits(
-    const TString& account,
-    const TString& mediumName,
-    const std::optional<TString>& tabletCellBundle,
+    const std::string& account,
+    const std::string& mediumName,
+    const std::optional<std::string>& tabletCellBundle,
     EInMemoryMode inMemoryMode)
 {
     return Impl_->CheckResourceLimits(account, mediumName, tabletCellBundle, inMemoryMode);
 }
 
 void TSecurityManager::ValidateResourceLimits(
-    const TString& account,
-    const TString& mediumName,
-    const std::optional<TString>& tabletCellBundle,
+    const std::string& account,
+    const std::string& mediumName,
+    const std::optional<std::string>& tabletCellBundle,
     EInMemoryMode inMemoryMode)
 {
     Impl_->ValidateResourceLimits(account, mediumName, tabletCellBundle, inMemoryMode);

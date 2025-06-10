@@ -95,8 +95,8 @@ public:
     //! Creates an account.
     virtual TAccount* CreateAccount(NCypressClient::TObjectId hintId = NCypressClient::NullObjectId) = 0;
 
-    //! Returns account with a id (throws if none).
-    virtual TAccount* GetAccountOrThrow(TAccountId id) = 0;
+    //! Returns account with a given id (throws if none).
+    virtual TAccount* GetAccountOrThrow(TAccountId id, bool activeLifeStageOnly) = 0;
 
     //! Returns account with a given name (|nullptr| if none).
     virtual TAccount* FindAccountByName(const std::string& name, bool activeLifeStageOnly) = 0;

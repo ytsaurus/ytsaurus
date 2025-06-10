@@ -31,7 +31,7 @@ NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryFromOutputTables(const
 NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryWithAutoMerge(
     const std::vector<TOutputTablePtr>& outputTables,
     const std::vector<bool>& autoMergeEnabled,
-    const std::optional<TString>& intermediateAccountName);
+    const std::optional<std::string>& intermediateAccountName);
 
 NChunkClient::TDataSink BuildDataSinkFromOutputTable(const TOutputTablePtr& outputTable);
 

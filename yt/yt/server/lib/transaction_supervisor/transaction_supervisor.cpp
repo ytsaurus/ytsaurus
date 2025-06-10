@@ -232,6 +232,31 @@ public:
         return OrchidService_;
     }
 
+    /*
+     * This function prevents a race between a reply being sent to the client and changes being actually applied.
+     *
+     * Let's look at a following example:
+     * The user sends some mutating request, for simplicity, let's call it SET, waits for a reply and immediately
+     * after that sends another request. It doesn't matter if the request is mutating or not, but let's call it GET.
+     * SET involves a 2-phase commit with at least one master cell not using the late prepare mode.
+     * Again, for illustrative purposes, let's say that there are two master cells.
+     * Cell 1 is a coordinator in late-prepare mode.
+     * Cell 2 executes actions normally.
+     *
+     * +------User------+-----Cell 1-----+-----Cell 2-----+
+     * |      SET       |                |                |
+     * |    waiting     |   Sequoia transaction started   |
+     * |    waiting     |   Starting transaction commit   |
+     * |    waiting     |                |    prepared    |
+     * |    waiting     |    committed   |    prepared    |
+     * |    waiting     |          Response sent          |
+     * |  Got response  |    committed   |    prepared    |
+     * |      GET       |    committed   |    prepared    | <--  GET arrives on a cell where the effects
+     * +----------------+----------------+----------------+      of SET are not fully applied yet.
+     *
+     * This situation is trivially resolved by waiting until there are no more prepared,
+     * but not committed transactions.
+    */
     TFuture<void> WaitUntilPreparedTransactionsFinished() override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -243,7 +268,9 @@ public:
         auto guard = Guard(SequencerLock_);
 
         if (UncommittedTransactionSequenceNumbers_.empty()) {
-            YT_LOG_DEBUG("No prepared transactions (NextStronglyOrderedTxSequenceNumber: %v)", NextStronglyOrderedTransactionSequenceNumber_);
+            YT_LOG_DEBUG(
+                "No prepared transactions (NextStronglyOrderedTxSequenceNumber: %v)",
+                NextStronglyOrderedTransactionSequenceNumber_);
             return VoidFuture;
         }
 
@@ -251,12 +278,12 @@ public:
         auto it = Barriers_.find(lastStronglyOrderedTransactionSequenceNumber);
         if (it != Barriers_.end()) {
             YT_LOG_DEBUG("Barrier already exists (NextStronglyOrderedTransactionSequenceNumber: %v)", lastStronglyOrderedTransactionSequenceNumber);
-            return it->second.ToFuture();
+            return it->second.ToFuture().ToUncancelable();
         }
 
         YT_LOG_DEBUG("Creating barrier (NextStronglyOrderedTxSequenceNumber: %v)", lastStronglyOrderedTransactionSequenceNumber);
         it = EmplaceOrCrash(Barriers_, lastStronglyOrderedTransactionSequenceNumber, NewPromise<void>());
-        return it->second.ToFuture();
+        return it->second.ToFuture().ToUncancelable();
     }
 
     // COMPAT(aleksandra-zh): remove that after Sequencer is more stable.
@@ -3176,6 +3203,7 @@ private:
                         NTransactionClient::EErrorCode::ParticipantFailedToPrepare,
                         "Participant %v has failed to prepare",
                         participantCellId)
+                        << TErrorAttribute("participant_cell_id", participantCellId)
                         << error;
                     ChangeCommitTransientState(commit, ECommitState::Aborting, wrappedError);
                     break;

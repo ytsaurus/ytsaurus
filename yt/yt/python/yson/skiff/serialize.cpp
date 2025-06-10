@@ -95,7 +95,7 @@ void SerializeSkiff(
         const auto& fieldInfo = schema->GetDenseField(idx);
         const auto& object = record->GetDenseField(idx);
 
-        SerializeField(fieldInfo.ValidatedSimplify(), object, fieldInfo.IsRequired(), encoding, skiffWriter);
+        SerializeField(fieldInfo.ValidatedGetDeoptionalizeType(/*simplify*/ true), object, fieldInfo.IsRequired(), encoding, skiffWriter);
     }
 
     if (schema->GetSparseFieldsCount() > 0) {
@@ -108,7 +108,7 @@ void SerializeSkiff(
             }
 
             skiffWriter->WriteVariant16Tag(idx);
-            SerializeField(fieldInfo.ValidatedSimplify(), object, /* required */ true, encoding, skiffWriter);
+            SerializeField(fieldInfo.ValidatedGetDeoptionalizeType(/*simplify*/ true), object, /*required*/ true, encoding, skiffWriter);
         }
         skiffWriter->WriteVariant16Tag(NSkiff::EndOfSequenceTag<ui16>());
     }

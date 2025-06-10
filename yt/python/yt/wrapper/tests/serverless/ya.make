@@ -29,13 +29,25 @@ ELSE()
     )
 ENDIF()
 
-TEST_SRCS(
+EXPLICIT_DATA()
+
+SET(SRCS
+    __init__.py
     test_common.py
     test_formats.py
     test_schema.py
     test_thread_pool.py
     test_typed.py
 )
+
+IF (NOT OPENSOURCE)
+    SET(SRCS
+        ${SRCS}
+        test_docker_yandex.py
+    )
+ENDIF()
+
+TEST_SRCS(${SRCS})
 
 END()
 

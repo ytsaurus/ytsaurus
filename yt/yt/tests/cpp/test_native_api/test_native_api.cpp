@@ -100,7 +100,7 @@ protected:
         auto client = DynamicPointerCast<NApi::NNative::IClient>(Client_);
         auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
         auto batchReq = proxy.ExecuteBatch();
-        batchReq->SetTimeout(TDuration::MilliSeconds(200));
+        batchReq->SetTimeout(TDuration::Seconds(1));
         MaybeSetMutationId(batchReq, subrequestTypes);
 
         FillWithSubrequests(batchReq, subrequestTypes);
@@ -385,7 +385,7 @@ protected:
 
     int InvokeAndGetRetryCount(TYPathRequestPtr request, TErrorCode errorCode, int maxRetryCount)
     {
-        auto config = New<TReqExecuteBatchWithRetriesConfig>();
+        auto config = New<TReqExecuteBatchRetriesConfig>();
         config->RetryCount = maxRetryCount;
         config->StartBackoff = TDuration::MilliSeconds(100);
         config->BackoffMultiplier = 1;
@@ -448,7 +448,7 @@ protected:
         int subbatchSize,
         int maxParallelSubbatchCount)
     {
-        auto config = New<TReqExecuteBatchWithRetriesConfig>();
+        auto config = New<TReqExecuteBatchRetriesConfig>();
         config->RetryCount = maxRetryCount;
         config->StartBackoff = TDuration::MilliSeconds(100);
         config->BackoffMultiplier = 1;
@@ -467,6 +467,9 @@ protected:
         auto batchRequest = proxy.ExecuteBatchWithRetriesInParallel(config, BIND(needRetry), subbatchSize, maxParallelSubbatchCount);
 
         for (int i = 0; i < requestCount; ++i) {
+            if (i > 0) {
+                GenerateMutationId(request);
+            }
             batchRequest->AddRequest(request);
         }
 
@@ -842,9 +845,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_name("foo");
         column->set_stable_name("foo");
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("required fileds are not set"));
+            "required fileds are not set");
     }
 
     {
@@ -855,9 +858,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_stable_name("foo");
         column->set_type(ToProto(EValueType::Min));
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("has no corresponding logical type"));
+            "has no corresponding logical type");
     }
 
     {
@@ -868,9 +871,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_stable_name("foo");
         column->set_type(-1);
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Error casting"));
+            "Error casting");
     }
 
     {
@@ -882,9 +885,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_type(ToProto(EValueType::Any));
         column->set_simple_logical_type(-1);
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Error casting"));
+            "Error casting");
     }
 
     {
@@ -908,9 +911,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_type(ToProto(EValueType::Int64));
         column->mutable_logical_type()->set_simple(-1);
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Error casting"));
+            "Error casting");
     }
 
     {
@@ -922,9 +925,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         column->set_type(ToProto(EValueType::Int64));
         column->mutable_logical_type();
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Cannot parse unknown logical type from proto"));
+            "Cannot parse unknown logical type from proto");
     }
 
     {
@@ -938,9 +941,9 @@ TEST_F(TAlterTableTest, TestUnknownType)
         auto unknownFields = column->GetReflection()->MutableUnknownFields(column);
         unknownFields->AddVarint(100500, 0);
 
-        EXPECT_THROW_THAT(
+        EXPECT_THROW_WITH_SUBSTRING(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("Cannot parse unknown logical type from proto"));
+            "Cannot parse unknown logical type from proto");
     }
 }
 
@@ -950,7 +953,7 @@ class TConcatenateTest
     : public TApiTestBase
 {
 protected:
-    void CreateTableWithData(const TString& path, TCreateNodeOptions options, int startRange, int endRange) const
+    void CreateTableWithData(const TString& path, TCreateNodeOptions options, int valueCount) const
     {
         WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
             .ThrowOnError();
@@ -959,11 +962,13 @@ protected:
 
         auto columnId = writer->GetNameTable()->GetIdOrRegisterName("key");
         std::vector<TUnversionedRow> rows;
+        auto rowBuffer = New<TRowBuffer>();
 
-        for (auto rowIdx = startRange; rowIdx < endRange; ++rowIdx) {
+        for (auto i = 0; i < valueCount; ++i) {
             TUnversionedRowBuilder rowBuilder;
-            rowBuilder.AddValue(MakeUnversionedInt64Value(rowIdx, columnId));
-            rows.push_back(rowBuilder.GetRow());
+            // Same value to allow sequential concatinations for sorted table.
+            rowBuilder.AddValue(MakeUnversionedInt64Value(10, columnId));
+            rows.push_back(rowBuffer->CaptureRow(rowBuilder.GetRow()));
         }
 
         YT_VERIFY(writer->Write(rows));
@@ -979,10 +984,10 @@ TEST_F(TConcatenateTest, TestParallelConcatenateToSortedWithAppend)
     options.Attributes = CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"key", EValueType::Int64, ESortOrder::Ascending}}));
 
-    CreateTableWithData("//tmp/table1", options, 0, 5);
-    CreateTableWithData("//tmp/table2", options, 5, 10);
-    CreateTableWithData("//tmp/table3", options, 10, 15);
-    CreateTableWithData("//tmp/concat", options, 0, 0);
+    CreateTableWithData("//tmp/table1", options, 5);
+    CreateTableWithData("//tmp/table2", options, 5);
+    CreateTableWithData("//tmp/table3", options, 5);
+    CreateTableWithData("//tmp/concat", options, 0);
 
     auto barrierPromise = NewPromise<void>();
     std::vector<TFuture<void>> futures;
@@ -1029,10 +1034,10 @@ TEST_F(TConcatenateTest, TestParallelConcatenateWithAppend)
     options.Attributes = CreateEphemeralAttributes();
     options.Attributes->Set("schema", New<TTableSchema>(std::vector<TColumnSchema>{{"key", EValueType::Int64}}));
 
-    CreateTableWithData("//tmp/table1", options, 5, 10);
-    CreateTableWithData("//tmp/table2", options, 10, 15);
-    CreateTableWithData("//tmp/table3", options, 0, 5);
-    CreateTableWithData("//tmp/concat", options, 0, 0);
+    CreateTableWithData("//tmp/table1", options, 5);
+    CreateTableWithData("//tmp/table2", options, 5);
+    CreateTableWithData("//tmp/table3", options, 5);
+    CreateTableWithData("//tmp/concat", options, 0);
 
     std::vector<TFuture<void>> futures;
     futures.push_back(Client_->ConcatenateNodes({"//tmp/table1", "//tmp/table2", "//tmp/table3"}, "<append=true>//tmp/concat"));
@@ -1387,6 +1392,7 @@ TEST_F(TPingTransactionsTest, MaxBatchSize)
     auto startOptions = TTransactionStartOptions{
         .Timeout = TDuration::Days(365),
         .Ping = false,
+        .StartCypressTransaction = false, // TODO(gryzlov-ad): add tests for Cypress transactions.
     };
     auto tx1 = WaitFor(Client_->StartTransaction(ETransactionType::Master, startOptions))
         .ValueOrThrow();
@@ -1417,6 +1423,7 @@ TEST_F(TPingTransactionsTest, Reconfigure)
     auto startOptions = TTransactionStartOptions{
         .Timeout = TDuration::Days(365),
         .Ping = false,
+        .StartCypressTransaction = false, // TODO(gryzlov-ad): add tests for Cypress transactions.
     };
     auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Master, startOptions))
         .ValueOrThrow();

@@ -397,7 +397,7 @@ private:
 
         const auto& config = GetDynamicConfig()->TestingOptions;
         if (config->ChunkCancellationDelay) {
-            NConcurrency::TDelayedExecutor::WaitForDuration(config->ChunkCancellationDelay.value());
+            TDelayedExecutor::WaitForDuration(config->ChunkCancellationDelay.value());
         }
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
@@ -624,29 +624,31 @@ private:
 
         if (enableSendBlocksNetThrottling && netThrottling.Enabled) {
             context->Reply();
-        } else {
-            auto fraction = GetFallbackTimeoutFraction().value_or(1);
-            auto timeout = *context->GetTimeout() * fraction;
-            context->ReplyFrom(session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, timeout, enableSendBlocksNetThrottling, targetDescriptor)
-                .Apply(BIND([=] (const TErrorOr<ISession::TSendBlocksResult>& errorOrRsp) {
-                    if (errorOrRsp.IsOK()) {
-                        if (errorOrRsp.Value().NetThrottling) {
-                            response->set_net_throttling(true);
-                            return TError();
-                        }
-
-                        YT_VERIFY(errorOrRsp.Value().TargetNodePutBlocksResult != nullptr);
-                        response->set_close_demanded(errorOrRsp.Value().TargetNodePutBlocksResult->close_demanded());
-                        return TError();
-                    } else {
-                        return TError(
-                            NChunkClient::EErrorCode::SendBlocksFailed,
-                            "Error putting blocks to %v",
-                            targetDescriptor.GetDefaultAddress())
-                            << errorOrRsp;
-                    }
-                })));
+            return;
         }
+
+        auto fraction = GetFallbackTimeoutFraction().value_or(1);
+        auto timeout = *context->GetTimeout() * fraction;
+        context->ReplyFrom(session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, timeout, enableSendBlocksNetThrottling, targetDescriptor)
+            .Apply(BIND([=] (const TErrorOr<ISession::TSendBlocksResult>& rspOrError) {
+                if (rspOrError.IsOK()) {
+                    const auto& rsp = rspOrError.Value();
+                    if (rsp.NetThrottling) {
+                        response->set_net_throttling(true);
+                        return TError();
+                    }
+
+                    YT_VERIFY(rsp.TargetNodePutBlocksResult);
+                    response->set_close_demanded(rsp.TargetNodePutBlocksResult->close_demanded());
+                    return TError();
+                } else {
+                    return TError(
+                        NChunkClient::EErrorCode::SendBlocksFailed,
+                        "Error putting blocks to %v",
+                        targetDescriptor.GetDefaultAddress())
+                        << rspOrError;
+                }
+            })));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlocks)
@@ -806,7 +808,7 @@ private:
             peerDescriptor->set_block_index(suggestion.BlockIndex);
             ToProto(peerDescriptor->mutable_node_ids(), suggestion.Peers);
 
-            auto barrier = peerDescriptor->mutable_delivery_barier();
+            auto barrier = peerDescriptor->mutable_delivery_barrier();
 
             barrier->set_iteration(suggestion.P2PIteration);
             ToProto(barrier->mutable_session_id(), suggestion.P2PSessionId);
@@ -902,7 +904,7 @@ private:
 
         context->SetRequestInfo("ChunkId: %v, Blocks: %v, BlockCount: %v, Workload: %v",
             chunkId,
-            MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
+            MakeCompactIntervalView(blockIndexes),
             blockIndexes.size(),
             workloadDescriptor);
 
@@ -948,7 +950,7 @@ private:
         if (GetDynamicConfig()->PropagateCachedBlockInfosToProbing) {
             auto cachedBlocks = Bootstrap_->GetBlockCache()->GetCachedBlocksByChunkId(chunkId, EBlockType::CompressedData);
             for (const auto& blockInfo : cachedBlocks) {
-                TProbeBlockSetBlockInfo* protoBlockInfo = response->add_cached_blocks();
+                auto* protoBlockInfo = response->add_cached_blocks();
                 protoBlockInfo->set_block_index(blockInfo.BlockIndex);
                 protoBlockInfo->set_block_size(blockInfo.BlockSize);
                 cachedBlockSize += blockInfo.BlockSize;

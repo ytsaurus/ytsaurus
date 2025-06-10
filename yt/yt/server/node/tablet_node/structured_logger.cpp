@@ -1,6 +1,7 @@
 #include "structured_logger.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "hunk_chunk.h"
 #include "partition.h"
 #include "private.h"
@@ -248,32 +249,38 @@ public:
 
         std::vector<IDynamicStorePtr> dynamicStores;
 
+        bool hasNonemptyStore = false;
+
         if (Tablet_->GetPhysicalSchema()->IsSorted()) {
             for (const auto& store : Tablet_->GetEden()->Stores()) {
                 if (store->IsDynamic()) {
                     dynamicStores.push_back(store->AsDynamic());
+                    hasNonemptyStore |= store->GetRowCount() > 0;
                 }
             }
         } else {
             for (const auto& [_, store] : Tablet_->StoreIdMap()) {
                 if (store->IsDynamic()) {
                     dynamicStores.push_back(store->AsDynamic());
+                    hasNonemptyStore |= store->GetRowCount() > 0;
                 }
             }
         }
 
-        Logger_->LogStructuredEventFluently(ELogEntryType::IncrementalHeartbeat)
-            .Item("tablet_id").Value(Tablet_->GetId())
-            .Item("stores").DoMapFor(
-                dynamicStores,
-                [&] (auto fluent, const IDynamicStorePtr& store) {
-                    fluent
-                        .Item(ToString(store->GetId()))
-                        .DoMap(BIND(
-                            &TPerTabletStructuredLogger::OnDynamicStoreIncrementalHeartbeat,
-                            Unretained(this),
-                            store));
-                });
+        if (hasNonemptyStore) {
+            Logger_->LogStructuredEventFluently(ELogEntryType::IncrementalHeartbeat)
+                .Item("tablet_id").Value(Tablet_->GetId())
+                .Item("stores").DoMapFor(
+                    dynamicStores,
+                    [&] (auto fluent, const IDynamicStorePtr& store) {
+                        fluent
+                            .Item(ToString(store->GetId()))
+                            .DoMap(BIND(
+                                &TPerTabletStructuredLogger::OnDynamicStoreIncrementalHeartbeat,
+                                Unretained(this),
+                                store));
+                    });
+        }
 
         Tablet_->SetLastIncrementalStructuredHeartbeatTime(TInstant::Now());
     }

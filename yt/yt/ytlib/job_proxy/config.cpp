@@ -12,6 +12,8 @@ void TJobTestingOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("delay_before_run_job_proxy", &TThis::DelayBeforeRunJobProxy)
         .Default();
+    registrar.Parameter("fake_prepare_duration", &TThis::FakePrepareDuration)
+        .Default();
     registrar.Parameter("delay_after_run_job_proxy", &TThis::DelayAfterRunJobProxy)
         .Default();
     registrar.Parameter("delay_before_spawning_job_proxy", &TThis::DelayBeforeSpawningJobProxy)

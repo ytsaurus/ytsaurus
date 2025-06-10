@@ -19,11 +19,11 @@ var (
 	testSchema = Schema{
 		Type: TypeTuple,
 		Children: []Schema{
-			systemPrefix[0],
-			systemPrefix[1],
-			systemPrefix[2],
-			OptionalColumn("first", TypeInt64),
-			OptionalColumn("second", TypeInt64),
+			systemColumns["$key_switch"],
+			systemColumns["$row_index"],
+			systemColumns["$range_index"],
+			optionalColumn("first", TypeInt64),
+			optionalColumn("second", TypeInt64),
 			{Type: TypeString32, Name: "third"},
 		},
 	}
@@ -77,18 +77,26 @@ func TestDecoder(t *testing.T) {
 	var row TestRow
 
 	require.True(t, decoder.Next())
-	require.Equal(t, 0, decoder.TableIndex())
-	require.True(t, decoder.KeySwitch())
-	require.Equal(t, int64(2), decoder.RowIndex())
-	require.Equal(t, 3, decoder.RangeIndex())
+	tableIndex := decoder.TableIndex()
+	require.Equal(t, 0, tableIndex)
+	keySwitch := decoder.KeySwitch()
+	require.True(t, keySwitch)
+	rowIndex := decoder.RowIndex()
+	require.Equal(t, int64(2), rowIndex)
+	rangeIndex := decoder.RangeIndex()
+	require.Equal(t, 3, rangeIndex)
 	require.NoError(t, decoder.Scan(&row))
 	require.Equal(t, row, TestRow{Second: 3, Third: "abbacaba"})
 
 	require.True(t, decoder.Next())
-	require.Equal(t, 0, decoder.TableIndex())
-	require.False(t, decoder.KeySwitch())
-	require.Equal(t, int64(3), decoder.RowIndex())
-	require.Equal(t, 3, decoder.RangeIndex())
+	tableIndex = decoder.TableIndex()
+	require.Equal(t, 0, tableIndex)
+	keySwitch = decoder.KeySwitch()
+	require.False(t, keySwitch)
+	rowIndex = decoder.RowIndex()
+	require.Equal(t, int64(3), rowIndex)
+	rangeIndex = decoder.RangeIndex()
+	require.Equal(t, 3, rangeIndex)
 
 	require.NoError(t, decoder.Scan(&row))
 	require.Equal(t, row, TestRow{First: ptr.Int64(5)})
@@ -99,16 +107,21 @@ func TestDecoder(t *testing.T) {
 
 	// Row is skipped.
 	require.True(t, decoder.Next())
-	require.Equal(t, 0, decoder.TableIndex())
-	require.False(t, decoder.KeySwitch())
-	require.Equal(t, int64(4), decoder.RowIndex())
-	require.Equal(t, 3, decoder.RangeIndex())
+	tableIndex = decoder.TableIndex()
+	require.Equal(t, 0, tableIndex)
+	keySwitch = decoder.KeySwitch()
+	require.False(t, keySwitch)
+	rowIndex = decoder.RowIndex()
+	require.Equal(t, int64(4), rowIndex)
+	rangeIndex = decoder.RangeIndex()
+	require.Equal(t, 3, rangeIndex)
 
 	require.True(t, decoder.Next())
 
 	expected := map[string]any{
-		"first": int64(6),
-		"third": []byte("foobar"),
+		"first":  int64(6),
+		"second": nil,
+		"third":  "foobar",
 	}
 
 	var i any

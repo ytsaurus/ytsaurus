@@ -277,7 +277,7 @@ THashSet<TString> ToApiJobAttributes(const THashSet<EJobAttribute>& attributes) 
 // Generates a new mutation ID based on the given conditions.
 // The retry logic in a higher layer resets the mutation ID if the 'useSameMutationId' parameter is set to false.
 // If 'useSameMutationId' is true, the function marks the operation for a retry and maintains the same mutation ID.
-void SetMutationId(
+static void SetMutationId(
     NApi::TMutatingOptions* options,
     TMutationId* mutationId)
 {
@@ -290,11 +290,20 @@ void SetMutationId(
     options->MutationId = YtGuidFromUtilGuid(*mutationId);
 }
 
-void SetTransactionId(
+static void SetTransactionId(
     NApi::TTransactionalOptions* options,
     const TTransactionId& transactionId)
 {
     options->TransactionId = YtGuidFromUtilGuid(transactionId);
+}
+
+template <typename T>
+static void SerializeSuppressableAccessTrackingOptions(
+    NApi::TSuppressableAccessTrackingOptions* apiOptions,
+    const TSuppressableAccessTrackingOptions<T>& options)
+{
+    apiOptions->SuppressAccessTracking = options.SuppressAccessTracking_;
+    apiOptions->SuppressModificationTracking = options.SuppressModificationTracking_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -305,6 +314,7 @@ NApi::TGetNodeOptions SerializeOptionsForGet(
 {
     NApi::TGetNodeOptions result;
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.AttributeFilter_) {
         result.Attributes = options.AttributeFilter_->Attributes_;
     }
@@ -325,6 +335,7 @@ NApi::TSetNodeOptions SerializeOptionsForSet(
     NApi::TSetNodeOptions result;
     SetMutationId(&result, &mutationId);
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.Force_) {
         result.Force = *options.Force_;
     }
@@ -338,6 +349,7 @@ NApi::TNodeExistsOptions SerializeOptionsForExists(
 {
     NApi::TNodeExistsOptions result;
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.ReadFrom_) {
         result.ReadFrom = NApi::EMasterChannelKind(*options.ReadFrom_);
     }
@@ -352,6 +364,7 @@ NApi::TMultisetAttributesNodeOptions SerializeOptionsForMultisetAttributes(
     NApi::TMultisetAttributesNodeOptions result;
     SetMutationId(&result, &mutationId);
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.Force_) {
         result.Force = *options.Force_;
     }
@@ -429,6 +442,7 @@ NApi::TListNodeOptions SerializeOptionsForList(
 {
     NApi::TListNodeOptions result;
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.AttributeFilter_) {
         result.Attributes = options.AttributeFilter_->Attributes_;
     }
@@ -777,6 +791,7 @@ NApi::TFileReaderOptions SerializeOptionsForReadFile(
 {
     NApi::TFileReaderOptions result;
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     result.Offset = options.Offset_;
     if (options.Length_) {
         result.Length = *options.Length_;
@@ -921,6 +936,7 @@ NApi::TLookupRowsOptions SerializeOptionsForLookupRows(
 NApi::TSelectRowsOptions SerializeOptionsForSelectRows(const TSelectRowsOptions& options)
 {
     NApi::TSelectRowsOptions result;
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.Timeout_) {
         result.Timeout = *options.Timeout_;
     }
@@ -943,6 +959,7 @@ NApi::TTableReaderOptions SerializeOptionsForReadTable(
 {
     NApi::TTableReaderOptions result;
     SetTransactionId(&result, transactionId);
+    SerializeSuppressableAccessTrackingOptions(&result, options);
     if (options.Config_) {
         result.Config = NYTree::ConvertTo<NTableClient::TTableReaderConfigPtr>(
             NYson::TYsonString(NodeToYsonString(*options.Config_, NYson::EYsonFormat::Binary)));
@@ -953,9 +970,11 @@ NApi::TTableReaderOptions SerializeOptionsForReadTable(
 }
 
 NApi::TReadTablePartitionOptions SerializeOptionsForReadTablePartition(
-    const TTablePartitionReaderOptions& /*options*/)
+    const TTablePartitionReaderOptions& options)
 {
-    return {};
+    NApi::TReadTablePartitionOptions result;
+    SerializeSuppressableAccessTrackingOptions(&result, options);
+    return result;
 }
 
 NApi::TAlterTableOptions SerializeOptionsForAlterTable(

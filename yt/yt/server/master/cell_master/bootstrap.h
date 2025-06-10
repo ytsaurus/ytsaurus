@@ -116,7 +116,7 @@ public:
     const NRpc::IChannelPtr& GetLocalRpcChannel() const;
     const NApi::NNative::IConnectionPtr& GetClusterConnection() const;
     const NApi::NNative::IClientPtr& GetRootClient() const;
-    const NSequoiaClient::ISequoiaClientPtr& GetSequoiaClient() const;
+    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() const;
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
@@ -207,12 +207,12 @@ protected:
     IConfigManagerPtr ConfigManager_;
     IMulticellManagerPtr MulticellManager_;
     IMulticellStatisticsCollectorPtr MulticellStatisticsCollector_;
+    IHiveProfilingManagerPtr HiveProfilingManager_;
     NIncumbentServer::IIncumbentManagerPtr IncumbentManager_;
     NRpc::IServerPtr RpcServer_;
     NRpc::IChannelPtr LocalRpcChannel_;
     NApi::NNative::IConnectionPtr ClusterConnection_;
     NApi::NNative::IClientPtr RootClient_;
-    NSequoiaClient::ISequoiaClientPtr SequoiaClient_;
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr HttpServer_;
     NElection::TCellManagerPtr CellManager_;
@@ -271,8 +271,6 @@ protected:
     NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
 
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
-
-    TCallback<void(const TString &, NYTree::INodePtr)> GroundConnectionCallback_;
 
     NObjectClient::TCellTagList GetKnownParticipantCellTags() const;
 

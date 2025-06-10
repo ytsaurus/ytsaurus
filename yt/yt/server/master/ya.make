@@ -14,6 +14,7 @@ SRCS(
     cell_master/disk_space_sensor_producer.cpp
     cell_master/epoch_history_manager.cpp
     cell_master/hydra_facade.cpp
+    cell_master/hive_profiling_manager.cpp
     cell_master/master_hydra_service.cpp
     cell_master/multi_phase_cell_sync_session.cpp
     cell_master/multicell_manager.cpp
@@ -137,6 +138,7 @@ SRCS(
     chunk_server/medium_base.cpp
     chunk_server/medium_proxy_base.cpp
     chunk_server/medium_type_handler_base.cpp
+    chunk_server/private.cpp
     chunk_server/proto/chunk_autotomizer.proto
     chunk_server/proto/chunk_manager.proto
     chunk_server/proto/chunk_merger.proto
@@ -367,6 +369,7 @@ SRCS(
     table_server/table_node_type_handler_detail.cpp
     table_server/table_node_type_handler.cpp
     table_server/table_node.cpp
+    table_server/table_schema_cache.cpp
 
     tablet_server/backup_manager.cpp
     tablet_server/balancing_helpers.cpp

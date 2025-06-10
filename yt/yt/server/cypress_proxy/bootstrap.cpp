@@ -2,8 +2,9 @@
 
 #include "private.h"
 
-#include "dynamic_config_manager.h"
 #include "config.h"
+#include "cypress_transaction_service.h"
+#include "dynamic_config_manager.h"
 #include "master_connector.h"
 #include "object_service.h"
 #include "response_keeper.h"
@@ -32,6 +33,7 @@
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
+#include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
@@ -81,7 +83,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CypressProxyLogger;
+constinit const auto Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,9 +153,9 @@ public:
         return NativeRootClient_;
     }
 
-    const ISequoiaClientPtr& GetSequoiaClient() const override
+    ISequoiaClientPtr GetSequoiaClient() const override
     {
-        return SequoiaClient_;
+        return NativeConnection_->GetSequoiaClient();
     }
 
     NApi::IClientPtr GetRootClient() const override
@@ -189,8 +191,7 @@ public:
             NativeConnection_->GetChannelFactory(),
             NativeConnection_,
             std::move(invoker),
-            // TODO(babenko): migrate to std::string
-            TString(groupId),
+            NYPath::TYPath(groupId),
             selfAddress,
             RpcServer_,
             std::move(selfAddress),
@@ -209,8 +210,6 @@ private:
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeRootClient_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
-
-    ISequoiaClientPtr SequoiaClient_;
 
     ISequoiaServicePtr SequoiaService_;
 
@@ -250,8 +249,6 @@ private:
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
 
-        SequoiaClient_ = NativeConnection_->CreateSequoiaClient();
-
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
         DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
@@ -260,7 +257,10 @@ private:
             Config_->UserDirectorySynchronizer,
             GetRootClient(),
             UserDirectory_,
-            GetControlInvoker());
+            GetControlInvoker(),
+            Config_->Testing->EnableSyncMode
+                ? NApi::EMasterChannelKind::Follower
+                : NApi::EMasterChannelKind::Cache);
 
         MasterConnector_ = CreateMasterConnector(this);
 
@@ -301,6 +301,7 @@ private:
         ResponseKeeper_ = CreateSequoiaResponseKeeper(GetDynamicConfigManager()->GetConfig()->ResponseKeeper, Logger());
         ObjectService_ = CreateObjectService(this);
         RpcServer_->RegisterService(ObjectService_->GetService());
+        RpcServer_->RegisterService(CreateCypressTransactionService(this));
     }
 
     void DoStart()

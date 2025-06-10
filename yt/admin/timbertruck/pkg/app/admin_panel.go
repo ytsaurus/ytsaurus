@@ -7,6 +7,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
+	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -50,6 +53,21 @@ func newAdminPanel(logger *slog.Logger, metrics *solomon.Registry, config AdminP
 	mux.HandleFunc("/ping", panel.handlePing)
 	// "For testing purposes"
 	mux.HandleFunc("/log-error", panel.handleLogError)
+
+	// pprof handlers
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	mux.HandleFunc("/debug/pprof/heap", pprof.Handler("heap").ServeHTTP)
+	mux.HandleFunc("/debug/pprof/goroutine", pprof.Handler("goroutine").ServeHTTP)
+	mux.HandleFunc("/debug/pprof/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
+	mux.HandleFunc("/debug/pprof/block", pprof.Handler("block").ServeHTTP)
+	mux.HandleFunc("/debug/pprof/mutex", pprof.Handler("mutex").ServeHTTP)
+
+	// profiling control handlers
+	mux.HandleFunc("/enable-lock-profiling", handleEnableLockProfiling)
+	mux.HandleFunc("/disable-lock-profiling", handleDisableLockProfiling)
 
 	loggingMux := loggingMiddleware{
 		panel.logger,
@@ -100,6 +118,33 @@ func (p *adminPanel) handleLogError(w http.ResponseWriter, r *http.Request) {
 
 	logger.Error("Log error requested")
 	_, _ = io.WriteString(w, "Error is logged!")
+}
+
+func handleEnableLockProfiling(w http.ResponseWriter, r *http.Request) {
+	blockRate := 1
+	mutexRate := 1
+
+	if br := r.URL.Query().Get("block"); br != "" {
+		if v, err := strconv.Atoi(br); err == nil {
+			blockRate = v
+		}
+	}
+	if mr := r.URL.Query().Get("mutex"); mr != "" {
+		if v, err := strconv.Atoi(mr); err == nil {
+			mutexRate = v
+		}
+	}
+
+	runtime.SetBlockProfileRate(blockRate)
+	runtime.SetMutexProfileFraction(mutexRate)
+
+	_, _ = fmt.Fprintf(w, "Block profiling enabled with rate=%d, mutex profiling enabled with rate=%d\n", blockRate, mutexRate)
+}
+
+func handleDisableLockProfiling(w http.ResponseWriter, r *http.Request) {
+	runtime.SetBlockProfileRate(0)
+	runtime.SetMutexProfileFraction(0)
+	_, _ = io.WriteString(w, "Block and mutex profiling disabled\n")
 }
 
 func (p *adminPanel) requestLogger(r *http.Request) *slog.Logger {

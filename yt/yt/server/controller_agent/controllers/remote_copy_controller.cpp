@@ -110,9 +110,17 @@ protected:
                 // Unsubscribe is done in destructor.
                 SubscribeToClusterNetworkBandwidthAvailabilityUpdated(clusterName);
             }
+        }
 
-            auto options = controller->GetOrderedChunkPoolOptions();
-            ChunkPool_ = CreateOrderedChunkPool(options, controller->GetInputStreamDirectory());
+        void InitializeChunkPool()
+        {
+            auto options = Controller_->GetOrderedChunkPoolOptions(GetTitle());
+            ChunkPool_ = CreateOrderedChunkPool(options, Controller_->GetInputStreamDirectory());
+        }
+
+        TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override
+        {
+            return CamelCaseToUnderscoreCase(GetTitle());
         }
 
         IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
@@ -142,7 +150,7 @@ protected:
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
-            TChunkStripeKey key = TOutputOrder::TEntry(joblet->OutputCookie);
+            TChunkStripeKey key(TOutputOrder::TEntry(joblet->OutputCookie));
             RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /*processEmptyStripes*/ true);
 
             return result;
@@ -441,8 +449,8 @@ private:
     void ValidateInputTablesTypes() const override
     {
         // NB(coteeq): remote_copy always has one input table.
-        YT_VERIFY(InputManager->GetInputTables().size() == 1);
-        ValidateTableType(InputManager->GetInputTables()[0]);
+        YT_VERIFY(InputManager_->GetInputTables().size() == 1);
+        ValidateTableType(InputManager_->GetInputTables()[0]);
     }
 
     void ValidateUpdatingTablesTypes() const override
@@ -451,7 +459,7 @@ private:
         YT_VERIFY(OutputTables_.size() == 1);
         ValidateTableType(OutputTables_[0]);
 
-        const auto& inputTables = InputManager->GetInputTables();
+        const auto& inputTables = InputManager_->GetInputTables();
 
         THROW_ERROR_EXCEPTION_UNLESS(
             OutputTables_[0]->Type == inputTables[0]->Type,
@@ -465,8 +473,8 @@ private:
 
     EObjectType GetOutputTableDesiredType() const override
     {
-        YT_VERIFY(InputManager->GetInputTables().size() == 1);
-        return InputManager->GetInputTables()[0]->Type;
+        YT_VERIFY(InputManager_->GetInputTables().size() == 1);
+        return InputManager_->GetInputTables()[0]->Type;
     }
 
     TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
@@ -502,9 +510,9 @@ private:
     {
         TOperationControllerBase::InitializeClients();
 
-        InputClient = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(AuthenticatedUser));
-        SchedulerInputClient = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
-        InputManager->InitializeClients(InputClient);
+        InputClient_ = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(AuthenticatedUser_));
+        SchedulerInputClient_ = GetRemoteConnection()->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
+        InputManager_->InitializeClients(InputClient_);
     }
 
     std::vector<TRichYPath> GetInputTablePaths() const override
@@ -541,7 +549,7 @@ private:
 
                 // Since remote copy doesn't unpack blocks and validate schema, we must ensure
                 // that schemas are identical.
-                for (const auto& inputTable : InputManager->GetInputTables()) {
+                for (const auto& inputTable : InputManager_->GetInputTables()) {
                     if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Strong &&
                         *inputTable->Schema->ToCanonical() != *table->TableUploadOptions.TableSchema->ToCanonical())
                     {
@@ -575,7 +583,7 @@ private:
                 errorCode,
                 "Remote copy operation does not support non-trivial table limits%v",
                 MakeFormatterWrapper([&] (auto* builder) {
-                    if (InputManager->GetInputTables()[0]->Dynamic) {
+                    if (InputManager_->GetInputTables()[0]->Dynamic) {
                         FormatValue(builder, " and chunks crossing tablet boundaries", "v");
                     }
                 }));
@@ -610,7 +618,7 @@ private:
             "erasure_codec",
         };
 
-        if (!InputManager->GetInputTables()[0]->IsFile()) {
+        if (!InputManager_->GetInputTables()[0]->IsFile()) {
             keys.push_back("optimize_for");
         }
 
@@ -623,11 +631,11 @@ private:
             Spec_,
             Options_,
             Logger,
-            TotalEstimatedInputChunkCount,
-            PrimaryInputDataWeight,
-            PrimaryInputCompressedDataSize,
-            DataWeightRatio,
-            InputCompressionRatio);
+            EstimatedInputStatistics_->ChunkCount,
+            EstimatedInputStatistics_->PrimaryDataWeight,
+            EstimatedInputStatistics_->PrimaryCompressedDataSize,
+            EstimatedInputStatistics_->DataWeightRatio,
+            EstimatedInputStatistics_->CompressionRatio);
 
         InputSliceDataWeight_ = JobSizeConstraints_->GetInputSliceDataWeight();
 
@@ -643,7 +651,7 @@ private:
             return;
         }
 
-        auto attributesFuture = InputManager->FetchSingleInputTableAttributes(
+        auto attributesFuture = InputManager_->FetchSingleInputTableAttributes(
             Spec_->CopyAttributes
                 ? std::nullopt
                 : std::make_optional(BuildSystemAttributeKeys()));
@@ -664,7 +672,7 @@ private:
         bool hasDynamicInputTable = false;
         bool hasDynamicOutputTable = false;
         bool hasStaticTableWithHunkChunks = false;
-        for (const auto& table : InputManager->GetInputTables()) {
+        for (const auto& table : InputManager_->GetInputTables()) {
             hasDynamicInputTable |= table->Dynamic;
             hasStaticTableWithHunkChunks |= !table->Dynamic && !table->HunkChunks.empty();
         }
@@ -680,7 +688,7 @@ private:
             if (!hasDynamicOutputTable) {
                 THROW_ERROR_EXCEPTION("Dynamic table can be copied only to another dynamic table");
             }
-            if (InputManager->GetInputTables().size() != 1 || OutputTables_.size() != 1) {
+            if (InputManager_->GetInputTables().size() != 1 || OutputTables_.size() != 1) {
                 THROW_ERROR_EXCEPTION("Only one dynamic table can be copied at a time");
             }
             if (OutputTables_[0]->TableUploadOptions.UpdateMode != EUpdateMode::Overwrite) {
@@ -723,23 +731,32 @@ private:
         FinishPreparation();
     }
 
+    template <class TTask>
+    TIntrusivePtr<TTask> CreateTask()
+    {
+        auto task = New<TTask>(this);
+        task->InitializeChunkPool();
+        return task;
+    }
+
     void CreateTasks()
     {
-        for (const auto& table : InputManager->GetInputTables()) {
+        for (const auto& table : InputManager_->GetInputTables()) {
             CollectHunkChunkIdsByType(table, GetPtr(HunkChunkIds_), GetPtr(CompressionDictionaryIds_));
         }
 
-        MainTask_ = New<TRemoteCopyTask>(this);
+        MainTask_ = CreateTask<TRemoteCopyTask>();
         if (!HunkChunkIds_.empty() || !CompressionDictionaryIds_.empty()) {
-            HunkTask_ = New<TRemoteCopyHunkTask>(this);
+            HunkTask_ = CreateTask<TRemoteCopyHunkTask>();
             MainTask_->AddDependency(HunkTask_);
         }
 
         if (!CompressionDictionaryIds_.empty()) {
-            CompressionDictionaryTask_ = New<TRemoteCopyCompressionDictionaryTask>(this);
+            CompressionDictionaryTask_ = CreateTask<TRemoteCopyCompressionDictionaryTask>();
 
             YT_VERIFY(HunkTask_);
             HunkTask_->AddDependency(CompressionDictionaryTask_);
+            MainTask_->AddDependency(CompressionDictionaryTask_);
             CompressionDictionaryTask_->FinishInitialization();
         }
 
@@ -750,17 +767,17 @@ private:
         MainTask_->FinishInitialization();
     }
 
-    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions()
+    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions(const std::string& name)
     {
         TOrderedChunkPoolOptions chunkPoolOptions;
-        chunkPoolOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        chunkPoolOptions.MaxTotalSliceCount = Config_->MaxTotalSliceCount;
         chunkPoolOptions.EnablePeriodicYielder = true;
         chunkPoolOptions.MinTeleportChunkSize = std::numeric_limits<i64>::max() / 4;
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.BuildOutputOrder = true;
         chunkPoolOptions.ShouldSliceByRowIndices = false;
         chunkPoolOptions.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInOrderedPool;
-        chunkPoolOptions.Logger = Logger().WithTag("Name: Root");
+        chunkPoolOptions.Logger = Logger().WithTag("Name: %v", name);
         return chunkPoolOptions;
     }
 
@@ -791,12 +808,12 @@ private:
         std::vector<TLegacyDataSlicePtr> compressionDictionarySlices;
         std::vector<TLegacyDataSlicePtr> chunkSlices;
 
-        for (const auto& chunk : Concatenate(InputManager->CollectPrimaryUnversionedChunks(), InputManager->CollectPrimaryVersionedChunks())) {
+        for (const auto& chunk : Concatenate(InputManager_->CollectPrimaryUnversionedChunks(), InputManager_->CollectPrimaryVersionedChunks())) {
             auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
             dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
 
-            const auto& inputTable = InputManager->GetInputTables()[dataSlice->GetTableIndex()];
-            dataSlice->TransformToNew(RowBuffer, inputTable->Comparator);
+            const auto& inputTable = InputManager_->GetInputTables()[dataSlice->GetTableIndex()];
+            dataSlice->TransformToNew(RowBuffer_, inputTable->Comparator);
 
             ValidateInputDataSlice(dataSlice);
             if (chunk->IsHunk()) {
@@ -848,6 +865,9 @@ private:
             MainTask_->SetIsInput(true);
             if (HunkTask_) {
                 HunkTask_->SetIsInput(true);
+            }
+            if (CompressionDictionaryTask_) {
+                CompressionDictionaryTask_->SetIsInput(true);
             }
 
             auto sliceCount = AddInputSlices();
@@ -904,12 +924,12 @@ private:
         if (InputTableAttributes_) {
             const auto& path = Spec_->OutputTablePath.GetPath();
 
-            auto proxy = CreateObjectServiceWriteProxy(OutputClient);
+            auto proxy = CreateObjectServiceWriteProxy(OutputClient_);
 
             auto attributeKeys = BuildOutputTableAttributeKeys();
             auto batchReq = proxy.ExecuteBatch();
             auto req = TYPathProxy::MultisetAttributes(path + "/@");
-            SetTransactionId(req, OutputCompletionTransaction->GetId());
+            SetTransactionId(req, OutputCompletionTransaction_->GetId());
 
             for (const auto& attribute : attributeKeys) {
                 auto* subrequest = req->add_subrequests();
@@ -937,7 +957,7 @@ private:
         jobSpecExt->set_table_reader_options("");
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
@@ -981,12 +1001,12 @@ private:
     {
         if (Spec_->ClusterConnection) {
             NNative::TConnectionOptions connectionOptions;
-            connectionOptions.ConnectionInvoker = Host->GetConnectionInvoker();
+            connectionOptions.ConnectionInvoker = Host_->GetConnectionInvoker();
             return NApi::NNative::CreateConnection(
                 Spec_->ClusterConnection,
                 std::move(connectionOptions));
         } else if (Spec_->ClusterName) {
-            return Host
+            return Host_
                 ->GetClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectory()
@@ -1020,7 +1040,7 @@ private:
         TGetClusterMetaOptions options{
             .PopulateMasterCacheNodeAddresses = true,
         };
-        auto clusterMeta = WaitFor(InputClient->GetClusterMeta(options))
+        auto clusterMeta = WaitFor(InputClient_->GetClusterMeta(options))
             .ValueOrThrow();
         return clusterMeta.MasterCacheNodeAddresses;
     }

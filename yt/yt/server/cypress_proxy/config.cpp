@@ -6,6 +6,14 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTestConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_sync_mode", &TThis::EnableSyncMode)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCypressProxyBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
@@ -19,6 +27,9 @@ void TCypressProxyBootstrapConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
         .Default(TDuration::Seconds(15));
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

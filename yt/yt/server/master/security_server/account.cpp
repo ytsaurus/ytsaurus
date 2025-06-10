@@ -29,7 +29,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SecurityServerLogger;
+constinit const auto Logger = SecurityServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,7 +182,7 @@ void TChunkMergerCriteria::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 #define XX(type, camelCaseName, snakeCaseName, reign) \
-    if (static_cast<int>(context.GetVersion()) >= reign) { \
+    if (context.GetVersion() >= reign) { \
         Load(context, camelCaseName); \
     }
 
@@ -197,9 +197,10 @@ void Serialize(const TChunkMergerCriteria& criteria, NYson::IYsonConsumer* consu
         fluent.Item(#snakeCaseName).Value(criteria.camelCaseName); \
     })
 
-    BuildYsonFluently(consumer).BeginMap()
-    FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX)
-    .EndMap();
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            FOR_EACH_CHUNK_MERGER_CRITERIA_FIELD(XX)
+        .EndMap();
 #undef XX
 }
 
@@ -292,17 +293,9 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
 
     Load(context, AllowUsingChunkMerger_);
     Load(context, ChunkMergerCriteria_);
+    Load(context, EnableChunkReincarnation_);
 
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
-
-    // COMPAT(kvk1920)
-    if (context.GetVersion() < EMasterReign::SecondaryIndex ||
-        context.GetVersion() >= EMasterReign::ChunkReincarnatorTestingUtilities)
-    {
-        Load(context, EnableChunkReincarnation_);
-    } else {
-        EnableChunkReincarnation_ = false;
-    }
 }
 
 TAccountStatistics& TAccount::LocalStatistics()

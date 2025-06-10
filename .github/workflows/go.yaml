@@ -22,7 +22,7 @@ jobs:
           echo "FROM ubuntu:20.04 " > Dockerfile
           echo "WORKDIR /home/ytsaurus " >> Dockerfile
           echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
-          echo "RUN wget https://go.dev/dl/go1.22.1.linux-amd64.tar.gz && tar -C /usr/local -xzf go1.22.1.linux-amd64.tar.gz" >> Dockerfile
+          echo "RUN wget https://go.dev/dl/go1.23.8.linux-amd64.tar.gz && tar -C /usr/local -xzf go1.23.8.linux-amd64.tar.gz" >> Dockerfile
           echo "COPY . /home/ytsaurus/ " >> Dockerfile
           echo "ENTRYPOINT [\"tail\", \"-f\", \"/dev/null\"]" >> Dockerfile
 

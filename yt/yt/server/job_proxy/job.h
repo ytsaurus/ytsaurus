@@ -85,7 +85,7 @@ struct IJobHost
 
     virtual void OnJobMemoryThrashing() = 0;
 
-    virtual NChunkClient::TChunkReaderHostPtr GetChunkReaderHost() const = 0;
+    virtual NChunkClient::TMultiChunkReaderHostPtr GetChunkReaderHost() const = 0;
 
     virtual NChunkClient::IBlockCachePtr GetReaderBlockCache() const = 0;
     virtual NChunkClient::IBlockCachePtr GetWriterBlockCache() const = 0;
@@ -111,7 +111,7 @@ struct IJobHost
 
     virtual IInvokerPtr GetControlInvoker() const = 0;
 
-    virtual NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) = 0;
+    virtual NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)

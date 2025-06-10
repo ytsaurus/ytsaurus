@@ -1,12 +1,13 @@
 #include "statistics_reporter.h"
+
 #include "bootstrap.h"
+#include "config.h"
 #include "tablet.h"
 #include "tablet_snapshot_store.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/performance_counters.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -34,7 +35,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -369,7 +369,7 @@ SRCS(
     queue_client/queue_consumer_init.cpp
     queue_client/dynamic_state.cpp
     queue_client/helpers.cpp
-    queue_client/producer_init.cpp
+    queue_client/queue_producer_init.cpp
     queue_client/registration_manager.cpp
 
     replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
@@ -400,11 +400,12 @@ SRCS(
 
     sequoia_client/client.cpp
     sequoia_client/helpers.cpp
-    sequoia_client/public.cpp
     sequoia_client/record_helpers.cpp
+    sequoia_client/sequoia_reign.cpp
     sequoia_client/table_descriptor.cpp
     sequoia_client/transaction.cpp
     sequoia_client/write_set.cpp
+    sequoia_client/ypath_detail.cpp
 
     sequoia_client/proto/transaction_client.proto
 
@@ -695,6 +696,7 @@ GENERATE_YT_RECORD(
     OUTPUT_INCLUDES
         yt/yt/client/queue_client/public.h
         yt/yt/core/yson/string.h
+        yt/yt/ytlib/queue_client/config.h
 )
 
 GENERATE_YT_RECORD(
@@ -738,7 +740,7 @@ ADDINCL(
 PEERDIR(
     contrib/libs/re2
     contrib/libs/protobuf
-    contrib/libs/yajl
+    contrib/deprecated/yajl
     library/cpp/erasure
     library/cpp/iterator
     library/cpp/yt/backtrace/symbolizers/dwarf

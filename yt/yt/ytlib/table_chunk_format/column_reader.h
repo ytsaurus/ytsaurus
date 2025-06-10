@@ -103,7 +103,8 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
     int columnIndex,
     int columnId,
     std::optional<NTableClient::ESortOrder> sortOrder,
-    bool serializeFloatsAsDoubles = false);
+    bool serializeFloatsAsDoubles = false,
+    bool decodeAny = true);
 
 ////////////////////////////////////////////////////////////////////////////////
 

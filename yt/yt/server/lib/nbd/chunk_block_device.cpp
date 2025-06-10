@@ -7,6 +7,7 @@
 
 namespace NYT::NNbd {
 
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NRpc;
@@ -24,6 +25,7 @@ public:
         IThroughputThrottlerPtr writeThrottler,
         IInvokerPtr invoker,
         IChannelPtr channel,
+        TSessionId sessionId,
         TLogger logger)
         : ExportId_(exportId)
         , Config_(std::move(config))
@@ -32,9 +34,11 @@ public:
         , Invoker_(std::move(invoker))
         , Logger(logger.WithTag("ExportId: %v", ExportId_))
         , ChunkHandler_(CreateChunkHandler(
+            this,
             Config_,
             Invoker_,
             std::move(channel),
+            sessionId,
             Logger))
     { }
 
@@ -65,7 +69,7 @@ public:
         return TString();
     }
 
-    TFuture<TSharedRef> Read(i64 offset, i64 length, const TReadOptions& options) override
+    TFuture<TReadResponse> Read(i64 offset, i64 length, const TReadOptions& options) override
     {
         YT_LOG_DEBUG("Start read from chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
@@ -77,23 +81,25 @@ public:
                 offset,
                 length,
                 options.Cookie);
-            return MakeFuture<TSharedRef>({});
+
+            return MakeFuture<TReadResponse>({});
         }
 
         // NB. For now causal dependancy (i.e. read after write, write after write)
         // is resolved by making reads and writes synchronous.
         WaitFor(ReadThrottler_->Throttle(length)).ThrowOnError();
-        auto data = WaitFor(ChunkHandler_->Read(offset, length, options)).ValueOrThrow();
+        auto response = WaitFor(ChunkHandler_->Read(offset, length, options)).ValueOrThrow();
 
         YT_LOG_DEBUG("Finish read from chunk (Offset: %v, ExpectedLength: %v, ResultLength: %v, Cookie: %x)",
             offset,
             length,
-            data.Size(),
+            response.Data.Size(),
             options.Cookie);
-        return MakeFuture<TSharedRef>(data);
+
+        return MakeFuture<TReadResponse>(std::move(response));
     }
 
-    TFuture<void> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
+    TFuture<TWriteResponse> Write(i64 offset, const TSharedRef& data, const TWriteOptions& options) override
     {
         YT_LOG_DEBUG("Start write to chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
@@ -105,19 +111,21 @@ public:
                 offset,
                 data.size(),
                 options.Cookie);
-            return VoidFuture;
+
+            return MakeFuture<TWriteResponse>({});
         }
 
         // NB. For now causal dependancy (i.e. read after write, write after write)
         // is resolved by making reads and writes synchronous.
         WaitFor(WriteThrottler_->Throttle(data.size())).ThrowOnError();
-        WaitFor(ChunkHandler_->Write(offset, data, options)).ThrowOnError();
+        auto response = WaitFor(ChunkHandler_->Write(offset, data, options)).ValueOrThrow();
 
         YT_LOG_DEBUG("Finish write to chunk (Offset: %v, Length: %v, Cookie: %x)",
             offset,
             data.size(),
             options.Cookie);
-        return VoidFuture;
+
+        return MakeFuture<TWriteResponse>(std::move(response));
     }
 
     TFuture<void> Flush() override
@@ -154,6 +162,7 @@ IBlockDevicePtr CreateChunkBlockDevice(
     IThroughputThrottlerPtr writeThrottler,
     IInvokerPtr invoker,
     IChannelPtr channel,
+    TSessionId sessionId,
     TLogger logger)
 {
     return New<TChunkBlockDevice>(
@@ -163,6 +172,7 @@ IBlockDevicePtr CreateChunkBlockDevice(
         std::move(writeThrottler),
         std::move(invoker),
         std::move(channel),
+        sessionId,
         std::move(logger));
 }
 

@@ -1,11 +1,12 @@
 from yt_dynamic_tables_base import DynamicTablesBase
 from .test_tablet_actions import TabletActionsBase, TabletBalancerBase
+from .test_dynamic_tables_profiling import TestStatisticsReporterBase
 
 from yt_commands import (
     authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
     insert_rows, sync_create_cells, sync_flush_table, remove, get_driver,
     sync_compact_table, wait_for_tablet_state, create_tablet_cell_bundle,
-    sync_unmount_table, update_nodes_dynamic_config, print_debug, select_rows)
+    sync_unmount_table, print_debug, select_rows)
 
 from yt.common import update_inplace
 
@@ -89,38 +90,6 @@ class TestStandaloneTabletBalancerBase:
         instances = ls(self.root_path + "/instances")
         first_iteration_start_time = self._get_last_iteration_start_time(instances)
         wait(lambda: first_iteration_start_time < self._get_last_iteration_start_time(instances))
-
-    @classmethod
-    def _enable_statistics_reporter(cls, driver=None):
-        cls.statistics_path = "//sys/tablet_balancer/performance_counters"
-
-        update_nodes_dynamic_config({
-            "tablet_node" : {
-                "statistics_reporter" : {
-                    "enable" : True,
-                    "report_backoff_time": 1,
-                    "periodic_options": {
-                        "period": 1,
-                        "splay": 0,
-                        "jitter": 0,
-                    }
-                }
-            }
-        }, driver=driver)
-
-        create_tablet_cell_bundle("system", driver=driver)
-        sync_create_cells(1, tablet_cell_bundle="system", driver=driver)
-
-        cls._create_table_for_statistics_reporter(cls.statistics_path, driver=driver, bundle="system")
-        set(f"{cls.statistics_path}/@tablet_balancer_config", {
-            "enable_auto_reshard": False,
-            "enable_auto_tablet_move": False
-        }, driver=driver)
-        sync_mount_table(cls.statistics_path, driver=driver)
-
-        cls._apply_dynamic_config_patch({
-            "use_statistics_reporter": True,
-        }, driver=driver)
 
     @classmethod
     def modify_tablet_balancer_config(cls, multidaemon_config, config):
@@ -756,7 +725,7 @@ class TestParameterizedBalancingMulticell(TestParameterizedBalancing):
 
 ##################################################################
 
-class TestReplicaBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
+class TestReplicaBalancing(TestStandaloneTabletBalancerBase, TestStatisticsReporterBase, DynamicTablesBase):
     NUM_REMOTE_CLUSTERS = 1
     NUM_MASTERS_REMOTE_0 = 1
 
@@ -789,6 +758,8 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
         set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/replica_clusters", self.get_cluster_names())
         print_debug(get("//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized"))
 
+        self.statistics_path = "//sys/tablet_balancer/performance_counters"
+
         cells = []
         tables = []
         for driver in (self.remote_driver, None):
@@ -803,7 +774,10 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
         for driver in (self.remote_driver, None):
             cells = sync_create_cells(2, driver=driver)
             sync_mount_table("//tmp/t", cell_id=cells[0], driver=driver)
-            self._enable_statistics_reporter(driver=driver)
+            self._setup_statistics_reporter(self.statistics_path, driver=driver, tablet_cell_bundle="system")
+            self._apply_dynamic_config_patch({
+                "use_statistics_reporter": True,
+            }, driver=driver)
 
         value = "a" * 100
         rows = [{"key": i, "value": value} for i in range(30)]  # 30 rows
@@ -832,3 +806,95 @@ class TestReplicaBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
         tablets = get("//tmp/t/@tablets")
         assert tablets[0]["cell_id"] == tablets[1]["cell_id"]
         assert tablets[2]["cell_id"] == tablets[3]["cell_id"]
+
+
+##################################################################
+
+
+class TestMultiClusterTabletBalancer(TestStandaloneTabletBalancerBase, DynamicTablesBase):
+    NUM_REMOTE_CLUSTERS = 1
+    NUM_MASTERS_REMOTE_0 = 1
+
+    REMOTE_CLUSTER_NAME = "remote_0"
+
+    @classmethod
+    def setup_class(cls):
+        super(TestMultiClusterTabletBalancer, cls).setup_class()
+        cls.remote_driver = get_driver(cluster=cls.REMOTE_CLUSTER_NAME)
+
+    @authors("alexelexa")
+    def test_failed_replica_bundle(self):
+        sync_create_cells(1, driver=self.remote_driver)
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "iguana", driver=self.remote_driver)
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.remote_driver) == "failed")
+
+        self._apply_dynamic_config_patch({
+            "clusters_for_bundle_health_check": [self.REMOTE_CLUSTER_NAME],
+        })
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t")
+
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        assert get("//tmp/t/@tablet_count") == 2
+
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "", driver=self.remote_driver)
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
+
+    @authors("alexelexa")
+    def test_too_many_unhealthy_bundles(self):
+        self._apply_dynamic_config_patch({
+            "clusters_for_bundle_health_check": [self.REMOTE_CLUSTER_NAME],
+            "max_unhealthy_bundles_on_replica_cluster": 3
+        })
+
+        for bundle in ("one", "two", "three"):
+            create_tablet_cell_bundle(bundle, driver=self.remote_driver)
+            sync_create_cells(1, tablet_cell_bundle=bundle, driver=self.remote_driver)
+            set(f"//sys/tablet_cell_bundles/{bundle}/@node_tag_filter", "iguana", driver=self.remote_driver)
+            wait(lambda: get(f"//sys/tablet_cell_bundles/{bundle}/@health", driver=self.remote_driver) == "failed")
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t")
+
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        assert get("//tmp/t/@tablet_count") == 2
+
+        set("//sys/tablet_cell_bundles/one/@node_tag_filter", "", driver=self.remote_driver)
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
+
+        set("//sys/tablet_cell_bundles/two/@node_tag_filter", "", driver=self.remote_driver)
+        set("//sys/tablet_cell_bundles/three/@node_tag_filter", "", driver=self.remote_driver)
+
+    @authors("alexelexa")
+    def test_banned_replica_clusters(self):
+        sync_create_cells(1, driver=self.remote_driver)
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "iguana", driver=self.remote_driver)
+        wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.remote_driver) == "failed")
+
+        self._apply_dynamic_config_patch({
+            "clusters_for_bundle_health_check": [self.REMOTE_CLUSTER_NAME],
+        })
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [1]])
+        sync_mount_table("//tmp/t")
+
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        self._wait_full_iteration()
+        assert get("//tmp/t/@tablet_count") == 2
+
+        set("//sys/@config/tablet_manager/replicated_table_tracker/replicator_hint/banned_replica_clusters", [self.REMOTE_CLUSTER_NAME])
+        wait(lambda: get("//tmp/t/@tablet_count") == 1)
+
+        set("//sys/tablet_cell_bundles/default/@node_tag_filter", "", driver=self.remote_driver)

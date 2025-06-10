@@ -61,7 +61,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletServerLogger;
+constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -770,7 +770,7 @@ private:
                     response->cutoff_descriptor());
             }
 
-            std::vector<TString> replicaLogStrings;
+            std::vector<std::string> replicaLogStrings;
 
             if (tablet->GetTable()->IsReplicated()) {
                 for (const auto& protoReplicaInfo : response->replicas()) {

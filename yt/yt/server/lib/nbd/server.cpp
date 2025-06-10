@@ -27,6 +27,7 @@ namespace NYT::NNbd {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NNet;
+using namespace NProfiling;
 using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -528,21 +529,33 @@ private:
                 length,
                 flags);
 
+            TWallTimer timer;
             Device_->Read(offset, length, {.Cookie = cookie})
                 .Subscribe(
-                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TSharedRef>& result) {
+                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TReadResponse>& result) {
+                        auto duration = timer.GetElapsedTime().SecondsFloat();
+
                         if (!result.IsOK()) {
-                            YT_LOG_WARNING(result, "NBD_CMD_READ request failed (Cookie: %x)",
-                                cookie);
+                            YT_LOG_WARNING(result, "NBD_CMD_READ request failed (Cookie: %x, Duration: %v)",
+                                cookie,
+                                duration);
+
                             Device_->SetError(result);
+
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
+                        const auto& response = result.Value();
+                        if (response.ShouldStopUsingDevice) {
+                            Device_->OnShouldStopUsingDevice();
+                        }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x)",
-                            cookie);
+                        YT_LOG_DEBUG("Finished serving NBD_CMD_READ request (Cookie: %x, ShouldStopUsingDevice: %v, Duration: %v)",
+                            cookie,
+                            response.ShouldStopUsingDevice,
+                            duration);
 
-                        const auto& payload = result.Value();
+                        const auto& payload = response.Data;
                         YT_VERIFY(payload.size() == length);
                         WriteServerResponse(EServerError::NBD_OK, cookie, payload);
                     }));
@@ -614,19 +627,32 @@ private:
                 options.Flush = true;
             }
 
+            TWallTimer timer;
             Device_->Write(offset, payload, options)
                 .Subscribe(
-                    BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-                        if (!error.IsOK()) {
-                            YT_LOG_WARNING(error, "NBD_CMD_WRITE request failed (Cookie: %x)",
-                                cookie);
-                            Device_->SetError(error);
+                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TWriteResponse>& result) {
+                        auto duration = timer.GetElapsedTime().SecondsFloat();
+
+                        if (!result.IsOK()) {
+                            YT_LOG_WARNING(result, "NBD_CMD_WRITE request failed (Cookie: %x, Duration: %v)",
+                                cookie,
+                                duration);
+
+                            Device_->SetError(result);
+
                             WriteServerResponse(EServerError::NBD_EIO, cookie);
                             return;
                         }
 
-                        YT_LOG_DEBUG("Finished serving NBD_CMD_WRITE request (Cookie: %x)",
-                            cookie);
+                        const auto& response = result.Value();
+                        if (response.ShouldStopUsingDevice) {
+                            Device_->OnShouldStopUsingDevice();
+                        }
+
+                        YT_LOG_DEBUG("Finished serving NBD_CMD_WRITE request (Cookie: %x, ShouldStopUsingDevice: %v, Duration: %v)",
+                            cookie,
+                            response.ShouldStopUsingDevice,
+                            duration);
 
                         WriteServerResponse(EServerError::NBD_OK, cookie);
                     }));

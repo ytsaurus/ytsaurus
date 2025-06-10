@@ -2,6 +2,7 @@
 
 #include "automaton.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "compression_dictionary_manager.h"
 #include "distributed_throttler_manager.h"
 #include "hedging_manager_registry.h"
@@ -14,9 +15,9 @@
 #include "store_manager.h"
 #include "structured_logger.h"
 #include "tablet_manager.h"
-#include "tablet_snapshot_store.h"
-#include "tablet_slot.h"
 #include "tablet_profiling.h"
+#include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -89,7 +90,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -182,6 +183,16 @@ TRefCountedReplicationProgress& TRefCountedReplicationProgress::operator=(
 {
     TReplicationProgress::operator=(std::move(progress));
     return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRuntimeSmoothMovementData::Reset()
+{
+    Role.store(ESmoothMovementRole::None);
+    IsActiveServant.store(true);
+    SiblingServantCellId.Store(NullObjectId);
+    SiblingServantMountRevision.store(TRevision{});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -326,7 +337,16 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
         auto siblingCellId = smoothMovementData.SiblingServantCellId.Load();
         auto siblingMountRevision = smoothMovementData.SiblingServantMountRevision.load();
 
-        if (siblingCellId && siblingMountRevision) {
+        if (!siblingCellId || !siblingMountRevision) {
+            // This may happen if movement finishes concurrently with the request.
+            if (smoothMovementData.IsActiveServant.load()) {
+                return;
+            } else {
+                THROW_ERROR error;
+            }
+        }
+
+        if (smoothMovementData.Role.load() == ESmoothMovementRole::Source) {
             error <<= TErrorAttribute("sibling_servant_cell_id", siblingCellId);
             error <<= TErrorAttribute("sibling_servant_mount_revision", siblingMountRevision);
 
@@ -348,6 +368,14 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
                 .ThrowOnError();
             YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
                 LoggingTag);
+
+            // Not a YT_VERIFY since the violation of this condition is not critical
+            // and should not fail the process.
+            YT_ASSERT(smoothMovementData.IsActiveServant.load());
+        }
+
+        if (!smoothMovementData.IsActiveServant.load()) {
+            THROW_ERROR error;
         }
     }
 }
@@ -909,6 +937,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, DynamicStoreIdRequested_);
     Save(context, ReservedDynamicStoreIdCount_);
     Save(context, SchemaId_);
+    Save(context, RuntimeData_->ReplicationEra.load());
     TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Acquire());
     Save(context, ChaosData_->ReplicationRound);
     Save(context, ChaosData_->CurrentReplicationRowIndexes.Load());
@@ -1076,6 +1105,13 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, SchemaId_);
 
+    // COMPAT(osidorkin)
+    if ((context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent) ||
+        (context.GetVersion() < ETabletReign::Start_25_2 &&
+            context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent_25_1)) {
+        RuntimeData_->ReplicationEra.store(Load<TReplicationEra>(context));
+    }
+
     TRefCountedReplicationProgressPtr replicationProgress;
     TNullableIntrusivePtrSerializer<>::Load(context, replicationProgress);
     RuntimeData_->ReplicationProgress.Store(std::move(replicationProgress));
@@ -1124,17 +1160,16 @@ void TTablet::Load(TLoadContext& context)
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
 
-    if (IsActiveServant()) {
-        RuntimeData_->SmoothMovementData.IsActiveServant.store(true);
-    } else {
-        RuntimeData_->SmoothMovementData.IsActiveServant.store(false);
+    if (SmoothMovementData_.GetRole() != ESmoothMovementRole::None) {
+        auto& runtimeData = RuntimeData_->SmoothMovementData;
+        runtimeData.SiblingServantMountRevision.store(
+            SmoothMovementData_.GetSiblingMountRevision());
+        runtimeData.SiblingServantCellId.Store(
+            SmoothMovementData_.GetSiblingCellId());
+        runtimeData.Role.store(SmoothMovementData_.GetRole());
+        RuntimeData_->SmoothMovementData.IsActiveServant.store(IsActiveServant());
 
-        if (SmoothMovementData_.GetRole() == ESmoothMovementRole::Source) {
-            RuntimeData_->SmoothMovementData.SiblingServantMountRevision.store(
-                SmoothMovementData_.GetSiblingMountRevision());
-            RuntimeData_->SmoothMovementData.SiblingServantCellId.Store(
-                SmoothMovementData_.GetSiblingCellId());
-        } else {
+        if (SmoothMovementData_.GetRole() == ESmoothMovementRole::Target) {
             InitializeTargetServantActivationFuture();
         }
     }
@@ -1891,6 +1926,8 @@ void TTablet::StopEpoch()
         CancelableContext_.Reset();
     }
 
+    ChaosData_->IsTrimInProgress.store(false);
+
     std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
 
     SetState(GetPersistentState());
@@ -1962,45 +1999,16 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->DistributedThrottlers = DistributedThrottlers_;
     snapshot->HedgingManagerRegistry = HedgingManagerRegistry_;
     snapshot->CompressionDictionaryInfos = CompressionDictionaryInfos_;
-
-    auto addStoreStatistics = [&] (const IStorePtr& store) {
-        if (store->IsChunk()) {
-            auto chunkStore = store->AsChunk();
-
-            auto preloadState = chunkStore->GetPreloadState();
-            switch (preloadState) {
-                case EStorePreloadState::Scheduled:
-                case EStorePreloadState::Running:
-                    if (chunkStore->IsPreloadAllowed()) {
-                        ++snapshot->PreloadPendingStoreCount;
-                    } else {
-                        ++snapshot->PreloadFailedStoreCount;
-                    }
-                    break;
-                case EStorePreloadState::Complete:
-                    ++snapshot->PreloadCompletedStoreCount;
-                    break;
-                default:
-                    break;
-            }
-        }
-    };
-
-    auto addPartitionStatistics = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-        for (const auto& store : partitionSnapshot->Stores) {
-            addStoreStatistics(store);
-        }
-    };
+    snapshot->OrderedDynamicStoreRotateEpoch = RuntimeData_->OrderedDynamicStoreRotateEpoch.load();
+    snapshot->CommitOrdering = CommitOrdering_;
 
     snapshot->Eden = Eden_->BuildSnapshot();
-    addPartitionStatistics(snapshot->Eden);
     snapshot->ActiveStore = ActiveStore_;
 
     snapshot->PartitionList.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->BuildSnapshot();
         snapshot->PartitionList.push_back(partitionSnapshot);
-        addPartitionStatistics(partitionSnapshot);
     }
 
     if (IsPhysicallyOrdered()) {
@@ -2008,11 +2016,15 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
         snapshot->OrderedStores.reserve(StoreRowIndexMap_.size());
         for (const auto& [_, store] : StoreRowIndexMap_) {
             snapshot->OrderedStores.push_back(store);
-            addStoreStatistics(store);
         }
 
         snapshot->TotalRowCount = GetTotalRowCount();
     }
+
+    auto preloadStatistics = ComputePreloadStatistics();
+    snapshot->PreloadPendingStoreCount = preloadStatistics.PendingStoreCount;
+    snapshot->PreloadCompletedStoreCount = preloadStatistics.CompletedStoreCount;
+    snapshot->PreloadFailedStoreCount = preloadStatistics.FailedStoreCount;
 
     if (IsPhysicallySorted() && StoreManager_) {
         auto lockedStores = StoreManager_->GetLockedStores();
@@ -2345,7 +2357,7 @@ const std::string& TTablet::GetLoggingTag() const
     return LoggingTag_;
 }
 
-std::optional<TString> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const
+std::optional<std::string> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const
 {
     if (category == EMemoryCategory::TabletDynamic) {
         return Context_->GetTabletCellBundleName();
@@ -2980,6 +2992,54 @@ void TTablet::InitializeTargetServantActivationFuture()
 bool TTablet::IsVersionedWriteUnversioned() const
 {
     return !IsPhysicallyLog() && !IsPhysicallySorted();
+}
+
+TPreloadStatistics TTablet::ComputePreloadStatistics() const
+{
+    TPreloadStatistics result;
+
+    auto addStoreStatistics = [&] (const IStorePtr& store) {
+        if (store->IsChunk()) {
+            auto chunkStore = store->AsChunk();
+
+            auto preloadState = chunkStore->GetPreloadState();
+            switch (preloadState) {
+                case EStorePreloadState::Scheduled:
+                case EStorePreloadState::Running:
+                    if (chunkStore->IsPreloadAllowed()) {
+                        ++result.PendingStoreCount;
+                    } else {
+                        ++result.FailedStoreCount;
+                    }
+                    break;
+                case EStorePreloadState::Complete:
+                    ++result.CompletedStoreCount;
+                    break;
+                default:
+                    break;
+            }
+        }
+    };
+
+    auto addPartitionStatistics = [&] (const TPartition* partition) {
+        for (const auto& store : partition->Stores()) {
+            addStoreStatistics(store);
+        }
+    };
+
+    addPartitionStatistics(Eden_.get());
+
+    for (const auto& partition : PartitionList_) {
+        addPartitionStatistics(partition.get());
+    }
+
+    if (IsPhysicallyOrdered()) {
+        for (const auto& [_, store] : StoreRowIndexMap_) {
+            addStoreStatistics(store);
+        }
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

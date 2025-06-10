@@ -38,21 +38,38 @@ struct TTmpfsVolume
     i64 Size;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 struct TVirtualSandboxData
 {
     TString NbdExportId;
     NNbd::IImageReaderPtr Reader;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 //! Data necessary to create NBD root volume.
 struct TSandboxNbdRootVolumeData
 {
-    i64 NbdDiskSize = 0;
-    int NbdDiskMediumIndex = 0;
-    NNbd::EFilesystemType NbdDiskFsType = NNbd::EFilesystemType::Ext4;
-    TString NbdExportId;
-    std::optional<std::string> NbdDiskDataNodeAddress;
+    //! Identifier of NBD disk within NBD server.
+    TString ExportId;
+
+    //! Volume params.
+    i64 Size = 0;
+    int MediumIndex = 0;
+    NNbd::EFilesystemType FsType = NNbd::EFilesystemType::Ext4;
+
+    //! Params to connect to chosen data nodes.
+    TDuration DataNodeRpcTimeout;
+    std::optional<std::string> DataNodeAddress;
+
+    //! Params to get suitable data nodes from master.
+    TDuration MasterRpcTimeout;
+    int MinDataNodeCount;
+    int MaxDataNodeCount;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 // TODO(ignat): refactor this class and its usages.
 // For example: it looks weird as an agrument in PrepareVolume in TVolumeManager,
@@ -69,6 +86,26 @@ struct TUserSandboxOptions
 
     TCallback<void(const TError&)> DiskOverdraftCallback;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TArtifactDownloadOptions
+{
+    NChunkClient::TTrafficMeterPtr TrafficMeter;
+
+    std::vector<TString> WorkloadDescriptorAnnotations;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TVolumePreparationOptions
+{
+    TJobId JobId;
+    TUserSandboxOptions UserSandboxOptions;
+    TArtifactDownloadOptions ArtifactDownloadOptions;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 extern const TString ProxyConfigFileName;
 

@@ -2,7 +2,7 @@
 
 Operations can have several input and output tables. This section describes how to switch reading between them.
 
-You can get data about which table an entry came from, and select which table to send it to, in the operation's [Map](../../../user-guide/data-processing/operations/map.md) and [Reduce](../../../user-guide/data-processing/operations/reduce.md) user code. This is done using **[descriptors](#descriptors)** or **[table switches](#switches)**.
+You can get data about which table an entry came from, and select which table to send it to, in the operation's [Map](../../../../user-guide/data-processing/operations/map.md) and [Reduce](../../../../user-guide/data-processing/operations/reduce.md) user code. This is done using **[descriptors](#descriptors)** or **[table switches](#switches)**.
 
 {% note info "Note" %}
 
@@ -14,7 +14,7 @@ There is no technical restriction on using both of these mechanisms simultaneous
 
 {% note warning "Attention!" %}
 
-When no mapper is specified for a [MapReduce](../../../user-guide/data-processing/operations/mapreduce.md) type operation, there will be no data about which input tables entries came from at the reducer input.
+When no mapper is specified for a [MapReduce](../../../../user-guide/data-processing/operations/mapreduce.md) type operation, there will be no data about which input tables entries came from at the reducer input.
 
 {% endnote %}
 
@@ -37,13 +37,13 @@ When there are multiple output tables, the numbering rules are used. The formula
 
 The correspondence between descriptor numbers and output tables can be changed while working with a job, by using **table switches**.
 
-The schema of configuring switches for input tables can be read in the [Input/output settings](../../../user-guide/storage/io-configuration.md).
+The schema of configuring switches for input tables can be read in the [Input/output settings](../../../../user-guide/storage/io-configuration.md).
 
 The switches form depends on the format of output data.
 
 ### YSON { #yson }
 
-In [YSON](../../../user-guide/storage/yson.md), in the entry stream, you might encounter an [entity](../../../user-guide/storage/yson.md#entity) with attributes for both input and output tables.  These are control inputs that are built into the datastream. For example: `table_index=N`, where N is an integer. This command "switches" the stream in such a way that subsequent entries are connected to another table with index N. This is true for both input and output tables.
+In [YSON](../../../../user-guide/storage/yson.md), in the entry stream, you might encounter an [entity](../../../../user-guide/storage/yson.md#entity) with attributes for both input and output tables.  These are control inputs that are built into the datastream. For example: `table_index=N`, where N is an integer. This command "switches" the stream in such a way that subsequent entries are connected to another table with index N. This is true for both input and output tables.
 
 Suppose our operation has 2 output tables at the output.
 By default, to send data to a table with index 0 we must enter it in descriptor 1, and to be sent to table 1 it must be entered in descriptor 4.
@@ -85,7 +85,7 @@ Strictly speaking, the format and its derivatives do not support switches as a s
 
 {% note info "Note" %}
 
-[DSV](../../../user-guide/storage/formats.md#dsv) does not support switching of input tables.
+[DSV](../../../../user-guide/storage/formats.md#dsv) does not support switching of input tables.
 
 {% endnote %}
 
@@ -95,7 +95,7 @@ All lines from the `//path/to/table` table, which was numbered N in the list of 
 
 ### SCHEMAFUL_DSV { #schemaful_dsv }
 
-When installing the `enable_table_index=true` option for tables in [SCHEMAFUL_DSV](../../../user-guide/storage/formats.md#schemaful_dsv) format, the table index will be recorded in all lines of the table with the first field, before the schema columns.
+When installing the `enable_table_index=true` option for tables in [SCHEMAFUL_DSV](../../../../user-guide/storage/formats.md#schemaful_dsv) format, the table index will be recorded in all lines of the table with the first field, before the schema columns.
 
 ## Examples
 
@@ -121,7 +121,7 @@ def filter_event_type(row):
     if row.get("event_type") in ["job_started", "job_completed"]:
         yield row
 
-# In the event of a reduce-function, a key is sent to the input (this is a map from the key columns to their value), as well as a list of entries.  
+# In the event of a reduce-function, a key is sent to the input (this is a map from the key columns to their value), as well as a list of entries.
 # The key columns of each entry are equal to that which lies in the key
 def calculate_duration(key, rows):
     rows = list(rows)

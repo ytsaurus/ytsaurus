@@ -62,10 +62,10 @@ private:
 
         SyncWithUpstream();
 
-        auto requestedPerformanceCounters = FromProto<std::vector<TString>>(
+        auto requestedPerformanceCounters = FromProto<std::vector<std::string>>(
             request->requested_performance_counters());
 
-        static const std::vector<TString> statisticsFieldNames{
+        static const std::vector<std::string> statisticsFieldNames{
             // i64 fields
             "unmerged_row_count",
             "uncompressed_data_size",
@@ -87,7 +87,7 @@ private:
             "overlapping_store_count"
         };
 
-        static const THashMap<TString, TEmaCounter<i64> TTabletPerformanceCounters::*> performanceCounterFields = {
+        static const THashMap<std::string, TEmaCounter<i64> TTabletPerformanceCounters::*> performanceCounterFields = {
             #define XX(name, Name) \
                 {#name, &TTabletPerformanceCounters::Name},
                 ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
@@ -107,7 +107,7 @@ private:
         auto fillStatistics = [] (
             const TTabletStatistics& statistics,
             auto* protoStatistics,
-            const std::vector<TString>& statisticsFieldNames)
+            const std::vector<std::string>& statisticsFieldNames)
         {
             i64 diskSpace = 0;
             for (const auto& [mediumIndex, mediumDiskSpace] : statistics.DiskSpacePerMedium) {
@@ -179,6 +179,7 @@ private:
 
                 balancingAttributes->set_dynamic(table->IsDynamic());
                 balancingAttributes->set_in_memory_mode(ToProto(table->GetInMemoryMode()));
+                ToProto(balancingAttributes->mutable_upstream_replica_id(), table->GetUpstreamReplicaId());
 
                 auto config = ConvertToYsonString(table->TabletBalancerConfig()).ToString();
                 balancingAttributes->set_tablet_balancer_config(config);
@@ -218,11 +219,10 @@ private:
             }
 
             for (const auto& userAttributeKey : request->user_attribute_keys()) {
-                auto attribute = table->FindAttribute(userAttributeKey);
-                if (attribute) {
+                if (auto attribute = table->FindAttribute(userAttributeKey)) {
                     protoTable->add_user_attributes(attribute->ToString());
                 } else {
-                    protoTable->add_user_attributes(TString{});
+                    protoTable->add_user_attributes(TProtobufString());
                 }
             }
         }

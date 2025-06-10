@@ -25,76 +25,44 @@ using namespace NYTree;
 
 TJobNodeDescriptor::TJobNodeDescriptor(const TExecNodeDescriptorPtr& other)
     : Id(other->Id)
-    , Address(other->Address)
     , Addresses(other->Addresses)
     , IOWeight(other->IOWeight)
 { }
 
-void TJobNodeDescriptor::Persist(const TPersistenceContext& context)
+void TJobNodeDescriptor::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Id);
-    Persist(context, Address);
-    Persist(context, IOWeight);
-
-    if (context.GetVersion() >= ESnapshotVersion::AddAddressesToJob) {
-        Persist(context, Addresses);
-    }
+    PHOENIX_REGISTER_FIELD(1, Id);
+    PHOENIX_REGISTER_FIELD(2, Addresses);
+    PHOENIX_REGISTER_FIELD(3, IOWeight);
+    // COMPAT(aleksandr.gaev): index 4 is reserved for deleted field `Address`
 }
+
+PHOENIX_DEFINE_TYPE(TJobNodeDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAllocation::TLastJobInfo::Persist(const TPersistenceContext& context)
+void TAllocation::TLastJobInfo::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, JobId);
-    Persist(context, CompetitionType);
-
-    if (context.GetVersion() >= ESnapshotVersion::PreserveJobCookieForAllocationInGangs) {
-        Persist(context, OutputCookie);
-    }
-
-    if (context.GetVersion() >= ESnapshotVersion::MonitoringDescriptorsPreserving) {
-        Persist(context, MonitoringDescriptor);
-    }
+    PHOENIX_REGISTER_FIELD(1, JobId);
+    PHOENIX_REGISTER_FIELD(2, CompetitionType);
 }
 
-TAllocation::TLastJobInfo::operator bool() const noexcept
+PHOENIX_DEFINE_TYPE(TAllocation::TLastJobInfo);
+
+void TAllocation::RegisterMetadata(auto&& registrar)
 {
-    return JobId != TJobId();
+    PHOENIX_REGISTER_FIELD(1, Id);
+    PHOENIX_REGISTER_FIELD(2, Joblet);
+    PHOENIX_REGISTER_FIELD(3, NodeDescriptor);
+    PHOENIX_REGISTER_FIELD(4, Resources);
+    PHOENIX_REGISTER_FIELD(5, TreeId);
+    PHOENIX_REGISTER_FIELD(6, PoolPath);
+    PHOENIX_REGISTER_FIELD(7, Task);
+    PHOENIX_REGISTER_FIELD(8, LastJobInfo);
+    PHOENIX_REGISTER_FIELD(9, NewJobsForbiddenReason);
 }
 
-void TAllocation::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, Id);
-
-    Persist(context, Joblet);
-    if (context.GetVersion() < ESnapshotVersion::MultipleJobsInAllocation) {
-        TJobId lastJobId;
-        Persist(context, lastJobId);
-
-        LastJobInfo.JobId = lastJobId;
-        if (Joblet) {
-            LastJobInfo.CompetitionType = Joblet->CompetitionType;
-        }
-    } else {
-        Persist(context, NodeDescriptor);
-        Persist(context, Resources);
-        Persist(context, TreeId);
-        Persist(context, PoolPath);
-        Persist(context, Task);
-
-        Persist(context, LastJobInfo);
-    }
-
-    if (context.GetVersion() >= ESnapshotVersion::NewJobsForbiddenReason) {
-        Persist(context, NewJobsForbiddenReason);
-    }
-}
+PHOENIX_DEFINE_TYPE(TAllocation);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -194,85 +162,62 @@ bool TJoblet::IsJobStartedOnNode() const noexcept
     return NodeJobStartTime != TInstant();
 }
 
-void TJoblet::Persist(const TPersistenceContext& context)
+void TJoblet::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, JobId);
-    Persist(context, JobType);
-    Persist(context, NodeDescriptor);
-    Persist(context, StartTime);
-    Persist(context, FinishTime);
-    Persist(context, NodeJobStartTime);
-    // COMPAT(pogorelov)
-    if (context.GetVersion() >= ESnapshotVersion::WaitingForResourcesDuration) {
-        Persist(context, WaitingForResourcesDuration);
-    }
-    Persist(context, JobState);
-    if (context.GetVersion() >= ESnapshotVersion::InterruptionReasonInJoblet) {
-        Persist(context, InterruptionReason);
-    }
-    Persist(context, DebugArtifactsAccount);
-    Persist(context, Suspicious);
-    Persist(context, LastActivityTime);
-    Persist(context, BriefStatistics);
-    Persist(context, Progress);
-    Persist(context, StderrSize);
-    // NB(max42): JobStatistics is not persisted intentionally since
-    // it can increase the size of snapshot significantly.
-    Persist(context, Phase);
-    Persist(context, CompetitionIds);
-    Persist(context, HasCompetitors);
-    Persist(context, TaskName);
-    Persist(context, Task);
-    Persist(context, TaskJobIndex);
-    Persist(context, JobIndex);
-    Persist(context, StartRowIndex);
-    Persist(context, Restarted);
-    Persist(context, InputStripeList);
-    Persist(context, OutputCookie);
-    Persist(context, EstimatedResourceUsage);
-    Persist(context, JobProxyMemoryReserveFactor);
-    Persist(context, UserJobMemoryReserveFactor);
-    Persist(context, UserJobMemoryReserve);
-    Persist(context, PredecessorType);
-    Persist(context, PredecessorJobId);
-    Persist(context, ResourceLimits);
-    Persist(context, ChunkListIds);
-    Persist(context, StderrTableChunkListId);
-    Persist(context, CoreTableChunkListId);
-    Persist(context, JobMetrics);
-    Persist(context, TreeId);
-    Persist(context, TreeIsTentative);
-    Persist(context, CompetitionType);
-    Persist(context, JobSpeculationTimeout);
-    Persist(context, DiskQuota);
-    Persist(context, DiskRequestAccount);
-    Persist(context, EnabledJobProfiler);
-    Persist(context, OutputStreamDescriptors);
-    Persist(context, InputStreamDescriptors);
+    PHOENIX_REGISTER_FIELD(1, JobId);
+    PHOENIX_REGISTER_FIELD(2, JobType);
+    PHOENIX_REGISTER_FIELD(3, NodeDescriptor);
+    PHOENIX_REGISTER_FIELD(4, StartTime);
+    PHOENIX_REGISTER_FIELD(5, FinishTime);
+    PHOENIX_REGISTER_FIELD(6, NodeJobStartTime);
+    PHOENIX_REGISTER_FIELD(7, WaitingForResourcesDuration);
+    PHOENIX_REGISTER_FIELD(8, JobState);
+    PHOENIX_REGISTER_FIELD(9, InterruptionReason);
+    PHOENIX_REGISTER_FIELD(10, DebugArtifactsAccount);
+    PHOENIX_REGISTER_FIELD(11, Suspicious);
+    PHOENIX_REGISTER_FIELD(12, LastActivityTime);
+    PHOENIX_REGISTER_FIELD(13, BriefStatistics);
+    PHOENIX_REGISTER_FIELD(14, Progress);
+    PHOENIX_REGISTER_FIELD(15, StderrSize);
+    PHOENIX_REGISTER_FIELD(16, Phase);
+    PHOENIX_REGISTER_FIELD(17, CompetitionIds);
+    PHOENIX_REGISTER_FIELD(18, HasCompetitors);
+    PHOENIX_REGISTER_FIELD(19, TaskName);
+    PHOENIX_REGISTER_FIELD(20, Task);
+    PHOENIX_REGISTER_FIELD(21, TaskJobIndex);
+    PHOENIX_REGISTER_FIELD(22, JobIndex);
+    PHOENIX_REGISTER_FIELD(23, StartRowIndex);
+    PHOENIX_REGISTER_FIELD(24, Restarted);
+    PHOENIX_REGISTER_FIELD(25, InputStripeList);
+    PHOENIX_REGISTER_FIELD(26, OutputCookie);
+    PHOENIX_REGISTER_FIELD(27, EstimatedResourceUsage);
+    PHOENIX_REGISTER_FIELD(28, JobProxyMemoryReserveFactor);
+    PHOENIX_REGISTER_FIELD(29, UserJobMemoryReserveFactor);
+    PHOENIX_REGISTER_FIELD(30, UserJobMemoryReserve);
+    PHOENIX_REGISTER_FIELD(31, PredecessorType);
+    PHOENIX_REGISTER_FIELD(32, PredecessorJobId);
+    PHOENIX_REGISTER_FIELD(33, ResourceLimits);
+    PHOENIX_REGISTER_FIELD(34, ChunkListIds);
+    PHOENIX_REGISTER_FIELD(35, StderrTableChunkListId);
+    PHOENIX_REGISTER_FIELD(36, CoreTableChunkListId);
+    PHOENIX_REGISTER_FIELD(37, JobMetrics);
+    PHOENIX_REGISTER_FIELD(38, TreeId);
+    PHOENIX_REGISTER_FIELD(39, TreeIsTentative);
+    PHOENIX_REGISTER_FIELD(40, CompetitionType);
+    PHOENIX_REGISTER_FIELD(41, JobSpeculationTimeout);
+    PHOENIX_REGISTER_FIELD(42, DiskQuota);
+    PHOENIX_REGISTER_FIELD(43, DiskRequestAccount);
+    PHOENIX_REGISTER_FIELD(44, EnabledJobProfiler);
+    PHOENIX_REGISTER_FIELD(45, OutputStreamDescriptors);
+    PHOENIX_REGISTER_FIELD(46, InputStreamDescriptors);
+    PHOENIX_REGISTER_FIELD(47, UserJobMonitoringDescriptor);
 
-    // COMPAT(pogorelov): Remove after all CAs are 25.1.
-    if (context.GetVersion() < ESnapshotVersion::OperationIncarnationIsStrongTypedef) {
-        TString operationIncarnationStr;
-        Persist(context, operationIncarnationStr);
-        OperationIncarnation = TOperationIncarnation(std::move(operationIncarnationStr));
-    } else if (context.GetVersion() < ESnapshotVersion::OperationIncarnationIsOptional) {
-        TOperationIncarnation operationIncarnation;
-        Persist(context, operationIncarnation);
-        OperationIncarnation = std::move(operationIncarnation);
-    } else {
-        Persist(context, OperationIncarnation);
-    }
-
-    // COMPAT(pogorelov)
-    if (context.GetVersion() >= ESnapshotVersion::MonitoringDescriptorsPreserving) {
-        Persist(context, UserJobMonitoringDescriptor);
-    }
-
-    if (context.IsLoad()) {
-        Revived = true;
-    }
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+       this_->Revived = true;
+    });
 }
+
+PHOENIX_DEFINE_TYPE(TJoblet);
 
 ////////////////////////////////////////////////////////////////////////////////
 

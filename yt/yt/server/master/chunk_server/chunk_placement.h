@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_manager.h"
 #include "chunk_replica.h"
 #include "domestic_medium.h"
 #include "consistent_chunk_placement.h"
@@ -58,9 +59,10 @@ public:
     void CheckFaultyDataCentersOnPrimaryMaster();
     void SetFaultyDataCentersOnSecondaryMaster(const THashSet<std::string>& faultyDataCenters);
 
+    template <typename TGenericChunk>
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
-        TChunk* chunk,
+        TGenericChunk* chunk,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
         int desiredCount,
         int minCount,
@@ -70,9 +72,10 @@ public:
         const std::optional<std::string>& preferredHostName,
         NChunkClient::ESessionType sessionType);
 
+    template <typename TGenericChunk>
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
-        TChunk* chunk,
+        TGenericChunk* chunk,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
         const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
@@ -89,30 +92,40 @@ public:
         TChunkPtrWithReplicaAndMediumIndex replica,
         const TChunkLocationPtrWithReplicaInfoList& replicas);
 
+    template <typename TGenericChunk>
     int GetMaxReplicasPerRack(
         const TMedium* medium,
-        const TChunk* chunk,
-        std::optional<int> replicationFactorOverride = std::nullopt) const;
-    int GetMaxReplicasPerRack(
-        int mediumIndex,
-        const TChunk* chunk,
+        const TGenericChunk* chunk,
         std::optional<int> replicationFactorOverride = std::nullopt) const;
 
+    template <typename TGenericChunk>
+    int GetMaxReplicasPerRack(
+        int mediumIndex,
+        const TGenericChunk* chunk,
+        std::optional<int> replicationFactorOverride = std::nullopt) const;
+
+    template <typename TGenericChunk>
     int GetMaxReplicasPerDataCenter(
         const TDomesticMedium* medium,
-        const TChunk* chunk,
+        const TGenericChunk* chunk,
         const NNodeTrackerServer::TDataCenter* dataCenter,
         std::optional<int> replicationFactorOverride = std::nullopt) const;
+
+    template <typename TGenericChunk>
     int GetMaxReplicasPerDataCenter(
         int mediumIndex,
-        const TChunk* chunk,
+        const TGenericChunk* chunk,
         const NNodeTrackerServer::TDataCenter* dataCenter,
         std::optional<int> replicationFactorOverride = std::nullopt) const;
 
     const std::vector<TError>& GetAlerts() const;
 
 private:
+    NLogging::TLogger Logger = ChunkServerLogger();
+
+    template <typename TGenericChunk>
     class TTargetCollector;
+
     class TAllocationSession;
 
     class TNodeToLoadFactorMap
@@ -181,6 +194,9 @@ private:
     int NodesToCheckBeforeGivingUpOnWriteTargetAllocation_ = 0;
     bool IsDataCenterAware_ = false;
     bool IsDataCenterFailureDetectorEnabled_ = false;
+    bool IsNodeWriteSessionLimitEnabled_ = false;
+    // NB: For testing purposes only.
+    bool IsNodeWriteSessionLimitForUserAllocationEnabled_ = false;
 
     THashSet<const NNodeTrackerServer::TDataCenter*> StorageDataCenters_;
     THashSet<const NNodeTrackerServer::TDataCenter*> BannedStorageDataCenters_;
@@ -197,9 +213,10 @@ private:
     void InsertToLoadFactorMaps(TNode* node);
     void RemoveFromLoadFactorMaps(TNode* node);
 
+    template <typename TGenericChunk>
     TNodeList GetWriteTargets(
         TDomesticMedium* medium,
-        TChunk* chunk,
+        TGenericChunk* chunk,
         const TChunkLocationPtrWithReplicaInfoList& replicas,
         const TChunkReplicaIndexList& replicaIndexes,
         int desiredCount,
@@ -209,7 +226,8 @@ private:
         const TNodeList* forbiddenNodes = nullptr,
         const TNodeList* allocatedNodes = nullptr,
         const std::optional<std::string>& preferredHostName = {},
-        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {});
+        TChunkLocationPtrWithReplicaInfo unsafelyPlacedReplica = {},
+        bool systemAllocation = false);
 
     std::optional<TNodeList> FindConsistentPlacementWriteTargets(
         TDomesticMedium* medium,
@@ -227,11 +245,14 @@ private:
         TDomesticMedium* medium);
 
     bool IsValidWriteTargetToInsert(TDomesticMedium* medium, TNode* node);
+
+    template <typename TGenericChunk>
     bool IsValidWriteTargetToAllocate(
         TNode* node,
-        TTargetCollector* collector,
+        TTargetCollector<TGenericChunk>* collector,
         bool enableRackAwareness,
-        bool enableDataCenterAwareness);
+        bool enableDataCenterAwareness,
+        bool enableNodeWriteSessionLimit);
     bool IsValidWriteTargetCore(TNode* node);
     // Preferred nodes are special: they don't come from load-factor maps and
     // thus may not have been vetted by #IsValidWriteTargetToInsert. Thus,
@@ -258,11 +279,14 @@ private:
     // TODO(shakurov): consider moving this to TChunk. At the moment,
     // TChunk::GetMaxReplicasPerFailureDomain and TChunk::GetPhysicalReplicationFactor
     // respect neither global nor medium-specific RF caps. Refactor.
-    int CapTotalReplicationFactor(int replicationFactor, const TChunk* chunk, const TMedium* medium) const;
+    template <typename TGenericChunk>
+    int CapTotalReplicationFactor(int replicationFactor, const TGenericChunk* chunk, const TMedium* medium) const;
+
+    template <typename TGenericChunk>
     int CapPerRackReplicationFactor(
         int replicationFactor,
         const TMedium* medium,
-        const TChunk* chunk) const;
+        const TGenericChunk* chunk) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPlacement)
@@ -270,3 +294,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkPlacement)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
+
+#define CHUNK_PLACEMENT_INL_H_
+#include "chunk_placement-inl.h"
+#undef CHUNK_PLACEMENT_INL_H_

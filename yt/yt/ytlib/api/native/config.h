@@ -10,7 +10,7 @@
 
 #include <yt/yt/ytlib/hydra/config.h>
 
-#include <yt/yt/ytlib/object_client/public.h>
+#include <yt/yt/ytlib/object_client/config.h>
 
 #include <yt/yt/library/query/engine_api/public.h>
 
@@ -118,6 +118,25 @@ DEFINE_REFCOUNTED_TYPE(TCypressProxyConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSequoiaRetriesConfig
+    : public virtual NYTree::TYsonStruct
+    , protected NObjectClient::TReqExecuteBatchRetriesConfig
+{
+    bool Enable;
+
+    //! If retries are disabled returns config with zero retry count.
+    // TODO(kvk1920): replace with TReqExecuteBatchRetriesOptions.
+    NObjectClient::TReqExecuteBatchRetriesConfigPtr ToRetriesConfig() const;
+
+    REGISTER_YSON_STRUCT(TSequoiaRetriesConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSequoiaRetriesConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Consider adding inheritance from TRetryingChannelConfig and/or TBalancingChannelConfig.
 struct TSequoiaConnectionConfig
     : public virtual NYTree::TYsonStruct
@@ -125,9 +144,13 @@ struct TSequoiaConnectionConfig
     //! If |nullopt|, Sequoia tables are handled on the local cluster.
     std::optional<std::string> GroundClusterName;
 
+    TDuration GroundClusterConnectionUpdatePeriod;
+
     NYTree::TYPath SequoiaRootPath;
 
     TDuration SequoiaTransactionTimeout;
+
+    TSequoiaRetriesConfigPtr Retries;
 
     REGISTER_YSON_STRUCT(TSequoiaConnectionConfig);
 
@@ -310,7 +333,7 @@ struct TConnectionDynamicConfig
 
     TDuration ClusterLivenessCheckTimeout;
 
-    NObjectClient::TReqExecuteBatchWithRetriesConfigPtr ChunkFetchRetries;
+    NObjectClient::TReqExecuteBatchRetriesConfigPtr ChunkFetchRetries;
 
     TSlruCacheDynamicConfigPtr BannedReplicaTrackerCache;
 
@@ -360,6 +383,8 @@ struct TConnectionDynamicConfig
 
     THashSet<std::string> BannedInSyncReplicaClusters;
 
+    bool RequestFullStatisticsForBriefStatisticsInListJobs;
+
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -402,4 +427,3 @@ NTransactionClient::TRemoteTimestampProviderConfigPtr CreateRemoteTimestampProvi
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
-

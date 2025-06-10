@@ -56,7 +56,7 @@ void TCypressKeyReaderConfig::Register(TRegistrar registrar)
     registrar.Parameter("cypress_read_options", &TThis::CypressReadOptions)
         .DefaultCtor([] {
             auto options = New<TSerializableMasterReadOptions>();
-            options->ReadFrom = EMasterChannelKind::LocalCache;
+            options->ReadFrom = EMasterChannelKind::ClientSideCache;
             options->ExpireAfterSuccessfulUpdateTime = TDuration::Hours(12);
             return options;
         });

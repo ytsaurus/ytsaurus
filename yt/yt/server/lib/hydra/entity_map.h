@@ -126,16 +126,16 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TValue, class TTraits>
-class TEntityMap
+template <class TValue>
+class TMutableEntityMap
     : public TReadOnlyEntityMap<TValue>
 {
 public:
-    using TKey = TEntityKey<TValue>;
+    using typename TReadOnlyEntityMap<TValue>::TKey;
     using TDynamicData = typename std::decay<decltype(*static_cast<TValue*>(nullptr)->GetDynamicData())>::type;
 
-    explicit TEntityMap(const TTraits& traits = TTraits());
-    ~TEntityMap();
+    TMutableEntityMap();
+    ~TMutableEntityMap();
 
     TValue* Insert(const TKey& key, std::unique_ptr<TValue> valueHolder);
 
@@ -145,6 +145,33 @@ public:
     std::unique_ptr<TValue> Release(const TKey& key);
 
     void Clear();
+
+protected:
+    using typename TReadOnlyEntityMap<TValue>::TMapType;
+
+    DECLARE_THREAD_AFFINITY_SLOT(UserThread);
+
+    TChunkedMemoryPool DynamicDataPool_;
+    TSpareEntityDynamicData* FirstSpareDynamicData_ = nullptr;
+
+    TDynamicData* AllocateDynamicData();
+    void FreeDynamicData(TDynamicData* data);
+
+    void DoClear();
+
+    static std::string GetTypeName();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TValue, class TTraits>
+class TEntityMap
+    : public TMutableEntityMap<TValue>
+{
+public:
+    using typename TMutableEntityMap<TValue>::TKey;
+
+    explicit TEntityMap(const TTraits& traits = TTraits());
 
     template <class TContext>
     void SaveKeys(TContext& context) const;
@@ -165,14 +192,9 @@ public:
     void LoadValuesParallel(TContext& context);
 
 private:
-    using TMapType = typename TReadOnlyEntityMap<TValue>::TMapType;
+    using typename TMutableEntityMap<TValue>::TMapType;
 
-    DECLARE_THREAD_AFFINITY_SLOT(UserThread);
-
-    TTraits Traits_;
-
-    TChunkedMemoryPool DynamicDataPool_;
-    TSpareEntityDynamicData* FirstSpareDynamicData_ = nullptr;
+    const TTraits Traits_;
 
     // COMPAT(danilalexeev): YT-24017.
     static constexpr int AllEntitiesBatchEntityCount = -1;
@@ -181,13 +203,6 @@ private:
     std::vector<TKey> LoadKeys_;
     std::vector<TValue*> LoadValues_;
     mutable std::vector<typename TMapType::const_iterator> SaveIterators_;
-
-    TDynamicData* AllocateDynamicData();
-    void FreeDynamicData(TDynamicData* data);
-
-    void DoClear();
-
-    static std::string GetTypeName();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

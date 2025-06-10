@@ -1,22 +1,21 @@
 #include "backup_manager.h"
 
 #include "automaton.h"
-#include "tablet.h"
-#include "tablet_slot.h"
-#include "tablet_manager.h"
 #include "bootstrap.h"
-#include "tablet_cell_write_manager.h"
-#include "transaction_manager.h"
-#include "transaction.h"
-#include "store_manager.h"
+#include "config.h"
 #include "serialize.h"
+#include "store_manager.h"
+#include "tablet.h"
+#include "tablet_cell_write_manager.h"
+#include "tablet_manager.h"
+#include "tablet_slot.h"
+#include "transaction.h"
+#include "transaction_manager.h"
 
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h>
 

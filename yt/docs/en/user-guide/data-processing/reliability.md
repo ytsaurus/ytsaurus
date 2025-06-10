@@ -68,7 +68,7 @@ Imagine there's a a job (`J`) within an operation (`O`) running on a node. The e
 This prompts it to request information about all previously completed jobs from the node. In the next heartbeat, the node informs the controller that job `J` has completed. The controller processes this event and doesn't start a new job.||
 |#
 
-For more information about the revival mechanism, see this [report](../../_includes/other/video-posts.md#2019-map-reduce-operaciya-dlinoyu-v-god). It should be noted, however, that this mechanism has undergone a number of changes since the report's publication.
+For more information about the revival mechanism, see this [report](../../other/video-posts.md#2019-map-reduce-operaciya-dlinoyu-v-god). It should be noted, however, that this mechanism has undergone a number of changes since the report's publication.
 
 In summary:
 - If the scheduler or one of the controller agents fails, it takes a few minutes to recover the state. In this case, some of the progress since the last saved operation snapshot is lost.

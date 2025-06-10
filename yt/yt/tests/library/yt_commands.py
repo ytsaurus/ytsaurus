@@ -175,6 +175,9 @@ def init_drivers(clusters):
         return drivers
 
     for instance in clusters:
+        if instance is None:
+            continue
+
         if instance.yt_config.master_count > 0:
             if instance._default_driver_backend == "native":
                 default_driver = create_driver_per_api(instance.configs["driver"])
@@ -429,6 +432,10 @@ def execute_command(
     if "user_tag" in parameters:
         user_tag = parameters["user_tag"]
         del parameters["user_tag"]
+    token = None
+    if "token" in parameters:
+        token = parameters["token"]
+        del parameters["token"]
 
     if "path" in parameters:
         parameters["path"] = prepare_path(parameters["path"])
@@ -477,6 +484,7 @@ def execute_command(
             user=authenticated_user,
             user_tag=user_tag,
             trace_id=trace_id,
+            token=token,
         )
     )
 
@@ -1035,11 +1043,10 @@ def abort_transaction(tx, **kwargs):
     execute_command("abort_tx", kwargs)
 
 
-def abort_all_transactions():
-    topmost_transactions = ls("//sys/topmost_transactions")
-    for i in range(len(topmost_transactions) // 100 + 1):
+def abort_transactions(transactions, **kwargs):
+    for i in range(len(transactions) // 100 + 1):
         start = i * 100
-        end = min(len(topmost_transactions), (i + 1) * 100)
+        end = min(len(transactions), (i + 1) * 100)
         if start >= end:
             break
         requests = []
@@ -1047,10 +1054,15 @@ def abort_all_transactions():
             requests.append(
                 {
                     "command": "abort_transaction",
-                    "parameters": {"transaction_id": topmost_transactions[j]},
+                    "parameters": {"transaction_id": transactions[j]},
                 }
             )
-        execute_batch(requests)
+        execute_batch(requests, **kwargs)
+
+
+def abort_all_transactions(**kwargs):
+    topmost_transactions = ls("//sys/topmost_transactions")
+    abort_transactions(topmost_transactions, **kwargs)
 
 
 def generate_timestamp(**kwargs):
@@ -1308,13 +1320,13 @@ def write_shuffle_data(shuffle_handle, partition_column, value, is_raw=False, **
         value = yson.dumps(value, yson_type="list_fragment")
     input_stream = BytesIO(value)
 
-    kwargs["shuffle_handle"] = shuffle_handle
+    kwargs["signed_shuffle_handle"] = shuffle_handle
     kwargs["partition_column"] = partition_column
     execute_command("write_shuffle_data", kwargs, input_stream=input_stream)
 
 
 def read_shuffle_data(shuffle_handle, partition_index, **kwargs):
-    kwargs["shuffle_handle"] = shuffle_handle
+    kwargs["signed_shuffle_handle"] = shuffle_handle
     kwargs["partition_index"] = partition_index
     return execute_command_with_output_format("read_shuffle_data", kwargs)
 
@@ -1516,15 +1528,17 @@ class Operation(object):
                 and date_string_to_datetime(get(snapshot_path + "/@creation_time", driver=self._driver)) > timepoint
             )
 
+    def get_job_tracker_orchid_path(self):
+        controller_agent_address = self.get_controller_agent_address()
+        return f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
+
     def wait_for_job_revival_finished(self):
         print_debug("Waiting for job revival to finish")
 
         operation_controller_registered_check_path = self.get_path() + "/controller_orchid/progress/state"
         wait(lambda: exists(operation_controller_registered_check_path))
 
-        controller_agent_address = self.get_controller_agent_address()
-
-        job_tracker_orchid_path = f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
+        job_tracker_orchid_path = self.get_job_tracker_orchid_path()
 
         def check():
             allocation_ids = get(f"{job_tracker_orchid_path}/operations/{self.id}/allocations")
@@ -3481,8 +3495,7 @@ def get_first_chunk_id(path, **kwargs):
 
 
 def get_applied_node_dynamic_config(node, driver=None):
-    return get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/applied_config".format(node),
-               driver=driver)
+    return get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/applied_config".format(node), driver=driver)
 
 
 def _update_config_by_path(config, path, replace, value):

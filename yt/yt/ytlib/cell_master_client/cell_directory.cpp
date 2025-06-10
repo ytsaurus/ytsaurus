@@ -199,12 +199,16 @@ public:
 
     TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) override
     {
+        ValidateSelectorRole(role);
+
         auto guard = ReaderGuard(SpinLock_);
         return RoleToCellTags_[role];
     }
 
     TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) override
     {
+        ValidateSelectorRole(role);
+
         auto candidateCellTags = GetMasterCellTagsWithRole(role);
         if (candidateCellTags.empty()) {
             THROW_ERROR_EXCEPTION("No master cell with %Qlv role is known",
@@ -247,15 +251,15 @@ public:
 
             auto roles = EMasterCellRoles::None;
             for (auto protoRole : item.roles()) {
-                auto role = TryCheckedEnumCast<EMasterCellRole>(protoRole);
-                if (!role) {
+                auto role = NYT::FromProto<EMasterCellRole>(protoRole);
+                if (role == EMasterCellRole::Unknown) {
                     YT_LOG_ALERT("Skipped an unknown cell role while synchronizing master cell directory (MasterCellRole: %v, CellTag: %v)",
                         protoRole,
                         cellTag);
                     continue;
                 }
-                roles |= EMasterCellRoles(*role);
-                roleToCellTags[*role].push_back(cellTag);
+                roles |= EMasterCellRoles(role);
+                roleToCellTags[role].push_back(cellTag);
             }
             EmplaceOrCrash(cellTagToRoles, cellTag, roles);
             EmplaceOrCrash(cellTagToAddresses, cellTag, *masterConnectionConfig->Addresses);
@@ -290,6 +294,10 @@ public:
             cellTagToRoles.clear();
             cellTagToRoles.emplace(PrimaryMasterCellTag_, primaryMasterCellRoles);
             for (auto role : TEnumTraits<EMasterCellRole>::GetDomainValues()) {
+                if (role == EMasterCellRole::Unknown) {
+                    continue;
+                }
+
                 roleToCellTags[role].clear();
                 if (Any(primaryMasterCellRoles & EMasterCellRoles(role))) {
                     roleToCellTags[role].push_back(PrimaryMasterCellTag_);
@@ -382,6 +390,12 @@ private:
     TCellTagList SecondaryMasterCellTags_;
     THashSet<NObjectClient::TCellId> SecondaryMasterCellIds_;
     THashMap<TCellTag, IServicePtr> CachingObjectServices_;
+
+    static void ValidateSelectorRole(EMasterCellRole role) {
+        THROW_ERROR_EXCEPTION_IF(role == EMasterCellRole::Unknown,
+            "Master cell role %Qlv cannot be used for selecting cells",
+            role);
+    }
 
     bool ClusterMasterCompositionChanged(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs)
     {
@@ -502,7 +516,7 @@ private:
 
         InitMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader);
         InitMasterChannel(EMasterChannelKind::Follower, config, EPeerKind::Follower);
-        InitMasterChannel(EMasterChannelKind::MasterCache, config, EPeerKind::Follower);
+        InitMasterChannel(EMasterChannelKind::MasterSideCache, config, EPeerKind::Follower);
 
         auto masterCacheConfig = BuildMasterCacheConfig(config);
         if (Config_->MasterCache && Config_->MasterCache->EnableMasterCacheDiscovery) {
@@ -528,7 +542,7 @@ private:
             /*authenticator*/ nullptr);
         EmplaceOrCrash(CachingObjectServices_, cellTag, cachingObjectService);
         RpcServer_->RegisterService(cachingObjectService);
-        CellWrappedChannelMap_[cellTag][EMasterChannelKind::LocalCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
+        CellWrappedChannelMap_[cellTag][EMasterChannelKind::ClientSideCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
     }
 
     void InitMasterChannel(

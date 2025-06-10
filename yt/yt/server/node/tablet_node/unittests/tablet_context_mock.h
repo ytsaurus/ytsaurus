@@ -18,7 +18,7 @@ public:
 
     // ITabletContext implementation.
     TCellId GetCellId() const override;
-    const TString& GetTabletCellBundleName() const override;
+    const std::string& GetTabletCellBundleName() const override;
     NHydra::EPeerState GetAutomatonState() const override;
     IInvokerPtr GetControlInvoker() const override;
     IInvokerPtr GetAutomatonInvoker() const override;

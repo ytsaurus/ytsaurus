@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "chunk_cache.h"
+#include "job_gpu_checker.h"
 #include "job.h"
 
 #include <yt/yt/server/node/data_node/artifact.h>
@@ -50,13 +51,7 @@ struct TJobWorkspaceBuildingContext
     std::optional<TString> DockerImage;
     NContainers::NCri::TCriAuthConfigPtr DockerAuth;
 
-    bool NeedGpuCheck;
-    std::vector<TShellCommandConfigPtr> GpuCheckSetupCommands;
-    std::optional<TString> GpuCheckBinaryPath;
-    std::optional<std::vector<TString>> GpuCheckBinaryArgs;
-    std::optional<THashMap<TString, TString>> GpuCheckEnvironment;
-    EGpuCheckType GpuCheckType;
-    std::vector<NContainers::TDevice> GpuDevices;
+    std::optional<TGpuCheckOptions> GpuCheckOptions;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,6 +61,7 @@ struct TJobWorkspaceBuildingResult
     IVolumePtr RootVolume;
     IVolumePtr GpuCheckVolume;
     std::optional<TString> DockerImage;
+    std::optional<TString> DockerImageId;
     std::vector<TString> TmpfsPaths;
     std::vector<NContainers::TBind> RootBinds;
     int SetupCommandCount = 0;

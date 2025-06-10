@@ -22,7 +22,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkClientLogger;
+constinit const auto Logger = ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -126,7 +126,7 @@ private:
             auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
             TGetClusterMetaOptions options;
-            options.ReadFrom = NApi::EMasterChannelKind::MasterCache;
+            options.ReadFrom = NApi::EMasterChannelKind::MasterSideCache;
             options.PopulateMediumDirectory = true;
 
             auto result = WaitFor(client->GetClusterMeta(options))

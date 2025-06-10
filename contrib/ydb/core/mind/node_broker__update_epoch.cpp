@@ -35,7 +35,7 @@ public:
         Self->PrepareEpochCache();
         Self->PrepareUpdateNodesLog();
         Self->ProcessDelayedListNodesRequests();
-        Self->SendUpdateNodes(ctx);
+        Self->ScheduleProcessSubscribersQueue(ctx);
     }
 
 private:

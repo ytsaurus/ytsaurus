@@ -100,6 +100,7 @@ struct TSelectRowsCounters
     NProfiling::TCounter UnmergedMissingRowCount;
     NProfiling::TCounter UnmergedDataWeight;
     NProfiling::TCounter WastedUnmergedDataWeight;
+    NProfiling::TCounter ConcurrentStoreRotateErrors;
 
     NProfiling::TTimeCounter CpuTime;
     NProfiling::TTimeCounter DecompressionCpuTime;
@@ -423,11 +424,11 @@ private:
 
 TTableProfilerPtr CreateTableProfiler(
     EDynamicTableProfilingMode profilingMode,
-    const TString& tabletCellBundle,
-    const TString& tablePath,
+    const std::string& tabletCellBundle,
+    const NYPath::TYPath& tablePath,
     const TString& tableTag,
-    const TString& account,
-    const TString& medium,
+    const std::string& account,
+    const std::string& medium,
     NObjectClient::TObjectId schemaId,
     const NTableClient::TTableSchemaPtr& schema);
 

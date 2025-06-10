@@ -692,9 +692,10 @@ func (e *Encoder) CreateQueueProducerSession(
 	opts *yt.CreateQueueProducerSessionOptions,
 ) (result *yt.CreateQueueProducerSessionResult, err error) {
 	req := &rpc_proxy.TReqCreateQueueProducerSession{
-		ProducerPath: []byte(producerPath.String()),
-		QueuePath:    []byte(queuePath.String()),
-		SessionId:    ptr.String(sessionID),
+		ProducerPath:    []byte(producerPath.String()),
+		QueuePath:       []byte(queuePath.String()),
+		SessionId:       ptr.String(sessionID),
+		MutatingOptions: convertMutatingOptions(opts.MutatingOptions),
 	}
 	if opts.UserMeta != nil {
 		req.UserMeta, err = yson.Marshal(opts.UserMeta)
@@ -2109,6 +2110,43 @@ func (e *Encoder) ListJobs(
 		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
 	}
 
+	return
+}
+
+func (e *Encoder) GetJob(
+	ctx context.Context,
+	opID yt.OperationID,
+	jobID yt.JobID,
+	opts *yt.GetJobOptions,
+) (r *yt.JobStatus, err error) {
+	if opts == nil {
+		opts = &yt.GetJobOptions{}
+	}
+
+	req := &rpc_proxy.TReqGetJob{
+		OperationIdOrAlias: &rpc_proxy.TReqGetJob_OperationId{
+			OperationId: convertGUID(guid.GUID(opID)),
+		},
+		JobId:      convertGUID(guid.GUID(jobID)),
+		Attributes: convertAttributeFilter(opts.Attributes),
+	}
+
+	call := e.newCall(MethodGetJob, NewGetJobRequest(req), nil)
+
+	var rsp rpc_proxy.TRspGetJob
+	err = e.Invoke(ctx, call, &rsp)
+	if err != nil {
+		return
+	}
+
+	r, err = makeGetJobResult(&rsp)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to deserialize response: %w", err)
+	}
+
+	if r != nil {
+		r.ID = jobID
+	}
 	return
 }
 

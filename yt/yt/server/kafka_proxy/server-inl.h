@@ -25,7 +25,7 @@ void IServer::RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler)
             .WithTag("RequestType: %v", typedRequest.RequestType)
             .WithTag("CorrelationId: %v", requestHeader.CorrelationId)
             .WithTag("ClientId: %v", requestHeader.ClientId);
-        auto typedResponse = handler(connectionId, typedRequest, logger);
+        auto typedResponse = handler(connectionId, std::move(typedRequest), logger);
 
         auto protocolWriter = NKafka::CreateKafkaProtocolWriter();
         typedResponse.Serialize(protocolWriter.get(), requestHeader.ApiVersion);

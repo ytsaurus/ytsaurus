@@ -184,7 +184,7 @@ struct TUserObject
     // TODO(ignat): migrate to optional.
     i64 ChunkCount = UndefinedChunkCount;
 
-    std::optional<TString> Account;
+    std::optional<std::string> Account;
 
     virtual ~TUserObject() = default;
 

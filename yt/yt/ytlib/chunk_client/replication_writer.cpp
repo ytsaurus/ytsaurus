@@ -37,11 +37,11 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 #include <yt/yt/core/rpc/retrying_channel.h>
 
 #include <yt/yt/core/net/local_address.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -1136,6 +1136,8 @@ private:
         cancelFutures.reserve(nodes.size());
         for (const auto& channel : nodes) {
             TDataNodeServiceProxy proxy(channel);
+            // TODO(nadya02): Set the correct timeout here.
+            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
             auto req = proxy.CancelChunk();
             req->set_wait_for_cancelation(wait);
             ToProto(req->mutable_session_id(), SessionId_);

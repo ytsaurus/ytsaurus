@@ -24,7 +24,7 @@ public:
         auto tableDataServiceWorkerNum = std::hash<TString>()(key) % workersNum;
         auto workerConnection = TableDataServiceDiscovery_->GetHosts()[tableDataServiceWorkerNum];
         auto httpClient = TKeepAliveHttpClient(workerConnection.Host, workerConnection.Port);
-        YQL_CLOG(DEBUG, FastMapReduce) << "Sending put request with url: " << putRequestUrl <<
+        YQL_CLOG(TRACE, FastMapReduce) << "Sending put request with url: " << putRequestUrl <<
             " To table data service worker with host: " << workerConnection.Host << " and port: " << ToString(workerConnection.Port);
 
         auto putTableDataServiceFunc = [&]() {
@@ -45,7 +45,7 @@ public:
         auto workerConnection = TableDataServiceDiscovery_->GetHosts()[tableDataServiceWorkerNum];
         auto httpClient = TKeepAliveHttpClient(workerConnection.Host, workerConnection.Port);
         TStringStream outputStream;
-        YQL_CLOG(DEBUG, FastMapReduce) << "Sending get request with url: " << getRequestUrl <<
+        YQL_CLOG(TRACE, FastMapReduce) << "Sending get request with url: " << getRequestUrl <<
             " To table data service worker with host: " << workerConnection.Host << " and port: " << ToString(workerConnection.Port);
 
         auto getTableDataServiceFunc = [&]() {
@@ -70,7 +70,7 @@ public:
         auto tableDataServiceWorkerNum = std::hash<TString>()(key) % workersNum;
         auto workerConnection = TableDataServiceDiscovery_->GetHosts()[tableDataServiceWorkerNum];
         auto httpClient = TKeepAliveHttpClient(workerConnection.Host, workerConnection.Port);
-        YQL_CLOG(DEBUG, FastMapReduce) << "Sending delete request with url: " << deleteRequestUrl <<
+        YQL_CLOG(TRACE, FastMapReduce) << "Sending delete request with url: " << deleteRequestUrl <<
             " To table data service worker with host: " << workerConnection.Host << " and port: " << ToString(workerConnection.Port);
 
         auto deleteTableDataServiceFunc = [&]() {

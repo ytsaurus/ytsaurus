@@ -8,6 +8,7 @@
 #include "tablet_owner_base.h"
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/domestic_medium.h>
 
 #include <yt/yt/server/master/object_server/object_manager.h>
 

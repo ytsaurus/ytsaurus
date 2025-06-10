@@ -24,7 +24,7 @@ using NApi::NNative::IClientPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ShuffleServiceLogger;
+constinit const auto Logger = ShuffleServiceLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,24 +64,27 @@ public:
 
     TFuture<void> RegisterChunks(
         TTransactionId transactionId,
-        std::vector<TInputChunkPtr> chunks) override
+        std::vector<TInputChunkPtr> chunks,
+        std::optional<int> writerIndex,
+        bool overwriteExistingWriterData) override
     {
         return BIND(
             &TShuffleManager::DoRegisterChunks,
             MakeStrong(this))
             .AsyncVia(SerializedInvoker_)
-            .Run(transactionId, std::move(chunks));
+            .Run(transactionId, std::move(chunks), writerIndex, overwriteExistingWriterData);
     }
 
     TFuture<std::vector<TInputChunkSlicePtr>> FetchChunks(
         TTransactionId transactionId,
-        int partitionIndex) override
+        int partitionIndex,
+        std::optional<std::pair<int, int>> writerIndexRange) override
     {
         return BIND(
             &TShuffleManager::DoFetchChunks,
             MakeStrong(this))
             .AsyncVia(SerializedInvoker_)
-            .Run(transactionId, partitionIndex);
+            .Run(transactionId, partitionIndex, writerIndexRange);
     }
 
 private:
@@ -154,18 +157,24 @@ private:
 
     TFuture<void> DoRegisterChunks(
         TTransactionId transactionId,
-        std::vector<TInputChunkPtr> chunks)
+        std::vector<TInputChunkPtr> chunks,
+        std::optional<int> writerIndex,
+        bool overwriteExistingWriterData)
     {
         auto shuffleController = GetShuffleControllerOrThrow(transactionId);
-        return shuffleController->RegisterChunks(std::move(chunks));
+        return shuffleController->RegisterChunks(
+            std::move(chunks),
+            writerIndex,
+            overwriteExistingWriterData);
     }
 
     TFuture<std::vector<TInputChunkSlicePtr>> DoFetchChunks(
         TTransactionId transactionId,
-        int partitionIndex)
+        int partitionIndex,
+        std::optional<std::pair<int, int>> writerIndexRange)
     {
         auto shuffleController = GetShuffleControllerOrThrow(transactionId);
-        return shuffleController->FetchChunks(partitionIndex);
+        return shuffleController->FetchChunks(partitionIndex, writerIndexRange);
     }
 };
 

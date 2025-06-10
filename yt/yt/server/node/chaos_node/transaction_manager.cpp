@@ -56,7 +56,11 @@ using namespace NYson;
 class TTransactionManager
     : public ITransactionManager
     , public TChaosAutomatonPart
-    , public TTransactionManagerBase<TTransaction>
+    , public TTransactionManagerBase<
+        TTransaction,
+        TSaveContext,
+        TLoadContext
+    >
 {
 public:
     TTransactionManager(
@@ -108,10 +112,9 @@ public:
         return OrchidService_;
     }
 
-    void RegisterTransactionActionHandlers(
-        TTransactionActionDescriptor<TTransaction> descriptor) override
+    void RegisterTransactionActionHandlers(TTypeErasedTransactionActionDescriptor descriptor) override
     {
-        TTransactionManagerBase<TTransaction>::DoRegisterTransactionActionHandlers(std::move(descriptor));
+        TTransactionManagerBase::RegisterTransactionActionHandlers(std::move(descriptor));
     }
 
     ETransactionState GetTransactionStateOrThrow(TTransactionId transactionId) override
@@ -258,7 +261,12 @@ public:
 
         transaction->SetPersistentState(ETransactionState::Aborted);
 
-        RunAbortTransactionActions(transaction, options);
+        // COMPAT(kvk1920)
+        RunAbortTransactionActions(
+            transaction,
+            options,
+            /*requireLegacyBehavior*/ NHydra::HasMutationContext() &&
+                NHydra::GetCurrentMutationContext()->Request().Reign < static_cast<int>(EChaosReign::FixTransactionActionAbort));
 
         YT_LOG_DEBUG("Transaction aborted (TransactionId: %v, Force: %v)",
             transactionId,
@@ -479,11 +487,11 @@ private:
 
         for (const auto& protoData : request->actions()) {
             auto data = FromProto<TTransactionActionData>(protoData);
-            transaction->Actions().push_back(data);
+            auto& action = transaction->Actions().emplace_back(std::move(data));
 
             YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
-                data.Type);
+                action.Type);
         }
 
         transaction->SetSignature(transaction->GetSignature() + signature);

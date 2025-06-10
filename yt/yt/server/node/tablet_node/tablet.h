@@ -141,16 +141,15 @@ struct TTabletErrors
 
 struct TRuntimeSmoothMovementData
 {
-    std::atomic<bool> IsActiveServant;
-
-    // The following fields are filled only at the source servant when it becomes non-active.
-    // They are needed to redirect clients to the target servant. Note that target->source
-    // redirection never happens.
+    std::atomic<ESmoothMovementRole> Role;
+    std::atomic<bool> IsActiveServant = true;
     NThreading::TAtomicObject<TCellId> SiblingServantCellId;
     std::atomic<NHydra::TRevision> SiblingServantMountRevision;
 
     // Will be set when the target servant becomes active.
     TFuture<void> TargetActivationFuture;
+
+    void Reset();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,6 +162,7 @@ struct TRuntimeTabletData
     std::atomic<i64> TotalRowCount = 0;
     std::atomic<i64> TrimmedRowCount = 0;
     std::atomic<i64> DelayedLocklessRowCount = 0;
+    std::atomic<i64> OrderedDynamicStoreRotateEpoch = 0;
     std::atomic<TTimestamp> LastCommitTimestamp = NullTimestamp;
     std::atomic<TTimestamp> LastWriteTimestamp = NullTimestamp;
     std::atomic<TTimestamp> UnflushedTimestamp = MinTimestamp;
@@ -258,6 +258,10 @@ struct TTabletSnapshot
     int PreloadCompletedStoreCount = 0;
     int PreloadFailedStoreCount = 0;
 
+    int64_t OrderedDynamicStoreRotateEpoch = 0;
+
+    NTransactionClient::ECommitOrdering CommitOrdering;
+
     TSortedDynamicRowKeyComparer RowKeyComparer;
 
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator;
@@ -294,7 +298,7 @@ struct TTabletSnapshot
     TCompressionDictionaryInfos CompressionDictionaryInfos;
     NTableClient::IDictionaryCompressionFactoryPtr DictionaryCompressionFactory;
 
-    TString TabletCellBundle;
+    std::string TabletCellBundle;
 
     NYson::TYsonString CustomRuntimeData;
 
@@ -345,7 +349,7 @@ struct ITabletContext
     virtual ~ITabletContext() = default;
 
     virtual NObjectClient::TCellId GetCellId() const = 0;
-    virtual const TString& GetTabletCellBundleName() const = 0;
+    virtual const std::string& GetTabletCellBundleName() const = 0;
     virtual NHydra::EPeerState GetAutomatonState() const = 0;
     virtual int GetAutomatonTerm() const = 0;
     virtual IInvokerPtr GetControlInvoker() const = 0;
@@ -827,7 +831,7 @@ public:
 
     const std::string& GetLoggingTag() const;
 
-    std::optional<TString> GetPoolTagByMemoryCategory(EMemoryCategory category) const;
+    std::optional<std::string> GetPoolTagByMemoryCategory(EMemoryCategory category) const;
 
     int GetEdenStoreCount() const;
 
@@ -882,6 +886,8 @@ public:
     i64 GetTotalDataWeight();
 
     bool IsVersionedWriteUnversioned() const;
+
+    TPreloadStatistics ComputePreloadStatistics() const;
 
 private:
     struct TTabletSizeMetrics

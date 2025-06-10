@@ -79,7 +79,7 @@ private:
             options.AccessControlObject = rpcRequest.access_control_object();
         }
         options.AccessControlObjects = rpcRequest.has_access_control_objects()
-            ? std::make_optional(FromProto<std::vector<TString>>(rpcRequest.access_control_objects().items()))
+            ? std::make_optional(FromProto<std::vector<std::string>>(rpcRequest.access_control_objects().items()))
             : std::nullopt;
 
         options.Draft = rpcRequest.draft();
@@ -329,7 +329,7 @@ private:
             : std::nullopt;
 
         options.AccessControlObjects = rpcRequest.has_access_control_objects()
-            ? std::make_optional(FromProto<std::vector<TString>>(rpcRequest.access_control_objects().items()))
+            ? std::make_optional(FromProto<std::vector<std::string>>(rpcRequest.access_control_objects().items()))
             : std::nullopt;
 
         auto user = context->GetAuthenticationIdentity().User;

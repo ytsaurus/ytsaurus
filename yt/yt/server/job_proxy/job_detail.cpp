@@ -60,7 +60,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = JobProxyLogger;
+constinit const auto Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,17 +93,11 @@ void TJob::Initialize()
 
 void TJob::PopulateInputNodeDirectory() const
 {
-    auto connection = Host_->GetClient()->GetNativeConnection();
-    const auto& jobSpecExt = Host_->GetJobSpecHelper()->GetJobSpecExt();
-    connection->GetNodeDirectory()->MergeFrom(jobSpecExt.input_node_directory());
-
-    for (const auto& [clusterName, protoRemoteCluster] : jobSpecExt.remote_input_clusters()) {
-        connection
-            ->GetClusterDirectory()
-            ->GetConnectionOrThrow(clusterName)
-            ->GetNodeDirectory()
-            ->MergeFrom(protoRemoteCluster.node_directory());
-    }
+    Host_
+        ->GetClient()
+        ->GetNativeConnection()
+        ->GetNodeDirectory()
+        ->MergeFrom(Host_->GetJobSpecHelper()->GetJobSpecExt().input_node_directory());
 }
 
 std::vector<NChunkClient::TChunkId> TJob::DumpInputContext(TTransactionId /*transactionId*/)
@@ -237,8 +231,8 @@ TJobResult TSimpleJobBase::Run()
     const auto& jobSpec = Host_->GetJobSpecHelper()->GetJobSpecExt();
     auto enableRowFilter = jobSpec.input_query_spec().options().enable_row_filter();
 
-    IOStartTime_ = GetCpuInstant();
-    YT_LOG_INFO("Starting to count I/O time (IOStartTime: %v)", CpuDurationToDuration(IOStartTime_));
+    IOStartTime_ = GetInstant();
+    YT_LOG_INFO("Started measuring I/O time (IOStartTime: %v)", IOStartTime_);
 
     if (jobSpec.has_input_query_spec() && enableRowFilter) {
         RunQuery(
@@ -324,7 +318,7 @@ IJob::TStatistics TSimpleJobBase::GetStatistics() const
         result.ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics;
         result.TimingStatistics = Reader_->GetTimingStatistics();
 
-        result.LatencyStatistics.InputTimeToFirstReadBatch = OptionalCpuDurationToDuration(Reader_->GetTimeToFirstBatch());
+        result.LatencyStatistics.InputTimeToFirstReadBatch = Reader_->GetTimeToFirstBatch();
     }
 
     if (Writer_) {
@@ -339,8 +333,7 @@ IJob::TStatistics TSimpleJobBase::GetStatistics() const
         // to dump this statistic into, but it feels weird that we just
         // skipped |InputTimeToFirstWrittenBatch| entirely :/.
         result.LatencyStatistics.OutputTimeToFirstReadBatch.push_back(
-            OptionalCpuDurationToDuration(
-                Writer_->GetTimeToFirstBatch()));
+            Writer_->GetTimeToFirstBatch());
     }
 
     return result;

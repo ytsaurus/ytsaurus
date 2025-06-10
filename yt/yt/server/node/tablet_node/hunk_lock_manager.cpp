@@ -1,16 +1,15 @@
 #include "hunk_lock_manager.h"
 
 #include "bootstrap.h"
-#include "serialize.h"
+#include "config.h"
 #include "private.h"
+#include "serialize.h"
 #include "tablet.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 

@@ -100,6 +100,7 @@ public:
     DECLARE_BYVAL_RO_PROPERTY(i64, DataWeight);
     DECLARE_BYVAL_RO_PROPERTY(i64, RowCount);
     DECLARE_BYVAL_RO_PROPERTY(i64, CompressedDataSize);
+    DECLARE_BYVAL_RO_PROPERTY(i64, UncompressedDataSize);
 
     DECLARE_BYVAL_RO_PROPERTY(bool, SizeOverridden);
     DECLARE_BYVAL_RO_PROPERTY(int, PartIndex);
@@ -145,7 +146,8 @@ public:
         i64 lowerRowIndex,
         std::optional<i64> upperRowIndex,
         i64 dataWeight,
-        i64 compressedDataSize);
+        i64 compressedDataSize,
+        i64 uncompressedDataSize);
 
     TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
@@ -153,7 +155,8 @@ public:
         i64 lowerRowIndex,
         std::optional<i64> upperRowIndex,
         i64 dataWeight,
-        i64 compressedDataSize);
+        i64 compressedDataSize,
+        i64 uncompressedDataSize);
 
     TInputChunkSlice(
         const TInputChunkPtr& inputChunk,
@@ -190,7 +193,7 @@ public:
 
     i64 GetLocality(int replicaIndex) const;
 
-    void OverrideSize(i64 rowCount, i64 dataWeight, i64 compressedDataSize);
+    void OverrideSize(i64 rowCount, i64 dataWeight, i64 compressedDataSize, i64 uncompressedDataSize);
 
     void ApplySamplingSelectivityFactor(double samplingSelectivityFactor);
 
@@ -207,6 +210,7 @@ private:
     i64 DataWeight_ = 0;
     i64 RowCount_ = 0;
     i64 CompressedDataSize_ = 0;
+    i64 UncompressedDataSize_ = 0;
 
     template<class TProtoChunkSpec>
     void OverrideSize(const TInputChunkPtr& inputChunk, const TProtoChunkSpec& protoChunkSpec);

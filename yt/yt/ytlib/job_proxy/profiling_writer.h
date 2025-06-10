@@ -10,23 +10,20 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IProfilingMultiChunkWriter
+struct IProfilingMultiChunkWriter
     : public NTableClient::ISchemalessMultiChunkWriter
 {
-public:
-    virtual std::optional<TCpuDuration> GetTimeToFirstBatch() const = 0;
+    virtual std::optional<TDuration> GetTimeToFirstBatch() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IProfilingMultiChunkWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
-class IProfilingSchemalessFormatWriter
+struct IProfilingSchemalessFormatWriter
     : public NFormats::ISchemalessFormatWriter
 {
-public:
-    virtual std::optional<TCpuDuration> GetTimeToFirstBatch() const = 0;
+    virtual std::optional<TDuration> GetTimeToFirstBatch() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IProfilingSchemalessFormatWriter)
@@ -34,10 +31,12 @@ DEFINE_REFCOUNTED_TYPE(IProfilingSchemalessFormatWriter)
 ////////////////////////////////////////////////////////////////////////////////
 
 IProfilingMultiChunkWriterPtr CreateProfilingMultiChunkWriter(
-    NTableClient::ISchemalessMultiChunkWriterPtr underlying, TCpuInstant start);
+    NTableClient::ISchemalessMultiChunkWriterPtr underlying,
+    TInstant start);
 
 IProfilingSchemalessFormatWriterPtr CreateProfilingSchemalessFormatWriter(
-    NFormats::ISchemalessFormatWriterPtr underlying, TCpuInstant start);
+    NFormats::ISchemalessFormatWriterPtr underlying,
+    TInstant start);
 
 ////////////////////////////////////////////////////////////////////////////////
 

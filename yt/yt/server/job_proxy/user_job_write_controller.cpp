@@ -6,6 +6,7 @@
 #include <yt/yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -203,7 +204,7 @@ TUserJobWriteController::TUserJobWriteController(IJobHostPtr host)
 
 TUserJobWriteController::~TUserJobWriteController() = default;
 
-void TUserJobWriteController::Init(TCpuInstant ioStartTime)
+void TUserJobWriteController::Init(TInstant ioStartTime)
 {
     YT_LOG_INFO("Opening writers");
 
@@ -213,7 +214,7 @@ void TUserJobWriteController::Init(TCpuInstant ioStartTime)
 
     auto userJobIOFactory = CreateUserJobWriterFactory(
         Host_->GetJobSpecHelper(),
-        Host_->GetChunkReaderHost(),
+        Host_->GetChunkReaderHost()->CreateHostForCluster(NScheduler::LocalClusterName),
         Host_->GetLocalHostName(),
         Host_->GetOutBandwidthThrottler());
 

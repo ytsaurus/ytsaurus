@@ -92,7 +92,6 @@ private:
     NSignature::TSignatureValidatorPtr SignatureValidator_;
 
     NSignature::IKeyStoreWriterPtr CypressKeyWriter_;
-    NSignature::TSignatureGeneratorPtr SignatureGenerator_;
     NSignature::TKeyRotatorPtr SignatureKeyRotator_;
 
     IQueryCorpusReporterPtr QueryCorpusReporter_;

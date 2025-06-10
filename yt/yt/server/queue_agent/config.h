@@ -86,7 +86,7 @@ struct TQueueAgentConfig
 
     //! Identifies a family of queue agents.
     //! Each queue agent only handles queues and consumers with the corresponding attribute set to its own stage.
-    TString Stage;
+    std::string Stage;
 
     REGISTER_YSON_STRUCT(TQueueAgentConfig);
 
@@ -163,11 +163,11 @@ struct TQueueControllerDynamicConfig
 
     //! List of objects, for which controllers must be delayed every pass.
     //!
-    //! Passes of such controllers take additional #ControllerDelayDuration seconds
+    //! Passes of such controllers take additional #ControllerDelay seconds
     //! to complete. This should be used for debug only.
     std::vector<NYPath::TRichYPath> DelayedObjects;
     //! Delay duration for #DelayedObjects.
-    TDuration ControllerDelayDuration;
+    TDuration ControllerDelay;
 
     TQueueExporterDynamicConfig QueueExporter;
 

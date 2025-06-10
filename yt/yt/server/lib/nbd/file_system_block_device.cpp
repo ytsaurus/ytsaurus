@@ -67,21 +67,9 @@ public:
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/removed")
             .Increment(1);
 
-        auto statistics = Reader_->GetStatistics();
-        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_cache")
-            .Increment(statistics.DataBytesReadFromCache);
-        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_disk")
-            .Increment(statistics.DataBytesReadFromDisk);
-        TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_meta_bytes_from_disk")
-            .Increment(statistics.MetaBytesReadFromDisk);
-
         auto guard = TCurrentTraceContextGuard(TraceContext_);
-        YT_LOG_INFO("Destroying file system block device (Path: %v, ReadBytes: %v, DataBytesReadFromCache: %v, DataBytesReadFromDisk: %v, MetaBytesReadFromDisk: %v)",
-            Reader_->GetPath(),
-            statistics.ReadBytes,
-            statistics.DataBytesReadFromCache,
-            statistics.DataBytesReadFromDisk,
-            statistics.MetaBytesReadFromDisk);
+        YT_LOG_INFO("Destroying file system block device (Path: %v)",
+            Reader_->GetPath());
     }
 
     i64 GetTotalSize() const override
@@ -104,33 +92,42 @@ public:
         return Reader_->GetPath();
     }
 
-    virtual TFuture<TSharedRef> Read(
+    virtual TFuture<TReadResponse> Read(
         i64 offset,
         i64 length,
-        const TReadOptions& /*options*/) override
+        const TReadOptions& options) override
     {
         auto guard = TCurrentTraceContextGuard(TraceContext_);
 
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_count").Increment(1);
         TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_bytes").Increment(length);
+
         NProfiling::TEventTimerGuard readTimeGuard(TNbdProfilerCounters::Get()->GetTimer(TagSet_, "/device/read_time"));
 
-        return Reader_->Read(offset, length)
-            .Apply(BIND([readTimeGuard = std::move(readTimeGuard), tagSet = TagSet_] (const TErrorOr<TSharedRef>& result) {
+        return Reader_->Read(offset, length, options)
+            .Apply(BIND([this, this_ = MakeStrong(this), readTimeGuard = std::move(readTimeGuard), tagSet = TagSet_] (const TErrorOr<TSharedRef>& result) {
                 if (!result.IsOK()) {
                     TNbdProfilerCounters::Get()->GetCounter(tagSet, "/device/read_errors").Increment(1);
                 }
 
-                return result.ValueOrThrow();
+                auto statistics = Reader_->GetStatistics();
+                TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_cache")
+                    .Increment(statistics.DataBytesReadFromCache);
+                TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_bytes_from_disk")
+                    .Increment(statistics.DataBytesReadFromDisk);
+                TNbdProfilerCounters::Get()->GetCounter(TagSet_, "/device/read_block_meta_bytes_from_disk")
+                    .Increment(statistics.MetaBytesReadFromDisk);
+
+                return TReadResponse(result.ValueOrThrow(), false);
             }));
     }
 
-    virtual TFuture<void> Write(
+    virtual TFuture<TWriteResponse> Write(
         i64 /*offset*/,
         const TSharedRef& /*data*/,
         const TWriteOptions& /*options*/) override
     {
-        return MakeFuture(TError("Writes are not supported"));
+        return MakeFuture<TWriteResponse>(TError("Writes are not supported"));
     }
 
     TFuture<void> Flush() override

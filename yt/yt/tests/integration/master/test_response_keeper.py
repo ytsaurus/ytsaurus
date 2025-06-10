@@ -1,6 +1,10 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, generate_uuid, get, create, raises_yt_error
+from yt_commands import authors, generate_uuid, get, create, raises_yt_error, remove
+
+from yt_sequoia_helpers import lookup_rows_in_ground
+
+from yt.sequoia_tools import DESCRIPTORS
 
 import pytest
 
@@ -69,7 +73,6 @@ class TestSequoiaResponseKeeper(YTEnvSetup):
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_HTTP_PROXIES = 0
     NUM_RPC_PROXIES = 0
 
@@ -81,9 +84,6 @@ class TestSequoiaResponseKeeper(YTEnvSetup):
     }
 
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
-        "object_service": {
-            "allow_bypass_master_resolve": True,
-        },
         "response_keeper": {
             "enable": True,
         },
@@ -102,3 +102,18 @@ class TestSequoiaResponseKeeper(YTEnvSetup):
         assert table_id == create("table", "//tmp/t", mutation_id=mutation_id, retry=True)
 
         assert table_id == get("//tmp/t/@id")
+
+    @authors("kvk1920")
+    def test_error_is_not_kept(self):
+        create("map_node", "//tmp/t")
+        mutation_id = generate_uuid()
+        with raises_yt_error("Attribute \"unexisting_attr\" is not found"):
+            remove("//tmp/t/@unexisting_attr", mutation_id=mutation_id)
+        assert not lookup_rows_in_ground(
+            DESCRIPTORS.response_keeper.get_default_path(),
+            [{"mutation_id": mutation_id}])
+        remove("//tmp/t", mutation_id=mutation_id)
+        assert lookup_rows_in_ground(
+            DESCRIPTORS.response_keeper.get_default_path(),
+            [{"mutation_id": mutation_id}])
+        remove("//tmp/t", mutation_id=mutation_id, retry=True)

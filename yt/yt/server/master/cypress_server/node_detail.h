@@ -106,6 +106,9 @@ protected:
         ICypressNodeFactory* factory,
         ENodeCloneMode mode);
 
+    void RefObject(TCypressNode* node);
+    void UnrefObject(TCypressNode* node);
+
 private:
     NCellMaster::TBootstrap* Bootstrap_ = nullptr;
 };
@@ -172,6 +175,10 @@ public:
         YT_VERIFY(!node->GetReachable());
         node->SetReachable(true);
 
+        if (node->IsTrunk() && node->IsSequoia() && node->IsNative()) {
+            RefObject(node);
+        }
+
         auto* typedNode = node->As<TImpl>();
         DoSetReachable(typedNode);
     }
@@ -180,6 +187,10 @@ public:
     {
         YT_VERIFY(node->GetReachable());
         node->SetReachable(false);
+
+        if (node->IsTrunk() && node->IsSequoia() && node->IsNative()) {
+            UnrefObject(node);
+        }
 
         auto* typedNode = node->As<TImpl>();
         DoSetUnreachable(typedNode);
@@ -259,7 +270,7 @@ public:
         // Run core stuff.
         BranchCoreEpilogue(typedBranchedNode);
 
-        return std::move(branchedNodeHolder);
+        return branchedNodeHolder;
     }
 
     void Unbranch(

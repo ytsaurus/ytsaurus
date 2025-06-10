@@ -29,7 +29,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChaosNodeLogger;
+constinit const auto Logger = ChaosNodeLogger;
 
 static constexpr int MigratedReplicatedCardRemoveBatchSize = 128;
 
@@ -126,6 +126,8 @@ private:
         for (auto replicationCardId : batch) {
             auto channel = Bootstrap_->GetClusterConnection()->GetChaosChannelByCardId(replicationCardId);
             auto proxy = TChaosNodeServiceProxy(std::move(channel));
+            // TODO(nadya02): Set the correct timeout here.
+            proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
             auto req = proxy.RemoveReplicationCard();
             SetMutationId(req, GenerateMutationId(), false);

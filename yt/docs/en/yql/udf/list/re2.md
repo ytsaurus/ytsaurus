@@ -1,18 +1,26 @@
 # Re2
 
-**List of functions**
+## List of functions
 
-* ```Re2::Grep(pattern:String, options:Struct<...>?) -> (string:String?) -> Bool```
-* ```Re2::Match(pattern:String, options:Struct<...>?) -> (string:String?) -> Bool```
-* ```Re2::Capture(pattern:String, options:Struct<...>?) -> (string:String?) -> Struct<_1:String?,foo:String?,...>```
-* ```Re2::FindAndConsume(pattern:String, options:Struct<...>?) -> (string:String?) -> List<String>```
-* ```Re2::Replace(pattern:String, options:Struct<...>?) -> (string:String?, replacement:String) -> String?```
-* ```Re2::Count(pattern:String, options:Struct<...>?) -> (string:String?) -> Uint32```
-* ```Re2::Options([CaseSensitive:Bool?,DotNl:Bool?,Literal:Bool?,LogErrors:Bool?,LongestMatch:Bool?,MaxMem:Uint64?,NeverCapture:Bool?,NeverNl:Bool?,OneLine:Bool?,PerlClasses:Bool?,PosixSyntax:Bool?,Utf8:Bool?,WordBoundary:Bool?]) -> Struct<CaseSensitive:Bool,DotNl:Bool,Literal:Bool,LogErrors:Bool,LongestMatch:Bool,MaxMem:Uint64,NeverCapture:Bool,NeverNl:Bool,OneLine:Bool,PerlClasses:Bool,PosixSyntax:Bool,Utf8:Bool,WordBoundary:Bool>```
+```yql
+Re2::Grep(pattern:String, options:Struct<...>?) -> (string:String?) -> Bool
+Re2::Match(pattern:String, options:Struct<...>?) -> (string:String?) -> Bool
+Re2::Capture(pattern:String, options:Struct<...>?) -> (string:String?) -> Struct<_1:String?,foo:String?,...>
+Re2::FindAndConsume(pattern:String, options:Struct<...>?) -> (string:String?) -> List<String>
+Re2::Replace(pattern:String, options:Struct<...>?) -> (string:String?, replacement:String) -> String?
+Re2::Count(pattern:String, options:Struct<...>?) -> (string:String?) -> Uint32
+Re2::Options([CaseSensitive:Bool?,DotNl:Bool?,Literal:Bool?,LogErrors:Bool?,LongestMatch:Bool?,MaxMem:Uint64?,NeverCapture:Bool?,NeverNl:Bool?,OneLine:Bool?,PerlClasses:Bool?,PosixSyntax:Bool?,Utf8:Bool?,WordBoundary:Bool?]) -> Struct<CaseSensitive:Bool,DotNl:Bool,Literal:Bool,LogErrors:Bool,LongestMatch:Bool,MaxMem:Uint64,NeverCapture:Bool,NeverNl:Bool,OneLine:Bool,PerlClasses:Bool,PosixSyntax:Bool,Utf8:Bool,WordBoundary:Bool>
+```
 
-Re2 implements regular expressions based on [google::RE2](https://github.com/google/re2), which offers a wide range of options ([see official documentation](https://github.com/google/re2/wiki/Syntax)).
+The Re2 module supports regular expressions based on [google::RE2](https://github.com/google/re2) with a wide range of features provided ([see the official documentation](https://github.com/google/re2/wiki/Syntax)).
 
 By default, the UTF-8 mode is enabled automatically if the regular expression is a valid UTF-8-encoded string, but is not a valid ASCII string. You can manually control the settings of the re2 library, if you pass the result of the `Re2::Options` function as the second argument to other module functions, next to the regular expression.
+
+{% note info "Note" %}
+
+All regular expressions passed to functions must be valid. Otherwise, your query may fail. Starting from version [2025.03](../../changelog/2025.03.md#re2-module), such a query will definitely fail.
+
+{% endnote %}
 
 {% note warning %}
 
@@ -20,9 +28,9 @@ Make sure to double all the backslashes in your regular expressions (if they are
 
 {% endnote %}
 
-**Examples**
+## Examples
 
-```sql
+```yql
 $value = "xaaxaaxaa";
 $options = Re2::Options(false AS CaseSensitive);
 $match = Re2::Match("[ax]+\\d");
@@ -42,14 +50,14 @@ SELECT
 
 ## Re2::Grep / Re2::Match {#match}
 
-Details of regular expression implementation and syntax aside, these functions are identical to the [same name functions](pire.md#match) in Pire. With other things equal and no specific preferences, we recommend that you use `Pire::Grep or Pire::Match`.
+If you leave out the details of implementation and syntax of regular expressions, those functions are totally similar [to the same-name functions](pire.md#match) from the Pire module. With other things equal and no specific preferences, we recommend that you use `Pire::Grep or Pire::Match`.
 
-`Re2::Grep` can be called using the `REGEXP` expression (see the [description of the basic expression syntax](../../syntax/expressions.md#regexp)).
+You can call the `Re2::Grep` function by using a `REGEXP` expression (see the [basic expression syntax](../../syntax/expressions.md#regexp)).
 
 For example, the following two queries are equivalent (also in terms of computing efficiency):
 
-* ```$grep = Re2::Grep("b+"); SELECT $grep("aaabccc");```
-* ```SELECT "aaabccc" REGEXP "b+";```
+* `$grep = Re2::Grep("b+"); SELECT $grep("aaabccc");`
+* `SELECT "aaabccc" REGEXP "b+";`
 
 ## Re2::Capture {#capture}
 
@@ -58,7 +66,7 @@ Result type: a structure with the fields of the type `String?`.
 
 * Each field corresponds to a capturing group with the applicable name.
 * For unnamed groups, the following names are generated: `_1`, `_2`, etc.
-* The result always includes the `_0` field, which stores the entire substring matched against the regular expression.
+* The result always includes the `_0` field containing the entire substring matching the regular expression.
 
 For more information about working with structures in YQL, see the [section on containers](../../types/containers.md).
 
@@ -79,17 +87,17 @@ Returns the number of non-overlapping substrings of the input string that have m
 
 ## Re2::Options {#options}
 
-Clarifications to Re2::Options parameters from the official [repository](https://github.com/google/re2/blob/main/re2/re2.h#L595-L617)
+Notes on Re2::Options from the official [repository](https://github.com/google/re2/blob/main/re2/re2.h#L595-L617)
 
-| Parameter | By default | Comment |
-|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|-------------------------------------------------------------------------------------|
+| Parameter | Default | Comments |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------------------------------------------------------------------------------------- |
 | CaseSensitive:Bool? | true | match is case-sensitive (regexp can override with (?i) unless in posix_syntax mode) |
 | DotNl:Bool? | false | let `.` match `\n` (default ) |
 | Literal:Bool? | false | interpret string as literal, not regexp |
-| LogErrors:Bool? | true | log syntax and execution errors to ERROR |
+| LogErrors:Bool? | true | this option is ignored |
 | LongestMatch:Bool? | false | search for longest match, not first match |
-| MaxMem:Uint64? | - | (see below)  approx. max memory footprint of RE2 |
-| NeverCapture:Bool? | false | parse all parens as non-capturing |
+| MaxMem:Uint64? | - | (see below) approx. max memory footprint of RE2 |
+| NeverCapture:Bool? | false | parse all parents as non-capturing |
 | NeverNl:Bool? | false | never match \n, even if it is in regexp |
 | PosixSyntax:Bool? | false | restrict regexps to POSIX egrep syntax |
 | Utf8:Bool? | true | text and pattern are UTF-8; otherwise Latin-1 |
@@ -98,11 +106,11 @@ Clarifications to Re2::Options parameters from the official [repository](https:/
 | WordBoundary:Bool? | false | allow Perl's \b \B (word boundary and not) |
 | OneLine:Bool? | false | ^ and $ only match beginning and end of text |
 
-Using Re2::Options in code is not recommended. Most parameters can be replaced with regular expression flags.
+It is not recommended to use Re2::Options in the code. Most parameters can be replaced with regular expression flags.
 
-**Flag usage examples**
+### Flag usage examples
 
-```sql
+```yql
 $value = "Foo bar FOO"u;
 -- enable case-insensitive mode
 $capture = Re2::Capture(@@(?i)(foo)@@);
@@ -116,4 +124,4 @@ SELECT
     $capture($value) AS capture; -- ("_0": "Foo bar", "bar": "bar", "foo": "Foo")
 ```
 
-In both cases, FOO will be matched. Using the raw string @@regexp@@ lets you avoid double slashes.
+In both cases, the word FOO will be found. Using the raw string @@regexp@@ lets you avoid double slashes.

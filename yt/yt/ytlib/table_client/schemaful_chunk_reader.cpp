@@ -54,6 +54,9 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
     const TSortColumns& sortColumns,
     const TReadRange& readRange)
 {
+    auto options = New<TChunkReaderOptions>();
+    options->EnableAnyUnpacking = false;
+
     switch (chunkMeta->GetChunkFormat()) {
         case EChunkFormat::TableUnversionedColumnar:
         case EChunkFormat::TableUnversionedSchemalessHorizontal: {
@@ -63,7 +66,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
                     chunkState,
                     chunkMeta,
                     std::move(config),
-                    TChunkReaderOptions::GetDefault(),
+                    options,
                     std::move(chunkReader),
                     std::move(nameTable),
                     chunkReadOptions,

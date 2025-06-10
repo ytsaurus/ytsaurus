@@ -94,7 +94,7 @@ const (
 
 // Column specifies schema of a single column.
 //
-// See https://yt.yandex-team.ru/docs/description/storage/static_schema
+// See https://ytsaurus.tech/docs/en/user-guide/storage/static-schema
 type Column struct {
 	Name string `yson:"name"`
 
@@ -157,7 +157,7 @@ func (c Column) NormalizeType() Column {
 //
 // Schema is strict by default.
 //
-// See https://yt.yandex-team.ru/docs/description/storage/static_schema
+// See https://ytsaurus.tech/docs/en/user-guide/storage/static-schema
 type Schema struct {
 	// Schema is strict by default. Change this option only if you know that you are doing.
 	Strict     *bool `yson:"strict,attr,omitempty"`

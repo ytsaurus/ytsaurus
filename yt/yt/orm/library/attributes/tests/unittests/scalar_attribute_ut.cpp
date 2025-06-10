@@ -20,7 +20,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<typename TProtoMessage>
+template <typename TProtoMessage>
 NYTree::INodePtr MessageToNode(const TProtoMessage& message)
 {
     TString newYsonString;
@@ -502,7 +502,8 @@ public:
         }
 
         auto wireStringBuffer = ConvertToWireString(value, element.Element, options.CreateChildOptions(path));
-        NAttributes::SetProtobufFieldByPath(message, path, TWireString::FromSerialized(wireStringBuffer), recursive);
+        auto wireString = TWireString::FromSerialized(wireStringBuffer);
+        NAttributes::SetProtobufFieldByPath(message, path, wireString, /*discardUnknownFields*/ false, recursive);
     }
 };
 
@@ -1031,6 +1032,39 @@ TEST_P(TSetAttributeTest, ResetWithEntity)
     EXPECT_EQ(message.repeated_int32_field(1), 0);
     SetProtobufFieldByPath(message, "/repeated_int32_field", NYTree::BuildYsonNodeFluently().Entity());
     EXPECT_EQ(message.repeated_int32_field().size(), 0);
+}
+
+TEST_F(TSetAttributeTest, DiscardUnknownFields)
+{
+    NProto::TMessage message;
+    message.set_string_field("42");
+    message.mutable_nested_message()->set_int32_field(42);
+    message.mutable_nested_message()->add_repeated_int32_field(15);
+    message.add_repeated_int32_field(5);
+    message.add_repeated_int32_field(42);
+
+    // Field numbers 37-38 are reserved for unknown field tests in TMessage.
+    NProto::TMessage updateMessage;
+    updateMessage.mutable_unknown_fields()->AddFixed64(37, 42);
+    updateMessage.mutable_unknown_fields()->AddLengthDelimited(38, "UnknownValue");
+    // Field numbers 5-6 are reserved for unknown field tests in TNestedMessage.
+    updateMessage.mutable_nested_message()->mutable_unknown_fields()->AddFixed64(5, 42);
+    updateMessage.mutable_nested_message()->mutable_unknown_fields()->AddLengthDelimited(6, "UnknownNestedValue");
+    updateMessage.mutable_nested_message()->set_int32_field(42);
+    updateMessage.mutable_repeated_nested_message()->Add()->mutable_unknown_fields()->AddFixed64(5, 42);
+
+    auto serializedUpdate = updateMessage.SerializeAsString();
+    NAttributes::SetProtobufFieldByPath(
+        message,
+        /*path*/ {},
+        TWireString::FromSerialized(serializedUpdate),
+        /*discardUnknownFields*/ true);
+
+    EXPECT_EQ(message.unknown_fields().field_count(), 0);
+    EXPECT_EQ(message.nested_message().unknown_fields().field_count(), 0);
+    EXPECT_EQ(message.nested_message().int32_field(), 42);
+    EXPECT_EQ(message.repeated_nested_message().size(), 1);
+    EXPECT_EQ(message.repeated_nested_message().at(0).unknown_fields().field_count(), 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

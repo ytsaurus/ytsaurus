@@ -27,9 +27,11 @@ void ValidateLinkNodeCreation(
     NSequoiaClient::TRawYPath targetPath,
     const TResolveResult& resolveResult);
 
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<NObjectClient::TTransactionId> ParsePrerequisiteTransactionIds(const NRpc::NProto::TRequestHeader& header);
 
-void ValidatePrerequisites(
+void ValidatePrerequisiteTransactions(
     const NSequoiaClient::ISequoiaClientPtr& sequoiaClient,
     const std::vector<NObjectClient::TTransactionId>& prerequisiteTransactionIds);
 
@@ -45,8 +47,10 @@ NSequoiaClient::TAbsoluteYPath JoinNestedNodesToPath(
 bool IsSupportedSequoiaType(NCypressClient::EObjectType type);
 bool IsSequoiaCompositeNodeType(NCypressClient::EObjectType type);
 void ValidateSupportedSequoiaType(NCypressClient::EObjectType type);
-void ThrowAlreadyExists(const NSequoiaClient::TAbsoluteYPath& path);
-void ThrowNoSuchChild(const NSequoiaClient::TAbsoluteYPath& existingPath, TStringBuf missingPath);
+[[noreturn]] void ThrowAlreadyExists(const NSequoiaClient::TAbsoluteYPath& path);
+[[noreturn]] void ThrowCannotHaveChildren(const NSequoiaClient::TAbsoluteYPath& path);
+[[noreturn]] void ThrowCannotReplaceNode(const NSequoiaClient::TAbsoluteYPath& path);
+[[noreturn]] void ThrowNoSuchChild(const NSequoiaClient::TAbsoluteYPath& existingPath, TStringBuf missingPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

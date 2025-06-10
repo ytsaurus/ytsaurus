@@ -903,39 +903,13 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         wait(lambda: tx not in ls("//sys/foreign_transactions", driver=get_driver(3)))
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestMasterTransactionsCTxS(TestMasterTransactionsShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestMasterTransactionsMirroredTx(TestMasterTransactionsCTxS):
+class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 6
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        }
-    }
 
 
 @pytest.mark.enabled_multidaemon
@@ -947,10 +921,10 @@ class TestMasterTransactionsRpcProxy(TestMasterTransactions):
 
 ##################################################################
 
+
 @pytest.mark.enabled_multidaemon
-class TestSequoiaCypressTransactionReplication(YTEnvSetup):
+class TestCypressTransactionExternalization(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
-    ENABLE_TMP_ROOTSTOCK = False
     ENABLE_TMP_PORTAL = False
     NUM_MASTERS = 3
 
@@ -1094,20 +1068,9 @@ class TestSequoiaCypressTransactionReplication(YTEnvSetup):
         assert read_table("//tmp/t") == content
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestSequoiaCypressTransactionReplicationMirroredTx(TestSequoiaCypressTransactionReplication):
+class TestCypressTransactionExternalizationMirroredTx(TestCypressTransactionExternalization):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-
-    # COMPAT(kvk1920): Remove when `use_cypress_transaction_service` become `true` by default.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            },
-        },
-    }

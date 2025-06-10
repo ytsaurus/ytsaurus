@@ -1,19 +1,19 @@
 
-# FLATTEN
-
-## FLATTEN BY {#flatten-by}
+# FLATTEN {#flatten-by}
 
 Converts the rows in the source table using vertical unpacking of [containers](../types/containers.md) of variable length (lists or dictionaries).
 
 For example:
 
 * Original table:
+
    |[a, b, c]|1|
    | --- | --- |
    |[d]|2|
    |[]|3|
 
 * The table resulting from `FLATTEN BY` on the left column:
+
    |a|1|
    | --- | --- |
    |b|1|
@@ -21,8 +21,9 @@ For example:
    |d|2|
 
 
-**Example**
-```(sql)
+## Example
+
+```yql
 $sample = AsList(
     AsStruct(AsList('a','b','c') AS value, CAST(1 AS Uint32) AS id),
     AsStruct(AsList('d') AS value, CAST(2 AS Uint32) AS id),
@@ -33,10 +34,11 @@ SELECT value, id FROM as_table($sample) FLATTEN BY (value);
 ```
 
 This conversion can be convenient in the following cases:
+
 * When you need to display statistics (e.g. via [`GROUP BY`](group_by.md)) based on the container column cells.
 * When the container column cells store identifiers from another table that must be joined via [`JOIN`](join.md).
 
-**Syntax**
+## Syntax
 
 * `FLATTEN BY` is specified after `FROM`, but before `GROUP BY`, if `GROUP BY` is present in the query.
 * The type of the result column depends on the type of the source column:
@@ -61,10 +63,12 @@ This conversion can be convenient in the following cases:
 
 {% endnote %}
 
-To apply `FLATTEN BY` to Yson, you first need to transform it into one of the container types discussed above. For instance, you can do this using the [UDF module of the same name](../udf/list/yson.md) from the list of presets.
+## Applying FLATTEN BY to YSON {#flatten-by-apply-yson}
+
+To apply `FLATTEN BY` to YSON, you first need to transform it into one of the container types discussed above. For instance, you can do this using the [UDF module of the same name](../udf/list/yson.md) from the list of presets.
 
 
-### Specifying the container type {#flatten-by-specific-type}
+## Specifying the container type {#flatten-by-specific-type}
 
 To specify the type of container to convert to, you can use:
 
@@ -78,9 +82,9 @@ To specify the type of container to convert to, you can use:
 
    To filter the `NULL` values without serialization, specify the operation by using `FLATTEN OPTIONAL BY`.
 
-**Examples**
+#### Examples
 
-```sql
+```yql
 SELECT
   t.item.0 AS key,
   t.item.1 AS value,
@@ -90,7 +94,7 @@ FROM my_table AS t
 FLATTEN DICT BY dict_column AS item;
 ```
 
-```sql
+```yql
 SELECT * FROM (
     SELECT
         AsList(1, 2, 3) AS a,
@@ -108,7 +112,7 @@ SELECT * FROM (
 
 
 
-### Analogs of FLATTEN BY in other DBMS {#flatten-other-dmb}
+## Analogs of FLATTEN BY in other DBMS {#flatten-other-dmb}
 
 * PostgreSQL: `unnest`;
 * Hive: `LATERAL VIEW`;
@@ -117,17 +121,13 @@ SELECT * FROM (
 * ClickHouse: `ARRAY JOIN / arrayJoin`;
 
 
-
-
-
-
 ## FLATTEN COLUMNS {#flatten-columns}
 
 Converts a table where all columns must be structures to a table with columns corresponding to each element of each structure from the source columns.
 
 The names of the source column structures are not used and not returned in the result. Be sure that the structure element names aren't repeated in the source columns.
 
-**Example**
+#### Example
 
 ```sql
 SELECT x, y, z

@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"io"
 
 	"github.com/cenkalti/backoff/v4"
 	"golang.org/x/xerrors"
 
+	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 )
@@ -31,6 +33,16 @@ func WithCreateOptions(opts ...CreateTableOption) WriteTableOption {
 		w.eagerCreate = true
 		w.lazyCreate = false
 		w.createOptions = opts
+	}
+}
+
+// WithWriteTableFormat sets YSON-serializable input format. If not specified "yson" will be used.
+//
+// Possible values:
+//   - ​​skiff.Format (see skiff.MustInferFormat).
+func WithWriteTableFormat(format any) WriteTableOption {
+	return func(w *tableWriter) {
+		w.format = format
 	}
 }
 
@@ -74,6 +86,11 @@ type (
 		) (err error)
 	}
 
+	encoder interface {
+		encode(value any) error
+		finish() error
+	}
+
 	tableWriter struct {
 		ctx       context.Context
 		yc        CypressClient
@@ -84,9 +101,10 @@ type (
 		batchSize               int
 		retryCount              uint64
 		lazyCreate, eagerCreate bool
+		format                  any
 		tableWriterConfig       map[string]any
 
-		encoder *yson.Writer
+		encoder encoder
 		buffer  *bytes.Buffer
 		err     error
 	}
@@ -110,8 +128,7 @@ func (w *tableWriter) Write(value any) error {
 		w.lazyCreate = false
 	}
 
-	w.encoder.Any(value)
-	if w.err = w.encoder.Err(); w.err != nil {
+	if w.err = w.encoder.encode(value); w.err != nil {
 		return w.err
 	}
 
@@ -149,11 +166,11 @@ func (w *tableWriter) Flush() error {
 		return w.err
 	}
 
-	if w.err = w.encoder.Finish(); w.err != nil {
+	if w.err = w.encoder.finish(); w.err != nil {
 		return w.err
 	}
 
-	opts := &WriteTableOptions{TableWriter: w.tableWriterConfig}
+	opts := &WriteTableOptions{Format: w.format, TableWriter: w.tableWriterConfig}
 	if err := backoff.Retry(func() error {
 		if err := w.rawWriter.WriteTableRaw(w.ctx, w.path, opts, w.buffer); err != nil {
 			return err
@@ -165,21 +182,69 @@ func (w *tableWriter) Flush() error {
 	}
 
 	w.path.SetAppend()
-	w.initBuffer(true)
-	return nil
+	w.err = w.initBuffer(true)
+	return w.err
 }
 
-func (w *tableWriter) initBuffer(reuse bool) {
-	config := yson.WriterConfig{Kind: yson.StreamListFragment, Format: yson.FormatBinary}
+func (w *tableWriter) initBuffer(reuse bool) (err error) {
 	if reuse {
 		w.buffer.Reset()
 	} else {
 		w.buffer = new(bytes.Buffer)
 	}
-	w.encoder = yson.NewWriterConfig(w.buffer, config)
+	w.encoder = newYSONEncoder(w.buffer)
+	if w.format != nil {
+		if skiffFormat, ok := w.format.(skiff.Format); ok {
+			w.encoder, err = newSkiffEncoder(w.buffer, skiffFormat)
+		} else {
+			err = xerrors.Errorf("unexpected format: %+v", w.format)
+		}
+	}
+	return
 }
 
 var _ TableWriter = (*tableWriter)(nil)
+
+type ysonEncoder struct {
+	w *yson.Writer
+}
+
+func newYSONEncoder(w io.Writer) encoder {
+	return &ysonEncoder{w: yson.NewWriterConfig(w, yson.WriterConfig{Kind: yson.StreamListFragment, Format: yson.FormatBinary})}
+}
+
+func (e *ysonEncoder) encode(value any) error {
+	e.w.Any(value)
+	return e.w.Err()
+}
+
+func (e *ysonEncoder) finish() error {
+	return e.w.Finish()
+}
+
+type skiffEncoder struct {
+	encoder *skiff.Encoder
+}
+
+func newSkiffEncoder(w io.Writer, skiffFormat skiff.Format) (encoder, error) {
+	schema, err := skiff.SingleSchema(&skiffFormat)
+	if err != nil {
+		return nil, err
+	}
+	encoder, err := skiff.NewEncoder(w, *schema)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create skiff encoder: %w", err)
+	}
+	return &skiffEncoder{encoder: encoder}, nil
+}
+
+func (e *skiffEncoder) encode(value any) error {
+	return e.encoder.Write(value)
+}
+
+func (e *skiffEncoder) finish() error {
+	return e.encoder.Flush()
+}
 
 // WriteTable creates high level table writer.
 //
@@ -215,6 +280,5 @@ func WriteTable(ctx context.Context, yc CypressClient, path ypath.Path, opts ...
 		return nil, xerrors.Errorf("yt: client %T is not compatible with yt.WriteTable", yc)
 	}
 
-	w.initBuffer(false)
-	return w, nil
+	return w, w.initBuffer(false)
 }

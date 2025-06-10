@@ -29,10 +29,6 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransaction::TTransaction(TTransactionId id)
-    : TTransactionBase(id)
-{ }
-
 void TTransaction::Save(TSaveContext& context) const
 {
     TTransactionBase::Save(context);
@@ -134,6 +130,28 @@ TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
             return NullTimestamp;
         default:
             return PrepareTimestamp_;
+    }
+}
+
+bool TTransaction::WasDefinitelyPrepared() const
+{
+    switch (GetPersistentState()) {
+        // Before prepare.
+        case ETransactionState::Active:
+            return false;
+        // After prepare.
+        case ETransactionState::PersistentCommitPrepared:
+        case ETransactionState::CommitPending:
+        case ETransactionState::Committed:
+        case ETransactionState::Serialized:
+            return true;
+        // Abort may happen with or without prepare.
+        case ETransactionState::Aborted:
+            return false;
+        // Transient state will never be returned by GetPersistentState.
+        case ETransactionState::TransientCommitPrepared:
+        case ETransactionState::TransientAbortPrepared:
+            YT_ABORT();
     }
 }
 

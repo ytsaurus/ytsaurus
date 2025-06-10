@@ -15,7 +15,7 @@ from yt_commands import (
 
 from yt_type_helpers import make_schema, normalize_schema, make_column, list_type, tuple_type, optional_type
 
-from yt_helpers import skip_if_component_old, skip_if_old
+from yt_helpers import skip_if_component_old, skip_if_old, skip_if_delivery_fenced_pipe_writer_not_supported
 
 import yt.yson as yson
 from yt.test_helpers import assert_items_equal
@@ -1521,14 +1521,23 @@ print(json.dumps(input))
             assertion=lambda row_count: row_count == len(result) - added_rows,
             job_type=job_type))
 
-    @authors("arkady-e1ppa")
-    @pytest.mark.skip(reason="broken until YIML-219 is closed")
+    @authors("pogorelov", "arkady-e1ppa")
     @pytest.mark.parametrize("ordered", [False, True])
     @pytest.mark.parametrize("fmt", ["json", "dsv"])
+    @pytest.mark.parametrize(
+        "use_new_delivery_fenced_connection", [
+            False,
+            True,
+        ]
+    )
     @pytest.mark.ignore_in_opensource_ci
-    def test_map_interrupt_job_with_delivery_fenced_pipe_writer(self, ordered, fmt):
+    def test_map_interrupt_job_with_delivery_fenced_pipe_writer(self, ordered, fmt, use_new_delivery_fenced_connection):
         if any(version in getattr(self, "ARTIFACT_COMPONENTS", {}) for version in ["23_2", "24_1"]):
             pytest.xfail("Is not supported for older versions of server components")
+
+        skip_if_delivery_fenced_pipe_writer_not_supported(use_new_delivery_fenced_connection)
+
+        update_nodes_dynamic_config(value=use_new_delivery_fenced_connection, path="exec_node/job_controller/job_proxy/use_new_delivery_fenced_connection")
 
         # Test explanation:
         # Each job reads one row and writes it twice
@@ -1610,10 +1619,20 @@ print(json.dumps(input))
             assertion=lambda row_count: row_count == len(result) - 2,
             job_type=job_type))
 
-    @authors("arkady-e1ppa")
+    @authors("pogorelov", "arkady-e1ppa")
     @pytest.mark.parametrize("ordered", [False, True])
-    def test_adaptive_buffer_row_count(self, ordered):
+    @pytest.mark.parametrize(
+        "use_new_delivery_fenced_connection", [
+            False,
+            True,
+        ]
+    )
+    def test_adaptive_buffer_row_count(self, ordered, use_new_delivery_fenced_connection):
         skip_if_old(self.Env, (24, 2), "Option is not present in older binaries")
+
+        skip_if_delivery_fenced_pipe_writer_not_supported(use_new_delivery_fenced_connection)
+
+        update_nodes_dynamic_config(value=use_new_delivery_fenced_connection, path="exec_node/job_controller/job_proxy/use_new_delivery_fenced_connection")
 
         input_table = "//tmp/in"
         output_table = "//tmp/out"
@@ -1638,10 +1657,12 @@ print(json.dumps(input))
             out=output,
             command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
             spec={
+                "mapper": {"format": "json"},
                 "job_count": 1,
                 "job_io": {
                     "buffer_row_count": 1,
                     "use_adaptive_buffer_row_count": True,
+                    "use_delivery_fenced_pipe_writer": True,
                 },
                 "max_failed_job_count": 1,
             },
@@ -2320,7 +2341,7 @@ print(json.dumps(input))
 
     @authors("apollo1321")
     def test_job_count_with_skewed_row_sizes(self):
-        skip_if_component_old(self.Env, (25, 1), "controller-agent")
+        skip_if_component_old(self.Env, (25, 2), "controller-agent")
         create("table", "//tmp/t_in")
         rows_batches = [
             [{"k": "v"}, {"k": "v"}],
@@ -2362,11 +2383,13 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
     NUM_TEST_PARTITIONS = 15
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    CHUNK_HOST_CELL_TAGS = [11, 12]
+
     @authors("babenko")
     def test_multicell_input_fetch(self):
-        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[0]})
         write_table("//tmp/t1", [{"a": 1}])
-        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": self.CHUNK_HOST_CELL_TAGS[1]})
         write_table("//tmp/t2", [{"a": 2}])
 
         create("table", "//tmp/t_in", attributes={"external": False})
@@ -2393,7 +2416,7 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
     NUM_SECONDARY_MASTER_CELLS = 5
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
-        "11": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
         "12": {"roles": ["chunk_host"]},
         "13": {"roles": ["cypress_node_host"]},
         "14": {"roles": ["transaction_coordinator"]},
@@ -2402,38 +2425,34 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
 
 
 @pytest.mark.enabled_multidaemon
-class TestSchedulerMapCommandsShardedTxCTxS(TestSchedulerMapCommandsShardedTx):
+class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTx):
     ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    NUM_TEST_PARTITIONS = 24
 
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMapCommandsSysOperationsRootstock(TestSchedulerMapCommandsMirroredTx):
+    ENABLE_MULTIDAEMON = True
+    ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
+
+    CHUNK_HOST_CELL_TAGS = [12, 14]
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["sequoia_node_host"]},
+        "14": {"roles": ["chunk_host"]},
+        "15": {"roles": ["transaction_coordinator"]},
     }
 
 
 @pytest.mark.enabled_multidaemon
-class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTxCTxS):
+class TestSchedulerMapCommandsSequoia(TestSchedulerMapCommandsSysOperationsRootstock):
     ENABLE_MULTIDAEMON = True
-    USE_SEQUOIA = True
-    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_TEST_PARTITIONS = 24
-
-    def setup_method(self, method):
-        super(TestSchedulerMapCommandsShardedTxCTxS, self).setup_method(method)
-        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
-        update_controller_agent_config(
-            "set_committed_attribute_via_transaction_action",
-            False,
-            wait_for_orchid=False)
-        update_controller_agent_config(
-            "commit_operation_cypress_node_changes_via_system_transaction",
-            True)
+    ENABLE_TMP_ROOTSTOCK = True
 
 
 ##################################################################
@@ -2552,7 +2571,6 @@ class TestJobSizeAdjuster(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {"controller_agent": {"map_operation_options": {"data_size_per_job": 1}}}
 
     @authors("max42")
-    @pytest.mark.skipif("True", reason="YT-8228")
     def test_map_job_size_adjuster_boost(self):
         create("table", "//tmp/t_input")
         original_data = [{"index": "%05d" % i} for i in range(31)]
@@ -2561,11 +2579,29 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
         create("table", "//tmp/t_output")
 
+        # A little hack to serialize job scheduling one-by-one.
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    }
+                }
+            }
+        })
+
         op = map(
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command="echo lines=`wc -l`",
-            spec={"mapper": {"format": "dsv"}, "resource_limits": {"user_slots": 1}},
+            spec={
+                "mapper": {"format": "dsv"},
+                "resource_limits": {"user_slots": 1},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "enable_multiple_jobs_in_allocation": True,
+            },
         )
 
         expected = [{"lines": str(2 ** i)} for i in range(5)]
@@ -2574,7 +2610,9 @@ class TestJobSizeAdjuster(YTEnvSetup):
         estimated = get(op.get_path() + "/@progress/tasks/0/estimated_input_data_weight_histogram")
         histogram = get(op.get_path() + "/@progress/tasks/0/input_data_weight_histogram")
         assert estimated == histogram
-        assert histogram["max"] / histogram["min"] == 16
+        # NB(coteeq): THistogram is a little weird here and will pessimize max.
+        # assert histogram["max"] / histogram["min"] == 16
+        assert histogram["max"] / histogram["min"] >= 16
         assert histogram["count"][0] == 1
         assert sum(histogram["count"]) == 5
 
@@ -2601,6 +2639,42 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
         for row in read_table("//tmp/t_output"):
             assert int(row["lines"]) < 5
+
+    @authors("coteeq")
+    def test_ordered_map_adjustment(self):
+        create("table", "//tmp/in")
+        data = [{"index": "%05d" % i} for i in range(31)]
+        for row in data:
+            write_table("<append=true>//tmp/in", row, verbose=False)
+
+        create("table", "//tmp/out")
+        create("table", "//tmp/line_counts")
+
+        map(
+            in_="//tmp/in",
+            out=["//tmp/line_counts", "//tmp/out"],
+            command="echo lines=$(tee /proc/self/fd/4 | wc -l) cookie=$YT_JOB_COOKIE",
+            spec={
+                "ordered": True,
+                "mapper": {"format": yson.loads(b"<field_separator=\" \">dsv")},
+                "resource_limits": {"user_slots": 3},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "force_job_size_adjuster": True,
+            },
+        )
+
+        assert data == read_table("//tmp/out")
+
+        counts = read_table("//tmp/line_counts")
+        print_debug(counts)
+
+        assert any(
+            # NB: 5 is chosen kind of arbitrarily. I just wanted to assert that the latter jobs
+            # are large enough (5 means enlargement happened at least 3 times).
+            int(row["lines"]) > 5 for row in counts
+        )
 
     @authors("ignat")
     def test_map_unavailable_chunk(self):

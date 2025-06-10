@@ -516,6 +516,8 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("full_heartbeat_timeout", &TThis::FullHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("location_full_heartbeat_timeout", &TThis::LocationFullHeartbeatTimeout)
+        .Default(TDuration::Seconds(60));
     registrar.Parameter("job_heartbeat_period", &TThis::JobHeartbeatPeriod)
         .Default();
     registrar.Parameter("job_heartbeat_period_splay", &TThis::JobHeartbeatPeriodSplay)
@@ -528,6 +530,8 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("location_uuid_to_disable_during_full_heartbeat", &TThis::LocationUuidToDisableDuringFullHeartbeat)
         .Default();
+    registrar.Parameter("full_heartbeat_session_retrying_channel", &TThis::FullHeartbeatSessionRetryingChannel)
+        .DefaultNew();
     registrar.Parameter("full_heartbeat_session_sleep_duration", &TThis::FullHeartbeatSessionSleepDuration)
         .Default();
 }
@@ -995,6 +999,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
             // This is not a mistake!
             config->MasterConnector->JobHeartbeatPeriod = config->IncrementalHeartbeatPeriod;
         }
+
+        THROW_ERROR_EXCEPTION_IF(config->LeaseTransactionPingPeriod >= config->LeaseTransactionTimeout,
+            "Lease transaction ping period cannot be greater or equal to lease transaction timeout");
     });
 }
 

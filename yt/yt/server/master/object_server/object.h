@@ -255,7 +255,7 @@ public:
     virtual void LoadEctoplasm(TStreamLoadContext& context);
 
 protected:
-    // COMPAT(cherepashka): add `const` after 25.1.
+    // COMPAT(aleksandra-zh): add `const` after 25.2.
     TObjectId Id_;
 
     int RefCounter_ = 0;
@@ -390,6 +390,7 @@ public:
     void Assign(T* ptr) noexcept;
     void Assign(T* ptr, TObjectPtrLoadTag) noexcept;
     void Reset() noexcept;
+    T* Release() noexcept;
 
     T* operator->() const noexcept;
 

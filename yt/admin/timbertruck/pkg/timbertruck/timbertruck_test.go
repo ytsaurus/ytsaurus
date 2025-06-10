@@ -25,7 +25,7 @@ func newTestConfig(workDir string) timbertruck.Config {
 func createTestStreamPipeline(ch chan<- string) timbertruck.NewPipelineFunc {
 	return func(task timbertruck.TaskArgs) (pipeline *pipelines.Pipeline, err error) {
 		task.Controller.Logger().Debug("Creating text pipeline", "position", task.Position)
-		pipeline, stream, err := pipelines.NewTextPipeline(task.Path, task.Position, pipelines.TextPipelineOptions{
+		pipeline, stream, err := pipelines.NewTextPipeline(task.Controller.Logger(), task.Path, task.Position, pipelines.TextPipelineOptions{
 			LineLimit:   64,
 			BufferLimit: 1024,
 		})

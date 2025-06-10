@@ -183,8 +183,8 @@ public:
     TIndexedEntries<TAllocationRequest> ChangedAllocations;
     TIndexedEntries<TDeallocationRequest> NewDeallocations;
     TIndexedEntries<TBundleControllerState> ChangedStates;
-    TMutationMap<TInstanceAnnotations> ChangeNodeAnnotations;
-    TMutationMap<TInstanceAnnotations> ChangedProxyAnnotations;
+    TMutationMap<TBundleControllerInstanceAnnotations> ChangeNodeAnnotations;
+    TMutationMap<TBundleControllerInstanceAnnotations> ChangedProxyAnnotations;
 
     THashSet<TBundleMutation<std::string>> CompletedAllocations;
 
@@ -256,6 +256,11 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NBundleControllerClient::TCpuLimitsPtr GetBundleEffectiveCpuLimits(
+    const std::string& bundleName,
+    const TBundleInfoPtr& bundleInfo,
+    const TSchedulerInputState& input);
+
 std::string GetSpareBundleName(const TZoneInfoPtr& zoneInfo);
 
 void InitializeZoneToSpareNodes(TSchedulerInputState& input, TSchedulerMutations* mutations);
@@ -296,7 +301,7 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
     const TSchedulerInputState& schedulerState,
     const TSchedulerMutations& mutations);
 
-std::string GetPodIdForInstance(const std::string& name);
+std::string GetPodIdForInstance(const TCypressAnnotationsPtr& cypressAnnotations, const std::string& name);
 
 std::string GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource);
 

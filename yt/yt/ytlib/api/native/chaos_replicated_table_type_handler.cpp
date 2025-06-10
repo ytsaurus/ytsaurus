@@ -124,7 +124,7 @@ private:
     std::string GetClusterName()
     {
         TGetNodeOptions options;
-        options.ReadFrom = EMasterChannelKind::LocalCache;
+        options.ReadFrom = EMasterChannelKind::ClientSideCache;
         auto yson = WaitFor(Client_->GetNode("//sys/@cluster_name", options))
             .ValueOrThrow();
         return ConvertTo<TString>(yson);
@@ -134,7 +134,7 @@ private:
     T GetAttributeOrThrow(
         const ITransactionPtr& transaction,
         const TYPath& path,
-        const TString& attributeKey,
+        const std::string& attributeKey,
         const TString& errorMessage)
     {
         TGetNodeOptions options;
@@ -152,9 +152,9 @@ private:
         return *optionalAttributeValue;
     }
 
-    TString GetChaosCellBundle(const ITransactionPtr& transaction, TTableId tableId)
+    std::string GetChaosCellBundle(const ITransactionPtr& transaction, TTableId tableId)
     {
-        return GetAttributeOrThrow<TString>(
+        return GetAttributeOrThrow<std::string>(
             transaction,
             FromObjectId(tableId),
             "chaos_cell_bundle",

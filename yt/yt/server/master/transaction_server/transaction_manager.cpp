@@ -23,9 +23,19 @@
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/node.h>
 
+#include <yt/yt/server/master/object_server/attribute_set.h>
+#include <yt/yt/server/master/object_server/object.h>
+#include <yt/yt/server/master/object_server/type_handler_detail.h>
+
 #include <yt/yt/server/master/security_server/access_log.h>
+#include <yt/yt/server/master/security_server/account.h>
+#include <yt/yt/server/master/security_server/security_manager.h>
+#include <yt/yt/server/master/security_server/user.h>
 
 #include <yt/yt/server/master/sequoia_server/config.h>
+#include <yt/yt/server/master/sequoia_server/context.h>
+
+#include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
@@ -38,6 +48,8 @@
 
 #include <yt/yt/server/lib/lease_server/proto/lease_manager.pb.h>
 
+#include <yt/yt/server/lib/sequoia/protobuf_helpers.h>
+
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 #include <yt/yt/server/lib/transaction_server/private.h>
 
@@ -48,20 +60,6 @@
 
 #include <yt/yt/server/lib/transaction_supervisor/proto/transaction_supervisor.pb.h>
 
-#include <yt/yt/server/master/object_server/attribute_set.h>
-#include <yt/yt/server/master/object_server/object.h>
-#include <yt/yt/server/master/object_server/type_handler_detail.h>
-
-#include <yt/yt/server/master/security_server/account.h>
-#include <yt/yt/server/master/security_server/security_manager.h>
-#include <yt/yt/server/master/security_server/user.h>
-
-#include <yt/yt/server/master/sequoia_server/context.h>
-
-#include <yt/yt/server/master/transaction_server/proto/transaction_manager.pb.h>
-
-#include <yt/yt/server/lib/sequoia/protobuf_helpers.h>
-
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/client.h>
@@ -69,6 +67,10 @@
 #include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/tablet_client/bulk_insert_locking.h>
+
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h>
 
 #include <yt/yt/client/hive/timestamp_map.h>
 
@@ -79,11 +81,6 @@
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h>
-#include <yt/yt/ytlib/transaction_client/helpers.h>
-
-#include <yt/yt/library/profiling/producer.h>
-
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
@@ -92,12 +89,13 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/authentication_identity.h>
 
 #include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/rpc/authentication_identity.h>
+#include <yt/yt/library/profiling/producer.h>
 
 #include <library/cpp/yt/compact_containers/compact_queue.h>
 
@@ -105,38 +103,69 @@ namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;
 using namespace NCellServer;
+using namespace NConcurrency;
+using namespace NCypressServer;
+using namespace NElection;
+using namespace NHiveClient;
+using namespace NHiveServer;
+using namespace NHydra;
+using namespace NLeaseServer;
 using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NObjectServer;
-using namespace NCypressServer;
-using namespace NElection;
-using namespace NHydra;
-using namespace NHiveClient;
-using namespace NHiveServer;
-using namespace NLeaseServer;
-using namespace NYTree;
-using namespace NYson;
-using namespace NConcurrency;
-using namespace NCypressServer;
+using namespace NProfiling;
+using namespace NSecurityServer;
+using namespace NSequoiaClient;
+using namespace NSequoiaServer;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NTransactionClient::NProto;
-using namespace NSecurityServer;
-using namespace NProfiling;
-using namespace NSequoiaClient;
-using namespace NSequoiaServer;
 using namespace NTransactionSupervisor;
+using namespace NYTree;
+using namespace NYson;
 
 using NTransactionSupervisor::NProto::NTransactionSupervisor::TRspCommitTransaction;
 using NTransactionSupervisor::NProto::NTransactionSupervisor::TRspAbortTransaction;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+class TTransactionContextGuard
+{
+public:
+    TTransactionContextGuard(TBootstrap* bootstrap, TTransaction* transaction)
+        : UserGuard_(
+            bootstrap->GetSecurityManager(),
+            transaction->IsSequoiaTransaction()
+                ? transaction->GetAuthenticationIdentity()
+                : NRpc::GetCurrentAuthenticationIdentity())
+    {
+        if (transaction->IsSequoiaTransaction()) {
+            TraceGuard_.emplace(transaction->GetTraceContext());
+            SequoiaGuard_.emplace(bootstrap, transaction->GetId(), transaction->SequoiaWriteSet());
+        }
+    }
+
+private:
+    TAuthenticatedUserGuard UserGuard_;
+    std::optional<NTracing::TTraceContextGuard> TraceGuard_;
+    std::optional<TSequoiaContextGuard> SequoiaGuard_;
+};
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTransactionManager
     : public TMasterAutomatonPart
     , public ITransactionManager
-    , public TTransactionManagerBase<TTransaction>
+    , public TTransactionManagerBase<
+        TTransaction,
+        NCellMaster::TSaveContext,
+        NCellMaster::TLoadContext
+    >
 {
 public:
     //! Raised when a new transaction is started.
@@ -162,9 +191,9 @@ public:
             Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
             TransactionServerLogger()))
     {
-        TransactionServerProfiler().AddProducer("", BufferedProducer_);
-
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
+
+        TransactionServerProfiler().AddProducer("", BufferedProducer_);
 
         Logger = TransactionServerLogger();
 
@@ -800,13 +829,12 @@ public:
 
         transaction->SetPersistentState(ETransactionState::Committed);
 
+        TTransactionContextGuard guard(Bootstrap_, transaction);
         TransactionCommitted_.Fire(transaction);
 
         if (temporarilyRefTimestampHolder) {
             UnrefTimestampHolder(transactionId);
         }
-
-        auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunCommitTransactionActions(transaction, options);
 
@@ -951,10 +979,9 @@ public:
 
         transaction->SetPersistentState(ETransactionState::Aborted);
 
+        TTransactionContextGuard guard(Bootstrap_, transaction);
         TransactionAborted_.Fire(transaction);
-
-        auto sequoiaContext = MaybeCreateSequoiaContextGuard(transaction);
-        RunAbortTransactionActions(transaction, options);
+        RunAbortTransactionActions(transaction, options, /*requireLegacyBehavior*/ false);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
@@ -1302,11 +1329,17 @@ public:
         object->ImportRefObject();
     }
 
-    void DoRegisterTransactionActionHandlers(
-        TTransactionActionDescriptor<TTransaction> descriptor) override
+    using ITransactionManager::RegisterTransactionActionHandlers;
+
+    void RegisterTransactionActionHandlers(TTypeErasedTransactionActionDescriptor descriptor) override
     {
-        TTransactionManagerBase<TTransaction>::DoRegisterTransactionActionHandlers(
+        TTransactionManagerBase::RegisterTransactionActionHandlers(
             std::move(descriptor));
+    }
+
+    ITransactionActionStateFactory* GetTransactionActionStateFactory() override
+    {
+        return this;
     }
 
     void ExportObject(
@@ -1420,7 +1453,8 @@ public:
             leaseAgnosticPrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             leaseAwarePrerequisiteTransactionIds.reserve(prerequisiteTransactionIds.size());
             for (auto transactionId : prerequisiteTransactionIds) {
-                if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId) &&
+                if (IsMirroringToSequoiaEnabled() &&
+                    IsCypressTransactionMirroredToSequoia(transactionId) &&
                     GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases)
                 {
                     leaseAwarePrerequisiteTransactionIds.push_back(transactionId);
@@ -1516,9 +1550,24 @@ public:
             GetAndValidatePrerequisiteTransaction(prerequisiteTransactionId);
         }
 
-        auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
+        TTransactionContextGuard guard(Bootstrap_, transaction);
 
-        RunPrepareTransactionActions(transaction, options);
+        if (transaction->IsSequoiaTransaction()) {
+            try {
+                RunPrepareTransactionActions(transaction, options);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    NSequoiaClient::EErrorCode::TransactionActionFailedOnMasterCell,
+                    "Prepare action for Sequoia transaction %v failed on master participant %v",
+                    transaction->GetId(),
+                    Bootstrap_->GetCellId())
+                    << TErrorAttribute("sequoia_transaction_id", transaction->GetId())
+                    << TErrorAttribute("master_cell_id", Bootstrap_->GetCellId())
+                    << ex;
+            }
+        } else {
+            RunPrepareTransactionActions(transaction, options);
+        }
 
         if (persistent) {
             transaction->SetPersistentState(ETransactionState::PersistentCommitPrepared);
@@ -1571,6 +1620,8 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        ValidateMirroredTransactionFinish(transactionId, /*commit*/ true);
+
         auto* transaction = GetTransactionOrThrow(transactionId);
         transaction->SetNativeCommitMutationRevision(nativeCommitMutationRevision);
         CommitTransaction(transaction, options);
@@ -1591,6 +1642,8 @@ public:
         const TTransactionAbortOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        ValidateMirroredTransactionFinish(transactionId, /*commit*/ false);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
         AbortTransaction(
@@ -1734,9 +1787,10 @@ public:
             }
         }
 
-        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0 ||
-            (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases &&
-            IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
+        // NB: even if lease issuing or transaction mirroring is disabled leases
+        // still have to be revoked properly since Cypress transaction may be
+        // started before leases were disabled.
+        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0 || IsCypressTransactionMirroredToSequoia(transactionId);
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1811,9 +1865,9 @@ public:
             }
         }
 
-        auto revokeLeases = transaction->GetSuccessorTransactionLeaseCount() > 0 ||
-            (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases &&
-            IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId));
+        auto revokeLeases =
+            transaction->GetSuccessorTransactionLeaseCount() > 0 ||
+            IsCypressTransactionMirroredToSequoia(transactionId);
 
         auto readyEvent = GetReadyToPrepareTransactionCommit(
             prerequisiteTransactionIds,
@@ -1921,15 +1975,11 @@ public:
         auto authenticationIdentity = context->GetAuthenticationIdentity();
 
         if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
-            if (GetDynamicConfig()->EnableCypressMirroredToSequoiaPrerequisiteTransactionValidationViaLeases) {
-                context->ReplyFrom(
-                    RevokeTransactionLeases(transactionId)
-                    .Apply(BIND([transactionId, force, authenticationIdentity, this, this_ = MakeStrong(this)] {
-                        return AbortCypressTransactionInSequoia(Bootstrap_, transactionId, force, authenticationIdentity);
-                    })));
-                return;
-            }
-            context->ReplyFrom(AbortCypressTransactionInSequoia(Bootstrap_, transactionId, force, authenticationIdentity));
+            context->ReplyFrom(
+                RevokeTransactionLeases(transactionId)
+                .Apply(BIND([transactionId, force, authenticationIdentity, this, this_ = MakeStrong(this)] {
+                    return AbortCypressTransactionInSequoia(Bootstrap_, transactionId, force, authenticationIdentity);
+                })));
             return;
         }
 
@@ -2075,7 +2125,7 @@ public:
         }
     }
 
-    TEntityMap<TTransaction>* MutableTransactionMap() override
+    TMutableEntityMap<TTransaction>* MutableTransactionMap() override
     {
         return &TransactionMap_;
     }
@@ -2140,7 +2190,6 @@ private:
     bool FixExportedObjectsRefs_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
 
     // This should become a mutation used to create system transactions only.
     void HydraStartTransaction(
@@ -2382,11 +2431,11 @@ private:
 
         for (const auto& protoData : request->actions()) {
             auto data = FromProto<TTransactionActionData>(protoData);
-            transaction->Actions().push_back(data);
+            auto& action = transaction->Actions().emplace_back(std::move(data));
 
             YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v)",
                 transactionId,
-                data.Type);
+                action.Type);
         }
     }
 
@@ -2480,7 +2529,7 @@ private:
             YT_LOG_WARNING(ex,
                 "Failed to commit transaction (TransactionId: %v)",
                 transaction->GetId());
-            SetTransactionTimeout(transaction, TDuration::Zero());
+            SetTransactionTimeout(transaction, TDuration::MilliSeconds(250));
         }
     }
 
@@ -3358,8 +3407,8 @@ private:
                         LeaseTracker_->UnregisterTransaction(transactionId);
                         LeaseTracker_->RegisterTransaction(
                             transactionId,
-                            /* parentId*/ {},
-                            /*timeout*/ TDuration::Zero(),
+                            /*parentId*/ {},
+                            /*timeout*/ TDuration::MilliSeconds(250),
                             /*deadline*/ std::nullopt,
                             BIND(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
                                 .Via(automatonInvoker));
@@ -3395,10 +3444,7 @@ private:
             TCompactVector<TTransaction*, 16> dependentTransactions(
                 currentTransaction->DependentTransactions().begin(),
                 currentTransaction->DependentTransactions().end());
-            std::sort(
-                dependentTransactions.begin(),
-                dependentTransactions.end(),
-                TObjectIdComparer());
+            SortUniqueBy(dependentTransactions, std::mem_fn(&TTransaction::GetId));
             for (auto* nextTransaction : dependentTransactions) {
                 tryEnqueue(nextTransaction);
             }
@@ -3445,6 +3491,7 @@ private:
         NProto::TReqRevokeLeases request;
         ToProto(request.mutable_transaction_id(), transactionId);
         auto mutation = CreateMutation(HydraManager_, request);
+        mutation->SetCurrentTraceContext();
         return mutation->Commit().AsVoid().Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -3527,16 +3574,6 @@ private:
         }
     }
 
-    TSequoiaContextGuard MaybeCreateSequoiaContextGuard(TTransaction* transaction)
-    {
-        if (transaction->IsSequoiaTransaction()) {
-            auto sequoiaContext = CreateSequoiaContext(Bootstrap_, transaction->GetId(), transaction->SequoiaWriteSet());
-            return TSequoiaContextGuard(std::move(sequoiaContext), Bootstrap_->GetSecurityManager(), transaction->GetAuthenticationIdentity(), transaction->GetTraceContext());
-        } else {
-            return TSequoiaContextGuard(Bootstrap_->GetSecurityManager());
-        }
-    }
-
     void OnProfiling()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -3572,6 +3609,18 @@ private:
                 transactionSupervisor->RecomputeStronglyOrderedTransactionRefsOnCoordinator();
             }
         }
+
+        auto getCypressTransactionMirroringEnabled = [] (const TDynamicClusterConfigPtr& config) {
+            const auto& sequoiaManager = config->SequoiaManager;
+            return sequoiaManager->Enable && sequoiaManager->EnableCypressTransactionsInSequoia;
+        };
+
+        auto mirroringWasEnabled = getCypressTransactionMirroringEnabled(oldConfig);
+        auto mirroringEnabled = getCypressTransactionMirroringEnabled(Bootstrap_->GetDynamicConfig());
+        if (mirroringEnabled != mirroringWasEnabled) {
+            YT_LOG_INFO("Cypress transaction mirroring %v",
+                mirroringEnabled ? "enabled" : "disabled");
+        }
     }
 
     void ThrowTransactionSuccessorHasLeases(TTransaction* transaction)
@@ -3601,6 +3650,26 @@ private:
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
         return config->Enable && config->EnableCypressTransactionsInSequoia;
+    }
+
+    void ValidateMirroredTransactionFinish(TTransactionId transactionId, bool commit)
+    {
+        if (IsCypressTransactionMirroredToSequoia(transactionId) &&
+            IsMirroringToSequoiaEnabled() &&
+            !GetSequoiaContext())
+        {
+            YT_LOG_ALERT(
+                "Attempt to %v mirrored transaction via TransactionSupervisor.%vTransaction (TransactionId: %v)",
+                commit ? "commit" : "abort",
+                commit ? "Commit" : "Abort",
+                transactionId);
+
+            THROW_ERROR_EXCEPTION(
+                "Cannot %v mirrored transaction via TransactionSupervisor.%vTransaction",
+                commit ? "commit" : "abort",
+                commit ? "Commit" : "Abort")
+                << TErrorAttribute("transaction_id", transactionId);
+        }
     }
 };
 

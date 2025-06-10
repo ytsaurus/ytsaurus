@@ -1,6 +1,8 @@
 #include "store_flusher.h"
 
 #include "bootstrap.h"
+#include "config.h"
+#include "error_manager.h"
 #include "public.h"
 #include "slot_manager.h"
 #include "store_detail.h"
@@ -71,7 +73,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,8 +81,8 @@ TFlushTaskInfo::TFlushTaskInfo(
     TGuid taskId,
     TTabletId tabletId,
     NHydra::TRevision mountRevision,
-    TString tablePath,
-    TString tabletCellBundle,
+    NYPath::TYPath tablePath,
+    std::string tabletCellBundle,
     TStoreId storeId)
     : TBackgroundActivityTaskInfoBase(
         taskId,
@@ -610,6 +612,8 @@ private:
             YT_LOG_ERROR(error, "Error flushing tablet store, backing off");
 
             storeManager->BackoffStoreFlush(store);
+
+            Bootstrap_->GetErrorManager()->HandleError(error, "Flush", tabletSnapshot);
 
             task->OnFailed(std::move(error));
         }

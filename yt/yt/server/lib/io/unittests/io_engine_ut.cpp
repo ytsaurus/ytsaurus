@@ -366,6 +366,7 @@ TEST_P(TIOEngineTest, ChangeDynamicConfig)
         {
             uring_thread_count = %v;
             read_thread_count = %v;
+            enable_slicing = %v;
             simulated_max_bytes_per_write = 512;
         })";
 
@@ -388,9 +389,11 @@ TEST_P(TIOEngineTest, ChangeDynamicConfig)
             Sleep(RandomDuration(TDuration::MilliSeconds(10)));
 
             auto readThreadCount = RandomNumber<ui32>(7) + 1;
+            auto enableSlicing = RandomNumber<bool>();
             auto config = Format(ConfigTemplate,
                 readThreadCount,
-                readThreadCount);
+                readThreadCount,
+                enableSlicing);
 
             engine->Reconfigure(NYTree::ConvertTo<NYTree::INodePtr>(
                 NYson::TYsonString(config)));

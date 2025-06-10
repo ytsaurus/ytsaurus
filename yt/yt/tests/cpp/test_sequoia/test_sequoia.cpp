@@ -1,6 +1,12 @@
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
 #include <yt/yt/tests/cpp/test_base/private.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
 
@@ -70,52 +76,6 @@ private:
         }))
             .ThrowOnError();
     }
-
-    static void AbortCypressTransactions()
-    {
-        YT_LOG_DEBUG("Aborting Cypress transactions");
-
-        auto transactions = ConvertToNode(WaitFor(Client_->ListNode("//sys/transactions", NApi::TListNodeOptions{
-            .Attributes = {"cypress_transaction"},
-        }))
-            .ValueOrThrow())
-            ->AsList();
-
-        std::vector<TFuture<void>> abortFutures;
-        for (const auto& txNode : transactions->GetChildren()) {
-            auto tx = txNode->AsString();
-            if (tx->Attributes().Get("cypress_transaction", false)) {
-                NApi::TTransactionAbortOptions abortOptions = {};
-                abortOptions.Force = true;
-                abortFutures.push_back(Client_
-                    ->AttachTransaction(ConvertTo<TTransactionId>(tx->GetValue()))
-                    ->Abort(abortOptions));
-            }
-        }
-
-        WaitFor(AllSet(abortFutures).AsVoid())
-            .ThrowOnError();
-
-        for (int transactionIndex : std::views::iota(0, std::ssize(abortFutures))) {
-            auto value = abortFutures[transactionIndex].TryGet();
-            YT_VERIFY(value.has_value());
-
-            auto transactionId = transactions->FindChild(transactionIndex)->GetValue<std::string>();
-
-            if (value->IsOK()) {
-                YT_LOG_DEBUG(
-                    "Cypress transaction aborted (TransactionId: %v)",
-                    transactionId);
-            } else {
-                YT_LOG_DEBUG(
-                    "Failed to abort Cypress transaction (TransactionId: %v, Error: %v)",
-                    transactionId,
-                    value->GetMessage());
-            }
-        }
-
-        YT_LOG_DEBUG("All Cypress transactions aborted (TransactionCount: %v)", abortFutures.size());
-    }
 };
 
 TString Prettify(const TYsonString& yson)
@@ -158,8 +118,8 @@ TEST_F(TSequoiaTest, TestCreateMapNode)
 
 TEST_F(TSequoiaTest, TestRowLockConflict)
 {
-    constexpr static int ThreadCount = 3;
-    constexpr static int RequestCount = 15;
+    constexpr static int ThreadCount = 5;
+    constexpr static int RequestCount = 25;
 
     WaitFor(Client_->CreateNode("//sequoia/map", EObjectType::MapNode))
         .ValueOrThrow();
@@ -269,7 +229,7 @@ TEST_F(TSequoiaTest, CypressTransactionSimple)
 
 TEST_F(TSequoiaTest, ConcurrentCommitTx)
 {
-    constexpr auto ChildCount = 3;
+    constexpr auto ChildCount = 4;
     constexpr auto LevelCount = 4;
 
     auto barrierPromise = NewPromise<void>();
@@ -396,13 +356,14 @@ TEST_F(TSequoiaTest, TestParallelActionsWithPrerequisiteTx)
             &timestamp,
             barrierFuture = barrierPromise.ToFuture(),
             prerequisiteTx
-        ]() -> std::tuple<int, int, TError> {
+        ] () -> std::tuple<int, int, TError> {
             WaitForFast(barrierFuture)
                 .ThrowOnError();
 
             auto startTimestamp = timestamp.fetch_add(1, std::memory_order::acquire);
             auto error = WaitFor(prerequisiteTx->Commit());
             auto endTimestamp = timestamp.fetch_add(1, std::memory_order::release);
+            YT_LOG_DEBUG(error, "Request executed (StartTimestamp: %v, EndTimestamp: %v)", startTimestamp, endTimestamp);
             return {startTimestamp, endTimestamp, error};
         })
             .AsyncVia(threadPool->GetInvoker())
@@ -462,6 +423,206 @@ TEST_F(TSequoiaTest, TestParallelActionsWithPrerequisiteTx)
             "//sys/cypress_proxies/@config/object_service/enable_fast_path_prerequisite_transactions_check",
             ConvertToYsonString(true)))
         .ThrowOnError();
+}
+
+TEST_F(TSequoiaTest, TestTransactionAbortConflict)
+{
+    std::vector<NApi::ITransactionPtr> transactions;
+    std::vector<TTransactionId> transactionIds;
+    std::vector<NCypressClient::TNodeId> createdNodes;
+
+    NApi::ITransactionPtr currentTransaction;
+    std::string currentPath = "//sequoia";
+    for (int i = 0; i < 20; ++i) {
+        currentPath += Format("/level%v", i);
+        NApi::TTransactionStartOptions startTransactionOptions;
+        if (currentTransaction) {
+            startTransactionOptions.ParentId = currentTransaction->GetId();
+        }
+        currentTransaction = StartCypressTransaction(startTransactionOptions);
+        transactions.push_back(currentTransaction);
+        transactionIds.push_back(currentTransaction->GetId());
+        TCreateNodeOptions createNodeOptions;
+        createNodeOptions.TransactionId = currentTransaction->GetId();
+        createdNodes.push_back(
+            WaitFor(Client_->CreateNode(currentPath.c_str(), EObjectType::MapNode, createNodeOptions))
+                .ValueOrThrow());
+    }
+
+    auto threadPool = CreateThreadPool(5, "ConcurrentAbortTx");
+    auto barrierPromise = NewPromise<void>();
+    std::vector<TFuture<void>> resultFutures;
+    for (auto tx : transactions) {
+        resultFutures.push_back(
+            BIND([barrierFuture = barrierPromise.ToFuture(), transaction = tx] () {
+                WaitFor(barrierFuture)
+                    .ThrowOnError();
+                return transaction->Abort();
+            })
+                .AsyncVia(threadPool->GetInvoker())
+                .Run());
+    }
+
+    barrierPromise.Set();
+
+    WaitFor(AllSucceeded(resultFutures))
+        .ThrowOnError();
+
+    for (auto transactionId : transactionIds) {
+        EXPECT_FALSE(WaitFor(Client_->NodeExists(FromObjectId(transactionId)))
+            .ValueOrThrow());
+    }
+
+
+    WaitFor(Client_->GCCollect())
+        .ThrowOnError();
+
+    for (auto nodeId : createdNodes) {
+        EXPECT_FALSE(WaitFor(Client_->NodeExists(FromObjectId(nodeId)))
+            .ValueOrThrow());
+    }
+}
+
+TEST_F(TSequoiaTest, TestResponseKeeper)
+{
+    constexpr int ThreadCount = 4;
+    constexpr int RequestCount = 20;
+
+    WaitFor(Client_->SetNode("//sequoia/@unexisting_attr", ConvertToYsonString(ConvertToNode(123))))
+        .ThrowOnError();
+
+    auto threadPool = CreateThreadPool(ThreadCount, "ConcurrentResponseKeeperRequests");
+    auto barrierPromise = NewPromise<void>();
+
+    auto mutationId = NRpc::TMutationId::Create();
+
+    auto client = DynamicPointerCast<NApi::NNative::IClient>(Client_);
+    auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
+
+    std::vector<TFuture<void>> responses;
+
+    auto registerRequest = [&] (auto batchReq) {
+        auto req = NCypressClient::TCypressYPathProxy::Remove("//sequoia/@unexisting_attr");
+        SetMutationId(req, mutationId, /*retry*/ true);
+
+        batchReq->AddRequest(req);
+
+        responses.push_back(BIND([batchReq = std::move(batchReq), barrier = barrierPromise.ToFuture()] {
+            WaitFor(barrier)
+                .ThrowOnError();
+            auto batchRsp = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
+            auto rsp = batchRsp->template GetResponse<NCypressClient::TCypressYPathProxy::TRspRemove>(0);
+            YT_LOG_DEBUG(TError(rsp), "Response finished");
+            rsp.ThrowOnError();
+        })
+            .AsyncVia(threadPool->GetInvoker())
+            .Run());
+    };
+
+    for (int i : std::views::iota(0, RequestCount)) {
+        if (i < RequestCount / 2) {
+            // NB: sometimes we want to observe SequoiaRetriableError.
+            registerRequest(proxy.ExecuteBatchNoBackoffRetries());
+        } else {
+            registerRequest(proxy.ExecuteBatch());
+        }
+    }
+
+    barrierPromise.Set();
+
+    WaitFor(AllSet(responses))
+        .ThrowOnError();
+
+    int okWithRetries = 0;
+    int okWithoutRetries = 0;
+    int sequoiaRetriableErrors = 0;
+    for (int i : std::views::iota(0, RequestCount)) {
+        const auto& error = responses[i].Get();
+        if (error.IsOK()) {
+            ++(i < RequestCount / 2 ? okWithoutRetries : okWithRetries);
+        } else if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError && i < RequestCount / 2) {
+            ++sequoiaRetriableErrors;
+        } else if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
+            YT_LOG_FATAL(error, "Unexpected retriable error when retries were enabled");
+        } else {
+            YT_LOG_FATAL(error, "Unexpected error");
+        }
+    }
+
+    YT_LOG_DEBUG("Requests finished (OkWithRetries: %v, OkWithoutRetries: %v, SequoiaRetriableErrors: %v)",
+        okWithRetries,
+        okWithoutRetries,
+        sequoiaRetriableErrors);
+
+    EXPECT_LE(okWithoutRetries, 1);
+    EXPECT_GE(okWithRetries, RequestCount / 2);
+}
+
+TEST_F(TSequoiaTest, TestNodeReplacementAtomicity)
+{
+    constexpr auto IterationCount = 20;
+
+    auto threadPool = CreateThreadPool(2, "ConcurrentNodereplacement");
+    auto invoker = threadPool->GetInvoker();
+
+    for (int iteration : std::views::iota(0, IterationCount)) {
+        YT_LOG_DEBUG("Starting iteration %v", iteration);
+
+        WaitFor(Client_->CreateNode("//sequoia/a", EObjectType::MapNode))
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Node \"//sequoia/a\" craeted");
+
+        auto barrier = NewPromise<void>();
+        auto conncurrentReplaceFuture = BIND([client = Client_, barrier = barrier.ToFuture()] () {
+            WaitFor(barrier)
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("Concurrent worker started");
+
+            WaitFor(Client_->CreateNode("//sequoia/b", EObjectType::MapNode))
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("Node \"//sequoia/b\" created");
+
+            TMoveNodeOptions moveOptions = {};
+            moveOptions.Force = true;
+            WaitFor(Client_->MoveNode("//sequoia/b", "//sequoia/a", moveOptions))
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("\"//sequoia/b\" replaced with \"//sequoia/a\"");
+        })
+            .AsyncVia(invoker)
+            .Run();
+
+        auto now = TInstant::Now();
+        YT_LOG_DEBUG("(Old creation time: %v)", now);
+
+        TDelayedExecutor::Submit(BIND([&] { barrier.Set(); }), TDuration::MicroSeconds(50));
+
+        constexpr auto WaitIterationLimit = 1000;
+
+        for (int _ : std::views::iota(0, WaitIterationLimit)) {
+            auto creationTimeString = WaitFor(Client_->GetNode("//sequoia/a/@creation_time"))
+                .ValueOrThrow();
+
+            auto creationTime = ConvertTo<TInstant>(creationTimeString);
+            YT_LOG_DEBUG("Creation time fetched (CurrentCreationTime: %v)", creationTime);
+
+            if (creationTime >= now) {
+                break;
+            }
+
+            Sleep(TDuration::MicroSeconds(100));
+        }
+
+        WaitFor(conncurrentReplaceFuture)
+            .ThrowOnError();
+
+        WaitFor(Client_->RemoveNode("//sequoia/*"))
+            .ThrowOnError();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

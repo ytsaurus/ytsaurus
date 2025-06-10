@@ -40,7 +40,7 @@ message TRspRead
 {
     optional uint64 cookie = 1;
     repeated fixed64 block_checksums = 2;
-    optional bool close_session = 3;
+    optional bool should_close_session = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,7 +59,7 @@ message TReqWrite
 message TRspWrite
 {
     optional uint64 cookie = 1;
-    optional bool close_session = 2;
+    optional bool should_close_session = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,7 +71,7 @@ message TReqKeepSessionAlive
 
 message TRspKeepSessionAlive
 {
-    optional bool close_session = 1;
+    optional bool should_close_session = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

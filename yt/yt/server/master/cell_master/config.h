@@ -285,8 +285,6 @@ struct TCellMasterBootstrapConfig
 
     NObjectServer::TObjectServiceConfigPtr ObjectService;
 
-    NCellServer::TCellManagerConfigPtr CellManager;
-
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
     bool EnableTimestampManager;
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
@@ -349,9 +347,13 @@ DEFINE_REFCOUNTED_TYPE(TCellMasterProgramConfig)
 struct TDynamicCellMasterConfig
     : public TSingletonsDynamicConfig
 {
+    static constexpr auto DefaultHiveProfilingPeriod = TDuration::Seconds(10);
+
     TDuration MutationTimeCommitPeriod;
 
     TDuration AlertUpdatePeriod;
+
+    TDuration HiveProfilingPeriod;
 
     THashMap<TString, double> AutomatonThreadBucketWeights;
 

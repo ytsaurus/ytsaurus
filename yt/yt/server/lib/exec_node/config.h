@@ -37,7 +37,7 @@ struct TSlotLocationConfig
     //! Reserve subtracted from disk capacity.
     i64 DiskUsageWatermark;
 
-    TString MediumName;
+    std::string MediumName;
 
     //! Enforce disk space limits using disk quota.
     bool EnableDiskQuota;
@@ -117,7 +117,7 @@ struct TSlotManagerConfig
     TDuration SlotLocationStatisticsUpdatePeriod;
 
     //! Default medium used to run jobs without disk requests.
-    TString DefaultMediumName;
+    std::string DefaultMediumName;
 
     TSlotManagerTestingConfigPtr Testing;
 
@@ -561,9 +561,6 @@ struct TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
     TDuration WaitingForResourcesTimeout;
-    // COMPAT(arkady-e1ppa): Remove when CA&Sched are update to
-    // a proper version of 24.1/24.2
-    bool DisableLegacyAllocationPreparation;
 
     TDuration CpuOverdraftTimeout;
 

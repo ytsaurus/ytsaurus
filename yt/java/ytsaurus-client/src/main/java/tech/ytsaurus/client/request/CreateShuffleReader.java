@@ -6,6 +6,7 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.rpcproxy.TReqReadShuffleData;
+import tech.ytsaurus.rpcproxy.TReqReadShuffleData.TIndexRange;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -15,6 +16,8 @@ public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder
     private final int partitionIndex;
     @Nullable
     private final YTreeNode config;
+    @Nullable
+    private final Range range;
 
     private static final YTreeNode EMPTY_CONFIG = YTree.builder().beginMap().endMap().build();
 
@@ -23,6 +26,7 @@ public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder
         this.handle = builder.handle;
         this.partitionIndex = builder.partitionIndex;
         this.config = builder.config;
+        this.range = builder.range;
     }
 
     public static CreateShuffleReader.Builder builder() {
@@ -30,8 +34,12 @@ public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder
     }
 
     public void writeTo(TReqReadShuffleData.Builder builder) {
-        builder.setShuffleHandle(handle.getPayload());
+        builder.setSignedShuffleHandle(handle.getPayload());
         builder.setPartitionIndex(partitionIndex);
+        if (range != null) {
+            TIndexRange indexRange = TIndexRange.newBuilder().setBegin(range.begin).setEnd(range.end).build();
+            builder.setWriterIndexRange(indexRange);
+        }
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         YTreeBinarySerializer.serialize(this.config == null ? EMPTY_CONFIG : this.config, baos);
@@ -44,7 +52,8 @@ public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder
         return builder()
                 .setHandle(handle)
                 .setPartitionIndex(partitionIndex)
-                .setConfig(config);
+                .setConfig(config)
+                .setRange(range);
     }
 
     public static class Builder extends CreateShuffleReader.BuilderBase<CreateShuffleReader.Builder> {
@@ -61,6 +70,8 @@ public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder
         private int partitionIndex;
         @Nullable
         private YTreeNode config = null;
+        @Nullable
+        private Range range = null;
 
         public TBuilder setHandle(ShuffleHandle handle) {
             this.handle = handle;
@@ -77,8 +88,23 @@ public class CreateShuffleReader extends RequestBase<CreateShuffleReader.Builder
             return self();
         }
 
+        public TBuilder setRange(@Nullable Range range) {
+            this.range = range;
+            return self();
+        }
+
         public CreateShuffleReader build() {
             return new CreateShuffleReader(this);
+        }
+    }
+
+    public static class Range {
+        private final int begin;
+        private final int end;
+
+        public Range(int begin, int end) {
+            this.begin = begin;
+            this.end = end;
         }
     }
 }

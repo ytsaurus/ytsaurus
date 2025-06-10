@@ -2237,7 +2237,7 @@ std::vector<TTabletActionId> TClient::DoReshardTableAutomatic(
             path);
     }
 
-    auto bundle = attributes->Get<TString>("tablet_cell_bundle");
+    auto bundle = attributes->Get<std::string>("tablet_cell_bundle");
     ValidatePermissionImpl("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundle), EPermission::Use);
 
     auto req = TTableYPathProxy::ReshardAutomatic(FromObjectId(tableId));
@@ -2384,7 +2384,7 @@ void TClient::DoRestoreTableBackup(
 }
 
 std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
-    const TString& tabletCellBundle,
+    const std::string& tabletCellBundle,
     const std::vector<TYPath>& movableTables,
     const TBalanceTabletCellsOptions& options)
 {
@@ -2427,7 +2427,7 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
                 THROW_ERROR_EXCEPTION("Table %v must be dynamic", path);
             }
 
-            auto actualBundle = attributes->Find<TString>("tablet_cell_bundle");
+            auto actualBundle = attributes->Find<std::string>("tablet_cell_bundle");
             if (!actualBundle || *actualBundle != tabletCellBundle) {
                 THROW_ERROR_EXCEPTION("All tables must be from the tablet cell bundle %Qv", tabletCellBundle);
             }
@@ -2958,16 +2958,28 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
     TQueueProducerEpoch epoch{0};
     auto responseUserMeta = options.UserMeta;
 
+    auto mutationId = options.GetOrGenerateMutationId();
+
     auto records = ToRecords<NQueueClient::NRecords::TQueueProducerSession>(sessionRowset);
     // If rows is empty, then create new session.
     if (!records.empty()) {
         const auto& record = records[0];
-        YT_LOG_DEBUG("Fetched previous queue producer session info (SequenceNumber: %v, Epoch: %v)",
+
+        std::optional<NRpc::TMutationId> previousMutationId = record.SystemMeta
+            ? record.SystemMeta->MutationId
+            : std::nullopt;
+
+        YT_LOG_DEBUG("Fetched previous queue producer session info (SequenceNumber: %v, Epoch: %v, MutationId: %v)",
             record.SequenceNumber,
-            record.Epoch);
+            record.Epoch,
+            previousMutationId);
 
         lastSequenceNumber = TQueueProducerSequenceNumber(record.SequenceNumber);
-        epoch = TQueueProducerEpoch(record.Epoch.Underlying() + 1);
+
+        epoch = !previousMutationId || *previousMutationId != mutationId
+            ? TQueueProducerEpoch(record.Epoch.Underlying() + 1)
+            : record.Epoch;
+
         if (!responseUserMeta && record.UserMeta) {
             responseUserMeta = ConvertTo<INodePtr>(*record.UserMeta);
         }
@@ -2975,10 +2987,14 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
         YT_LOG_DEBUG("No info was available for this queue producer session, initializing");
     }
 
+    TQueueProducerSystemMeta resultSystemMeta;
+    resultSystemMeta.MutationId = mutationId;
+
     NQueueClient::NRecords::TQueueProducerSessionPartial resultRecord{
         .Key = sessionKey,
         .SequenceNumber = lastSequenceNumber,
         .Epoch = epoch,
+        .SystemMeta = std::move(resultSystemMeta),
     };
     if (options.UserMeta) {
         resultRecord.UserMeta = ConvertToYsonString(options.UserMeta);
@@ -3213,6 +3229,9 @@ private:
             if (ReplicationRowIndex_.has_value()) {
                 req->set_start_replication_row_index(*ReplicationRowIndex_);
             }
+
+            auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
+            ext->set_execution_tag(ToString(Options_.SelfTabletId));
 
             YT_LOG_DEBUG("Issuing pull rows request (Progress: %v, StartRowIndex: %v)",
                 ReplicationProgress_,

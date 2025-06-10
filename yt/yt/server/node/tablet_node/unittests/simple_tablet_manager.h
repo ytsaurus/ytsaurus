@@ -3,10 +3,9 @@
 #include "tablet_context_mock.h"
 
 #include <yt/yt/server/node/tablet_node/automaton.h>
-#include <yt/yt/server/node/tablet_node/tablet_cell_write_manager.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/node/tablet_node/tablet_cell_write_manager.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
@@ -52,7 +51,7 @@ public:
     ITransactionManagerPtr GetTransactionManager() const override;
     NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const override;
     TTabletManagerConfigPtr GetConfig() const override;
-    void ValidateMemoryLimit(const std::optional<TString>& /*poolTag*/) override;
+    void ValidateMemoryLimit(const std::optional<std::string>& /*poolTag*/) override;
     TTimestamp GetLatestTimestamp() const override;
     bool ValidateRowRef(const TSortedDynamicRowRef& /*rowRef*/) override;
     bool ValidateAndDiscardRowRef(const TSortedDynamicRowRef& /*rowRef*/) override;

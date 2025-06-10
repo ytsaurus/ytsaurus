@@ -3,6 +3,7 @@ package timbertruck
 import (
 	"database/sql"
 	_ "embed"
+	"log/slog"
 	"path"
 	"testing"
 	"time"
@@ -29,7 +30,7 @@ func TestMigrationFrom1(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	ds, err := NewDatastore(dbFile)
+	ds, err := NewDatastore(slog.Default(), dbFile)
 	require.NoError(t, err)
 
 	task, err := ds.TaskByPath("/proxy-logs/timbertruck/http-proxy-heh.json.log/staging/2024-09-03T21:00:06_ino:251534293.json.log")

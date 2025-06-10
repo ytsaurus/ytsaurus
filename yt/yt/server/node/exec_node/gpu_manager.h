@@ -59,6 +59,7 @@ struct TGpuStatistics
     i64 CumulativeUtilizationPower = 0;
     i64 CumulativePower = 0;
     i64 CumulativeUtilizationClocksSM = 0;
+    i64 CumulativeSMClocks = 0;
     i64 CumulativeSMUtilization = 0;
     i64 CumulativeSMOccupancy = 0;
     i64 NvlinkRxBytes = 0;
@@ -68,6 +69,10 @@ struct TGpuStatistics
     i64 MaxStuckDuration = 0;
     i64 CumulativeTensorActivity = 0;
     i64 CumulativeDramActivity = 0;
+    i64 CumulativeSwThermalSlowdown = 0;
+    i64 CumulativeHwThermalSlowdown = 0;
+    i64 CumulativeHwPowerBrakeSlowdown = 0;
+    i64 CumulativeHwSlowdown = 0;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistics, TStringBuf /*format*/);
@@ -91,6 +96,8 @@ class TGpuManager
 {
 public:
     explicit TGpuManager(IBootstrap* bootstrap);
+
+    void Initialize();
 
     int GetTotalGpuCount() const;
     int GetFreeGpuCount() const;

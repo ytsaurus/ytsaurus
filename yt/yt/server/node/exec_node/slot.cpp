@@ -35,6 +35,8 @@ using namespace NDataNode;
 using namespace NTools;
 using namespace NYTree;
 
+using NNet::TIP6Address;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template<typename F>
@@ -325,8 +327,7 @@ public:
 
     TFuture<IVolumePtr> PrepareRootVolume(
         const std::vector<TArtifactKey>& layers,
-        const TArtifactDownloadOptions& downloadOptions,
-        const TUserSandboxOptions& options) override
+        const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -340,13 +341,13 @@ public:
             /*actionName*/ "PrepareRootVolume",
             /*uncancelable*/ false,
             [&] {
-                return VolumeManager_->PrepareVolume(layers, downloadOptions, options);
+                return VolumeManager_->PrepareVolume(layers, options);
             });
     }
 
     TFuture<IVolumePtr> PrepareGpuCheckVolume(
         const std::vector<TArtifactKey>& layers,
-        const TArtifactDownloadOptions& downloadOptions) override
+        const TVolumePreparationOptions& options) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -360,7 +361,7 @@ public:
             /*actionName*/ "PrepareGpuCheckVolume",
             /*uncancelable*/ false,
             [&] {
-                return VolumeManager_->PrepareVolume(layers, downloadOptions, TUserSandboxOptions{});
+                return VolumeManager_->PrepareVolume(layers, options);
             });
     }
 
@@ -392,7 +393,7 @@ public:
         return Location_->GetSandboxPath(SlotIndex_, sandbox);
     }
 
-    TString GetMediumName() const override
+    std::string GetMediumName() const override
     {
         VerifyEnabled();
 
@@ -439,6 +440,8 @@ public:
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<TDevice>>& devices,
+        const std::optional<TString>& hostName,
+        const std::vector<TIP6Address>& ipAddresses,
         std::string tag) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -457,6 +460,8 @@ public:
                     rootFS,
                     user,
                     devices,
+                    hostName,
+                    ipAddresses,
                     std::move(tag));
             });
     }

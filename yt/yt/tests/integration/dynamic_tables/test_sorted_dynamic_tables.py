@@ -375,6 +375,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             commit_transaction(tx)
 
+    # It actually works with RPC proxies so we use "run=False" here to avoid
+    # XPASS test result.
     @authors("kvk1920")
     @pytest.mark.xfail(run=False, reason="YT-23209")
     def test_lock_unexisting_key(self):
@@ -1048,8 +1050,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/correct")
 
         if in_memory_mode != "none":
-            self._wait_for_in_memory_stores_preload("//tmp/t")
-            self._wait_for_in_memory_stores_preload("//tmp/correct")
+            wait(lambda: get("//tmp/t/@preload_state") == "complete")
+            wait(lambda: get("//tmp/correct/@preload_state") == "complete")
 
         for iter in range(num_write_iterations):
             insert_keys = [random_row() for i in range(num_writes_per_iteration)]

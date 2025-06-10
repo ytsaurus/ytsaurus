@@ -12,11 +12,6 @@ void TS3ConnectionConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("bucket", &TThis::Bucket)
         .Default();
-
-    registrar.Parameter("access_key_id", &TThis::AccessKeyId)
-        .Default();
-    registrar.Parameter("secret_access_key", &TThis::SecretAccessKey)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

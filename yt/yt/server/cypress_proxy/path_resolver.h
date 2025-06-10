@@ -23,6 +23,9 @@ struct TSequoiaResolveResult
     bool IsSnapshot() const noexcept;
 };
 
+struct TMasterResolveResult
+{};
+
 struct TCypressResolveResult
 {
     //! Cypress path which should be resolved by master.
@@ -35,6 +38,7 @@ struct TCypressResolveResult
 TResolveResult ResolvePath(
     const TSequoiaSessionPtr& session,
     NSequoiaClient::TRawYPath rawPath,
+    TStringBuf service,
     TStringBuf method,
     std::vector<TSequoiaResolveIterationResult>* history = nullptr);
 

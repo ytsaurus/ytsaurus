@@ -7,11 +7,11 @@ from .helpers import (TEST_DIR, check_rows_equality, set_config_option, get_test
 import yt.wrapper.format as yt_format
 
 import yt.wrapper.py_wrapper as py_wrapper
-from yt.wrapper.py_wrapper import OperationParameters
-from yt.wrapper.table import TempTable
-from yt.wrapper.schema import TableSchema
-from yt.wrapper.common import MB
 from yt.wrapper import heavy_commands, parallel_writer
+from yt.wrapper.common import MB
+from yt.wrapper.py_wrapper import OperationParameters
+from yt.wrapper.schema import TableSchema
+from yt.wrapper.table import TempTable
 
 from yt.yson import YsonMap
 
@@ -283,7 +283,7 @@ class TestTableCommands(object):
         with pytest.raises(yt.YtError):
             yt.create("table", table)
 
-    @authors("asaitgalin", "ostyakov")
+    @authors("asaitgalin", "ostyakov", "denvr")
     def test_create_temp_table(self):
         table = yt.create_temp_table(path=TEST_DIR)
         assert table.startswith(TEST_DIR)
@@ -301,6 +301,22 @@ class TestTableCommands(object):
         with client.TempTable() as table:
             assert client.exists(table)
             wait(lambda: not client.exists(table))
+
+        tx1 = yt.start_transaction(timeout=10_000)
+        tx2 = yt.start_transaction(timeout=10_000)
+        yt.remove(yt.config["remote_temp_tables_directory"], force=True, recursive=True)
+        yt.remove("//tmp/yt_wrapper/file_storage", force=True, recursive=True)
+        yt.file_commands.TEMP_DIR_CREATED_PATH = dict()
+        assert not yt.exists(yt.config["remote_temp_tables_directory"] + "/root")
+        with yt.Transaction(transaction_id=tx1):
+            table_tx1 = yt.create_temp_table()
+        with yt.Transaction(transaction_id=tx2):
+            table_tx2 = yt.create_temp_table()
+        assert yt.exists(yt.config["remote_temp_tables_directory"] + "/root")
+        yt.commit_transaction(tx1)
+        yt.commit_transaction(tx2)
+        assert table_tx1.startswith(yt.config["remote_temp_tables_directory"] + "/root")
+        assert table_tx2.startswith(yt.config["remote_temp_tables_directory"] + "/root")
 
     @authors("asaitgalin", "ignat")
     def test_write_many_chunks(self):
@@ -1123,12 +1139,33 @@ def _check_delay(yt_env_with_framing):
 
 
 @pytest.mark.usefixtures("yt_env_with_framing")
-class TestTableCommandsFraming(object):
+class TestTableCommandsFraming:
     OVERRIDE_OPTIONS = {
         "read_retries/use_locked_node_id": False,
         "proxy/heavy_request_timeout": 2 * 1000,
         "proxy/commands_with_framing": ["read_table", "get_table_columnar_statistics"],
     }
+
+    @authors("ermolovd")
+    def test_bad_write_YIML_128(self):
+        path = TEST_DIR + "/test-bad-framing-write"
+        yt.create("table", path, attributes={
+            "schema": [{"name": "a", "type": "string"}]
+        })
+
+        def gen_data():
+            data = b"{a=42};" * (1024 * 1024)
+            while True:
+                yield data
+
+        options = {
+            "proxy/content_encoding": "gzip",
+            "proxy/accept_encoding": "gzip",
+            "proxy/commands_with_framing": ["write_table"],
+        }
+        with set_config_options(options):
+            with pytest.raises(yt.YtError, match="Invalid type: expected \"string\", actual \"int64\""):
+                yt.write_table(path, gen_data(), format="yson", raw=True)
 
     @authors("levysotsky")
     @pytest.mark.parametrize("use_compression", [True, False])

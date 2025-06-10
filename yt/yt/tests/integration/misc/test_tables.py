@@ -5,10 +5,12 @@ from yt_commands import (
     copy, remove,
     exists, concatenate, create_user, start_transaction, abort_transaction, commit_transaction, lock, alter_table, write_file, read_table,
     write_table, read_blob_table, map, map_reduce, merge,
-    sort, remote_copy, get_first_chunk_id,
+    sort, remote_copy, get_first_chunk_id, ls,
     get_singular_chunk_id, get_chunk_replication_factor, set_all_nodes_banned,
     get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, sorted_dicts,
 )
+
+from yt_sequoia_helpers import is_sequoia_id, not_implemented_in_sequoia
 
 from yt_helpers import (
     wait_until_unlocked
@@ -1248,8 +1250,15 @@ class TestTables(YTEnvSetup):
 
     @authors("babenko", "ignat")
     def test_recursive_resource_usage(self):
-        create("table", "//tmp/t1")
+        t1_id = create("table", "//tmp/t1")
         write_table("//tmp/t1", {"a": "b"})
+
+        # TODO(kvk1920): support @recursive_resource_usage in Sequoia.
+        if is_sequoia_id(t1_id):
+            with raises_yt_error("Attribute \"recursive_resource_usage\" is not supported in Sequoia yet"):
+                get_recursive_disk_space("//tmp")
+            return
+
         copy("//tmp/t1", "//tmp/t2")
 
         assert get_chunk_owner_disk_space("//tmp/t1") + get_chunk_owner_disk_space(
@@ -2776,10 +2785,21 @@ class TestTables(YTEnvSetup):
     @authors("h0pless")
     def test_schemaful_node_type_handler(self):
         def create_table_on_specific_cell(path, schema):
-            if self.is_multicell():
-                create("table", path, attributes={"schema": schema, "external_cell_tag": 13})
-            else:
-                create("table", path, attributes={"schema": schema, "external": False})
+            while True:
+                if self.is_multicell():
+                    table_id = create("table", path, attributes={"schema": schema, "external_cell_tag": 13})
+                else:
+                    table_id = create("table", path, attributes={"schema": schema, "external": False})
+
+                if self.ENABLE_TMP_ROOTSTOCK:
+                    cell_tag = int(table_id.split("-")[2], 16) >> 16
+                    if cell_tag != 14:
+                        # We want all tables to be on the same cell.
+                        remove(path)
+                        # Retry and hope it will be created on cell 14 next time.
+                        continue
+
+                break
 
         def branch_my_table():
             tx = start_transaction()
@@ -2852,6 +2872,22 @@ class TestTables(YTEnvSetup):
         set("//sys/@config/table_manager/non_opaque_schema_attribute_user_whitelist", ["u"])
         assert get("//tmp/t/@", authenticated_user="root")["schema"] == yson.YsonEntity()
         assert get("//tmp/t/@", authenticated_user="u")["schema"][0]["name"] == "x"
+
+    @authors("h0pless")
+    def test_virtual_map(self):
+        set("//sys/@config/chunk_manager/virtual_chunk_map_read_result_limit", 1)
+
+        create("table", "//tmp/table")
+        write_table("//tmp/table", {"1": "hello"})
+        write_table("<append=true>//tmp/table", {"2": "hi"})
+        write_table("<append=true>//tmp/table", {"3": "greetings"})
+
+        wait(lambda: get("//sys/chunks/@count") == 3)
+        assert len(ls("//sys/chunks")) == 1
+        assert len(get("//sys/chunks")) == 1
+
+        assert len(ls("//sys/chunks", max_size=100500)) == 1
+        assert len(get("//sys/chunks", max_size=100500)) == 1
 
 
 ##################################################################
@@ -3101,6 +3137,7 @@ class TestTablesMulticell(TestTables):
             )
 
     @authors("shakurov")
+    @not_implemented_in_sequoia  # Cross-cell copy.
     def test_cloned_table_statistics_yt_18290(self):
         if not self.ENABLE_TMP_PORTAL:
             create("map_node", "//portals", force=True)
@@ -3253,38 +3290,65 @@ class TestTablesShardedTx(TestTablesPortal):
     }
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestTablesShardedTxCTxS(TestTablesShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestTablesMirroredTx(TestTablesShardedTxCTxS):
+class TestTablesMirroredTx(TestTablesShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
+
+@authors("kvk1920")
+@pytest.mark.enabled_multidaemon
+class TestTablesSequoia(TestTablesMirroredTx):
+    ENABLE_MULTIDAEMON = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 5
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["cypress_node_host", "chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["sequoia_node_host",  "transaction_coordinator"]},
+        "15": {"roles": ["sequoia_node_host"]},
     }
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        }
-    }
+    @authors("kvk1920")
+    def test_read_table_in_sequoia(self):
+        content = [{"a": i * 2 - 1, "b": i * 2} for i in range(50)]
+        t1_id = create("table", "//tmp/t1")
+        write_table("//tmp/t1", content)
+
+        def check_path(path):
+            for _ in range(self.NUM_MASTERS + 1):
+                assert read_table(path, verbose=False) == content
+                assert get(f"{path}/@native_cell_tag") in (14, 15)
+
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path("//tmp/t1")
+
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path(f"#{t1_id}")
+
+        tmp_id = get("//tmp/@id")
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path(f"#{tmp_id}/t1")
+
+        m_id = create("map_node", "//tmp/m")
+        t2_id = copy("//tmp/t1", "//tmp/m/t2")
+
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path("//tmp/m/t2")
+
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path(f"#{t2_id}")
+
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path(f"#{tmp_id}/m/t2")
+
+        for _ in range(self.NUM_MASTERS + 1):
+            check_path(f"#{m_id}/t2")
 
 
 @pytest.mark.enabled_multidaemon

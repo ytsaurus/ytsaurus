@@ -158,10 +158,6 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletNodeTrackerConfig)
 struct TDynamicCellHydraPersistenceSynchronizerConfig
     : public NYTree::TYsonStruct
 {
-    //! Allows safe deletion of the old storage at Cypress without it affecting cell instances.
-    //! Reconfigures master in a way that the old storage is no longer being accessed.
-    bool MigrateToVirtualCellMaps;
-
     TDuration SynchronizationPeriod;
 
     int MaxCellsToRegisterInCypressPerIteration;
@@ -261,6 +257,8 @@ struct TDynamicTabletManagerConfig
     bool DecommissionThroughExtraPeers;
 
     bool SynchronizeTabletCellLeaderSwitches;
+
+    TDuration MaxPreloadWaitTimeBeforeLeaderSwitch;
 
     // TODO(gritukan): Move it to node dynamic config when it will be ready.
     bool AbandonLeaderLeaseDuringRecovery;

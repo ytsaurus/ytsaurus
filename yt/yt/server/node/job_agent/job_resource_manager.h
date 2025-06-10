@@ -16,6 +16,8 @@
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
+#include <library/cpp/yt/memory/non_null_ptr.h>
+
 namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +59,8 @@ public:
     virtual void OnNewSlotsAvailable() = 0;
 
     virtual double GetCpuToVCpuFactor() const = 0;
+
+    virtual void CalculateAndSetVCpu(TNonNullPtr<NClusterNode::TJobResources> jobResources) = 0;
 
     //! Returns resource usage of running jobs.
     virtual NClusterNode::TJobResources GetResourceUsage(std::initializer_list<EResourcesState> statesToInclude) const = 0;
@@ -152,6 +156,7 @@ public:
     TGuid GetId() const noexcept;
 
     const std::vector<int>& GetPorts() const noexcept;
+    std::optional<int> GetJobProxyRpcServerPort() const noexcept;
     const NClusterNode::ISlotPtr& GetUserSlot() const noexcept;
     const std::vector<NClusterNode::ISlotPtr>& GetGpuSlots() const noexcept;
 
@@ -159,6 +164,9 @@ public:
     bool SetBaseResourceUsage(NClusterNode::TJobResources newResourceUsage);
     bool UpdateAdditionalResourceUsage(NClusterNode::TJobResources additionalResourceUsageDelta);
     bool RestoreResources() noexcept;
+
+    //! Returns true if the resource usage was set successfully.
+    bool TrySetBaseResourceUsage(NClusterNode::TJobResources newResourceUsage);
 
     IMemoryUsageTrackerPtr GetAdditionalMemoryUsageTracker(EMemoryCategory memoryCategory);
 
@@ -213,6 +221,7 @@ private:
     const NClusterNode::TJobResources InitialResourceDemand_;
 
     std::vector<int> Ports_;
+    std::optional<int> JobProxyRpcServerPort_;
 
     EResourcesState State_ = EResourcesState::Pending;
     // NB(arkady-e1ppa): We can convert pending holder
@@ -247,7 +256,12 @@ private:
     bool DoSetResourceUsage(
         const NClusterNode::TJobResources& resourceUsage,
         TStringBuf argumentName,
-        TResourceUsageUpdater resourceUsageUpdater);
+        TResourceUsageUpdater resourceUsageUpdater,
+        bool isReleasing = false);
+
+    bool DoTrySetResourceUsage(
+        const NClusterNode::TJobResources& resourceUsageDelta,
+        TStringBuf argumentName);
 };
 
 DEFINE_REFCOUNTED_TYPE(TResourceHolder)

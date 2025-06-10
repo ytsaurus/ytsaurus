@@ -3,6 +3,7 @@
 #include "config.h"
 #include "data_center.h"
 #include "host.h"
+#include "node_tracker.h"
 #include "node_tracker_log.h"
 #include "rack.h"
 #include "private.h"
@@ -63,7 +64,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = NodeTrackerServerLogger;
+constinit const auto Logger = NodeTrackerServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,11 +103,7 @@ void TNode::TCellNodeDescriptor::Persist(const NCellMaster::TPersistenceContext&
 
     Persist(context, State);
     Persist(context, RegistrationPending);
-
-    // COMPAT(cherepashka)
-    if (context.IsSave() || context.IsLoad() && context.GetVersion() >= EMasterReign::DynamicMasterCellReconfigurationOnNodes) {
-        Persist(context, CellReliability);
-    }
+    Persist(context, CellReliability);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -358,6 +355,13 @@ void TNode::ComputeSessionCount()
             SessionCount_[mediumIndex] = SessionCount_[mediumIndex].value_or(0) + location.session_count();
         }
     }
+
+    // COMPAT(koloshmet)
+    if (DataNodeStatistics_.has_max_write_sessions()) {
+        SetWriteSessionLimit(DataNodeStatistics_.max_write_sessions());
+    } else {
+        SetWriteSessionLimit(std::nullopt);
+    }
 }
 
 TNodeId TNode::GetId() const
@@ -398,7 +402,7 @@ TDataCenter* TNode::GetDataCenter() const
     return rack ? rack->GetDataCenter() : nullptr;
 }
 
-bool TNode::HasTag(const std::optional<TString>& tag) const
+bool TNode::HasTag(const std::optional<std::string>& tag) const
 {
     return !tag || Tags_.find(*tag) != Tags_.end();
 }
@@ -460,13 +464,22 @@ void TNode::InitializeStates(
     ComputeAggregatedState();
 }
 
-void TNode::RecomputeIOWeights(const IChunkManagerPtr& chunkManager)
+void TNode::RecomputeMediumStatistics(const IChunkManagerPtr& chunkManager)
 {
     IOWeights_.clear();
+    MediumToWriteSessionCountLimit_.clear();
+
     for (const auto& statistics : DataNodeStatistics_.media()) {
         auto mediumIndex = statistics.medium_index();
-        if (chunkManager->FindMediumByIndex(mediumIndex)) {
-            IOWeights_[mediumIndex] = statistics.io_weight();
+        if (!chunkManager->FindMediumByIndex(mediumIndex)) {
+            continue;
+        }
+
+        IOWeights_[mediumIndex] = statistics.io_weight();
+        if (statistics.has_max_write_sessions_per_location()) {
+            MediumToWriteSessionCountLimit_[mediumIndex] = statistics.max_write_sessions_per_location();
+        } else {
+            MediumToWriteSessionCountLimit_.erase(mediumIndex);
         }
     }
 }
@@ -711,13 +724,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ResourceLimitsOverrides_);
     Load(context, Host_);
     Load(context, LeaseTransaction_);
-
-    if (context.GetVersion() >= EMasterReign::PersistLastSeenLeaseTransactionTimeout ||
-        context.GetVersion() < EMasterReign::SecondaryIndex)
-    {
-        Load(context, LastSeenLeaseTransactionTimeout_);
-    }
-
+    Load(context, LastSeenLeaseTransactionTimeout_);
     Load(context, Cellars_);
     Load(context, Annotations_);
     Load(context, Version_);
@@ -989,6 +996,18 @@ int TNode::GetTotalSessionCount() const
         DataNodeStatistics_.total_repair_session_count() + TotalHintedRepairSessionCount_;
 }
 
+int TNode::GetTotalHintedSessionCount(int chunkHostMasterCellCount) const
+{
+    return
+        DataNodeStatistics_.total_user_session_count() +
+        DataNodeStatistics_.total_replication_session_count() +
+        DataNodeStatistics_.total_repair_session_count() +
+        chunkHostMasterCellCount * (
+            TotalHintedUserSessionCount_ +
+            TotalHintedRepairSessionCount_ +
+            TotalHintedReplicationSessionCount_);
+}
+
 TNode::TCellSlot* TNode::FindCellSlot(const TCellBase* cell)
 {
     if (auto* cellar = FindCellar(cell->GetCellarType())) {
@@ -1094,7 +1113,7 @@ void TNode::SetDataNodeStatistics(
     DataNodeStatistics_.Swap(&statistics);
     ComputeFillFactorsAndTotalSpace();
     ComputeSessionCount();
-    RecomputeIOWeights(chunkManager);
+    RecomputeMediumStatistics(chunkManager);
 }
 
 void TNode::ValidateNotBanned()

@@ -36,38 +36,12 @@ class TSequoiaClient
 public:
     TSequoiaClient(
         NNative::TSequoiaConnectionConfigPtr config,
-        NNative::IClientPtr nativeClient)
+        NNative::IClientPtr localClient,
+        TFuture<NNative::IClientPtr> groundClientFuture)
         : Config_(std::move(config))
-        , NativeClient_(std::move(nativeClient))
+        , LocalClient_(std::move(localClient))
+        , GroundClientFuture_(std::move(groundClientFuture))
     { }
-
-    void Initialize()
-    {
-        if (Config_->GroundClusterName) {
-            NativeClient_
-                ->GetNativeConnection()
-                ->GetClusterDirectory()
-                ->SubscribeOnClusterUpdated(
-                    BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (const std::string& clusterName, const NYTree::INodePtr& /*configNode*/) {
-                        auto this_ = weakThis.Lock();
-                        if (!this_) {
-                            return;
-                        }
-
-                        if (clusterName == *Config_->GroundClusterName) {
-                            auto groundConnection = NativeClient_
-                                ->GetNativeConnection()
-                                ->GetClusterDirectory()
-                                ->GetConnection(*Config_->GroundClusterName);
-                            auto groundClient = groundConnection->CreateNativeClient(TClientOptions::Root());
-                            SetGroundClient(std::move(groundClient));
-                        }
-                    }));
-        } else {
-            // When Sequoia is local it's safe to create the client right now.
-            SetGroundClient(NativeClient_);
-        }
-    }
 
     const TLogger& GetLogger() const override
     {
@@ -75,15 +49,17 @@ public:
     }
 
     #define XX(name, args) \
-        if (GroundClientReadyPromise_.IsSet()) { \
+        if (auto optionalClient = GroundClientFuture_.TryGet()) { \
             try { \
+                optionalClient->ThrowOnError(); \
                 return Do ## name args; \
             } catch (const std::exception& ex) { \
                 return MakeFuture<decltype(Do ## name args)::TValueType>(TError(ex)); \
             } \
         } \
-        return GroundClientReadyPromise_ \
-            .ToFuture() \
+        return GroundClientFuture_ \
+            .AsVoid() \
+            .ToUncancelable() \
             .Apply(BIND([=, this, this_ = MakeStrong(this)] { \
                 return Do ## name args; \
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
@@ -122,42 +98,28 @@ public:
 
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
         ESequoiaTransactionType type,
-        const NApi::TTransactionStartOptions& options,
-        const std::vector<NObjectClient::TTransactionId>& cypressPrerequisiteTransactionIds,
-        const TSequoiaTransactionSequencingOptions& sequencingOptions) override
+        const NApi::TTransactionStartOptions& transactionStartOptions,
+        const TSequoiaTransactionOptions& sequoiaTransactionOptions) override
     {
-        XX(StartTransaction, (type, options, cypressPrerequisiteTransactionIds, sequencingOptions))
+        XX(StartTransaction, (type, transactionStartOptions, sequoiaTransactionOptions))
     }
 
 #undef XX
 
 private:
     const NNative::TSequoiaConnectionConfigPtr Config_;
-    const NNative::IClientPtr NativeClient_;
+    const NNative::IClientPtr LocalClient_;
+    const TFuture<NNative::IClientPtr> GroundClientFuture_;
 
-    const TPromise<void> GroundClientReadyPromise_ = NewPromise<void>();
-    TAtomicIntrusivePtr<NNative::IClient> GroundClient_;
-
-    NNative::IClientPtr GetGroundClient() const
+    NNative::IClientPtr GetGroundClientOrThrow()
     {
-        return GroundClient_.Acquire();
-    }
-
-    void SetGroundClient(const NNative::IClientPtr& groundClient)
-    {
-        GroundClient_.Store(groundClient);
-
-        bool initial = GroundClientReadyPromise_.TrySet();
-
-        const auto& Logger = GetLogger();
-        YT_LOG_INFO("Sequoia client is %v (GroundConnectionTag: %v)",
-            initial ? "created" : "recreated",
-            groundClient->GetNativeConnection()->GetLoggingTag());
+        YT_VERIFY(GroundClientFuture_.IsSet());
+        return GroundClientFuture_.Get().ValueOrThrow();
     }
 
     NYPath::TYPath GetSequoiaTablePath(const TSequoiaTablePathDescriptor& tablePathDescriptor)
     {
-        return NSequoiaClient::GetSequoiaTablePath(NativeClient_, tablePathDescriptor);
+        return NSequoiaClient::GetSequoiaTablePath(LocalClient_, tablePathDescriptor);
     }
 
     TFuture<TUnversionedLookupRowsResult> DoLookupRows(
@@ -175,7 +137,7 @@ private:
         TSequoiaTablePathDescriptor tablePathDescriptor{
             .Table = table,
         };
-        return GetGroundClient()->LookupRows(
+        return GetGroundClientOrThrow()->LookupRows(
             GetSequoiaTablePath(tablePathDescriptor),
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
@@ -222,7 +184,7 @@ private:
         options.AllowFullScan = false;
         options.Timestamp = timestamp;
 
-        return GetGroundClient()
+        return GetGroundClientOrThrow()
             ->SelectRows(builder.Build(), options)
             .ApplyUnique(BIND(MaybeWrapSequoiaRetriableError<TSelectRowsResult>));
     }
@@ -232,7 +194,7 @@ private:
         int tabletIndex,
         i64 trimmedRowCount)
     {
-        return GetGroundClient()->TrimTable(
+        return GetGroundClientOrThrow()->TrimTable(
             GetSequoiaTablePath(descriptor),
             tabletIndex,
             trimmedRowCount);
@@ -240,18 +202,16 @@ private:
 
     TFuture<ISequoiaTransactionPtr> DoStartTransaction(
         ESequoiaTransactionType type,
-        const NApi::TTransactionStartOptions& options,
-        const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
-        const TSequoiaTransactionSequencingOptions& sequencingOptions)
+        const NApi::TTransactionStartOptions& transactionStartOptions,
+        const TSequoiaTransactionOptions& sequoiaTransactionOptions)
     {
         return NDetail::StartSequoiaTransaction(
             this,
             type,
-            NativeClient_,
-            GetGroundClient(),
-            cypressPrerequisiteTransactionIds,
-            options,
-            sequencingOptions);
+            LocalClient_,
+            GetGroundClientOrThrow(),
+            transactionStartOptions,
+            sequoiaTransactionOptions);
     }
 };
 
@@ -259,13 +219,13 @@ private:
 
 ISequoiaClientPtr CreateSequoiaClient(
     NNative::TSequoiaConnectionConfigPtr config,
-    NNative::IClientPtr nativeClient)
+    NNative::IClientPtr localClient,
+    TFuture<NNative::IClientPtr> groundClientFuture)
 {
-    auto sequoiaClient = New<TSequoiaClient>(
+    return New<TSequoiaClient>(
         std::move(config),
-        std::move(nativeClient));
-    sequoiaClient->Initialize();
-    return sequoiaClient;
+        std::move(localClient),
+        std::move(groundClientFuture));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

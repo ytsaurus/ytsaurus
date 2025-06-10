@@ -18,6 +18,7 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
@@ -260,6 +261,9 @@ struct TSuspiciousJobsOptions
     //! Maximum number of suspicious jobs that are reported in Orchid for each job type.
     i64 MaxOrchidEntryCountPerType;
 
+    //! Minimum CPU limit for jobs that are checked for suspiciousness.
+    NScheduler::TCpuResource MinRequiredCpuLimit;
+
     REGISTER_YSON_STRUCT(TSuspiciousJobsOptions);
 
     static void Register(TRegistrar registrar);
@@ -406,6 +410,8 @@ struct TSimpleOperationOptions
     int MaxJobCount;
     i64 DataWeightPerJob;
 
+    NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
+
     REGISTER_YSON_STRUCT(TSimpleOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -421,8 +427,6 @@ DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
 struct TMapOperationOptions
     : public TSimpleOperationOptions
 {
-    NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
-
     REGISTER_YSON_STRUCT(TMapOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -523,6 +527,7 @@ struct TSortOperationOptionsBase
     i64 MinUncompressedBlockSize;
     i64 MaxValueCountPerSimpleSortJob;
     NChunkPools::TJobSizeAdjusterConfigPtr PartitionJobSizeAdjuster;
+    NChunkPools::TJobSizeAdjusterConfigPtr SortedMergeJobSizeAdjuster;
     TDataBalancerOptionsPtr DataBalancer;
     double CriticalNewPartitionDifferenceRatio;
 
@@ -788,6 +793,26 @@ DEFINE_REFCOUNTED_TYPE(TDockerRegistryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRemoteOperationsConfig
+    : public NYTree::TYsonStruct
+{
+    THashSet<TString> AllowedUsers;
+
+    bool AllowedForEveryone;
+
+    std::optional<i64> MaxTotalDataWeight;
+
+    std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
+
+    REGISTER_YSON_STRUCT(TRemoteOperationsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemoteOperationsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TControllerAgentConfig
     : public TSingletonsDynamicConfig
 {
@@ -837,7 +862,11 @@ struct TControllerAgentConfig
     NApi::TFileWriterConfigPtr SnapshotWriter;
 
     //! If |true|, snapshots are loaded during revival.
+    //! If |false|, then all operations are always restarted cleanly.
     bool EnableSnapshotLoading;
+
+    // COMPAT(babenko): make this always true when the feature is stable.
+    bool EnableSnapshotPhoenixSchemaDuringSnapshotLoading;
 
     bool EnableSnapshotLoadingDisabledAlert;
 
@@ -1006,6 +1035,11 @@ struct TControllerAgentConfig
 
     //! Enables dynamic change of job sizes.
     bool EnablePartitionMapJobSizeAdjustment;
+
+    //! Enables dynamic change of job sizes.
+    bool EnableOrderedPartitionMapJobSizeAdjustment;
+
+    bool EnableSortedMergeInSortJobSizeAdjustment;
 
     bool EnableMapJobSizeAdjustment;
 
@@ -1197,13 +1231,13 @@ struct TControllerAgentConfig
     TMemoryWatchdogConfigPtr MemoryWatchdog;
 
     //! List of media that require specifying account and disk space limit.
-    THashSet<TString> ObligatoryAccountMedia;
+    THashSet<std::string> ObligatoryAccountMedia;
 
     //! List of media that are deprecated to be used in disk requests.
-    THashSet<TString> DeprecatedMedia;
+    THashSet<std::string> DeprecatedMedia;
 
     //! The name of the fast medium (SSD) in the communal intermediate account.
-    TString FastIntermediateMedium;
+    std::string FastIntermediateMedium;
 
     //! Per transaction intermediate data weight limit for the fast medium (SSD) in the communal intermediate account.
     i64 FastIntermediateMediumLimit;
@@ -1255,7 +1289,7 @@ struct TControllerAgentConfig
     //! How many initial successive job aborts are needed to fail operation.
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
 
-    bool JobIdUnequalToAllocationId;
+    THashMap<NScheduler::TClusterName, TRemoteOperationsConfigPtr> RemoteOperations;
 
     bool EnableMergeSchemasDuringSchemaInfer;
 

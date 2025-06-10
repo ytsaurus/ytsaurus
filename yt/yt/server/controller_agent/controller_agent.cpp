@@ -89,7 +89,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ControllerAgentLogger;
+constinit const auto Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1155,7 +1155,7 @@ private:
     TAgentToSchedulerScheduleAllocationResponseOutboxPtr ScheduleAllocationResponsesOutbox_;
     TAgentToSchedulerRunningAllocationStatisticsOutboxPtr RunningAllocationStatisticsUpdatesOutbox_;
 
-    std::unique_ptr<TMessageQueueInbox> AllocationEventsInbox_;
+    std::shared_ptr<TMessageQueueInbox> AllocationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> ScheduleAllocationRequestsInbox_;
 
@@ -1357,7 +1357,7 @@ private:
             ControllerAgentProfiler().WithTag("queue", "running_allocation_statistics"),
             Bootstrap_->GetControlInvoker());
 
-        AllocationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
+        AllocationEventsInbox_ = std::make_shared<TMessageQueueInbox>(
             ControllerAgentLogger().WithTag(
                 "Kind: SchedulerToAgentAllocationEvents, IncarnationId: %v",
                 IncarnationId_),
@@ -1573,8 +1573,11 @@ private:
             },
             Config_->MaxRunningJobStatisticsUpdateCountPerHeartbeat);
 
-        auto error = WaitFor(BIND([&, request] {
-                AllocationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_allocation_events());
+        // NB(pogorelov): CA may disconnect while the callback is executing (it will lead to invoker cancellation).
+        // So we just copy "allocationEventsInbox" shared pointer.
+        // Variable "request" will be valid cause fiber will be destroyed after the future is set.
+        auto error = WaitFor(BIND([allocationEventsInbox = AllocationEventsInbox_, request] {
+                allocationEventsInbox->ReportStatus(request->mutable_scheduler_to_agent_allocation_events());
             })
             .AsyncVia(JobEventsInvoker_)
             .Run());

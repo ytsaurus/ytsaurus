@@ -119,28 +119,27 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SchedulerLogger;
+constinit const auto Logger = SchedulerLogger;
 
 static const TString UnknownTreeId = "<unknown>";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPoolTreeKeysHolder
+const std::vector<std::string>& GetPoolTreeKeys()
 {
-    TPoolTreeKeysHolder()
-    {
+    static const std::vector<std::string> result = [] {
         auto poolConfigTemplate = New<TPoolConfig>();
         auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
-
-        Keys.reserve(poolConfigKeys.size() + 3);
-        Keys.insert(Keys.end(), poolConfigKeys.begin(), poolConfigKeys.end());
-        Keys.insert(Keys.end(), DefaultTreeAttributeName);
-        Keys.insert(Keys.end(), TreeConfigAttributeName);
-        Keys.insert(Keys.end(), IdAttributeName);
-    }
-
-    std::vector<TString> Keys;
-};
+        std::vector<std::string> keys;
+        keys.reserve(poolConfigKeys.size() + 3);
+        keys.insert(keys.end(), poolConfigKeys.begin(), poolConfigKeys.end());
+        keys.insert(keys.end(), DefaultTreeAttributeName);
+        keys.insert(keys.end(), TreeConfigAttributeName);
+        keys.insert(keys.end(), IdAttributeName);
+        return keys;
+    }();
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -576,7 +575,7 @@ public:
     void DoValidateJobShellAccess(
         const std::string& user,
         const TString& jobShellName,
-        const std::vector<TString>& jobShellOwners)
+        const std::vector<std::string>& jobShellOwners)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -597,7 +596,7 @@ public:
     TFuture<void> ValidateJobShellAccess(
         const std::string& user,
         const TString& jobShellName,
-        const std::vector<TString>& jobShellOwners)
+        const std::vector<std::string>& jobShellOwners)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1048,16 +1047,12 @@ public:
 
         auto update = ConvertTo<TOperationRuntimeParametersUpdatePtr>(parameters);
 
-        WaitFor(ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions()))
-            .ThrowOnError();
-
-        // TODO(ignat): YT-23056: support more sophisticated checks for UpdateOperationParameters.
-        // std::vector<TFuture<void>> validateFutures{ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions())};
-        // if (Config_->OperationActionsAllowedForPoolManagers.contains(EOperationManagementAction::UpdateParameters)) {
-        //     validateFutures.push_back(Strategy_->ValidateOperationPoolPermissions(operation.Get(), user, update->GetRequiredPermissions()));
-        // }
-        // WaitFor(AnySucceeded(validateFutures))
-        //     .ThrowOnError();
+        if (update->IsAllowedForPoolManagers()) {
+            ValidateOperationManagementAccess(user, operation, EPermissionSet(EPermission::Manage), EOperationManagementAction::UpdateParameters);
+        } else {
+            WaitFor(ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions()))
+                .ThrowOnError();
+        }
 
         for (const auto& [jobShellName, _] : update->OptionsPerJobShell) {
             WaitFor(ValidateJobShellAccess(user, jobShellName, operation->GetJobShellOwners(jobShellName)))
@@ -1562,7 +1557,7 @@ public:
             now);
     }
 
-    std::optional<int> FindMediumIndexByName(const TString& mediumName) const override
+    std::optional<int> FindMediumIndexByName(const std::string& mediumName) const override
     {
         const auto& mediumDirectory = Bootstrap_
             ->GetClient()
@@ -1572,7 +1567,7 @@ public:
         return descriptor ? std::optional(descriptor->Index) : std::nullopt;
     }
 
-    const TString& GetMediumNameByIndex(int mediumIndex) const override
+    const std::string& GetMediumNameByIndex(int mediumIndex) const override
     {
         const auto& mediumDirectory = Bootstrap_
             ->GetClient()
@@ -1854,7 +1849,7 @@ private:
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
 
-    THashMap<TString, TString> UserToDefaultPoolMap_;
+    THashMap<std::string, TString> UserToDefaultPoolMap_;
 
     TExperimentAssigner ExperimentsAssigner_;
     TError LastExperimentAssignmentError_;
@@ -2236,13 +2231,11 @@ private:
 
     void RequestPoolTrees(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
-        static const TPoolTreeKeysHolder PoolTreeKeysHolder;
-
         YT_LOG_INFO("Requesting pool trees");
 
         auto req = TYPathProxy::Get(Config_->PoolTreesRoot);
 
-        ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
+        ToProto(req->mutable_attributes()->mutable_keys(), GetPoolTreeKeys());
         batchReq->AddRequest(req, "get_pool_trees");
     }
 
@@ -2513,7 +2506,7 @@ private:
 
         auto future =
             BIND([userToDefaultPoolMapYson = TYsonString(rspOrError.Value()->value())] {
-                return ConvertTo<THashMap<TString, TString>>(userToDefaultPoolMapYson);
+                return ConvertTo<THashMap<std::string, TString>>(userToDefaultPoolMapYson);
             })
             .AsyncVia(GetBackgroundInvoker())
             .Run();
@@ -3671,7 +3664,7 @@ private:
         for (const auto& [operationId, operation] : IdToOperation_) {
             builder.AppendString(operation->GetSuspiciousJobs().AsStringBuf());
         }
-        return TYsonString(builder.Flush(), EYsonType::MapFragment);
+        return TYsonString(TString(builder.Flush()), EYsonType::MapFragment);
     }
 
     void BuildStaticOrchid(IYsonConsumer* consumer)
@@ -4084,7 +4077,7 @@ private:
         return result;
     }
 
-    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
     {
         return UserToDefaultPoolMap_;
     }
@@ -4108,7 +4101,9 @@ private:
                 YT_VERIFY(future.IsSet());
                 errors.push_back(future.Get());
             }
-            THROW_ERROR_EXCEPTION("Access to perform %v of operation %v denied", action, operation->GetId())
+            THROW_ERROR_EXCEPTION("Access to perform %Qlv of operation %v denied",
+                action,
+                operation->GetId())
                 << errors;
         }
     }
@@ -4640,7 +4635,7 @@ TFuture<void> TScheduler::SetOperationAlert(
 TFuture<void> TScheduler::ValidateJobShellAccess(
     const std::string& user,
     const TString& jobShellName,
-    const std::vector<TString>& jobShellOwners)
+    const std::vector<std::string>& jobShellOwners)
 {
     return Impl_->ValidateJobShellAccess(user, jobShellName, jobShellOwners);
 }

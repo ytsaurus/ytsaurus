@@ -525,7 +525,7 @@ void TClusterBackupSession::ValidateBackupStates(ETabletBackupState expectedStat
 {
     auto buildRequest = [&] (const auto& batchReq, const TTableInfo& table) {
         auto req = TObjectYPathProxy::Get(FromObjectId(table.DestinationTableId) + "/@");
-        const static std::vector<TString> ExtraAttributeKeys{"tablet_backup_state", "backup_error"};
+        const static std::vector<std::string> ExtraAttributeKeys{"tablet_backup_state", "backup_error"};
         ToProto(req->mutable_attributes()->mutable_keys(), ExtraAttributeKeys);
         SetTransactionId(req, GetExternalizedTransactionId(table));
         batchReq->AddRequest(req, ToString(table.DestinationTableId));
@@ -960,10 +960,8 @@ TClusterBackupSession* TBackupSession::CreateClusterSession(
     EBackupDirection direction)
 {
     const auto& nativeConnection = Client_->GetNativeConnection();
-    auto remoteConnection = GetRemoteConnectionOrThrow(
-        nativeConnection,
-        clusterName,
-        /*syncOnFailure*/ true);
+    auto remoteConnection = WaitFor(InsistentGetRemoteConnection(nativeConnection, clusterName))
+        .ValueOrThrow();
     auto remoteClient = New<TClient>(
         std::move(remoteConnection),
         Client_->GetOptions(),

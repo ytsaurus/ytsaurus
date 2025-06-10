@@ -45,7 +45,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
             )
         create_dynamic_table(path, **attributes)
 
-    @authors("savrus")
+    @authors("savrus", "apollo1321")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("sort_order", [None, "ascending"])
@@ -106,6 +106,21 @@ class TestMapOnDynamicTables(YTEnvSetup):
         map(in_="//tmp/t", out="//tmp/t_out", ordered=ordered, command="cat")
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
+
+        if not ordered:
+            # Check explicitly set job counts for unordered operation.
+            for job_count in [1, 5, len(rows), len(rows) + 1]:
+                map(
+                    in_="//tmp/t",
+                    out="//tmp/t_out",
+                    ordered=ordered,
+                    command="cat",
+                    spec={
+                        "job_count": job_count,
+                    }
+                )
+
+                assert_items_equal(read_table("//tmp/t_out"), rows)
 
     @authors("savrus")
     @parametrize_external
@@ -458,6 +473,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
         assert get(f"#{chunk_id}/@min_timestamp") == 123
 
     @authors("dave11ar")
+    @pytest.mark.timeout(180)
     @pytest.mark.parametrize("enable_dynamic_store_read", [False, True])
     def test_versioned_map_reduce_read(self, enable_dynamic_store_read):
         input = "//tmp/t_input"

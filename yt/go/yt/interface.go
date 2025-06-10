@@ -121,7 +121,7 @@ type TimeoutOptions struct {
 
 // CreateNodeOptions.
 //
-// See https://wiki.yandex-team.ru/yt/userdoc/api/#create
+// See https://ytsaurus.tech/docs/en/api/commands#create
 type CreateNodeOptions struct {
 	Recursive      bool `http:"recursive"`
 	IgnoreExisting bool `http:"ignore_existing"`
@@ -509,6 +509,12 @@ type FileClient interface {
 type WriteTableOptions struct {
 	TableWriter any `http:"table_writer"`
 
+	// Format is YSON-serializable input format. If not specified "yson" will be used.
+	//
+	// Possible values:
+	//   - ​​skiff.Format (see skiff.MustInferFormat).
+	Format any `http:"input_format,omitnil"`
+
 	*TransactionOptions
 	*AccessTrackingOptions
 }
@@ -516,6 +522,12 @@ type WriteTableOptions struct {
 type ReadTableOptions struct {
 	Unordered   bool `http:"unordered"`
 	TableReader any  `http:"table_reader"`
+
+	// Format is YSON-serializable output format. If not specified "yson" will be used.
+	//
+	// Possible values:
+	//   - ​​skiff.Format (see skiff.MustInferFormat).
+	Format any `http:"output_format,omitnil"`
 
 	ControlAttributes any   `http:"control_attributes,omitnil"`
 	StartRowIndexOnly *bool `http:"start_row_index_only,omitnil"`
@@ -618,6 +630,10 @@ type ListJobsOptions struct {
 	Limit                    *int           `http:"limit,omitnil"`
 	Offset                   *int           `http:"offset,omitnil"`
 	DataSource               *JobDataSource `http:"data_source,omitnil"`
+}
+
+type GetJobOptions struct {
+	Attributes []string `http:"attributes,omitnil"`
 }
 
 type JobStatus struct {
@@ -799,6 +815,15 @@ type LowLevelSchedulerClient interface {
 		opID OperationID,
 		options *ListJobsOptions,
 	) (r *ListJobsResult, err error)
+
+	// http:verb:"get_job"
+	// http:params:"operation_id","job_id"
+	GetJob(
+		ctx context.Context,
+		opID OperationID,
+		jobID JobID,
+		options *GetJobOptions,
+	) (status *JobStatus, err error)
 
 	// http:verb:"get_job_stderr"
 	// http:params:"operation_id","job_id"
@@ -1394,6 +1419,7 @@ type CreateQueueProducerSessionOptions struct {
 	UserMeta any `http:"user_meta,omitnil"`
 
 	*TimeoutOptions
+	*MutatingOptions
 }
 
 type RemoveQueueProducerSessionOptions struct {

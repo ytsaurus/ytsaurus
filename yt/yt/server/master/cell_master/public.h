@@ -46,6 +46,7 @@ DECLARE_REFCOUNTED_STRUCT(IMulticellManager)
 DECLARE_REFCOUNTED_STRUCT(IWorldInitializer)
 DECLARE_REFCOUNTED_STRUCT(IWorldInitializerCache)
 DECLARE_REFCOUNTED_STRUCT(IMulticellStatisticsCollector)
+DECLARE_REFCOUNTED_STRUCT(IHiveProfilingManager)
 
 DECLARE_REFCOUNTED_CLASS(TBootstrap);
 
@@ -132,6 +133,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (LeaseManager)
     (GroundUpdateQueueManager)
     (CypressProxyTracker)
+    (SequoiaTransactionService)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

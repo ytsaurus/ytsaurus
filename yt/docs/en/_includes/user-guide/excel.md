@@ -20,7 +20,7 @@ Be sure to set the **Column names** and the **Types** toggles to the correct val
 
 With enabled **Column names**, column names are displayed in the first row of an Excel spreadsheet. If a spreadsheet doesn't have a header row, the Excel column names, such as A, B, C, and so on, are used as column names in the {{product-name}} table.
 
-With enabled **Types**, there's a row with types. The row with types must follow the row with column names (if present). Types are defined in the `type` format (see [type mapping](excel.md#type-mapping)).
+With enabled **Types**, there's a row with types. The row with types must follow the row with column names (if present). Types are defined in the `type` format (see [type mapping](#type-mapping)).
 
 {% note warning "Attention" %}
 
@@ -139,7 +139,7 @@ In {{product-name}}, a string may be longer: up to `128 * 10^6`. Long strings ar
 
 #### Text** {#text**}
 
-Values are serialized as [YSON](../user-guide/storage/yson.md). Long strings are truncated like in `Text*`.
+Values are serialized as [YSON](../../user-guide/storage/yson.md). Long strings are truncated like in `Text*`.
 
 ### Missing values
 

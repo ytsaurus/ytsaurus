@@ -109,8 +109,6 @@ void TDynamicTabletNodeTrackerConfig::Register(TRegistrar registrar)
 
 void TDynamicCellHydraPersistenceSynchronizerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("migrate_to_virtual_cell_maps", &TThis::MigrateToVirtualCellMaps)
-        .Default(false);
     registrar.Parameter("synchronization_period", &TThis::SynchronizationPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("max_cells_to_register_in_cypress_per_iteration", &TThis::MaxCellsToRegisterInCypressPerIteration)
@@ -187,6 +185,8 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("synchronize_tablet_cell_leader_switches", &TThis::SynchronizeTabletCellLeaderSwitches)
         .Default(true);
+    registrar.Parameter("max_preload_wait_time_before_leader_switch", &TThis::MaxPreloadWaitTimeBeforeLeaderSwitch)
+        .Default(TDuration::Minutes(10));
     registrar.Parameter("decommissioned_leader_reassignment_timeout", &TThis::DecommissionedLeaderReassignmentTimeout)
         .Default();
     registrar.Parameter("abandon_leader_lease_during_recovery", &TThis::AbandonLeaderLeaseDuringRecovery)
@@ -206,7 +206,7 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("increase_upload_replication_factor", &TThis::IncreaseUploadReplicationFactor)
         .Default(false);
     registrar.Parameter("enable_tablet_resource_validation", &TThis::EnableTabletResourceValidation)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("tablet_node_tracker", &TThis::TabletNodeTracker)
         .DefaultNew();

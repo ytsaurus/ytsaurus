@@ -247,6 +247,11 @@ class TestFileCommands(object):
         assert yt.get("//tmp/zlib3_compressed/file/@compression_codec") == "zlib_3"
         assert yt.get("//tmp/zlib3_compressed/file/@compression_statistics").keys() == {"zlib_3"}
 
+    @authors("denvr")
+    def test_temp_user_dir(self):
+        yt.file_commands.TEMP_DIR_CREATED_PATH = dict()
+        assert "//tmp/yt_wrapper/file_storage" == yt.file_commands._get_remote_temp_files_directory()
+
 
 @pytest.fixture(scope="function")
 def custom_medium(yt_env_additional_media):

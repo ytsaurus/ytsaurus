@@ -1393,7 +1393,8 @@ class TestNbdSquashFSLayers(YTEnvSetup):
     @authors("yuryalekseev")
     @pytest.mark.parametrize("use_disk_request", [True, False])
     @pytest.mark.parametrize("access_method", ["from_user_spec", "from_cypress"])
-    def test_squashfs_layer(self, use_disk_request, access_method):
+    @pytest.mark.parametrize("data_node_address", ["from_user_spec", "from_master"])
+    def test_squashfs_layer(self, use_disk_request, access_method, data_node_address):
         # Set up image file.
         create("file", "//tmp/squashfs.img")
         write_file("//tmp/squashfs.img", open("layers/squashfs.img", "rb").read())
@@ -1426,11 +1427,16 @@ class TestNbdSquashFSLayers(YTEnvSetup):
             spec["mapper"]["disk_request"] = {
                 "medium_name": "default",
                 "disk_space": 16 * 1024 * 1024,
-                # Use NBD disk.
-                "nbd_disk": {
+            }
+
+            # Use NBD disk.
+            if data_node_address == "from_user_spec":
+                # Take data node address from user spec.
+                spec["mapper"]["disk_request"]["nbd_disk"] = {
                     "data_node_address": ls("//sys/data_nodes")[0],
                 }
-            }
+            else:
+                spec["mapper"]["disk_request"]["nbd_disk"] = {}
 
         op = map(
             in_="//tmp/t_in",
@@ -1589,13 +1595,15 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
     def test_read_timeout(self):
         self.setup_files()
 
+        # Set read I/O timeout to 1/2 second
+        io_timeout = 500
+
         update_nodes_dynamic_config({
             "exec_node": {
                 "nbd": {
                     "block_cache_compressed_data_capacity": 536870912,
                     "client": {
-                        # Set read I/O timeout to 1 second
-                        "io_timeout": 1000,
+                        "io_timeout": io_timeout,
                     },
                     "enabled": True,
                     "server": {
@@ -1606,8 +1614,8 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
                             "path": tempfile.mkstemp(dir="/root" if os.environ["USER"] == "root" else "/home/" + os.environ["USER"])[1]
                         },
                         "test_options": {
-                            # Sleep for 10 seconds prior to performing block device read
-                            "block_device_sleep_before_read": 10000,
+                            # Sleep for a number of timeouts prior to performing block device read
+                            "block_device_sleep_before_read": 3 * io_timeout,
                         },
                     },
                 },
@@ -1617,12 +1625,22 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE):
             pass
 
+        # Wait for node to restart
         wait_for_nodes()
 
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
+        nodes = ls("//sys/data_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
 
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "online")
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "online")
+
+        # Create input table
+        create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"k": 0, "u": 1, "v": 2}])
+
+        create("table", "//tmp/t_out")
 
         with pytest.raises(YtError):
             map(
@@ -2022,7 +2040,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
                 "mapper": {
                     "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz", "//tmp/sandbox.img"],
                     # "disk_space_limit": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": True,
             },
@@ -2046,7 +2063,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
                     "file_paths": ["//tmp/mapper.sh"],
                     "copy_files": True,
                     # "disk_space_limit": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": True,
             },
@@ -2067,7 +2083,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
                     "tmpfs_path": "tmpfs",
                     "tmpfs_size": 1024 * 1024,
                     # "disk_space_limit": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": True,
             },
@@ -2090,7 +2105,6 @@ class TestEnableRootVolumeDiskQuota(YTEnvSetup):
                 "mapper": {
                     "layer_paths": ["//tmp/exec.tar.gz", "//tmp/rootfs.tar.gz"],
                     # "disk_space_limit": 1024 * 1024,
-                    "make_rootfs_writable": True,
                 },
                 "enable_root_volume_disk_quota": True,
                 "input_query": "a where a > 0"

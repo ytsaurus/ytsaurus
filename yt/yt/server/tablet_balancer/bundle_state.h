@@ -61,7 +61,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TTabletCellBundlePtr, Bundle);
     DEFINE_BYREF_RW_PROPERTY(TTableProfilingCounterMap, ProfilingCounters);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasUntrackedUnfinishedActions, false);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, PerformanceCountersKeys);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<std::string>, PerformanceCountersKeys);
     DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(LastReplicaMoveBalancingFetchFailed, false);
 
 public:

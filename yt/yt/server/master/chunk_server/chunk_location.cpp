@@ -32,6 +32,11 @@ int TChunkLocation::GetEffectiveMediumIndex() const
     return Statistics_.medium_index();
 }
 
+void TChunkLocation::SetId(NObjectServer::TObjectId id)
+{
+    Id_ = id;
+}
+
 void TChunkLocation::ReserveReplicas(int sizeHint)
 {
     Replicas_.reserve(sizeHint);

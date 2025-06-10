@@ -36,6 +36,7 @@ DEFINE_ENUM(ETabletReign,
     ((PerRowSequencer_25_1_NOOP)                   (101105)) // ponasenko-rs
     ((FixHunkStorageUnmountRoutine_25_1)           (101106)) // akozhikhov
     ((CheckChaosTransactionsInPrepare_25_1)        (101107)) // savrus
+    ((ChaosReplicationEraIsPersistent_25_1)        (101108)) // osidorkin
     // 25.2 starts here.
     ((Start_25_2)                                  (101200)) // ponasenko-rs
     ((CancelTabletTransition)                      (101201)) // ifsmirnov
@@ -43,6 +44,9 @@ DEFINE_ENUM(ETabletReign,
     ((FixHunkStorageUnmountRoutine)                (101203)) // akozhikhov
     ((AddTabletMountTime)                          (101204)) // alexelexa
     ((CheckChaosTransactionsInPrepare)             (101205)) // savrus
+    ((FixTransactionActionAbort)                   (101206)) // kvk1920
+    ((ChaosReplicationEraIsPersistent)             (101207)) // osidorkin
+    ((TransactionActionStates)                     (101208)) // babenko
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");

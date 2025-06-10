@@ -20,8 +20,8 @@ bool IsCachingEnabled(
         case EMasterChannelKind::Leader:
         case EMasterChannelKind::Follower:
             return false;
-        case EMasterChannelKind::LocalCache:
-        case EMasterChannelKind::MasterCache:
+        case EMasterChannelKind::ClientSideCache:
+        case EMasterChannelKind::MasterSideCache:
             return true;
         case EMasterChannelKind::Cache:
             return connection->GetMasterCellDirectory()->IsMasterCacheConfigured();
@@ -30,21 +30,6 @@ bool IsCachingEnabled(
 }
 
 } // namespace
-
-NApi::EMasterChannelKind GetEffectiveMasterChannelKind(
-    const IConnectionPtr& connection,
-    NApi::EMasterChannelKind kind)
-{
-    if (kind == NApi::EMasterChannelKind::Cache &&
-        !connection->GetMasterCellDirectory()->IsMasterCacheConfigured())
-    {
-        // If master cache is not configured then all |EMasterChannelKind::Cache| requests
-        // will actually be routed to followers.
-        return NApi::EMasterChannelKind::Follower;
-    }
-
-    return kind;
-}
 
 void SetCachingHeader(
     const IClientRequestPtr& request,

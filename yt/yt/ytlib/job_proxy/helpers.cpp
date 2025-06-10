@@ -37,7 +37,7 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = JobProxyClientLogger;
+constinit const auto Logger = JobProxyClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -150,17 +150,6 @@ int GetJobFirstOutputTableFDFromSpec(const TUserJobSpec& spec)
     return spec.redirect_stdout_to_stderr()
         ? JobFirstOutputTableFDWithRedirectStdoutToStderr
         : JobFirstOutputTableFDDefault;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<TDuration> OptionalCpuDurationToDuration(std::optional<TCpuDuration> cpuDuration)
-{
-    if (!cpuDuration) {
-        return std::nullopt;
-    }
-
-    return CpuDurationToDuration(*cpuDuration);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

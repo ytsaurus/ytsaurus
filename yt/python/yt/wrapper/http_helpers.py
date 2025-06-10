@@ -5,7 +5,7 @@ from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
                      YtRequestTimedOut, YtRetriableError, YtTransportError, YtNoSuchTransaction,
-                     create_http_response_error, YtSequoiaRetriableError)
+                     create_http_response_error)
 from .framing import unframed_iter_content
 from .command import parse_commands
 from .format import JsonFormat, YsonFormat
@@ -87,8 +87,7 @@ def get_retriable_errors():
             SocketError, ChunkedEncodingError, ReadTimeoutError,
             YtIncorrectResponse, YtProxyUnavailable,
             YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
-            YtRequestTimedOut, YtRetriableError, YtTransportError,
-            YtSequoiaRetriableError)
+            YtRequestTimedOut, YtRetriableError, YtTransportError)
 
 
 class ProxyProvider(object):
@@ -171,6 +170,7 @@ def configure_ip(session, force_ipv4=False, force_ipv6=False):
 
 
 def get_error_from_headers(headers):
+    """Return content of error header if present"""
     if int(headers.get("x-yt-response-code", 0)) != 0:
         return headers["x-yt-error"]
     return None
@@ -239,6 +239,9 @@ def create_response(response, request_info, request_id, error_format, client):
 
     def get_error():
         error_content = get_error_from_headers(response.headers)
+        trailers = response.trailers()
+        if error_content is None and trailers is not None:
+            error_content = get_error_from_headers(trailers)
         if error_content is None and not str(response.status_code).startswith("2"):
             check_response_is_decodable(response, error_format)
             error_content = response.content
@@ -413,7 +416,6 @@ class RequestRetrier(Retrier):
                     rsp = create_response(error.response, request_info, self.request_id, self.error_format, self.client)
                 except:  # noqa
                     raise exc_info[1].with_traceback(exc_info[2])
-                check_response_is_decodable(rsp, "json")
                 _raise_for_status(rsp, request_info)
             raise
 

@@ -100,7 +100,7 @@ TDiskQuota& operator -= (TDiskQuota& lhs, const TDiskQuota& rhs)
     return lhs;
 }
 
-bool operator==(const TDiskQuota& lhs, const TDiskQuota& rhs)
+bool operator == (const TDiskQuota& lhs, const TDiskQuota& rhs)
 {
     if (lhs.DiskSpacePerMedium.size() != rhs.DiskSpacePerMedium.size()) {
         return false;
@@ -211,6 +211,18 @@ TJobResourcesWithQuota Max(const TJobResourcesWithQuota& lhs, const TJobResource
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool Dominates(const TDiskQuota& lhs, const TDiskQuota& rhs)
+{
+    for (auto [mediumIndex, diskSpace] : lhs.DiskSpacePerMedium) {
+        auto it = rhs.DiskSpacePerMedium.find(mediumIndex);
+        if (it == end(rhs.DiskSpacePerMedium) || diskSpace > it->second) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool Dominates(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs)
 {
     bool result =
@@ -218,14 +230,8 @@ bool Dominates(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& 
         ITERATE_JOB_RESOURCES(XX)
     #undef XX
     true;
-    auto rhsDiskQuota = rhs.DiskQuota();
-    for (auto [mediumIndex, diskSpace] : lhs.DiskQuota().DiskSpacePerMedium) {
-        auto it = rhsDiskQuota.DiskSpacePerMedium.find(mediumIndex);
-        if (it != rhsDiskQuota.DiskSpacePerMedium.end() && diskSpace < it->second) {
-            return false;
-        }
-    }
-    return result;
+
+    return result && Dominates(lhs.DiskQuota(), rhs.DiskQuota());
 }
 
 bool CanSatisfyDiskQuotaRequests(

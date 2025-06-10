@@ -153,9 +153,9 @@ protected:
                 TotalOutputRowCount_ += jobSummary.TotalOutputDataStatistics->row_count();
             }
 
-            TChunkStripeKey key = 0;
+            TChunkStripeKey key;
             if (Controller_->OrderedOutputRequired_) {
-                key = TOutputOrder::TEntry(joblet->OutputCookie);
+                key = TChunkStripeKey(TOutputOrder::TEntry(joblet->OutputCookie));
             }
 
             RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /*processEmptyStripes*/ true);
@@ -242,9 +242,9 @@ protected:
             TTask::OnChunkTeleported(teleportChunk, tag);
 
             if (Controller_->OrderedOutputRequired_) {
-                Controller_->RegisterTeleportChunk(teleportChunk, /*key*/ TOutputOrder::TEntry(teleportChunk), /*tableIndex*/ 0);
+                Controller_->RegisterTeleportChunk(teleportChunk, /*key*/ TChunkStripeKey(TOutputOrder::TEntry(teleportChunk)), /*tableIndex*/ 0);
             } else {
-                Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, /*tableIndex*/ 0);
+                Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ TChunkStripeKey(), /*tableIndex*/ 0);
             }
         }
 
@@ -303,7 +303,7 @@ protected:
 
     virtual bool IsTeleportationSupported() const = 0;
 
-    virtual i64 GetMinTeleportChunkSize() = 0;
+    virtual i64 GetMinTeleportChunkSize() const = 0;
 
     virtual void ValidateInputDataSlice(const TLegacyDataSlicePtr& /*dataSlice*/)
     { }
@@ -332,7 +332,7 @@ protected:
 
     void CalculateSizes()
     {
-        switch (OperationType) {
+        switch (OperationType_) {
             case EOperationType::Merge:
             case EOperationType::Erase:
             case EOperationType::Map:
@@ -341,10 +341,10 @@ protected:
                     Options_,
                     Logger,
                     OutputTables_.size(),
-                    DataWeightRatio,
-                    TotalEstimatedInputChunkCount,
-                    PrimaryInputDataWeight,
-                    PrimaryInputCompressedDataSize);
+                    EstimatedInputStatistics_->DataWeightRatio,
+                    EstimatedInputStatistics_->ChunkCount,
+                    EstimatedInputStatistics_->PrimaryDataWeight,
+                    EstimatedInputStatistics_->PrimaryCompressedDataSize);
                 break;
 
             default:
@@ -404,7 +404,7 @@ protected:
     void InitTeleportableInputTables()
     {
         if (IsTeleportationSupported()) {
-            const auto& inputTables = InputManager->GetInputTables();
+            const auto& inputTables = InputManager_->GetInputTables();
             for (int index = 0; index < std::ssize(inputTables); ++index) {
                 if (inputTables[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
                     inputTables[index]->Teleportable = CheckTableSchemaCompatibility(
@@ -447,10 +447,10 @@ protected:
         FinishPreparation();
     }
 
-    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions()
+    virtual TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const
     {
         TOrderedChunkPoolOptions chunkPoolOptions;
-        chunkPoolOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        chunkPoolOptions.MaxTotalSliceCount = Config_->MaxTotalSliceCount;
         chunkPoolOptions.EnablePeriodicYielder = true;
         chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
@@ -518,7 +518,7 @@ public:
     TOrderedMergeController(
         TOrderedMergeOperationSpecPtr spec,
         TControllerAgentConfigPtr config,
-        TSimpleOperationOptionsPtr options,
+        TOrderedMergeOperationOptionsPtr options,
         IOperationControllerHostPtr host,
         TOperation* operation)
         : TOrderedControllerBase(
@@ -528,10 +528,12 @@ public:
             host,
             operation)
         , Spec_(spec)
+        , Options_(std::move(options))
     { }
 
 private:
     TOrderedMergeOperationSpecPtr Spec_;
+    TOrderedMergeOperationOptionsPtr Options_;
 
     bool IsRowCountPreserved() const override
     {
@@ -540,7 +542,7 @@ private:
             !Spec_->JobIO->TableReader->SamplingRate;
     }
 
-    i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() const override
     {
         if (Spec_->ForceTransform || Spec_->InputQuery) {
             return std::numeric_limits<i64>::max() / 4;
@@ -562,7 +564,7 @@ private:
     {
         if (Spec_->InputQuery) {
             if (Spec_->InputQueryOptions->UseSystemColumns) {
-                InputManager->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
+                InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
             }
             ParseInputQuery(
                 *Spec_->InputQuery,
@@ -599,7 +601,7 @@ private:
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
@@ -619,7 +621,7 @@ private:
 
         auto inferFromInput = [&] {
             if (Spec_->InputQuery) {
-                table->TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
+                table->TableUploadOptions.TableSchema = InputQuery_->Query->GetTableSchema();
             } else {
                 InferSchemaFromInputOrdered();
             }
@@ -679,16 +681,23 @@ private:
         return TConfigurator<TOrderedMergeOperationSpec>();
     }
 
+    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const override
+    {
+        auto options = TOrderedControllerBase::GetOrderedChunkPoolOptions();
+        options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
+        return options;
+    }
+
     void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
-                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != OrderedTask_->GetTotalOutputRowCount(),
+                YT_LOG_ERROR_IF(EstimatedInputStatistics_->RowCount != OrderedTask_->GetTotalOutputRowCount(),
                     "Input/output row count mismatch in ordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
-                    TotalEstimatedInputRowCount,
+                    EstimatedInputStatistics_->RowCount,
                     OrderedTask_->GetTotalOutputRowCount());
-                YT_VERIFY(TotalEstimatedInputRowCount == OrderedTask_->GetTotalOutputRowCount());
+                YT_VERIFY(EstimatedInputStatistics_->RowCount == OrderedTask_->GetTotalOutputRowCount());
             }
         }
 
@@ -756,7 +765,7 @@ private:
         return Spec_->Mapper;
     }
 
-    i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() const override
     {
         return std::numeric_limits<i64>::max() / 4;
     }
@@ -780,7 +789,7 @@ private:
             .EndMap();
     }
 
-    void CustomizeJoblet(const TJobletPtr& joblet) override
+    void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& /*allocation*/) override
     {
         joblet->StartRowIndex = StartRowIndex_;
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
@@ -829,7 +838,7 @@ private:
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
@@ -856,7 +865,7 @@ private:
     {
         if (Spec_->InputQuery) {
             if (Spec_->InputQueryOptions->UseSystemColumns) {
-                InputManager->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
+                InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
             }
             ParseInputQuery(
                 *Spec_->InputQuery,
@@ -905,6 +914,13 @@ private:
     TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
         return TConfigurator<TMapOperationSpec>();
+    }
+
+    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const override
+    {
+        auto options = TOrderedControllerBase::GetOrderedChunkPoolOptions();
+        options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
+        return options;
     }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedMapController, 0x3be901ca);
@@ -985,7 +1001,7 @@ private:
         return false;
     }
 
-    i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() const override
     {
         if (!Spec_->CombineChunks) {
             return 0;
@@ -1009,8 +1025,8 @@ private:
     {
         TOrderedControllerBase::CustomPrepare();
 
-        auto& path = InputManager->GetInputTables()[0]->Path;
-        auto ranges = path.GetNewRanges(InputManager->GetInputTables()[0]->Comparator, InputManager->GetInputTables()[0]->Schema->GetKeyColumnTypes());
+        auto& path = InputManager_->GetInputTables()[0]->Path;
+        auto ranges = path.GetNewRanges(InputManager_->GetInputTables()[0]->Comparator, InputManager_->GetInputTables()[0]->Schema->GetKeyColumnTypes());
         if (ranges.size() > 1) {
             THROW_ERROR_EXCEPTION("Erase operation does not support tables with multiple ranges");
         }
@@ -1068,9 +1084,9 @@ private:
                 if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputOrdered();
                 } else {
-                    if (InputManager->GetInputTables()[0]->SchemaMode == ETableSchemaMode::Strong) {
+                    if (InputManager_->GetInputTables()[0]->SchemaMode == ETableSchemaMode::Strong) {
                         const auto& [compatibility, error] = CheckTableSchemaCompatibility(
-                            *InputManager->GetInputTables()[0]->Schema,
+                            *InputManager_->GetInputTables()[0]->Schema,
                             *table->TableUploadOptions.TableSchema.Get(),
                             {.IgnoreStableNamesDifference = true});
 
@@ -1101,7 +1117,7 @@ private:
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));

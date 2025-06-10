@@ -217,7 +217,12 @@ public:
             } else {
                 auto currentMinRow = NYT::FromProto<TLegacyOwningKey>(boundaryKeysExt->Min);
                 auto previousMaxRow = NYT::FromProto<TLegacyOwningKey>(BoundaryKeys_->Max);
-                YT_VERIFY(SchemaComparator_.CompareKeys(TKey::FromRow(previousMaxRow), TKey::FromRow(currentMinRow)) <= 0);
+                if (SchemaComparator_.CompareKeys(TKey::FromRow(previousMaxRow), TKey::FromRow(currentMinRow)) > 0) {
+                    YT_LOG_ALERT("Incorrectly sorted chunk occured during absorption of meta (ChunkId: %v)", chunkId);
+                    THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::IncompatibleChunkMetas,
+                        "Chunk %v is marked sorted, although it is not",
+                        chunkId);
+                }
                 BoundaryKeys_->Max = boundaryKeysExt->Max;
             }
         }
@@ -244,6 +249,7 @@ public:
                     chunkId);
             }
             auto largeColumnarStatisticsExt = FindProtoExtension<TLargeColumnarStatisticsExt>(meta->extensions());
+            HaveLargeStatisticsExt_ |= largeColumnarStatisticsExt.has_value();
 
             i64 chunkRowCount = GetProtoExtension<NProto::TMiscExt>(meta->extensions()).row_count();
             TColumnarStatistics chunkColumnarStatistics;
@@ -403,6 +409,7 @@ private:
 
     std::optional<TSamplesExtension> SamplesExt_;
     std::optional<TColumnarStatistics> ColumnarStatistics_;
+    bool HaveLargeStatisticsExt_ = false;
 
     void AbsorbFirstMeta(const TDeferredChunkMetaPtr& meta, TChunkId /* chunkId */)
     {
@@ -518,7 +525,9 @@ private:
         }
         if (ColumnarStatistics_) {
             SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TColumnarStatisticsExt>(*ColumnarStatistics_));
-            SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TLargeColumnarStatisticsExt>(ColumnarStatistics_->LargeStatistics));
+            if (HaveLargeStatisticsExt_) {
+                SetProtoExtension(ChunkMeta_->mutable_extensions(), ToProto<TLargeColumnarStatisticsExt>(ColumnarStatistics_->LargeStatistics));
+            }
         }
         if (Options_->MaxHeavyColumns > 0 && ColumnarStatistics_) {
             auto heavyColumnStatisticsExt = GetHeavyColumnStatisticsExt(

@@ -12,10 +12,6 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::EMasterChannelKind GetEffectiveMasterChannelKind(
-    const IConnectionPtr& connection,
-    NApi::EMasterChannelKind kind);
-
 void SetCachingHeader(
     const NRpc::IClientRequestPtr& request,
     const NApi::NNative::IConnectionPtr& connection,

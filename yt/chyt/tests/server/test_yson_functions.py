@@ -1,3 +1,4 @@
+import json
 from base import ClickHouseTestBase, Clique, QueryFailedError
 
 from yt_commands import (create, write_table, read_table, authors, raises_yt_error, merge)
@@ -259,3 +260,38 @@ class TestYsonFunctions(ClickHouseTestBase):
             assert clique.make_query("select YPathRaw(v, '', fmt) as a from `//tmp/t[#1:#5]`") == [
                 {"a": yson.dumps(row["v"], row["fmt"]).decode()} for row in read_table("//tmp/t[#1:#5]")
             ]
+
+    @authors("a-dyu")
+    def test_yson_to_json(self):
+        obj = {
+            "a": {
+                "i64": -42,
+                "ui64": yson.YsonUint64(23),
+                "bool": True,
+                "dbl": 3.14,
+                "str": "xyz",
+                "subnode": {
+                    "i64": 123,
+                },
+                "arr_i64": [-1, 0, 1],
+                "arr_ui64": [1, 1, 2, 3, 5],
+                "arr_dbl": [-1.1, 2.71],
+                "arr_bool": [False, True, False],
+                "null": None
+            }
+        }
+        create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "any"}]})
+        write_table("//tmp/s1", {"a": obj})
+
+        with Clique(1) as clique:
+            result = clique.make_query("select ConvertYsonToJson(a) as v from \"//tmp/s1\"")
+            json_res = json.loads(result[0]["v"])
+            assert json_res == obj
+            result = clique.make_query("select ConvertYsonToJson('[]') as v")
+            json_res = json.loads(result[0]["v"])
+            assert json_res == []
+            result = clique.make_query("select ConvertYsonToJson('{a = 1}') as v")
+            json_res = json.loads(result[0]["v"])
+            assert json_res == {'a': 1}
+            result = clique.make_query("select ConvertYsonToJson(null) as v")
+            assert result[0]["v"] is None

@@ -9,14 +9,16 @@ import (
 
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/ythttp"
 )
 
 const (
-	numberOfRows int    = 100
-	cluster      string = "freud"
+	numberOfRows   int    = 100
+	cluster        string = "freud"
+	useSkiffFormat bool   = false
 )
 
 type Contact struct {
@@ -65,7 +67,15 @@ func Example() error {
 	}
 	fmt.Printf("Created table at https://yt.yandex-team.ru/%s/navigation?path=%s\n", cluster, tablePath.String())
 
-	writer, err := yc.WriteTable(ctx, tablePath, nil)
+	var format any = nil
+	if useSkiffFormat {
+		skiffFormat := skiff.MustInferFormat(Contact{})
+		fmt.Println("Inferred skiff format:")
+		spew.Fdump(os.Stdout, skiffFormat)
+		format = skiffFormat
+	}
+
+	writer, err := yc.WriteTable(ctx, tablePath, &yt.WriteTableOptions{Format: format})
 	if err != nil {
 		return err
 	}
@@ -90,7 +100,7 @@ func Example() error {
 	}
 	fmt.Printf("YT table contains %v rows\n", attrs.Rows)
 
-	reader, err := yc.ReadTable(ctx, tablePath, nil)
+	reader, err := yc.ReadTable(ctx, tablePath, &yt.ReadTableOptions{Format: format})
 	if err != nil {
 		return err
 	}

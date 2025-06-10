@@ -419,20 +419,10 @@ protected:
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const = 0;
 
-    struct TNewJobConstraints
-    {
-        std::optional<NChunkPools::IChunkPoolOutput::TCookie> OutputCookie;
-        std::optional<TJobMonitoringDescriptor> MonitoringDescriptor;
-
-        operator bool() const noexcept;
-    };
-    friend void FormatValue(TStringBuilderBase* builder, const TNewJobConstraints& newJobConstraints, TStringBuf /*format*/);
-
-    virtual TNewJobConstraints GetNewJobConstraints(const TAllocation& allocation) const;
-
     virtual NChunkPools::IChunkPoolOutput::TCookie ExtractCookieForAllocation(
-        const TAllocation& allocation,
-        const TNewJobConstraints& newJobConstraints);
+        const TAllocation& allocation);
+
+    virtual void StoreLastJobInfo(TAllocation& allocation, const TJobletPtr& joblet) const;
 
 private:
     TCompositePendingJobCount CachedPendingJobCount_;
@@ -518,8 +508,7 @@ private:
         TJobId jobId,
         bool treeIsTentative,
         NChunkPools::IChunkPoolOutput::TCookie outputCookie,
-        std::optional<EJobCompetitionType> competitionType,
-        const TNewJobConstraints& newJobConstraints);
+        std::optional<EJobCompetitionType> competitionType);
 
     std::optional<TDuration> InferWaitingForResourcesTimeout(
         const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec) const;
@@ -577,9 +566,9 @@ private:
     };
 
     std::expected<TOutputCookieInfo, EScheduleFailReason>
-    GetOutputCookieInfoForFirstJob(const TAllocation& allocation, const TNewJobConstraints& newJobConstraints);
+    GetOutputCookieInfoForFirstJob(const TAllocation& allocation);
     std::expected<TOutputCookieInfo, EScheduleFailReason>
-    GetOutputCookieInfoForNextJob(const TAllocation& allocation, const TNewJobConstraints& newJobConstraints);
+    GetOutputCookieInfoForNextJob(const TAllocation& allocation);
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTask, 0x81ab3cd3);

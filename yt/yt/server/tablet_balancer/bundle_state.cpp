@@ -60,7 +60,7 @@ THashMap<TTabletId, TTableId> ParseTabletToTableMapping(const IMapNodePtr& mapNo
 
 TTabletStatistics BuildTabletStatistics(
     const TRspGetTableBalancingAttributes::TTablet::TCompressedStatistics& protoStatistics,
-    const std::vector<TString>& keys,
+    const std::vector<std::string>& keys,
     bool saveOriginalNode)
 {
     auto node = BuildYsonNodeFluently()
@@ -142,7 +142,7 @@ std::vector<std::pair<TTableId, std::optional<TCellTag>>> ResolveTablePaths(
 
     auto Logger = TabletBalancerLogger();
     for (auto path : paths) {
-        static const std::vector<TString> attributeKeys{"id", "external", "external_cell_tag", "dynamic"};
+        static const std::vector<std::string> attributeKeys{"id", "external", "external_cell_tag", "dynamic"};
         auto req = TYPathProxy::Get(path + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
         batchRequest->AddRequest(req);
@@ -239,13 +239,13 @@ TBundleProfilingCounters::TBundleProfilingCounters(const NProfiling::TProfiler& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::vector<TString> DefaultPerformanceCountersKeys{
+const std::vector<std::string> DefaultPerformanceCountersKeys{
     #define XX(name, Name) #name,
     ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
     #undef XX
 };
 
-const std::vector<TString> AdditionalPerformanceCountersKeys{
+const std::vector<std::string> AdditionalPerformanceCountersKeys{
     #define XX(name, Name) #name,
     ITERATE_NODE_TABLET_PERFORMANCE_COUNTERS(XX)
     #undef XX
@@ -832,7 +832,7 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
 {
     THashMap<TCellTag, TCellTagBatch> batchRequests;
 
-    static const std::vector<TString> attributeKeys{"tablets", "status", "total_statistics", "peers", "tablet_cell_life_stage"};
+    static const std::vector<std::string> attributeKeys{"tablets", "status", "total_statistics", "peers", "tablet_cell_life_stage"};
     for (auto cellTag : cellTags) {
         auto proxy = CreateObjectServiceReadProxy(
             Client_,
@@ -913,7 +913,7 @@ THashMap<TNodeAddress, TTabletCellBundle::TNodeStatistics> TBundleState::GetNode
 THashMap<TTableId, TTablePtr> TBundleState::FetchBasicTableAttributes(
     const THashSet<TTableId>& tableIds) const
 {
-    static const std::vector<TString> attributeKeys{"path", "external", "sorted", "external_cell_tag"};
+    static const std::vector<std::string> attributeKeys{"path", "external", "sorted", "external_cell_tag"};
     auto tableToAttributes = FetchAttributes(Client_, tableIds, attributeKeys);
 
     THashMap<TTableId, TTablePtr> tableInfos;
@@ -1012,7 +1012,7 @@ THashMap<TTableId, TBundleState::TTableStatisticsResponse> TBundleState::FetchTa
             cellTag);
 
         auto responseBatch = batch.Response.Get().ValueOrThrow();
-        auto statisticsFieldNames = FromProto<std::vector<TString>>(responseBatch->statistics_field_names());
+        auto statisticsFieldNames = FromProto<std::vector<std::string>>(responseBatch->statistics_field_names());
 
         for (int index = 0; index < batch.Request->table_ids_size(); ++index) {
             auto tableId = FromProto<TTableId>(batch.Request->table_ids()[index]);

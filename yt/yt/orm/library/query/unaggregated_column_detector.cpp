@@ -31,7 +31,7 @@ public:
 
     void OnFunction(TFunctionExpressionPtr functionExpr)
     {
-        bool isAggregated = IsAggregateFunction(functionExpr->FunctionName);
+        bool isAggregated = Functions_->GetFunction(functionExpr->FunctionName)->IsAggregate();
         if (isAggregated) {
             AggregationFunctionsDepth_++;
         }
@@ -51,12 +51,6 @@ private:
     const NQueryClient::TConstTypeInferrerMapPtr Functions_;
     int AggregationFunctionsDepth_ = 0;
     bool HasUnaggregatedColumn_ = false;
-
-    bool IsAggregateFunction(const std::string& functionName)
-    {
-        const auto& descriptor = Functions_->GetFunction(functionName);
-        return descriptor->As<NQueryClient::TAggregateFunctionTypeInferrer>() != nullptr;
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

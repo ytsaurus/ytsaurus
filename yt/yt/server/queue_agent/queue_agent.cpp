@@ -59,7 +59,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = QueueAgentLogger;
+constinit const auto Logger = QueueAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,7 +75,7 @@ public:
         , ObjectKind_(objectKind)
         , ProxyConfig_{
             .Enable = enableProxy,
-            .RemoteQueryRoot = Format("//queue_agent/owned_%lvs", ObjectKind_)
+            .RemoteQueryRoot = Format("//queue_agent/owned_%v", EnumValueToPluralForm(ObjectKind_, /*lowercase*/ true))
         }
     {
         // NB(apachee): Prevent requests to foreign objects.
@@ -138,7 +138,10 @@ public:
         const auto& objectToHost = Owner_->ObjectToHost_;
         auto objectToHostIt = objectToHost.find(objectRef);
         if (objectToHostIt == objectToHost.end()) {
-            THROW_ERROR_EXCEPTION("Object %Qv is not mapped to any queue agent", objectRef);
+            THROW_ERROR_EXCEPTION(
+                NQueueClient::EErrorCode::QueueAgentObjectIsNotMapped,
+                "Object %Qv is not mapped to any queue agent",
+                objectRef);
         }
 
         if (!Owner_->ObjectsWithOurStage_[ObjectKind_].contains(objectRef)) {
@@ -152,13 +155,14 @@ public:
         if (objectAgentId != Owner_->AgentId_) {
             if (!ProxyConfig_.Enable) {
                 // COMPAT(apachee): Remove RPC error after native connection is updated in master.
+                auto error = TError(
+                    NQueueClient::EErrorCode::QueueAgentRetriableError,
+                    "Object %v is not available from instance %v",
+                    objectRef,
+                    Owner_->AgentId_)
+                    << TErrorAttribute("cached_object_agent_id", objectAgentId);
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unavailable, retry later")
-                    << TError(
-                        NQueueClient::EErrorCode::QueueAgentRetriableError,
-                        "Object %v is not available from this instance (InstanceAgentId: %v, CachedObjectAgentId: %v)",
-                        objectRef,
-                        Owner_->AgentId_,
-                        objectAgentId);
+                    << error;
             }
 
             auto remoteRoot = Format("%v/%v", ProxyConfig_.RemoteQueryRoot, ToYPathLiteral(key));
@@ -286,118 +290,120 @@ INodePtr TQueueAgent::GetControllerInfoNode() const
         TRichYPath Path;
     };
 
-    return CreateVirtualNode(IYPathService::FromProducer(BIND([&, this, this_ = MakeWeak(this)] (IYsonConsumer* consumer) {
+    return CreateVirtualNode(IYPathService::FromProducer(BIND([this, this_ = MakeWeak(this)] (IYsonConsumer* consumer) {
         auto lockedThis = this_.Lock();
         if (!lockedThis) {
             BuildYsonFluently(consumer).Entity();
-        } else {
-            auto config = DynamicConfig_;
-
-            std::vector<TControllerPassInfo> queueControllerPasses;
-            std::vector<TControllerPassInfo> consumerControllerPasses;
-
-            int queueControllerWithErrorCount = 0;
-            int consumerControllerWithErrorCount = 0;
-
-            {
-                auto guard = ReaderGuard(ObjectLock_);
-                for (const auto& [path, object] : Objects_[EObjectKind::Queue]) {
-                    auto snapshot = DynamicPointerCast<TQueueSnapshot>(object.Controller->GetLatestSnapshot());
-                    if (!snapshot->Error.IsOK()) {
-                        ++queueControllerWithErrorCount;
-                        continue;
-                    }
-                    queueControllerPasses.push_back(TControllerPassInfo{
-                        .PassInstant = snapshot->PassInstant,
-                        .Leading = object.Controller->IsLeading(),
-                        .Path = path,
-                    });
-                }
-                for (const auto& [path, object] : Objects_[EObjectKind::Consumer]) {
-                    auto snapshot = DynamicPointerCast<TConsumerSnapshot>(object.Controller->GetLatestSnapshot());
-                    if (!snapshot->Error.IsOK()) {
-                        ++consumerControllerWithErrorCount;
-                        continue;
-                    }
-                    consumerControllerPasses.push_back(TControllerPassInfo{
-                        .PassInstant = snapshot->PassInstant,
-                        .Leading = object.Controller->IsLeading(),
-                        .Path = path,
-                    });
-                }
-            }
-
-            auto comparePassInstant = [] (const auto& lhs, const auto& rhs) {
-                return lhs.PassInstant < rhs.PassInstant;
-            };
-            std::sort(queueControllerPasses.begin(), queueControllerPasses.end(), comparePassInstant);
-            std::sort(consumerControllerPasses.begin(), consumerControllerPasses.end(), comparePassInstant);
-
-            // NB(apachee): Filter out passes with leading = true and return them, while
-            // leaving out passes with leading = false. Implemented using 2 pointers.
-            auto filterLeading = [] (std::vector<TControllerPassInfo>& passes) {
-                std::vector<TControllerPassInfo> leadingPasses;
-
-                auto firstLeadingIt = std::stable_partition(passes.begin(), passes.end(), [] (const auto& pass) {
-                    return !pass.Leading;
-                });
-
-                std::vector<TControllerPassInfo> leading(std::make_move_iterator(firstLeadingIt), std::make_move_iterator(passes.end()));
-
-                passes.erase(firstLeadingIt, passes.end());
-
-                return leading;
-            };
-
-            // NB(apachee): Since relative order does not change, all of the following vectors are already sorted.
-
-            auto leadingQueuePasses = filterLeading(queueControllerPasses);
-            auto leadingConsumerPasses = filterLeading(consumerControllerPasses);
-
-            std::vector<TControllerPassInfo> followingQueuePasses = std::move(queueControllerPasses);
-            std::vector<TControllerPassInfo> followingConsumerPasses = std::move(consumerControllerPasses);
-
-            auto trimByDisplayLimit = [&] (auto& vec) {
-                if (ssize(vec) > config->InactiveObjectDisplayLimit) {
-                    vec.resize(config->InactiveObjectDisplayLimit);
-                }
-            };
-
-            trimByDisplayLimit(leadingQueuePasses);
-            trimByDisplayLimit(leadingConsumerPasses);
-            trimByDisplayLimit(followingQueuePasses);
-            trimByDisplayLimit(followingConsumerPasses);
-
-            auto serializePassesVector = [] (TFluentAny fluent, const std::vector<TControllerPassInfo>& passes) {
-                fluent
-                    .BeginList()
-                    .DoFor(passes, [] (TFluentList fluent, const TControllerPassInfo& pass) {
-                        fluent
-                            .Item()
-                            .BeginMap()
-                                .Item("path").Value(pass.Path)
-                                .Item("pass_instant").Value(pass.PassInstant)
-                            .EndMap();
-                    })
-                    .EndList();
-            };
-
-            BuildYsonFluently(consumer)
-                .BeginMap()
-                    .Item("inactive_objects")
-                    .BeginMap()
-                        .Item("leading_queues").Do(std::bind(serializePassesVector, std::placeholders::_1, leadingQueuePasses))
-                        .Item("leading_consumers").Do(std::bind(serializePassesVector, std::placeholders::_1, leadingConsumerPasses))
-                        .Item("following_queues").Do(std::bind(serializePassesVector, std::placeholders::_1, followingQueuePasses))
-                        .Item("following_consumers").Do(std::bind(serializePassesVector, std::placeholders::_1, followingConsumerPasses))
-                    .EndMap()
-                    .Item("erroneous_objects")
-                    .BeginMap()
-                        .Item("queue_count").Value(queueControllerWithErrorCount)
-                        .Item("consumer_count").Value(consumerControllerWithErrorCount)
-                    .EndMap()
-                .EndMap();
+            return;
         }
+
+        auto config = DynamicConfig_;
+
+        std::vector<TControllerPassInfo> queueControllerPasses;
+        std::vector<TControllerPassInfo> consumerControllerPasses;
+
+        int queueControllerWithErrorCount = 0;
+        int consumerControllerWithErrorCount = 0;
+
+        {
+            auto guard = ReaderGuard(ObjectLock_);
+            for (const auto& [path, object] : Objects_[EObjectKind::Queue]) {
+                auto snapshot = DynamicPointerCast<TQueueSnapshot>(object.Controller->GetLatestSnapshot());
+                if (!snapshot->Error.IsOK()) {
+                    ++queueControllerWithErrorCount;
+                    continue;
+                }
+                queueControllerPasses.push_back(TControllerPassInfo{
+                    .PassInstant = snapshot->PassInstant,
+                    .Leading = object.Controller->IsLeading(),
+                    .Path = path,
+                });
+            }
+            for (const auto& [path, object] : Objects_[EObjectKind::Consumer]) {
+                auto snapshot = DynamicPointerCast<TConsumerSnapshot>(object.Controller->GetLatestSnapshot());
+                if (!snapshot->Error.IsOK()) {
+                    ++consumerControllerWithErrorCount;
+                    continue;
+                }
+                consumerControllerPasses.push_back(TControllerPassInfo{
+                    .PassInstant = snapshot->PassInstant,
+                    .Leading = object.Controller->IsLeading(),
+                    .Path = path,
+                });
+            }
+        }
+
+        auto getPassInstant = [] (const auto& passInfo) {
+            return passInfo.PassInstant;
+        };
+
+        SortBy(queueControllerPasses, getPassInstant);
+        SortBy(consumerControllerPasses, getPassInstant);
+
+        // NB(apachee): Filter out passes with leading = true and return them, while
+        // leaving out passes with leading = false. Implemented using 2 pointers.
+        auto filterLeading = [] (std::vector<TControllerPassInfo>& passes) {
+            std::vector<TControllerPassInfo> leadingPasses;
+
+            auto firstLeadingIt = std::stable_partition(passes.begin(), passes.end(), [] (const auto& pass) {
+                return !pass.Leading;
+            });
+
+            std::vector<TControllerPassInfo> leading(std::make_move_iterator(firstLeadingIt), std::make_move_iterator(passes.end()));
+
+            passes.erase(firstLeadingIt, passes.end());
+
+            return leading;
+        };
+
+        // NB(apachee): Since relative order does not change, all of the following vectors are already sorted.
+
+        auto leadingQueuePasses = filterLeading(queueControllerPasses);
+        auto leadingConsumerPasses = filterLeading(consumerControllerPasses);
+
+        auto followingQueuePasses = std::move(queueControllerPasses);
+        auto followingConsumerPasses = std::move(consumerControllerPasses);
+
+        auto trimByDisplayLimit = [&] (auto& vec) {
+            if (ssize(vec) > config->InactiveObjectDisplayLimit) {
+                vec.resize(config->InactiveObjectDisplayLimit);
+            }
+        };
+
+        trimByDisplayLimit(leadingQueuePasses);
+        trimByDisplayLimit(leadingConsumerPasses);
+        trimByDisplayLimit(followingQueuePasses);
+        trimByDisplayLimit(followingConsumerPasses);
+
+        auto serializePassesVector = [] (TFluentAny fluent, const std::vector<TControllerPassInfo>& passes) {
+            fluent
+                .BeginList()
+                .DoFor(passes, [] (TFluentList fluent, const TControllerPassInfo& pass) {
+                    fluent
+                        .Item()
+                        .BeginMap()
+                            .Item("path").Value(pass.Path)
+                            .Item("pass_instant").Value(pass.PassInstant)
+                        .EndMap();
+                })
+                .EndList();
+        };
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("inactive_objects")
+                .BeginMap()
+                    .Item("leading_queues").Do(std::bind(serializePassesVector, std::placeholders::_1, leadingQueuePasses))
+                    .Item("leading_consumers").Do(std::bind(serializePassesVector, std::placeholders::_1, leadingConsumerPasses))
+                    .Item("following_queues").Do(std::bind(serializePassesVector, std::placeholders::_1, followingQueuePasses))
+                    .Item("following_consumers").Do(std::bind(serializePassesVector, std::placeholders::_1, followingConsumerPasses))
+                .EndMap()
+                .Item("erroneous_objects")
+                .BeginMap()
+                    .Item("queue_count").Value(queueControllerWithErrorCount)
+                    .Item("consumer_count").Value(consumerControllerWithErrorCount)
+                .EndMap()
+            .EndMap();
     })));
 }
 
@@ -424,8 +430,7 @@ void TQueueAgent::OnDynamicConfigChanged(
         }
     }
 
-    QueueExportManager_->OnDynamicConfigChanged(
-        oldConfig->QueueExportManager,
+    QueueExportManager_->Reconfigure(
         newConfig->QueueExportManager);
 
     YT_LOG_DEBUG(

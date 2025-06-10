@@ -59,12 +59,12 @@ void Serialize(const THashedCredentials& hashedCredentials, NYson::IYsonConsumer
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString SignCsrfToken(
+std::string SignCsrfToken(
     const std::string& userId,
     const TString& key,
     TInstant now);
 TError CheckCsrfToken(
-    const TString& csrfToken,
+    const std::string& csrfToken,
     const std::string& userId,
     const TString& key,
     TInstant expirationTime);
@@ -72,7 +72,15 @@ TError CheckCsrfToken(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Applies transformation described in the config to produce the output string.
-TString ApplyStringReplacement(const TString& input, const TStringReplacementConfigPtr& replacement, const NLogging::TLogger& logger = {});
+std::string ApplyStringReplacement(const std::string& input, const TStringReplacementConfigPtr& replacement, const NLogging::TLogger& logger = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError EnsureUserExists(
+    bool createIfNotExists,
+    const ICypressUserManagerPtr& userManager,
+    const std::string& name,
+    const std::vector<std::string>& tags);
 
 ////////////////////////////////////////////////////////////////////////////////
 

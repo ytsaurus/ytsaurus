@@ -50,6 +50,7 @@ public:
     i64 GetMaxBlockSize() const;
     i64 GetValueCount() const;
     i64 GetCompressedDataSize() const;
+    i64 GetUncompressedDataSize() const;
 
     int GetTableIndex() const;
     int GetRangeIndex() const;

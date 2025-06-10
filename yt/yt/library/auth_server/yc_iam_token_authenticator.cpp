@@ -43,7 +43,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = AuthLogger;
+constinit const auto Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,31 +114,6 @@ private:
     TCounter YCIAMCallErrors_;
     TEventTimer YCIAMCallTime_;
 
-    void CheckAndCreateUser(const std::string& login, TGuid callId)
-    {
-        auto result = WaitFor(UserManager_->CheckUserExists(TString(login)));
-        if (!result.IsOK()) {
-            THROW_ERROR_EXCEPTION("Failed to verify if user exists")
-                << TErrorAttribute("name", login)
-                << TErrorAttribute("call_id", callId)
-                << std::move(result);
-        } else if (!result.Value()) {
-            if (Config_->CreateUserIfNotExists) {
-                auto result = WaitFor(UserManager_->CreateUser(TString(login)));
-                if (!result.IsOK()) {
-                    THROW_ERROR_EXCEPTION("Failed to create user")
-                        << TErrorAttribute("name", login)
-                        << TErrorAttribute("call_id", callId)
-                        << std::move(result);
-                }
-            } else {
-                YT_LOG_DEBUG("User does not exist (Name: %v)", login);
-                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::InvalidCredentials, "User does not exist")
-                    << TErrorAttribute("call_id", callId)
-                    << TErrorAttribute("name", login);
-            }
-        }
-    }
 
     TAuthenticationResult DoAuthenticate(const std::string& token, TGuid callId)
     {
@@ -202,8 +177,23 @@ private:
         const auto& formattedResponse = jsonResponseChecker->GetFormattedResponse()->AsMap();
         auto login = formattedResponse->GetChildValueOrThrow<TString>(Config_->AuthenticateLoginField);
 
+        YT_LOG_DEBUG(
+            "YC IAM user authenticated (Login: %v, CallId: %v)",
+            login,
+            callId);
+
         if (Config_->CheckUserExists) {
-            CheckAndCreateUser(login, callId);
+            auto error = EnsureUserExists(
+                Config_->CreateUserIfNotExists,
+                UserManager_,
+                login,
+                Config_->DefaultUserTags);
+
+            if (!error.IsOK()) {
+                YT_LOG_WARNING(error, "Failed to ensure YC IAM user existence (Name: %v, CallId: %v)", login, callId);
+                error <<= TErrorAttribute("call_id", callId);
+                THROW_ERROR error;
+            }
         }
 
         return TAuthenticationResult{

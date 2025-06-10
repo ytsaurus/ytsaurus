@@ -1,14 +1,15 @@
 #include "lookup.h"
+
 #include "error_manager.h"
 #include "hedging_manager_registry.h"
 #include "private.h"
+#include "sorted_dynamic_store.h"
 #include "store.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
 #include "tablet_reader.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
-#include "sorted_dynamic_store.h"
 
 #include <yt/yt/server/node/query_agent/helpers.h>
 
@@ -825,8 +826,7 @@ protected:
         if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
             ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                 THedgingUnit{
-                    // TODO(babenko): migrate to std::string
-                    .UserTag = profilingUser ? std::optional<TString>(profilingUser) : std::nullopt,
+                    .UserTag = profilingUser ? profilingUser : std::nullopt,
                     .HunkChunk = true,
                 });
         }
@@ -1186,6 +1186,9 @@ private:
     int CurrentPartitionSessionIndex_ = 0;
     std::vector<TPartitionSession> PartitionSessions_;
 
+    int InflightKeyLookupCount_ = 0;
+    int OpenedPartitionSessionCount_ = 0;
+
     using TPipeline::FoundRowCount_;
     using TPipeline::FoundDataWeight_;
     using TPipeline::DataStatistics_;
@@ -1216,6 +1219,8 @@ private:
     std::vector<TFuture<void>> OpenStoreSessions(const TStoreSessionList& sessions);
 
     void LookupInPartitions(const TError& error);
+
+    void MaybePrefetchPartitionSessions();
 
     //! These return |true| if caller should stop due to error or scheduled asynchronous execution.
     bool LookupInCurrentPartition();
@@ -1297,8 +1302,7 @@ void TLookupSession::AddTabletRequest(
                 if (const auto& hedgingManagerRegistry = tabletSnapshot->HedgingManagerRegistry) {
                     ChunkReadOptions_.HedgingManager = hedgingManagerRegistry->GetOrCreateHedgingManager(
                         THedgingUnit{
-                            // TODO(babenko): migrate to std::string
-                            .UserTag = ProfilingUser_ ? std::optional<TString>(ProfilingUser_) : std::nullopt,
+                            .UserTag = ProfilingUser_ ? ProfilingUser_ : std::nullopt,
                             .HunkChunk = false,
                         });
                 }
@@ -1956,6 +1960,10 @@ auto TTabletLookupSession<TPipeline>::Run() -> TFuture<typename decltype(TPipeli
         PartitionSessions_[0].ChunkLookupKeys);
     openStoreSessions(PartitionSessions_[0].StoreSessions);
 
+    InflightKeyLookupCount_ += std::ssize(PartitionSessions_[0].ChunkLookupKeys);
+    ++OpenedPartitionSessionCount_;
+    MaybePrefetchPartitionSessions();
+
     if (openFutures.empty()) {
         LookupInPartitions(TError{});
     } else {
@@ -2111,17 +2119,67 @@ void TTabletLookupSession<TPipeline>::LookupInPartitions(const TError& error)
 }
 
 template <class TPipeline>
+void TTabletLookupSession<TPipeline>::MaybePrefetchPartitionSessions()
+{
+    // NB: In case of hash chunk index we do not actually check if chunks are in indexed format.
+    if (!TabletSnapshot_->Settings.MountConfig->EnableDataNodeLookup &&
+        !TabletSnapshot_->Settings.MountConfig->EnableHashChunkIndexForLookup)
+    {
+        return;
+    }
+
+    auto prefetchKeyLimit = TabletSnapshot_->Settings.MountConfig->PartitionReaderPrefetchKeyLimit;
+    if (!prefetchKeyLimit) {
+        return;
+    }
+
+    YT_VERIFY(CurrentPartitionSessionIndex_ < OpenedPartitionSessionCount_);
+    YT_VERIFY(InflightKeyLookupCount_ >= 0);
+
+    bool prefetched = false;
+    while (InflightKeyLookupCount_ < *prefetchKeyLimit &&
+        OpenedPartitionSessionCount_ < std::ssize(PartitionSessions_))
+    {
+        prefetched = true;
+
+        auto& partitionSession = PartitionSessions_[OpenedPartitionSessionCount_];
+        YT_VERIFY(!std::exchange(partitionSession.SessionStarted, true));
+        partitionSession.StoreSessions = CreateStoreSessions(
+            partitionSession.PartitionSnapshot->Stores,
+            partitionSession.ChunkLookupKeys);
+        OpenStoreSessions(partitionSession.StoreSessions);
+
+        InflightKeyLookupCount_ += std::ssize(partitionSession.ChunkLookupKeys);
+        ++OpenedPartitionSessionCount_;
+    }
+
+    if (prefetched) {
+        YT_LOG_DEBUG("Prefetched some partition sessions "
+            "(InflightKeyLookupCount: %v, CurrentPartitionSessionIndex: %v, OpenedPartitionSessionCount: %v)",
+            InflightKeyLookupCount_,
+            CurrentPartitionSessionIndex_,
+            OpenedPartitionSessionCount_);
+    }
+}
+
+template <class TPipeline>
 bool TTabletLookupSession<TPipeline>::LookupInCurrentPartition()
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto& partitionSession = PartitionSessions_[CurrentPartitionSessionIndex_];
     if (!partitionSession.SessionStarted) {
+        YT_VERIFY(CurrentPartitionSessionIndex_ == OpenedPartitionSessionCount_);
+
         partitionSession.SessionStarted = true;
         partitionSession.StoreSessions = CreateStoreSessions(
             partitionSession.PartitionSnapshot->Stores,
             partitionSession.ChunkLookupKeys);
         auto openFutures = OpenStoreSessions(partitionSession.StoreSessions);
+
+        ++OpenedPartitionSessionCount_;
+        InflightKeyLookupCount_ += std::ssize(partitionSession.ChunkLookupKeys);
+
         if (!openFutures.empty()) {
             auto sessionFuture = AllSucceeded(std::move(openFutures));
             sessionFuture.Subscribe(BIND(
@@ -2194,6 +2252,8 @@ bool TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
 
     UpdateUnmergedStatistics(partitionSession.StoreSessions);
 
+    InflightKeyLookupCount_ -= std::ssize(PartitionSessions_[CurrentPartitionSessionIndex_].ChunkLookupKeys);
+    MaybePrefetchPartitionSessions();
     ++CurrentPartitionSessionIndex_;
 
     return false;

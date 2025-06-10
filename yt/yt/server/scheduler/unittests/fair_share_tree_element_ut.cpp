@@ -151,12 +151,12 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    std::optional<int> FindMediumIndexByName(const TString& /*mediumName*/) const override
+    std::optional<int> FindMediumIndexByName(const std::string& /*mediumName*/) const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    const TString& GetMediumNameByIndex(int /*mediumIndex*/) const override
+    const std::string& GetMediumNameByIndex(int /*mediumIndex*/) const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -234,9 +234,9 @@ public:
         return VoidFuture;
     }
 
-    const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
+    const THashMap<std::string, TString>& GetUserDefaultParentPoolMap() const override
     {
-        static THashMap<TString, TString> stub;
+        static const THashMap<std::string, TString> stub;
         return stub;
     }
 
@@ -330,8 +330,7 @@ using TOperationControllerStrategyHostMockPtr = TIntrusivePtr<TOperationControll
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationStrategyHostMock
-    : public TRefCounted
-    , public IOperationStrategyHost
+    : public IOperationStrategyHost
 {
 public:
     explicit TOperationStrategyHostMock(const TJobResourcesWithQuotaList& allocationResourcesList)
@@ -360,6 +359,11 @@ public:
         return StartTime_;
     }
 
+    std::optional<std::string> GetTitle() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     std::optional<int> FindSlotIndex(const TString& /*treeId*/) const override
     {
         return 0;
@@ -371,9 +375,9 @@ public:
     void ReleaseSlotIndex(const TString& /*treeId*/) override
     { }
 
-    TString GetAuthenticatedUser() const override
+    std::string GetAuthenticatedUser() const override
     {
-        return "root";
+        return NSecurityClient::RootUserName;
     }
 
     TOperationId GetId() const override
@@ -552,7 +556,7 @@ protected:
 
     TSchedulerOperationElementPtr CreateTestOperationElement(
         ISchedulerStrategyHost* strategyHost,
-        IOperationStrategyHost* operation,
+        IOperationStrategyHostPtr operation,
         TSchedulerCompositeElement* parent,
         TOperationFairShareTreeRuntimeParametersPtr runtimeParameters = nullptr,
         TStrategyOperationSpecPtr operationSpec = nullptr)
@@ -597,7 +601,7 @@ protected:
         allocationResources.SetMemory(10_MB);
 
         auto operationHost = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(allocationCount, allocationResources));
-        auto operationElement = CreateTestOperationElement(strategyHost, operationHost.Get(), parent);
+        auto operationElement = CreateTestOperationElement(strategyHost, operationHost, parent);
         return {operationElement, operationHost};
     }
 
@@ -796,7 +800,7 @@ TEST_F(TFairShareTreeElementTest, TestSatisfactionRatio)
             operationOptions->Weight = 10.0;
         }
 
-        operationElements[i] = CreateTestOperationElement(strategyHost.Get(), operations[i].Get(), parent, operationOptions);
+        operationElements[i] = CreateTestOperationElement(strategyHost.Get(), operations[i], parent, operationOptions);
     }
 
     for (int i = 0; i < 10; ++i) {
@@ -993,10 +997,10 @@ TEST_F(TFairShareTreeElementTest, TestSchedulingTagFilterResourceLimits)
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, allocationResources));
     auto specX = New<TStrategyOperationSpec>();
     specX->SchedulingTagFilter = MakeBooleanFormula("tag_1 | tag_2 | tag_5");
-    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), rootElement.Get(), operationOptions, specX);
+    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX, rootElement.Get(), operationOptions, specX);
 
     auto operationY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, allocationResources));
-    auto operationElementY = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), poolD.Get(), operationOptions);
+    auto operationElementY = CreateTestOperationElement(strategyHost.Get(), operationX, poolD.Get(), operationOptions);
 
     {
         DoFairShareUpdate(strategyHost.Get(), rootElement);
@@ -1079,7 +1083,7 @@ TEST_F(TFairShareTreeElementTest, TestBestAllocationShare)
     auto rootElement = CreateTestRootElement(strategyHost.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(3, allocationResources));
-    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX.Get(), rootElement.Get(), operationOptions);
+    auto operationElementX = CreateTestOperationElement(strategyHost.Get(), operationX, rootElement.Get(), operationOptions);
 
     DoFairShareUpdate(strategyHost.Get(), rootElement);
 
@@ -1159,7 +1163,7 @@ TEST_F(TFairShareTreeElementTest, TestIncorrectStatusDueToPrecisionError)
     allocationResourcesA.SetGpu(1);
 
     auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto operationElementA = CreateTestOperationElement(strategyHost.Get(), operationA.Get(), pool.Get());
+    auto operationElementA = CreateTestOperationElement(strategyHost.Get(), operationA, pool.Get());
     IncreaseOperationResourceUsage(operationElementA, allocationResourcesA);
 
     TJobResources allocationResourcesB;
@@ -1170,7 +1174,7 @@ TEST_F(TFairShareTreeElementTest, TestIncorrectStatusDueToPrecisionError)
     allocationResourcesB.SetGpu(1);
 
     auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
-    auto operationElementB = CreateTestOperationElement(strategyHost.Get(), operationB.Get(), pool.Get());
+    auto operationElementB = CreateTestOperationElement(strategyHost.Get(), operationB, pool.Get());
     IncreaseOperationResourceUsage(operationElementB, allocationResourcesB);
 
     DoFairShareUpdate(strategyHost.Get(), rootElement);

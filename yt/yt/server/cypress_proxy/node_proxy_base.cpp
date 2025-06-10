@@ -1,8 +1,14 @@
 #include "node_proxy_base.h"
 
-#include "private.h"
+#include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 namespace NYT::NCypressProxy {
+
+using namespace NApi;
+using namespace NObjectClient;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +40,9 @@ EInvokeResult TNodeProxyBase::Invoke(const ISequoiaServiceContextPtr& context)
 TNodeProxyBase::TNodeProxyBase(IBootstrap* bootstrap, TSequoiaSessionPtr sequoiaSession)
     : Bootstrap_(bootstrap)
     , SequoiaSession_(std::move(sequoiaSession))
+    , NativeAuthenticatedClient_(
+            Bootstrap_->GetNativeConnection()->CreateNativeClient(
+                TClientOptions::FromAuthenticationIdentity(GetCurrentAuthenticationIdentity())))
 { }
 
 void TNodeProxyBase::BeforeInvoke(const ISequoiaServiceContextPtr& /*context*/)
@@ -46,6 +55,21 @@ bool TNodeProxyBase::DoInvoke(const ISequoiaServiceContextPtr& /*context*/)
 
 void TNodeProxyBase::AfterInvoke(const ISequoiaServiceContextPtr& /*context*/)
 { }
+
+TCellId TNodeProxyBase::CellIdFromCellTag(TCellTag cellTag) const
+{
+    return Bootstrap_->GetNativeConnection()->GetMasterCellId(cellTag);
+}
+
+TCellId TNodeProxyBase::CellIdFromObjectId(TObjectId id)
+{
+    return CellIdFromCellTag(CellTagFromId(id));
+}
+
+const NNative::IClientPtr& TNodeProxyBase::GetNativeAuthenticatedClient() const
+{
+    return NativeAuthenticatedClient_;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

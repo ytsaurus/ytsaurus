@@ -82,7 +82,7 @@ using TJobStartInfo = TControllerAgentConnectorPool::TControllerAgentConnector::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -266,6 +266,19 @@ public:
                 YT_ASSERT_THREAD_AFFINITY(JobThread);
 
                 InterruptAllJobs(std::move(error));
+            }));
+        }
+    }
+
+    void InterruptJob(TJobId jobId, EInterruptionReason interruptionReason, TDuration interruptionTimeout) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (auto job = FindJob(jobId)) {
+            Bootstrap_->GetJobInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), job = std::move(job), interruptionReason, interruptionTimeout] {
+                YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+                DoInterruptJob(job, interruptionReason, interruptionTimeout);
             }));
         }
     }
@@ -665,25 +678,18 @@ private:
             auto incarnationId = FromProto<NScheduler::TIncarnationId>(
                 startInfoProto.controller_agent_descriptor().incarnation_id());
 
-            std::optional<NScheduler::TAllocationAttributes> allocationAttributes;
-            if (GetDynamicConfig()->DisableLegacyAllocationPreparation) {
-                YT_VERIFY(startInfoProto.has_allocation_attributes());
-                auto& attributes = allocationAttributes.emplace();
-                FromProto(&attributes, startInfoProto.allocation_attributes());
-            }
+            auto allocationAttributes = FromProto<NScheduler::TAllocationAttributes>(startInfoProto.allocation_attributes());
 
             const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
             auto agentDescriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
 
-            // TODO(pogorelov): Move this logic to job resource manager.
-            startInfoProto.mutable_resource_limits()->set_vcpu(
-                static_cast<double>(NVectorHdrf::TCpuResource(
-                    startInfoProto.resource_limits().cpu() * JobResourceManager_->GetCpuToVCpuFactor())));
+            auto resourceDemand = FromNodeResources(startInfoProto.resource_limits());
+            JobResourceManager_->CalculateAndSetVCpu(GetPtr(resourceDemand));
 
             auto allocation = CreateAllocation(
                 allocationId,
                 operationId,
-                FromNodeResources(startInfoProto.resource_limits()),
+                resourceDemand,
                 std::move(allocationAttributes),
                 agentDescriptor,
                 Bootstrap_->GetExecNodeBootstrap());
@@ -1249,7 +1255,7 @@ private:
                     jobId,
                     interruptionReason);
 
-                InterruptJob(
+                DoInterruptJob(
                     job,
                     interruptionReason,
                     timeout);
@@ -1669,7 +1675,7 @@ private:
         job->GetAllocation()->AbortJob(std::move(abortionError), graceful, requestNewJob);
     }
 
-    void InterruptJob(const TJobPtr& job, EInterruptionReason interruptionReason, TDuration interruptionTimeout)
+    void DoInterruptJob(const TJobPtr& job, EInterruptionReason interruptionReason, TDuration interruptionTimeout)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1900,7 +1906,7 @@ private:
         for (const auto& job : GetJobs()) {
             try {
                 YT_LOG_DEBUG(error, "Trying to interrupt job (JobId: %v)", job->GetId());
-                InterruptJob(
+                DoInterruptJob(
                     job,
                     EInterruptionReason::JobsDisabledOnNode,
                     GetDynamicConfig()->DisabledJobsInterruptionTimeout);

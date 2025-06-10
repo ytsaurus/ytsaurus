@@ -41,6 +41,12 @@ IF (ARCH_ARM64)
     )
 ENDIF()
 
+IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
+    SRCS(
+        decode_other.go
+    )
+ENDIF()
+
 END()
 
 RECURSE(

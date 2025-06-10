@@ -46,10 +46,10 @@ void TFairShareTreeProfileManager::ProfileOperationUnregistration(const TSchedul
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    auto guard = ReaderGuard(PoolNameToProfilingEntryLock_);
+    auto guard = ReaderGuard(PoolNameToStateLock_);
 
     while (pool) {
-        auto& counters = GetOrCrash(PoolNameToProfilingEntry_, pool->GetId()).UnregisterOperationCounters;
+        auto& counters = GetOrCrash(PoolNameToState_, pool->GetId()).UnregisterOperationCounters;
         if (IsOperationFinished(state)) {
             counters.FinishedCounters[state].Increment();
         } else {
@@ -71,9 +71,9 @@ void TFairShareTreeProfileManager::UnregisterPool(const TSchedulerCompositeEleme
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    auto guard = WriterGuard(PoolNameToProfilingEntryLock_);
+    auto guard = WriterGuard(PoolNameToStateLock_);
 
-    GetOrCrash(PoolNameToProfilingEntry_, element->GetId()).RemoveTime = TInstant::Now();
+    GetOrCrash(PoolNameToState_, element->GetId()).RemoveTime = TInstant::Now();
 }
 
 void TFairShareTreeProfileManager::ProfileTree(
@@ -129,51 +129,26 @@ void TFairShareTreeProfileManager::PrepareOperationProfilingEntries(const TFairS
             }
         }
 
-        bool createProfilers = false;
-        auto it = OperationIdToProfilingEntry_.find(operationId);
-        if (it == OperationIdToProfilingEntry_.end()) {
-            auto insertResult = OperationIdToProfilingEntry_.emplace(
-                operationId,
-                TOperationProfilingEntry{
-                    .SlotIndex = slotIndex,
-                    .ParentPoolId = parentPoolId,
-                    .UserProfilingTags = userProfilingTags,
-                    .BufferedProducer = New<NProfiling::TBufferedProducer>()
-                });
-            YT_VERIFY(insertResult.second);
-            it = insertResult.first;
+        auto& operationState = OperationIdToState_[operationId];
+        if (!operationState.BufferedProducer ||
+            operationState.SlotIndex != slotIndex ||
+            operationState.ParentPoolId != parentPoolId ||
+            operationState.UserProfilingTags != userProfilingTags)
+        {
+            operationState.SlotIndex = slotIndex;
+            operationState.ParentPoolId = parentPoolId;
+            operationState.UserProfilingTags = userProfilingTags;
+            operationState.BufferedProducer = New<NProfiling::TBufferedProducer>();
 
-            EmplaceOrCrash(OperationIdToAccumulatedResourceUsage_, operationId, TResourceVolume{});
-
-            createProfilers = true;
-        } else {
-            auto& profilingEntry = it->second;
-            if (profilingEntry.SlotIndex != slotIndex ||
-                profilingEntry.ParentPoolId != parentPoolId ||
-                profilingEntry.UserProfilingTags != userProfilingTags)
-            {
-                profilingEntry = TOperationProfilingEntry{
-                    .SlotIndex = slotIndex,
-                    .ParentPoolId = parentPoolId,
-                    .UserProfilingTags = userProfilingTags,
-                    .BufferedProducer = New<NProfiling::TBufferedProducer>()
-                };
-                createProfilers = true;
-            }
-        }
-
-        const auto& profilingEntry = it->second;
-
-        if (createProfilers) {
             auto profiler = Profiler_
-                .WithRequiredTag("pool", profilingEntry.ParentPoolId, -1)
-                .WithRequiredTag("slot_index", ToString(profilingEntry.SlotIndex), -1);
+                .WithRequiredTag("pool", operationState.ParentPoolId, -1)
+                .WithRequiredTag("slot_index", ToString(operationState.SlotIndex), -1);
             if (SparsifyMetrics_) {
                 profiler = profiler.WithSparse();
             }
-            profiler.AddProducer("/operations_by_slot", profilingEntry.BufferedProducer);
+            profiler.AddProducer("/operations_by_slot", operationState.BufferedProducer);
 
-            for (const auto& userProfilingTag : profilingEntry.UserProfilingTags) {
+            for (const auto& userProfilingTag : operationState.UserProfilingTags) {
                 auto userProfiler = Profiler_
                     .WithTag("pool", userProfilingTag.PoolId, -1)
                     .WithRequiredTag("user_name", userProfilingTag.UserName, -1);
@@ -185,21 +160,19 @@ void TFairShareTreeProfileManager::PrepareOperationProfilingEntries(const TFairS
                     userProfiler = userProfiler.WithTag("custom", *userProfilingTag.CustomTag, -1);
                 }
 
-                userProfiler.AddProducer("/operations_by_user", profilingEntry.BufferedProducer);
+                userProfiler.AddProducer("/operations_by_user", operationState.BufferedProducer);
             }
         }
     }
 
     std::vector<TOperationId> operationIdsToRemove;
-    for (const auto& [operationId, entry] : OperationIdToProfilingEntry_) {
+    for (const auto& [operationId, _] : OperationIdToState_) {
         if (!treeSnapshot->EnabledOperationMap().contains(operationId)) {
             operationIdsToRemove.push_back(operationId);
         }
     }
     for (auto operationId : operationIdsToRemove) {
-        OperationIdToProfilingEntry_.erase(operationId);
-        OperationIdToAccumulatedResourceUsage_.erase(operationId);
-        JobMetricsMap_.erase(ToString(operationId));
+        OperationIdToState_.erase(operationId);
     }
 }
 
@@ -207,18 +180,18 @@ void TFairShareTreeProfileManager::CleanupPoolProfilingEntries()
 {
     auto now = TInstant::Now();
 
-    auto guard = WriterGuard(PoolNameToProfilingEntryLock_);
+    auto guard = WriterGuard(PoolNameToStateLock_);
 
     std::vector<TString> poolNamesToRemove;
-    for (const auto& [poolName, entry] : PoolNameToProfilingEntry_) {
-        if (entry.RemoveTime && *entry.RemoveTime + PoolKeepAlivePeriod < now) {
+    for (const auto& [poolName, poolState] : PoolNameToState_) {
+        if (poolState.RemoveTime && *poolState.RemoveTime + PoolKeepAlivePeriod < now) {
             poolNamesToRemove.push_back(poolName);
         }
     }
 
     for (const auto& poolName : poolNamesToRemove) {
-        EraseOrCrash(PoolNameToProfilingEntry_, poolName);
-        JobMetricsMap_.erase(poolName);
+        EraseOrCrash(PoolNameToState_, poolName);
+        PoolNameToJobMetrics_.erase(poolName);
     }
 }
 
@@ -226,12 +199,13 @@ void TFairShareTreeProfileManager::RegisterPoolProfiler(const TString& poolName)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    auto writerGuard = WriterGuard(PoolNameToProfilingEntryLock_);
+    auto writerGuard = WriterGuard(PoolNameToStateLock_);
 
-    auto it = PoolNameToProfilingEntry_.find(poolName);
-    if (it != PoolNameToProfilingEntry_.end()) {
-        auto& entry = it->second;
-        entry.RemoveTime = std::nullopt;
+    if (auto it = PoolNameToState_.find(poolName);
+        it != PoolNameToState_.end())
+    {
+        auto& poolState = it->second;
+        poolState.RemoveTime = std::nullopt;
         return;
     }
 
@@ -248,17 +222,19 @@ void TFairShareTreeProfileManager::RegisterPoolProfiler(const TString& poolName)
         }
     }
 
-    auto insertResult = PoolNameToProfilingEntry_.emplace(
+    auto it = EmplaceOrCrash(
+        PoolNameToState_,
         poolName,
-        TPoolProfilingEntry{std::move(counters), /*RemoveTime*/ std::nullopt, New<NProfiling::TBufferedProducer>()});
-    YT_VERIFY(insertResult.second);
-
-    const auto& entry = insertResult.first->second;
+        TPoolState{
+            .UnregisterOperationCounters = std::move(counters),
+            .BufferedProducer = New<NProfiling::TBufferedProducer>(),
+        });
+    const auto& poolState = it->second;
 
     if (SparsifyMetrics_) {
         poolProfiler = poolProfiler.WithSparse();
     }
-    poolProfiler.AddProducer("/pools", entry.BufferedProducer);
+    poolProfiler.AddProducer("/pools", poolState.BufferedProducer);
 }
 
 void TFairShareTreeProfileManager::ProfileElement(
@@ -296,11 +272,6 @@ void TFairShareTreeProfileManager::ProfileElement(
     ProfileResources(writer, element->GetResourceDemand(), "/resource_demand");
     ProfileResources(writer, element->GetTotalResourceLimits() * element->LimitedDemandShare(), "/limited_resource_demand");
     ProfileResourcesConfig(writer, element->GetSpecifiedResourceLimitsConfig(), "/specified_resource_limits");
-
-    auto jobMetricsIt = JobMetricsMap_.find(element->GetId());
-    if (jobMetricsIt != JobMetricsMap_.end()) {
-        jobMetricsIt->second.Profile(writer);
-    }
 
     for (const auto& [schedulingStage, scheduledResourcesMap] : ScheduledResourcesByStageMap_) {
         auto scheduledResourcesIt = scheduledResourcesMap.find(element->GetId());
@@ -417,14 +388,6 @@ void TFairShareTreeProfileManager::ProfileElement(
             profiledResources,
             attributes.EstimatedGuaranteeShare,
             "/estimated_guarantee_share");
-
-        // TODO(eshcherbin): Move to |ProfilePool|.
-        if (!element->IsOperation()) {
-            ProfileResourceVolume(
-                writer,
-                element->PersistentAttributes().IntegralResourcesState.AccumulatedVolume,
-                "/accumulated_resource_volume");
-        }
     }
 }
 
@@ -447,18 +410,22 @@ void TFairShareTreeProfileManager::ProfileOperations(
 
         TreeScheduler_->ProfileOperation(element, treeSnapshot, &buffer);
 
-        if (auto itUsage = OperationIdToAccumulatedResourceUsage_.find(operationId);
-            itUsage != OperationIdToAccumulatedResourceUsage_.end())
+        auto& operationState = GetOrCrash(OperationIdToState_, operationId);
+        if (auto it = operationIdToAccumulatedResourceUsageDelta.find(operationId);
+            it != operationIdToAccumulatedResourceUsageDelta.end())
         {
-            auto& accumulatedResourceUsageVolume = itUsage->second;
-            if (auto itUsageDelta = operationIdToAccumulatedResourceUsageDelta.find(operationId);
-                itUsageDelta != operationIdToAccumulatedResourceUsageDelta.end())
-            {
-                accumulatedResourceUsageVolume += itUsageDelta->second;
-            }
-            ProfileResourceVolume(&buffer, accumulatedResourceUsageVolume, "/accumulated_resource_usage", EMetricType::Counter);
+            operationState.AccumulatedResourceUsage += it->second;
         }
-        GetOrCrash(OperationIdToProfilingEntry_, operationId).BufferedProducer->Update(std::move(buffer));
+
+        ProfileResourceVolume(
+            &buffer,
+            operationState.AccumulatedResourceUsage,
+            "/accumulated_resource_usage",
+            EMetricType::Counter);
+
+        operationState.JobMetrics.Profile(&buffer);
+
+        operationState.BufferedProducer->Update(std::move(buffer));
     }
 }
 
@@ -474,6 +441,7 @@ void TFairShareTreeProfileManager::ProfilePool(
         &buffer,
         element,
         treeConfig);
+
     buffer.AddGauge("/max_operation_count", element->GetMaxOperationCount());
     buffer.AddGauge("/max_running_operation_count", element->GetMaxRunningOperationCount());
     buffer.AddGauge("/running_operation_count", element->RunningOperationCount());
@@ -503,12 +471,23 @@ void TFairShareTreeProfileManager::ProfilePool(
             "/volume_overflow");
     }
 
+    ProfileResourceVolume(
+        &buffer,
+        element->PersistentAttributes().IntegralResourcesState.AccumulatedVolume,
+        "/accumulated_resource_volume");
+
     for (auto quantile : treeConfig->PerPoolSatisfactionProfilingQuantiles) {
         const auto& digest = element->PostUpdateAttributes().SatisfactionDigest;
         YT_ASSERT(digest);
 
         TWithTagGuard guard(&buffer, "quantile", ToString(quantile));
         buffer.AddGauge("/operation_satisfaction_distribution", digest->GetQuantile(quantile));
+    }
+
+    if (auto it = PoolNameToJobMetrics_.find(element->GetId());
+        it != PoolNameToJobMetrics_.end())
+    {
+        it->second.Profile(&buffer);
     }
 
     producer->Update(std::move(buffer));
@@ -518,30 +497,30 @@ void TFairShareTreeProfileManager::ProfilePools(const TFairShareTreeSnapshotPtr&
 {
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
 
-    THashMap<TString, TPoolProfilingEntry> poolNameToProfilingEntry;
+    THashMap<TString, TPoolState> poolNameToState;
     {
-        auto readerGuard = ReaderGuard(PoolNameToProfilingEntryLock_);
-        poolNameToProfilingEntry = PoolNameToProfilingEntry_;
+        auto readerGuard = ReaderGuard(PoolNameToStateLock_);
+        poolNameToState = PoolNameToState_;
     }
 
-    auto findPoolBufferedProducer = [&poolNameToProfilingEntry] (const TString& poolName) -> NProfiling::TBufferedProducerPtr {
-        auto it = poolNameToProfilingEntry.find(poolName);
-        if (it == poolNameToProfilingEntry.end()) {
+    auto findPoolBufferedProducer = [&poolNameToState] (const TString& poolName) -> NProfiling::TBufferedProducerPtr {
+        auto it = poolNameToState.find(poolName);
+        if (it == poolNameToState.end()) {
             return nullptr;
         }
         return it->second.BufferedProducer;
     };
 
     for (auto [poolName, element] : treeSnapshot->PoolMap()) {
-        const auto& entry = findPoolBufferedProducer(poolName);
-        if (!entry) {
+        const auto& bufferedProducer = findPoolBufferedProducer(poolName);
+        if (!bufferedProducer) {
             continue;
         }
 
         ProfilePool(
             element,
             treeSnapshot->TreeConfig(),
-            entry);
+            bufferedProducer);
     }
 
     ProfilePool(
@@ -573,16 +552,19 @@ void TFairShareTreeProfileManager::ApplyJobMetricsDelta(
     YT_ASSERT_INVOKER_AFFINITY(ProfilingInvoker_);
 
     for (const auto& [operationId, jobMetricsDelta] : jobMetricsPerOperation) {
-        const TSchedulerElement* currentElement = treeSnapshot->FindEnabledOperationElement(operationId);
-        if (!currentElement) {
-            auto disabledOperationElement = treeSnapshot->FindDisabledOperationElement(operationId);
-            YT_VERIFY(disabledOperationElement);
+        const auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId);
+        if (operationElement) {
+            OperationIdToState_[operationId].JobMetrics += jobMetricsDelta;
+        } else {
+            operationElement = treeSnapshot->FindDisabledOperationElement(operationId);
+            YT_VERIFY(operationElement);
             // NB: We add metrics to the parent pools for completeness purposes
             // and not add it to the operation since profiling is omitted for disabled operations.
-            currentElement = disabledOperationElement->GetParent();
         }
+
+        const auto* currentElement = operationElement->GetParent();
         while (currentElement) {
-            JobMetricsMap_[currentElement->GetId()] += jobMetricsDelta;
+            PoolNameToJobMetrics_[currentElement->GetId()] += jobMetricsDelta;
             currentElement = currentElement->GetParent();
         }
     }

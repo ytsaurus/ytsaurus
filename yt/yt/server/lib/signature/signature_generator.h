@@ -20,14 +20,6 @@ class TSignatureGenerator
 public:
     explicit TSignatureGenerator(TSignatureGeneratorConfigPtr config);
 
-    //! Fills out the Signature_ and Header_ fields in a given TSignature
-    //! based on its payload.
-
-    /*!
-    *  \note Thread affinity: any
-    */
-    void Resign(const TSignaturePtr& signature) const final;
-
     /*!
      *  \note Thread affinity: any
     */
@@ -41,6 +33,11 @@ public:
 private:
     const TSignatureGeneratorConfigPtr Config_;
     TAtomicIntrusivePtr<TKeyPair> KeyPair_;
+
+    /*!
+    *  \note Thread affinity: any
+    */
+    void DoSign(const TSignaturePtr& signature) const final;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSignatureGenerator)

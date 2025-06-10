@@ -35,7 +35,7 @@ public:
     //! Returns the last path segment.
     TString GetBaseName() const;
 
-    TMangledSequoiaPath ToMangledSequoiaPath() const;
+    void RemoveLastSegment();
 
     TRawYPath ToRawYPath() const &;
     TRawYPath ToRawYPath() &&;
@@ -78,11 +78,18 @@ public:
     using TBase::TBase;
 
     //! Returns part preceding the name, stripped of trailing slash (if any).
-    TYPathBuf GetDirPath() const;
+    TYPathBuf GetDirPath() const &;
+    TYPathBuf GetDirPath() const && = delete;
 
     //! Allows iteration over path segments, omitting directory separators.
     class TSegmentView;
-    TSegmentView AsSegments() const;
+    TSegmentView AsSegments() const &;
+    TSegmentView AsSegments() const && = delete;
+
+    //! Returns the first path segment, skipping leading separators. Throws when
+    //! path doesn't start with separator followed by a literal.
+    TStringBuf GetFirstSegment() const &;
+    TStringBuf GetFirstSegment() const && = delete;
 };
 
 template <class TUnderlying>
@@ -95,11 +102,15 @@ public:
     using TBase::TBase;
 
     //! Returns part preceding the name, stripped of trailing slash (if any).
-    TAbsoluteYPathBuf GetDirPath() const;
+    TAbsoluteYPathBuf GetDirPath() const &;
+    TAbsoluteYPathBuf GetDirPath() const && = delete;
 
     //! Returns the root designator, throws if path does not contain any.
     //! Validates GUID in case of object root designator.
-    std::pair<TRootDesignator, TYPathBuf> GetRootDesignator() const;
+    std::pair<TRootDesignator, TYPathBuf> GetRootDesignator() const &;
+    std::pair<TRootDesignator, TYPathBuf> GetRootDesignator() const && = delete;
+
+    TMangledSequoiaPath ToMangledSequoiaPath() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,8 +142,6 @@ public:
 
     using TBase::TBase;
 
-    explicit TBasicYPath(const TMangledSequoiaPath& mangledPath);
-
     template <class T>
     TBasicYPath(const TYPathBase<Absolute, T>& other);
 
@@ -152,6 +161,19 @@ public:
     // TODO(kvk1920): provide some sane methods like Rebase() or ReplacePrefix()
     // instead of accessing internal representation directly.
     using TBase::UnsafeMutableUnderlying;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAbsoluteYPath
+    : public TBasicYPath<true>
+{
+public:
+    using TBase = TBasicYPath<true>;
+
+    using TBase::TBase;
+
+    explicit TAbsoluteYPath(const TMangledSequoiaPath& mangledPath);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -242,6 +264,11 @@ struct THash<NYT::NSequoiaClient::TBasicYPathBuf<Absolute>>
 {
     size_t operator()(const NYT::NSequoiaClient::TBasicYPathBuf<Absolute>& path) const;
 };
+
+template <>
+struct THash<NYT::NSequoiaClient::TAbsoluteYPath>
+    : public THash<NYT::NSequoiaClient::TAbsoluteYPath::TBase>
+{ };
 
 #define YPATH_DETAIL_INL_H_
 #include "ypath_detail-inl.h"

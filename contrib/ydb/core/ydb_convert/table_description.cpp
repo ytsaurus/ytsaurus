@@ -1015,6 +1015,7 @@ void FillGlobalIndexSettings(Ydb::Table::GlobalIndexSettings& settings,
     }
 
     FillPartitioningSettingsImpl(settings, indexImplTableDescription);
+    FillReadReplicasSettings(settings, indexImplTableDescription);
 }
 
 template <typename TYdbProto>
@@ -1054,7 +1055,7 @@ void FillIndexDescriptionImpl(TYdbProto& out, const NKikimrSchemeOp::TTableDescr
                 tableIndex.GetIndexImplTableDescriptions(0)
             );
             break;
-        case NKikimrSchemeOp::EIndexType::EIndexTypeGlobalVectorKmeansTree:
+        case NKikimrSchemeOp::EIndexType::EIndexTypeGlobalVectorKmeansTree: {
             FillGlobalIndexSettings(
                 *index->mutable_global_vector_kmeans_tree_index()->mutable_level_table_settings(),
                 tableIndex.GetIndexImplTableDescriptions(0)
@@ -1063,10 +1064,18 @@ void FillIndexDescriptionImpl(TYdbProto& out, const NKikimrSchemeOp::TTableDescr
                 *index->mutable_global_vector_kmeans_tree_index()->mutable_posting_table_settings(),
                 tableIndex.GetIndexImplTableDescriptions(1)
             );
+            const bool prefixVectorIndex = tableIndex.GetKeyColumnNames().size() > 1;
+            if (prefixVectorIndex) {
+                FillGlobalIndexSettings(
+                    *index->mutable_global_vector_kmeans_tree_index()->mutable_prefix_table_settings(),
+                    tableIndex.GetIndexImplTableDescriptions(2)
+                );                    
+            }
 
             *index->mutable_global_vector_kmeans_tree_index()->mutable_vector_settings() = tableIndex.GetVectorIndexKmeansTreeDescription().GetSettings();
 
             break;
+        }
         default:
             break;
         };
@@ -1170,6 +1179,7 @@ void FillChangefeedDescription(Ydb::Table::ChangefeedDescription& out,
 
     out.set_name(in.GetName());
     out.set_virtual_timestamps(in.GetVirtualTimestamps());
+    out.set_schema_changes(in.GetSchemaChanges());
     out.set_aws_region(in.GetAwsRegion());
 
     if (const auto value = in.GetResolvedTimestampsIntervalMs()) {
@@ -1235,6 +1245,7 @@ bool FillChangefeedDescriptionCommon(NKikimrSchemeOp::TCdcStreamDescription& out
 
     out.SetName(in.name());
     out.SetVirtualTimestamps(in.virtual_timestamps());
+    out.SetSchemaChanges(in.schema_changes());
     out.SetAwsRegion(in.aws_region());
 
     if (in.has_resolved_timestamps_interval()) {
@@ -1630,6 +1641,11 @@ void FillReadReplicasSettings(Ydb::Table::DescribeTableResult& out,
 
 void FillReadReplicasSettings(Ydb::Table::CreateTableRequest& out,
         const NKikimrSchemeOp::TTableDescription& in) {
+    FillReadReplicasSettingsImpl(out, in);
+}
+
+void FillReadReplicasSettings(Ydb::Table::GlobalIndexSettings& out,
+    const NKikimrSchemeOp::TTableDescription& in) {
     FillReadReplicasSettingsImpl(out, in);
 }
 

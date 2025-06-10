@@ -1,4 +1,6 @@
 #include "chunk_view_size_fetcher.h"
+
+#include "config.h"
 #include "sorted_chunk_store.h"
 #include "tablet.h"
 
@@ -37,7 +39,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

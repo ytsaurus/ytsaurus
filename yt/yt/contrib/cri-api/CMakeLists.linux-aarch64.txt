@@ -43,6 +43,7 @@ set_property(TARGET yt-contrib-cri-api PROPERTY PROTO_NAMESPACE
 )
 
 set_property(TARGET yt-contrib-cri-api PROPERTY PROTOC_EXTRA_OUTS
+  .deps.pb.h
   .grpc.pb.cc
   .grpc.pb.h
 )
@@ -66,6 +67,7 @@ target_proto_messages(yt-contrib-cri-api PRIVATE
 
 target_sources(yt-contrib-cri-api PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api/k8s.io/cri-api/pkg/apis/runtime/v1/api.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api/k8s.io/cri-api/pkg/apis/runtime/v1/api.deps.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/contrib/cri-api/k8s.io/cri-api/pkg/apis/runtime/v1/api.grpc.pb.h
 )
 

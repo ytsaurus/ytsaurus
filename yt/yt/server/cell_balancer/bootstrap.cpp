@@ -68,7 +68,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CellBalancerLogger;
+constinit const auto Logger = CellBalancerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -134,19 +134,20 @@ public:
         return NativeAuthenticator_;
     }
 
-    void ExecuteDryRunIteration() override
+    void ExecuteIteration(bool dryRun) override
     {
         DoInitialize();
 
-        YT_LOG_DEBUG("Dry run iteration started");
+        YT_LOG_DEBUG("Iteration started (DryRun: %v)",
+            dryRun);
 
         WaitFor(
-            BIND(&IBundleController::ExecuteDryRunIteration, BundleController_)
+            BIND(&IBundleController::ExecuteIteration, BundleController_, dryRun)
                 .AsyncVia(GetControlInvoker())
                 .Run())
             .ThrowOnError();
 
-        YT_LOG_DEBUG("Dry run iteration finished");
+        YT_LOG_DEBUG("Iteration finished");
     }
 
 private:

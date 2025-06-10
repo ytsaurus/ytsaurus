@@ -3,6 +3,8 @@
 #include "config.h"
 #include "handler_base.h"
 
+#include <library/cpp/yt/error/error.h>
+
 #include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
 
 #include <yt/chyt/client/query_service_proxy.h>
@@ -181,8 +183,14 @@ private:
         YT_LOG_DEBUG("Initializing instances");
 
         Discovery_ = CreateDiscovery();
-        WaitFor(Discovery_->UpdateList())
-            .ThrowOnError();
+        auto error = WaitFor(Discovery_->UpdateList());
+        if (!error.IsOK()) {
+            if (error.FindMatching(NDiscoveryClient::EErrorCode::NoSuchGroup)) {
+                error = TError("Ensure that the clique %Qs has started properly and its jobs are successfully running", Clique_) << error;
+            }
+            error.ThrowOnError();
+        }
+
         Instances_ = FilterInstancesByIncarnation(Discovery_->List());
     }
 
@@ -260,6 +268,9 @@ private:
 
         auto instanceChannel = GetChannelForRandomInstance();
         TQueryServiceProxy proxy(instanceChannel);
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
+
         auto req = proxy.ExecuteQuery();
 
         SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));

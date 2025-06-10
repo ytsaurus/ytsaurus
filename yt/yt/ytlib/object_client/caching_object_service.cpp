@@ -156,7 +156,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 
         TObjectServiceCacheKey key(
             CellTagFromId(MasterCellId_),
-            cachingRequestHeaderExt->disable_per_user_cache() ? TString() : context->GetAuthenticationIdentity().User,
+            cachingRequestHeaderExt->disable_per_user_cache() ? std::string() : context->GetAuthenticationIdentity().User,
             ypathExt.target_path(),
             subrequestHeader.service(),
             subrequestHeader.method(),
@@ -207,8 +207,6 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         if (cookie.IsActive()) {
             auto proxy = TObjectServiceProxy::FromDirectMasterChannel(ThrottlingUpstreamChannel_);
             auto req = proxy.Execute();
-            req->set_cell_tag(ToProto(CellTagFromId(MasterCellId_)));
-            req->set_master_channel_kind(ToProto(NApi::EMasterChannelKind::Follower));
             SetCurrentAuthenticationIdentity(req);
 
             if (cachingEnabled) {

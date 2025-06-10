@@ -141,6 +141,8 @@ public:
     //! Cached |GetChunkShardIndex(id)| for efficient access.
     DEFINE_BYVAL_RO_PROPERTY(i8, ShardIndex);
 
+    static constexpr auto SupportsConsistentPlacement = true;
+
 public:
     explicit TChunk(TChunkId id);
 
@@ -187,6 +189,9 @@ public:
     // COMPAT(ifsmirnov)
     void SetApprovedReplicaCount(int count);
 
+    void ValidateConfirmation(
+        const NChunkClient::NProto::TChunkInfo& chunkInfo,
+        const NChunkClient::NProto::TChunkMeta& chunkMeta) const;
     void Confirm(
         const NChunkClient::NProto::TChunkInfo& chunkInfo,
         const NChunkClient::NProto::TChunkMeta& chunkMeta);
@@ -375,6 +380,9 @@ public:
     //! and false otherwise.
     bool IsRefreshActual() const;
 
+    int CapTotalReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
+    int CapPerRackReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
+
 private:
     //! -1 stands for std::nullopt for non-overlayed chunks.
     i64 FirstOverlayedRowIndex_ = -1;
@@ -491,6 +499,28 @@ DEFINE_MASTER_OBJECT_TYPE(TChunk)
 
 // Think twice before increasing this.
 YT_STATIC_ASSERT_SIZEOF_SANITY(TChunk, 288);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDummyNbdChunk
+{
+public:
+    static constexpr auto SupportsConsistentPlacement = false;
+
+public:
+    TChunkId GetId() const;
+
+    bool IsErasure() const;
+
+    int GetMaxReplicasPerFailureDomain(
+        int mediumIndex,
+        std::optional<int> replicationFactorOverride,
+        const TChunkRequisitionRegistry* registry) const;
+
+    int GetPhysicalReplicationFactor(int mediumIndex, const TChunkRequisitionRegistry* registry) const;
+    int CapTotalReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
+    int CapPerRackReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

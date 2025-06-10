@@ -176,7 +176,31 @@ dashboards = {
         "monitoring": {},
     },
     "flow-general": {
-        "func": flow.build_pipeline,
+        "func": flow.build_flow_general,
+        "monitoring": {},
+    },
+    "flow-diagnostics": {
+        "func": flow.build_flow_diagnostics,
+        "monitoring": {},
+    },
+    "flow-event-time": {
+        "func": flow.build_flow_event_time,
+        "monitoring": {},
+    },
+    "flow-controller": {
+        "func": flow.build_flow_controller,
+        "monitoring": {},
+    },
+    "flow-worker": {
+        "func": flow.build_flow_worker,
+        "monitoring": {},
+    },
+    "flow-computation": {
+        "func": flow.build_flow_computation,
+        "monitoring": {},
+    },
+    "flow-message-transfering": {
+        "func": flow.build_flow_message_transfering,
         "monitoring": {},
     },
     "queue-metrics": {

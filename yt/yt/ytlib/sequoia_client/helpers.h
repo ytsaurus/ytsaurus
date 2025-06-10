@@ -19,12 +19,13 @@ struct TSelectRowsQuery
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline const char MangledPathSeparator = '\0';
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf rawPath);
 
 NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
-
-TMangledSequoiaPath MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(
-    const TMangledSequoiaPath& prefix);
 
 //! Unescapes special characters.
 TString ToStringLiteral(TStringBuf key);
@@ -50,6 +51,20 @@ bool IsMethodShouldBeHandledByMaster(const std::string& method);
 template <class T>
 TErrorOr<T> MaybeWrapSequoiaRetriableError(
     std::conditional_t<std::is_void_v<T>, const TError&, TErrorOr<T>&&> result);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TParsedChunkReplica
+{
+    NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
+    int ReplicaIndex = NChunkClient::GenericChunkReplicaIndex;
+    NChunkClient::TChunkLocationUuid LocationUuid;
+};
+
+template <class TOnReplica>
+void ParseChunkReplicas(
+    NYson::TYsonStringBuf replicasYson,
+    const TOnReplica& onReplica);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,11 +1,12 @@
 #include "transaction_manager.h"
 
-#include "bootstrap.h"
-#include "private.h"
 #include "automaton.h"
+#include "bootstrap.h"
+#include "config.h"
+#include "private.h"
+#include "serialize.h"
 #include "tablet_slot.h"
 #include "transaction.h"
-#include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -15,8 +16,6 @@
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager_detail.h>
 
 #include <yt/yt/server/lib/hydra/mutation.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/transaction_server/helpers.h>
 
@@ -77,7 +76,11 @@ static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 class TTransactionManager
     : public TTabletAutomatonPart
     , public ITransactionManager
-    , public TTransactionManagerBase<TTransaction>
+    , public TTransactionManagerBase<
+        TTransaction,
+        TSaveContext,
+        TLoadContext
+    >
 {
 public:
     DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionStarted);
@@ -181,12 +184,20 @@ public:
         return PersistentTransactionMap_.Find(transactionId);
     }
 
-    TTransaction* GetPersistentTransaction(TTransactionId transactionId) override
+    TTransaction* GetPersistentTransaction(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken token = {}) override
     {
-        return PersistentTransactionMap_.Get(transactionId);
+        if (token) {
+            return ExternalizedTransactionMap_.Get({transactionId, token});
+        } else {
+            return PersistentTransactionMap_.Get(transactionId);
+        }
     }
 
-    TTransaction* GetPersistentTransactionOrThrow(TTransactionId transactionId, TGuid externalizationToken = {})
+    TTransaction* GetPersistentTransactionOrThrow(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken externalizationToken = {})
     {
         TTransaction* transaction = nullptr;
 
@@ -207,7 +218,9 @@ public:
         THROW_ERROR error;
     }
 
-    TTransaction* FindTransaction(TTransactionId transactionId, TGuid externalizationToken = {})
+    TTransaction* FindTransaction(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken externalizationToken = {}) override
     {
         if (externalizationToken) {
             if (auto* transaction = ExternalizedTransactionMap_.Find({transactionId, externalizationToken})) {
@@ -225,7 +238,9 @@ public:
         return nullptr;
     }
 
-    TTransaction* GetTransactionOrThrow(TTransactionId transactionId, TGuid externalizationToken = {})
+    TTransaction* GetTransactionOrThrow(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken externalizationToken = {})
     {
         auto* transaction = FindTransaction(transactionId, externalizationToken);
 
@@ -250,7 +265,7 @@ public:
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
-        TGuid externalizationToken = {}) override
+        TTransactionExternalizationToken externalizationToken = {}) override
     {
         YT_VERIFY(!externalizationToken || !transient);
 
@@ -297,6 +312,9 @@ public:
             ExternalizedTransactionMap_.Insert(
                 {transactionId, externalizationToken},
                 std::move(externalizedTransactionHolder));
+            EmplaceOrCrash(
+                TokenToExternalizedTransactions_[externalizationToken],
+                transaction);
         } else {
             auto& map = transient ? TransientTransactionMap_ : PersistentTransactionMap_;
             map.Insert(transactionId, std::move(transactionHolder));
@@ -315,6 +333,21 @@ public:
             transient);
 
         return transaction;
+    }
+
+    void RemoveExternalizedTransaction(TTransaction* transaction)
+    {
+        auto token = transaction->GetExternalizationToken();
+
+        auto it = TokenToExternalizedTransactions_.find(token);
+        YT_VERIFY(it != TokenToExternalizedTransactions_.end());
+        EraseOrCrash(it->second, transaction);
+
+        if (it->second.empty()) {
+            TokenToExternalizedTransactions_.erase(it);
+        }
+
+        ExternalizedTransactionMap_.Remove({transaction->GetId(), token});
     }
 
     TTransaction* MakeTransactionPersistentOrThrow(TTransactionId transactionId) override
@@ -351,6 +384,32 @@ public:
             transactions.push_back(transaction);
         }
         return transactions;
+    }
+
+    void AbortTransactionsExternalizedToThisCell(
+        TTransactionExternalizationToken token) override
+    {
+        auto it = TokenToExternalizedTransactions_.find(token);
+        if (it == TokenToExternalizedTransactions_.end()) {
+            return;
+        }
+
+        // Make a copy since the set is modified when transactions are aborted.
+        auto transactions = it->second;
+
+        TTransactionAbortOptions options{
+            .Force = true,
+        };
+
+        for (auto* transaction : transactions) {
+            YT_LOG_DEBUG("Aborting externalized transaction as externalization token is abandoned "
+                "(TransactionId: %v)",
+                FormatTransactionId(transaction->GetId(), token));
+
+            YT_VERIFY(transaction->GetExternalizationToken() == token);
+
+            AbortTransaction(transaction->GetId(), token, options);
+        }
     }
 
     TFuture<void> RegisterTransactionActions(
@@ -396,7 +455,7 @@ public:
 
     void PrepareTransactionCommit(
         TTransactionId transactionId,
-        TGuid externalizationToken,
+        TTransactionExternalizationToken externalizationToken,
         const TTransactionPrepareOptions& options)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -519,7 +578,7 @@ public:
 
     void CommitTransaction(
         TTransactionId transactionId,
-        TGuid externalizationToken,
+        TTransactionExternalizationToken externalizationToken,
         const NTransactionSupervisor::TTransactionCommitOptions& options)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -632,7 +691,7 @@ public:
             transaction->SetFinished();
 
             if (externalizationToken) {
-                ExternalizedTransactionMap_.Remove({transactionId, externalizationToken});
+                RemoveExternalizedTransaction(transaction);
             } else {
                 PersistentTransactionMap_.Remove(transactionId);
             }
@@ -648,7 +707,7 @@ public:
 
     void AbortTransaction(
         TTransactionId transactionId,
-        TGuid externalizationToken,
+        TTransactionExternalizationToken externalizationToken,
         const NTransactionSupervisor::TTransactionAbortOptions& options)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -682,7 +741,12 @@ public:
                 transaction->GetId(),
                 transaction->Actions().size());
         } else {
-            RunAbortTransactionActions(transaction, options);
+            // COMPAT(kvk1920)
+            RunAbortTransactionActions(
+                transaction,
+                options,
+                /*requireLegacyBehavior*/ NHydra::HasMutationContext() &&
+                    NHydra::GetCurrentMutationContext()->Request().Reign < static_cast<int>(ETabletReign::FixTransactionActionAbort));
         }
 
         YT_LOG_DEBUG(
@@ -701,7 +765,7 @@ public:
             options);
 
         if (externalizationToken) {
-            ExternalizedTransactionMap_.Remove({transactionId, externalizationToken});
+            RemoveExternalizedTransaction(transaction);
         } else if (transaction->GetTransient()) {
             TransientTransactionMap_.Remove(transactionId);
         } else {
@@ -800,11 +864,9 @@ public:
         return Decommission_ && PersistentTransactionMap_.empty();
     }
 
-    void RegisterTransactionActionHandlers(
-        TTransactionActionDescriptor<TTransaction> descriptor) override
+    void RegisterTransactionActionHandlers(TTypeErasedTransactionActionDescriptor descriptor) override
     {
-        TTransactionManagerBase<TTransaction>::DoRegisterTransactionActionHandlers(
-            std::move(descriptor));
+        TTransactionManagerBase::RegisterTransactionActionHandlers(std::move(descriptor));
     }
 
 private:
@@ -820,6 +882,7 @@ private:
     TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;
     TEntityMap<TExternalizedTransaction> ExternalizedTransactionMap_;
+    THashMap<TTransactionExternalizationToken, THashSet<TTransaction*>> TokenToExternalizedTransactions_;
 
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
     NConcurrency::TPeriodicExecutorPtr BarrierCheckExecutor_;
@@ -847,16 +910,28 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        auto dumpTransaction = [&] (TFluentMap fluent, const std::pair<TTransactionId, TTransaction*>& pair) {
+        auto dumpTransaction = [&] (TFluentMap fluent, const auto& pair) {
             auto* transaction = pair.second;
             fluent
-                .Item(ToString(transaction->GetId())).BeginMap()
+                .Item(FormatTransactionId(transaction->GetId(), transaction->GetExternalizationToken())).BeginMap()
                     .Item("transient").Value(transaction->GetTransient())
                     .Item("timeout").Value(transaction->GetTimeout())
                     .Item("state").Value(transaction->GetTransientState())
                     .Item("start_timestamp").Value(transaction->GetStartTimestamp())
                     .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
                     .Item("left_to_per_row_serialize_part_count").Value(transaction->GetPartsLeftToPerRowSerialize())
+                    .DoIf(transaction->IsExternalizedFromThisCell(), [&] (auto fluent) {
+                        fluent
+                            .Item("externalizer_tablets").DoListFor(
+                                transaction->ExternalizerTablets(),
+                                [] (auto fluent, const auto& pair) {
+                                    fluent
+                                        .Item().BeginMap()
+                                            .Item("tablet_id").Value(pair.first)
+                                            .Item("externalization_token").Value(pair.second)
+                                        .EndMap();
+                                });
+                    })
                     // Omit CommitTimestamp, it's typically null.
                     // TODO: Tablets.
                 .EndMap();
@@ -865,10 +940,13 @@ private:
             .BeginMap()
                 .DoFor(TransientTransactionMap_, dumpTransaction)
                 .DoFor(PersistentTransactionMap_, dumpTransaction)
+                .DoFor(ExternalizedTransactionMap_, dumpTransaction)
             .EndMap();
     }
 
-    TString FormatTransactionId(TTransactionId transactionId, TGuid externalizationToken)
+    TString FormatTransactionId(
+        TTransactionId transactionId,
+        TTransactionExternalizationToken externalizationToken)
     {
         if (externalizationToken) {
             return Format("%v@%v", transactionId, externalizationToken);
@@ -970,6 +1048,12 @@ private:
         for (auto& [_, heap] : SerializingTransactionHeaps_) {
             MakeHeap(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
             UpdateMinCommitTimestamp(heap);
+        }
+
+        for (auto [transactionId, transaction] : ExternalizedTransactionMap_) {
+            EmplaceOrCrash(
+                TokenToExternalizedTransactions_[transaction->GetExternalizationToken()],
+                transaction);
         }
     }
 
@@ -1108,6 +1192,7 @@ private:
         TransientTransactionMap_.Clear();
         PersistentTransactionMap_.Clear();
         ExternalizedTransactionMap_.Clear();
+        TokenToExternalizedTransactions_.clear();
         SerializingTransactionHeaps_.clear();
         PreparedTransactions_.clear();
         LastSerializedCommitTimestamps_.clear();
@@ -1186,7 +1271,7 @@ private:
     void HydraRegisterTransactionActions(NTabletClient::NProto::TReqRegisterTransactionActions* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto externalizationToken = FromProto<TGuid>(request->externalization_token());
+        auto externalizationToken = FromProto<TTransactionExternalizationToken>(request->externalization_token());
 
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
@@ -1213,11 +1298,11 @@ private:
 
         for (const auto& protoData : request->actions()) {
             auto data = FromProto<TTransactionActionData>(protoData);
-            transaction->Actions().push_back(data);
+            auto& action = transaction->Actions().emplace_back(std::move(data));
 
-            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v, Signature: %v)",
+            YT_LOG_DEBUG("Transaction action registered (TransactionId: %v, ActionType: %v, Signature: %x)",
                 FormatTransactionId(transactionId, externalizationToken),
-                data.Type,
+                action.Type,
                 signature);
         }
 
@@ -1324,7 +1409,7 @@ private:
     void HydraPrepareExternalizedTransaction(NProto::TReqPrepareExternalizedTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto externalizationToken = FromProto<TGuid>(request->externalization_token());
+        auto externalizationToken = FromProto<TTransactionExternalizationToken>(request->externalization_token());
         auto options = FromProto<TTransactionPrepareOptions>(request->options());
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
@@ -1351,7 +1436,7 @@ private:
     void HydraCommitExternalizedTransaction(NProto::TReqCommitExternalizedTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto externalizationToken = FromProto<TGuid>(request->externalization_token());
+        auto externalizationToken = FromProto<TTransactionExternalizationToken>(request->externalization_token());
         auto options = FromProto<TTransactionCommitOptions>(request->options());
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
@@ -1373,7 +1458,7 @@ private:
     void HydraAbortExternalizedTransaction(NProto::TReqAbortExternalizedTransaction* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto externalizationToken = FromProto<TGuid>(request->externalization_token());
+        auto externalizationToken = FromProto<TTransactionExternalizationToken>(request->externalization_token());
         auto options = FromProto<TTransactionAbortOptions>(request->options());
 
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);

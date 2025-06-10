@@ -103,7 +103,7 @@ void TestCompatibility()
         reader = CreateUnversionedCompositeColumnReader(columnMeta, 0, 0, std::nullopt, TColumnSchema());
     } else {
         static_assert(ReaderType == EValueType::Any);
-        reader = CreateUnversionedAnyColumnReader(columnMeta, 0, 0, std::nullopt, TColumnSchema());
+        reader = CreateUnversionedAnyColumnReader(columnMeta, 0, 0, std::nullopt, TColumnSchema(), true);
     }
     reader->SetCurrentBlock(columnData, 0);
     reader->Rearm();

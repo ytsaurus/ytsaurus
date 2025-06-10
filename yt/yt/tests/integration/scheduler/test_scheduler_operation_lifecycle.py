@@ -13,7 +13,7 @@ from yt_commands import (
     start_transaction, abort_transaction,
     lookup_rows, read_table, write_table, map, reduce, sort,
     run_test_vanilla, run_sleeping_vanilla,
-    suspend_op, resume_op, abort_op,
+    suspend_op, resume_op, abort_op, update_op_parameters,
     abort_job, get_job, get_job_fail_context, list_jobs, list_operations, get_operation, clean_operations,
     abandon_job, sync_create_cells, update_controller_agent_config, update_scheduler_config,
     make_ace, set_all_nodes_banned, PrepareTables, sorted_dicts)
@@ -1195,6 +1195,24 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
 
 @pytest.mark.enabled_multidaemon
+class TestOperationOrchid(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @authors("renadeen")
+    def test_operation_orchid(self):
+        op = run_sleeping_vanilla(spec={"title": "op_title"})
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/type", default="") == "vanilla")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/title", default="") == "op_title")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/user", default="") == "root")
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
 class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2072,9 +2090,10 @@ class TestSchedulerPoolManageAcls(YTEnvSetup):
 
     @authors("ignat")
     def test_access_to_operation_for_pool_managers(self):
-        update_scheduler_config("operation_actions_allowed_for_pool_managers", ["suspend", "resume"])
+        update_scheduler_config("operation_actions_allowed_for_pool_managers", ["suspend", "resume", "update_parameters"])
 
         create_pool("my_pool")
+        create_pool("your_pool")
 
         create_user("author")
         create_user("user")
@@ -2093,29 +2112,36 @@ class TestSchedulerPoolManageAcls(YTEnvSetup):
             },
             authenticated_user="author")
 
-        # TODO(ignat): YT-23056: support update_op_parameters for pool managers.
-        # with pytest.raises(YtError):
-        #     update_op_parameters(
-        #         op.id,
-        #         parameters={
-        #             "scheduling_options_per_pool_tree": {
-        #                 "default": {
-        #                     "weight": 1000,
-        #                 }
-        #             }
-        #         },
-        #         authenticated_user="user")
+        with pytest.raises(YtError):
+            update_op_parameters(
+                op.id,
+                parameters={
+                    "scheduling_options_per_pool_tree": {
+                        "default": {
+                            "weight": 1000,
+                        }
+                    }
+                },
+                authenticated_user="user")
 
-        # update_op_parameters(
-        #     op.id,
-        #     parameters={
-        #         "scheduling_options_per_pool_tree": {
-        #             "default": {
-        #                 "weight": 1000,
-        #             }
-        #         }
-        #     },
-        #     authenticated_user="manager")
+        with pytest.raises(YtError):
+            update_op_parameters(
+                op.id,
+                parameters={
+                    "pool": "your_pool",
+                },
+                authenticated_user="manager")
+
+        update_op_parameters(
+            op.id,
+            parameters={
+                "scheduling_options_per_pool_tree": {
+                    "default": {
+                        "weight": 1000,
+                    }
+                }
+            },
+            authenticated_user="manager")
 
         suspend_op(op.id, authenticated_user="manager")
         resume_op(op.id, authenticated_user="manager")

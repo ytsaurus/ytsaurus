@@ -52,7 +52,7 @@ transaction.commit().get(10, TimeUnit.SECONDS)
 
 ## Schema v3
 
-Чтение таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1`. Настраивается в [Spark конфигурации](../cluster/configuration.md) или опции записи.
+Чтение таблиц со схемой в формате [type_v3](../../../../../user-guide/storage/data-types.md) вместо `type_v1`. Настраивается в [Spark конфигурации](../../../../../user-guide/data-processing/spyt/cluster/configuration.md) или опции записи.
 
 Python example:
 ```python

@@ -1,9 +1,12 @@
 #include "chaos_agent.h"
 
+#include "config.h"
 #include "private.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "tablet_profiling.h"
+
+#include <yt/yt/server/lib/hydra/mutation.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -25,6 +28,7 @@
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
+
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <util/generic/cast.h>
@@ -184,7 +188,8 @@ private:
                 },
             };
 
-            if (newEra != InvalidReplicationEra && ReplicationCard_->Era < newEra) {
+            // Replication card can be null on start, so check it before getting the era.
+            if (ReplicationCard_ && newEra != InvalidReplicationEra && ReplicationCard_->Era < newEra) {
                 key.RefreshEra = newEra;
                 YT_LOG_DEBUG("Forcing cached replication card update (OldEra: %v, NewEra: %v)",
                     ReplicationCard_->Era,
@@ -192,8 +197,33 @@ private:
                 replicationCardCache->ForceRefresh(key, ReplicationCard_);
             }
 
-            ReplicationCard_ = WaitFor(replicationCardCache->GetReplicationCard(key))
+            auto replicationCard = WaitFor(replicationCardCache->GetReplicationCard(key))
                 .ValueOrThrow();
+
+            if (auto snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
+                snapshotEra != InvalidReplicationEra && replicationCard->Era < snapshotEra)
+            {
+                key.RefreshEra = snapshotEra;
+                YT_LOG_DEBUG(
+                    "Forcing cached replication card update due to outdated copy obtained "
+                    "(FetchedEra: %v, SnapshotEra: %v)",
+                    replicationCard->Era,
+                    snapshotEra);
+
+                replicationCardCache->ForceRefresh(key, replicationCard);
+                replicationCard = WaitFor(replicationCardCache->GetReplicationCard(key))
+                    .ValueOrThrow();
+
+                if (replicationCard->Era < snapshotEra) {
+                    YT_LOG_ALERT(
+                        "Replication card era is outdated after forced refresh "
+                        "(FetchedEra: %v, SnapshotEra: %v)",
+                        replicationCard->Era,
+                        snapshotEra);
+                }
+            }
+
+            ReplicationCard_ = std::move(replicationCard);
 
             Tablet_->RuntimeData()->ReplicationCard.Store(ReplicationCard_);
 
@@ -218,17 +248,42 @@ private:
             newEra);
     }
 
+    void TryAdvanceReplicationEra(TReplicationEra newEra)
+    {
+        auto snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
+        if (snapshotEra != InvalidReplicationEra && snapshotEra >= newEra) {
+            return;
+        }
+
+        NProto::TReqAdvanceReplicationEra req;
+        ToProto(req.mutable_tablet_id(), Tablet_->GetId());
+        req.set_new_replication_era(newEra);
+
+        YT_LOG_DEBUG("Committing replication era advance (NewReplicationEra: %v, OldReplicationEra: %v)",
+            newEra,
+            snapshotEra
+        );
+
+        auto mutation = CreateMutation(Slot_->GetSimpleHydraManager(), req);
+        WaitFor(mutation->Commit())
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Replication era advance finished (NewReplicationEra: %v)",
+            newEra);
+    }
+
     void ReconfigureTabletWriteMode()
     {
         YT_VERIFY(ConfigurationLock_->GetFree() == 0);
 
-        if (!ReplicationCard_) {
+        auto replicationCard = ReplicationCard_;
+        if (!replicationCard) {
             YT_LOG_DEBUG("Replication card is not available");
             return;
         }
 
         auto* selfReplica = [&] () -> TReplicaInfo* {
-            auto* selfReplica = ReplicationCard_->FindReplica(Tablet_->GetUpstreamReplicaId());
+            auto* selfReplica = replicationCard->FindReplica(Tablet_->GetUpstreamReplicaId());
             if (!selfReplica) {
                 YT_LOG_DEBUG("Could not find self replica in replication card");
                 return nullptr;
@@ -253,7 +308,7 @@ private:
 
         if (!selfReplica) {
             Tablet_->RuntimeData()->WriteMode = ETabletWriteMode::Pull;
-            Tablet_->RuntimeData()->ReplicationEra = ReplicationCard_->Era;
+            TryAdvanceReplicationEra(replicationCard->Era);
             return;
         }
 
@@ -280,12 +335,14 @@ private:
             writeMode = ETabletWriteMode::Direct;
         }
 
+        // Should be updated before era not to race with logic in tablet service.
         Tablet_->RuntimeData()->WriteMode = writeMode;
-        Tablet_->RuntimeData()->ReplicationEra = ReplicationCard_->Era;
+        // ReplicationCard_ might change during this call so we are using a local reference.
+        TryAdvanceReplicationEra(replicationCard->Era);
 
         YT_LOG_DEBUG("Updated tablet write mode (WriteMode: %v, ReplicationEra: %v)",
             writeMode,
-            ReplicationCard_->Era);
+            replicationCard->Era);
 
         if (IsReplicaDisabled(selfReplica->State)) {
             return;
@@ -296,7 +353,7 @@ private:
         }
 
         if (writeMode == ETabletWriteMode::Direct) {
-            auto currentTimestamp = ReplicationCard_->CurrentTimestamp;
+            auto currentTimestamp = replicationCard->CurrentTimestamp;
             if (!IsReplicationProgressGreaterOrEqual(*progress, currentTimestamp)) {
                 auto newProgress = AdvanceReplicationProgress(
                     *progress,

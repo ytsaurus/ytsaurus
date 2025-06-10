@@ -1,18 +1,17 @@
 #include "slot_manager.h"
 
 #include "bootstrap.h"
+#include "config.h"
 #include "private.h"
 #include "slot_provider.h"
-#include "tablet_slot.h"
 #include "structured_logger.h"
+#include "tablet_slot.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/occupant.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -40,7 +39,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -77,7 +76,7 @@ public:
         SlotScanExecutor_->Start();
     }
 
-    bool IsOutOfMemory(const std::optional<TString>& poolTag) const override
+    bool IsOutOfMemory(const std::optional<std::string>& poolTag) const override
     {
         const auto& tracker = Bootstrap_->GetNodeMemoryUsageTracker();
         return tracker->IsExceeded(EMemoryCategory::TabletDynamic, poolTag);
@@ -159,7 +158,7 @@ private:
 
         const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
 
-        auto update = [&] (const TString& bundleName, int weight) {
+        auto update = [&] (const std::string& bundleName, int weight) {
             YT_LOG_DEBUG("Tablet cell bundle memory pool weight updated (Bundle: %v, Weight: %v)",
                 bundleName,
                 weight);

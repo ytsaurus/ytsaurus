@@ -99,6 +99,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
         .Default()
         .GreaterThanOrEqual(1);
 
+    registrar.Parameter("enable_virtual_map_read_offload_authenticated_user_propagation", &TThis::EnableVirtualMapReadOffloadAuthenticatedUserPropagation)
+        .Default(true);
+
     registrar.Parameter("cross_cell_copy_max_subtree_size", &TThis::CrossCellCopyMaxSubtreeSize)
         .Default(100'000)
         .GreaterThanOrEqual(0);
@@ -127,6 +130,9 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_proper_branched_parent_in_lock_copy_destination", &TThis::UseProperBranchedParentInLockCopyDestination)
         .Default(true);
 
+    registrar.Parameter("alert_on_list_node_load", &TThis::AlertOnListNodeLoad)
+        .Default(true);
+
     registrar.Parameter("default_optimize_for", &TThis::DefaultOptimizeFor)
         .Default(NTableClient::EOptimizeFor::Lookup);
 
@@ -145,7 +151,6 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
             config->DefaultHunkStorageReadQuorum,
             config->DefaultHunkStorageWriteQuorum);
     });
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

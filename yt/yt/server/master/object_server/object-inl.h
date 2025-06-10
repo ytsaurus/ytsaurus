@@ -53,29 +53,34 @@ inline TObjectId TObject::GetId() const
 inline int TObject::RefObject()
 {
     YT_VERIFY(RefCounter_ >= 0);
+    YT_VERIFY(IsTrunk());
     return ++RefCounter_;
 }
 
 inline int TObject::UnrefObject(int count)
 {
     YT_VERIFY(RefCounter_ >= count);
+    YT_VERIFY(IsTrunk());
     return RefCounter_ -= count;
 }
 
 inline int TObject::EphemeralRefObject()
 {
     YT_VERIFY(IsObjectAlive(this));
+    YT_VERIFY(IsTrunk());
     return EphemeralRefCounter_.Increment(+1);
 }
 
 inline int TObject::EphemeralUnrefObject()
 {
+    YT_VERIFY(IsTrunk());
     return EphemeralRefCounter_.Increment(-1);
 }
 
 inline int TObject::WeakRefObject()
 {
     YT_VERIFY(IsObjectAlive(this));
+    YT_VERIFY(IsTrunk());
     YT_VERIFY(WeakRefCounter_ >= 0);
 
     return ++WeakRefCounter_;
@@ -84,6 +89,7 @@ inline int TObject::WeakRefObject()
 inline int TObject::WeakUnrefObject()
 {
     YT_VERIFY(WeakRefCounter_ > 0);
+    YT_VERIFY(IsTrunk());
     return --WeakRefCounter_;
 }
 
@@ -383,6 +389,20 @@ inline void AssertPersistentStateRead()
 
 namespace NDetail {
 
+template <class T>
+TObject* ToTrunkObject(T* obj)
+{
+    // This attempts to detect if T derives from TCypressNode
+    // without requiring TCypressNode to be defined.
+    // NB: |requires {obj->GetTrunkNode();}| seems more natural but
+    // won't work since some types define a completely unrelated GetTrunkNode method.
+    if constexpr (requires {obj->~TCypressNode();}) {
+        return obj->GetTrunkNode();
+    } else {
+        return obj;
+    }
+}
+
 inline void AssertObjectValidOrNull(TObject* object)
 {
     YT_ASSERT(!object || !object->IsDisposed());
@@ -409,7 +429,7 @@ TObjectPtr<T, C>::TObjectPtr(T* ptr) noexcept
     AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     if (Ptr_) {
-        Context_.Ref(ToObject(Ptr_));
+        Context_.Ref(ToTrunkObject(Ptr_));
     }
 }
 
@@ -432,7 +452,7 @@ TObjectPtr<T, C>::~TObjectPtr() noexcept
     }
 
     if (Ptr_) {
-        Context_.Unref(ToObject(Ptr_));
+        Context_.Unref(ToTrunkObject(Ptr_));
     }
 }
 
@@ -444,7 +464,7 @@ TObjectPtr<T, C>& TObjectPtr<T, C>::operator=(TObjectPtr&& other) noexcept
         NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
         NDetail::AssertObjectValidOrNull(ToObject(other.Ptr_));
         if (Ptr_) {
-            Context_.Unref(ToObject(Ptr_));
+            Context_.Unref(ToTrunkObject(Ptr_));
         }
         Ptr_ = other.Ptr_;
         other.Ptr_ = nullptr;
@@ -467,13 +487,13 @@ void TObjectPtr<T, C>::Assign(T* ptr) noexcept
     AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     if (Ptr_) {
-        Context_.Unref(ToObject(Ptr_));
+        Context_.Unref(ToTrunkObject(Ptr_));
     }
     Ptr_ = ptr;
     Context_ = C::Capture();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     if (Ptr_) {
-        Context_.Ref(ToObject(Ptr_));
+        Context_.Ref(ToTrunkObject(Ptr_));
     }
 }
 
@@ -493,10 +513,19 @@ void TObjectPtr<T, C>::Reset() noexcept
     AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     if (Ptr_) {
-        Context_.Unref(ToObject(Ptr_));
+        Context_.Unref(ToTrunkObject(Ptr_));
         Ptr_ = nullptr;
         Context_ = {};
     }
+}
+
+template <class T, class C>
+T* TObjectPtr<T, C>::Release() noexcept
+{
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    auto* ptr = std::exchange(Ptr_, nullptr);
+    Context_ = {};
+    return ptr;
 }
 
 template <class T, class C>
@@ -694,6 +723,11 @@ YT_ATTRIBUTE_USED Y_FORCE_INLINE TObject* ToObject(TObject* obj)
 }
 
 YT_ATTRIBUTE_USED Y_FORCE_INLINE const TObject* ToObject(const TObject* obj)
+{
+    return obj;
+}
+
+YT_ATTRIBUTE_USED Y_FORCE_INLINE TObject* ToTrunkObject(TObject* obj)
 {
     return obj;
 }

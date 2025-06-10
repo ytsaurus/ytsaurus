@@ -3,6 +3,7 @@ from yt_commands import (
     raises_yt_error, read_table, select_rows, sync_mount_table, wait, get, set, ls, create,
     start_transaction, write_table)
 
+from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
 from yt_master_cell_addition_base import MasterCellAdditionBase, MasterCellAdditionBaseChecks, MasterCellAdditionChaosMultiClusterBaseChecks
@@ -294,13 +295,13 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
 
         wait_for_cell_to_become_healthy(cell_id)
         assert check_cell_tags(cell_id, ["10", "11", "12"])
-        assert select_rows("* from [//tmp/dt]") == rows
+        assert_items_equal(select_rows("* from [//tmp/dt]"), rows)
 
         self._enable_last_cell(downtime=False)
 
         wait_for_cell_to_become_healthy(cell_id)
         assert check_cell_tags(cell_id, ["10", "11", "12", "13"])
-        assert select_rows("* from [//tmp/dt]") == rows
+        assert_items_equal(select_rows("* from [//tmp/dt]"), rows)
 
 
 ##################################################################
@@ -388,6 +389,8 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         set("//sys/@config/multicell_manager/testing/discovered_masters_cell_tags", [13])
         set("//sys/@config/multicell_manager/cell_descriptors", {"13": {"roles": ["cypress_node_host", "chunk_host"]}})
 
+        self._wait_for_nodes_state("online")
+
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
         write_table("//tmp/t", [{"a" : "b"}])
         assert read_table("//tmp/t") == [{"a" : "b"}]
@@ -448,7 +451,7 @@ class TestMasterCellDynamicPropagationDuringRegistration(MasterCellAdditionBase)
     @authors("cherepashka")
     def test_registration_after_synchronization(self):
         self.Env.kill_nodes()
-        self._enable_last_cell(downtime=False)
+        self._enable_last_cell(downtime=False, wait_for_nodes=False)
         # Registration on primary master triggers master cell synhronization, which follows receiving new master cell
         # and attempt of starting cellar/data/tablet heartbeats before actual registration.
         # This shouldn't crash node.

@@ -454,10 +454,9 @@ private:
         TCellTag cellTag,
         ERemoteTransactionType remoteTransactionType)
     {
-        auto proxy = CreateObjectServiceReadProxy(
-            Bootstrap_->GetRootClient(),
-            NApi::EMasterChannelKind::Follower,
-            cellTag);
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+            multicellManager->GetMasterChannelOrThrow(cellTag, EPeerKind::Follower));
         auto batchReq = proxy.ExecuteBatch();
 
         auto transactionId = GetId();
@@ -501,14 +500,13 @@ private:
     template <class TSession>
     TFuture<void> FetchCombinedAttributeFromRemote(
         const TIntrusivePtr<TSession>& session,
-        const TString& attributeKey,
+        const std::string& attributeKey,
         TCellTag cellTag,
         const std::function<void(const TIntrusivePtr<TSession>& session, const TYsonString& yson)>& accumulator)
     {
-        auto proxy = CreateObjectServiceReadProxy(
-            Bootstrap_->GetRootClient(),
-            NApi::EMasterChannelKind::Follower,
-            cellTag);
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+            multicellManager->GetMasterChannelOrThrow(cellTag, EPeerKind::Follower));
         auto batchReq = proxy.ExecuteBatch();
 
         auto transactionId = Object_->GetId();
@@ -536,7 +534,7 @@ private:
 
     template <class TSession>
     TFuture<TYsonString> FetchCombinedAttribute(
-        const TString& attributeKey,
+        const std::string& attributeKey,
         const std::function<TYsonString()>& localFetcher,
         const std::function<void(const TIntrusivePtr<TSession>& session, const TYsonString& yson)>& accumulator,
         const std::function<TYsonString(const TIntrusivePtr<TSession>& session)>& finalizer)
@@ -562,13 +560,13 @@ private:
 
 
     TFuture<TYsonString> FetchMergeableAttribute(
-        const TString& attributeKey,
+        const std::string& attributeKey,
         const std::function<TYsonString()>& localFetcher)
     {
         struct TSession
             : public TRefCounted
         {
-            THashMap<TString, TYsonString> Map;
+            THashMap<std::string, TYsonString> Map;
         };
 
         using TSessionPtr = TIntrusivePtr<TSession>;
@@ -582,21 +580,21 @@ private:
                     .EndMap();
             },
             [] (const TSessionPtr& session, const TYsonString& yson) {
-                auto map = ConvertTo<THashMap<TString, INodePtr>>(yson);
+                auto map = ConvertTo<THashMap<std::string, INodePtr>>(yson);
                 for (const auto& [key, value] : map) {
                     session->Map.emplace(key, ConvertToYsonString(value));
                 }
             },
             [] (const TSessionPtr& session) {
                 return BuildYsonStringFluently()
-                    .DoMapFor(session->Map, [&] (TFluentMap fluent, const std::pair<const TString&, TYsonString>& pair) {
+                    .DoMapFor(session->Map, [&] (TFluentMap fluent, const std::pair<const std::string&, TYsonString>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     });
             });
     }
 
     TFuture<TYsonString> FetchSummableAttribute(
-        const TString& attributeKey,
+        const std::string& attributeKey,
         const std::function<TYsonString()>& localFetcher)
     {
         struct TSession
@@ -632,4 +630,3 @@ IObjectProxyPtr CreateTransactionProxy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionServer
-

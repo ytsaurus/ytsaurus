@@ -229,12 +229,13 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"controller_finish_time", 58},
 };
 
-static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion) {
+static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion)
+{
     auto it = JobAttributeToMinArchiveVersion.find(attribute);
     if (it == JobAttributeToMinArchiveVersion.end()) {
         return false;
     }
-    const auto& minArchiveVersion = it->second;
+    std::optional<int> minArchiveVersion = it->second;
     return !minArchiveVersion.has_value() || minArchiveVersion.value() <= archiveVersion;
 }
 
@@ -950,7 +951,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
 
     auto userJobReadController = CreateUserJobReadController(
         jobSpecHelper,
-        TChunkReaderHost::FromClient(MakeStrong(this)),
+        CreateSingleSourceMultiChunkReaderHost(TChunkReaderHost::FromClient(MakeStrong(this))),
         GetConnection()->GetInvoker(),
         /*onNetworkRelease*/ BIND([] { }),
         /*udfDirectory*/ {},
@@ -1462,6 +1463,7 @@ static TQueryBuilder GetListJobsQueryBuilder(
         operationIdAsGuid.Parts64[0],
         operationIdAsGuid.Parts64[1]));
 
+    // TODO(bystrovserg): Switch node_state to transient_state.
     auto runningJobsLookbehindPeriodExpression = Format(
         "node_state IN (%v) "
         "OR ((NOT is_null(update_time)) AND update_time >= %v)",
@@ -1483,6 +1485,85 @@ static TQueryBuilder GetListJobsQueryBuilder(
     return builder;
 }
 
+static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& options, int archiveVersion)
+{
+    if (options.WithStderr) {
+        if (*options.WithStderr) {
+            builder->AddWhereConjunct("stderr_size != 0 AND NOT is_null(stderr_size)");
+        } else {
+            builder->AddWhereConjunct("stderr_size = 0 OR is_null(stderr_size)");
+        }
+    }
+
+    if (options.WithSpec) {
+        if (*options.WithSpec) {
+            builder->AddWhereConjunct("has_spec");
+        } else {
+            builder->AddWhereConjunct("NOT has_spec OR is_null(has_spec)");
+        }
+    }
+
+    if (options.WithFailContext) {
+        if (*options.WithFailContext) {
+            builder->AddWhereConjunct("fail_context_size != 0 AND NOT is_null(fail_context_size)");
+        } else {
+            builder->AddWhereConjunct("fail_context_size = 0 OR is_null(fail_context_size)");
+        }
+    }
+
+    if (options.Type) {
+        builder->AddWhereConjunct(Format("job_type = %Qv", FormatEnum(*options.Type)));
+    }
+
+    if (options.State) {
+        builder->AddWhereConjunct(Format("job_state = %Qv", FormatEnum(*options.State)));
+    }
+
+    if (options.JobCompetitionId) {
+        builder->AddWhereConjunct(Format("job_competition_id = %Qv", options.JobCompetitionId));
+    }
+
+    if (options.WithCompetitors) {
+        if (*options.WithCompetitors) {
+            builder->AddWhereConjunct("has_competitors");
+        } else {
+            builder->AddWhereConjunct("is_null(has_competitors) OR NOT has_competitors");
+        }
+    }
+
+    if (options.WithMonitoringDescriptor) {
+        if (*options.WithMonitoringDescriptor) {
+            builder->AddWhereConjunct("not is_null(monitoring_descriptor)");
+        } else {
+            builder->AddWhereConjunct("is_null(monitoring_descriptor)");
+        }
+    }
+
+    if (options.WithInterruptionInfo) {
+        if (*options.WithInterruptionInfo) {
+            builder->AddWhereConjunct("not is_null(interruption_info)");
+        } else {
+            builder->AddWhereConjunct("is_null(interruption_info)");
+        }
+    }
+
+    if (options.FromTime) {
+        builder->AddWhereConjunct(Format("start_time >= %v", options.FromTime->MicroSeconds()));
+    }
+    if (options.ToTime) {
+        builder->AddWhereConjunct(Format("finish_time <= %v", options.ToTime->MicroSeconds()));
+    }
+
+    if (options.TaskName) {
+        builder->AddWhereConjunct(Format("task_name = %Qv", *options.TaskName));
+    }
+
+    if (options.OperationIncarnation && DoesArchiveContainAttribute("operation_incarnation", archiveVersion))
+    {
+        builder->AddWhereConjunct(Format("operation_incarnation = %Qv", *options.OperationIncarnation));
+    }
+}
+
 // Get statistics for jobs.
 TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     int archiveVersion,
@@ -1493,11 +1574,28 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     auto builder = GetListJobsQueryBuilder(archiveVersion, operationId, options);
 
     auto jobTypeIndex = builder.AddSelectExpression("type", "job_type");
-    auto jobStateIndex = builder.AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
+    int jobStateIndex = 0;
+    if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
+        jobStateIndex = builder.AddSelectExpression(
+            Format(
+                "if(NOT is_null(if(is_null(state), transient_state, state) AS node_state) AND NOT is_null(controller_state),"
+                "   if(node_state IN (%v), node_state, controller_state),"
+                "   if(is_null(node_state), controller_state, node_state))",
+                FinishedJobStatesString),
+            "job_state");
+    } else {
+        jobStateIndex = builder.AddSelectExpression("(if(is_null(state), transient_state, state) AS node_state)", "job_state");
+    }
     auto countIndex = builder.AddSelectExpression("sum(1)", "count");
 
+    TListJobsOptions optionsWithoutCounterFilters = options;
+    optionsWithoutCounterFilters.State.reset();
+    optionsWithoutCounterFilters.Type.reset();
+
+    AddWhereExpressions(&builder, optionsWithoutCounterFilters, archiveVersion);
+
     builder.AddGroupByExpression("job_type");
-    builder.AddGroupByExpression("node_state");
+    builder.AddGroupByExpression("job_state");
 
     return GetOperationsArchiveClient()->SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND([=] (const TSelectRowsResult& result) {
         TListJobsStatistics statistics;
@@ -1513,14 +1611,16 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
             auto jobState = ParseEnum<EJobState>(FromUnversionedValue<TStringBuf>(row[jobStateIndex]));
             auto count = FromUnversionedValue<i64>(row[countIndex]);
 
-            statistics.TypeCounts[jobType] += count;
-            if (options.Type && *options.Type != jobType) {
-                continue;
-            }
+            bool failTypeFilter = options.Type && *options.Type != jobType;
+            bool failStateFilter = options.State && *options.State != jobState;
 
-            statistics.StateCounts[jobState] += count;
-            if (options.State && *options.State != jobState) {
-                continue;
+            // NB(bystrovserg): list_jobs and list_operation have similar logic for calculating counters:
+            // for given counter we assume its filter is empty and all other filters are applied.
+            if (!failStateFilter) {
+                statistics.TypeCounts[jobType] += count;
+            }
+            if (!failTypeFilter) {
+                statistics.StateCounts[jobState] += count;
             }
         }
         return statistics;
@@ -1679,11 +1779,12 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     return jobs;
 }
 
-static void AddSelectExpressions(
+void TClient::AddSelectExpressions(
     TQueryBuilder* builder,
     const THashSet<TString>& attributes,
     int archiveVersion)
 {
+    bool needFullStatisticsForBriefStatistics = GetNativeConnection()->GetConfig()->RequestFullStatisticsForBriefStatisticsInListJobs;
     for (const auto& attribute : attributes) {
         if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
             continue;
@@ -1710,19 +1811,22 @@ static void AddSelectExpressions(
         } else if (attribute == "statistics") {
             builder->AddSelectExpression("statistics");
             builder->AddSelectExpression("statistics_lz4");
-        } else if (attribute == "brief_statistics" && !attributes.contains("statistics")) {
-            // TODO(bystrovserg): Switch to brief_statistics when request "brief_statistics".
-            builder->AddSelectExpression("statistics");
-            builder->AddSelectExpression("statistics_lz4");
+        } else if (attribute == "brief_statistics") {
+            if (needFullStatisticsForBriefStatistics && !attributes.contains("statistics")) {
+                builder->AddSelectExpression("statistics");
+                builder->AddSelectExpression("statistics_lz4");
+            } else {
+                builder->AddSelectExpression("brief_statistics");
+            }
         } else if (attribute == "state") {
             builder->AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
             if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {
                 builder->AddSelectExpression("controller_state");
                 builder->AddSelectExpression(
                     Format(
-                        "if(NOT is_null(node_state) AND NOT is_null(controller_state), "
-                        "   if(node_state IN (%v), node_state, controller_state), "
-                        "if(is_null(node_state), controller_state, node_state))",
+                        "if(NOT is_null(node_state) AND NOT is_null(controller_state),"
+                        "   if(node_state IN (%v), node_state, controller_state),"
+                        "   if(is_null(node_state), controller_state, node_state))",
                         FinishedJobStatesString),
                     "job_state");
             } else {
@@ -1737,85 +1841,8 @@ static void AddSelectExpressions(
     }
 }
 
-static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& options, int archiveVersion) {
-    if (options.WithStderr) {
-        if (*options.WithStderr) {
-            builder->AddWhereConjunct("stderr_size != 0 AND NOT is_null(stderr_size)");
-        } else {
-            builder->AddWhereConjunct("stderr_size = 0 OR is_null(stderr_size)");
-        }
-    }
-
-    if (options.WithSpec) {
-        if (*options.WithSpec) {
-            builder->AddWhereConjunct("has_spec");
-        } else {
-            builder->AddWhereConjunct("NOT has_spec OR is_null(has_spec)");
-        }
-    }
-
-    if (options.WithFailContext) {
-        if (*options.WithFailContext) {
-            builder->AddWhereConjunct("fail_context_size != 0 AND NOT is_null(fail_context_size)");
-        } else {
-            builder->AddWhereConjunct("fail_context_size = 0 OR is_null(fail_context_size)");
-        }
-    }
-
-    if (options.Type) {
-        builder->AddWhereConjunct(Format("job_type = %Qv", FormatEnum(*options.Type)));
-    }
-
-    if (options.State) {
-        builder->AddWhereConjunct(Format("job_state = %Qv", FormatEnum(*options.State)));
-    }
-
-    if (options.JobCompetitionId) {
-        builder->AddWhereConjunct(Format("job_competition_id = %Qv", options.JobCompetitionId));
-    }
-
-    if (options.WithCompetitors) {
-        if (*options.WithCompetitors) {
-            builder->AddWhereConjunct("has_competitors");
-        } else {
-            builder->AddWhereConjunct("is_null(has_competitors) OR NOT has_competitors");
-        }
-    }
-
-    if (options.WithMonitoringDescriptor) {
-        if (*options.WithMonitoringDescriptor) {
-            builder->AddWhereConjunct("not is_null(monitoring_descriptor)");
-        } else {
-            builder->AddWhereConjunct("is_null(monitoring_descriptor)");
-        }
-    }
-
-    if (options.WithInterruptionInfo) {
-        if (*options.WithInterruptionInfo) {
-            builder->AddWhereConjunct("not is_null(interruption_info)");
-        } else {
-            builder->AddWhereConjunct("is_null(interruption_info)");
-        }
-    }
-
-    if (options.FromTime) {
-        builder->AddWhereConjunct(Format("start_time >= %v", options.FromTime->MicroSeconds()));
-    }
-    if (options.ToTime) {
-        builder->AddWhereConjunct(Format("finish_time <= %v", options.ToTime->MicroSeconds()));
-    }
-
-    if (options.TaskName) {
-        builder->AddWhereConjunct(Format("task_name = %Qv", *options.TaskName));
-    }
-
-    if (options.OperationIncarnation && DoesArchiveContainAttribute("operation_incarnation", archiveVersion))
-    {
-        builder->AddWhereConjunct(Format("operation_incarnation = %Qv", *options.OperationIncarnation));
-    }
-}
-
-static void AddOrderByExpression(TQueryBuilder* builder, const TListJobsOptions& options) {
+static void AddOrderByExpression(TQueryBuilder* builder, const TListJobsOptions& options)
+{
     auto orderByDirection = [&] {
         switch (options.SortOrder) {
             case EJobSortDirection::Ascending:
@@ -2008,7 +2035,7 @@ static void ParseJobsFromControllerAgentResponse(
 static void ParseJobsFromControllerAgentResponse(
     TOperationId operationId,
     const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp,
-    const TString& key,
+    const std::string& key,
     const THashSet<TString>& attributes,
     const TListJobsOptions& options,
     std::vector<TJob>* jobs,
@@ -2333,17 +2360,19 @@ static TError TryFillJobPools(
     return TError();
 }
 
-static void FillIsStale(bool operationFinished, std::vector<TJob>* jobs) {
+static void FillIsStale(bool operationFinished, std::vector<TJob>* jobs)
+{
     for (auto& job : *jobs) {
         auto jobState = job.GetState();
         job.IsStale = jobState && IsJobInProgress(*jobState);
         if (!operationFinished) {
-            job.IsStale = job.IsStale && !job.PresentInControllerAgent && job.PresentInArchive;
+            job.IsStale = *job.IsStale && !job.PresentInControllerAgent && job.PresentInArchive;
         }
     }
 }
 
-static void ValidateRequestedAttributes(const THashSet<TString>& attributes) {
+static void ValidateRequestedAttributes(const THashSet<TString>& attributes)
+{
     for (const auto& attribute : attributes) {
         if (!SupportedJobsAttributes.contains(attribute)) {
             THROW_ERROR_EXCEPTION(
@@ -2354,9 +2383,10 @@ static void ValidateRequestedAttributes(const THashSet<TString>& attributes) {
     }
 }
 
-static void RemoveUnneededLightAttributes(const THashSet<TString>& attributes, std::vector<TJob>* jobs) {
+static void RemoveUnneededLightAttributes(const THashSet<TString>& attributes, std::vector<TJob>* jobs)
+{
     for (auto& job : *jobs) {
-        auto filterAttribute = [&] (TString attributeName, auto TJob::* attribute) {
+        auto filterAttribute = [&] (std::string attributeName, auto TJob::* attribute) {
             if (!attributes.contains(attributeName)) {
                 job.*attribute = {};
             }

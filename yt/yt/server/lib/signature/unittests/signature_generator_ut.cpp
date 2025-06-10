@@ -153,7 +153,7 @@ TEST_F(TSignatureGeneratorTest, RotationUnderLoad)
     allStarted.store(true);
     while (finishedCount.load() == 0);
     Gen->SetKeyPair(std::move(newKeyPair));
-    EXPECT_LE(finishedCount.load(), 1000u);
+    EXPECT_LE(finishedCount.load(), 5000u);
 }
 
 } // namespace

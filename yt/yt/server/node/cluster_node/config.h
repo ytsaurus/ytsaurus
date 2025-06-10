@@ -12,13 +12,13 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/server/lib/tablet_node/public.h>
-
 #include <yt/yt/server/node/cellar_node/public.h>
 
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/server/node/query_agent/public.h>
+
+#include <yt/yt/server/node/tablet_node/public.h>
 
 #include <yt/yt/ytlib/hive/public.h>
 
@@ -491,10 +491,10 @@ struct TClusterNodeDynamicConfig
     //! Network throttler limit is this smaller than NetworkBandwidth.
     std::optional<double> ThrottlerFreeBandwidthRatio;
 
-    //! Chunk replica cache config overrides
+    //! Chunk replica cache config overrides.
     TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
 
-    //! Chaos residency cache config overrides
+    //! Chaos residency cache config overrides.
     TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
 
     bool UsePortoNetworkLimitInThrottler;

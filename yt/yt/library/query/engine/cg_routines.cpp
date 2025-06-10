@@ -29,6 +29,7 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/validate_logical_type.h>
 
 #include <yt/yt/core/yson/lexer.h>
 #include <yt/yt/core/yson/parser.h>
@@ -85,7 +86,7 @@ using namespace NWebAssembly;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = QueryClientLogger;
+constinit const auto Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -867,7 +868,7 @@ void MultiJoinOpHelper(
     closure.ProcessJoinBatch();
 }
 
-std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValueType> types, TPIValue* lists, TRange<TPIValue> bindedValues = {})
+std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValueType> types, TPIValue* lists)
 {
     int arrayCount = types.size();
     std::vector<TPIValue*> nestedRows;
@@ -943,7 +944,7 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
             }
 
             if (currentArrayIndex >= std::ssize(nestedRows)) {
-                int nestedRowSize = arrayCount + bindedValues.Size();
+                int nestedRowSize = arrayCount;
                 auto mutableRange = AllocatePIValueRange(context, nestedRowSize, EAddressSpace::WebAssembly);
                 for (int leadingRowIndex = 0; leadingRowIndex < index; ++leadingRowIndex) {
                     MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(&mutableRange[leadingRowIndex]));
@@ -960,14 +961,6 @@ std::vector<TPIValue*> UnpackRows(TExpressionContext* context, std::vector<EValu
 
         for (int trailingIndex = currentArrayIndex; trailingIndex < std::ssize(nestedRows); ++trailingIndex) {
             MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(&nestedRows[trailingIndex][index]));
-        }
-    }
-
-    for (auto* nestedRow : nestedRows) {
-        for (int index = 0; index < std::ssize(bindedValues); ++index) {
-            CopyPositionIndependent(
-                ConvertPointerFromWasmToHost(&nestedRow[arrayCount + index]),
-                bindedValues[index]);
         }
     }
 
@@ -2143,12 +2136,11 @@ template <typename TStringType>
 void CopyString(TExpressionContext* context, TPIValue* result, const TStringType& str)
 {
     auto* offset = AllocateBytes(context, str.size());
-    ::memcpy(ConvertPointerFromWasmToHost(offset, str.size()), str.data(), str.size());
+    auto* offsetAtHost = ConvertPointerFromWasmToHost(offset, str.size());
+    ::memcpy(offsetAtHost, str.data(), str.size());
     MakePositionIndependentStringValue(
         ConvertPointerFromWasmToHost(result),
-        TStringBuf(
-            ConvertPointerFromWasmToHost(offset, str.size()),
-            str.size()));
+        TStringBuf(offsetAtHost, str.size()));
 }
 
 template <typename TStringType>
@@ -2163,12 +2155,11 @@ template <typename TStringType>
 void CopyAny(TExpressionContext* context, TPIValue* result, const TStringType& str)
 {
     auto* offset = AllocateBytes(context, str.size());
-    ::memcpy(ConvertPointerFromWasmToHost(offset, str.size()), str.data(), str.size());
+    auto* offsetAtHost = ConvertPointerFromWasmToHost(offset, str.size());
+    ::memcpy(offsetAtHost, str.data(), str.size());
     MakePositionIndependentAnyValue(
         ConvertPointerFromWasmToHost(result),
-        TStringBuf(
-            ConvertPointerFromWasmToHost(offset, str.size()),
-            str.size()));
+        TStringBuf(offsetAtHost, str.size()));
 }
 
 } // namespace NDetail
@@ -2446,8 +2437,9 @@ DEFINE_YPATH_GET_ANY
             return; \
         } \
         NYson::TToken token; \
+        NYson::TStatelessLexer lexer; \
         auto anyString = anyValue->AsStringBuf(); \
-        NYson::ParseToken(anyString, &token); \
+        lexer.ParseToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::TYPE) { \
             STATEMENT_OK \
         } else { \
@@ -2465,9 +2457,10 @@ DEFINE_YPATH_GET_ANY
             MakePositionIndependentNullValue(ConvertPointerFromWasmToHost(result)); \
             return; \
         } \
+        NYson::TStatelessLexer lexer; \
         NYson::TToken token; \
         auto anyString = anyValue->AsStringBuf(); \
-        NYson::ParseToken(anyString, &token); \
+        lexer.ParseToken(anyString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
             MakePositionIndependent ## TYPE ## Value(ConvertPointerFromWasmToHost(result), token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
@@ -2486,8 +2479,7 @@ DEFINE_CONVERT_ANY_NUMERIC_IMPL(Uint64)
 DEFINE_CONVERT_ANY_NUMERIC_IMPL(Double)
 DEFINE_CONVERT_ANY(
     Boolean,
-    MakePositionIndependentBooleanValue(ConvertPointerFromWasmToHost(result),
-    token.GetBooleanValue());)
+    MakePositionIndependentBooleanValue(ConvertPointerFromWasmToHost(result), token.GetBooleanValue());)
 DEFINE_CONVERT_ANY(String, NDetail::CopyString(context, result, token.GetStringValue());)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2551,6 +2543,7 @@ int CompareAnyString(char* lhsData, i32 lhsLength, char* rhsData, i32 rhsLength)
 void ToAny(TExpressionContext* context, TValue* result, TValue* value)
 {
     auto* valueAtHost = ConvertPointerFromWasmToHost(value);
+    auto* resultAtHost = ConvertPointerFromWasmToHost(result);
 
     auto valueCopy = *valueAtHost;
     if (IsStringLikeType(valueAtHost->Type)) {
@@ -2560,20 +2553,42 @@ void ToAny(TExpressionContext* context, TValue* result, TValue* value)
     // TODO(babenko): for some reason, flags are garbage here.
     valueCopy.Flags = {};
 
-    if (value->Type == EValueType::Null) {
-        result->Type = EValueType::Null;
+    if (valueAtHost->Type == EValueType::Null) {
+        resultAtHost->Type = EValueType::Null;
         return;
     }
 
     // NB: TRowBuffer should be used with caution while executing via WebAssembly engine.
     TValue buffer = EncodeUnversionedAnyValue(valueCopy, context->GetRowBuffer().Get()->GetPool());
 
-    *(ConvertPointerFromWasmToHost(result)) = buffer;
+    *resultAtHost = buffer;
     if (HasCurrentCompartment()) {
         auto* data = AllocateBytes(context, buffer.Length);
         ::memcpy(ConvertPointerFromWasmToHost(data, buffer.Length), buffer.Data.String, buffer.Length);
-        (ConvertPointerFromWasmToHost(result))->Data.String = data;
+        resultAtHost->Data.String = data;
     }
+}
+
+void CastToV3TypeWithValidation(TPIValue* result, TPIValue* value, TLogicalTypePtr* type)
+{
+    auto* valueAtHost = ConvertPointerFromWasmToHost(value);
+    auto* resultAtHost = ConvertPointerFromWasmToHost(result);
+
+    CopyPositionIndependent(resultAtHost, *value);
+
+    if (valueAtHost->Type == EValueType::Null) {
+        THROW_ERROR_EXCEPTION_UNLESS((*type)->IsNullable(),
+            "Encountered a null value during cast to a non-nullable type");
+
+        return;
+    }
+
+    YT_VERIFY(valueAtHost->Type == EValueType::Composite || valueAtHost->Type == EValueType::Any);
+
+    resultAtHost->Type = GetWireType(*type);
+
+    auto ysonView = TStringBuf(GetStringPosition(*value), valueAtHost->Length);
+    ValidateComplexLogicalType(ysonView, *type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2951,6 +2966,20 @@ extern "C" void NumericToString(
     NDetail::CopyString(context, result, resultYson);
 }
 
+extern "C" void NumericToStringPI(
+    TExpressionContext* context,
+    TPIValue* positionIndependentResult,
+    TPIValue* positionIndependentValue)
+{
+    TValue value;
+    MakeUnversionedFromPositionIndependent(&value, *ConvertPointerFromWasmToHost(positionIndependentValue));
+
+    TValue result;
+    NumericToString(context, &result, &value);
+
+    MakePositionIndependentFromUnversioned(positionIndependentResult, result);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DEFINE_CONVERT_STRING(TYPE) \
@@ -2963,8 +2992,9 @@ extern "C" void NumericToString(
             return; \
         } \
         NYson::TToken token; \
+        NYson::TStatelessLexer lexer; \
         auto valueString = TStringBuf(ConvertPointerFromWasmToHost(valueAtHost->Data.String, valueAtHost->Length), valueAtHost->Length); \
-        NYson::ParseToken(valueString, &token); \
+        lexer.ParseToken(valueString, &token); \
         if (token.GetType() == NYson::ETokenType::Int64) { \
             *resultAtHost = MakeUnversioned ## TYPE ## Value(token.GetInt64Value()); \
         } else if (token.GetType() == NYson::ETokenType::Uint64) { \
@@ -2981,6 +3011,20 @@ extern "C" void NumericToString(
 DEFINE_CONVERT_STRING(Int64)
 DEFINE_CONVERT_STRING(Uint64)
 DEFINE_CONVERT_STRING(Double)
+
+#define DEFINE_CONVERT_STRING_PI(TYPE) \
+    extern "C" void StringTo ## TYPE ## PI(TExpressionContext* context, TPIValue* pIResult, TPIValue* pIValue) \
+    { \
+        TValue value; \
+        MakeUnversionedFromPositionIndependent(&value, *ConvertPointerFromWasmToHost(pIValue)); \
+        TValue result; \
+        StringTo ## TYPE(context, &result, &value); \
+        MakePositionIndependentFromUnversioned(pIResult, result); \
+    }
+
+DEFINE_CONVERT_STRING_PI(Int64)
+DEFINE_CONVERT_STRING_PI(Uint64)
+DEFINE_CONVERT_STRING_PI(Double)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3005,6 +3049,16 @@ void HyperLogLogMerge(void* hll1, void* hll2)
     auto* hll1AtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll1));
     auto* hll2AtHost = ConvertPointerFromWasmToHost(static_cast<THLL*>(hll2));
     hll1AtHost->Merge(*hll2AtHost);
+}
+
+void HyperLogLogMergeWithValidation(void* hll1, void* hll2, uint64_t incomingStateLength)
+{
+    THROW_ERROR_EXCEPTION_IF(incomingStateLength != sizeof(THLL),
+        "State size mismatch in hyperloglog, expected: %v, got: %v."
+        "This error potentially signals a misuse of cardinality_merge function",
+        sizeof(THLL),
+        incomingStateLength);
+    HyperLogLogMerge(hll1, hll2);
 }
 
 ui64 HyperLogLogEstimateCardinality(void* hll)
@@ -3411,58 +3465,60 @@ void ArrayAggFinalize(TExpressionContext* context, TUnversionedValue* result, TU
 
     writer.OnBeginList();
 
-    const auto* start = ConvertPointerFromWasmToHost(stateAtHost->Data.String);
-    const auto* end = start + *reinterpret_cast<const i64*>(stateAtHost->Data.String);
-    const auto* cursor = start + sizeof(i64);
+    if (stateAtHost->Length != 0) {
+        const auto* start = ConvertPointerFromWasmToHost(stateAtHost->Data.String);
+        const auto* end = start + *reinterpret_cast<const i64*>(stateAtHost->Data.String);
+        const auto* cursor = start + sizeof(i64);
 
-    while (cursor < end) {
-        writer.OnListItem();
+        while (cursor < end) {
+            writer.OnListItem();
 
-        auto type = *reinterpret_cast<const EValueType*>(cursor);
-        cursor += sizeof(EValueType);
+            auto type = *reinterpret_cast<const EValueType*>(cursor);
+            cursor += sizeof(EValueType);
 
-        if (type == EValueType::Null) {
-            writer.OnEntity();
-            continue;
+            if (type == EValueType::Null) {
+                writer.OnEntity();
+                continue;
+            }
+
+            auto data = *reinterpret_cast<const TUnversionedValueData*>(cursor);
+            cursor += sizeof(TUnversionedValueData);
+
+            switch (type) {
+                case EValueType::Int64:
+                    writer.OnInt64Scalar(data.Int64);
+                    break;
+
+                case EValueType::Boolean:
+                    writer.OnBooleanScalar(data.Boolean);
+                    break;
+
+                case EValueType::Uint64:
+                    writer.OnUint64Scalar(data.Uint64);
+                    break;
+
+                case EValueType::Double:
+                    writer.OnDoubleScalar(data.Double);
+                    break;
+
+                case EValueType::String:
+                    writer.OnStringScalar({cursor, data.Uint64});
+                    cursor+=data.Uint64;
+                    break;
+
+                case EValueType::Any:
+                case EValueType::Composite:
+                    writer.OnRaw({cursor, data.Uint64});
+                    cursor+=data.Uint64;
+                    break;
+
+                default:
+                    THROW_ERROR_EXCEPTION("Unsupported element type %Qlv", type);
+            }
         }
 
-        auto data = *reinterpret_cast<const TUnversionedValueData*>(cursor);
-        cursor += sizeof(TUnversionedValueData);
-
-        switch (type) {
-            case EValueType::Int64:
-                writer.OnInt64Scalar(data.Int64);
-                break;
-
-            case EValueType::Boolean:
-                writer.OnBooleanScalar(data.Boolean);
-                break;
-
-            case EValueType::Uint64:
-                writer.OnUint64Scalar(data.Uint64);
-                break;
-
-            case EValueType::Double:
-                writer.OnDoubleScalar(data.Double);
-                break;
-
-            case EValueType::String:
-                writer.OnStringScalar({cursor, data.Uint64});
-                cursor+=data.Uint64;
-                break;
-
-            case EValueType::Any:
-            case EValueType::Composite:
-                writer.OnRaw({cursor, data.Uint64});
-                cursor+=data.Uint64;
-                break;
-
-            default:
-                THROW_ERROR_EXCEPTION("Unsupported element type %Qlv", type);
-        }
+        YT_VERIFY(cursor == end);
     }
-
-    YT_VERIFY(cursor == end);
 
     writer.OnEndList();
 
@@ -3819,26 +3875,24 @@ void CompositeMemberAccessorHelper(
 ////////////////////////////////////////////////////////////////////////////////
 
 bool SubqueryExprHelper(
-    TExpressionContext* context,
+    TNestedExecutionContext* context,
     TSubqueryParameters* parameters,
-    TPIValue* fromValues,
-    TPIValue* bindedValues,
     void** consumeRowsClosure,
     TRowsConsumer consumeRowsFunction)
 {
     auto consumeRows = PrepareFunction(consumeRowsFunction);
 
     // Unpack lists of fromValues.
-    auto nestedRows = UnpackRows(context, parameters->FromTypes, fromValues, TRange(bindedValues, parameters->BindedRowSize));
+    auto nestedRows = UnpackRows(context->ExpressionContext, parameters->FromTypes, context->FromValues);
 
     std::vector<const TPIValue*> castedRows(nestedRows.begin(), nestedRows.end());
 
-    return consumeRows(consumeRowsClosure, context, castedRows.data(), castedRows.size());
+    return consumeRows(consumeRowsClosure, context->ExpressionContext, castedRows.data(), castedRows.size());
 }
 
-bool SubqueryWriteRow(TExpressionContext* context, TSubqueryWriteOpClosure* closure, TPIValue* values)
+bool SubqueryWriteRow(TNestedExecutionContext* context, TSubqueryWriteOpClosure* closure, TPIValue* values)
 {
-    closure->OutputRowsBatch.push_back(CopyAndConvertFromPI(context, TRange(values, values + closure->RowSize), EAddressSpace::WebAssembly).Begin());
+    closure->OutputRowsBatch.push_back(CopyAndConvertFromPI(context->ExpressionContext, TRange(values, values + closure->RowSize), EAddressSpace::WebAssembly).Begin());
 
     return false;
 }
@@ -3891,9 +3945,8 @@ TUnversionedValue PackValues(TRange<TUnversionedValue> values, TRowBuffer* rowBu
 }
 
 void SubqueryWriteHelper(
-    TExpressionContext* context,
+    TNestedExecutionContext* context,
     int resultColumns,
-    TPIValue* result,
     void** collectRowsClosure,
     void (*collectRowsFunction)(void** closure, TSubqueryWriteOpClosure* writeOpClosure))
 {
@@ -3905,14 +3958,54 @@ void SubqueryWriteHelper(
 
     // Produce yson with complex_type_mode=positional.
 
-    auto* buffer = context->GetRowBuffer().Get();
+    auto* buffer = context->ExpressionContext->GetRowBuffer().Get();
     std::vector<TValue> packedResult;
 
     for (auto row : closure.OutputRowsBatch) {
-        packedResult.push_back(PackValues(TRange(row, row + closure.RowSize), context->GetRowBuffer().Get()));
+        packedResult.push_back(PackValues(TRange(row, row + closure.RowSize), buffer));
     }
 
-    MakePositionIndependentFromUnversioned(result, PackValues(packedResult, buffer));
+    MakePositionIndependentFromUnversioned(&context->Result, PackValues(packedResult, buffer));
+}
+
+const TPIValue* SubqueryInsertGroupRow(
+    TNestedExecutionContext* /*context*/,
+    TNestedGroupByClosure* closure,
+    TPIValue* row)
+{
+    return *closure->insert(row).first;
+}
+
+void SubqueryGroupOpHelper(
+    TNestedExecutionContext* context,
+    THasherFunction* groupHasherFunction,
+    TComparerFunction* groupComparerFunction,
+    void** collectRowsClosure,
+    void (*collectRowsFunction)(void** closure, TNestedGroupByClosure* writeOpClosure, TExpressionContext* context),
+    void** consumeRowsClosure,
+    TRowsConsumer consumeRowsFunction)
+{
+    auto collectRows = PrepareFunction(collectRowsFunction);
+    auto consumeRows = PrepareFunction(consumeRowsFunction);
+
+    auto groupHasher = PrepareFunction(groupHasherFunction);
+    auto groupComparer = PrepareFunction(groupComparerFunction);
+
+    TNestedGroupByClosure closure(
+        /*default capacity*/ 10,
+        groupHasher,
+        groupComparer
+    );
+
+    closure.set_empty_key(
+        NQueryClient::NDetail::TRowComparer::MakeSentinel(NQueryClient::NDetail::TRowComparer::ESentinelType::Empty));
+
+    collectRows(collectRowsClosure, &closure, context->ExpressionContext);
+
+    for (auto it = closure.begin(); it != closure.end(); ++it) {
+        const TPIValue* ptr = *it;
+        consumeRows(consumeRowsClosure, context->ExpressionContext, &ptr, 1);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4069,7 +4162,8 @@ struct RegisterLLVMRoutine
 
 #define REGISTER_TIME_ROUTINE(routine) \
     REGISTER_ROUTINE(routine); \
-    REGISTER_ROUTINE(routine ## Localtime)
+    REGISTER_ROUTINE(routine ## Localtime); \
+    REGISTER_ROUTINE(routine ## TZ)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4114,6 +4208,7 @@ REGISTER_ROUTINE(CompareAnyUint64);
 REGISTER_ROUTINE(CompareAnyDouble);
 REGISTER_ROUTINE(CompareAnyString);
 REGISTER_ROUTINE(ToAny);
+REGISTER_ROUTINE(CastToV3TypeWithValidation);
 REGISTER_YPATH_GET_ROUTINE(Int64);
 REGISTER_YPATH_GET_ROUTINE(Uint64);
 REGISTER_YPATH_GET_ROUTINE(Double);
@@ -4131,12 +4226,17 @@ REGISTER_ROUTINE(ListContains);
 REGISTER_ROUTINE(ListHasIntersection);
 REGISTER_ROUTINE(AnyToYsonString);
 REGISTER_ROUTINE(NumericToString);
+REGISTER_ROUTINE(NumericToStringPI);
 REGISTER_ROUTINE(StringToInt64);
 REGISTER_ROUTINE(StringToUint64);
 REGISTER_ROUTINE(StringToDouble);
+REGISTER_ROUTINE(StringToInt64PI);
+REGISTER_ROUTINE(StringToUint64PI);
+REGISTER_ROUTINE(StringToDoublePI);
 REGISTER_ROUTINE(HyperLogLogAllocate);
 REGISTER_ROUTINE(HyperLogLogAdd);
 REGISTER_ROUTINE(HyperLogLogMerge);
+REGISTER_ROUTINE(HyperLogLogMergeWithValidation);
 REGISTER_ROUTINE(HyperLogLogEstimateCardinality);
 REGISTER_ROUTINE(HyperLogLogGetFingerprint);
 REGISTER_ROUTINE(StoredReplicaSetMerge);
@@ -4158,11 +4258,14 @@ REGISTER_TIME_ROUTINE(TimestampFloorMonth);
 REGISTER_TIME_ROUTINE(TimestampFloorQuarter);
 REGISTER_TIME_ROUTINE(TimestampFloorYear);
 REGISTER_ROUTINE(FormatTimestamp);
+REGISTER_ROUTINE(FormatTimestampTZ);
 REGISTER_ROUTINE(ArrayAggFinalize);
 
 REGISTER_ROUTINE(SubqueryExprHelper);
 REGISTER_ROUTINE(SubqueryWriteRow);
 REGISTER_ROUTINE(SubqueryWriteHelper);
+REGISTER_ROUTINE(SubqueryInsertGroupRow);
+REGISTER_ROUTINE(SubqueryGroupOpHelper);
 
 REGISTER_ROUTINE(memcmp);
 REGISTER_ROUTINE(gmtime_r);

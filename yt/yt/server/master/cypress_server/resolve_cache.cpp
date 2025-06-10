@@ -4,6 +4,7 @@
 #include "node_detail.h"
 #include "link_node.h"
 #include "portal_entrance_node.h"
+#include "rootstock_node.h"
 #include "helpers.h"
 #include "private.h"
 
@@ -20,7 +21,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CypressServerLogger;
+constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,7 +109,7 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
                 return std::nullopt;
             }
             if (!ampersandSkipped && PrimaryMaster_ && CellTagFromId(rootId) != CellTagFromId(RootNodeId_)) {
-                return TResolveResult{
+                return TRemoteResolveResult{
                     rootId,
                     TYPath(tokenizer.GetInput())
                 };
@@ -166,9 +167,18 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
                 return std::nullopt;
             }
 
-            return TResolveResult{
+            return TRemoteResolveResult{
                 entrancePayload->PortalExitId,
                 TYPath(unresolvedPathSuffix)
+            };
+        } else if (const auto* rootstockPayload = std::get_if<TResolveCacheNode::TRootstockPayload>(&currentNode->Payload)) {
+            if (ampersandSkipped) {
+                return std::nullopt;
+            }
+
+            return TSequoiaResolveResult{
+                rootstockPayload->ScionNodeId,
+                rootstockPayload->RootstockPath,
             };
         } else {
             return std::nullopt;
@@ -340,11 +350,22 @@ TResolveCacheNode::TPayload TResolveCache::MakePayload(
 {
     if (trunkNode->GetType() == EObjectType::Link) {
         auto* linkNode = trunkNode->As<TLinkNode>();
-        return TResolveCacheNode::TLinkPayload{cypressManager->ComputeEffectiveLinkNodeTargetPath(linkNode)};
+        return TResolveCacheNode::TLinkPayload{
+            .TargetPath = cypressManager->ComputeEffectiveLinkNodeTargetPath(linkNode),
+        };
     } else if (trunkNode->GetType() == EObjectType::PortalEntrance) {
         auto* entranceNode = trunkNode->As<TPortalEntranceNode>();
         auto portalExitId = MakePortalExitNodeId(entranceNode->GetId(), entranceNode->GetExitCellTag());
-        return TResolveCacheNode::TPortalEntrancePayload{portalExitId};
+        return TResolveCacheNode::TPortalEntrancePayload{
+            .PortalExitId = portalExitId,
+        };
+    } else if (trunkNode->GetType() == EObjectType::Rootstock) {
+        auto* rootstockNode = trunkNode->As<TRootstockNode>();
+        return TResolveCacheNode::TRootstockPayload{
+            .RootstockNodeId = rootstockNode->GetId(),
+            .RootstockPath = cypressManager->GetNodePath(rootstockNode, nullptr),
+            .ScionNodeId = rootstockNode->GetScionId(),
+        };
     } else if (trunkNode->GetNodeType() == NYTree::ENodeType::Map) {
         return TResolveCacheNode::TMapPayload{};
     } else {

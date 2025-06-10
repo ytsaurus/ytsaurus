@@ -27,9 +27,9 @@ void TErrorReportingServiceBase<TBaseService>::BeforeInvoke(NRpc::IServiceContex
 }
 
 template <class TBaseService>
-void TErrorReportingServiceBase<TBaseService>::OnMethodError(const TError& error, const TString& method)
+void TErrorReportingServiceBase<TBaseService>::OnMethodError(TError* error, const std::string& method)
 {
-    Bootstrap_->GetErrorManager()->HandleError(error, method);
+    Bootstrap_->GetErrorManager()->HandleError(*error, method);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -76,11 +76,9 @@ using NNodeTrackerServer::TNodeList;
 
 using NTabletClient::TDynamicStoreId;
 
-using TChunkLocationId = NObjectClient::TObjectId;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ENTITY_TYPE(TChunkLocation, TChunkLocationId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TChunkLocation, NObjectClient::TObjectId, ::THash<NObjectClient::TObjectId>)
 DECLARE_ENTITY_TYPE(TChunk, TChunkId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TChunkView, TChunkViewId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TDynamicStore, TDynamicStoreId, NObjectClient::TObjectIdEntropyHash)
@@ -242,10 +240,15 @@ DEFINE_ENUM(EChunkTreeBalancerMode,
 );
 
 DEFINE_ENUM(EChunkDetachPolicy,
+    // For regular and hunk chunks of sorted tablets.
     ((SortedTablet)        (0))
+    // For regular chunks of ordered tablets.
     ((OrderedTabletPrefix) (1))
     ((OrderedTabletSuffix) (2))
+    // For chunks of hunk storage tablets.
     ((HunkTablet)          (3))
+    // For hunk chunks of ordered tablets.
+    ((OrderedTabletHunk)   (4))
 );
 
 inline static const EChunkScanKind DelegatedScanKinds = EChunkScanKind::Refresh | EChunkScanKind::RequisitionUpdate;

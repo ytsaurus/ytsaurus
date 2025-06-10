@@ -106,6 +106,11 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("action_manager", &TThis::ActionManager)
         .DefaultNew();
 
+    registrar.Parameter("clusters_for_bundle_health_check", &TThis::ClustersForBundleHealthCheck)
+        .Default();
+    registrar.Parameter("max_unhealthy_bundles_on_replica_cluster", &TThis::MaxUnhealthyBundlesOnReplicaCluster)
+        .Default(5);
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->Schedule.IsEmpty()) {
             THROW_ERROR_EXCEPTION("Schedule cannot be empty");

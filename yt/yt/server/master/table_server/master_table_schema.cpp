@@ -20,7 +20,7 @@ using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NYson;
 
-static constexpr auto& Logger = TableServerLogger;
+constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,50 +84,6 @@ const TCompactTableSchemaPtr& TMasterTableSchema::AsCompactTableSchema(bool cras
     YT_VERIFY(IsObjectAlive(this) || !crashOnZombie);
 
     return CompactTableSchema_;
-}
-
-TTableSchemaPtr TMasterTableSchema::AsHeavyTableSchema(bool crashOnZombie) const
-{
-    YT_VERIFY(IsObjectAlive(this) || !crashOnZombie);
-
-    return CompactTableSchema_->AsHeavyTableSchema();
-}
-
-const TFuture<TYsonString>& TMasterTableSchema::AsYsonAsync() const
-{
-    {
-        // NB: Can be called from local read threads.
-        auto readerGuard = ReaderGuard(MemoizedYsonLock_);
-        if (MemoizedYson_) {
-            return MemoizedYson_;
-        }
-    }
-
-    auto writerGuard = WriterGuard(MemoizedYsonLock_);
-    if (MemoizedYson_) {
-        return MemoizedYson_;
-    }
-
-    MemoizedYson_ = BIND([schema = AsHeavyTableSchema()] {
-        return ConvertToYsonString(*schema);
-    })
-        .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
-        .Run();
-
-    return MemoizedYson_;
-}
-
-TYsonString TMasterTableSchema::AsYsonSync() const
-{
-    // It's quite likely that this schema has already been serialized. And even
-    // if it hasn't, it's wise to start the serialization.
-    const auto& asyncYson = AsYsonAsync();
-    if (auto optionalYsonOrError = asyncYson.TryGet()) {
-        return optionalYsonOrError->ValueOrThrow();
-    }
-
-    // There's no escape - serialize it right here and now.
-    return ConvertToYsonString(*AsHeavyTableSchema());
 }
 
 bool TMasterTableSchema::RefBy(TAccount* account, int delta)

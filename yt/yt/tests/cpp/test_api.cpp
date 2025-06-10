@@ -69,7 +69,7 @@ TEST_F(TApiTestBase, TestCreateInvalidNode)
 ////////////////////////////////////////////////////////////////////////////////
 
 using TLookupFilterTestParam = std::tuple<
-    std::vector<TString>,
+    std::vector<std::string>,
     TString,
     std::vector<int>,
     TString,
@@ -111,7 +111,7 @@ protected:
     }
 
     static void WriteUnversionedRow(
-        std::vector<TString> names,
+        const std::vector<std::string>& names,
         const TString& rowString,
         int timestampTag)
     {
@@ -144,7 +144,7 @@ protected:
     }
 
     static void DeleteRow(
-        std::vector<TString> names,
+        const std::vector<std::string>& names,
         const TString& rowString,
         int timestampTag)
     {
@@ -326,7 +326,7 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
 
     bool hasNonKeyColumns = false;
     for (const auto& column : namedColumns) {
-        if (column.StartsWith("v")) {
+        if (column.starts_with("v")) {
             hasNonKeyColumns = true;
         }
     }

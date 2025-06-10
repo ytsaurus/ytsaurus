@@ -71,7 +71,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -157,7 +157,6 @@ bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
         }
 
         const auto& replicas = replicasOrError.Value();
-        ToProto(protoChunk->mutable_legacy_source_replicas(), replicas);
         ToProto(protoChunk->mutable_source_replicas(), replicas);
         builder.Add(replicas);
 
@@ -1061,8 +1060,6 @@ void TChunkMerger::Clear()
     NodesBeingMergedPerAccount_.clear();
     AccountIdToNodeMergeDurations_.clear();
     ConfigVersion_ = 0;
-
-    NeedRestorePersistentStatistics_ = false;
 }
 
 void TChunkMerger::ResetTransientState()
@@ -2415,19 +2412,7 @@ void TChunkMerger::Load(NCellMaster::TLoadContext& context)
 
     Load(context, NodesBeingMerged_);
     Load(context, NodesBeingMergedPerAccount_);
-    NeedRestorePersistentStatistics_ = context.GetVersion() < EMasterReign::FixMergerStatisticsOnceAgain;
-
     Load(context, ConfigVersion_);
-}
-
-void TChunkMerger::OnAfterSnapshotLoaded()
-{
-    if (NeedRestorePersistentStatistics_) {
-        NodesBeingMergedPerAccount_.clear();
-        for (const auto& [nodeId, accountId] : NodesBeingMerged_) {
-            IncrementPersistentTracker(accountId);
-        }
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

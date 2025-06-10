@@ -59,10 +59,11 @@ target_link_libraries(yt-yt-client PUBLIC
   yt-core-https
   yt-library-auth
   yt-library-decimal
-  yt-library-re2
   yt-library-erasure
   yt-library-numeric
   yt-library-quantile_digest
+  yt-library-re2
+  yt-library-tz_types
   yt_proto-yt-client
   cpp-digest-crc32c
   library-cpp-json
@@ -114,6 +115,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/table_mount_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/table_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/table_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/target_cluster_injecting_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/timestamp_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/transaction.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/transaction_impl.cpp

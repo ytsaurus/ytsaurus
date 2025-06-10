@@ -119,11 +119,12 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
     {
         if (!SessionCanceled_) {
-            if (!SessionId_.has_value() || *SessionId_ != FromProto<TSessionId>(request->session_id())) {
+            auto sessionId = FromProto<TSessionId>(request->session_id());
+            if (!SessionId_.has_value() || *SessionId_ != sessionId) {
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::NoSuchSession,
                     "Session %v is invalid or expired",
-                    request->session_id());
+                    sessionId);
             }
         }
 
@@ -139,7 +140,7 @@ public:
 
         if (NetThrottling_) {
             response->set_net_throttling(true);
-            response->set_net_queue_size(10000);
+            response->set_net_queue_size(10_KB);
         } else {
             response->set_net_throttling(false);
             response->set_net_queue_size(0);
@@ -270,7 +271,7 @@ public:
                 return;
             } else {
                 response->set_net_throttling(true);
-                response->set_net_queue_size(1000);
+                response->set_net_queue_size(10_KB);
                 context->Reply();
             }
             return;

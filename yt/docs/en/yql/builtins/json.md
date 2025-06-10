@@ -1,6 +1,10 @@
+
 # Functions for JSON
 
+<!-- markdownlint-disable no-trailing-punctuation -->
+
 **JSON** is a lightweight [data-interchange format](https://www.json.org). It's represented by the `Json` type in YQL. Unlike relational tables, JSON can store data with no schema defined. Here is an example of a valid JSON object:
+
 ```json
 [
     {
@@ -13,13 +17,14 @@
     }
 ]
 ```
+
 Despite the fact that the `age` field in the first object is of the `Number` type (`"age": 21`) and in the second object its type is `String` (`"age": "twenty years old"`), this is a fully valid JSON object.
 
 To work with JSON, YQL implements a subset of the [SQL support for JavaScript Object Notation (JSON)](https://www.iso.org/standard/67367.html) standard, which is a part of the generally adopted ANSI SQL standard.
 
 ## Cookbook
 
-```
+```yql
 $json = CAST(@@{
     "friends": [
         {
@@ -41,13 +46,15 @@ SELECT
 ```
 
 ### Accessing a database field
-Table data can be stored in JSON or as a string. JSON_* functions expect JSON as input. For the `String->JSON` conversion, use the `CAST` function, for example, `CAST (my_string AS JSON)`.
+
+Table data can be stored in JSON or as a string. `JSON_*` functions expect JSON as input. For the `String->JSON` conversion, use the `CAST` function, for example, `CAST (my_string AS JSON)`.
 
 ## JsonPath
 
 Values inside JSON objects are accessed using a query language called JsonPath. All functions for JSON accept a JsonPath query as an argument.
 
 Let's look at an example. Suppose we have a JSON object like:
+
 ```json
 {
     "comments": [
@@ -64,7 +71,8 @@ Let's look at an example. Suppose we have a JSON object like:
 ```
 
 Then, to get the text of the second comment, we can write the following JsonPath query:
-```
+
+```yql
 $.comments[1].text
 ```
 
@@ -125,7 +133,8 @@ The behavior for each mode is described in the corresponding sections with JsonP
 
 When accessing a JSON object key in `lax` mode, arrays are automatically unpacked.
 
-**Example:**
+##### Example
+
 ```json
 [
     {
@@ -147,7 +156,8 @@ Unpacking is only 1 level deep. In the event of nested arrays, only the outermos
 
 When accessing an array element in `lax` mode, JSON values are automatically wrapped in an array.
 
-**Example:**
+##### Example
+
 ```json
 {
     "name": "Avasarala"
@@ -190,7 +200,8 @@ For each value from the input sequence:
 
 The expression execution result is the concatenation of the results for each value from the input sequence.
 
-**Example:**
+#### Example
+
 ```json
 {
     "name": "Amos",
@@ -222,7 +233,8 @@ For each value from the input sequence:
 
 The expression execution result is the concatenation of the results for each value from the input sequence.
 
-**Example:**
+#### Example
+
 ```json
 {
     "profile": {
@@ -259,7 +271,8 @@ For each value from the input sequence:
 6. If a segment is specified and its start index is greater than the end index (for example, `$[20 to 1]`), the query fails in `strict` mode. In `lax` mode, this segment is ignored.
 7. All elements by the specified indexes are added to the result. Segments include **both ends**.
 
-**Examples**:
+#### Examples
+
 ```json
 [
     {
@@ -298,7 +311,8 @@ For each value from the input sequence:
 1. If the value isn't an array, a query executed in `strict` mode fails. In `lax` mode, values are automatically wrapped in an array.
 2. All elements of the current array are added to the result.
 
-**Examples:**
+#### Examples
+
 ```json
 [
     {
@@ -338,7 +352,8 @@ JsonPath supports unary `+` and `-`.
 
 A unary operation applies to all values from the input sequence. If a unary operation's input is a value that isn't a number, a query fails in both modes.
 
-**Example:**
+##### Example
+
 ```json
 [1, 2, 3, 4]
 ```
@@ -358,7 +373,7 @@ You can change the order of operations using parentheses.
 
 If each argument of a binary operation is not a single number or a number is divided by 0, the query fails in both modes.
 
-**Examples:**
+##### Examples
 
 - `(1 + 2) * 3` returns `9`
 - `1 / 2` returns `0.5`
@@ -378,10 +393,9 @@ JsonPath considers any values received from a JSON document to be non-Boolean. F
 JsonPath supports some logical operations for Boolean values.
 
 The arguments of any logical operation must be a single Boolean value.
-
 All logical operations return a Boolean value.
 
-**Logical negation, `!`**
+#### Logical negation, !
 
 Truth table:
 
@@ -391,7 +405,7 @@ Truth table:
 | `false` | `true` |
 | `null` | `null` |
 
-**Logical AND, `&&`**
+#### Logical AND, &&
 
 In the truth table, the first column is the left argument, the first row is the right argument, and each cell is the result of using the Logical AND both with the left and right arguments:
 
@@ -401,7 +415,7 @@ In the truth table, the first column is the left argument, the first row is the 
 | `false` | `false` | `false` | `false` |
 | `null` | `null` | `false` | `null` |
 
-**Logical OR, `||`**
+#### Logical OR, ||
 
 In the truth table, the first column is the left argument, the first row is the right argument, and each cell is the result of using the logical OR with both the left and right arguments:
 
@@ -411,7 +425,7 @@ In the truth table, the first column is the left argument, the first row is the 
 | `false` | `true` | `false` | `null` |
 | `null` | `true` | `null` | `null` |
 
-**Examples:**
+##### Examples
 
 - `! (true == true)`, the result is `false`
 - `(true == true) && (true == false)`, the result is `false`
@@ -455,7 +469,7 @@ Elements in a pair are compared according to the following rules:
 6. `true` is considered greater than `false`
 7. Numbers are compared with the accuracy of `1e-20`
 
-**Example:**
+#### Example
 
 Let's take a JSON document as an example
 
@@ -486,14 +500,13 @@ Let's take the same query in a different execution mode: `strict $.left < $.righ
 
 JsonPath supports predicates which are expressions that return a Boolean value and check a certain condition. You can use them, for example, in filters.
 
-
 #### `like_regex`
 
 The `like_regex` predicate lets you check if a string matches a regular expression. The syntax of regular expressions is the same as in [Hyperscan UDF](../udf/list/hyperscan.md) and [REGEXP](../syntax/expressions.md#regexp).
 
-**Syntax**
+###### Syntax
 
-```
+```yql
 <expression> like_regex <regexp string> [flag <flag string>]
 ```
 
@@ -507,7 +520,7 @@ Supported flags:
 
 - `i`: Disable the case sensitivity.
 
-**Execute**
+##### Execution
 
 Before the check, the input sequence arrays are automatically unpacked.
 
@@ -524,7 +537,7 @@ If the pair analysis results in:
 2. Setting the `FOUND` flag, the predicate returns `true`
 3. Otherwise, the predicate returns `false`
 
-**Examples**
+#### Examples
 
 1. `"123456" like_regex "^[0-9]+$"` returns `true`
 2. `"123abcd456" like_regex "^[0-9]+$"` returns `false`
@@ -535,9 +548,9 @@ If the pair analysis results in:
 
 The `starts with` predicate lets you check if one string is a prefix of another.
 
-**Syntax**
+###### Syntax
 
-```
+```yql
 <string expression> starts with <prefix expression>
 ```
 
@@ -548,7 +561,7 @@ Where:
 
 This means that the predicate will check that the `<string expression>` starts with the `<prefix expression>` string.
 
-**Execute**
+##### Execution
 
 The first argument of the predicate must be a single string.
 
@@ -567,7 +580,7 @@ If the pair analysis results in:
 2. Setting the `FOUND` flag, the predicate returns `true`
 3. Otherwise, the predicate returns `false`
 
-**Examples**
+##### Examples
 
 1. `"James Holden" starts with "James"` returns `true`
 2. `"James Holden" starts with "Amos"` returns `false`
@@ -576,22 +589,22 @@ If the pair analysis results in:
 
 The `exists` predicate lets you check whether a JsonPath expression returns at least one element.
 
-**Syntax**
+###### Syntax
 
-```
+```yql
 exists (<expression>)
 ```
 
 Where `<expression>` is the JsonPath expression to be checked. Parentheses around the expression are required.
 
-**Execute**
+##### Execution
 
 1. The passed JsonPath expression is executed.
 2. If an error occurs, the predicate returns `null`
 3. If an empty sequence is obtained as a result of the execution, the predicate returns `false`
 4. Otherwise, the predicate returns `true`
 
-**Examples**
+##### Examples
 
 Let's take a JSON document:
 
@@ -612,20 +625,20 @@ Let's take a JSON document:
 
 The `is unknown` predicate lets you check if a Boolean value is `null`.
 
-**Syntax**
+###### Syntax
 
-```
+```yql
 (<expression>) is unknown
 ```
 
 Where `<expression>` is the JsonPath expression to be checked. Only expressions that return a Boolean value are allowed. Parentheses around the expression are required.
 
-**Execute**
+##### Execution
 
 1. If the passed expression returns `null`, the predicate returns `true`
 2. Otherwise, the predicate returns `false`
 
-**Examples**
+##### Examples
 
 1. `(1 == 2) is unknown` returns `false`. The `1 == 2` expression returned `false`, which is not `null`
 2. `(1 == "string") is unknown` returns `true`. The `1 == "string"` expression returned `null`, because strings and numbers can't be compared in JsonPath.
@@ -635,7 +648,6 @@ Where `<expression>` is the JsonPath expression to be checked. Only expressions 
 JsonPath lets you filter values obtained during query execution.
 
 An expression in a filter must return a Boolean value.
-
 Before filtering, the input sequence arrays are automatically unpacked.
 
 For each element of the input sequence:
@@ -645,7 +657,7 @@ For each element of the input sequence:
 3. If an error occurs during the expression execution, the current element of the input sequence is skipped.
 4. If the expression execution result is the only `true` value, the current element is added to the filter result.
 
-**Example:**
+#### Example
 
 Suppose we have a JSON document describing the user's friends
 
@@ -668,7 +680,7 @@ Suppose we have a JSON document describing the user's friends
 
 and we want to get a list of friends who are over 32 years old using a JsonPath query. To do this, you can write the following query:
 
-```
+```yql
 $.friends ? (@.age > 32)
 ```
 
@@ -684,7 +696,7 @@ The query only returns the first friend from the array of user's friends.
 
 Like many other JsonPath operators, filters can be arranged in chains. Let's take a more complex query that selects the names of friends who are older than 20 and have less than 400 currency units:
 
-```
+```yql
 $.friends ? (@.age > 20) ? (@.money < 400) . name
 ```
 
@@ -703,13 +715,13 @@ In practice, it's recommended to combine multiple filters into one if possible. 
 
 JsonPath supports methods that are functions converting one sequence of values to another. The syntax for calling a method is similar to accessing the object key:
 
-```
+```yql
 $.friends.size()
 ```
 
 Just like in the case of accessing object keys, method calls can be arranged in chains:
 
-```
+```yql
 $.numbers.double().floor()
 ```
 
@@ -728,7 +740,7 @@ For each element of the input sequence, the method adds this string to the outpu
 | Array | `"array"` |
 | Objects | `"object"` |
 
-**Examples**
+##### Examples
 
 1. `"Naomi".type()` returns `"string"`
 2. `false.type()` returns `"boolean"`
@@ -742,7 +754,7 @@ For each element of the input sequence, the method adds the following to the out
 1. The size of the array if the element type is an array.
 2. For all other types (including objects), it adds `1`
 
-**Examples**
+#### Examples
 
 Let's take a JSON document:
 
@@ -771,7 +783,7 @@ Before its execution, the input sequence arrays are automatically unpacked.
 
 All elements in the input sequence must be strings that contain decimal numbers. It's allowed to specify the fractional part and exponent.
 
-**Examples**
+##### Examples
 
 1. `"125".double()` returns `125`
 2. `"125.456".double()` returns `125.456`
@@ -785,7 +797,7 @@ Before its execution, the input sequence arrays are automatically unpacked.
 
 All elements in the input sequence must be numbers.
 
-**Examples**
+##### Examples
 
 1. `(1.3).ceiling()` returns `2`
 2. `(1.8).ceiling()` returns `2`
@@ -800,7 +812,7 @@ Before its execution, the input sequence arrays are automatically unpacked.
 
 All elements in the input sequence must be numbers.
 
-**Examples**
+##### Examples
 
 1. `(1.3).floor()` returns `1`
 2. `(1.8).floor()` returns `1`
@@ -815,7 +827,7 @@ Before its execution, the input sequence arrays are automatically unpacked.
 
 All elements in the input sequence must be numbers.
 
-**Examples**
+##### Examples
 
 1. `(0.0).abs()` returns `0`
 2. `(1.0).abs()` returns `1`
@@ -837,7 +849,7 @@ For each element of the input sequence:
 4. `value` stores the value from the pair.
 5. All objects for this element are added to the output sequence.
 
-**Examples**
+##### Examples
 
 Let's take a JSON document:
 
@@ -870,9 +882,10 @@ The `$.keyvalue()` query returns the following sequence for it:
 
 Functions using JsonPath can pass values into a query. They are called variables. To access a variable, write the `$` character and the variable name: `$variable`.
 
-**Example:**
+#### Example
 
 Let the `planet` variable be equal to
+
 ```json
 {
     "name": "Mars",
@@ -896,7 +909,8 @@ All functions for JSON accept:
 
 Lets you pass values to a JsonPath query as variables.
 
-**Syntax:**
+##### Syntax
+
 ```yql
 PASSING
     <expression 1> AS <variable name 1>,
@@ -914,7 +928,8 @@ You can set a `<variable name>` in several ways:
 - As an SQL name like `variable`
 - In quotes, for example, `"variable"`
 
-**Example:**
+#### Example
+
 ```yql
 JSON_VALUE(
     $json,
@@ -929,7 +944,8 @@ JSON_VALUE(
 
 The `JSON_EXISTS` function checks if a JSON value meets the specified JsonPath.
 
-**Syntax:**
+#### Syntax
+
 ```yql
 JSON_EXISTS(
     <JSON expression>,
@@ -939,22 +955,24 @@ JSON_EXISTS(
 )
 ```
 
-**Return value:** `Bool?`
+Returned value: `Bool?`
 
-**Default value:** If the `ON ERROR` section isn't specified, the used section is `FALSE ON ERROR`
+Default value: If the `ON ERROR` clause is not specified, the default error-handling behavior is `FALSE ON ERROR`.
 
-**Behavior:**
+Behavior:
 
 1. If `<JSON expression>` is `NULL` or an empty `Json?`, it returns an empty `Bool?`
 2. If an error occurs during JsonPath execution, the returned value depends on the `ON ERROR` section:
-   - `TRUE`: Return `True`
-   - `FALSE`: Return `False`
-   - `UNKNOWN`: Return an empty `Bool?`
-   - `ERROR`: Abort the entire query
+
+    - `TRUE`: Return `True`
+    - `FALSE`: Return `False`
+    - `UNKNOWN`: Return an empty `Bool?`
+    - `ERROR`: Abort the entire query
+
 3. If the result of JsonPath execution is one or more values, the return value is `True`.
 4. Otherwise, `False` is returned.
 
-**Examples:**
+#### Examples
 
 ```yql
 $json = CAST(@@{
@@ -985,7 +1003,8 @@ SELECT
 
 The `JSON_VALUE` function retrieves a scalar value from JSON (anything that isn't an array or object).
 
-**Syntax:**
+#### Syntax
+
 ```yql
 JSON_VALUE(
     <JSON expression>,
@@ -997,31 +1016,38 @@ JSON_VALUE(
 )
 ```
 
-**Return value:** `<type>?`
+Returned value: `<type>?`
 
-**Default values:**
+Default values:
 
 1. If the `ON EMPTY` section isn't specified, the section used is `NULL ON EMPTY`
 2. If the `ON ERROR` section isn't specified, the section used is `NULL ON ERROR`
 3. If the `RETURNING` section is omitted, it uses `Utf8` as `<type>`
 
-**Behavior:**
+Behavior:
 
 1. If `<JSON expression>` is `NULL` or an empty `Json?`, it returns an empty `<type>?`
 2. If an error occurs, the returned value depends on the `ON ERROR` section:
-   - `NULL`: Return an empty `<type>?`
-   - `ERROR`: Abort the entire query
-   - `DEFAULT <expr>`: Return `<expr>` with a prior `CAST` to the type `<type>?`. If the `CAST` fails, the entire query fails, too.
+
+    - `NULL`: Return an empty `<type>?`
+    - `ERROR`: Abort the entire query
+    - `DEFAULT <expr>`: Return `<expr>` with a prior `CAST` to the type `<type>?`. If the `CAST` fails, the entire query fails, too.
+
 3. If the JsonPath execution result is empty, the returned value depends on the `ON EMPTY` section:
-   - `NULL`: Return an empty `<type>?`
-   - `ERROR`: Abort the entire query
-   - `DEFAULT <expr>`: Return `<expr>` with a prior `CAST` to the type `<type>?`. If the `CAST` fails, the behavior matches the `ON ERROR` section.
+
+    - `NULL`: Return an empty `<type>?`
+    - `ERROR`: Abort the entire query
+    - `DEFAULT <expr>`: Return `<expr>` with a prior `CAST` to the type `<type>?`. If the `CAST` fails, the behavior matches the `ON ERROR` section.
+
 4. If the result of JsonPath execution is a single value, then:
-   - If the `RETURNING` section isn't specified, the value is converted to `Utf8`.
-   - Otherwise, the `CAST` function is run to convert the value to `<type>`. If the `CAST` fails, the behavior matches the `ON ERROR` section. In this case, the value from JSON must match the `<type>` type.
+
+    - If the `RETURNING` section isn't specified, the value is converted to `Utf8`.
+    - Otherwise, the `CAST` function is run to convert the value to `<type>`. If the `CAST` fails, the behavior matches the `ON ERROR` section. In this case, the value from JSON must match the `<type>` type.
+
 5. Return the result
 
 Correlation between JSON and YQL types:
+
 - JSON Number: Numeric types, `Date`, `DateTime`, and `Timestamp`
 - JSON Bool - `Bool`
 - JSON String: `Utf8` and `String`
@@ -1034,7 +1060,8 @@ Errors executing `JSON_VALUE` are as follows:
 
 The `RETURNING` section supports such types as numbers, `Date`, `DateTime`, `Timestamp`, `Utf8`, `String`, and `Bool`.
 
-**Examples:**
+#### Examples
+
 ```yql
 $json = CAST(@@{
     "friends": [
@@ -1081,7 +1108,8 @@ SELECT
 
 The `JSON_QUERY` function lets you retrieve arrays and objects from JSON.
 
-**Syntax:**
+#### Syntax
+
 ```yql
 JSON_QUERY(
     <JSON expression>,
@@ -1093,16 +1121,16 @@ JSON_QUERY(
 )
 ```
 
-**Return value:** `Json?`
+Returned value: `Json?`
 
-**Default values:**
+Default values:
 
 1. If the `ON EMPTY` section isn't specified, the section used is `NULL ON EMPTY`
 2. If the `ON ERROR` section isn't specified, the section used is `NULL ON ERROR`
 3. If the `WRAPPER` section isn't specified, the section used is `WITHOUT WRAPPER`
 4. If the `WITH WRAPPER` section is specified but `CONDITIONAL` or `UNCONDITIONAL` is omitted, then the section used is `UNCONDITIONAL`
 
-**Behavior:**
+Behavior:
 
 {% note info %}
 
@@ -1112,19 +1140,25 @@ You can't specify the `WITH ... WRAPPER` and `ON EMPTY` sections at the same tim
 
 1. If `<JSON expression>` is `NULL` or an empty `Json?`, it returns an empty `Json?`
 2. If the `WRAPPER` section is specified, then:
-   - `WITHOUT WRAPPER` or `WITHOUT ARRAY WRAPPER`: Don't convert the result of JsonPath execution in any way.
-   - `WITH UNCONDITIONAL WRAPPER` or `WITH UNCONDITIONAL ARRAY WRAPPER`: Wrap the result of JsonPath execution in an array.
-   - `WITH CONDITIONAL WRAPPER` or `WITH CONDITIONAL ARRAY WRAPPER`: Wrap the result of JsonPath execution in an array if it isn't the only array or object.
+
+    - `WITHOUT WRAPPER` or `WITHOUT ARRAY WRAPPER`: Don't convert the result of JsonPath execution in any way.
+    - `WITH UNCONDITIONAL WRAPPER` or `WITH UNCONDITIONAL ARRAY WRAPPER`: Wrap the result of JsonPath execution in an array.
+    - `WITH CONDITIONAL WRAPPER` or `WITH CONDITIONAL ARRAY WRAPPER`: Wrap the result of JsonPath execution in an array if it isn't the only array or object.
+
 3. If the JsonPath execution result is empty, the returned value depends on the `ON EMPTY` section:
-   - `NULL`: Return an empty `Json?`
-   - `ERROR`: Abort the entire query
-   - `EMPTY ARRAY`: Return an empty JSON array, `[]`
-   - `EMPTY OBJECT`: Return an empty JSON object, `{}`
+
+    - `NULL`: Return an empty `Json?`
+    - `ERROR`: Abort the entire query
+    - `EMPTY ARRAY`: Return an empty JSON array, `[]`
+    - `EMPTY OBJECT`: Return an empty JSON object, `{}`
+
 4. If an error occurs, the returned value depends on the `ON ERROR` section:
-   - `NULL`: Return an empty `Json?`
-   - `ERROR`: Abort the entire query
-   - `EMPTY ARRAY`: Return an empty JSON array, `[]`
-   - `EMPTY OBJECT`: Return an empty JSON object, `{}`
+
+    - `NULL`: Return an empty `Json?`
+    - `ERROR`: Abort the entire query
+    - `EMPTY ARRAY`: Return an empty JSON array, `[]`
+    - `EMPTY OBJECT`: Return an empty JSON object, `{}`
+
 5. Return the result
 
 Errors running a `JSON_QUERY`:
@@ -1132,7 +1166,8 @@ Errors running a `JSON_QUERY`:
 - Errors evaluating JsonPath
 - The result of JsonPath execution is a number of values (even after using the `WRAPPER` section) or a scalar value.
 
-**Examples:**
+#### Examples
+
 ```yql
 $json = CAST(@@{
     "friends": [
@@ -1158,3 +1193,9 @@ SELECT
     JSON_QUERY($json, "$.friends.name" WITH CONDITIONAL WRAPPER); -- ["James Holden", "Naomi Nagata"]
 ```
 
+<!--
+## Смотрите также
+
+* [{#T}](../recipes/accessing-json.md)
+* [{#T}](../recipes/modifying-json.md)
+-->

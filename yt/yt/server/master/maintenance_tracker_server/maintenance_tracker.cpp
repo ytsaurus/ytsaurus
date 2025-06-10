@@ -30,7 +30,7 @@ using NApi::ValidateMaintenanceComment;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = MaintenanceTrackerLogger;
+constinit const auto Logger = MaintenanceTrackerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +52,7 @@ public:
         EMaintenanceComponent component,
         const std::string& address,
         EMaintenanceType type,
-        const TString& comment,
+        const std::string& comment,
         std::optional<NCypressServer::TNodeId> componentRegistryId) override
     {
         MaybeVerifyPrimaryMasterMutation(component);
@@ -63,7 +63,7 @@ public:
 
         constexpr int TypicalNodePerHostCount = TEnumTraits<ENodeFlavor>::GetDomainSize();
         TCompactVector<
-            std::tuple<TMaintenanceId, EMaintenanceComponent, TString>,
+            std::tuple<TMaintenanceId, EMaintenanceComponent, std::string>,
             TypicalNodePerHostCount> targets;
 
         if (component == EMaintenanceComponent::Host) {
@@ -113,7 +113,7 @@ public:
     {
         MaybeVerifyPrimaryMasterMutation(component);
 
-        TCompactVector<std::tuple<EMaintenanceComponent, TString, TNontemplateMaintenanceTargetBase*>, 1> targets;
+        TCompactVector<std::tuple<EMaintenanceComponent, std::string, TNontemplateMaintenanceTargetBase*>, 1> targets;
 
         if (component == EMaintenanceComponent::Host) {
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -213,7 +213,7 @@ private:
         TMaintenanceId id,
         const std::string& user,
         EMaintenanceType type,
-        const TString& comment,
+        const std::string& comment,
         std::optional<NCypressServer::TNodeId> componentMapNodeId)
     {
         YT_VERIFY(HasMutationContext());

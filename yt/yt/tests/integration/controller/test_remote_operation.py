@@ -1,3 +1,4 @@
+from functools import partial
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
@@ -9,15 +10,18 @@ from yt_commands import (
     authors,
     copy,
     create,
+    create_user,
     get,
     get_job,
     exists,
     join_reduce,
+    raises_yt_error,
     read_table,
     release_breakpoint,
     remove,
     set,
     start_transaction,
+    update_controller_agent_config,
     wait_breakpoint,
     with_breakpoint,
     write_table,
@@ -68,6 +72,11 @@ class TestSchedulerRemoteOperationCommandsBase(YTEnvSetup):
             "remote_copy_operation_options": {
                 "spec_template": {
                     "use_remote_master_caches": True,
+                },
+            },
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_users": ["root"],
                 },
             },
         },
@@ -648,6 +657,160 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
         assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts((data1 + data2) * n_chunks)
         assert not get("//tmp/t_out/@sorted")
 
+    @authors("coteeq")
+    def test_disallow(self):
+        create_user("user-not-allowed")
+        with raises_yt_error("not allowed to start operations"):
+            map(
+                in_=self.to_remote_path("//tmp/t"),
+                out_="//tmp/out",
+                authenticated_user="user-not-allowed",
+                command="cat"
+            )
+
+        with raises_yt_error("not allowed to be an input remote cluster"):
+            map(
+                # NB: Cluster 'not-allowed' does not need to exist
+                in_="""<cluster="not-allowed">//tmp/t""",
+                out_="//tmp/out",
+                command="cat"
+            )
+
+    @authors("coteeq")
+    def test_max_total_data_weight(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t1", [{"value": "x" * 10_000}], driver=self.remote_driver)
+        write_table("//tmp/t2", [{"value": "x" * 10_000}])
+
+        def try_run_map():
+            map(
+                in_=[
+                    self.to_remote_path("//tmp/t1"),
+                    "//tmp/t2",
+                ],
+                out="//tmp/t_out",
+                command="cat",
+                spec={
+                    "mapper": {
+                        "format": "json",
+                        "enable_input_table_index": False,
+                    },
+                },
+            )
+
+        try_run_map()
+
+        update_controller_agent_config("remote_operations/remote_0/max_total_data_weight", 1_000)
+        with raises_yt_error("Total estimated input data weight from cluster"):
+            try_run_map()
+
+        write_table("//tmp/t1", [{"value": "x" * 10}], driver=self.remote_driver)
+        try_run_map()
+
+    @authors("coteeq")
+    def test_seed_replicas(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        create("table", "//tmp/t2")
+
+        data = [{"a": 1}, {"a": 2}]
+        write_table("<append=%true>//tmp/t1", data, driver=self.remote_driver)
+
+        map(
+            in_=self.to_remote_path("//tmp/t1"),
+            out="//tmp/t2",
+            command="cat",
+            spec={
+                "job_io": {
+                    "table_reader": {
+                        # Forbid reader from locating seeds and populating node directory.
+                        "retry_count": 1,
+                    }
+                },
+            }
+        )
+
+        assert sorted_dicts(read_table("//tmp/t2")) == sorted_dicts(data)
+        assert not get("//tmp/t2/@sorted")
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerRemoteOperationNetworks(TestSchedulerRemoteOperationCommandsBase):
+    ENABLE_MULTIDAEMON = True
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        if cls.get_cluster_name(cluster_index) == cls.REMOTE_CLUSTER_NAME:
+            config["addresses"].append(["custom_network", dict(config["addresses"])["default"]])
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("operation_type", ["map", "merge", "map_reduce"])
+    def test_custom_network(self, operation_type):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        create("table", "//tmp/t2")
+
+        run_operation = {
+            "map": partial(map, command="cat"),
+            "merge": merge,
+            "map_reduce": partial(map_reduce, mapper_command="cat", reducer_command="cat", reduce_by=["a"]),
+        }
+
+        def run_and_assert():
+            run_operation[operation_type](
+                in_=self.to_remote_path("//tmp/t1"),
+                out="//tmp/t2",
+            )
+            assert read_table("//tmp/t2") == [{"a": "b"}]
+
+        run_and_assert()
+
+        update_controller_agent_config("remote_operations/remote_0/networks", ["custom_network"])
+
+        run_and_assert()
+
+        update_controller_agent_config("remote_operations/remote_0/networks", ["unexisting"])
+
+        with raises_yt_error():
+            run_and_assert()
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteOperationCommandsBase):
+    ENABLE_MULTIDAEMON = True
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "remote_copy_operation_options": {
+                "spec_template": {
+                    "use_remote_master_caches": True,
+                },
+            },
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_for_everyone": True,
+                },
+            },
+        },
+    }
+
+    @authors("renadeen")
+    def test_simple(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        create("table", "//tmp/t2")
+
+        map(
+            in_=self.to_remote_path("//tmp/t1"),
+            out="//tmp/t2",
+            command="cat",
+        )
+
+        assert read_table("//tmp/t2") == []
+        assert not get("//tmp/t2/@sorted")
+
 
 class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOperationCommandsBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
@@ -677,6 +840,11 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
             "remote_copy_operation_options": {
                 "spec_template": {
                     "use_remote_master_caches": True,
+                },
+            },
+            "remote_operations": {
+                "remote_0": {
+                    "allowed_users": ["root"],
                 },
             },
         },

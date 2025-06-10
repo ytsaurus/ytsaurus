@@ -103,6 +103,17 @@ public:
         const TCompactTableSchema& schema,
         NChunkServer::TChunk* schemaHolder) = 0;
 
+    virtual TFuture<NYson::TYsonString> GetYsonTableSchemaAsync(const TMasterTableSchema* masterSchema) = 0;
+
+    // Triggers deserialization of TCompactTableSchema.
+    virtual TFuture<NTableClient::TTableSchemaPtr> GetHeavyTableSchemaAsync(const TCompactTableSchema& compactTableSchema) = 0;
+    // Whenever possible, prefer the async method.
+    virtual NTableClient::TTableSchemaPtr GetHeavyTableSchemaSync(const TCompactTableSchema& compactTableSchema) = 0;
+    // Whenever possible, prefer the async method.
+    virtual NTableClient::TTableSchemaPtr GetHeavyTableSchemaSync(const TCompactTableSchemaPtr& compactTableSchema) = 0;
+    // Whenever possible, prefer the async method.
+    virtual NTableClient::TTableSchemaPtr GetHeavyTableSchemaSync(const TMasterTableSchema* masterSchema) = 0;
+
     // For loading from snapshot.
     virtual TMasterTableSchema::TNativeTableSchemaToObjectMapIterator RegisterNativeSchema(
         TMasterTableSchema* schema,
@@ -155,8 +166,8 @@ public:
         ESecondaryIndexKind type,
         TTableId table,
         TTableId secondaryIndex,
-        std::optional<TString> predicate,
-        std::optional<TString> unfoldedColumnName,
+        std::optional<std::string> predicate,
+        std::optional<std::string> unfoldedColumnName,
         NTableClient::TTableSchemaPtr evaluatedColumns) = 0;
 
     // Table collocation management.

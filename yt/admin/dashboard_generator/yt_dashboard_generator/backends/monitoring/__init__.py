@@ -344,6 +344,16 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         if cell.description is not None:
             chart["description"] = cell.description
 
+        if cell.colors is not None:
+            series_overrides = chart.setdefault("series_overrides", [])
+            for name, color in cell.colors.items():
+                series_overrides.append({
+                    "name": name,
+                    "settings": {
+                        "color": color,
+                    },
+                })
+
         for axis, label in cell.yaxis_to_label.items():
             assert axis in (SystemFields.LeftAxis, SystemFields.RightAxis)
             axisKey = "left" if axis == SystemFields.LeftAxis else "right"

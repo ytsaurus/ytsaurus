@@ -21,7 +21,7 @@ using namespace NTableClient;
 
 namespace {
 
-TYPath GetQueueAgentObjectRemotePath(const std::string& cluster, const TString& objectKind, const TYPath& objectPath)
+TYPath GetQueueAgentObjectRemotePath(const std::string& cluster, const std::string& objectKind, const TYPath& objectPath)
 {
     auto objectRef = Format("%v:%v", cluster, objectPath);
     // NB: Mind the plural!
@@ -33,7 +33,7 @@ TYPath GetQueueAgentObjectRemotePath(const std::string& cluster, const TString& 
 IYPathServicePtr CreateQueueAgentYPathService(
     IChannelPtr queueAgentChannel,
     const std::string& cluster,
-    const TString& objectKind,
+    const std::string& objectKind,
     const TYPath& objectPath)
 {
     return CreateOrchidYPathService(TOrchidOptions{

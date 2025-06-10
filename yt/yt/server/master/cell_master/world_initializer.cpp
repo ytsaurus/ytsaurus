@@ -29,12 +29,14 @@
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/cypress_transaction_client/cypress_transaction_service_proxy.h>
+
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
 
-#include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
@@ -80,7 +82,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CellMasterLogger;
+constinit const auto Logger = CellMasterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -796,28 +798,15 @@ private:
                 transactionId,
                 EObjectType::TabletCellBundleMap);
 
-            // COMPAT(danilalexeev)
-            if (Config_->CellManager->CreateVirtualCellMapsByDefault) {
-                ScheduleCreateNode(
-                    "//sys/chaos_cells",
-                    transactionId,
-                    EObjectType::VirtualChaosCellMap);
+            ScheduleCreateNode(
+                "//sys/chaos_cells",
+                transactionId,
+                EObjectType::VirtualChaosCellMap);
 
-                ScheduleCreateNode(
-                    "//sys/tablet_cells",
-                    transactionId,
-                    EObjectType::VirtualTabletCellMap);
-            } else {
-                ScheduleCreateNode(
-                    "//sys/chaos_cells",
-                    transactionId,
-                    EObjectType::ChaosCellMap);
-
-                ScheduleCreateNode(
-                    "//sys/tablet_cells",
-                    transactionId,
-                    EObjectType::TabletCellMap);
-            }
+            ScheduleCreateNode(
+                "//sys/tablet_cells",
+                transactionId,
+                EObjectType::VirtualTabletCellMap);
 
             ScheduleCreateNode(
                 NCellarAgent::CellsHydraPersistenceCypressPrefix,
@@ -1031,7 +1020,7 @@ private:
             }
 
             if (auto listResult = TryListNode("//sys/secondary_masters"); listResult.IsOK()) {
-                auto secondaryMasterCellTagStrings = ConvertTo<std::vector<TString>>(listResult.Value());
+                auto secondaryMasterCellTagStrings = ConvertTo<std::vector<std::string>>(listResult.Value());
                 const auto& knownSecondaryMasterCellTags = Bootstrap_->GetSecondaryCellTags();
                 for (const auto& stringCellTag : secondaryMasterCellTagStrings) {
                     auto cellTag = TCellTag(FromString<TCellTag::TUnderlying>(stringCellTag));
@@ -1151,7 +1140,7 @@ private:
 
     TTransactionId StartTransaction()
     {
-        TTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
+        NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.StartTransaction();
         req->set_timeout(ToProto(Config_->WorldInitializer->InitTransactionTimeout));
         req->set_title("World initialization");
@@ -1163,15 +1152,19 @@ private:
 
     void AbortTransaction(TTransactionId transactionId)
     {
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        WaitFor(transactionSupervisor->AbortTransaction(transactionId))
+        NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
+        auto req = proxy.AbortTransaction();
+        ToProto(req->mutable_transaction_id(), transactionId);
+        WaitFor(req->Invoke())
             .ThrowOnError();
     }
 
     void CommitTransaction(TTransactionId transactionId)
     {
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        WaitFor(transactionSupervisor->CommitTransaction(transactionId))
+        NCypressTransactionClient::TCypressTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
+        auto req = proxy.CommitTransaction();
+        ToProto(req->mutable_transaction_id(), transactionId);
+        WaitFor(req->Invoke())
             .ThrowOnError();
     }
 
@@ -1229,6 +1222,9 @@ private:
         const IAttributeDictionaryPtr attributesPtr)
     {
         auto attributes = attributesPtr ? attributesPtr->Clone() : EmptyAttributes().Clone();
+        // For some reasons TObjectServiceProxy::FromDirectMasterChannel cannot
+        // be used here.
+        // TODO(kvk1920): investigate it.
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
         auto batchReq = proxy.ExecuteBatch();
 

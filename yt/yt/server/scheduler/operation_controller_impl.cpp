@@ -751,7 +751,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     YT_LOG_TRACE(
         "Allocation schedule request enqueued (AllocationId: %v, NodeAddress: %v)",
         allocationId,
-        context->GetNodeDescriptor()->Address);
+        NNodeTrackerClient::GetDefaultAddress(context->GetNodeDescriptor()->Addresses));
 
     return nodeShard->BeginScheduleAllocation(incarnationId, OperationId_, allocationId);
 }
@@ -889,7 +889,7 @@ TFuture<TIntrusivePtr<TResponse>> TOperationControllerImpl::InvokeAgent(
     }));
 }
 
-std::pair<NApi::ITransactionPtr, TString> TOperationControllerImpl::GetIntermediateMediumTransaction()
+std::pair<NApi::ITransactionPtr, std::string> TOperationControllerImpl::GetIntermediateMediumTransaction()
 {
     return {nullptr, {}};
 }

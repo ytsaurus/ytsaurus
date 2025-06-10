@@ -1,6 +1,8 @@
 #include "ordered_chunk_pool.h"
 
+#include "config.h"
 #include "helpers.h"
+#include "job_size_adjuster.h"
 #include "new_job_manager.h"
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
@@ -46,6 +48,9 @@ void TOrderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(5, EnablePeriodicYielder);
     PHOENIX_REGISTER_FIELD(6, ShouldSliceByRowIndices);
     PHOENIX_REGISTER_FIELD(7, Logger);
+
+    PHOENIX_REGISTER_FIELD(8, JobSizeAdjusterConfig,
+        .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedChunkPoolOptions);
@@ -85,14 +90,22 @@ public:
             SingleJob_ = true;
         }
 
+        if (options.JobSizeAdjusterConfig && JobSizeConstraints_->CanAdjustDataWeightPerJob()) {
+            JobSizeAdjuster_ = CreateDiscreteJobSizeAdjuster(
+                JobSizeConstraints_->GetDataWeightPerJob(),
+                options.JobSizeAdjusterConfig);
+        }
+
         YT_LOG_DEBUG("Ordered chunk pool created (DataWeightPerJob: %v, MaxDataSlicesPerJob: %v, "
-            "InputSliceDataWeight: %v, InputSliceRowCount: %v, BatchRowCount: %v, SingleJob: %v)",
+            "InputSliceDataWeight: %v, InputSliceRowCount: %v, BatchRowCount: %v, SingleJob: %v, "
+            "HasJobSizeAdjuster: %v)",
             GetDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->GetBatchRowCount(),
-            SingleJob_);
+            SingleJob_,
+            static_cast<bool>(JobSizeAdjuster_));
     }
 
     // IPersistentChunkPoolInput implementation.
@@ -166,6 +179,25 @@ public:
             RegisterChildCookies(cookie, std::move(childCookies));
         }
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
+
+        if (JobSizeAdjuster_) {
+            // No point in enlarging jobs if we cannot at least double them.
+            auto action = EJobAdjustmentAction::None;
+            if (JobManager_->JobCounter()->GetPending() > JobManager_->JobCounter()->GetRunning()) {
+                action = JobSizeAdjuster_->UpdateStatistics(jobSummary);
+            }
+
+            if (action == EJobAdjustmentAction::RebuildJobs) {
+                YT_LOG_INFO("Job completion triggered enlargement (JobCookie: %v)", cookie);
+                // NB: totalDataWeight == primaryDataWeight for ordered pool.
+                JobManager_->Enlarge(
+                    JobSizeAdjuster_->GetDataWeightPerJob(),
+                    JobSizeAdjuster_->GetDataWeightPerJob(),
+                    JobSizeConstraints_,
+                    OutputOrder_);
+            }
+        }
+
         CheckCompleted();
     }
 
@@ -195,6 +227,8 @@ private:
     IJobSizeConstraintsPtr JobSizeConstraints_;
     //! Used both for job sampling and teleport chunk sampling.
     TBernoulliSampler Sampler_;
+
+    std::unique_ptr<IDiscreteJobSizeAdjuster> JobSizeAdjuster_;
 
     i64 MaxTotalSliceCount_ = 0;
 
@@ -335,9 +369,12 @@ private:
             droppedTeleportChunkCount);
 
         if (JobSizeConstraints_->GetSamplingRate()) {
+            // xxx(coteeq): There are no tests for this behaviour.
             JobManager_->Enlarge(
                 GetDataWeightPerJob(),
-                JobSizeConstraints_->GetPrimaryDataWeightPerJob());
+                JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
+                JobSizeConstraints_,
+                GetOutputOrder());
         }
 
         JobSizeConstraints_->UpdateInputDataWeight(JobManager_->DataWeightCounter()->GetTotal());
@@ -361,10 +398,15 @@ private:
 
         // Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.
+        // xxx(coteeq): This is unused.
         std::vector<TInputChunkPtr> teleportChunks;
+
+        // Insert consequent jobs after the parent cookie.
         if (OutputOrder_) {
             OutputOrder_->SeekCookie(cookie);
         }
+        JobManager_->SeekOrder(cookie);
+
         std::vector<IChunkPoolOutput::TCookie> childCookies;
         for (const auto& dataSlice : unreadInputDataSlices) {
             int inputCookie = *dataSlice->Tag;
@@ -669,9 +711,10 @@ private:
     IChunkPoolOutput::TCookie EndJob()
     {
         if (CurrentJob()->GetSliceCount() > 0) {
+            auto jobIndex = JobIndex_++;
             if (Sampler_.Sample()) {
                 YT_LOG_DEBUG("Ordered job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataWeight: %v, RowCount: %v, SliceCount: %v)",
-                    JobIndex_,
+                    jobIndex,
                     BuiltJobCount_,
                     CurrentJob()->GetPrimaryDataWeight(),
                     CurrentJob()->GetPrimaryRowCount(),
@@ -685,7 +728,7 @@ private:
                     THROW_ERROR_EXCEPTION(NChunkPools::EErrorCode::DataSliceLimitExceeded, "Total number of data slices in ordered pool is too large")
                         << TErrorAttribute("actual_total_slice_count", GetDataSliceCounter()->GetTotal())
                         << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount_)
-                        << TErrorAttribute("current_job_count", JobIndex_);
+                        << TErrorAttribute("current_job_count", jobIndex);
                 }
 
                 CurrentJob()->Finalize();
@@ -700,14 +743,13 @@ private:
                 return cookie;
             } else {
                 YT_LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
-                    JobIndex_,
+                    jobIndex,
                     BuiltJobCount_,
                     CurrentJob()->GetPrimaryDataWeight(),
                     CurrentJob()->GetPrimaryRowCount(),
                     CurrentJob()->GetPrimarySliceCount());
                 CurrentJob().reset();
             }
-            ++JobIndex_;
         }
         return IChunkPoolOutput::NullCookie;
     }
@@ -766,6 +808,8 @@ void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(14, IsCompleted_);
     PHOENIX_REGISTER_FIELD(15, UseNewSlicingImplementation_,
         .SinceVersion(ESnapshotVersion::NewOrderedChunkPoolSlicing));
+    PHOENIX_REGISTER_FIELD(16, JobSizeAdjuster_,
+        .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);

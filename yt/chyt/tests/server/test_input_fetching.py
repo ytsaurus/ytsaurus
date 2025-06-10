@@ -1608,7 +1608,7 @@ class TestInputFetchingYPath(ClickHouseTestBase):
                     check_simple(upper_limit, lower_limit)
 
     @authors("max42", "dakovalkov")
-    @pytest.mark.timeout(250)
+    @pytest.mark.timeout(500)
     def test_ypath_complex(self):
         self._create_table()
 

@@ -159,6 +159,7 @@ TAutoMergeTask::TAutoMergeTask(
             /*jobCount*/ 1,
             /*dataWeightPerJob*/ dataWeightPerJob,
             /*primaryDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
+            /*compressedDataSizePerJob*/ std::numeric_limits<i64>::max() / 4,
             /*maxDataSlicesPerJob*/ maxChunksPerJob,
             /*maxDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
             /*primaryMaxDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
@@ -450,7 +451,7 @@ void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any ta
     TTask::OnChunkTeleported(teleportChunk, tag);
 
     auto poolIndex = std::any_cast<int>(tag);
-    TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, GetTableIndex(poolIndex));
+    TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ TChunkStripeKey(), GetTableIndex(poolIndex));
 
     --CurrentChunkCounts_[poolIndex];
     TaskHost_->GetAutoMergeDirector()->AccountMergeInputChunks(-1);

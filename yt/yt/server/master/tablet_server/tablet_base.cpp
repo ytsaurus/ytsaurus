@@ -67,12 +67,8 @@ void TTabletServant::Persist(const NCellMaster::TPersistenceContext& context)
     Persist(context, State_);
     Persist(context, MountRevision_);
     Persist(context, MountTime_);
-
-    // COMPAT(ifsmirnov)
-    if (context.IsSave() || context.GetVersion() >= EMasterReign::SmoothTabletMovement) {
-        Persist(context, MovementRole_);
-        Persist(context, MovementStage_);
-    }
+    Persist(context, MovementRole_);
+    Persist(context, MovementStage_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -106,22 +102,12 @@ void TTabletBase::Load(NCellMaster::TLoadContext& context)
     Load(context, Index_);
     Load(context, InMemoryMode_);
     Load(context, Servant_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::SmoothTabletMovement) {
-        Load(context, AuxiliaryServant_);
-    }
-
+    Load(context, AuxiliaryServant_);
     Load(context, SettingsRevision_);
     Load(context, WasForcefullyUnmounted_);
     Load(context, Action_);
     Load(context, StoresUpdatePreparedTransaction_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::SmoothTabletMovement) {
-        Load(context, TabletwiseAvenueEndpointId_);
-    }
-
+    Load(context, TabletwiseAvenueEndpointId_);
     Load(context, Owner_);
     Load(context, State_);
     Load(context, ExpectedState_);

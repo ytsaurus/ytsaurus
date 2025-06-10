@@ -715,7 +715,7 @@ public:
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext))
         , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
-        , SourceReplicas_(ParseSourceReplicas(JobSpecExt_))
+        , SourceReplicas_(FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas()))
         , TargetReplicas_(FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas()))
         , Sensors_(std::move(sensors))
         , DynamicConfig_(Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode->RepairChunkJob)
@@ -730,16 +730,6 @@ private:
     const TChunkReplicaWithMediumList TargetReplicas_;
     const TMasterJobSensors Sensors_;
     const TRepairChunkJobDynamicConfigPtr DynamicConfig_;
-
-    // COMPAT(babenko)
-    static TChunkReplicaList ParseSourceReplicas(const TRepairChunkJobSpecExt& jobSpecExt)
-    {
-        if (jobSpecExt.source_replicas_size() == 0) {
-            return FromProto<TChunkReplicaList>(jobSpecExt.legacy_source_replicas());
-        } else {
-            return FromProto<TChunkReplicaList>(jobSpecExt.source_replicas());
-        }
-    }
 
     IChunkReaderAllowingRepairPtr CreateReader(int partIndex)
     {
@@ -1034,16 +1024,6 @@ private:
     const TChunkId ChunkId_;
     const TSealChunkJobDynamicConfigPtr DynamicConfig_;
 
-    // COMPAT(babenko)
-    static TChunkReplicaList ParseSourceReplicas(const TSealChunkJobSpecExt& jobSpecExt)
-    {
-        if (jobSpecExt.source_replicas_size() == 0) {
-            return FromProto<TChunkReplicaList>(jobSpecExt.legacy_source_replicas());
-        } else {
-            return FromProto<TChunkReplicaList>(jobSpecExt.source_replicas());
-        }
-    }
-
     TFuture<void> DoRun() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -1059,7 +1039,7 @@ private:
 
         auto codecId = FromProto<NErasure::ECodec>(JobSpecExt_.codec_id());
         int mediumIndex = JobSpecExt_.medium_index();
-        auto sourceReplicas = ParseSourceReplicas(JobSpecExt_);
+        auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
         i64 sealRowCount = JobSpecExt_.row_count();
 
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
@@ -1175,8 +1155,7 @@ private:
                             {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                             {FormatIOTag(EAggregateIOTag::Direction), "write"},
                             {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(ChunkId_).Id)},
-                            // TODO(babenko): switch to std::string
-                            {FormatIOTag(EAggregateIOTag::User), TString(NRpc::RootUserName)},
+                            {FormatIOTag(EAggregateIOTag::User), NRpc::RootUserName},
                         });
                 }
 
@@ -1522,7 +1501,6 @@ private:
         ToProto(chunkInfo.mutable_id(), writer->GetChunkId());
 
         for (auto replica : writer->GetWrittenChunkReplicasInfo().Replicas) {
-            chunkInfo.add_legacy_source_replicas(ToProto<ui32>(replica.ToChunkReplica()));
             chunkInfo.add_source_replicas(ToProto(TChunkReplicaWithMedium(replica)));
         }
 

@@ -601,21 +601,33 @@ private:
                 actualLowerBound = PrimaryComparator_.WeakerKeyBound(dataSlice->LowerLimit().KeyBound, actualLowerBound);
                 actualUpperBound = PrimaryComparator_.WeakerKeyBound(dataSlice->UpperLimit().KeyBound, actualUpperBound);
                 YT_VERIFY(dataSlice->Tag);
-                auto tag = *dataSlice->Tag;
-                job.AddDataSlice(std::move(dataSlice), tag, /*isPrimary*/ true);
                 const auto& Logger = domain->Logger;
-                YT_LOG_TRACE(
-                    "Adding primary data slice to job (DataSlice: %v)",
-                    GetDataSliceDebugString(dataSlice));
+                if (!PrimaryComparator_.IsRangeEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
+                    auto tag = *dataSlice->Tag;
+                    job.AddDataSlice(std::move(dataSlice), tag, /*isPrimary*/ true);
+                    YT_LOG_TRACE(
+                        "Adding primary data slice to job (DataSlice: %v)",
+                        GetDataSliceDebugString(dataSlice));
+                } else {
+                    YT_LOG_TRACE(
+                        "Not adding empty data slice to job (DataSlice: %v)",
+                        GetDataSliceDebugString(dataSlice));
+                }
             }
         }
-        YT_VERIFY(job.GetPrimarySliceCount() > 0);
-
-        job.SetPrimaryLowerBound(actualLowerBound);
-        job.SetPrimaryUpperBound(actualUpperBound);
 
         MainDomain_.Clear();
         SolidDomain_.Clear();
+
+        if (job.GetPrimarySliceCount() == 0) {
+            YT_VERIFY(PrimaryComparator_.IsRangeEmpty(actualLowerBound, actualUpperBound));
+            PreparedJobs_.pop_back();
+            YT_LOG_TRACE("Dropping empty job (DataSlices: %v)", job.GetDebugString());
+            return;
+        }
+
+        job.SetPrimaryLowerBound(actualLowerBound);
+        job.SetPrimaryUpperBound(actualUpperBound);
 
         // Perform sanity checks and prepare information for the next sanity check.
         ValidateCurrentJobBounds(actualLowerBound, actualUpperBound);

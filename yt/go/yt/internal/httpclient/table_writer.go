@@ -3,22 +3,38 @@ package httpclient
 import (
 	"io"
 
+	"go.ytsaurus.tech/library/go/core/xerrors"
+	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/yson"
+	"go.ytsaurus.tech/yt/go/yt"
 )
 
 type tableWriter struct {
 	raw        io.WriteCloser
-	encoder    *yson.Writer
 	cancelFunc func()
+	encoder    encoder
 	err        error
 }
 
-func newTableWriter(w io.WriteCloser, cancelFunc func()) *tableWriter {
-	return &tableWriter{
-		raw:        w,
-		encoder:    yson.NewWriterConfig(w, yson.WriterConfig{Format: yson.FormatBinary, Kind: yson.StreamListFragment}),
-		cancelFunc: cancelFunc,
+type encoder interface {
+	encode(value any) error
+	finish() error
+}
+
+func newTableWriter(w io.WriteCloser, format any, cancelFunc func()) (tw yt.TableWriter, err error) {
+	encoder := newYSONEncoder(w)
+	if format != nil {
+		if skiffFormat, ok := format.(skiff.Format); ok {
+			encoder, err = newSkiffEncoder(w, skiffFormat)
+			if err != nil {
+				return
+			}
+		} else {
+			err = xerrors.Errorf("unexpected format: %+v", format)
+			return
+		}
 	}
+	return &tableWriter{raw: w, encoder: encoder, cancelFunc: cancelFunc}, nil
 }
 
 func (w *tableWriter) Write(value any) error {
@@ -26,8 +42,7 @@ func (w *tableWriter) Write(value any) error {
 		return w.err
 	}
 
-	w.encoder.Any(value)
-	w.err = w.encoder.Err()
+	w.err = w.encoder.encode(value)
 	return w.err
 }
 
@@ -49,7 +64,7 @@ func (w *tableWriter) Commit() error {
 		return w.err
 	}
 
-	if w.err = w.encoder.Finish(); w.err != nil {
+	if w.err = w.encoder.finish(); w.err != nil {
 		return w.err
 	}
 
@@ -58,4 +73,45 @@ func (w *tableWriter) Commit() error {
 		w.cancelFunc()
 	}
 	return w.err
+}
+
+type ysonEncoder struct {
+	w *yson.Writer
+}
+
+func newYSONEncoder(w io.Writer) encoder {
+	return &ysonEncoder{w: yson.NewWriterConfig(w, yson.WriterConfig{Format: yson.FormatBinary, Kind: yson.StreamListFragment})}
+}
+
+func (e *ysonEncoder) encode(value any) error {
+	e.w.Any(value)
+	return e.w.Err()
+}
+
+func (e *ysonEncoder) finish() error {
+	return e.w.Finish()
+}
+
+type skiffEncoder struct {
+	encoder *skiff.Encoder
+}
+
+func newSkiffEncoder(w io.Writer, skiffFormat skiff.Format) (encoder, error) {
+	schema, err := skiff.SingleSchema(&skiffFormat)
+	if err != nil {
+		return nil, err
+	}
+	encoder, err := skiff.NewEncoder(w, *schema)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create skiff encoder: %w", err)
+	}
+	return &skiffEncoder{encoder: encoder}, nil
+}
+
+func (e *skiffEncoder) encode(value any) error {
+	return e.encoder.Write(value)
+}
+
+func (e *skiffEncoder) finish() error {
+	return e.encoder.Flush()
 }

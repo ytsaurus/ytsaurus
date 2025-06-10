@@ -50,14 +50,14 @@ struct ITabletChunkManager
         NProto::TReqUpdateTabletStores* request) = 0;
 
     //! Returns logging string containing update statistics.
-    virtual TString CommitUpdateTabletStores(
+    virtual std::string CommitUpdateTabletStores(
         TTablet* tablet,
         NTransactionServer::TTransaction* transaction,
         NProto::TReqUpdateTabletStores* request,
         NTabletClient::ETabletStoresUpdateReason updateReason) = 0;
 
     //! Returns logging string containing update statistics.
-    virtual TString CommitUpdateHunkTabletStores(
+    virtual std::string CommitUpdateHunkTabletStores(
         THunkTablet* tablet,
         NProto::TReqUpdateHunkTabletStores* request) = 0;
 

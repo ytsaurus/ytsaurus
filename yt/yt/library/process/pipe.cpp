@@ -16,7 +16,7 @@ using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = PipesLogger;
+constinit const auto Logger = PipesLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,6 +28,7 @@ TNamedPipe::TNamedPipe(const TString& path, std::optional<int> capacity, bool ow
 
 TNamedPipe::~TNamedPipe()
 {
+    YT_LOG_DEBUG("Destroying named pipe (Path: %v)", Path_);
     if (!Owning_) {
         return;
     }
@@ -64,10 +65,15 @@ IConnectionReaderPtr TNamedPipe::CreateAsyncReader()
     return CreateInputConnectionFromPath(Path_, TIODispatcher::Get()->GetPoller(), MakeStrong(this));
 }
 
-IConnectionWriterPtr TNamedPipe::CreateAsyncWriter(bool useDeliveryFence)
+IConnectionWriterPtr TNamedPipe::CreateAsyncWriter(EDeliveryFencedMode deliveryFencedMode)
 {
     YT_VERIFY(!Path_.empty());
-    return CreateOutputConnectionFromPath(Path_, TIODispatcher::Get()->GetPoller(), MakeStrong(this), Capacity_, useDeliveryFence);
+    return CreateOutputConnectionFromPath(
+        Path_,
+        TIODispatcher::Get()->GetPoller(),
+        MakeStrong(this),
+        Capacity_,
+        deliveryFencedMode);
 }
 
 TString TNamedPipe::GetPath() const

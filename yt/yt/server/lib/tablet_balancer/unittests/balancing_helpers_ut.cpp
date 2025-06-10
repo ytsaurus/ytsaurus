@@ -1451,14 +1451,31 @@ INSTANTIATE_TEST_SUITE_P(
             "double([/statistics/memory_size])",
             "double([/statistics/memory_size])"),
         std::tuple(
+            "double([/performance_counters/dynamic_row_write_10m_rate])",
+            "double([/performance_counters/dynamic_row_write_10m_rate])"),
+        std::tuple(
+            "write_10m",
+            "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])"),
+        std::tuple(
+            "1 + write_10m + double([/performance_counters/dynamic_row_write_data_weight_10m_rate]) + 2",
+            "1 + double([/performance_counters/dynamic_row_write_data_weight_10m_rate]) + double([/performance_counters/dynamic_row_write_data_weight_10m_rate]) + 2"),
+        std::tuple(
             "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])",
             "double([/performance_counters/dynamic_row_write_data_weight_10m_rate])"),
         std::tuple(
+            "lookup_cpu_10m",
+            "double([/performance_counters/lookup_cpu_time_10m_rate])"),
+        std::tuple(
+            "select_cpu_1h",
+            "double([/performance_counters/select_cpu_time_1h_rate])"),
+        std::tuple(
             "lookup_1h",
-            "(double([/performance_counters/dynamic_row_lookup_data_weight_1h_rate]) + double([/performance_counters/static_chunk_row_lookup_data_weight_1h_rate]))"),
+            "(double([/performance_counters/dynamic_row_lookup_data_weight_1h_rate]) + double([/performance_counters/static_chunk_row_lookup_data_weight_1h_rate])"
+            " + double([/performance_counters/static_hunk_chunk_row_lookup_data_weight_1h_rate]))"),
         std::tuple(
             "read_10m * 2",
-            "(double([/performance_counters/dynamic_row_read_data_weight_10m_rate]) + double([/performance_counters/static_chunk_row_read_data_weight_10m_rate])) * 2"),
+            "(double([/performance_counters/dynamic_row_read_data_weight_10m_rate]) + double([/performance_counters/static_chunk_row_read_data_weight_10m_rate])"
+            " + double([/performance_counters/static_hunk_chunk_row_read_data_weight_10m_rate])) * 2"),
         std::tuple(
             "write_10m - 1",
             "double([/performance_counters/dynamic_row_write_data_weight_10m_rate]) - 1")));

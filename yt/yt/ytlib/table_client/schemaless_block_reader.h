@@ -55,7 +55,8 @@ public:
         int commonKeyPrefix,
         const TKeyWideningOptions& keyWideningOptions,
         int extraColumnCount = 0,
-        bool decodeInlineHunkValues = false);
+        bool decodeInlineHunkValues = false,
+        bool unpackAny = true);
 
     bool NextRow();
 
@@ -99,6 +100,7 @@ private:
     const int ExtraColumnCount_;
 
     const bool DecodeInlineHunkValues_;
+    const bool UnpackAny_;
 
     TRef Data_;
     TRef Offsets_;

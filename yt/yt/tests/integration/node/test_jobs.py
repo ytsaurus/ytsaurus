@@ -1,17 +1,18 @@
-from yt_env_setup import (YTEnvSetup)
+from yt_env_setup import (YTEnvSetup, is_asan_build)
 
 from yt_commands import (
     authors, ls, get, set, create, write_table, wait, run_test_vanilla,
     with_breakpoint, wait_breakpoint, release_breakpoint, vanilla, map,
     disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
-    interrupt_job, update_nodes_dynamic_config, abort_job, run_sleeping_vanilla,
-    set_node_banned, extract_statistic_v2, get_allocation_id_from_job_id, alter_table,
-    write_file, print_debug,
+    interrupt_job, update_nodes_dynamic_config, set_nodes_banned,
+    abort_job, run_sleeping_vanilla, set_node_banned, extract_statistic_v2,
+    get_allocation_id_from_job_id, alter_table, write_file, print_debug,
 )
 
 from yt_helpers import JobCountProfiler, profiler_factory, is_uring_supported, is_uring_disabled
 
 import pytest
+import builtins
 
 
 ##################################################################
@@ -291,7 +292,8 @@ class TestJobStatisticsUring(YTEnvSetup):
     test_io_statistics = TestJobStatistics.test_io_statistics
 
 
-class TestAllocationWithTwoJobs(YTEnvSetup):
+@pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
+class TestAllocationReuse(YTEnvSetup):
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 
@@ -364,13 +366,13 @@ class TestAllocationWithTwoJobs(YTEnvSetup):
         op.track()
 
     @authors("pogorelov")
-    def test_restore_resources(self):
+    def test_shrink_resources(self):
         job_count = 2
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
         create("file", "//tmp/mapper.py", attributes={"replication_factor": 1})
 
-        write_table("//tmp/t_in", [{"key": i} for i in range(job_count)])
+        write_table("//tmp/t_in", [{"key": 0} for i in range(job_count)])
 
         memory = 500 * 10 ** 6
 
@@ -421,8 +423,15 @@ if job_index == 0:
                 "data_weight_per_job": 1,
                 "mapper": {
                     "memory_limit": 200 * 10 ** 6,
-                    "user_job_memory_digest_default_value": 0.9,
                     "file_paths": ["//tmp/mapper.py"],
+                    "user_job_memory_digest_lower_bound": 1.0,
+                    "user_job_memory_digest_upper_bound": 1.0,
+                    "user_job_memory_digest_default_value": 1.0,
+                    "job_proxy_memory_digest": {
+                        "lower_bound": 1.0,
+                        "upper_bound": 1.0,
+                        "default_value": 1.0,
+                    },
                 },
                 "enable_multiple_jobs_in_allocation": True,
             })
@@ -468,6 +477,413 @@ if job_index == 0:
         release_breakpoint()
 
         op.track()
+
+
+@pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
+class TestAllocationSizeIncrease(YTEnvSetup):
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "resource_limits": {
+            # Each job proxy occupies about 100MB.
+            "user_jobs": {
+                "type": "static",
+                "value": 500 * 10 ** 6,
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 1,
+                "user_slots": 1,
+            },
+        },
+        "exec_node": {
+            "job_proxy": {
+                "check_user_job_memory_limit": False,
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    },
+                },
+            },
+        },
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "user_job_resource_overdraft_memory_multiplier": 1.1,
+            "memory_digest_resource_overdraft_factor": 1.0,
+            "user_job_memory_reserve_quantile": 0.0,
+        },
+    }
+
+    @authors("pogorelov")
+    def test_increase_resources(self):
+        aborted_job_profiler = JobCountProfiler(
+            "aborted", tags={"tree": "default", "job_type": "map", "abort_reason": "resource_overdraft"})
+        completed_job_profiler = JobCountProfiler(
+            "completed", tags={"tree": "default", "job_type": "map"})
+
+        job_count = 2
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+        create("file", "//tmp/mapper.py", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"key": 0} for i in range(job_count)])
+
+        memory = 500 * 10 ** 6
+
+        script = with_breakpoint(
+f"""
+import os
+import subprocess
+import time
+
+from random import randint
+
+def rndstr(n):
+    s = ''
+    for i in range(100):
+        s += chr(randint(ord('a'), ord('z')))
+    return s * (n // 100)
+
+cmd = '''BREAKPOINT'''
+
+def breakpoint():
+    subprocess.call(cmd, shell=True)
+
+job_index = int(os.environ['YT_JOB_INDEX'])
+
+breakpoint()
+
+if job_index == 0:
+    a = list()
+    while len(a) * 100000 < {memory}:
+        a.append(rndstr(100000))
+
+breakpoint()
+""" # noqa
+        ).encode("ascii")
+
+        print_debug("Script is ", script)
+
+        write_file("//tmp/mapper.py", script, attributes={"executable": True})
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="python3 mapper.py",
+            job_count=job_count,
+            spec={
+                "data_weight_per_job": 1,
+                "mapper": {
+                    "memory_limit": 200 * 10 ** 6,
+                    "file_paths": ["//tmp/mapper.py"],
+                    "user_job_memory_digest_lower_bound": 0.9,
+                    "user_job_memory_digest_default_value": 0.9,
+                    "job_proxy_memory_digest": {
+                        "lower_bound": 1.0,
+                        "upper_bound": 1.0,
+                        "default_value": 1.0,
+                    },
+                },
+                "enable_multiple_jobs_in_allocation": True,
+                "sanity_check_delay": 600 * 1000,
+            })
+
+        job_ids = wait_breakpoint(job_count=2)
+
+        print_debug(f"First job ids are {job_ids}")
+
+        for job_id in job_ids:
+            release_breakpoint(job_id=job_id)
+
+        wait(lambda: aborted_job_profiler.get_job_count_delta() > 0)
+
+        def get_running_job_ids():
+            running_jobs = op.get_running_jobs()
+            job_ids = running_jobs.keys()
+            print_debug(f"Running job ids are {job_ids}")
+
+            return job_ids
+
+        def check_new_two_jobs():
+            running_job_ids = get_running_job_ids()
+            if len(running_job_ids) != 2:
+                return False
+
+            if builtins.set(job_ids) == builtins.set(running_job_ids):
+                return False
+
+            assert job_ids[0] in running_job_ids or job_ids[1] in running_job_ids
+
+            return True
+
+        wait(check_new_two_jobs)
+
+        new_job_ids = get_running_job_ids()
+
+        print_debug(f"New job ids are {new_job_ids}")
+        new_job_id = None
+        for job_id in new_job_ids:
+            if job_id not in job_ids:
+                new_job_id = job_id
+                break
+        preserved_job_id = (builtins.set(job_ids) & builtins.set(new_job_ids)).pop()
+
+        assert new_job_id is not None
+
+        node_to_kill = op.get_node(new_job_id)
+
+        # Release breakpoints for aborted job and new job
+        for job_id in job_ids:
+            if job_id not in new_job_ids:
+                try:
+                    release_breakpoint(job_id=job_id)
+                except RuntimeError:
+                    # NB(pogorelov):Aborted job may be aborted before or after second breakpoint reached.
+                    print_debug(f"Job {job_id} is not waiting on breakpoint")
+                    pass
+
+        wait_breakpoint(job_count=2)
+        print_debug(f"Killing node {node_to_kill}")
+        self.Env.kill_nodes(addresses=[node_to_kill])
+        release_breakpoint(job_id=new_job_id)
+
+        try:
+            wait(lambda: len(get_running_job_ids()) == 1)
+
+            running_job_ids = list(get_running_job_ids())
+
+            print_debug(f"Running job ids are {running_job_ids}")
+
+            running_job_id = running_job_ids[0]
+            assert running_job_id == preserved_job_id
+
+            allocation_id = get_allocation_id_from_job_id(preserved_job_id)
+            allocation_orchid_path = op.get_job_node_orchid_path(preserved_job_id) + f"/exec_node/job_controller/allocations/{allocation_id}"
+            first_job_orchid = get(allocation_orchid_path)
+            first_job_memory_usage = first_job_orchid["base_resource_usage"]["user_memory"]
+            print_debug(f"First job memory usage is {first_job_memory_usage}")
+
+            release_breakpoint(job_id=preserved_job_id)
+            wait(lambda: completed_job_profiler.get_job_count_delta() == 1)
+
+            second_job_id, = wait_breakpoint(job_count=1)
+
+            print_debug(f"Second job id is {second_job_id}")
+            assert allocation_id == get_allocation_id_from_job_id(second_job_id)
+
+            second_job_orchid = get(op.get_job_node_orchid_path(second_job_id) + f"/exec_node/job_controller/allocations/{allocation_id}")
+            second_job_memory_usage = second_job_orchid["base_resource_usage"]["user_memory"]
+            print_debug(f"Second job memory usage is {second_job_memory_usage}")
+
+            assert second_job_memory_usage > first_job_memory_usage
+        finally:
+            self.Env.start_nodes(addresses=[node_to_kill])
+
+    @authors("pogorelov")
+    def test_allocation_aborted_on_resource_lack(self):
+        resource_overdraft_job_profiler = JobCountProfiler(
+            "aborted", tags={"tree": "default", "job_type": "map", "abort_reason": "resource_overdraft"})
+        node_resource_overdraft_job_profiler = JobCountProfiler(
+            "aborted", tags={"tree": "default", "job_type": "map", "abort_reason": "node_resource_overcommit"})
+
+        completed_job_profiler = JobCountProfiler(
+            "completed", tags={"tree": "default", "job_type": "map"})
+
+        job_count = 2
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+        create("file", "//tmp/mapper.py", attributes={"replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"key": 0} for i in range(job_count)])
+
+        memory = 500 * 10 ** 6
+
+        script = with_breakpoint(
+f"""
+import os
+import subprocess
+import time
+
+from random import randint
+
+def rndstr(n):
+    s = ''
+    for i in range(100):
+        s += chr(randint(ord('a'), ord('z')))
+    return s * (n // 100)
+
+cmd = '''BREAKPOINT'''
+
+def breakpoint():
+    subprocess.call(cmd, shell=True)
+
+job_index = int(os.environ['YT_JOB_INDEX'])
+
+breakpoint()
+
+if job_index == 0:
+    a = list()
+    while len(a) * 100000 < {memory}:
+        a.append(rndstr(100000))
+
+breakpoint()
+""" # noqa
+        ).encode("ascii")
+
+        print_debug("Script is ", script)
+
+        write_file("//tmp/mapper.py", script, attributes={"executable": True})
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="python3 mapper.py",
+            job_count=job_count,
+            spec={
+                "testing": {
+                    "settle_job_delay": {
+                        "duration": 3000,
+                        "type": "async",
+                    },
+                },
+                "data_weight_per_job": 1,
+                "mapper": {
+                    "memory_limit": 200 * 10 ** 6,
+                    "file_paths": ["//tmp/mapper.py"],
+                    "user_job_memory_digest_lower_bound": 0.9,
+                    "user_job_memory_digest_default_value": 0.9,
+                    "job_proxy_memory_digest": {
+                        "lower_bound": 1.0,
+                        "upper_bound": 1.0,
+                        "default_value": 1.0,
+                    },
+                },
+                "enable_multiple_jobs_in_allocation": True,
+                "sanity_check_delay": 600 * 1000,
+            })
+
+        job_ids = wait_breakpoint(job_count=2)
+
+        print_debug(f"First job ids are {job_ids}")
+
+        for job_id in job_ids:
+            release_breakpoint(job_id=job_id)
+
+        wait(lambda: resource_overdraft_job_profiler.get_job_count_delta() > 0)
+
+        def get_running_job_ids():
+            running_jobs = op.get_running_jobs()
+            job_ids = running_jobs.keys()
+            print_debug(f"Running job ids are {job_ids}")
+
+            return job_ids
+
+        def check_new_two_jobs():
+            running_job_ids = get_running_job_ids()
+            if len(running_job_ids) != 2:
+                return False
+
+            if builtins.set(job_ids) == builtins.set(running_job_ids):
+                return False
+
+            assert job_ids[0] in running_job_ids or job_ids[1] in running_job_ids
+
+            return True
+
+        wait(check_new_two_jobs)
+
+        new_job_ids = get_running_job_ids()
+
+        print_debug(f"New job ids are {new_job_ids}")
+        new_job_id = None
+        for job_id in new_job_ids:
+            if job_id not in job_ids:
+                new_job_id = job_id
+                break
+        preserved_job_id = (builtins.set(job_ids) & builtins.set(new_job_ids)).pop()
+
+        assert new_job_id is not None
+
+        node_to_kill = op.get_node(new_job_id)
+
+        # Release breakpoints for aborted job and new job
+        for job_id in job_ids:
+            if job_id not in new_job_ids:
+                try:
+                    release_breakpoint(job_id=job_id)
+                except RuntimeError:
+                    # NB(pogorelov):Aborted job may be aborted before or after second breakpoint reached.
+                    print_debug(f"Job {job_id} is not waiting on breakpoint")
+                    pass
+
+        wait_breakpoint(job_count=2)
+        print_debug(f"Killing node {node_to_kill}")
+        set_nodes_banned([node_to_kill], True, wait_for_scheduler=True)
+        release_breakpoint(job_id=new_job_id)
+
+        wait(lambda: len(get_running_job_ids()) == 1)
+
+        running_job_ids = list(get_running_job_ids())
+
+        print_debug(f"Running job ids are {running_job_ids}")
+
+        running_job_id = running_job_ids[0]
+        assert running_job_id == preserved_job_id
+
+        allocation_id = get_allocation_id_from_job_id(preserved_job_id)
+        allocation_orchid_path = op.get_job_node_orchid_path(preserved_job_id) + f"/exec_node/job_controller/allocations/{allocation_id}"
+        first_job_orchid = get(allocation_orchid_path)
+        first_job_memory_usage = first_job_orchid["base_resource_usage"]["user_memory"]
+        print_debug(f"First job memory usage is {first_job_memory_usage}")
+
+        release_breakpoint(job_id=preserved_job_id)
+        wait(lambda: completed_job_profiler.get_job_count_delta() == 1)
+
+        orchid_path = op.get_job_tracker_orchid_path()
+
+        def check_allocation_has_no_running_job(allocation_id):
+            allocation_jobs = get(f"{orchid_path}/allocations/{allocation_id}/jobs")
+            has_running_job = False
+
+            for _, job_info in allocation_jobs.items():
+                if job_info["stage"] == "running":
+                    has_running_job = True
+                    break
+
+            return not has_running_job
+
+        wait(lambda: check_allocation_has_no_running_job(allocation_id))
+
+        update_nodes_dynamic_config(
+            value={
+                "user_jobs": {
+                    "type": "static",
+                    "value": first_job_memory_usage
+                }
+            },
+            path="resource_limits/memory_limits"
+        )
+
+        assert node_resource_overdraft_job_profiler.get_job_count_delta() == 0
+
+        wait(lambda: node_resource_overdraft_job_profiler.get_job_count_delta() == 1)
+
+        set_nodes_banned([node_to_kill], False, wait_for_scheduler=True)
 
 
 class TestNodeAddressResolveFailed(YTEnvSetup):
@@ -572,3 +988,6 @@ class TestGroupOutOfOrderBlocks(YTEnvSetup):
 
         assert extract_statistic_v2(chunk_reader_statistics, "data_io_requests") == expected_data_io_requests
         assert extract_statistic_v2(chunk_reader_statistics, "block_count") == column_count
+
+
+##################################################################

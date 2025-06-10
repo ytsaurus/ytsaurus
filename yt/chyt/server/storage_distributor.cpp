@@ -9,6 +9,7 @@
 #include "query_analyzer.h"
 #include "query_context.h"
 #include "query_registry.h"
+#include "read_from_yt_step.h"
 #include "remote_source.h"
 #include "schema_inference.h"
 #include "secondary_query_header.h"
@@ -429,6 +430,11 @@ public:
         return std::move(Pipes_);
     }
 
+    std::vector<std::shared_ptr<IChytIndexStat>> ExtractIndexStats()
+    {
+        return std::move(QueryInput_.IndexStats);
+    }
+
     bool ReadInOrder() const
     {
         YT_VERIFY(QueryAnalyzer_);
@@ -694,6 +700,7 @@ private:
             secondaryQueryCount = 1;
         }
 
+        auto secondaryQueryBuilder = QueryAnalyzer_->GetSecondaryQueryBuilder(SpecTemplate_);
         for (int index = 0; index < secondaryQueryCount; ++index) {
             int firstSubqueryIndex = index * ThreadSubqueries_.size() / secondaryQueryCount;
             int lastSubqueryIndex = (index + 1) * ThreadSubqueries_.size() / secondaryQueryCount;
@@ -717,9 +724,8 @@ private:
             // Each thread subquery will form its own secondary query when reading in order.
             YT_VERIFY(!ReadInOrder() || std::ssize(threadSubqueries) <= 1);
 
-            auto secondaryQuery = QueryAnalyzer_->CreateSecondaryQuery(
+            auto secondaryQuery = secondaryQueryBuilder->CreateSecondaryQuery(
                 threadSubqueries,
-                SpecTemplate_,
                 QueryInput_.MiscExtMap,
                 index,
                 index + 1 == secondaryQueryCount /*isLastSubquery*/);
@@ -793,6 +799,11 @@ public:
     }
 
     bool isRemote() const override
+    {
+        return true;
+    }
+
+    bool supportsParallelInsert() const override
     {
         return true;
     }
@@ -965,6 +976,8 @@ public:
             processingStage);
         preparer.Fire();
 
+        IndexStats_ = preparer.ExtractIndexStats();
+
         auto pipes = preparer.ExtractPipes();
         auto pipe = DB::Pipe::unitePipes(std::move(pipes));
 
@@ -988,7 +1001,8 @@ public:
         size_t numStreams) override
     {
         auto pipe = read(columnNames, storageSnapshot, queryInfo, context, processedStage, maxBlockSize, numStreams);
-        readFromPipe(queryPlan, std::move(pipe), columnNames, storageSnapshot, queryInfo, context, getName());
+        auto readStep = std::make_unique<TReadFromYTStep>(std::move(pipe), context, queryInfo, IndexStats_, GetTables());
+        queryPlan.addStep(std::move(readStep));
     }
 
     bool supportsSampling() const override
@@ -1010,9 +1024,29 @@ public:
                 << TErrorAttribute("paths", getStorageID().table_name);
         }
         const auto& table = Tables_.front();
-        auto path = table->Path;
+        auto& path = table->Path;
 
-        if (table->Dynamic && !table->Path.GetAppend(/*defaultValue*/ true)) {
+        bool overwrite = !path.GetAppend(/*defaultValue*/ true);
+
+        auto* queryContext = GetQueryContext(context);
+
+        if (context->getSettingsRef().max_insert_threads > 1) {
+            if (table->Dynamic) {
+                THROW_ERROR_EXCEPTION("Parallel write is not supported for dynamic tables, set max_insert_threads = 1");
+            }
+            if (Schema_->IsSorted()) {
+                THROW_ERROR_EXCEPTION("Parallel write is not supported for sorted tables, set max_insert_threads = 1");
+            }
+            if (overwrite) {
+                // Can't erase table like in distributedWrite because of INSERT INTO t FROM (SELECT * FROM t) case.
+                THROW_ERROR_EXCEPTION("Parallel overwriting is not supported, set max_insert_threads = 1");
+            }
+            if (queryContext->QueryKind == EQueryKind::InitialQuery) {
+                queryContext->InitializeQueryWriteTransaction();
+            }
+        }
+
+        if (table->Dynamic && overwrite) {
             THROW_ERROR_EXCEPTION("Overriding dynamic tables is not supported");
         }
 
@@ -1022,20 +1056,23 @@ public:
             table->Schema,
             dataTypes);
 
+        // All sinks are created in InterpreterInsertQuery::buildInsertSelectPipeline before using pipe.
+        ++queryContext->WriteSinkCount;
+
         // Callback to commit write transaction and invalidate cached object attributes after the query is completed.
-        auto finalCallback = [context, path = path.GetPath()] () {
-            auto* queryContext = GetQueryContext(context);
+        auto finalCallback = [queryContext, path = path.GetPath()] () {
+            if (queryContext->WriteSinkCount.fetch_sub(1) == 1) {
+                queryContext->CommitWriteTransaction();
 
-            queryContext->CommitWriteTransaction();
+                auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
+                if (queryContext->QueryKind == EQueryKind::SecondaryQuery) {
+                    // Write in secondary query means distributed insert select.
+                    // In this case we should only invalidate local cache to avoid quadratic number of rpc requests.
+                    invalidateMode = std::min(invalidateMode, EInvalidateCacheMode::Local);
+                }
 
-            auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
-            if (queryContext->QueryKind == EQueryKind::SecondaryQuery) {
-                // Write in secondary query means distributed insert select.
-                // In this case we should only invalidate local cache to avoid quadratic number of rpc requests.
-                invalidateMode = std::min(invalidateMode, EInvalidateCacheMode::Local);
+                InvalidateCache(queryContext, {path}, invalidateMode);
             }
-
-            InvalidateCache(queryContext, {path}, invalidateMode);
         };
 
         DB::SinkToStoragePtr outputSink;
@@ -1051,7 +1088,6 @@ public:
                 std::move(finalCallback),
                 QueryContext_->Logger);
         } else {
-            auto* queryContext = GetQueryContext(context);
             // Set append if it is not set.
             path.SetAppend(path.GetAppend(true /*defaultValue*/));
             outputSink = CreateSinkToStaticTable(
@@ -1346,6 +1382,7 @@ private:
     std::vector<TTablePtr> Tables_;
     TTableSchemaPtr Schema_;
     size_t DistributionSeed_;
+    std::vector<std::shared_ptr<IChytIndexStat>> IndexStats_;
     TLogger Logger;
 
     TDistributedQueryPreparer BuildPreparer(

@@ -43,6 +43,7 @@ PEERDIR(
     contrib/libs/metrohash
     contrib/libs/miniselect
     contrib/libs/msgpack
+    contrib/libs/pocketfft
     contrib/libs/poco/MongoDB
     contrib/libs/rapidjson
     contrib/libs/re2
@@ -115,6 +116,7 @@ ADDINCL(
     contrib/libs/lz4
     contrib/libs/miniselect/include
     contrib/libs/msgpack/include
+    contrib/libs/pocketfft
     contrib/libs/rapidjson/include
     contrib/libs/simdjson/include
     contrib/libs/sparsehash/src

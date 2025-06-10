@@ -45,6 +45,9 @@ void TStaticClickHouseConfig::Register(TRegistrar registrar)
     registrar.Parameter("populate_user_with_token", &TThis::PopulateUserWithToken)
         .Default(false);
 
+    registrar.Parameter("read_operation_ids_from", &TThis::ReadOperationIdsFrom)
+        .Default(NApi::EMasterChannelKind::Cache);
+
     registrar.Parameter("chyt_strawberry_path", &TThis::ChytStrawberryPath)
         .Default("//sys/strawberry/chyt");
 

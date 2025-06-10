@@ -61,17 +61,18 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         IInvokerPtr invoker,
         TClientChunkReadOptions chunkReadOptions,
-        TChunkReaderHostPtr chunkReaderHost,
+        TMultiChunkReaderHostPtr chunkReaderHost,
         TClosure onNetworkRelease,
         std::optional<TString> udfDirectory,
         TDuration threshold,
         i64 adaptiveRowCountUpperBound,
-        TCpuInstant ioStartTime)
+        TInstant ioStartTime)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker), "user_job_read_controller"))
         , ChunkReadOptions_(std::move(chunkReadOptions))
         , ChunkReaderHost_(std::move(chunkReaderHost))
         , OnNetworkRelease_(std::move(onNetworkRelease))
+        , IOStartTime_(ioStartTime)
         , UdfDirectory_(std::move(udfDirectory))
         , Guesser_(
             JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount.value_or(false)
@@ -79,7 +80,6 @@ public:
                 : TDuration::Zero(),
             JobSpecHelper_->GetJobIOConfig()->BufferRowCount,
             std::min<i64>(adaptiveRowCountUpperBound, JobSpecHelper_->GetJobIOConfig()->AdaptiveRowCountUpperBound))
-        , IOStartTime_(ioStartTime)
     { }
 
     //! Returns closure that launches data transfer to given async output.
@@ -219,7 +219,7 @@ public:
             .ValueOrThrow();
     }
 
-    std::optional<TCpuDuration> GetReaderTimeToFirstBatch() const override
+    std::optional<TDuration> GetReaderTimeToFirstBatch() const override
     {
         if (Initialized_) {
             return Reader_->GetTimeToFirstBatch();
@@ -227,7 +227,7 @@ public:
         return std::nullopt;
     }
 
-    std::optional<TCpuDuration> GetWriterTimeToFirstBatch() const override
+    std::optional<TDuration> GetWriterTimeToFirstBatch() const override
     {
         if (!FormatWriters_.empty()) {
             YT_VERIFY(FormatWriters_.size() == 1);
@@ -240,8 +240,9 @@ private:
     const IJobSpecHelperPtr JobSpecHelper_;
     const IInvokerPtr SerializedInvoker_;
     const TClientChunkReadOptions ChunkReadOptions_;
-    const TChunkReaderHostPtr ChunkReaderHost_;
+    const TMultiChunkReaderHostPtr ChunkReaderHost_;
     const TClosure OnNetworkRelease_;
+    const TInstant IOStartTime_;
 
     IProfilingMultiChunkReaderPtr Reader_;
     std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics_;
@@ -309,7 +310,6 @@ private:
     };
 
     TOptimalRowCountGuesser Guesser_;
-    const TCpuInstant IOStartTime_;
 
 private:
     bool IsContextSavingEnabled() const
@@ -377,21 +377,15 @@ private:
         const TRowBatchReadOptions& options,
         TDuration pipeDelay)
     {
+        TCallback<void(TRowBatchReadOptions* mutableOptions, TDuration timeForBatch)> batchRorCountOptionsUpdater;
         if (Guesser_.IsEnabled()) {
-            PipeReaderToWriterByBatches(
-                CreateApiFromSchemalessChunkReaderAdapter(reader),
-                writer,
-                options,
-                BIND(&TUserJobReadController::UpdateRowBatchReadOptions, MakeStrong(this)),
-                pipeDelay);
-            return;
+            batchRorCountOptionsUpdater = BIND_NO_PROPAGATE(&TUserJobReadController::UpdateRowBatchReadOptions, MakeStrong(this));
         }
-
         PipeReaderToWriterByBatches(
             CreateApiFromSchemalessChunkReaderAdapter(reader),
             writer,
             options,
-            /*optionsUpdater*/ {},
+            std::move(batchRorCountOptionsUpdater),
             pipeDelay);
     }
 
@@ -537,12 +531,12 @@ public:
         return 0;
     }
 
-    std::optional<TCpuDuration> GetReaderTimeToFirstBatch() const override
+    std::optional<TDuration> GetReaderTimeToFirstBatch() const override
     {
         return std::nullopt;
     }
 
-    std::optional<TCpuDuration> GetWriterTimeToFirstBatch() const override
+    std::optional<TDuration> GetWriterTimeToFirstBatch() const override
     {
         return std::nullopt;
     }
@@ -554,7 +548,7 @@ DEFINE_REFCOUNTED_TYPE(TVanillaUserJobReadController)
 
 IUserJobReadControllerPtr CreateUserJobReadController(
     IJobSpecHelperPtr jobSpecHelper,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     IInvokerPtr invoker,
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
@@ -562,7 +556,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     TString /*localHostName*/,
     TDuration adaptiveConfigTimeoutThreshold,
     i64 adaptiveRowCountUpperBound,
-    TCpuInstant ioStartTime)
+    TInstant ioStartTime)
 {
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla) {
         if (jobSpecHelper->GetJobSpecExt().has_input_query_spec()) {

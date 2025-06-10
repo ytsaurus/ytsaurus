@@ -1,6 +1,7 @@
 #include "transaction.h"
 
 #include "client.h"
+#include "sequoia_reign.h"
 #include "table_descriptor.h"
 #include "transaction_service_proxy.h"
 #include "write_set.h"
@@ -117,18 +118,16 @@ public:
     TSequoiaTransaction(
         ISequoiaClientPtr sequoiaClient,
         ESequoiaTransactionType type,
-        IClientPtr nativeRootClient,
-        IClientPtr groundRootClient,
-        const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
-        const TSequoiaTransactionSequencingOptions& sequencingOptions)
+        IClientPtr localClient,
+        IClientPtr groundClient,
+        const TSequoiaTransactionOptions& sequoiaTransactionOptions)
         : SequoiaClient_(std::move(sequoiaClient))
         , Type_(type)
-        , NativeRootClient_(std::move(nativeRootClient))
-        , GroundRootClient_(std::move(groundRootClient))
+        , LocalClient_(std::move(localClient))
+        , GroundClient_(std::move(groundClient))
         , SerializedInvoker_(CreateSerializedInvoker(
-            NativeRootClient_->GetConnection()->GetInvoker()))
-        , SequencingOptions_(sequencingOptions)
-        , CypressPrerequisiteTransactionIds_(cypressPrerequisiteTransactionIds)
+            LocalClient_->GetConnection()->GetInvoker()))
+        , SequoiaTransactionOptions_(sequoiaTransactionOptions)
         , Logger(SequoiaClient_->GetLogger())
     { }
 
@@ -167,11 +166,11 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        const auto& transactionManager = NativeRootClient_->GetTransactionManager();
+        const auto& transactionManager = LocalClient_->GetTransactionManager();
 
         StartOptions_ = options;
         if (!StartOptions_.Timeout) {
-            const auto& config = NativeRootClient_->GetNativeConnection()->GetConfig();
+            const auto& config = LocalClient_->GetNativeConnection()->GetConfig();
             StartOptions_.Timeout = config->SequoiaConnection->SequoiaTransactionTimeout;
         }
 
@@ -367,7 +366,7 @@ public:
 
     TCellTag GetRandomSequoiaNodeHostCellTag() const override
     {
-        auto connection = NativeRootClient_->GetNativeConnection();
+        auto connection = LocalClient_->GetNativeConnection();
 
         const auto& cellDirectorySynchronizer = connection->GetMasterCellDirectorySynchronizer();
         WaitFor(cellDirectorySynchronizer->RecentSync())
@@ -390,11 +389,10 @@ public:
 private:
     const ISequoiaClientPtr SequoiaClient_;
     const ESequoiaTransactionType Type_;
-    const NApi::NNative::IClientPtr NativeRootClient_;
-    const NApi::NNative::IClientPtr GroundRootClient_;
+    const NApi::NNative::IClientPtr LocalClient_;
+    const NApi::NNative::IClientPtr GroundClient_;
     const IInvokerPtr SerializedInvoker_;
-    const TSequoiaTransactionSequencingOptions SequencingOptions_;
-    const std::vector<TTransactionId> CypressPrerequisiteTransactionIds_;
+    const TSequoiaTransactionOptions SequoiaTransactionOptions_;
 
     TLogger Logger;
 
@@ -466,7 +464,7 @@ private:
             session->CellTag = cellTag;
             session->UserIdentity = GetCurrentAuthenticationIdentity();
             EmplaceOrCrash(MasterCellCommitSessions_, cellTag, session);
-            Transaction_->RegisterParticipant(NativeRootClient_->GetNativeConnection()->GetMasterCellId(cellTag));
+            Transaction_->RegisterParticipant(LocalClient_->GetNativeConnection()->GetMasterCellId(cellTag));
             return session;
         } else {
             return it->second;
@@ -504,7 +502,7 @@ private:
         // TODO(gritukan): Handle dataless.
         TTabletCommitOptions options;
         auto session = CreateTabletCommitSession(
-            GroundRootClient_,
+            GroundClient_,
             std::move(options),
             MakeWeak(Transaction_),
             CellCommitSessionProvider_,
@@ -523,13 +521,13 @@ private:
 
         RandomGenerator_ = std::make_unique<TRandomGenerator>(Transaction_->GetStartTimestamp());
 
-        CellCommitSessionProvider_ = CreateCellCommitSessionProvider(GroundRootClient_, MakeWeak(Transaction_), Logger);
+        CellCommitSessionProvider_ = CreateCellCommitSessionProvider(GroundClient_, MakeWeak(Transaction_), Logger);
 
         Logger.AddTag("TransactionId: %v", Transaction_->GetId());
 
         YT_LOG_DEBUG("Transaction started (StartTimestamp: %v, PrerequisiteTransactionIds: %v)",
             Transaction_->GetStartTimestamp(),
-            CypressPrerequisiteTransactionIds_);
+            SequoiaTransactionOptions_.CypressPrerequisiteTransactionIds);
 
         return MakeStrong(this);
     }
@@ -538,9 +536,9 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
-        auto path = GetSequoiaTablePath(NativeRootClient_, session->SequoiaTableDescriptor);
+        auto path = GetSequoiaTablePath(LocalClient_, session->SequoiaTableDescriptor);
 
-        const auto& tableMountCache = GroundRootClient_->GetTableMountCache();
+        const auto& tableMountCache = GroundClient_->GetTableMountCache();
         return tableMountCache->GetTableInfo(path)
             .Apply(BIND(&TSequoiaTransaction::OnGotTableMountInfo, MakeWeak(this), session)
                 .AsyncVia(SerializedInvoker_));
@@ -548,7 +546,7 @@ private:
 
     void SortRequests()
     {
-        if (const auto* sequencer = SequencingOptions_.TransactionActionSequencer) {
+        if (const auto* sequencer = SequoiaTransactionOptions_.TransactionActionSequencer) {
             for (auto& [_, masterCellCommitSession] : MasterCellCommitSessions_) {
                 auto& actions = masterCellCommitSession->TransactionActions;
                 SortBy(actions, [&] (const TTransactionActionData& actionData) {
@@ -557,7 +555,7 @@ private:
             }
         }
 
-        if (const auto& priorities = SequencingOptions_.RequestPriorities) {
+        if (const auto& priorities = SequoiaTransactionOptions_.RequestPriorities) {
             for (auto& [_, session] : TableCommitSessions_) {
                 auto& requests = session->Requests;
                 SortBy(requests, [&] (const TRequest& request) {
@@ -650,7 +648,7 @@ private:
         const auto& deleteIdMapping = session->ColumnIdMappings[ETableSchemaKind::Delete];
         const auto& lockIdMapping = session->ColumnIdMappings[ETableSchemaKind::Lock];
 
-        auto evaluatorCache = GroundRootClient_->GetNativeConnection()->GetColumnEvaluatorCache();
+        auto evaluatorCache = GroundClient_->GetNativeConnection()->GetColumnEvaluatorCache();
         auto evaluator = tableMountInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
 
         std::vector<int> columnIndexToLockIndex;
@@ -852,13 +850,13 @@ private:
         std::vector<TFuture<void>> futures;
         futures.reserve(MasterCellCommitSessions_.size());
         for (const auto& [cellTag, session] : MasterCellCommitSessions_) {
-            auto channel = NativeRootClient_->GetNativeConnection()->GetMasterChannelOrThrow(
+            auto channel = LocalClient_->GetNativeConnection()->GetMasterChannelOrThrow(
                 EMasterChannelKind::Leader,
                 cellTag);
             TSequoiaTransactionServiceProxy proxy(std::move(channel));
             auto req = proxy.StartTransaction();
             ToProto(req->mutable_id(), Transaction_->GetId());
-            req->set_timeout(::NYT::ToProto(*StartOptions_.Timeout));
+            req->set_timeout(NYT::ToProto(*StartOptions_.Timeout));
             if (const auto& attributes = StartOptions_.Attributes) {
                 ToProto(req->mutable_attributes(), *attributes);
             } else {
@@ -870,7 +868,7 @@ private:
             }
             WriteAuthenticationIdentityToProto(req->mutable_identity(), session->UserIdentity);
             req->set_sequoia_reign(NYT::ToProto(GetCurrentSequoiaReign()));
-            ToProto(req->mutable_prerequisite_transaction_ids(), CypressPrerequisiteTransactionIds_);
+            ToProto(req->mutable_prerequisite_transaction_ids(), SequoiaTransactionOptions_.CypressPrerequisiteTransactionIds);
 
             futures.push_back(req->Invoke().AsVoid());
         }
@@ -884,8 +882,18 @@ private:
 
         std::vector<TFuture<void>> futures;
         futures.reserve(TabletCommitSessions_.size());
-        for (const auto& [tabletId, tabletCommitSession] : TabletCommitSessions_) {
-            futures.push_back(tabletCommitSession->Invoke());
+        if (SequoiaTransactionOptions_.SequenceTabletCommitSessions) {
+            for (const auto& [tabletId, tabletCommitSession] : SortHashMapByKeys(TabletCommitSessions_)) {
+                auto previousFuture = futures.empty() ? VoidFuture : futures.back();
+                futures.push_back(previousFuture.Apply(
+                    BIND([session = tabletCommitSession] (const TError& /*error*/) {
+                        return session->Invoke();
+                    })));
+            }
+        } else {
+            for (const auto& [tabletId, tabletCommitSession] : TabletCommitSessions_) {
+                futures.push_back(tabletCommitSession->Invoke());
+            }
         }
 
         return AllSucceeded(std::move(futures));
@@ -926,20 +934,19 @@ namespace NDetail {
 TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr sequoiaClient,
     ESequoiaTransactionType type,
-    IClientPtr nativeRootClient,
-    IClientPtr groundRootClient,
-    const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
-    const TTransactionStartOptions& options,
-    const TSequoiaTransactionSequencingOptions& sequencingOptions)
+
+    IClientPtr localClient,
+    IClientPtr groundClient,
+    const TTransactionStartOptions& transactionStartOptions,
+    const TSequoiaTransactionOptions& sequoiaTransactionOptions)
 {
     auto transaction = New<TSequoiaTransaction>(
         std::move(sequoiaClient),
         type,
-        std::move(nativeRootClient),
-        std::move(groundRootClient),
-        cypressPrerequisiteTransactionIds,
-        sequencingOptions);
-    return transaction->Start(options);
+    std::move(localClient),
+    std::move(groundClient),
+        sequoiaTransactionOptions);
+    return transaction->Start(transactionStartOptions);
 }
 
 } // namespace NDetail

@@ -474,7 +474,13 @@ TCGValue TCGValue::Cast(TCGBaseContext& builder, EValueType destination) const
 
     auto value = GetTypedData(builder);
 
-    Value* result;
+    auto throwBadCast = [&] {
+        THROW_ERROR_EXCEPTION("Unimplemented cast from %Qlv to %Qlv", \
+            StaticType_, \
+            destination);
+    };
+
+    Value* result = {};
     switch (destination) {
         case EValueType::Int64: {
             auto destType = TDataTypeBuilder::TInt64::Get(builder->getContext());
@@ -490,7 +496,7 @@ TCGValue TCGValue::Cast(TCGBaseContext& builder, EValueType destination) const
 
                 result = builder->CreateFPToSI(value, destType);
             } else {
-                YT_ABORT();
+                throwBadCast();
             }
             break;
         }
@@ -508,7 +514,7 @@ TCGValue TCGValue::Cast(TCGBaseContext& builder, EValueType destination) const
 
                 result = builder->CreateFPToUI(value, destType);
             } else {
-                YT_ABORT();
+                throwBadCast();
             }
             break;
         }
@@ -519,7 +525,7 @@ TCGValue TCGValue::Cast(TCGBaseContext& builder, EValueType destination) const
             } else if (StaticType_ == EValueType::Int64) {
                 result = builder->CreateSIToFP(value, destType);
             } else {
-                YT_ABORT();
+                throwBadCast();
             }
             break;
         }
@@ -527,12 +533,15 @@ TCGValue TCGValue::Cast(TCGBaseContext& builder, EValueType destination) const
             if (StaticType_ == EValueType::Int64 || StaticType_ == EValueType::Uint64) {
                 result = builder->CreateIsNotNull(value);
             } else {
-                YT_ABORT();
+                throwBadCast();
             }
             break;
         }
+        case EValueType::Null: {
+            return CreateNull(builder, destination);
+        }
         default:
-            YT_ABORT();
+            throwBadCast();
     }
 
     return Create(
@@ -565,10 +574,12 @@ TCGBaseContext::TCGBaseContext(
 TCGOpaqueValuesContext::TCGOpaqueValuesContext(
     const TCGBaseContext& base,
     Value* literals,
-    Value* opaqueValues)
+    Value* opaqueValues,
+    Value* bindedValues)
     : TCGBaseContext(base)
     , Literals_(literals)
     , OpaqueValues_(opaqueValues)
+    , BindedValues_(bindedValues)
 { }
 
 TCGOpaqueValuesContext::TCGOpaqueValuesContext(
@@ -577,7 +588,7 @@ TCGOpaqueValuesContext::TCGOpaqueValuesContext(
     : TCGBaseContext(base)
     , Literals_(other.Literals_)
     , OpaqueValues_(other.OpaqueValues_)
-
+    , BindedValues_(other.BindedValues_)
 { }
 
 Value* TCGOpaqueValuesContext::GetLiterals() const
@@ -601,6 +612,11 @@ Value* TCGOpaqueValuesContext::GetOpaqueValue(size_t index) const
         Builder_->getPtrTy(),
         opaqueValuePtr,
         "opaqueValues." + Twine(index));
+}
+
+Value* TCGOpaqueValuesContext::GetBindedValues() const
+{
+    return Builder_->ViaClosure(BindedValues_, "bindedValues");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

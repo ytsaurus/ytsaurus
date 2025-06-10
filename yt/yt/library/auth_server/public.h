@@ -20,6 +20,8 @@ DECLARE_REFCOUNTED_STRUCT(TCachingTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TCachingCypressTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TBlackboxCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TCachingCookieAuthenticatorConfig)
+// COMPAT(psushin).
+DECLARE_REFCOUNTED_STRUCT(TUserExistenceCheckCacheConfig)
 DECLARE_REFCOUNTED_STRUCT(TCachingBlackboxCookieAuthenticatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TDefaultSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_STRUCT(TBatchingSecretVaultServiceConfig)
@@ -108,6 +110,7 @@ struct TAuthenticationResult;
 
 constexpr TStringBuf BlackboxSessionIdCookieName = "Session_id";
 constexpr TStringBuf BlackboxSslSessionIdCookieName = "sessionid2";
+constexpr TStringBuf BlackboxSessguardCookieName = "sessguard";
 constexpr TStringBuf CypressCookieName = "YTCypressCookie";
 constexpr TStringBuf OAuthAccessTokenCookieName = "access_token";
 

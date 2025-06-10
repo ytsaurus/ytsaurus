@@ -519,13 +519,8 @@ void TIOEngineBase::Reconfigure(const NYTree::INodePtr& node)
 
 void TIOEngineBase::InitProfilerSensors()
 {
-    Profiler.AddFuncGauge("/sick", MakeStrong(this), [this] {
-        return Sick_.load();
-    });
-
-    Profiler.AddFuncGauge("/alive", MakeStrong(this), [] {
-        return 1;
-    });
+    SickGauge_ = Profiler.Gauge("/sick");
+    SickGauge_.Update(Sick_.load());
 
     Profiler.AddFuncCounter("/sick_events", MakeStrong(this), [this] {
         return SicknessCounter_.load();
@@ -562,6 +557,7 @@ void TIOEngineBase::SetSickFlag(const TError& error)
     }
 
     if (!Sick_.exchange(true)) {
+        SickGauge_.Update(true);
         ++SicknessCounter_;
 
         TDelayedExecutor::Submit(
@@ -585,6 +581,7 @@ void TIOEngineBase::ResetSickFlag()
     }
 
     Sick_ = false;
+    SickGauge_.Update(false);
 
     YT_LOG_WARNING("Sick flag reset");
 }

@@ -1684,7 +1684,7 @@ TExprBase FilterOverAggregate(const TCoFlatMapBase& node, TExprContext& ctx, TOp
     size_t separableComponents = 0;
     for (auto& p : andComponents) {
         TSet<TStringBuf> usedFields;
-        if (p->IsCallable("Likely") ||
+        if (IsNoPush(*p) ||
             HasDependsOn(p, arg.Ptr()) ||
             !HaveFieldsSubset(p, arg.Ref(), usedFields, *optCtx.ParentsMap) ||
             !AllOf(usedFields, [&](TStringBuf field) { return keyColumns.contains(field); }) ||
@@ -1701,7 +1701,7 @@ TExprBase FilterOverAggregate(const TCoFlatMapBase& node, TExprContext& ctx, TOp
     size_t maxKeyPredicates = 0;
     if (AllowComplexFiltersOverAggregatePushdown(optCtx)) {
         for (auto& p : restComponents) {
-            if (p->IsCallable("Likely")) {
+            if (IsNoPush(*p)) {
                 continue;
             }
             const TNodeMap<ESubgraphType> marked = MarkSubgraphForAggregate(p, arg, keyColumns);
@@ -1740,7 +1740,7 @@ TExprBase FilterOverAggregate(const TCoFlatMapBase& node, TExprContext& ctx, TOp
                 calculator->DropCache();
             }
             nonSeparableComponents += canPush;
-            p = ctx.WrapByCallableIf(canPush, "Likely", std::move(p));
+            p = ctx.WrapByCallableIf(canPush, "NoPush", std::move(p));
         }
     }
 
@@ -2200,7 +2200,7 @@ void RegisterCoFlowCallables2(TCallableOptimizerMap& map) {
         }
 
         if (self.Input().Maybe<TCoFilterNullMembers>()) {
-            if (auto res = ApplyExtractMembersToFilterNullMembers(self.Input().Ptr(), self.Members().Ptr(), ctx, {})) {
+            if (auto res = ApplyExtractMembersToFilterNullMembers(self.Input().Ptr(), self.Members().Ptr(), ctx, optCtx, {})) {
                 return res;
             }
             return node;

@@ -127,6 +127,7 @@ DEFINE_ENUM(EUnschedulableReason,
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IOperationStrategyHost
+    : public TRefCounted
 {
     virtual EOperationType GetType() const = 0;
 
@@ -140,7 +141,9 @@ struct IOperationStrategyHost
     virtual void SetSlotIndex(const TString& treeId, int index) = 0;
     virtual void ReleaseSlotIndex(const TString& treeId) = 0;
 
-    virtual TString GetAuthenticatedUser() const = 0;
+    virtual std::string GetAuthenticatedUser() const = 0;
+
+    virtual std::optional<std::string> GetTitle() const = 0;
 
     virtual TOperationId GetId() const = 0;
 
@@ -171,6 +174,8 @@ struct IOperationStrategyHost
 protected:
     friend class TFairShareStrategyOperationState;
 };
+
+DEFINE_REFCOUNTED_TYPE(IOperationStrategyHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,8 +216,7 @@ public: \
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation
-    : public TRefCounted
-    , public IOperationStrategyHost
+    : public IOperationStrategyHost
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
@@ -315,7 +319,10 @@ public:
     TInstant GetStartTime() const override;
 
     //! Returns operation authenticated user.
-    TString GetAuthenticatedUser() const override;
+    std::string GetAuthenticatedUser() const override;
+
+    //! Returns operation title.
+    std::optional<std::string> GetTitle() const override;
 
     //! Returns strategy operation spec.
     TStrategyOperationSpecPtr GetStrategySpec() const override;
@@ -429,7 +436,7 @@ public:
     //! name being of form "<experiment name>.<group name>".
     std::vector<TString> GetExperimentAssignmentNames() const;
 
-    std::vector<TString> GetJobShellOwners(const TString& jobShellName);
+    std::vector<std::string> GetJobShellOwners(const TString& jobShellName);
 
     // Aborts all transactions except user and "completion" transactions.
     TFuture<void> AbortCommonTransactions();
@@ -437,7 +444,7 @@ public:
     //! Adds token to secure vault according to the operation spec.
     //! Requires that the operation is in `Starting` state, token issuance is request in spec,
     //! and that the secure vault does not contain the key specified in the operation spec.
-    void SetTemporaryToken(const TString& token, const NCypressClient::TNodeId& nodeId);
+    void SetTemporaryToken(const std::string& token, const NCypressClient::TNodeId& nodeId);
 
     //! Returns a list of Cypress nodes which must be deleted alongside the operation node.
     std::vector<NCypressClient::TNodeId> GetDependentNodeIds() const;
@@ -474,7 +481,7 @@ private:
     const TOperationId Id_;
     const EOperationType Type_;
     const TInstant StartTime_;
-    const TString AuthenticatedUser_;
+    const std::string AuthenticatedUser_;
     const NYson::TYsonString SpecString_;
     const NYson::TYsonString TrimmedAnnotations_;
     const std::optional<TBriefVanillaTaskSpecMap> BriefVanillaTaskSpecs_;

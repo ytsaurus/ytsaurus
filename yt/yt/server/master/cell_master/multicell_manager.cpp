@@ -3,7 +3,6 @@
 #include "alert_manager.h"
 #include "automaton.h"
 #include "bootstrap.h"
-#include "cell_statistics.h"
 #include "config.h"
 #include "config_manager.h"
 #include "hydra_facade.h"
@@ -74,7 +73,7 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CellMasterLogger;
+constinit const auto Logger = CellMasterLogger;
 static const auto RegisterRetryPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,6 +332,11 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
+        if (Y_UNLIKELY(cellRole == EMasterCellRole::Unknown)) {
+            YT_LOG_ALERT("Unknown cell role specified while selecting master cells by role");
+            return {};
+        }
+
         auto guard = ReaderGuard(MasterCellRolesLock_);
 
         return RoleMasterCells_[cellRole];
@@ -341,6 +345,11 @@ public:
     int GetRoleMasterCellCount(EMasterCellRole cellRole) const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (cellRole == EMasterCellRole::Unknown) {
+            YT_LOG_ALERT("Unknown cell role specified while counting master cells by role");
+            return 0;
+        }
 
         // NB: No locking here - just accessing atomics.
         return RoleMasterCellCounts_[cellRole].load();
@@ -747,13 +756,7 @@ private:
             Load(context, LocalCellStatistics_);
             Load(context, ClusterCellStatisics_);
         }
-        // COMPAT(cherepashka)
-        if (context.GetVersion() >= EMasterReign::DynamicMasterCellReconfigurationOnNodes) {
-            Load(context, EverRegistered_);
-        } else {
-            EverRegistered_ = IsSecondaryMaster();
-        }
-
+        Load(context, EverRegistered_);
         // COMPAT(cherepashka)
         if (context.GetVersion() >= EMasterReign::PrerequisiteTransactionsInSequoia) {
             Load(context, LocalMasterIssuedLeaseIds_);
@@ -1318,7 +1321,11 @@ private:
                 cellTag)
 
             if (newConfig->MulticellManager->AllowMasterCellRoleInvariantCheck) {
-                if (Any(oldRoles & EMasterCellRoles::ChunkHost) && !Any(newRoles & EMasterCellRoles::ChunkHost)) {
+                auto canHostChunks = [] (auto roles) {
+                    return Any(roles & EMasterCellRoles::ChunkHost) || Any(roles & EMasterCellRoles::DedicatedChunkHost);
+                };
+
+                if (canHostChunks(oldRoles) && !canHostChunks(newRoles)) {
                     const auto& multicellNodeStatistics = Bootstrap_->GetMulticellStatisticsCollector()->GetMulticellNodeStatistics();
                     auto chunkCount = multicellNodeStatistics.GetChunkCount(cellTag);
                     auto error = TError(
@@ -1429,6 +1436,11 @@ private:
             MasterCellRolesMap_[cellTag] = roles;
 
             for (auto role : TEnumTraits<EMasterCellRole>::GetDomainValues()) {
+                // TODO(shakurov): introduce GetKnownDomainValues().
+                if (role == EMasterCellRole::Unknown) {
+                    continue;
+                }
+
                 if (Any(roles & EMasterCellRoles(role))) {
                     RoleMasterCells_[role].push_back(cellTag);
                 }
@@ -1462,6 +1474,11 @@ private:
         }
 
         for (auto role : TEnumTraits<EMasterCellRole>::GetDomainValues()) {
+            // TODO(shakurov): introduce GetKnownDomainValues().
+            if (role == EMasterCellRole::Unknown) {
+                continue;
+            }
+
             RoleMasterCellCounts_[role] = std::ssize(RoleMasterCells_[role]);
         }
     }
@@ -1518,7 +1535,7 @@ private:
                     << TErrorAttribute("cell_tag", cellTag);
                 ConflictingCellRolesAlerts_.emplace(cellTag, std::move(alert));
             }
-            return *it->second->Roles;
+            return roles;
         }
 
         return GetDefaultMasterCellRoles(cellTag);

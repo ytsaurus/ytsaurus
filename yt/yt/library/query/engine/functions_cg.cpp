@@ -182,7 +182,7 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
     TCGBaseContext& builder,
     std::vector<TCodegenValue> codegenArguments,
     std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
-    EValueType type,
+    EValueType wireType,
     bool /*aggregate*/,
     const std::string& name) const
 {
@@ -190,7 +190,7 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
     auto llvmArgs = std::vector<Value*>();
 
     std::function<TCGValue(std::vector<Value*>)> callUdf;
-    if (IsStringLikeType(type)) {
+    if (IsStringLikeType(wireType)) {
         auto resultPtrType = GetABIType(builder->getContext(), EValueType::String);
         auto resultPtr = builder->CreateAlloca(
             resultPtrType,
@@ -218,13 +218,13 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
                 builder->getFalse(),
                 builder->CreateLoad(resultLengthType, resultLength),
                 builder->CreateLoad(resultPtrType, resultPtr),
-                type,
+                wireType,
                 Twine(name.c_str()));
         };
     } else {
         callUdf = [&] (std::vector<Value*> argValues) {
             Value* llvmResult = codegenBody(builder, argValues);
-            if (type == EValueType::Boolean) {
+            if (wireType == EValueType::Boolean) {
                 llvmResult = builder->CreateTrunc(llvmResult, builder->getInt1Ty());
             }
 
@@ -233,7 +233,7 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
                 builder->getFalse(),
                 nullptr,
                 llvmResult,
-                type);
+                wireType);
         };
     }
 
@@ -241,23 +241,29 @@ TCGValue TSimpleCallingConvention::MakeCodegenFunctionCall(
         codegenArguments,
         llvmArgs,
         callUdf,
-        type,
+        wireType,
         name,
         builder);
 }
 
 llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
     TCGBaseContext& builder,
-    std::vector<EValueType> argumentTypes,
-    EValueType resultType,
-    bool /*useFunctionContext*/) const
+    const std::vector<TLogicalTypePtr>& argumentTypes,
+    const TLogicalTypePtr& resultType,
+    bool useFunctionContext) const
 {
     llvm::Type* calleeResultType;
     auto calleeArgumentTypes = std::vector<llvm::Type*>();
     calleeArgumentTypes.push_back(PointerType::getUnqual(
         GetOpaqueType(builder, ExecutionContextStructName)));
 
-    if (IsStringLikeType(resultType)) {
+    if (useFunctionContext) {
+        calleeArgumentTypes.push_back(PointerType::getUnqual(
+            GetOpaqueType(builder, FunctionContextStructName)));
+    }
+
+    const auto resultWireType = GetWireType(resultType);
+    if (IsStringLikeType(GetWireType(resultType))) {
         calleeResultType = builder->getVoidTy();
         calleeArgumentTypes.push_back(PointerType::getUnqual(builder->getPtrTy()));
         calleeArgumentTypes.push_back(PointerType::getUnqual(builder->getInt32Ty()));
@@ -265,17 +271,18 @@ llvm::FunctionType* TSimpleCallingConvention::GetCalleeType(
     } else {
         calleeResultType = GetABIType(
             builder->getContext(),
-            resultType);
+            resultWireType);
     }
 
-    for (auto type : argumentTypes) {
-        if (IsStringLikeType(type)) {
+    for (const auto& type : argumentTypes) {
+        const auto wireType = GetWireType(type);
+        if (IsStringLikeType(wireType)) {
             calleeArgumentTypes.push_back(builder->getPtrTy());
             calleeArgumentTypes.push_back(builder->getInt32Ty());
         } else {
             calleeArgumentTypes.push_back(GetABIType(
                 builder->getContext(),
-                type));
+                wireType));
         }
     }
 
@@ -296,7 +303,7 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
     TCGBaseContext& builder,
     std::vector<TCodegenValue> codegenArguments,
     std::function<Value*(TCGBaseContext&, std::vector<Value*>)> codegenBody,
-    EValueType type,
+    EValueType wireType,
     bool aggregate,
     const std::string& /*name*/) const
 {
@@ -415,17 +422,17 @@ TCGValue TUnversionedValueCallingConvention::MakeCodegenFunctionCall(
 
     codegenBody(builder, argumentValues);
 
-    convertToPI(resultPtr, type);
+    convertToPI(resultPtr, wireType);
 
     return aggregate
-        ? TCGValue::LoadFromAggregate(builder, resultPtr, type)
-        : TCGValue::LoadFromRowValue(builder, resultPtr, type);
+        ? TCGValue::LoadFromAggregate(builder, resultPtr, wireType)
+        : TCGValue::LoadFromRowValue(builder, resultPtr, wireType);
 }
 
 llvm::FunctionType* TUnversionedValueCallingConvention::GetCalleeType(
     TCGBaseContext& builder,
-    std::vector<EValueType> argumentTypes,
-    EValueType /*resultType*/,
+    const std::vector<TLogicalTypePtr>& argumentTypes,
+    const TLogicalTypePtr& /*resultType*/,
     bool useFunctionContext) const
 {
     llvm::Type* calleeResultType = builder->getVoidTy();
@@ -666,8 +673,8 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
     TCGVariables* variables,
     std::vector<size_t> argIds,
     std::unique_ptr<bool[]> literalArgs,
-    std::vector<EValueType> argumentTypes,
-    EValueType type,
+    const std::vector<TLogicalTypePtr>& argumentTypes,
+    const TLogicalTypePtr& type,
     const std::string& name,
     EExecutionBackend executionBackend,
     llvm::FoldingSetNodeID* id) const
@@ -738,7 +745,7 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
             builder,
             codegenArguments,
             codegenBody,
-            type,
+            GetWireType(type),
             false,
             name);
     };
@@ -747,9 +754,9 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
 ////////////////////////////////////////////////////////////////////////////////
 
 TCodegenAggregate TExternalAggregateCodegen::Profile(
-    std::vector<EValueType> argumentTypes,
-    EValueType stateType,
-    EValueType resultType,
+    const std::vector<TLogicalTypePtr>& argumentTypes,
+    const TLogicalTypePtr& stateType,
+    const TLogicalTypePtr& resultType,
     const std::string& name,
     EExecutionBackend executionBackend,
     llvm::FoldingSetNodeID* id) const
@@ -768,7 +775,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     auto makeCodegenBody = [
         this,
         this_ = MakeStrong(this),
-        argumentTypes = std::move(argumentTypes),
+        argumentTypes,
         stateType,
         resultType,
         executionBackend,
@@ -781,7 +788,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             this,
             this_,
             executionContext,
-            argumentTypes = std::move(argumentTypes),
+            argumentTypes,
             stateType,
             resultType,
             executionBackend,
@@ -797,12 +804,12 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
 
             auto initType = CallingConvention_->GetCalleeType(
                 builder,
-                std::vector<EValueType>(),
+                {},
                 stateType,
                 false);
             auto init = std::pair(initName, initType);
 
-            std::vector<EValueType> updateArgs = {stateType};
+            std::vector<TLogicalTypePtr> updateArgs = {stateType};
             updateArgs.insert(updateArgs.end(), argumentTypes.begin(), argumentTypes.end());
 
             auto updateType = CallingConvention_->GetCalleeType(
@@ -864,7 +871,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             builder,
             std::vector<TCodegenValue>(),
             makeCodegenBody(initName, buffer),
-            stateType,
+            GetWireType(stateType),
             true,
             name + "_init");
     };
@@ -891,7 +898,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             builder,
             codegenArgs,
             makeCodegenBody(updateName, buffer),
-            stateType,
+            GetWireType(stateType),
             true,
             name + "_update");
     };
@@ -916,7 +923,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             builder,
             codegenArgs,
             makeCodegenBody(mergeName, buffer),
-            stateType,
+            GetWireType(stateType),
             true,
             name + "_merge");
     };
@@ -938,7 +945,7 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
             builder,
             codegenArgs,
             makeCodegenBody(finalizeName, buffer),
-            resultType,
+            GetWireType(resultType),
             true,
             name + "_finalize");
     };

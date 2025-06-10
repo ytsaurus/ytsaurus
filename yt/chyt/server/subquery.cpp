@@ -75,6 +75,7 @@
 #include <yt/yt/core/ytree/convert.h>
 
 #include <Storages/MergeTree/KeyCondition.h>
+#include <Storages/VirtualColumnsDescription.h>
 #include <DataTypes/DataTypeNullable.h>
 
 #include <cmath>
@@ -122,6 +123,7 @@ public:
     //! Number of operands to join. May be either 1 (if no JOIN present or joinee is not a YT table) or 2 (otherwise).
     DEFINE_BYREF_RW_PROPERTY(int, OperandCount, 0);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTablePtr>, InputTables);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<std::shared_ptr<IChytIndexStat>>, IndexStats);
 
 public:
     TInputFetcher(
@@ -210,7 +212,9 @@ private:
     //! Fetch input tables. Result goes to ResultStripeList_.
     void DoFetch()
     {
-        FilterTablesByVirtualColumnIndex();
+        if (auto virtualColumnIndexStat = FilterTablesByVirtualColumnIndex(); virtualColumnIndexStat != nullptr) {
+            IndexStats_.push_back(virtualColumnIndexStat);
+        }
 
         FetchTables();
 
@@ -242,6 +246,8 @@ private:
             columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
         }
 
+        i64 totalFilteredRowCount = 0;
+        i64 totalFilteredDataWeight = 0;
         for (int operandIndex = 0; operandIndex < std::ssize(ResultStripes_); ++operandIndex) {
             auto& stripe = ResultStripes_[operandIndex];
             auto& dataSlices = stripe->DataSlices;
@@ -263,10 +269,12 @@ private:
                 using namespace NStatisticPath;
                 if (needToRemove) {
                     QueryContext_->AddStatisticsSample("/input_fetcher/filtered_data_slices/row_count"_SP, dataSlice->GetRowCount());
-                    QueryContext_->AddStatisticsSample("/input_fetcher/filtered_data_slices/data_weight"_SP, dataSlice->GetRowCount());
+                    totalFilteredRowCount += dataSlice->GetRowCount();
+                    QueryContext_->AddStatisticsSample("/input_fetcher/filtered_data_slices/data_weight"_SP, dataSlice->GetDataWeight());
+                    totalFilteredDataWeight += dataSlice->GetDataWeight();
                 } else {
                     QueryContext_->AddStatisticsSample("/input_fetcher/data_slices/row_count"_SP, dataSlice->GetRowCount());
-                    QueryContext_->AddStatisticsSample("/input_fetcher/data_slices/data_weight"_SP, dataSlice->GetRowCount());
+                    QueryContext_->AddStatisticsSample("/input_fetcher/data_slices/data_weight"_SP, dataSlice->GetDataWeight());
                 }
 
                 return needToRemove;
@@ -281,6 +289,15 @@ private:
             ResultStripeList_->TotalChunkCount,
             ResultStripeList_->TotalDataWeight,
             ResultStripeList_->TotalRowCount);
+
+        if (totalFilteredRowCount > 0) {
+            IndexStats_.push_back(CreateKeyConditionIndexStat(
+                ResultStripeList_->TotalRowCount,
+                ResultStripeList_->TotalDataWeight,
+                totalFilteredRowCount,
+                totalFilteredDataWeight
+            ));
+        }
     }
 
     //! Create set index for present virtual columns.
@@ -298,10 +315,10 @@ private:
     }
 
     //! Check if query condition can be true on tables. Fill CanBeTrueOnTable_.
-    void FilterTablesByVirtualColumnIndex()
+    std::shared_ptr<IChytIndexStat> FilterTablesByVirtualColumnIndex()
     {
         if (VirtualColumnNames_.empty()) {
-            return;
+            return nullptr;
         }
 
         auto index = CreateVirtualColumnIndex();
@@ -309,7 +326,7 @@ private:
 
         // For example if 'where' condition does not depend on virtual columns.
         if (condition->alwaysUnknownOrTrue()) {
-            return;
+            return nullptr;
         }
 
         int discardedByIndex = 0;
@@ -364,6 +381,11 @@ private:
         YT_LOG_DEBUG("Tables were filtered by virtual column index (TotalTableCount: %v, DiscardedByIndex: %v)",
             InputTables_.size(),
             discardedByIndex);
+
+        if (discardedByIndex > 0) {
+            return CreateVirtualColumnIndexStat(discardedByIndex, InputTables_.size());
+        }
+        return nullptr;
     }
 
     //! Fetch all tables and fill ResultStripes_.
@@ -854,6 +876,7 @@ TQueryInput FetchInput(
         .MiscExtMap = std::move(inputFetcher->MiscExtMap()),
         .DataSourceDirectory = std::move(inputFetcher->DataSourceDirectory()),
         .InputStreamDirectory = std::move(inputFetcher->InputStreamDirectory()),
+        .IndexStats = std::move(inputFetcher->IndexStats()),
     };
 }
 

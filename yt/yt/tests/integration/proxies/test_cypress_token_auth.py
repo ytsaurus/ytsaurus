@@ -1,7 +1,9 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import (
-    authors, create_user, issue_token, revoke_token, wait, get, set_user_password
+    authors, create_user, issue_token, revoke_token, list_user_tokens,
+    wait, get, set, set_user_password, create, remove
 )
+from yt.environment.helpers import assert_items_equal
 
 import pytest
 
@@ -42,6 +44,10 @@ class TestCypressTokenAuthBase(YTEnvSetup):
     def _compute_sha256(self, value):
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
+    def teardown_method(self, method):
+        super().teardown_method(method)
+        remove("//sys/cypress_tokens/*")
+
 
 @pytest.mark.enabled_multidaemon
 class TestCypressTokenAuth(TestCypressTokenAuthBase):
@@ -81,6 +87,84 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         self._check_allow(token=t)  # Activate cache.
         revoke_token("u2", t_hash)
         wait(lambda: self._check_deny(token=t))
+
+    @authors("pavel-bash")
+    def test_list_user_tokens(self):
+        create_user("u1")
+        _, t1_hash = issue_token("u1")
+        _, t2_hash = issue_token("u1")
+        assert_items_equal(list_user_tokens("u1"), [t1_hash, t2_hash])
+
+        create_user("u2")
+        _, t3_hash = issue_token("u2")
+        assert_items_equal(list_user_tokens("u2"), [t3_hash])
+
+    @authors("pavel-bash")
+    def test_correct_user_id_in_token(self):
+        create_user("u1")
+        user1_id = get("//sys/users/u1/@id")
+        _, t1_hash = issue_token("u1")
+        assert get(f"//sys/cypress_tokens/{t1_hash}/@user_id") == user1_id
+
+        create_user("u2")
+        user2_id = get("//sys/users/u2/@id")
+        _, t2_hash = issue_token("u2")
+        assert get(f"//sys/cypress_tokens/{t2_hash}/@user_id") == user2_id
+
+        assert user1_id != user2_id
+
+    @authors("pavel-bash")
+    def test_username_to_user_id_backward_compatibility_issue_revoke(self):
+        # In this test we're manually issuing the token using the old schema;
+        # the authentication and token revocation should still succeed.
+        create_user("u1")
+        token = "XXX"
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        create("file", f"//sys/cypress_tokens/{token_hash}", attributes={"user": "u1", "token_prefix": ""})
+        self._check_allow(token=token)
+
+        revoke_token("u1", token_hash)
+        wait(lambda: self._check_deny(token=token))
+
+    @authors("pavel-bash")
+    def test_username_to_user_id_backward_compatibility_list_mixed(self):
+        # Tokens from the old schema and from the new schema must both be listed.
+        create_user("u1")
+        token_manual = "XXX"
+        token_manual_hash = hashlib.sha256(token_manual.encode("utf-8")).hexdigest()
+        create("file", f"//sys/cypress_tokens/{token_manual_hash}", attributes={"user": "u1", "token_prefix": ""})
+
+        _, token_usual_hash = issue_token("u1")
+
+        assert_items_equal(list_user_tokens("u1"), [token_manual_hash, token_usual_hash])
+
+
+@pytest.mark.enabled_multidaemon
+class TestCypressTokenAuthWithoutCache(TestCypressTokenAuthBase):
+    DELTA_PROXY_CONFIG = {
+        "auth": {
+            "enable_authentication": True,
+            "cypress_token_authenticator": {
+                "cache": {
+                    "cache_ttl": "1ms",
+                    "optimistic_cache_ttl": "1ms",
+                    "error_ttl": "1ms",
+                },
+            },
+        },
+    }
+    ENABLE_MULTIDAEMON = True
+
+    @authors("pavel-bash")
+    def test_user_rename(self):
+        # This test does not pass when the cache is used; at least, until we introduce the logic
+        # of authentication cache invalidation.
+        create_user("u1")
+        t, _ = issue_token("u1")
+        self._check_allow(token=t)
+
+        set("//sys/users/u1/@name", "u2")
+        self._check_allow(token=t)
 
 
 @pytest.mark.enabled_multidaemon
