@@ -560,14 +560,17 @@ IChunkPoolOutput::TCookie TNewJobManager::AddJob(std::unique_ptr<TNewJobStub> jo
         return outputCookie;
     }
 
-    YT_LOG_DEBUG("Job added to job manager (Index: %v, PrimaryDataWeight: %v, PrimaryRowCount: %v, "
-        "PrimarySliceCount: %v, ForeignDataWeight: %v, ForeignRowCount: %v, "
-        "ForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
+    YT_LOG_DEBUG(
+        "Job added to job manager (Index: %v, PrimaryDataWeight: %v, PrimaryCompressedDataSize: %v, "
+        "PrimaryRowCount: %v, PrimarySliceCount: %v, ForeignDataWeight: %v, ForeignCompressedDataSize: %v, "
+        "ForeignRowCount: %v, ForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
         outputCookie,
         jobStub->GetPrimaryDataWeight(),
+        jobStub->GetPrimaryCompressedDataSize(),
         jobStub->GetPrimaryRowCount(),
         jobStub->GetPrimarySliceCount(),
         jobStub->GetForeignDataWeight(),
+        jobStub->GetForeignCompressedDataSize(),
         jobStub->GetForeignRowCount(),
         jobStub->GetForeignSliceCount(),
         jobStub->GetPrimaryLowerBound(),
