@@ -3441,14 +3441,14 @@ private:
             auto* currentTransaction = queue.Pop();
             callback(currentTransaction);
 
-            for (auto nextTransaction : currentTransaction->NestedTransactions()) {
-                tryEnqueue(nextTransaction);
-            }
-            TCompactVector<TTransaction*, 16> dependentTransactions(
-                currentTransaction->DependentTransactions().begin(),
-                currentTransaction->DependentTransactions().end());
-            SortUniqueBy(dependentTransactions, std::mem_fn(&TTransaction::GetId));
-            for (auto* nextTransaction : dependentTransactions) {
+            TCompactVector<TTransaction*, 16> nextTransactions(
+                currentTransaction->NestedTransactions().size() + currentTransaction->DependentTransactions().size());
+            std::ranges::copy(currentTransaction->NestedTransactions(), nextTransactions.begin());
+            std::ranges::copy(
+                currentTransaction->DependentTransactions(),
+                nextTransactions.begin() + currentTransaction->NestedTransactions().size());
+            SortUniqueBy(nextTransactions, std::mem_fn(&TTransaction::GetId));
+            for (auto* nextTransaction : nextTransactions) {
                 tryEnqueue(nextTransaction);
             }
         }
