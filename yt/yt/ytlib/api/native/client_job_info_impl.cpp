@@ -130,7 +130,6 @@ static const THashSet<TString> SupportedJobsAttributes = {
     "progress",
     "exec_attributes",
     "events",
-    "statistics",
     "is_stale",
 };
 
