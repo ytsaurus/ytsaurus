@@ -59,7 +59,7 @@ struct TParsedChunkReplica
 {
     NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
     int ReplicaIndex = NChunkClient::GenericChunkReplicaIndex;
-    NChunkClient::TChunkLocationUuid LocationUuid;
+    NNodeTrackerClient::TChunkLocationIndex LocationIndex = NNodeTrackerClient::InvalidChunkLocationIndex;
 };
 
 template <class TOnReplica>

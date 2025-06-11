@@ -41,6 +41,7 @@ using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NObjectClient;
 using namespace NTableClient;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +71,7 @@ namespace {
                     .ChunkId = chunkId,
                     .ReplicaIndex = parsedReplica.ReplicaIndex,
                     .NodeId = parsedReplica.NodeId,
-                    .LocationUuid = parsedReplica.LocationUuid,
+                    .LocationIndex = parsedReplica.LocationIndex,
                 });
             });
     }
@@ -164,7 +165,7 @@ public:
 
     TFuture<std::vector<NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
         TNodeId nodeId,
-        TChunkLocationUuid locationUuid) const override
+        TChunkLocationIndex locationIndex) const override
     {
         YT_VERIFY(!HasMutationContext());
         VerifyPersistentStateRead();
@@ -181,7 +182,7 @@ public:
                 .WhereConjuncts = {
                     Format("cell_tag = %v", Bootstrap_->GetCellTag()),
                     Format("node_id = %v", nodeId),
-                    Format("location_uuid = %Qv", locationUuid),
+                    Format("location_index = %v", locationIndex),
                 }
             }).Apply(BIND([retriableErrorCodes] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& result) {
                 ThrowOnSequoiaReplicasError(result, retriableErrorCodes);
@@ -462,12 +463,12 @@ private:
                 for (const auto& replicas : sequoiaReplicas) {
                     for (const auto& replica : replicas) {
                         auto chunkId = replica.ChunkId;
-                        auto locationUuid = replica.LocationUuid;
-                        auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+                        auto locationIndex = replica.LocationIndex;
+                        auto* location = dataNodeTracker->FindChunkLocationByIndex(locationIndex);
                         if (!IsObjectAlive(location)) {
-                            YT_LOG_ALERT("Found Sequoia chunk replica with a non-existent location (ChunkId: %v, LocationUuid: %v)",
+                            YT_LOG_ALERT("Found Sequoia chunk replica with a non-existent location (ChunkId: %v, LocationIndex: %v)",
                                 chunkId,
-                                locationUuid);
+                                locationIndex);
                             continue;
                         }
 

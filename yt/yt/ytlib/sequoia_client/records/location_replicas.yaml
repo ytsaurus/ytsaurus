@@ -17,17 +17,10 @@ types:
         column_type: Uint32
         sort_order: Ascending
 
-      - cpp_name: LocationUuidHash
-        cpp_type: ui64
-        column_name: location_uuid_hash
-        column_type: Uint64
-        sort_order: Ascending
-        expression: farm_hash(location_uuid)
-
-      - cpp_name: LocationUuid
-        cpp_type: NChunkClient::TChunkLocationUuid
-        column_name: location_uuid
-        column_type: String
+      - cpp_name: LocationIndex
+        cpp_type: NNodeTrackerClient::TChunkLocationIndex
+        column_name: location_index
+        column_type: Uint32
         sort_order: Ascending
 
       - cpp_name: ChunkId
