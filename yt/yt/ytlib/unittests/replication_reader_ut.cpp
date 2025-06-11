@@ -12,7 +12,7 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/ytlib/unittests/misc/test_connection.h>
+#include <yt/yt/ytlib/test_framework/test_connection.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/test_framework/test_proxy_service.h>
@@ -482,6 +482,15 @@ INSTANTIATE_TEST_SUITE_P(
     TReplicationReaderTest,
     ::testing::Values(
         TTestCase{},
+        TTestCase{
+            .BatchCount = 16,
+            .NodeCount = 3,
+            .BlockCount = 1024,
+            .RequestInBatch = 32,
+            .BlockInRequest = 16,
+            .Sequentially = true,
+            .EnableChunkProber = false,
+        },
         TTestCase{
             .BatchCount = 16,
             .NodeCount = 3,
