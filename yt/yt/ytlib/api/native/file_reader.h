@@ -13,7 +13,8 @@ namespace NYT::NApi::NNative {
 TFuture<IFileReaderPtr> CreateFileReader(
     IClientPtr client,
     const NYPath::TYPath& path,
-    const TFileReaderOptions& options);
+    const TFileReaderOptions& options,
+    IMemoryUsageTrackerPtr memoryUsageTracker = GetNullMemoryUsageTracker());
 
 ////////////////////////////////////////////////////////////////////////////////
 
