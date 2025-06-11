@@ -4133,6 +4133,12 @@ class TestQueueStaticExportOldImpl(TestQueueStaticExport):
 
 # COMPAT(apachee): Checking compatability for swithcing between queue exporter implementations
 class TestQueueExporterImplementationSwitch(TestQueueStaticExportBase):
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "dynamic_config_manager": {
+            "update_period": 1000,  # 1 second
+        }
+    }
+
     @authors("apachee")
     @pytest.mark.parametrize("queue_exporter_implementation", ["old", "new"])
     def test_basic(self, queue_exporter_implementation):
@@ -4188,6 +4194,46 @@ class TestQueueExporterImplementationSwitch(TestQueueStaticExportBase):
         exporter_orchid_value = exporter_orchid.get()
 
         self.remove_export_destination(export_dir)
+
+    @authors("apachee")
+    def test_enable_new_implementation(self):
+        orchid = QueueAgentOrchid()
+
+        self._switch_queue_exporter_implementation("new")
+
+        _, queue_id = self._create_queue("//tmp/q")
+        queue_orchid = orchid.get_queue_orchid("primary://tmp/q")
+
+        self._wait_for_global_sync()
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        inf_unix_ts = 10 ** 10
+        inf_instant = datetime.datetime.fromtimestamp(inf_unix_ts, tz=pytz.UTC).isoformat().replace("+00:00", ".000000Z")
+        set("//tmp/export/@queue_static_export_progress", {
+            "last_successful_export_task_instant": inf_instant,
+            "last_successful_export_iteration_instant": inf_instant,
+            "last_export_task_instant": inf_instant,
+            "last_export_unix_ts": inf_unix_ts,
+            "tablets": {},
+            "queue_object_id": queue_id,
+        })
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 100 * 1000,
+            },
+        })
+
+        exporter_orchid = queue_orchid.get_exporter_orchid()
+
+        wait(lambda: exporter_orchid.get().attributes["queue_exporter_implementation_type"] == "new", timeout=10, ignore_exceptions=True)
+
+        wait(lambda: exporter_orchid.get_last_successful_export_unix_ts() >= inf_unix_ts)
+
+        wait(lambda: len(queue_orchid.get_alerts()) == 0, timeout=10)
 
 
 class TestQueueExporterRetries(TestQueueStaticExportBase):
