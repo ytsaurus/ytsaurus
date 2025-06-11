@@ -28,7 +28,7 @@ pragma yt.TableContentLocalExecution;
 pragma yt.UseNewPredicateExtraction="true";
 pragma yt.LookupJoinMaxRows="2000";
 pragma yt.MaxKeyRangeCount="2000";
-pragma yt.MaxExtraJobMemoryToFuseOperations="3G";
+pragma yt.MaxExtraJobMemoryToFuseOperations="4G";
 pragma yt.JobBlockInput;
 pragma yt.JobBlockTableContent;
 pragma BlockEngine='auto';
