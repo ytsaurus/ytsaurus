@@ -65,6 +65,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((OrderedAndSortedJobSizeAdjuster)       (301805))
     ((RemoveAddressFromJob)                  (301806))
     ((IntroduceInputStatistics)              (301807))
+    ((DropUnusedFieldInJobSizeConstraints)   (301808))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

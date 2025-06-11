@@ -25,6 +25,21 @@ static constexpr i64 InfiniteCount = std::numeric_limits<i64>::max() / 4;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! When neither data_size_per_job nor job_count are specified,
+//! we need to get a hint about job size from another source.
+DEFINE_ENUM(EDataSizePerMergeJobHint,
+    //! Use the value from T${OperationType}OperationOptions
+    //! from the dynamic config. Useful when DesiredChunkSize is meaningless
+    //! (for example, when remote_copying files).
+    (OperationOptions)
+    //! Try to optimize writer's memory using
+    //! #TMultiChunkWriterConfig::DesiredChunkSize.
+    (DesiredChunkSize)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 class TJobSizeConstraintsBase
     : public IJobSizeConstraints
 {
@@ -303,8 +318,7 @@ public:
         i64 foreignInputDataWeight,
         i64 foreignInputCompressedDataSize,
         int inputTableCount,
-        int primaryInputTableCount,
-        bool sortedOperation)
+        int primaryInputTableCount)
         : TJobSizeConstraintsBase(
             primaryInputDataWeight + foreignInputDataWeight,
             primaryInputCompressedDataSize + foreignInputCompressedDataSize,
@@ -320,7 +334,6 @@ public:
             spec->Sampling)
         , Spec_(spec)
         , Options_(options)
-        , SortedOperation_(sortedOperation)
     {
         i64 dataWeightPerJob = [&] {
             if (Spec_->DataWeightPerJob.has_value() || !Spec_->CompressedDataSizePerJob.has_value()) {
@@ -409,7 +422,6 @@ public:
 private:
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
-    bool SortedOperation_;
 
     i64 GetPrimaryCompressedDataSizePerJob() const
     {
@@ -498,7 +510,13 @@ void TUserJobSizeConstraints::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(1, Spec_);
     PHOENIX_REGISTER_FIELD(2, Options_);
-    PHOENIX_REGISTER_FIELD(3, SortedOperation_);
+
+    registrar
+        .template VirtualField<3>("SortedOperation_", [] (TThis* /*this_*/, auto& context) {
+            bool sortedOperation;
+            NYT::Load(context, sortedOperation);
+        })
+        .BeforeVersion(ESnapshotVersion::DropUnusedFieldInJobSizeConstraints)();
 }
 
 PHOENIX_DEFINE_TYPE(TUserJobSizeConstraints);
@@ -916,8 +934,7 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     i64 foreignInputDataWeight,
     i64 foreignInputCompressedDataSize,
     int inputTableCount,
-    int primaryInputTableCount,
-    bool sortedOperation)
+    int primaryInputTableCount)
 {
     return New<TUserJobSizeConstraints>(
         spec,
@@ -932,8 +949,7 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
         foreignInputDataWeight,
         foreignInputCompressedDataSize,
         inputTableCount,
-        primaryInputTableCount,
-        sortedOperation);
+        primaryInputTableCount);
 }
 
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
@@ -946,8 +962,7 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     double dataWeightRatio,
     double compressionRatio,
     int mergeInputTableCount,
-    int mergePrimaryInputTableCount,
-    EDataSizePerMergeJobHint dataSizeHint)
+    int mergePrimaryInputTableCount)
 {
     return New<TMergeJobSizeConstraints>(
         spec,
@@ -960,7 +975,7 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
         compressionRatio,
         mergeInputTableCount,
         mergePrimaryInputTableCount,
-        dataSizeHint);
+        EDataSizePerMergeJobHint::DesiredChunkSize);
 }
 
 IJobSizeConstraintsPtr CreateRemoteCopyJobSizeConstraints(
