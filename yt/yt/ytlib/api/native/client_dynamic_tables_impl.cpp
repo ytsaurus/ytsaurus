@@ -1082,7 +1082,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
         auto pickInSyncReplicas = [&] {
             if (tableInfo->ReplicationCardId) {
-                auto replicationCard = GetSyncReplicationCard(Connection_, tableInfo);
+                auto replicationCard = GetSyncReplicationCard(Connection_, tableInfo->ReplicationCardId);
                 bannedReplicaTracker->SyncReplicas(replicationCard);
 
                 auto replicaIds = GetChaosTableInSyncReplicas(
