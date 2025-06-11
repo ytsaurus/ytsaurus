@@ -4,6 +4,10 @@
 #include <util/system/interrupt_signals.h>
 #include <yt/yql/providers/yt/fmr/coordinator/server/yql_yt_coordinator_server.h>
 #include <yt/yql/providers/yt/fmr/coordinator/impl/yql_yt_coordinator_impl.h>
+#include <yt/yql/providers/yt/fmr/gc_service/impl/yql_yt_gc_service_impl.h>
+#include <yt/yql/providers/yt/fmr/table_data_service/client/impl/yql_yt_table_data_service_client_impl.h>
+#include <yt/yql/providers/yt/fmr/table_data_service/discovery/file/yql_yt_file_service_discovery.h>
+#include <yt/yql/providers/yt/fmr/table_data_service/interface/yql_yt_table_data_service.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/log_component.h>
 #include <yql/essentials/utils/mem_limit.h>
@@ -20,6 +24,7 @@ public:
     ui32 WorkersNum;
     int Verbosity;
     TString FmrOperationSpecFilePath;
+    TString TableDataServiceDiscoveryFilePath;
 
     void InitLogger() {
         NLog::ELevel level = NLog::ELevelHelpers::FromInt(Verbosity);
@@ -46,6 +51,7 @@ int main(int argc, const char *argv[]) {
         opts.AddLongOption('v', "verbosity", "Logging verbosity level").StoreResult(&options.Verbosity).DefaultValue(static_cast<int>(TLOG_ERR));
         opts.AddLongOption("mem-limit", "Set memory limit in megabytes").Handler1T<ui32>(0, SetAddressSpaceLimit);
         opts.AddLongOption('s', "fmr-operation-spec-path", "Path to file with fmr operation spec settings").Optional().StoreResult(&options.FmrOperationSpecFilePath);
+        opts.AddLongOption('d', "table-data-service-discovery-file-path", "Table data service discovery file path").StoreResult(&options.TableDataServiceDiscoveryFilePath);
         opts.SetFreeArgsMax(0);
 
         auto res = NLastGetopt::TOptsParseResult(&opts, argc, argv);
@@ -61,7 +67,14 @@ int main(int argc, const char *argv[]) {
             coordinatorSettings.DefaultFmrOperationSpec = fmrOperationSpec;
         }
         TFmrCoordinatorServerSettings coordinatorServerSettings{.Port = options.Port, .Host = options.Host};
-        auto coordinator = MakeFmrCoordinator(coordinatorSettings);
+        ITableDataService::TPtr tableDataService = nullptr;
+        if (options.TableDataServiceDiscoveryFilePath) {
+            auto tableDataServiceDiscovery = MakeFileTableDataServiceDiscovery({.Path = options.TableDataServiceDiscoveryFilePath});
+            tableDataService = MakeTableDataServiceClient(tableDataServiceDiscovery);
+        }
+
+        auto gcService = MakeGcService(tableDataService);
+        auto coordinator = MakeFmrCoordinator(coordinatorSettings, MakeYtCoordinatorService(), gcService);
         auto coordinatorServer = MakeFmrCoordinatorServer(coordinator, coordinatorServerSettings);
         coordinatorServer->Start();
 

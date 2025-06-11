@@ -20,7 +20,8 @@ enum class EOperationHandler {
     GetOperation,
     DeleteOperation,
     SendHeartbeatResponse,
-    GetFmrTableInfo
+    GetFmrTableInfo,
+    ClearSession
 };
 
 class TReplier: public TRequestReplier {
@@ -65,6 +66,8 @@ private:
         } else if (queryPath == "fmr_table_info") {
             YQL_ENSURE(httpRequest.Method == "GET");
             return EOperationHandler::GetFmrTableInfo;
+        } else if (queryPath == "clear_session") {
+            return EOperationHandler::ClearSession;
         }
         return Nothing();
     }
@@ -84,6 +87,8 @@ public:
         THandler deleteOperationHandler = std::bind(&TFmrCoordinatorServer::DeleteOperationHandler, this, std::placeholders::_1);
         THandler sendHeartbeatResponseHandler = std::bind(&TFmrCoordinatorServer::SendHeartbeatResponseHandler, this, std::placeholders::_1);
         THandler getFmrTableInfoHandler = std::bind(&TFmrCoordinatorServer::GetFmrTableInfoHandler, this, std::placeholders::_1);
+        THandler clearSessionHandler = std::bind(&TFmrCoordinatorServer::ClearSessionHandler, this, std::placeholders::_1);
+
 
 
         Handlers_ = std::unordered_map<EOperationHandler, THandler>{
@@ -91,7 +96,8 @@ public:
             {EOperationHandler::GetOperation, getOperationHandler},
             {EOperationHandler::DeleteOperation, deleteOperationHandler},
             {EOperationHandler::SendHeartbeatResponse, sendHeartbeatResponseHandler},
-            {EOperationHandler::GetFmrTableInfo, getFmrTableInfoHandler}
+            {EOperationHandler::GetFmrTableInfo, getFmrTableInfoHandler},
+            {EOperationHandler::ClearSession, clearSessionHandler}
         };
     }
 
@@ -187,6 +193,17 @@ private:
         THttpResponse httpResponse(HTTP_OK);
         httpResponse.SetContentType("application/x-protobuf");
         httpResponse.SetContent(protoFmrTableInfoResponse.SerializeAsString());
+        return httpResponse;
+    }
+
+    THttpResponse ClearSessionHandler(THttpInput& input) {
+        YQL_LOG_CTX_ROOT_SESSION_SCOPE(GetLogContext(input));
+
+        NProto::TClearSessionRequest protoClearSessionRequest;
+        YQL_ENSURE(protoClearSessionRequest.ParseFromString(input.ReadAll()));
+
+        Coordinator_->ClearSession(ClearSessionRequestFromProto(protoClearSessionRequest)).GetValueSync();
+        THttpResponse httpResponse(HTTP_OK);
         return httpResponse;
     }
 };
