@@ -9,6 +9,8 @@
 #include <yt/yt/server/lib/signature/signature_header.h>
 #include <yt/yt/server/lib/signature/signature_preprocess.h>
 
+#include <yt/yt/client/api/rpc_proxy/helpers.h>
+
 #include <yt/yt/client/signature/signature.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -21,6 +23,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace std::chrono_literals;
+using namespace NApi::NRpcProxy;
 using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
@@ -119,7 +122,13 @@ TEST_F(TSignatureGeneratorTest, UninitializedSign)
     EXPECT_TRUE(Store->Data.empty());
 
     std::string data("MyImportantData");
-    EXPECT_THROW_WITH_SUBSTRING(Y_UNUSED(Gen->Sign(data)), "uninitialized generator");
+    EXPECT_THROW_WITH_SUBSTRING(Y_UNUSED(Gen->Sign(data)), "not ready yet");
+
+    try {
+        Y_UNUSED(Gen->Sign(data));
+    } catch(const std::exception& exception) {
+        EXPECT_TRUE(IsRetriableError(exception));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
