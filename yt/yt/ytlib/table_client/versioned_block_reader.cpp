@@ -650,7 +650,7 @@ TMutableVersionedRow TVersionedRowReader<TIndexedVersionedRowParser>::ProcessAnd
         groupIndexes,
         &RowMetadata_);
 
-    return GetRow(memoryPool);
+    return GetMutableVersionedRow(memoryPool);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -682,12 +682,12 @@ THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockRe
     , Timestamp_(timestamp)
 { }
 
-TLegacyKey THorizontalSchemalessVersionedBlockReader::GetKey() const
+TLegacyKey THorizontalSchemalessVersionedBlockReader::GetLegacyKey() const
 {
     return THorizontalBlockReader::GetLegacyKey();
 }
 
-TMutableVersionedRow THorizontalSchemalessVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
+TMutableVersionedRow THorizontalSchemalessVersionedBlockReader::GetMutableVersionedRow(TChunkedMemoryPool* memoryPool)
 {
     auto row = THorizontalBlockReader::GetVersionedRow(memoryPool, Timestamp_);
 

@@ -35,7 +35,7 @@ TVersionedRowReader<TRowParser>::TVersionedRowReader(
 }
 
 template <typename TRowParser>
-TLegacyKey TVersionedRowReader<TRowParser>::GetKey() const
+TLegacyKey TVersionedRowReader<TRowParser>::GetLegacyKey() const
 {
     YT_VERIFY(Parser_.IsValid());
     return RowMetadata_.Key;
@@ -59,7 +59,7 @@ TMutableVersionedRow TVersionedRowReader<TIndexedVersionedRowParser>::ProcessAnd
     TChunkedMemoryPool* memoryPool);
 
 template <typename TRowParser>
-TMutableVersionedRow TVersionedRowReader<TRowParser>::GetRow(TChunkedMemoryPool* memoryPool)
+TMutableVersionedRow TVersionedRowReader<TRowParser>::GetMutableVersionedRow(TChunkedMemoryPool* memoryPool)
 {
     return ProduceAllVersions_
         ? ReadRowAllVersions(memoryPool)
@@ -287,7 +287,7 @@ bool TVersionedBlockReader<TBlockParser>::SkipToKey(TLegacyKey key)
         return CompareKeys(pivot, key, KeyComparer_) >= 0;
     };
 
-    if (inBound(GetKey())) {
+    if (inBound(GetLegacyKey())) {
         // We are already further than pivot key.
         return true;
     }
@@ -298,17 +298,17 @@ bool TVersionedBlockReader<TBlockParser>::SkipToKey(TLegacyKey key)
         [&] (int rowIndex) {
             // TODO(akozhikhov): Optimize?
             YT_VERIFY(JumpToRowIndex(rowIndex));
-            return !inBound(GetKey());
+            return !inBound(GetLegacyKey());
         });
 
     return JumpToRowIndex(rowIndex);
 }
 
 template <typename TBlockParser>
-TMutableVersionedRow TVersionedBlockReader<TBlockParser>::GetRow(TChunkedMemoryPool* memoryPool)
+TMutableVersionedRow TVersionedBlockReader<TBlockParser>::GetMutableVersionedRow(TChunkedMemoryPool* memoryPool)
 {
     YT_VERIFY(Parser_.IsValid());
-    return TVersionedRowReader<TBlockParser>::GetRow(memoryPool);
+    return TVersionedRowReader<TBlockParser>::GetMutableVersionedRow(memoryPool);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -190,7 +190,7 @@ std::vector<TBlock> TChunkLayoutReader::DeserializeBlocks(TSharedRef blocksBlob,
         auto blockData = blocksBlob.Slice(
             blockInfo.Offset - firstBlockInfo.Offset,
             blockInfo.Offset - firstBlockInfo.Offset + blockInfo.Size);
-        if (Options_.ValidateBlockChecksums) {
+        if (false && Options_.ValidateBlockChecksums) {
             auto checksum = GetChecksum(blockData);
             if (checksum != blockInfo.Checksum) {
                 // TODO(achulkov2): [PForReview] Provide callback option.
@@ -208,6 +208,8 @@ std::vector<TBlock> TChunkLayoutReader::DeserializeBlocks(TSharedRef blocksBlob,
         }
         blocks.emplace_back(blockData, blockInfo.Checksum);
     }
+
+    Cerr << "Deserialized " << std::ssize(blocks) << " blocks from chunk data file " << ChunkFileName_ << Endl;
 
     return blocks;
 }

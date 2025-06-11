@@ -278,6 +278,9 @@ public:
     const TColumnSchema& GetColumnOrThrow(TStringBuf name) const;
     std::vector<std::string> GetColumnNames() const;
 
+    //! TODO(achulkov2): Explain.
+    std::vector<std::string> GetColumnNames(const std::optional<TNameMapping>& nameMapping) const;
+
     TTableSchemaPtr Filter(
         const TColumnFilter& columnFilter,
         bool discardSortOrder = false) const;

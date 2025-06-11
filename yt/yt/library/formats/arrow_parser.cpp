@@ -1558,50 +1558,7 @@ public:
     {
         CurrentState_ = EListenerState::RecordBatch;
 
-        struct TArrowParserTag
-        { };
-
-        auto bufferForStringLikeValues = std::make_shared<TChunkedOutputStream>(
-            GetRefCountedTypeCookie<TArrowParserTag>(),
-            256_KB,
-            1_MB);
-
-        auto numColumns = batch->num_columns();
-        auto numRows = batch->num_rows();
-        std::vector<TUnversionedRowValues> rowsValues(numColumns, TUnversionedRowValues(numRows));
-
-        for (int columnIndex = 0; columnIndex < numColumns; ++columnIndex) {
-            auto columnName = batch->column_name(columnIndex);
-
-            auto columnId = Consumer_->GetNameTable()->GetIdOrRegisterName(columnName);
-            auto columnSchema = Consumer_->GetSchema()->FindColumn(columnName);
-
-            auto columnType = columnSchema
-                ? columnSchema->LogicalType()
-                : OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
-            auto denullifiedColumnType = DenullifyLogicalType(columnType);
-            try {
-                PrepareArray(
-                    denullifiedColumnType,
-                    bufferForStringLikeValues,
-                    batch->column(columnIndex),
-                    rowsValues,
-                    columnIndex,
-                    columnId);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to parse column %Qv", columnName)
-                    << ex;
-            }
-        }
-
-        for (int rowIndex = 0; rowIndex < numRows; ++rowIndex) {
-            Consumer_->OnBeginRow();
-            for (int columnIndex = 0; columnIndex < numColumns; ++columnIndex) {
-                Consumer_->OnValue(rowsValues[columnIndex][rowIndex]);
-            }
-            Consumer_->OnEndRow();
-        }
-        return arrow::Status::OK();
+        return DecodeRecordBatch(batch, Consumer_);
     }
 
     void Reset()
@@ -1678,6 +1635,7 @@ public:
     void Finish() override
     {
         if (LastState_ == EListenerState::InProgress) {
+            Cerr << "I am bad!" << Endl;
             THROW_ERROR_EXCEPTION("Unexpected end of stream");
         }
     }
@@ -1690,6 +1648,57 @@ private:
 };
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+arrow::Status DecodeRecordBatch(const std::shared_ptr<arrow::RecordBatch>& batch, IValueConsumer* consumer)
+{
+    struct TArrowParserTag
+    { };
+
+    auto bufferForStringLikeValues = std::make_shared<TChunkedOutputStream>(
+        GetRefCountedTypeCookie<TArrowParserTag>(),
+        256_KB,
+        1_MB);
+
+    auto numColumns = batch->num_columns();
+    auto numRows = batch->num_rows();
+    std::vector<TUnversionedRowValues> rowsValues(numColumns, TUnversionedRowValues(numRows));
+
+    for (int columnIndex = 0; columnIndex < numColumns; ++columnIndex) {
+        auto columnName = batch->column_name(columnIndex);
+
+        auto columnId = consumer->GetNameTable()->GetIdOrRegisterName(columnName);
+        auto columnSchema = consumer->GetSchema()->FindColumn(columnName);
+
+        auto columnType = columnSchema
+            ? columnSchema->LogicalType()
+            : OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
+        auto denullifiedColumnType = DenullifyLogicalType(columnType);
+        try {
+            PrepareArray(
+                denullifiedColumnType,
+                bufferForStringLikeValues,
+                batch->column(columnIndex),
+                rowsValues,
+                columnIndex,
+                columnId);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to parse column %Qv", columnName)
+                << ex;
+        }
+    }
+
+    for (int rowIndex = 0; rowIndex < numRows; ++rowIndex) {
+        consumer->OnBeginRow();
+        for (int columnIndex = 0; columnIndex < numColumns; ++columnIndex) {
+            consumer->OnValue(rowsValues[columnIndex][rowIndex]);
+        }
+        consumer->OnEndRow();
+    }
+
+    return arrow::Status::OK();    
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

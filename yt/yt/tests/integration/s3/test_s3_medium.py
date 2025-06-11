@@ -16,6 +16,10 @@ import logging
 
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
+import pyarrow as pa
+import pyarrow.parquet as pq
+from io import BytesIO
+import json
 
 ################################################################################
 
@@ -58,8 +62,8 @@ class TestS3Medium(YTEnvSetup):
 
     NUM_SCHEDULERS = 1
 
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
+    # DRIVER_BACKEND = "rpc"
+    # ENABLE_RPC_PROXY = True
 
     USE_DYNAMIC_TABLES = True
 
@@ -176,14 +180,24 @@ class TestS3Medium(YTEnvSetup):
                 return None
             raise
 
+    @classmethod 
+    def get_chunk_path(cls, chunk_id, s3_medium_index=0):
+        # TODO(achulkov2): Prefix for placing chunks.
+        prefix = "chunk-data"
+        return f"{prefix}/{chunk_id}"
+    
+    @classmethod
+    def get_chunk_meta_path(cls, chunk_id, s3_medium_index=0):
+        # TODO(achulkov2): Prefix for placing chunks.
+        prefix = "chunk-data"
+        return f"{prefix}/{chunk_id}.meta"
+
     @classmethod
     def assert_chunk_exists_in_s3(cls, chunk_id, s3_medium_index=0, negate=False):
         bucket = cls.S3_MEDIA[s3_medium_index]["bucket"]
-        # TODO(achulkov2): Prefix for placing chunks.
-        prefix = "chunk-data"
 
-        chunk_path = f"{prefix}/{chunk_id}"
-        chunk_meta_path = f"{prefix}/{chunk_id}.meta"
+        chunk_path = cls.get_chunk_path(chunk_id, s3_medium_index)
+        chunk_meta_path = cls.get_chunk_meta_path(chunk_id, s3_medium_index)
 
         if negate:
             assert not cls.object_exists_in_s3(bucket, chunk_path)
@@ -713,6 +727,76 @@ class TestS3Medium(YTEnvSetup):
 
     # TODO(achulkov2): Test files.
 
+    # TODO(achulkov2): Move this to a separate suite/file.
+    @authors("achulkov2")
+    def test_parquet_v0(self):
+        create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
+
+        row_count = 5000
+        row_group_count = 250
+
+        data = [{"num": i, "str": f"{i}"} for i in range(row_count)]
+        modified_data = [{"num": i - 1, "str": f"{i + 1}"} for i in range(row_count)]
+
+        write_table("//tmp/t", data)
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        bucket = self.S3_MEDIA[0]["bucket"]
+        chunk_path = self.get_chunk_path(chunk_id)
+
+        columns = {
+            key: [row[key] for row in modified_data]
+            for key in modified_data[0]
+        }
+        table = pa.Table.from_pydict(columns)
+
+        # TODO(achulkov2): Test with compression.
+        # TODO(achulkov2): Test with row groups of different sizes.
+        buffer = BytesIO()
+        pq.write_table(table, buffer, row_group_size=row_count // row_group_count)
+
+        # Overwrite chunk data in S3 with parquet file.
+        buffer.seek(0)
+        self.S3_CLIENT.put_object(Bucket=bucket, Key=chunk_path, Body=buffer)
+
+        # Much wow.
+        assert read_table("//tmp/t[#28:#36]") == modified_data[28:36]
+        # assert read_table("//tmp/t") == modified_data
+
+    @authors("achulkov2")
+    def test_sorted_parquet_v0(self):
+        create("table", "//tmp/t", attributes={
+            "primary_medium": self.get_s3_medium_name(),
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+        })
+
+        row_count = 100
+        row_group_count = 10
+
+    @authors("achulkov2")
+    def test_json_v0(self):
+        create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
+
+        data = [{"num": i, "str": f"{i}"} for i in range(100)]
+        modified_data = [{"num": i - 1, "str": f"{i + 1}"} for i in range(100)]
+
+        write_table("//tmp/t", data)
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        bucket = self.S3_MEDIA[0]["bucket"]
+        chunk_path = self.get_chunk_path(chunk_id)
+
+        # Newline-delimited JSON format.
+        buffer = BytesIO()
+        for row in modified_data:
+            buffer.write((json.dumps(row) + "\n").encode("utf-8"))
+        buffer.seek(0)
+        self.S3_CLIENT.put_object(Bucket=bucket, Key=chunk_path, Body=buffer.getvalue())
+
+        assert read_table("//tmp/t") == modified_data
 
 # TODO(achulkov2): Test suite with RPC proxy.
 # class TestS3MediumRpcProxy(TestS3Medium):

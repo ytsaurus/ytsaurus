@@ -32,6 +32,7 @@ DECLARE_PROTO_EXTENSION(NTableClient::NProto::TVersionedRowDigestExt, 66)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TColumnGroupInfosExt, 67)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TCompressionDictionaryExt, 68)
 DECLARE_PROTO_EXTENSION(NTableClient::NProto::TLargeColumnarStatisticsExt, 69)
+DECLARE_PROTO_EXTENSION(NTableClient::NProto::TParquetFormatMetaExt, 70)
 
 ////////////////////////////////////////////////////////////////////////////////
 

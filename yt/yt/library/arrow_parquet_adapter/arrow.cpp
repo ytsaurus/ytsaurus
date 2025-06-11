@@ -157,4 +157,52 @@ std::shared_ptr<arrow::Schema> CreateArrowSchemaFromParquetMetadata(const TStrin
 
 ////////////////////////////////////////////////////////////////////////////////
 
+arrow::Status TStatlessArrowRandomAccessFileBase::Seek(int64_t /*position*/)
+{
+    return arrow::Status::NotImplemented("Stateful seek is not implemented");
+}
+
+arrow::Result<int64_t> TStatlessArrowRandomAccessFileBase::Tell() const
+{
+    return arrow::Status::NotImplemented("Stateful tell is not implemented");
+}
+
+arrow::Result<int64_t> TStatlessArrowRandomAccessFileBase::Read(int64_t /*nbytes*/, void* /*out*/)
+{
+    return arrow::Status::NotImplemented("Stateful read is not implemented");
+}
+
+arrow::Result<std::shared_ptr<arrow::Buffer>> TStatlessArrowRandomAccessFileBase::Read(int64_t /*nbytes*/)
+{
+    return arrow::Status::NotImplemented("Stateful read is not implemented");
+}
+
+arrow::Status TStatlessArrowRandomAccessFileBase::Close()
+{
+    Closed_.store(true);
+    return arrow::Status::OK();
+}
+
+bool TStatlessArrowRandomAccessFileBase::closed() const
+{
+    return Closed_.load();
+}
+
+arrow::Result<std::shared_ptr<arrow::Buffer>> TStatlessArrowRandomAccessFileBase::ReadAt(int64_t position, int64_t nbytes)
+{
+    auto bufferResult = arrow::AllocateResizableBuffer(nbytes);
+    ARROW_ASSIGN_OR_RAISE(auto buffer, bufferResult);
+
+    ARROW_ASSIGN_OR_RAISE(auto bytesRead, ReadAt(position, nbytes, buffer->mutable_data()));
+
+    if (bytesRead < nbytes) {
+        ARROW_RETURN_NOT_OK(buffer->Resize(bytesRead));
+        buffer->ZeroPadding();
+    }
+
+    return buffer;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NArrow

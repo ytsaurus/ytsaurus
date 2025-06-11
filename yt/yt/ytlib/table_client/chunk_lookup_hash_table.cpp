@@ -229,7 +229,7 @@ TChunkLookupHashTablePtr CreateChunkLookupHashTable(
             YT_VERIFY(blockReader.SkipToRowIndex(0));
 
             for (int rowIndex = 0; rowIndex < blockMeta.row_count(); ++rowIndex) {
-                auto key = blockReader.GetKey();
+                auto key = blockReader.GetLegacyKey();
                 YT_VERIFY(hashTable->Insert(GetFarmFingerprint(TRange(key.Begin(), key.End())), PackBlockAndRowIndexes(blockIndex, rowIndex)));
                 blockReader.NextRow();
             }

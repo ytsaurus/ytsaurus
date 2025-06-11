@@ -871,6 +871,22 @@ std::vector<std::string> TTableSchema::GetColumnNames() const
     return result;
 }
 
+std::vector<std::string> TTableSchema::GetColumnNames(const std::optional<TNameMapping>& nameMapping) const
+{
+    auto actualNameMapping = nameMapping
+        ? *nameMapping
+        : GetNameMapping();
+
+    std::vector<std::string> columnPrefix;
+    columnPrefix.reserve(GetColumnCount());
+
+    for (const auto& column : Columns()) {
+        columnPrefix.push_back(actualNameMapping.StableNameToName(column.StableName()));
+    }
+
+    return columnPrefix;
+}
+
 std::vector<TColumnStableName> TTableSchema::GetColumnStableNames() const
 {
     if (!ColumnInfo_) {

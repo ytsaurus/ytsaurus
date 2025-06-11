@@ -215,6 +215,11 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkFormat, i8,
     ((TableVersionedIndexed)                (8))
     ((TableVersionedSlim)                   (9))
 
+    // External formats for table chunks.
+    ((TableUnversionedArrowParquet)         (10))
+    ((TableUnversionedArrowJson)            (11))
+    ((TableUnversionedArrowCsv)             (12))
+
     // Journal chunks.
     ((JournalDefault)                       (0))
 

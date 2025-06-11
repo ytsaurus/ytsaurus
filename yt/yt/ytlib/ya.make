@@ -135,6 +135,7 @@ SRCS(
     chunk_client/chunk_meta_cache.cpp
     GLOBAL chunk_client/chunk_meta_extensions.cpp
     chunk_client/chunk_meta_fetcher.cpp
+    chunk_client/chunk_meta_generator.cpp
     chunk_client/chunk_reader_host.cpp
     chunk_client/chunk_reader_memory_manager.cpp
     chunk_client/chunk_reader_statistics.cpp
@@ -765,6 +766,7 @@ PEERDIR(
     yt/yt/library/profiling/solomon
     yt/yt/library/program
     yt/yt/library/s3
+    yt/yt/library/arrow_parquet_adapter
     yt/yt/library/vector_hdrf
     yt/yt/ytlib/discovery_client
     yt/yt/ytlib/query_tracker_client

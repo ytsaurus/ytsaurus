@@ -1,14 +1,27 @@
 #include "schemaless_block_reader.h"
 #include "helpers.h"
 #include "hunks.h"
+#include "columnar_chunk_meta.h"
 
+#include <arrow/ipc/writer.h>
+#include <arrow/io/memory.h> // Include the header for BufferOutputStream
+#include <arrow/table.h>
+#include <parquet/arrow/reader.h>
+#include <arrow/json/reader.h>
 #include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/private.h>
 
+#include <yt/yt/library/formats/arrow_parser.h>
 #include <yt/yt/library/numeric/algorithm_helpers.h>
+
+// TODO(achulkov2): Remove unnecessary includes.
+#include <yt/yt/client/table_client/unversioned_row.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/value_consumer.h>
 
 namespace NYT::NTableClient {
 
@@ -346,6 +359,498 @@ bool THorizontalBlockReader::JumpToRowIndex(i64 rowIndex)
 
     return true;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCollectingValueConsumer
+    : public NTableClient::IValueConsumer
+{
+public:
+    explicit TCollectingValueConsumer(NTableClient::TTableSchemaPtr schema = New<NTableClient::TTableSchema>())
+        : Schema_(std::move(schema))
+    { }
+
+    explicit TCollectingValueConsumer(NTableClient::TNameTablePtr nameTable, NTableClient::TTableSchemaPtr schema = New<NTableClient::TTableSchema>())
+        : Schema_(std::move(schema))
+        , NameTable_(std::move(nameTable))
+    { }
+
+    const NTableClient::TNameTablePtr& GetNameTable() const override
+    {
+        return NameTable_;
+    }
+
+    const NTableClient::TTableSchemaPtr& GetSchema() const override
+    {
+        return Schema_;
+    }
+
+    bool GetAllowUnknownColumns() const override
+    {
+        return true;
+    }
+
+    void OnBeginRow() override
+    {
+    }
+
+    void OnValue(const NTableClient::TUnversionedValue& value) override
+    {
+        Builder_.AddValue(value);
+    }
+
+    void OnEndRow() override
+    {
+        RowList_.emplace_back(Builder_.FinishRow());
+    }
+
+    NTableClient::TUnversionedRow GetRow(size_t rowIndex)
+    {
+        return RowList_.at(rowIndex);
+    }
+
+    int Size() const
+    {
+        return std::ssize(RowList_);
+    }
+
+    const std::vector<NTableClient::TUnversionedOwningRow>& GetRowList() const
+    {
+        return RowList_;
+    }
+
+private:
+    const NTableClient::TTableSchemaPtr Schema_;
+    const NTableClient::TNameTablePtr NameTable_ = New<NTableClient::TNameTable>();
+
+    NTableClient::TUnversionedOwningRowBuilder Builder_;
+    std::vector<NTableClient::TUnversionedOwningRow> RowList_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRowGroupReader
+    : public arrow::io::RandomAccessFile
+{
+public:
+    TRowGroupReader(const TSharedRef& data, i64 rowGroupOffset, i64 fileSize)
+        : Data_(data)
+        , RowGroupOffset_(rowGroupOffset)
+        , FileSize_(fileSize)
+    {
+        YT_VERIFY(RowGroupOffset_ >= 0);
+        YT_VERIFY(FileSize_ > RowGroupOffset_);
+        YT_VERIFY(RowGroupOffset_ + std::ssize(Data_) <= FileSize_);
+    }
+
+    arrow::Result<int64_t> GetSize() override
+    {
+        return FileSize_;
+    }
+
+    arrow::Status Seek(int64_t position) override
+    {
+        Cerr << "Seek to " << position << Endl;
+        if (position < 0 || position > FileSize_) {
+            return arrow::Status::Invalid(std::string{Format("Position %v is out of bounds, [%v, %v); file_size=%v", position, RowGroupOffset_, RowGroupOffset_ + std::ssize(Data_), FileSize_)});
+        }
+        FilePosition_ = position;
+        return arrow::Status::OK();
+    }
+
+    arrow::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override
+    {
+        Cerr << "ReadAt " << nbytes << " bytes at " << position << Endl;
+        return arrow::io::RandomAccessFile::ReadAt(position, nbytes, out);
+    }
+
+    arrow::Result<std::shared_ptr<arrow::Buffer>> ReadAt(int64_t position, int64_t nbytes) override
+    {
+        Cerr << "ReadAt " << nbytes << " bytes at " << position << Endl;
+        return arrow::io::RandomAccessFile::ReadAt(position, nbytes);
+    }
+
+    arrow::Result<int64_t> Read(int64_t nbytes, void* out) override
+    {
+        Cerr << "Read " << nbytes << " bytes at " << FilePosition_ << Endl;
+        if (IsMagicPosition(FilePosition_) && nbytes == 4) {
+            const char* magic = "PAR1";
+            std::memcpy(out, magic, 4);
+            FilePosition_ += nbytes;
+            return nbytes;
+        }
+
+        if (FilePosition_ < RowGroupOffset_ || FilePosition_ + nbytes > RowGroupOffset_ + std::ssize(Data_)) {
+            return arrow::Status::Invalid(std::string{Format("Read %v is out of bounds, [%v, %v); file_size=%v", FilePosition_, RowGroupOffset_, RowGroupOffset_ + std::ssize(Data_), FileSize_)});
+        }
+
+        std::memcpy(out, Data_.Begin() + FilePosition_ - RowGroupOffset_, nbytes);
+        FilePosition_ += nbytes;
+        return nbytes;
+    }
+
+    arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nbytes) override
+    {
+        auto bufferResult = arrow::AllocateBuffer(nbytes);
+        ARROW_ASSIGN_OR_RAISE(auto buffer, bufferResult);
+
+        auto bytesReadResult = Read(nbytes, buffer->mutable_data());
+        RETURN_NOT_OK(bytesReadResult);
+
+        return buffer;
+    }
+
+    arrow::Result<int64_t> Tell() const override
+    {
+        return FilePosition_;
+    }
+
+    arrow::Status Close() override
+    {
+        Closed_ = true;
+        return arrow::Status::OK();
+    }
+
+    bool closed() const override
+    {
+        return Closed_;
+    }
+
+private:
+    TSharedRef Data_;
+    i64 RowGroupOffset_;
+    i64 FileSize_;
+
+    i64 FilePosition_ = 0;
+    bool Closed_ = false;
+
+    bool IsMagicPosition(int64_t position) const
+    {
+        return position == 0 || position == FileSize_ - 4;
+    }
+
+    bool IsOutOfBounds(int64_t position) const
+    {
+        return position < RowGroupOffset_ || position > RowGroupOffset_ + std::ssize(Data_);
+    }
+};
+
+void CreateArrowTableForParquet(
+    const TSharedRef& block,
+    const NProto::TDataBlockMeta& dataBlockMeta,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    std::shared_ptr<arrow::Table>* table)
+{
+    // TODO(achulkov2): Throw?
+    YT_VERIFY(chunkMeta->ParquetFormatMetaExt());
+
+    auto footer = chunkMeta->ParquetFormatMetaExt()->footer();
+    uint32_t footerSize = footer.size();
+    
+    auto fileMeta = parquet::FileMetaData::Make(
+        footer.data(),
+        &footerSize);
+
+    auto blockIndex = dataBlockMeta.block_index();
+    YT_VERIFY(chunkMeta->BlocksExt());
+    auto chunkBlockMeta = chunkMeta->BlocksExt()->blocks(blockIndex);
+    auto rowGroupOffset = chunkBlockMeta.offset();
+
+    auto parquetFileSize = chunkMeta->ParquetFormatMetaExt()->file_size();
+
+    auto rowGroupReader = std::make_shared<TRowGroupReader>(
+        block,
+        rowGroupOffset,
+        parquetFileSize);
+
+    auto parquetReader = parquet::ParquetFileReader::Open(rowGroupReader, 
+        parquet::default_reader_properties(),
+        fileMeta);
+
+    std::unique_ptr<parquet::arrow::FileReader> arrowParquetReader;
+    PARQUET_THROW_NOT_OK(
+        parquet::arrow::FileReader::Make(
+            arrow::default_memory_pool(),
+            std::move(parquetReader),
+            &arrowParquetReader));
+
+    PARQUET_THROW_NOT_OK(arrowParquetReader->ReadRowGroup(blockIndex, table));
+}
+
+void CreateArrowTableForJson(
+    const TSharedRef& block,
+    const NProto::TDataBlockMeta& /*dataBlockMeta*/,
+    const TColumnarChunkMetaPtr& /*chunkMeta*/,
+    std::shared_ptr<arrow::Table>* table)
+{
+    auto jsonReader = arrow::json::TableReader::Make(
+        arrow::default_memory_pool(),
+        std::make_shared<arrow::io::BufferReader>(
+            reinterpret_cast<const uint8_t*>(block.Data()),
+            block.Size()),
+        arrow::json::ReadOptions::Defaults(),
+        arrow::json::ParseOptions::Defaults()
+    ).ValueOrDie();
+    *table = jsonReader->Read().ValueOrDie();
+}
+
+std::shared_ptr<arrow::Table> CreateArrowTable(
+    const TSharedRef& block,
+    const NProto::TDataBlockMeta& dataBlockMeta,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    EChunkFormat chunkFormat)
+{
+    std::shared_ptr<arrow::Table> table;
+    switch (chunkFormat) {
+        case EChunkFormat::TableUnversionedArrowParquet:
+            CreateArrowTableForParquet(block, dataBlockMeta, chunkMeta, &table);
+            break;
+        case EChunkFormat::TableUnversionedArrowJson:
+            CreateArrowTableForJson(block, dataBlockMeta, chunkMeta, &table);
+            break;
+        default:
+            YT_ABORT();
+    }
+
+    return table;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TArrowHorizontalBlockReader::TArrowHorizontalBlockReader(
+    const TSharedRef& block,
+    const NProto::TDataBlockMeta& dataBlockMeta,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    const std::vector<bool>& compositeColumnFlags,
+    const std::vector<bool>& hunkColumnFlags,
+    const std::vector<THunkChunkRef>& hunkChunkRefs,
+    const std::vector<THunkChunkMeta>& hunkChunkMetas,
+    const std::vector<int>& chunkToReaderIdMapping,
+    TRange<ESortOrder> sortOrders,
+    int commonKeyPrefix,
+    const TKeyWideningOptions& keyWideningOptions,
+    int extraColumnCount,
+    bool decodeInlineHunkValues)
+    : Block_(block)
+    , DataBlockMeta_(dataBlockMeta)
+    , ChunkMeta_(chunkMeta)
+    , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
+    , CompositeColumnFlags_(compositeColumnFlags)
+    , HunkColumnFlags_(hunkColumnFlags)
+    , HunkChunkRefs_(hunkChunkRefs)
+    , HunkChunkMetas_(hunkChunkMetas)
+    , KeyWideningOptions_(keyWideningOptions)
+    , SortOrders_(sortOrders.begin(), sortOrders.end())
+    , CommonKeyPrefix_(commonKeyPrefix)
+    , ExtraColumnCount_(extraColumnCount)
+    , DecodeInlineHunkValues_(decodeInlineHunkValues)
+{
+    Cerr << "Trying to parse Parquet block" << Endl;
+    Cerr << "Block size: " << Block_.Size() << Endl;
+
+    // TODO(achulkov2): Check that there are no hunk columns in the block. Or in the decoded values!
+
+    std::shared_ptr<arrow::Table> table = CreateArrowTable(
+        Block_,
+        DataBlockMeta_,
+        ChunkMeta_,
+        EChunkFormat::TableUnversionedArrowParquet);
+
+    arrow::TableBatchReader batchReader(*table);
+
+    TCollectingValueConsumer consumer(ChunkMeta_->ChunkNameTable(), ChunkMeta_->ChunkSchema());
+
+    std::shared_ptr<arrow::RecordBatch> batch;
+    while (true) {
+        PARQUET_THROW_NOT_OK(batchReader.ReadNext(&batch));
+
+        if (!batch) {
+            break;
+        }
+
+        PARQUET_THROW_NOT_OK(
+            NFormats::DecodeRecordBatch(batch, &consumer));
+    }
+    
+    // // 3) Serialize the Table as an Arrow IPC stream into a new buffer
+    // auto sink = arrow::io::BufferOutputStream::Create().ValueOrDie();
+
+    // std::shared_ptr<arrow::ipc::RecordBatchWriter> ipc_writer;
+    // PARQUET_ASSIGN_OR_THROW(
+    //     ipc_writer,
+    //     arrow::ipc::MakeStreamWriter(
+    //         /*sink=*/sink.get(),
+    //         /*schema=*/table->schema()
+    //     )
+    // );
+
+
+    // // Write out all record batches at once
+    // PARQUET_THROW_NOT_OK(ipc_writer->WriteTable(*table));
+    // PARQUET_THROW_NOT_OK(ipc_writer->Close());
+
+    // // Grab the finished IPC buffer
+    // std::shared_ptr<arrow::Buffer> arrow_ipc_buffer =
+    //     sink->Finish().ValueOrDie();
+
+    // // Copy into a std::string (or your own buffer type)
+    // std::string ipc_data(
+    //     reinterpret_cast<const char*>(arrow_ipc_buffer->data()),
+    //     arrow_ipc_buffer->size());
+
+    // // 4) Parse it with your Arrow‐based parser
+    // TCollectingValueConsumer consumer;
+    // auto parser = NFormats::CreateParserForArrow(&consumer);
+
+    // // Give it the new IPC payload instead of Block_
+    // parser->Read(TStringBuf(ipc_data.data(), ipc_data.size()));
+    // parser->Finish();
+
+    Rows_ = std::move(consumer.GetRowList());
+
+    KeyBuffer_.reserve(GetUnversionedRowByteSize(GetKeyColumnCount()));
+    Key_ = TMutableUnversionedRow::Create(KeyBuffer_.data(), GetKeyColumnCount());
+
+    // NB: First key of the block will be initialized below during JumpToRowIndex(0) call.
+    // Nulls here are used to widen chunk's key to comparator length.
+    for (int index = 0; index < GetKeyColumnCount(); ++index) {
+        Key_[index] = MakeUnversionedNullValue(index);
+    }
+
+    JumpToRowIndex(0);
+
+    Cerr << "Parsed " << Rows_.size() << " rows from Parquet block " << dataBlockMeta.block_index() << Endl;
+}
+
+bool TArrowHorizontalBlockReader::NextRow()
+{
+    return JumpToRowIndex(RowIndex_ + 1);
+}
+
+bool TArrowHorizontalBlockReader::SkipToRowIndex(i64 rowIndex)
+{
+    YT_VERIFY(rowIndex >= RowIndex_);
+    return JumpToRowIndex(rowIndex);
+}
+
+bool TArrowHorizontalBlockReader::SkipToKey(TUnversionedRow lowerBound)
+{
+    return SkipToKeyBound(ToKeyBoundRef(lowerBound, /*upper*/ false, GetKeyColumnCount()));
+}
+
+bool TArrowHorizontalBlockReader::SkipToKeyBound(const TKeyBoundRef& lowerBound)
+{
+    auto inBound = [&] (TUnversionedRow row) {
+        // Key is already widened here.
+        return TestKey(ToKeyRef(row), lowerBound, SortOrders_);
+    };
+
+    if (inBound(GetLegacyKey())) {
+        return true;
+    }
+
+    // BinarySearch returns first element such that !pred(it).
+    // We are looking for the first row such that Comparator_.TestKey(row, lowerBound);
+    auto index = BinarySearch(
+        RowIndex_,
+        DataBlockMeta_.row_count(),
+        [&] (i64 index) {
+            YT_VERIFY(JumpToRowIndex(index));
+            return !inBound(GetLegacyKey());
+        });
+
+    return JumpToRowIndex(index);
+}
+
+bool TArrowHorizontalBlockReader::JumpToRowIndex(i64 rowIndex)
+{
+    if (rowIndex >= std::ssize(Rows_)) {
+        return false;
+    }
+
+    RowIndex_ = rowIndex;
+
+    std::memcpy(
+        Key_.Begin(),
+        Rows_[RowIndex_].Begin(),
+        sizeof(TUnversionedValue) * GetChunkKeyColumnCount());
+
+    return true;
+}
+
+TLegacyKey TArrowHorizontalBlockReader::GetLegacyKey() const
+{
+    return Key_;
+}
+
+TKey TArrowHorizontalBlockReader::GetKey() const
+{
+    return TKey::FromRowUnchecked(Key_, GetKeyColumnCount());
+}
+
+int TArrowHorizontalBlockReader::GetChunkKeyColumnCount() const
+{
+    return CommonKeyPrefix_;
+}
+
+int TArrowHorizontalBlockReader::GetKeyColumnCount() const
+{
+    return SortOrders_.Size();
+}
+
+TMutableUnversionedRow TArrowHorizontalBlockReader::GetRow(TChunkedMemoryPool* memoryPool, bool remapIds)
+{
+    YT_VERIFY(RowIndex_ >= 0 && RowIndex_ < std::ssize(Rows_));
+
+    auto chunkRow = Rows_[RowIndex_];
+
+    int totalValueCount = chunkRow.GetCount() + std::ssize(KeyWideningOptions_.InsertedColumnIds) + ExtraColumnCount_;
+    
+    auto row = TMutableUnversionedRow::Allocate(memoryPool, totalValueCount);
+
+    int valueCount = 0;
+
+    auto pushRegularValue = [&] (int chunkValueIndex) {
+        auto value = chunkRow[chunkValueIndex];
+        auto remappedId = remapIds ? ChunkToReaderIdMapping_[value.Id] : value.Id;
+        if (remappedId >= 0) {
+            value.Id = remappedId;
+            row[valueCount] = value;
+            ++valueCount;
+        }
+    };
+
+    auto pushNullValue = [&] (int id) {
+        row[valueCount] = MakeUnversionedNullValue(id);
+        ++valueCount;
+    };
+
+    if (KeyWideningOptions_.InsertPosition < 0) {
+        for (int i = 0; i < chunkRow.GetCount(); ++i) {
+            pushRegularValue(i);
+        }
+    } else {
+        for (int i = 0; i < KeyWideningOptions_.InsertPosition; ++i) {
+            pushRegularValue(i);
+        }
+        for (int id : KeyWideningOptions_.InsertedColumnIds) {
+            pushNullValue(id);
+        }
+        for (int i = KeyWideningOptions_.InsertPosition; i < chunkRow.GetCount(); ++i) {
+            pushRegularValue(i);
+        }
+    }
+
+    row.SetCount(valueCount);
+
+    return row;
+}
+
+i64 TArrowHorizontalBlockReader::GetRowIndex() const
+{
+    return RowIndex_;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

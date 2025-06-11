@@ -30,6 +30,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<THunkChunkMeta>, HunkChunkMetas);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TColumnarStatisticsExt>, ColumnarStatisticsExt);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TLargeColumnarStatisticsExt>, LargeColumnarStatisticsExt);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TParquetFormatMetaExt>, ParquetFormatMetaExt);
+    // TODO(achulkov2): Temporary. We will need to move the offset to a data block meta extension.
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NChunkClient::NProto::TBlocksExt>, BlocksExt);
 
 public:
 

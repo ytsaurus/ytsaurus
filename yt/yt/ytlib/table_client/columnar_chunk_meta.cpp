@@ -80,6 +80,9 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
         FromProto(&ChunkNameTable_, *nameTableExt);
     }
 
+    Cerr << Format("NameTable: %v", *ChunkNameTable_) << Endl;
+    Cerr << Format("Schema: %v", *ChunkSchema_) << Endl;
+
     auto buffer = New<TRowBuffer>(TBlockLastKeysBufferTag());
 
     std::vector<TUnversionedRow> blockLastKeys;
@@ -121,6 +124,8 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
 
     ColumnarStatisticsExt_ = FindProtoExtension<TColumnarStatisticsExt>(chunkMeta.extensions());
     LargeColumnarStatisticsExt_ = FindProtoExtension<TLargeColumnarStatisticsExt>(chunkMeta.extensions());
+    ParquetFormatMetaExt_ = FindProtoExtension<TParquetFormatMetaExt>(chunkMeta.extensions());
+    BlocksExt_ = FindProtoExtension<TBlocksExt>(chunkMeta.extensions());
 }
 
 i64 TColumnarChunkMeta::GetMemoryUsage() const

@@ -187,7 +187,7 @@ protected:
     template <class TBlockReader>
     TVersionedRow CaptureRow(TBlockReader* blockReader)
     {
-        auto row = blockReader->GetRow(&MemoryPool_);
+        auto row = blockReader->GetMutableVersionedRow(&MemoryPool_);
         if (row && HasHunkColumns_) {
             GlobalizeHunkValues(&MemoryPool_, ChunkMeta_, row);
         }
@@ -424,7 +424,7 @@ private:
             YT_VERIFY(blockReader->SkipToRowIndex(rowIndex));
 
             // Key is widened here.
-            if (CompareKeys(blockReader->GetKey(), key, this->KeyComparer_) == 0) {
+            if (CompareKeys(blockReader->GetLegacyKey(), key, this->KeyComparer_) == 0) {
                 return this->CaptureRow(blockReader);
             }
         }
@@ -447,7 +447,7 @@ private:
 
         // Key is widened here.
         if (!blockReader->SkipToKey(key) ||
-            CompareKeys(blockReader->GetKey(), key, this->KeyComparer_) != 0)
+            CompareKeys(blockReader->GetLegacyKey(), key, this->KeyComparer_) != 0)
         {
             return {};
         }
@@ -635,7 +635,7 @@ private:
         i64 dataWeight = 0;
 
         while (rows.size() < rows.capacity()) {
-            if (UpperBoundCheckNeeded_ && BlockReader_->GetKey() >= UpperBound_) {
+            if (UpperBoundCheckNeeded_ && BlockReader_->GetLegacyKey() >= UpperBound_) {
                 NeedLimitUpdate_ = true;
                 break;
             }

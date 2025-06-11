@@ -286,8 +286,8 @@ protected:
 
 
     // NB: These methods are protected because they are intended for reads only via block reader.
-    TLegacyKey GetKey() const;
-    TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
+    TLegacyKey GetLegacyKey() const;
+    TMutableVersionedRow GetMutableVersionedRow(TChunkedMemoryPool* memoryPool);
 
 private:
     const TTimestamp Timestamp_;
@@ -327,8 +327,8 @@ public:
     bool SkipToRowIndex(int rowIndex);
     bool SkipToKey(TLegacyKey key);
 
-    using TVersionedRowReader<TBlockParser>::GetKey;
-    TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
+    using TVersionedRowReader<TBlockParser>::GetLegacyKey;
+    TMutableVersionedRow GetMutableVersionedRow(TChunkedMemoryPool* memoryPool);
 
 private:
     using TVersionedRowReader<TBlockParser>::RowMetadata_;
@@ -368,8 +368,8 @@ public:
         TTableSchemaPtr readerSchema,
         TTimestamp timestamp);
 
-    TLegacyKey GetKey() const;
-    TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
+    TLegacyKey GetLegacyKey() const override;
+    TMutableVersionedRow GetMutableVersionedRow(TChunkedMemoryPool* memoryPool);
 
 private:
     const TTableSchemaPtr ReaderSchema_;

@@ -6,6 +6,7 @@ TEST_SRCS(
 
 PEERDIR(
     contrib/python/boto3
+    contrib/python/pyarrow
 )
 
 END()

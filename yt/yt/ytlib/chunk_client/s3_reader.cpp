@@ -2,14 +2,33 @@
 
 #include "chunk_reader.h"
 #include "chunk_layout_facade.h"
+#include "chunk_meta_generator.h"
 #include "config.h"
 
+#include <arrow/table.h>
+#include <yt/yt/client/arrow/schema.h>
+#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
+#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+
+#include <parquet/api/reader.h>
+
+#include <contrib/libs/apache/arrow/cpp/src/arrow/io/api.h>
+#include <yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
+
+#include <contrib/libs/apache/arrow/cpp/src/parquet/arrow/reader.h>
+
+#include <yt/yt/library/arrow_parquet_adapter/arrow.h>
+
+#include <arrow/json/reader.h>
 
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
 using namespace NThreading;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +49,7 @@ public:
         // TODO(achulkov2): [PDuringReview] Format S3 paths in such a way that they can be passed to S3 clients (e.g. with bucket).
         , ChunkLayoutReader_(New<TChunkLayoutReader>(ChunkId_, ChunkPlacement_.Key, ChunkMetaPlacement_.Key, TChunkLayoutReader::TOptions()))
     {
+        Cerr << "Creating S3 reader for chunk" << Endl;
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -144,6 +164,49 @@ private:
             .AsyncVia(GetSessionInvoker(options)));
     }
 
+    TFuture<TRefCountedChunkMetaPtr> GenerateMetaFromChunkFile(EChunkFormat format)
+    {
+        // TODO(achulkov2): Path to read chunk file from needs to end up here.
+        auto chunkFile = std::make_shared<TS3ArrowRandomAccessFile>(ChunkPlacement_.Bucket, ChunkPlacement_.Key, Client_);
+        auto chunkMetaGenerator = CreateArrowChunkMetaGenerator(format, std::move(chunkFile));
+        chunkMetaGenerator->Generate();
+        return MakeFuture(chunkMetaGenerator->GetChunkMeta());
+    }
+
+    TFuture<TRefCountedChunkMetaPtr> FetchMetaFromMetaFile()
+    {
+        auto metaPlacement = MediumDescriptor_->GetChunkMetaPlacement(ChunkId_);
+
+        NS3::TGetObjectRequest request;
+        request.Bucket = metaPlacement.Bucket;
+        request.Key = metaPlacement.Key;
+
+        return Client_->GetObject(request)
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const NS3::TGetObjectResponse& response) {
+                auto metaWithChunkId = ChunkLayoutReader_->DeserializeMeta(response.Data);
+                return metaWithChunkId.ChunkMeta;
+            }));
+    }
+
+    TFuture<TRefCountedChunkMetaPtr> FetchOrGenerateMeta()
+    {
+        // TODO(achulkov2): Here we somehow need to know whether to read meta from meta file or generate it from chunk file.
+
+        return GenerateMetaFromChunkFile(EChunkFormat::TableUnversionedArrowParquet);
+    }
+
+    TRefCountedChunkMetaPtr CacheChunkMeta(const TRefCountedChunkMetaPtr& chunkMeta)
+    {
+        auto guard = WriterGuard(MetaLock_);
+
+        if (!ChunkMeta_) {
+            ChunkMeta_ = chunkMeta;
+            BlocksExt_ = New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_->extensions()));
+        }
+
+        return ChunkMeta_;
+    }
+
     TFuture<TRefCountedChunkMetaPtr> DoGetMeta(IInvokerPtr invoker = nullptr)
     {
         {
@@ -154,24 +217,10 @@ private:
             }
         }
 
-        auto metaPlacement = MediumDescriptor_->GetChunkMetaPlacement(ChunkId_);
-
-        NS3::TGetObjectRequest request;
-        request.Bucket = metaPlacement.Bucket;
-        request.Key = metaPlacement.Key;
-        return Client_->GetObject(request)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (const NS3::TGetObjectResponse& response) {
-                auto metaWithChunkId = ChunkLayoutReader_->DeserializeMeta(response.Data);
-
-                auto guard = WriterGuard(MetaLock_);
-
-                if (!ChunkMeta_) {
-                    ChunkMeta_ = metaWithChunkId.ChunkMeta;
-                    BlocksExt_ = New<TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(ChunkMeta_->extensions()));
-                }
-
-                return ChunkMeta_;
-            }).AsyncVia(invoker ? invoker : GetCurrentInvoker()));
+        return FetchOrGenerateMeta()
+            .Apply(
+                BIND(&TS3Reader::CacheChunkMeta, MakeStrong(this))
+                .AsyncVia(invoker ? invoker : GetCurrentInvoker()));
     }
 
 

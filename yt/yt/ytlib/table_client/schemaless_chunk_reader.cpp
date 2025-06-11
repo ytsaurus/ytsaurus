@@ -9,6 +9,7 @@
 #include "schemaless_block_reader.h"
 #include "virtual_value_directory.h"
 
+#include <yt/yt/client/chunk_client/helpers.h>
 #include <yt/yt/ytlib/table_chunk_format/public.h>
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/column_reader_detail.h>
@@ -555,7 +556,7 @@ protected:
 
     int CurrentBlockIndex_ = 0;
 
-    std::unique_ptr<THorizontalBlockReader> BlockReader_;
+    std::unique_ptr<IHorizontalBlockReader> BlockReader_;
 
     std::vector<int> BlockIndexes_;
 
@@ -758,18 +759,44 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
 
     YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
-    BlockReader_.reset(new THorizontalBlockReader(
-        CurrentBlock_.Get().ValueOrThrow().Data,
-        blockMeta,
-        GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
-        GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-        ChunkMeta_->HunkChunkRefs(),
-        ChunkMeta_->HunkChunkMetas(),
-        ChunkToReaderIdMapping_,
-        SortOrders_,
-        CommonKeyPrefix_,
-        KeyWideningOptions_,
-        GetRootSystemColumnCount()));
+
+    auto replicasByType = GetReplicasByType(GetReplicasFromChunkSpec(ChunkSpec_));
+
+    Cerr << Format("Initializing first block (DomesticReplicas: %v, OffshoreReplicas: %v, BlockIndex: %v)",
+        replicasByType.DomesticReplicas.size(),
+        replicasByType.OffshoreReplicas.size(),
+        blockIndex) << Endl;
+
+    if (!replicasByType.DomesticReplicas.empty()) {
+        Cerr << "Initializing regular block reader" << Endl;
+        BlockReader_.reset(new THorizontalBlockReader(
+            CurrentBlock_.Get().ValueOrThrow().Data,
+            blockMeta,
+            GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
+            GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
+            ChunkMeta_->HunkChunkRefs(),
+            ChunkMeta_->HunkChunkMetas(),
+            ChunkToReaderIdMapping_,
+            SortOrders_,
+            CommonKeyPrefix_,
+            KeyWideningOptions_,
+            GetRootSystemColumnCount()));
+    } else {
+        Cerr << "Initializing arrow block reader" << Endl;
+        BlockReader_.reset(new TArrowHorizontalBlockReader(
+            CurrentBlock_.Get().ValueOrThrow().Data,
+            blockMeta,
+            ChunkMeta_,
+            GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
+            GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
+            ChunkMeta_->HunkChunkRefs(),
+            ChunkMeta_->HunkChunkMetas(),
+            ChunkToReaderIdMapping_,
+            SortOrders_,
+            CommonKeyPrefix_,
+            KeyWideningOptions_,
+            GetRootSystemColumnCount()));
+    }
 
     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
@@ -2493,6 +2520,12 @@ struct TReaderParams
         auto chunkSortColumnNames = GetColumnNames(
             chunkMeta->ChunkSchema()->GetSortColumns(
                 chunkState->TableSchema->GetNameMapping()));
+
+        // TODO(achulkov2): Dispatch by chunk format.
+        if (GetReplicasByType(GetReplicasFromChunkSpec(chunkState->ChunkSpec)).DomesticReplicas.empty()) {
+            chunkSortColumnNames = chunkMeta->ChunkSchema()->GetColumnNames(
+                chunkState->TableSchema->GetNameMapping());
+        }
 
         CommonKeyPrefix = GetCommonKeyPrefix(
             chunkSortColumnNames,

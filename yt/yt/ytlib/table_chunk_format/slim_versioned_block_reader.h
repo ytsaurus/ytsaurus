@@ -29,8 +29,8 @@ public:
         NTableClient::TTimestamp timestamp,
         bool produceAllVersions);
 
-    NTableClient::TLegacyKey GetKey() const;
-    NTableClient::TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
+    NTableClient::TLegacyKey GetLegacyKey() const;
+    NTableClient::TMutableVersionedRow GetMutableVersionedRow(TChunkedMemoryPool* memoryPool);
 
     bool NextRow();
     bool SkipToRowIndex(int rowIndex);
