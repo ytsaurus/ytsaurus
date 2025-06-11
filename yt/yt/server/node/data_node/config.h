@@ -668,6 +668,14 @@ struct TReplicateChunkJobDynamicConfig
 
     bool UseBlockCache;
 
+    std::optional<i64> ReplicationRangeSize;
+
+    bool EnableReplicationJobThrottling;
+
+    TDuration ThrottlingSleepTime;
+
+    TDuration ThrottlingSleepDeadline;
+
     REGISTER_YSON_STRUCT(TReplicateChunkJobDynamicConfig);
 
     static void Register(TRegistrar registrar);
