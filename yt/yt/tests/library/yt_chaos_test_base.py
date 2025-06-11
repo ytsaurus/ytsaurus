@@ -207,7 +207,7 @@ class ChaosTestBase(DynamicTablesBase):
                 _get_orchid_path(cell_id, driver=origin_driver),
                 card_id
             )
-            wait(lambda: get(migration_path, driver=origin_driver) == "migrated")
+            wait(lambda: get(migration_path, driver=origin_driver, default="migrated") == "migrated")
 
         for card_id in card_ids:
             migrated_card_path = "{0}/chaos_manager/replication_cards/{1}".format(

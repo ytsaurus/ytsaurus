@@ -30,7 +30,7 @@ using namespace NTableClient;
 
 TReplicationCardPtr GetSyncReplicationCard(
     const IConnectionPtr& connection,
-    const TTableMountInfoPtr& tableInfo)
+    TReplicationCardId replicationCardId)
 {
     const auto& Logger = connection->GetLogger();
 
@@ -44,13 +44,13 @@ TReplicationCardPtr GetSyncReplicationCard(
         .IncludeHistory = true,
     };
     auto key = TReplicationCardCacheKey{
-        .CardId = tableInfo->ReplicationCardId,
+        .CardId = replicationCardId,
         .FetchOptions = fetchOptions,
     };
 
     for (int retryCount = 0; retryCount < mountCacheConfig->OnErrorRetryCount; ++retryCount) {
         YT_LOG_DEBUG("Synchronizing replication card (ReplicationCardId: %v, Attempt: %v)",
-            tableInfo->ReplicationCardId,
+            replicationCardId,
             retryCount);
 
         if (retryCount > 0) {
@@ -67,7 +67,7 @@ TReplicationCardPtr GetSyncReplicationCard(
 
         if (!replicationCardOrError.IsOK()) {
             YT_LOG_DEBUG(replicationCardOrError, "Failed to get replication card from cache (ReplicationCardId: %v)",
-                tableInfo->ReplicationCardId);
+                replicationCardId);
             continue;
         }
 
@@ -85,13 +85,13 @@ TReplicationCardPtr GetSyncReplicationCard(
         proxy.SetDefaultTimeout(connection->GetConfig()->DefaultChaosNodeServiceTimeout);
         auto req = proxy.GetReplicationCardEra();
 
-        ToProto(req->mutable_replication_card_id(), tableInfo->ReplicationCardId);
+        ToProto(req->mutable_replication_card_id(), replicationCardId);
 
         auto rspOrError = WaitFor(req->Invoke());
 
         if (!rspOrError.IsOK()) {
             YT_LOG_DEBUG(rspOrError, "Failed to get replication card from coordinator (ReplicationCardId: %v)",
-                tableInfo->ReplicationCardId);
+                replicationCardId);
             continue;
         }
 
@@ -114,7 +114,7 @@ TReplicationCardPtr GetSyncReplicationCard(
 
     THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::UnableToSynchronizeReplicationCard,
         "Unable to synchronize replication card")
-        << TErrorAttribute("replication_card_id", tableInfo->ReplicationCardId);
+        << TErrorAttribute("replication_card_id", replicationCardId);
 }
 
 std::vector<TTableReplicaId> GetChaosTableInSyncReplicas(
@@ -174,7 +174,7 @@ TTableReplicaInfoPtrList PickInSyncChaosReplicas(
     YT_ASSERT(tableInfo->ReplicationCardId);
 
     auto connectionConfig = connection->GetConfig();
-    auto replicationCard = GetSyncReplicationCard(connection, tableInfo);
+    auto replicationCard = GetSyncReplicationCard(connection, tableInfo->ReplicationCardId);
     auto replicaIds = GetChaosTableInSyncReplicas(
         tableInfo,
         replicationCard,

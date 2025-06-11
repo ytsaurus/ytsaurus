@@ -23,7 +23,7 @@ std::vector<NTabletClient::TTableReplicaId> GetChaosTableInSyncReplicas(
 
 NChaosClient::TReplicationCardPtr GetSyncReplicationCard(
     const IConnectionPtr& connection,
-    const NTabletClient::TTableMountInfoPtr& tableInfo);
+    NChaosClient::TReplicationCardId replicationCardId);
 
 TTableReplicaInfoPtrList PickInSyncChaosReplicas(
     const IConnectionPtr& connection,
