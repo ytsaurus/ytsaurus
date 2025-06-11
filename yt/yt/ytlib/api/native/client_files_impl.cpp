@@ -12,14 +12,14 @@ TFuture<IFileReaderPtr> TClient::CreateFileReader(
     const TYPath& path,
     const TFileReaderOptions& options)
 {
-    return NNative::CreateFileReader(this, path, options);
+    return NNative::CreateFileReader(this, path, options, HeavyRequestMemoryUsageTracker_);
 }
 
 IFileWriterPtr TClient::CreateFileWriter(
     const TRichYPath& path,
     const TFileWriterOptions& options)
 {
-    return NNative::CreateFileWriter(this, path, options);
+    return NNative::CreateFileWriter(this, path, options, HeavyRequestMemoryUsageTracker_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
