@@ -82,14 +82,13 @@ public:
 private:
     bool IsPure_ = false; // Random function can not be implicitly pure. So default is false.
     bool IsMove_ = false;
-    THashSet<TString> StateIds_;
     THashSet<TString> TimerIds_;
     std::vector<TString> ResourceFileList_;
 
     friend NPrivate::TFnAttributesOps;
 
 public:
-    Y_SAVELOAD_DEFINE(IsPure_, IsMove_, StateIds_, TimerIds_, ResourceFileList_);
+    Y_SAVELOAD_DEFINE(IsPure_, IsMove_, TimerIds_, ResourceFileList_);
 };
 
 template <typename T>

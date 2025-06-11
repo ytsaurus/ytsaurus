@@ -21,6 +21,7 @@ SRCS(
     private/stateful_timer_par_do.cpp
     private/par_do_tree.cpp
     private/save_loadable_logicaltype_wrapper.cpp
+    private/save_loadable_tableschema_wrapper.cpp
 
     coder.cpp
     fns.cpp
