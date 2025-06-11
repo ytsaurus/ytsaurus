@@ -132,7 +132,7 @@ struct IStore
     //! Deserializes the asynchronous part of the state.
     virtual void AsyncLoad(TLoadContext& context) = 0;
 
-    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) = 0;
+    virtual void BuildOrchidYson(bool opaque, NYTree::TFluentAny fluent) = 0;
 
     //! Fills store descriptor to replicate to another tablet servant.
     virtual void PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor) = 0;

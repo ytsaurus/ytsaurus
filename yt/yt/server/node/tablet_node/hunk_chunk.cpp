@@ -13,8 +13,11 @@
 
 namespace NYT::NTabletNode {
 
+using namespace NChunkClient::NProto;
 using namespace NChunkClient;
 using namespace NHydra;
+using namespace NTableClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,6 +116,31 @@ void THunkChunk::PopulateAddHunkChunkDescriptor(NProto::TAddHunkChunkDescriptor*
 
     ToProto(descriptor->mutable_chunk_id(), Id_);
     ToProto(descriptor->mutable_chunk_meta(), ChunkMeta_);
+}
+
+void THunkChunk::BuildOrchidYson(bool opaque, TFluentAny fluent) const
+{
+    auto miscExt = FindProtoExtension<TMiscExt>(GetChunkMeta().extensions());
+
+    fluent
+        .DoAttributesIf(opaque, [] (auto fluent) {
+            fluent
+                .Item("opaque").Value(true);
+        })
+        .BeginMap()
+            .Item("hunk_count").Value(GetHunkCount())
+            .Item("total_hunk_length").Value(GetTotalHunkLength())
+            .Item("referenced_hunk_count").Value(GetReferencedHunkCount())
+            .Item("referenced_total_hunk_length").Value(GetReferencedTotalHunkLength())
+            .Item("store_ref_count").Value(GetStoreRefCount())
+            .Item("prepared_store_ref_count").Value(GetPreparedStoreRefCount())
+            .Item("dangling").Value(IsDangling())
+            .DoIf(miscExt && miscExt->has_dictionary_compression_policy(), [&] (auto fluent) {
+                fluent
+                    .Item("dictionary_compression_policy")
+                    .Value(FromProto<EDictionaryCompressionPolicy>(miscExt->dictionary_compression_policy()));
+            })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
