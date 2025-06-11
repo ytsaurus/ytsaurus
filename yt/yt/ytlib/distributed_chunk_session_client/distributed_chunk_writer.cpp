@@ -63,7 +63,7 @@ private:
 
     void DoWrite(TSharedRange<TUnversionedRow> rows)
     {
-        THorizontalBlockWriter blockWriter(New<TTableSchema>());
+        THorizontalBlockWriter blockWriter(New<TTableSchema>(), GetNullMemoryUsageTracker());
 
         i64 dataWeight = 0;
 

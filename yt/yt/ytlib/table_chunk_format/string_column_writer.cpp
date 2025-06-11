@@ -31,6 +31,7 @@ class TStringColumnWriterBase
 {
 protected:
     const bool Hunk_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     std::unique_ptr<TChunkedOutputStream> DirectBuffer_;
 
@@ -40,14 +41,16 @@ protected:
     i64 DictionaryByteSize_;
     THashMap<TStringBuf, ui32> Dictionary_;
 
-    explicit TStringColumnWriterBase(const TColumnSchema& columnSchema)
+    TStringColumnWriterBase(const TColumnSchema& columnSchema, IMemoryUsageTrackerPtr memoryUsageTracker)
         : Hunk_(columnSchema.MaxInlineHunkSize().has_value())
+        , MemoryUsageTracker_(std::move(memoryUsageTracker))
     { }
 
     void Reset()
     {
         DirectBuffer_ = std::make_unique<TChunkedOutputStream>(
             GetRefCountedTypeCookie<TStringColumnWriterBufferTag>(),
+            MemoryUsageTracker_,
             256_KB,
             1_MB);
 
@@ -255,8 +258,8 @@ public:
             columnId,
             columnSchema,
             blockWriter,
-            std::move(memoryUsageTracker))
-        , TStringColumnWriterBase<ValueType>(columnSchema)
+            memoryUsageTracker)
+        , TStringColumnWriterBase<ValueType>(columnSchema, std::move(memoryUsageTracker))
         , MaxValueCount_(maxValueCount)
     {
         this->Reset();
@@ -270,13 +273,12 @@ public:
                 Values_.push_back(this->CaptureValue(value));
                 return std::ssize(Values_) >= MaxValueCount_ || DirectBuffer_->GetSize() > MaxBufferSize;
             });
-        MemoryGuard_.SetSize(GetMemoryUsage());
+        MemoryGuard_.SetSize(GetUntrackedMemoryUsage());
     }
 
-    i64 GetMemoryUsage() const
+    i64 GetUntrackedMemoryUsage() const
     {
-        return TStringColumnWriterBase<ValueType>::DirectBuffer_->GetCapacity() +
-            GetVectorMemoryUsage(Values_) +
+        return GetVectorMemoryUsage(Values_) +
             TStringColumnWriterBase<ValueType>::DictionaryByteSize_ +
             TVersionedColumnWriterBase::GetMemoryUsage();
     }
@@ -310,7 +312,7 @@ private:
     {
         TVersionedColumnWriterBase::Reset();
         TStringColumnWriterBase<ValueType>::Reset();
-        MemoryGuard_.SetSize(GetMemoryUsage());
+        MemoryGuard_.SetSize(GetUntrackedMemoryUsage());
     }
 
     void DumpSegment()
@@ -411,8 +413,8 @@ public:
         TDataBlockWriter* blockWriter,
         IMemoryUsageTrackerPtr memoryUsageTracker,
         int maxValueCount)
-        : TColumnWriterBase(blockWriter, std::move(memoryUsageTracker))
-        , TStringColumnWriterBase<ValueType>(columnSchema)
+        : TColumnWriterBase(blockWriter, memoryUsageTracker)
+        , TStringColumnWriterBase<ValueType>(columnSchema, std::move(memoryUsageTracker))
         , ColumnIndex_(columnIndex)
         , MaxValueCount_(maxValueCount)
     {
@@ -429,10 +431,9 @@ public:
         DoWriteValues(rows);
     }
 
-    i64 GetMemoryUsage() const
+    i64 GetUntrackedMemoryUsage() const
     {
-        return TStringColumnWriterBase<ValueType>::DirectBuffer_->GetCapacity() +
-            GetVectorMemoryUsage(Values_) +
+        return GetVectorMemoryUsage(Values_) +
             TStringColumnWriterBase<ValueType>::DictionaryByteSize_;
     }
 
@@ -473,7 +474,7 @@ private:
         DirectRleSize_ = 0;
         RleRowIndexes_.clear();
         TStringColumnWriterBase<ValueType>::Reset();
-        MemoryGuard_.SetSize(GetMemoryUsage());
+        MemoryGuard_.SetSize(GetUntrackedMemoryUsage());
     }
 
     TSharedRef GetDirectDenseNullBitmap() const
@@ -674,7 +675,7 @@ private:
     void DoWriteValues(TRange<TRow> rows)
     {
         AddValues(rows);
-        MemoryGuard_.SetSize(GetMemoryUsage());
+        MemoryGuard_.SetSize(GetUntrackedMemoryUsage());
     }
 
     template <class TRow>
