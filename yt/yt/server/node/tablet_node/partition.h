@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/misc/property.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <library/cpp/yt/memory/ref_tracked.h>
 
 namespace NYT::NTabletNode {
@@ -98,6 +100,8 @@ public:
 
     void RequestImmediateSplit(std::vector<TLegacyOwningKey> pivotKeys);
     bool IsImmediateSplitRequested() const;
+
+    void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
 private:
     EPartitionState State_ = EPartitionState::Normal;
