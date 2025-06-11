@@ -392,9 +392,9 @@ protected:
                     EstimatedInputStatistics_->PrimaryCompressedDataSize,
                     /*inputRowCount*/ std::numeric_limits<i64>::max() / 4, // It is not important in sorted operations.
                     GetForeignInputDataWeight(),
+                    GetForeignInputCompressedDataSize(),
                     InputManager_->GetInputTables().size(),
-                    GetPrimaryInputTableCount(),
-                    /*sortedOperation*/ true);
+                    GetPrimaryInputTableCount());
                 break;
         }
 
@@ -588,6 +588,8 @@ protected:
     virtual void AdjustSortColumns() = 0;
 
     virtual i64 GetForeignInputDataWeight() const = 0;
+
+    virtual i64 GetForeignInputCompressedDataSize() const = 0;
 
     void PrepareOutputTables() override
     {
@@ -974,6 +976,11 @@ public:
         return 0;
     }
 
+    i64 GetForeignInputCompressedDataSize() const override
+    {
+        return 0;
+    }
+
 protected:
     TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
@@ -1250,6 +1257,11 @@ public:
     i64 GetForeignInputDataWeight() const override
     {
         return Spec_->ConsiderOnlyPrimarySize ? 0 : EstimatedInputStatistics_->ForeignDataWeight;
+    }
+
+    i64 GetForeignInputCompressedDataSize() const override
+    {
+        return Spec_->ConsiderOnlyPrimarySize ? 0 : EstimatedInputStatistics_->ForeignCompressedDataSize;
     }
 
     TYsonStructPtr GetTypedSpec() const override
