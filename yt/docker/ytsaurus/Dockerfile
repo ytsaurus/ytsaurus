@@ -115,7 +115,7 @@ RUN wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
 
 ENV GOPATH=/go
 ENV PATH="${GOPATH}/bin:/usr/local/go/bin:${PATH}"
-RUN go install github.com/google/pprof@latest
+RUN CGO_ENABLED=0 go install github.com/google/pprof@latest
 RUN mv /go/bin/pprof /usr/bin/pprof
 
 ##########################################################################################
