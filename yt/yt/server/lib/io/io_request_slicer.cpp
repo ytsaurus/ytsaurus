@@ -1,4 +1,5 @@
 #include "io_request_slicer.h"
+#include "io_engine_base.h"
 
 namespace NYT::NIO {
 
@@ -72,9 +73,14 @@ std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
         };
     }
 
+    i64 blockSize = request.Handle->IsOpenForDirectIO() ? DefaultBlockSize : 1;
+
     YT_VERIFY(std::ssize(buffer) >= request.Size);
     return SliceRequest<TSlicedReadRequest>(request, [&] (TSlicedReadRequest& slice, i64 offset, i64 sliceSize) {
-        auto bufferOffset = offset - request.Offset;
+        YT_VERIFY(offset % blockSize == 0);
+        YT_VERIFY(sliceSize % blockSize == 0);
+
+        auto bufferOffset = offset - AlignDown(request.Offset, blockSize);
         slice.Request.Offset = offset;
         slice.Request.Handle = request.Handle;
         slice.Request.Size = sliceSize;
@@ -113,13 +119,17 @@ std::vector<TFlushFileRangeRequest> TIORequestSlicer::Slice(TFlushFileRangeReque
 template <typename TSlicedRequest, typename TInputRequest, typename TSliceHandler>
 std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& request, TSliceHandler handleSlice) const
 {
-    i64 offset = request.Offset;
-    i64 remainingSize = NDetail::GetByteCount(request);
-    const i64 indivisibleBlockSize = DesiredRequestSize_ + MinRequestSize_;
+    i64 blockSize = request.Handle->IsOpenForDirectIO() ? DefaultBlockSize : 1;
+    i64 desiredSize = AlignUp(DesiredRequestSize_, blockSize);
+    i64 minSize = AlignUp(MinRequestSize_, blockSize);
+
+    i64 offset = AlignDown(request.Offset, blockSize);
+    i64 remainingSize = AlignUp<i64>(request.Offset + NDetail::GetByteCount(request), blockSize) - offset;
+    const i64 indivisibleBlockSize = desiredSize + minSize;
 
     std::vector<TSlicedRequest> results;
     while (remainingSize > 0) {
-        auto sliceSize = (remainingSize > indivisibleBlockSize) ?  DesiredRequestSize_ : remainingSize;
+        auto sliceSize = (remainingSize >= indivisibleBlockSize) ?  desiredSize : remainingSize;
         auto& slice = results.emplace_back();
         handleSlice(slice, offset, sliceSize);
         remainingSize -= sliceSize;

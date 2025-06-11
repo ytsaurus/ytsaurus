@@ -16,6 +16,7 @@ IIOEnginePtr CreateIOEngineUring(
     EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
     TString locationId,
+    IHugePageManagerPtr hugePageManager,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger);
 

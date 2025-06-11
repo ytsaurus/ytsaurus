@@ -48,6 +48,7 @@ target_sources(server-lib-io PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/io_request_slicer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/io_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/io_workload_model.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/huge_page_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/chunk_fragment.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/chunk_file_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/io/chunk_file_reader_adapter.cpp

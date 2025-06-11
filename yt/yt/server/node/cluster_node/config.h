@@ -399,6 +399,9 @@ struct TClusterNodeBootstrapConfig
 
     NConcurrency::TFairThrottlerConfigPtr OutThrottler;
 
+    //! Configuration for huge page manager.
+    NIO::THugePageManagerConfigPtr HugePageManager;
+
     //! Bucket configuration for in network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 
@@ -496,6 +499,9 @@ struct TClusterNodeDynamicConfig
 
     //! Chaos residency cache config overrides.
     TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
+
+    //! Configuration for huge page manager.
+    NIO::THugePageManagerDynamicConfigPtr HugePageManager;
 
     bool UsePortoNetworkLimitInThrottler;
 
