@@ -334,6 +334,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("default_list_operations_timeout", &TThis::DefaultListOperationsTimeout)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("default_list_operation_events_timeout", &TThis::DefaultListOperationEventsTimeout)
+        .Default(TDuration::Seconds(60));
     registrar.Parameter("default_pull_rows_timeout", &TThis::DefaultPullRowsTimeout)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("default_sync_alien_cells_timeout", &TThis::DefaultSyncAlienCellsTimeout)

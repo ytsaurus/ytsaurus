@@ -7,8 +7,11 @@
 
 #include <yt/yt/server/controller_agent/config.h>
 #include <yt/yt/server/controller_agent/operation.h>
+#include <yt/yt/server/controller_agent/helpers.h>
 
 #include <yt/yt/server/lib/chunk_pools/vanilla_chunk_pool.h>
+
+#include <yt/yt/server/lib/misc/operation_events_reporter.h>
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
@@ -17,6 +20,8 @@
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
+
+#include <yt/yt/client/controller_agent/public.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
@@ -31,6 +36,7 @@ using namespace NConcurrency;
 using namespace NControllerAgent::NProto;
 using namespace NScheduler::NProto;
 using namespace NScheduler;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NYPath;
 using namespace NYTree;
@@ -753,13 +759,6 @@ void TVanillaController::AbortJobsByCookies(
 
 namespace {
 
-DEFINE_ENUM(EOperationIncarnationSwitchReason,
-    (JobAborted)
-    (JobFailed)
-    (JobInterrupted)
-    (JobLackAfterRevival)
-);
-
 TEnumIndexedArray<EOperationIncarnationSwitchReason, NProfiling::TCounter> OperationIncarnationSwitchCounters;
 
 NProfiling::TCounter GangOperationStartedCounter;
@@ -907,7 +906,7 @@ public:
         bool operationIsReviving,
         EOperationIncarnationSwitchReason reason);
 
-    void OnOperationIncarnationChanged(bool operationIsReviving, EOperationIncarnationSwitchReason reason);
+    void OnOperationIncarnationChanged(bool operationIsReviving, TIncarnationSwitchData data);
 
     bool OnJobCompleted(
         TJobletPtr joblet,
@@ -931,14 +930,14 @@ public:
 
     bool IsOperationGang() const noexcept final;
 
-    void SwitchToNewOperationIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason);
+    void SwitchToNewOperationIncarnation(bool operationIsReviving, TIncarnationSwitchData data);
 
 private:
     TOperationIncarnation Incarnation_;
 
     int TotalGangSize_ = 0;
 
-    std::optional<EOperationIncarnationSwitchReason> ShouldRestartJobsOnRevival() const;
+    std::optional<TIncarnationSwitchData> ShouldRestartJobsOnRevival() const;
 
     void TrySwitchToNewOperationIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason);
 
@@ -959,6 +958,9 @@ private:
         std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors) final;
 
     void ReportOperationIncarnationToArchive(const TGangJobletPtr& joblet) const;
+    void ReportOperationIncarnationStartedEventToArchive(TIncarnationSwitchData data) const;
+
+    const TOperationEventReporterPtr& GetOperationEventReporter() const;
 
     void OnJobStarted(const TJobletPtr& joblet) final;
 
@@ -1295,6 +1297,8 @@ TGangOperationController::TGangOperationController(
 {
     YT_LOG_DEBUG("Gang operation controller created (Incarnation: %v)", Incarnation_);
     GangOperationStartedCounter.Increment();
+
+    ReportOperationIncarnationStartedEventToArchive(TIncarnationSwitchData{});
 }
 
 void TGangOperationController::RegisterMetadata(auto&& registrar)
@@ -1434,7 +1438,13 @@ void TGangOperationController::TrySwitchToNewOperationIncarnation(
     }
 
     if (joblet->OperationIncarnation == Incarnation_) {
-        SwitchToNewOperationIncarnation(operationIsReviving, reason);
+        TIncarnationSwitchData data{
+            .IncarnationSwitchReason = reason,
+            .IncarnationSwitchInfo{
+                .TriggerJobId = joblet->JobId,
+            }
+        };
+        SwitchToNewOperationIncarnation(operationIsReviving, std::move(data));
     }
 }
 
@@ -1558,6 +1568,24 @@ void TGangOperationController::ReportOperationIncarnationToArchive(const TGangJo
         .OperationIncarnation(static_cast<const std::string&>(joblet->OperationIncarnation)));
 }
 
+void TGangOperationController::ReportOperationIncarnationStartedEventToArchive(TIncarnationSwitchData data) const
+{
+    auto event = TOperationEventReport{
+        .OperationId = GetOperationId(),
+        .Timestamp = TInstant::Now(),
+        .EventType = NApi::EOperationEventType::IncarnationStarted,
+        .Incarnation = Incarnation_.Underlying(),
+        .IncarnationSwitchReason = data.IncarnationSwitchReason,
+        .IncarnationSwitchInfo = std::move(data.IncarnationSwitchInfo),
+    };
+    GetOperationEventReporter()->ReportEvent(std::move(event));
+}
+
+const TOperationEventReporterPtr& TGangOperationController::GetOperationEventReporter() const
+{
+    return Host_->GetOperationEventReporter();
+}
+
 void TGangOperationController::OnJobStarted(const TJobletPtr& joblet)
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
@@ -1660,13 +1688,15 @@ void TGangOperationController::CustomMaterialize()
     }
 }
 
-void TGangOperationController::OnOperationIncarnationChanged(bool operationIsReviving, EOperationIncarnationSwitchReason reason)
+void TGangOperationController::OnOperationIncarnationChanged(bool operationIsReviving, TIncarnationSwitchData data)
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     TForbidContextSwitchGuard guard;
 
-    OperationIncarnationSwitchCounters[reason].Increment();
+    OperationIncarnationSwitchCounters[data.GetSwitchReason()].Increment();
+
+    ReportOperationIncarnationStartedEventToArchive(std::move(data));
 
     RestartAllRunningJobsPreservingAllocations(operationIsReviving);
 }
@@ -1676,7 +1706,7 @@ bool TGangOperationController::IsOperationGang() const noexcept
     return true;
 }
 
-void TGangOperationController::SwitchToNewOperationIncarnation(bool operationIsReviving, EOperationIncarnationSwitchReason reason)
+void TGangOperationController::SwitchToNewOperationIncarnation(bool operationIsReviving, TIncarnationSwitchData data)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
@@ -1686,9 +1716,9 @@ void TGangOperationController::SwitchToNewOperationIncarnation(bool operationIsR
         "Switching operation to new incarnation (From: %v, To: %v, Reason: %v)",
         oldIncarnation,
         Incarnation_,
-        reason);
+        data.GetSwitchReason());
 
-    OnOperationIncarnationChanged(operationIsReviving, reason);
+    OnOperationIncarnationChanged(operationIsReviving, std::move(data));
 }
 
 void TGangOperationController::VerifyJobsIncarnationsEqual() const
@@ -1713,7 +1743,7 @@ void TGangOperationController::VerifyJobsIncarnationsEqual() const
     }
 }
 
-std::optional<EOperationIncarnationSwitchReason> TGangOperationController::ShouldRestartJobsOnRevival() const
+std::optional<TIncarnationSwitchData> TGangOperationController::ShouldRestartJobsOnRevival() const
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
@@ -1745,7 +1775,14 @@ std::optional<EOperationIncarnationSwitchReason> TGangOperationController::Shoul
         if (rankCountIt == end(rankCountByTasks)) {
             YT_LOG_DEBUG("No jobs started in task, switching to new incarnation");
 
-            return EOperationIncarnationSwitchReason::JobLackAfterRevival;
+            return TIncarnationSwitchData{
+                .IncarnationSwitchReason = EOperationIncarnationSwitchReason::JobLackAfterRevival,
+                .IncarnationSwitchInfo{
+                    .ExpectedJobCount = gangTask->GetGangSize(),
+                    .ActualJobCount = 0,
+                    .TaskName = gangTask->GetName(),
+                }
+            };
         }
 
         if (auto rankCount = rankCountIt->second;
@@ -1756,7 +1793,14 @@ std::optional<EOperationIncarnationSwitchReason> TGangOperationController::Shoul
                 rankCount,
                 gangTask->GetGangSize());
 
-            return EOperationIncarnationSwitchReason::JobLackAfterRevival;
+            return TIncarnationSwitchData{
+                .IncarnationSwitchReason = EOperationIncarnationSwitchReason::JobLackAfterRevival,
+                .IncarnationSwitchInfo{
+                    .ExpectedJobCount = gangTask->GetGangSize(),
+                    .ActualJobCount = rankCount,
+                    .TaskName = gangTask->GetName(),
+                }
+            };
         }
 
         gangTask->VerifyRankPoolEmpty();
@@ -1771,12 +1815,12 @@ void TGangOperationController::OnOperationRevived()
 
     TOperationControllerBase::OnOperationRevived();
 
-    if (auto maybeIncarnationSwitchReason = ShouldRestartJobsOnRevival()) {
+    if (auto maybeIncarnationSwitchInfo = ShouldRestartJobsOnRevival()) {
         YT_LOG_DEBUG(
             "Switching to new operation incarnation during revival (Reason: %v)",
-            *maybeIncarnationSwitchReason);
+            maybeIncarnationSwitchInfo->IncarnationSwitchReason);
 
-        SwitchToNewOperationIncarnation(/*operationIsReviving*/ true, *maybeIncarnationSwitchReason);
+        SwitchToNewOperationIncarnation(/*operationIsReviving*/ true, std::move(*maybeIncarnationSwitchInfo));
     }
 }
 

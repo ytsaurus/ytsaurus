@@ -636,6 +636,10 @@ public: \
         NScheduler::TJobId jobId,
         const TGetJobFailContextOptions& options),
         (operationIdOrAlias, jobId, options))
+    IMPLEMENT_METHOD(std::vector<TOperationEvent>, ListOperationEvents, (
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+        const TListOperationEventsOptions& options),
+        (operationIdOrAlias, options))
     // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
     // and an operation is in both Cypress and archive.
     // XXX(levysotsky): The "failed_jobs_count" counter is incorrect if corresponding failed operations
