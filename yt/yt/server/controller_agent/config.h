@@ -1307,6 +1307,8 @@ struct TControllerAgentConfig
     // COMPAT(dave11ar): Remove when all masters will be 25.2.
     bool RegisterLockableDynamicTables;
 
+    NServer::TOperationEventReporterConfigPtr OperationEventsReporter;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 
     static void Register(TRegistrar registrar);

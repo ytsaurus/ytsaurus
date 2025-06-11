@@ -7,7 +7,7 @@ from yt_commands import (
     map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
     update_controller_agent_config, print_debug, exists, get_allocation_id_from_job_id,
-    make_random_string, raises_yt_error, clear_metadata_caches, ls, get_job)
+    make_random_string, raises_yt_error, clear_metadata_caches, ls, get_job, list_operation_events)
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
 
@@ -652,6 +652,7 @@ class TestListJobsStatisticsLz4(TestListJobsCommon):
 
 class TestListJobs(TestListJobsCommon):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_TEST_PARTITIONS = 2
 
     @authors("ermolovd", "omgronny")
     def test_running_jobs_stderr_size(self):
@@ -1075,6 +1076,12 @@ class TestListJobs(TestListJobsCommon):
 
         jobs = list_jobs(op.id)["jobs"]
 
+        wait(lambda: len(list_operation_events(op.id, event_type="incarnation_started")) == 1)
+        event_before = list_operation_events(op.id, event_type="incarnation_started")[0]
+
+        assert event_before["event_type"] == "incarnation_started"
+        assert event_before.get("incarnation_switch_reason") is None
+
         assert frozenset(job["id"] for job in jobs) == frozenset(job_ids)
         assert all([job["operation_incarnation"] == incarnation for job in jobs])
 
@@ -1113,6 +1120,25 @@ class TestListJobs(TestListJobsCommon):
         jobs = list_jobs(op.id, operation_incarnation=new_incarnation)["jobs"]
         assert frozenset(job["id"] for job in jobs) == frozenset(new_job_ids)
         assert all([job["operation_incarnation"] == new_incarnation for job in jobs])
+
+        @wait_no_assert
+        def check_list_operation_events():
+            wait(lambda: len(list_operation_events(op.id, event_type="incarnation_started")) == 2)
+            events_after = list_operation_events(op.id, event_type="incarnation_started")
+            assert all(event["event_type"] == "incarnation_started" for event in events_after)
+            event_operation_started, event_job_aborted = events_after[0], events_after[1]
+            assert event_operation_started.get("incarnation_switch_reason") is None
+            assert event_job_aborted["incarnation_switch_reason"] == "job_aborted"
+            assert event_operation_started["timestamp"] < event_job_aborted["timestamp"]
+            assert event_operation_started["incarnation"] == incarnation
+            assert event_job_aborted["incarnation"] == new_incarnation
+
+            event_info_job_aborted = event_job_aborted["incarnation_switch_info"]
+            assert event_info_job_aborted["trigger_job_id"] == first_job_id
+
+            event_after = list_operation_events(op.id, event_type="incarnation_started", limit=1)
+            assert len(event_after) == 1
+            assert event_after[0]["incarnation"] == incarnation
 
     @authors("bystrovserg")
     def test_from_time_and_to_time_filters(self):

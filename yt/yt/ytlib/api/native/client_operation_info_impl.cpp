@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/records/ordered_by_id.record.h>
+#include <yt/yt/ytlib/scheduler/records/operation_events.record.h>
 
 #include <yt/yt/client/api/rowset.h>
 
@@ -40,6 +41,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NCypressClient;
+using namespace NControllerAgent;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NRpc;
@@ -906,6 +908,84 @@ void TClient::DoListOperationsFromCypress(
     countingFilter.MergeFrom(filter->GetCountingFilter());
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TOperationEvent> TClient::DoListOperationEvents(
+    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+    const TListOperationEventsOptions& options)
+{
+    auto maybeArchiveVersion = TryGetOperationsArchiveVersion();
+    if (!maybeArchiveVersion || *maybeArchiveVersion < 59) {
+        return std::vector<TOperationEvent>();
+    }
+
+    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultListOperationEventsTimeout);
+    auto deadline = timeout.ToDeadLine();
+
+    TOperationId operationId;
+    Visit(operationIdOrAlias.Payload,
+        [&] (const TOperationId& id) {
+            operationId = id;
+        },
+        [&] (const TString& alias) {
+            operationId = ResolveOperationAlias(alias, options, deadline);
+        });
+
+    NQueryClient::TQueryBuilder builder;
+    builder.SetSource(GetOperationsArchiveOperationEventsPath());
+
+    builder.SetLimit(options.Limit);
+
+    builder.AddSelectExpression("operation_id_hi");
+    builder.AddSelectExpression("operation_id_lo");
+    builder.AddSelectExpression("event_type");
+    builder.AddSelectExpression("timestamp");
+    builder.AddSelectExpression("incarnation_switch_reason");
+    builder.AddSelectExpression("incarnation_switch_info");
+    builder.AddSelectExpression("incarnation");
+
+    builder.AddWhereConjunct(Format(
+        "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+        operationId.Underlying().Parts64[0],
+        operationId.Underlying().Parts64[1]));
+
+    if (options.EventType) {
+        builder.AddWhereConjunct(Format(
+            "event_type = %Qv",
+            FormatEnum(*options.EventType)));
+    }
+
+    builder.AddOrderByAscendingExpression("timestamp");
+
+    auto rowset = WaitFor(SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)))
+        .ValueOrThrow()
+        .Rowset;
+
+    auto idMapping = NRecords::TOperationEvent::TRecordDescriptor::TIdMapping(rowset->GetNameTable());
+    auto records = ToRecords<NRecords::TOperationEventPartial>(rowset->GetRows(), idMapping);
+
+    std::vector<TOperationEvent> events;
+    events.reserve(records.size());
+    for (const auto& record : records) {
+        std::optional<EOperationIncarnationSwitchReason> incarnationSwitchReason;
+        if (record.IncarnationSwitchReason) {
+            incarnationSwitchReason = ParseEnum<EOperationIncarnationSwitchReason>(*record.IncarnationSwitchReason);
+        }
+
+        events.push_back(TOperationEvent{
+            .Timestamp = record.Key.Timestamp,
+            .EventType = ParseEnum<EOperationEventType>(record.Key.EventType),
+            .Incarnation = record.Incarnation,
+            .IncarnationSwitchReason = incarnationSwitchReason,
+            .IncarnationSwitchInfo = record.IncarnationSwitchInfo,
+        });
+    }
+
+    return events;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename T>
 void TryFromUnversionedValue(T& result, TUnversionedRow row, std::optional<int> index)
 {
@@ -1078,10 +1158,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         builder.AddGroupByExpression("pool");
         builder.AddGroupByExpression("has_failed_jobs");
 
-        TSelectRowsOptions selectOptions;
-        selectOptions.Timeout = deadline - Now();
-        selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
-        selectOptions.MemoryLimitPerNode = 100_MB;
+        TSelectRowsOptions selectOptions = GetDefaultSelectRowsOptions(deadline);
 
         auto resultCounts = WaitFor(GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions))
             .ValueOrThrow();
@@ -1195,10 +1272,8 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     // Retain more operations than limit to track (in)completeness of the response.
     builder.SetLimit(1 + options.Limit);
 
-    TSelectRowsOptions selectOptions;
-    selectOptions.Timeout = deadline - Now();
-    selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
-    selectOptions.MemoryLimitPerNode = 100_MB;
+    TSelectRowsOptions selectOptions = GetDefaultSelectRowsOptions(deadline);
+
     auto rowsItemsId = WaitFor(GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions))
         .ValueOrThrow();
     auto records = ToRecords<NRecords::TOrderedByStartTimePartial>(rowsItemsId.Rowset);

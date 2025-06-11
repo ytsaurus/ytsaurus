@@ -288,4 +288,19 @@ void THeapProfilerTestingOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TOperationEventReporterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("user", &TThis::User)
+        .Default(NRpc::RootUserName);
+
+    registrar.Parameter("handler", &TThis::Handler)
+        .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->Handler->Path = NScheduler::GetOperationsArchiveOperationEventsPath();
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NServer

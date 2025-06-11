@@ -1520,6 +1520,22 @@ class YtClient(ClientState):
             include_cypress=include_cypress, include_runtime=include_runtime, include_archive=include_archive,
             data_source=data_source, attributes=attributes, format=format)
 
+    def list_operation_events(
+            self,
+            operation_id,
+            event_type=None, format=None):
+        """
+        List events of given operation.
+
+        :param str operation_id: operation id.
+        :param str event_type: event type.
+
+        """
+        return client_api.list_operation_events(
+            operation_id,
+            client=self,
+            event_type=event_type, format=format)
+
     def list_operations(
             self,
             user=None, state=None, type=None, filter=None, pool_tree=None, pool=None, with_failed_jobs=None,

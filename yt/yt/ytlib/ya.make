@@ -216,6 +216,7 @@ SRCS(
     controller_agent/persistence.cpp
     controller_agent/public.cpp
     controller_agent/serialize.cpp
+    controller_agent/structs.cpp
 
     controller_agent/proto/controller_agent_descriptor.proto
     controller_agent/proto/controller_agent_service.proto
@@ -655,6 +656,10 @@ GENERATE_YT_RECORD(
 
 GENERATE_YT_RECORD(
     scheduler/records/operation_id.yaml
+)
+
+GENERATE_YT_RECORD(
+    scheduler/records/operation_events.yaml
 )
 
 GENERATE_YT_RECORD(
