@@ -327,7 +327,7 @@ protected:
             struct TTag {};
             auto data = MergeRefsToRef<TTag>(wireData);
 
-            auto reader = TWireWriteCommandBatchReader(
+            auto reader = TWireWriteCommandsBatchingReader(
                 data,
                 CreateWireProtocolReader(data),
                 tabletSnapshot->TableSchemaData);
@@ -425,7 +425,7 @@ protected:
             TAuthenticationIdentity identity(ReplicatorUserName);
             TCurrentAuthenticationIdentityGuard guard(&identity);
 
-            auto reader = TWireWriteCommandBatchReader(
+            auto reader = TWireWriteCommandsBatchingReader(
                 data,
                 CreateWireProtocolReader(data),
                 tabletSnapshot->TableSchemaData);

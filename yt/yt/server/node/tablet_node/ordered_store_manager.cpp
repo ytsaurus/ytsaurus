@@ -117,7 +117,7 @@ void TOrderedStoreManager::LockHunkStores(TWriteContext* context)
 }
 
 bool TOrderedStoreManager::ExecuteWrites(
-    IWireWriteCommandReader* reader,
+    IWireWriteCommandsReader* reader,
     TWriteContext* context)
 {
     YT_VERIFY(context->Phase == EWritePhase::Commit);

@@ -12,6 +12,7 @@
 #include "tablet_slot.h"
 #include "transaction_manager.h"
 #include "versioned_chunk_meta_manager.h"
+#include "write_commands.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -130,7 +131,7 @@ TSortedStoreManager::TSortedStoreManager(
 }
 
 bool TSortedStoreManager::ExecuteWrites(
-    IWireWriteCommandReader* reader,
+    IWireWriteCommandsReader* reader,
     TWriteContext* context)
 {
     while (!reader->IsFinished()) {

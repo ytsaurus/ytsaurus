@@ -66,7 +66,7 @@ void TReplicatedStoreManager::StopEpoch()
 }
 
 bool TReplicatedStoreManager::ExecuteWrites(
-    IWireWriteCommandReader* reader,
+    IWireWriteCommandsReader* reader,
     TWriteContext* context)
 {
     auto tableSchema = Tablet_->GetTableSchema();
