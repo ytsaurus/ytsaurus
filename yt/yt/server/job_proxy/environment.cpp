@@ -1308,17 +1308,20 @@ public:
             process->AddArguments(commandSplit);
             process->SetWorkingDirectory(NFS::CombinePaths(host->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
 
-            SidecarsRunning_[name] = BIND([=] {
+            SidecarsRunning_[name] = {process, BIND([=] {
                     return process->Spawn();
                 })
                 .AsyncVia(ActionQueue_->GetInvoker())
-                .Run();
+                .Run()};
         }
     }
 
     void KillSidecars() override
     {
-        YT_LOG_INFO("Kill sidecars is not yet implemented for CRI environment");
+        for (auto& [name, sidecar]: SidecarsRunning_) {
+            YT_LOG_DEBUG("Killing a CRI sidecar (name: %v)", name);
+            sidecar.first->Kill(SIGKILL);
+        }
     }
 
 private:
@@ -1331,7 +1334,7 @@ private:
     const NContainers::NCri::TCriPodSpecPtr CriPodSpec_;
 
     THashMap<TString, NScheduler::TSidecarJobSpecPtr> Sidecars_;
-    THashMap<TString, TFuture<void>> SidecarsRunning_;
+    THashMap<TString, std::pair<TProcessBasePtr, TFuture<void>>> SidecarsRunning_;
 
     const TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobProxyEnvironment");
 

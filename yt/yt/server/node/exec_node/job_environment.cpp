@@ -1348,7 +1348,12 @@ private:
             .ReadOnly = false,
         });
 
-        // Docker group (probably, can be different on different machines).
+        // We need to specify the group which owns (or has access to) the /run/containerd/containerd.socket,
+        // so that the job proxy can spawn sidecars. However, it's impossible to check the owner without sudo.
+        // I suggest that we add a configuration parameter for the server to specify the name of the containerd
+        // group, as it may be root, docker or anything else. By default it should be docker, and root should
+        // never be specified for security reasons.
+        // TODO: decide this; currently, it's hardcoded to ID of docker group on the dev machine.
         spec->Credentials.Groups = {998};
 
         spec->Resources.CpuLimit = config->ContainerCpuLimit;

@@ -613,6 +613,8 @@ void TJobProxy::DoRun()
         YT_LOG_INFO("CPU monitor stopped");
     }
 
+    FindJobProxyEnvironment()->KillSidecars();
+
     {
         auto error = WaitFor(RpcServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));

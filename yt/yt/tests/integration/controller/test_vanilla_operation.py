@@ -6,7 +6,7 @@ from yt_commands import (
     create, ls, exists, sorted_dicts, create_pool,
     get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
     interrupt_job, dump_job_context, run_sleeping_vanilla, get_allocation_id_from_job_id,
-    patch_op_spec)
+    patch_op_spec, create_tmpdir)
 
 from yt_helpers import profiler_factory, read_structured_log, write_log_barrier, JobCountProfiler
 
@@ -55,7 +55,7 @@ class TestSidecarVanilla(YTEnvSetup):
     }
 
     @authors("pavel-bash")
-    def test_sidecars(self):
+    def test_sidecars_success(self):
         docker_image = self.Env.yt_config.default_docker_image
 
         master_command = " ; ".join(
@@ -64,6 +64,18 @@ class TestSidecarVanilla(YTEnvSetup):
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
+        sidecar_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("sidecar_job_started"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+
+        # Prepare a sidecar bash file as it seems to be impossible to just concatenate several commands
+        # under "command" section of sidecar definition, so we invoke a bash file.
+        sidecar_cmds_file = create_tmpdir("sidecar_tmp") + "/sidecar_cmds"
+        with open(sidecar_cmds_file, "w") as sidecar_cmds_file_open:
+            sidecar_cmds_file_open.write(sidecar_command)
 
         op = vanilla(
             track=False,
@@ -73,13 +85,13 @@ class TestSidecarVanilla(YTEnvSetup):
                         "job_count": 1,
                         "command": master_command,
                         "docker_image": docker_image,
+                        "files": [
+                            sidecar_cmds_file,
+                        ],
                         "sidecars": {
                             "sidecar1": {
                                 "job_count": 1,
-                                # The sidecar's touch command worked only if specified exactly like this, without the ";".join
-                                # or escaping the path which the `notify_event_cmd` function does. Can be related to how the
-                                # CRI interprets or passes the command down to the container, not sure yet.
-                                "command": f"touch {events_on_fs()._get_event_filename("sidecar_job_started")}",
+                                "command": f"/bin/bash {sidecar_cmds_file}",
                                 "docker_image": docker_image,
                             }
                         }
