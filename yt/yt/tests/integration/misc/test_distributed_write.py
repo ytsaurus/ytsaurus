@@ -4,7 +4,7 @@ from yt_commands import (
     authors,
     create_table, read_table,
     start_distributed_write_session, finish_distributed_write_session, write_table_fragment,
-    raises_yt_error,
+    raises_yt_error
 )
 
 import yt.yson as yson
@@ -15,10 +15,11 @@ import pytest
 @pytest.mark.enabled_multidaemon
 class TestDistributedWrite(YTEnvSetup):
     TABLE_PATH = "//tmp/distributed_table_test"
+    TABLE_SCHEMA = [{"name": "v1", "type": "int64", "sort_order": "ascending"}]
 
     @authors("pavook")
     def test_end_to_end(self):
-        create_table(self.TABLE_PATH, schema=[{"name": "v1", "type": "int64", "sort_order": "ascending"}])
+        create_table(self.TABLE_PATH, schema=self.TABLE_SCHEMA)
 
         num_rows = 10
         num_cookies = 10
@@ -37,6 +38,9 @@ class TestDistributedWrite(YTEnvSetup):
 @pytest.mark.enabled_multidaemon
 class TestDistributedWriteRPC(TestDistributedWrite):
     ENABLE_RPC_PROXY = True
+    DELTA_RPC_DRIVER_CONFIG = {
+        "enable_retries": True,
+    }
     DELTA_RPC_PROXY_CONFIG = {
         "signature_validation": {
             "cypress_key_reader": dict(),
@@ -57,7 +61,7 @@ class TestDistributedWriteRPC(TestDistributedWrite):
 
     @authors("pavook")
     def test_cookie_modification(self):
-        create_table(self.TABLE_PATH, schema=[{"name": "v1", "type": "int64", "sort_order": "ascending"}])
+        create_table(self.TABLE_PATH, schema=self.TABLE_SCHEMA)
 
         session_with_cookies = start_distributed_write_session(self.TABLE_PATH, cookie_count=0)
         session = session_with_cookies["session"]

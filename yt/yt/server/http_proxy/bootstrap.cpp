@@ -484,8 +484,11 @@ void TBootstrap::DoStart()
     MonitoringServer_->Start();
 
     if (SignatureKeyRotator_) {
-        WaitFor(SignatureKeyRotator_->Start())
-            .ThrowOnError();
+        // NB(pavook):
+        // We don't wait for key rotation completion anywhere in bootstrap, because proxy bootstrap
+        // should be possible even in master read-only mode.
+        // So, we just throw on all signature-requiring operations until the key rotation actually happens.
+        YT_UNUSED_FUTURE(SignatureKeyRotator_->Start());
     }
 
     ApiHttpServer_->Start();
