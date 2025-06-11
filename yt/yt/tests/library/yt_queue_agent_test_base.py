@@ -199,6 +199,9 @@ class QueueExporterOrchid(OrchidBase):
     def get_retry_backoff_duration_seconds(self):
         return get(f"{self.orchid_path()}/retry_backoff_duration") / 1000
 
+    def get_last_successful_export_unix_ts(self):
+        return get(f"{self.orchid_path()}/last_successful_export_unix_ts")
+
     def wait_fresh_invocation(self):
         invocation_index = self.get_export_task_invocation_index()
         wait(lambda: self.get_export_task_invocation_index() >= invocation_index + 2, sleep_backoff=0.15)

@@ -178,6 +178,7 @@ public:
         TYPath queue,
         TQueueStaticExportConfigPtr exportConfig,
         TQueueExporterDynamicConfig dynamicConfig,
+        bool isInitialInvocation,
         TQueueExportProfilingCountersPtr profilingCounters,
         const TLogger& logger)
         : Client_(std::move(client))
@@ -187,10 +188,12 @@ public:
         , Queue_(std::move(queue))
         , ExportConfig_(std::move(exportConfig))
         , DynamicConfig_(std::move(dynamicConfig))
+        , IsInitialInvocation_(isInitialInvocation)
         , Logger(logger.WithTag(
-            "ExportDirectory: %v, ExportPeriod: %v",
+            "ExportDirectory: %v, ExportPeriod: %v, IsInitialInvocation: %v",
             ExportConfig_->ExportDirectory,
-            ExportConfig_->ExportPeriod))
+            ExportConfig_->ExportPeriod,
+            IsInitialInvocation_))
     { }
 
     TFuture<void> Run()
@@ -219,6 +222,8 @@ private:
     const TYPath Queue_;
     const TQueueStaticExportConfigPtr ExportConfig_;
     const TQueueExporterDynamicConfig DynamicConfig_;
+
+    const bool IsInitialInvocation_;
 
     const TLogger Logger;
 
@@ -321,7 +326,22 @@ private:
 
         PrepareQueueForExport();
         auto currentExportProgress = ValidateDestinationAndFetchProgress();
+        YT_VERIFY(currentExportProgress);
         QueueExportProgress_ = currentExportProgress;
+        if (currentExportProgress->LastExportUnixTs >= ExportUnixTsUpperBound_) {
+            if (IsInitialInvocation_) {
+                YT_LOG_WARNING(
+                    "Rows corresponding to this export unix ts have already been exported according to the last export unix ts (ExportUnixTsUpperBound: %v, LastExportUnixTs: %v)",
+                    ExportUnixTsUpperBound_,
+                    currentExportProgress->LastExportUnixTs);
+                return;
+            } else {
+                THROW_ERROR_EXCEPTION(
+                    "Rows corresponding to export unix ts %v have already been exported as last export unix ts is %v",
+                    ExportUnixTsUpperBound_,
+                    currentExportProgress->LastExportUnixTs);
+            }
+        }
 
         FetchChunkSpecs();
         SelectChunkSpecsToExport(currentExportProgress);
@@ -579,12 +599,6 @@ private:
         }
 
         auto currentExportProgress = exportDirectoryAttributes->Find<TQueueExportProgressPtr>(ExportProgressAttributeName_);
-        if (currentExportProgress && currentExportProgress->LastExportUnixTs >= ExportUnixTsUpperBound_) {
-            THROW_ERROR_EXCEPTION(
-                "Rows corresponding to export unix ts %v have already been exported as last export unix ts is %v",
-                ExportUnixTsUpperBound_,
-                currentExportProgress->LastExportUnixTs);
-        }
 
         // COMPAT(apachee): There are exports without "queue_object_id" field set. We do not want to ignore export progress in this case.
         if (currentExportProgress && currentExportProgress->QueueObjectId == NullObjectId) {
@@ -988,7 +1002,6 @@ public:
         const TLogger& logger)
         : ExportConfig_(std::move(exportConfig))
         , DynamicConfig_(std::move(dynamicConfig))
-        , ExportProgress_(New<TQueueExportProgress>())
         , RetryBackoff_(DynamicConfig_.RetryBackoff)
         , ExportName_(std::move(exportName))
         , Queue_(std::move(queue))
@@ -1018,7 +1031,9 @@ public:
     TQueueExportProgressPtr GetExportProgress() const override
     {
         auto guard = Guard(Lock_);
-        return ExportProgress_;
+        return ExportProgress_
+            ? ExportProgress_
+            : New<TQueueExportProgress>();
     }
 
     void OnExportConfigChanged(const TQueueStaticExportConfigPtr& newExportConfig) override
@@ -1026,11 +1041,13 @@ public:
         auto guard = Guard(Lock_);
 
         if (ExportConfig_->ExportDirectory != newExportConfig->ExportDirectory) {
-            ExportProgress_ = New<TQueueExportProgress>();
+            ExportProgress_.Reset();
 
             // NB(apachee): Restart retries from the start, since new export directory
             // might be properly configured (or become so soon).
             RetryBackoff_.Restart();
+
+            LastSuccessfulExportUnixTs_.store(0);
         }
 
         ExportConfig_ = newExportConfig;
@@ -1084,6 +1101,7 @@ private:
     TSpinLock Lock_;
     TQueueStaticExportConfigPtr ExportConfig_;
     TQueueExporterDynamicConfig DynamicConfig_;
+    //! Last fetched export progress. Null means that it hasn't been fetched yet.
     TQueueExportProgressPtr ExportProgress_;
     //! Number of times export task was invoked regardless of its result.
     i64 ExportTaskInvocationIndex_ = 0;
@@ -1178,10 +1196,14 @@ private:
 
         auto dynamicConfig = GetDynamicConfig();
 
+        bool isInitialInvocation = false;
         {
             auto guard = Guard(Lock_);
+
             ++ExportTaskInvocationIndex_;
             ExportTaskInvocationInstant_ = TInstant::Now();
+
+            isInitialInvocation = !static_cast<bool>(ExportProgress_);
         }
 
         TQueueExportTaskPtr exportTask = New<TQueueExportTask>(
@@ -1190,6 +1212,7 @@ private:
             Queue_.Path,
             exportConfig,
             std::move(dynamicConfig),
+            isInitialInvocation,
             ProfilingCounters_,
             Logger);
 
@@ -1206,7 +1229,8 @@ private:
                 // export task might be greater, and that is why we need to update the value here.
                 // Even in case of 1 min / 5 min exports this matters, since throttling happens after the first export unix ts
                 // calculation and before the second one.
-                exportUnixTs = std::max(exportUnixTs, ExportProgress_->LastExportUnixTs);
+                // NB(apachee): We store this value even in case of errors, since it might have been our first invocation.
+                LastSuccessfulExportUnixTs_.store(std::max(exportUnixTs, ExportProgress_->LastExportUnixTs));
             }
             if (!exportTaskError.IsOK() || !exportTask->GetExportError().IsOK()) {
                 THROW_ERROR_EXCEPTION("Export task has errors")
@@ -1218,8 +1242,6 @@ private:
             }
         }
         YT_VERIFY(exportTaskError.IsOK() && exportTask->GetExportError().IsOK());
-
-        LastSuccessfulExportUnixTs_.store(exportUnixTs);
     }
 
     void ProfileExport(const TQueueStaticExportConfigPtr& exportConfig, bool hasError)
@@ -1229,6 +1251,7 @@ private:
 
         ui64 timeLagSeconds = 0;
         auto exportProgress = GetExportProgress();
+        YT_VERIFY(exportProgress);
         // TODO(apachee): Consider more elaborate ways to handle if this condition is not true
         if (exportProgress->LastExportUnixTs <= exportUnixTsUpperBound) {
             timeLagSeconds = exportUnixTsUpperBound - exportProgress->LastExportUnixTs;
