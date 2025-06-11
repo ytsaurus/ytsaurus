@@ -689,7 +689,7 @@ private:
             // It's impossible to clear response without wiping the whole context, so it has to be created anew for each node.
             auto subcontext = CreateYPathContext(templateRequest, Logger());
 
-            if (auto* object = objectManager->FindObject(objectId)) {
+            if (auto* object = objectManager->FindObject(objectId); IsObjectAlive(object)) {
                 auto proxy = objectManager->GetProxy(object, transaction);
                 proxy->Invoke(subcontext);
             } else {
