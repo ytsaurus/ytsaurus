@@ -124,8 +124,6 @@
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/lazy_ptr.h>
 
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
-
 #include <library/cpp/yt/threading/atomic_object.h>
 
 #include <library/cpp/testing/gtest_extensions/gtest_extensions.h>

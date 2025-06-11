@@ -82,9 +82,7 @@ private:
         };
 
         IInvokerPtr Invoker;
-        std::optional<NProfiling::TWallTimer> ReadTimer;
         std::unique_ptr<TBlockEntry[]> Entries;
-        int CurrentEntryIndex = 0;
         int EntryCount = 0;
         std::vector<TFuture<void>> Futures;
         TPromise<std::vector<NChunkClient::TBlock>> SessionPromise = NewPromise<std::vector<NChunkClient::TBlock>>();
@@ -93,6 +91,15 @@ private:
         TLocationMemoryGuard LocationMemoryGuard;
         std::atomic<bool> Finished = false;
         TLocationFairShareSlotPtr FairShareSlot = nullptr;
+    };
+
+    struct TBlocksReadRequest
+    {
+        int FirstBlockIndex = -1;
+        int BlocksToRead = -1;
+        int BeginEntryIndex = -1;
+        int EndEntryIndex = -1;
+        THashMap<int, TReadBlockSetSession::TBlockEntry> BlockIndexToEntry;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -124,10 +131,34 @@ private:
     void DoReadSession(
         const TReadBlockSetSessionPtr& session,
         i64 pendingDataSize);
+    void AddBlocksWithinReadGap(
+        const TReadBlockSetSessionPtr& session,
+        int beginEntryIndex,
+        THashMap<int, TReadBlockSetSession::TBlockEntry>& blockIndexToEntry);
+
     void DoReadBlockSet(
         const TReadBlockSetSessionPtr& session);
+
+    void DoReadBlockSetSequential(
+        const TReadBlockSetSessionPtr& session,
+        std::vector<TBlocksReadRequest> requests);
+    void DoReadBlockSetParallel(
+        const TReadBlockSetSessionPtr& session,
+        std::vector<TBlocksReadRequest> requests);
+
+    TFuture<void> ReadBlocks(
+        const TReadBlockSetSessionPtr& session,
+        TBlocksReadRequest readBlocksBatchRequest);
+
+    std::vector<TBlocksReadRequest> CalculateBlocksReadRequests(
+        const TReadBlockSetSessionPtr& session);
+
+    std::optional<TBlocksReadRequest> NextReadBlocksBatchRequest(
+        const TReadBlockSetSessionPtr& session,
+        int startEntryIndex);
     void OnBlocksRead(
         const TReadBlockSetSessionPtr& session,
+        NProfiling::TWallTimer readTimer,
         int firstBlockIndex,
         int blocksToRead,
         int beginEntryIndex,
