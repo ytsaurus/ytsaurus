@@ -4354,7 +4354,7 @@ class TestChaos(ChaosTestBase):
 
         wait(_check)
 
-    @authors("savrus")
+    @authors("savrus", "osidorkin")
     @pytest.mark.parametrize("schemas", [
         ("sorted_simple", "sorted_value2"),
         ("sorted_simple", "sorted_key2"),
@@ -4382,6 +4382,11 @@ class TestChaos(ChaosTestBase):
         ]
         card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:3], create_replica_tables=False, sync_replication_era=False)
         _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "replication_card_id": card_id,
+            "chaos_cell_bundle": "c"
+        })
 
         def _create_pivots(schema):
             if schema[0]["type"] == "uint64":
@@ -4430,6 +4435,13 @@ class TestChaos(ChaosTestBase):
             alter_table_replica(replica_ids[0], enabled=True)
             alter_table_replica(replica_ids[4], enabled=True)
             self._sync_replication_era(card_id)
+
+        # Wait for replicas to report their progresses
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > ts)
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[4]}/replication_lag_timestamp") > ts)
+        # Force client to update its caches
+        alter_table_replica(replica_ids[5], enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 5, enabled=True)
 
         def _filter(rows, schema):
             columns = builtins.set([c["name"] for c in schema])
