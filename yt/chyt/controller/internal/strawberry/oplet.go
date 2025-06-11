@@ -266,6 +266,13 @@ func (oplet *Oplet) Secrets() map[string]any {
 	return oplet.secrets
 }
 
+func (oplet *Oplet) SetSecret(secret string, value any) {
+	if oplet.secrets == nil {
+		oplet.secrets = make(map[string]any)
+	}
+	oplet.secrets[secret] = value
+}
+
 type OpletState string
 
 const (
