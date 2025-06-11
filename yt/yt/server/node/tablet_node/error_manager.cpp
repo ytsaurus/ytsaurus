@@ -30,6 +30,10 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constinit const auto Logger = TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +75,14 @@ using TDeduplicationCache = TSyncExpiringCache<TDeduplicationKey, std::monostate
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+TErrorManagerContext::TErrorManagerContext(const TTabletSnapshotPtr& tabletSnapshot)
+    : TabletCellBundle(tabletSnapshot->TabletCellBundle)
+    , TablePath(tabletSnapshot->TablePath)
+    , TableId(tabletSnapshot->TableId)
+    , TabletId(tabletSnapshot->TabletId)
+{ }
+
 TErrorManagerContext::operator bool() const
 {
     return TabletCellBundle && TablePath && TableId && TabletId;
@@ -88,16 +100,6 @@ void SetErrorManagerContext(TErrorManagerContext context)
 {
     YT_ASSERT(context);
     *Context = std::move(context);
-}
-
-void SetErrorManagerContextFromTabletSnapshot(const TTabletSnapshotPtr& tabletSnapshot)
-{
-    SetErrorManagerContext({
-        .TabletCellBundle = tabletSnapshot->TabletCellBundle,
-        .TablePath = tabletSnapshot->TablePath,
-        .TableId = tabletSnapshot->TableId,
-        .TabletId = tabletSnapshot->TabletId,
-    });
 }
 
 void ResetErrorManagerContext()
@@ -151,15 +153,21 @@ public:
         DeduplicationCache_->SetExpirationTimeout(config->DeduplicationCacheTimeout);
     }
 
-    void HandleError(const TError& error, const TString& method) override
+    void HandleError(const TError& error, const std::string& method, TErrorManagerContext context) override
     {
-        auto context = *Context;
+        if (!context) {
+            context = *Context;
+        }
 
         if (!context) {
             ExtractContext(error, &context);
-            if (!context) {
-                return;
-            }
+        }
+
+        if (!context) {
+            YT_LOG_WARNING("No error manager context for error handling (Error: %Qv, Method: %v)",
+                error.GetMessage(),
+                method);
+            return;
         }
 
         TDeduplicationKey deduplicationKey(context, method, error.GetMessage());

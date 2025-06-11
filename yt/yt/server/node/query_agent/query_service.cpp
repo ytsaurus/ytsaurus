@@ -683,7 +683,7 @@ private:
             [&] {
                 auto tabletSnapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
 
-                SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+                SetErrorManagerContext(tabletSnapshot);
 
                 if (tabletSnapshot->UpstreamReplicaId != upstreamReplicaId) {
                     THROW_ERROR_EXCEPTION(
@@ -830,7 +830,7 @@ private:
 
             auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
-            SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+            SetErrorManagerContext(tabletSnapshot);
 
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
@@ -897,7 +897,7 @@ private:
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
-        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+        SetErrorManagerContext(tabletSnapshot);
 
         if (tabletSnapshot->IsPreallocatedDynamicStoreId(storeId)) {
             YT_LOG_DEBUG("Dynamic store is not created yet, sending nothing (TabletId: %v, StoreId: %v, "
@@ -1285,7 +1285,7 @@ private:
                     continue;
                 }
 
-                SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+                SetErrorManagerContext(tabletSnapshot);
 
                 if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
                     THROW_ERROR_EXCEPTION("Fetching tablet stores for ordered tablets is not implemented");
@@ -1445,7 +1445,7 @@ private:
             ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, FromProto<NHydra::TRevision>(request->mount_revision()))
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
-        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+        SetErrorManagerContext(tabletSnapshot);
 
         snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
         snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
@@ -1701,7 +1701,7 @@ private:
             ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, *mountRevision)
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
-        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+        SetErrorManagerContext(tabletSnapshot);
 
         snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
         snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
