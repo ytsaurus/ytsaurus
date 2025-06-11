@@ -32,10 +32,11 @@ TString ToStringLiteral(TStringBuf key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr TErrorCode RetriableSequoiaErrorCodes[] = {
+inline constexpr TErrorCode RetriableSequoiaErrorCodes[] = {
     NTabletClient::EErrorCode::TransactionLockConflict,
     NTabletClient::EErrorCode::BlockedRowWaitTimeout,
     NTabletClient::EErrorCode::NoSuchTablet,
+    NTabletClient::EErrorCode::ChunkIsNotPreloaded,
 };
 
 bool IsRetriableSequoiaError(const TError& error);
