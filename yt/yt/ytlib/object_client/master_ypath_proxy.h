@@ -40,8 +40,6 @@ struct TMasterYPathProxy
 
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, GetOrRegisterTableSchema);
 
-    DEFINE_YPATH_PROXY_METHOD(NProto, SyncWithGroundUpdateQueue);
-
     // Used during cross-cell copy.
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, MaterializeCopyPrerequisites);
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, MaterializeNode);

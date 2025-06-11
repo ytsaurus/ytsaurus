@@ -7,6 +7,8 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
 
+#include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
+
 #include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
 
 #include <yt/yt/core/ytree/helpers.h>
@@ -34,6 +36,8 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction)
             .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncWithGroundUpdateQueue)
+            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::GroundUpdateQueueManager)));
     }
 
 private:
@@ -59,6 +63,18 @@ private:
         sequoiaManager->StartTransaction(request);
 
         context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NSequoiaClient::NProto, SyncWithGroundUpdateQueue)
+    {
+        // TODO(danilalexeev): Give the SequoiaTransactionService a more generic name.
+        ValidateClusterInitialized();
+
+        context->SetRequestInfo();
+
+        const auto& queueManager = Bootstrap_->GetGroundUpdateQueueManager();
+        context->ReplyFrom(
+            queueManager->Sync(NSequoiaClient::EGroundUpdateQueue::Sequoia));
     }
 };
 

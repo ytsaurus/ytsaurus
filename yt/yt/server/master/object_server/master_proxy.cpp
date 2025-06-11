@@ -31,8 +31,6 @@
 #include <yt/yt/server/master/security_server/acl.h>
 #include <yt/yt/server/master/security_server/user.h>
 
-#include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
-
 #include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -42,8 +40,6 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/election/config.h>
-
-#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
@@ -100,7 +96,6 @@ private:
         DISPATCH_YPATH_SERVICE_METHOD(MaterializeNode);
         DISPATCH_YPATH_SERVICE_METHOD(VectorizedRead);
         DISPATCH_YPATH_SERVICE_METHOD(GetOrRegisterTableSchema);
-        DISPATCH_YPATH_SERVICE_METHOD(SyncWithGroundUpdateQueue);
         return TBase::DoInvoke(context);
     }
 
@@ -789,14 +784,6 @@ private:
             result->GetId());
 
         context->Reply();
-    }
-
-    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, SyncWithGroundUpdateQueue)
-    {
-        context->SetRequestInfo();
-        const auto& queueManager = Bootstrap_->GetGroundUpdateQueueManager();
-        context->ReplyFrom(
-            queueManager->Sync(NSequoiaClient::EGroundUpdateQueue::Sequoia));
     }
 };
 
