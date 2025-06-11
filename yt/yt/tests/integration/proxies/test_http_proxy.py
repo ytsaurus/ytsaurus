@@ -1824,10 +1824,15 @@ def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, 
 
 
 class TestHttpProxySignatures(TestHttpProxySignaturesBase):
-    @authors("pavook")
-    @pytest.mark.timeout(60)
-    def test_public_key_appears(self):
-        wait(lambda: len(ls(self.KEYS_PATH)) == 1)
+    @classmethod
+    def setup_class(cls):
+        super(TestHttpProxySignatures, cls).setup_class()
+        # Wait until the keys are generated.
+        # With very low probability, if the command gets through between the transaction
+        # commit and actual key emplace, this won't be enough: the key still won't be available.
+        # But this probability should be neglectable, as some network packeting should happen before the signatures
+        # even start generating.
+        wait(lambda: len(ls(cls.KEYS_PATH)) > 0)
 
     @authors("ermolovd")
     def test_partition_tables_with_modified_cookie(self):
