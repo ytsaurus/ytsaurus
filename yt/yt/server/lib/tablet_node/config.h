@@ -145,6 +145,9 @@ struct TTestingTableMountConfig
 
     TDuration WriteResponseDelay;
 
+    bool OpaqueStoresInOrchid;
+    bool OpaqueSettingsInOrchid;
+
     REGISTER_YSON_STRUCT_LITE(TTestingTableMountConfig);
 
     static void Register(TRegistrar registrar);

@@ -365,9 +365,9 @@ TSortedChunkStorePtr TSortedChunkStore::AsSortedChunk()
     return this;
 }
 
-void TSortedChunkStore::BuildOrchidYson(TFluentMap fluent)
+void TSortedChunkStore::DoBuildOrchidYson(TFluentMap fluent)
 {
-    TChunkStoreBase::BuildOrchidYson(fluent);
+    TChunkStoreBase::DoBuildOrchidYson(fluent);
 
     fluent
         .Item("min_key").Value(GetMinKey())
