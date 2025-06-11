@@ -10278,11 +10278,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
                 }
             }
 
-            if (sidecarSpec->RestartPolicy) {
-                sidecar.set_restart_policy(ToProto(*sidecarSpec->RestartPolicy));
-            } else {
-                sidecar.set_restart_policy(ToProto(ESidecarRestartPolicy::FailOnError));
-            }
+            sidecar.set_restart_policy(ToProto(sidecarSpec->RestartPolicy));
 
             (*protoSidecars)[sidecarName] = std::move(sidecar);
         }

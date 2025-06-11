@@ -1344,7 +1344,7 @@ struct TSidecarJobSpec
     //! | OnFailure         | Do nothing          | Restart the sidecar |
     //! | FailOnError       | Do nothing          | Fail the job        |
     //! +-------------------+---------------------+---------------------+
-    std::optional<ESidecarRestartPolicy> RestartPolicy;
+    ESidecarRestartPolicy RestartPolicy;
 
     REGISTER_YSON_STRUCT(TSidecarJobSpec);
 

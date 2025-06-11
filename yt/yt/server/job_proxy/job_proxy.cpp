@@ -1040,7 +1040,9 @@ TJobResult TJobProxy::RunJob()
     HeartbeatExecutor_->Start();
     CpuMonitor_->Start();
 
-    environment->StartSidecars(this, GetJobSpecHelper()->GetJobSpecExt());
+    environment->StartSidecars(this, GetJobSpecHelper()->GetJobSpecExt(), BIND([this](TError error) {
+        GetJobOrThrow()->Fail(std::move(error));
+    }));
 
     return job->Run();
 }
