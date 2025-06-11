@@ -36,7 +36,21 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   telnet \
   tini \
   unzip \
-  zstd
+  zstd \
+  llvm \
+  git \
+  tar
+
+# Install pprof
+ENV GO_VERSION=1.22.3
+RUN wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
+    rm go${GO_VERSION}.linux-amd64.tar.gz
+
+ENV GOPATH=/go
+ENV PATH="${GOPATH}/bin:/usr/local/go/bin:${PATH}"
+RUN CGO_ENABLED=0 go install github.com/google/pprof@v0.0.0-20200417002340-c6e0a841f49a
+RUN mv /go/bin/pprof /usr/bin/pprof
 
 ##########################################################################################
 
