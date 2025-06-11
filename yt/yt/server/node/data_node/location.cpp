@@ -392,6 +392,8 @@ TChunkLocation::TChunkLocation(
         ChunkStoreHost_->GetFairShareHierarchicalScheduler(),
         Profiler_.WithPrefix("/fair_share_hierarchical_queue"));
 
+    HugePageManager_ = ChunkStoreHost_->GetHugePageManager();
+
     auto probePutblocksProfiler = Profiler_.WithPrefix("/probe_writes");
     probePutblocksProfiler.AddFuncGauge("/queue_size", MakeStrong(this), [this] {
         return GetRequestedQueueSize();
@@ -410,6 +412,7 @@ TChunkLocation::TChunkLocation(
         StaticConfig_->IOEngineType,
         StaticConfig_->IOConfig,
         IOFairShareQueue_,
+        HugePageManager_,
         Id_,
         Profiler_,
         DataNodeLogger().WithTag("LocationId: %v", Id_));

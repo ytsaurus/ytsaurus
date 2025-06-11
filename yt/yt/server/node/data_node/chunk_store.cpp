@@ -102,9 +102,14 @@ public:
         }
     }
 
-    const TFairShareHierarchicalSchedulerPtr<std::string> GetFairShareHierarchicalScheduler() override
+    const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() override
     {
         return Bootstrap_->GetFairShareHierarchicalScheduler();
+    }
+
+    const NIO::IHugePageManagerPtr& GetHugePageManager() override
+    {
+        return Bootstrap_->GetHugePageManager();
     }
 
 private:

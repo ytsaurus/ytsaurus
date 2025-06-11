@@ -87,6 +87,7 @@
 
 #include <yt/yt/server/lib/io/config.h>
 #include <yt/yt/server/lib/io/io_tracker.h>
+#include <yt/yt/server/lib/io/huge_page_manager.h>
 
 #include <yt/yt/server/lib/hydra/snapshot.h>
 
@@ -386,6 +387,11 @@ public:
     const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() const override
     {
         return FairShareHierarchicalScheduler_;
+    }
+
+    const IHugePageManagerPtr& GetHugePageManager() const override
+    {
+        return HugePageManager_;
     }
 
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override
@@ -721,6 +727,7 @@ private:
     TBufferedProducerPtr BufferedProducer_;
 
     TFairShareHierarchicalSchedulerPtr<std::string> FairShareHierarchicalScheduler_;
+    IHugePageManagerPtr HugePageManager_;
 
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalInThrottler_;
     IThroughputThrottlerPtr LegacyTotalInThrottler_;
@@ -919,6 +926,14 @@ private:
         FairShareHierarchicalScheduler_ = CreateFairShareHierarchicalScheduler<std::string>(
             New<TFairShareHierarchicalSchedulerDynamicConfig>(),
             ClusterNodeProfiler().WithPrefix("/fair_share_hierarchical_scheduler"));
+
+        try {
+            HugePageManager_ = CreateHugePageManager(
+                Config_->HugePageManager,
+                ClusterNodeProfiler().WithPrefix("/huge_page_manager"));
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to initialize huge page manager");
+        }
 
         RawUserJobContainerCreationThrottler_ = CreateNamedReconfigurableThroughputThrottler(
             New<NConcurrency::TThroughputThrottlerConfig>(),
@@ -1500,6 +1515,10 @@ private:
             service->Reconfigure(newConfig->CachingObjectService);
         }
 
+        if (auto hugePageManager = HugePageManager_) {
+            hugePageManager->Reconfigure(newConfig->HugePageManager);
+        }
+
         IOTracker_->SetConfig(newConfig->IOTracker);
 
     #ifdef __linux__
@@ -1833,6 +1852,11 @@ const TBufferedProducerPtr& TBootstrapBase::GetBufferedProducer() const
 const TFairShareHierarchicalSchedulerPtr<std::string>& TBootstrapBase::GetFairShareHierarchicalScheduler() const
 {
     return Bootstrap_->GetFairShareHierarchicalScheduler();
+}
+
+const IHugePageManagerPtr& TBootstrapBase::GetHugePageManager() const
+{
+    return Bootstrap_->GetHugePageManager();
 }
 
 const TClusterNodeBootstrapConfigPtr& TBootstrapBase::GetConfig() const

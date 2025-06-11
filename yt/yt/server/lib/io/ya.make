@@ -11,6 +11,7 @@ SRCS(
     io_request_slicer.cpp
     io_tracker.cpp
     io_workload_model.cpp
+    huge_page_manager.cpp
     chunk_fragment.cpp
     chunk_file_reader.cpp
     chunk_file_reader_adapter.cpp

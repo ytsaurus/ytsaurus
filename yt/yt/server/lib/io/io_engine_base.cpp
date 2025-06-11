@@ -1,5 +1,7 @@
 #include "io_engine_base.h"
 
+#include "huge_page_manager.h"
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -329,9 +331,11 @@ i64 TIOEngineBase::GetWriteRequestLimit() const
 TIOEngineBase::TIOEngineBase(
     TConfigPtr config,
     TString locationId,
+    IHugePageManagerPtr hugePageManager,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
     : LocationId_(std::move(locationId))
+    , HugePageManager_(std::move(hugePageManager))
     , Logger(std::move(logger))
     , Profiler(std::move(profiler))
     , StaticConfig_(std::move(config))
@@ -433,6 +437,22 @@ int TIOEngineBase::GetLockOp(ELockFileMode mode)
         default:
             YT_ABORT();
     }
+}
+
+TSharedMutableRef TIOEngineBase::AllocateHugeBlob()
+{
+    TSharedMutableRef hugePageBlob;
+    if (HugePageManager_ && HugePageManager_->IsEnabled()) {
+        auto hugePageBlobReservingResult = HugePageManager_->ReserveHugePageBlob();
+        if (hugePageBlobReservingResult.IsOK()) {
+            hugePageBlob = hugePageBlobReservingResult.Value();
+        } else {
+            YT_LOG_DEBUG(
+                "Failed to reserve huge page blob: %v",
+                hugePageBlobReservingResult);
+        }
+    }
+    return hugePageBlob;
 }
 
 void TIOEngineBase::DoLock(const TLockRequest& request)

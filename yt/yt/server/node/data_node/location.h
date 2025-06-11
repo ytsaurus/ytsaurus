@@ -596,6 +596,7 @@ private:
     NIO::IIOEnginePtr IOEngine_;
 
     TFairShareHierarchicalSlotQueuePtr<std::string> IOFairShareQueue_;
+    NIO::IHugePageManagerPtr HugePageManager_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;
