@@ -44,211 +44,6 @@ struct TTabletWriterPoolTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWireWriteCommands ParseWriteCommands(
-    const NTableClient::TSchemaData& schemaData,
-    NTableClient::IWireProtocolReader* reader,
-    bool isVersionedWriteUnversioned)
-{
-    TWireWriteCommands writeCommands;
-
-    while (!reader->IsFinished()) {
-        writeCommands.push_back(reader->ReadWriteCommand(
-            schemaData,
-            /*captureValues*/ false,
-            isVersionedWriteUnversioned));
-    }
-
-    return writeCommands;
-}
-
-TWireWriteCommandsBatch::TWireWriteCommandsBatch(
-    TWireWriteCommands commands,
-    NTableClient::TRowBufferPtr rowBuffer,
-    TSharedRef data)
-    : Commands_(std::move(commands))
-    , Data_(std::move(data))
-    , RowBuffer_(std::move(rowBuffer))
-{ }
-
-TWireWriteCommandBatchReader::TWireWriteCommandBatchReader(
-    TSharedRef data,
-    std::unique_ptr<NTableClient::IWireProtocolReader> reader,
-    NTableClient::TSchemaData schemaData)
-    : Data_(std::move(data))
-    , SchemaData_(std::move(schemaData))
-    , Reader_(std::move(reader))
-{
-    CurrentBatchStartingPosition_ = Reader_->GetCurrent();
-}
-
-const TWireWriteCommand& TWireWriteCommandBatchReader::NextCommand(bool IsVersionedWriteUnversioned)
-{
-    YT_ASSERT(!IsFinished());
-    LastCommandPosition_ = Reader_->GetCurrent();
-    CurrentBatch_.push_back(Reader_->ReadWriteCommand(SchemaData_, /*captureValues*/ false, IsVersionedWriteUnversioned));
-    return CurrentBatch_.back();
-}
-
-bool TWireWriteCommandBatchReader::IsFinished() const
-{
-    return Reader_->IsFinished();
-}
-
-void TWireWriteCommandBatchReader::RollbackLastCommand()
-{
-    YT_VERIFY(!CurrentBatch_.empty());
-    YT_VERIFY(LastCommandPosition_.has_value());
-    CurrentBatch_.pop_back();
-    Reader_->SetCurrent(*LastCommandPosition_);
-    LastCommandPosition_.reset();
-}
-
-TWireWriteCommandsBatch TWireWriteCommandBatchReader::FinishBatch()
-{
-    YT_VERIFY(!IsBatchEmpty());
-    auto batchData = Reader_->Slice(CurrentBatchStartingPosition_, Reader_->GetCurrent());
-    CurrentBatchStartingPosition_ = Reader_->GetCurrent();
-    return TWireWriteCommandsBatch(
-        std::move(CurrentBatch_),
-        Reader_->GetRowBuffer(),
-        std::move(batchData));
-}
-
-bool TWireWriteCommandBatchReader::IsBatchEmpty() const
-{
-    return Reader_->GetCurrent() == CurrentBatchStartingPosition_;
-}
-
-TWireWriteCommandsAsReader::TWireWriteCommandsAsReader(const TWireWriteCommands& commands)
-    : Commands_(commands)
-{ }
-
-const TWireWriteCommand& TWireWriteCommandsAsReader::NextCommand(bool /*IsVersionedWriteUnversioned*/)
-{
-    return Commands_[CurrentIndex_++];
-}
-
-bool TWireWriteCommandsAsReader::IsFinished() const
-{
-    return CurrentIndex_ == Commands_.size();
-}
-
-void TWireWriteCommandsAsReader::RollbackLastCommand()
-{
-    YT_ABORT();
-}
-
-TTransactionWriteRecord::TTransactionWriteRecord(
-    TTabletId tabletId,
-    TWireWriteCommandsBatch writeCommands,
-    int rowCount,
-    i64 dataWeight,
-    const TSyncReplicaIdList& syncReplicaIds,
-    const std::optional<NTableClient::THunkChunksInfo>& hunkChunksInfo)
-    : TabletId(tabletId)
-    , WriteCommands(std::move(writeCommands))
-    , RowCount(rowCount)
-    , DataWeight(dataWeight)
-    , SyncReplicaIds(syncReplicaIds)
-    , HunkChunksInfo(hunkChunksInfo)
-{ }
-
-void TTransactionWriteRecord::Save(TSaveContext& context) const
-{
-    using NYT::Save;
-    Save(context, TabletId);
-    Save(context, WriteCommands.Data_);
-    Save(context, RowCount);
-    Save(context, DataWeight);
-    Save(context, SyncReplicaIds);
-    Save(context, HunkChunksInfo);
-}
-
-void TTransactionWriteRecord::Load(TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, TabletId);
-
-    Load(context, WriteCommands.Data_);
-    WriteCommands.RowBuffer_ = New<TRowBuffer>();
-    auto reader = CreateWireProtocolReader(WriteCommands.Data_, WriteCommands.RowBuffer_);
-    WriteCommands.Commands_ = ParseWriteCommands(
-        context.CurrentTabletWriteManagerSchemaData,
-        reader.get(),
-        context.CurrentTabletVersionedWriteIsUnversioned);
-
-    Load(context, RowCount);
-    Load(context, DataWeight);
-    Load(context, SyncReplicaIds);
-    Load(context, HunkChunksInfo);
-}
-
-i64 TTransactionWriteRecord::GetByteSize() const
-{
-    return WriteCommands.Data_.Size() + WriteCommands.Commands().capacity() * sizeof(TWireWriteCommands);
-}
-
-i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog)
-{
-    i64 result = 0;
-    for (const auto& entry : writeLog) {
-        result += entry.RowCount;
-    }
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TEnumeratingWriteLogReader
-{
-public:
-    struct TEnumeratedWireWriteCommand
-    {
-        const TWireWriteCommand& Command;
-        TOpaqueWriteLogIndex WriteLogIndex;
-    };
-
-    explicit TEnumeratingWriteLogReader(const TTransactionIndexedWriteLog& writeLog)
-        : WriteLogEnd_(writeLog.End())
-        , WriteLogIterator_(writeLog.Begin())
-        , WriteLogBatch_(WriteLogIterator_->WriteCommands.Commands())
-    { }
-
-    TEnumeratedWireWriteCommand NextCommand()
-    {
-        while (WriteLogBatch_.empty()) {
-            ++WriteLogIterator_;
-            ++CommandBatchIndex_;
-            CommandIndexInBatch_ = 0;
-            YT_VERIFY(WriteLogIterator_ != WriteLogEnd_);
-            WriteLogBatch_ = WriteLogIterator_->WriteCommands.Commands();
-        }
-
-        const auto& command = WriteLogBatch_.front();
-        WriteLogBatch_ = WriteLogBatch_.subspan(1);
-        ++CommandIndexInBatch_;
-
-        return {
-            .Command = command,
-            .WriteLogIndex = TOpaqueWriteLogIndex{
-                .CommandBatchIndex = CommandBatchIndex_,
-                .CommandIndexInBatch = CommandIndexInBatch_ - 1,
-            },
-        };
-    }
-
-private:
-    const TTransactionIndexedWriteLog::TIterator WriteLogEnd_;
-
-    TTransactionIndexedWriteLog::TIterator WriteLogIterator_;
-    std::span<const TWireWriteCommand> WriteLogBatch_;
-
-    int CommandBatchIndex_ = 0;
-    int CommandIndexInBatch_ = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TTabletWriteManager
     : public ITabletWriteManager
 {
@@ -272,7 +67,7 @@ public:
 
     TWriteContext TransientWriteRows(
         TTransaction* transaction,
-        IWireWriteCommandReader* reader,
+        IWireWriteCommandsReader* reader,
         EAtomicity atomicity,
         bool versioned,
         int rowCount,
@@ -376,7 +171,7 @@ public:
         };
         const auto& storeManager = Tablet_->GetStoreManager();
 
-        auto wrapper = TWireWriteCommandsAsReader(writeRecord.WriteCommands.Commands());
+        auto wrapper = TWireWriteCommandsReaderAdapter(writeRecord.WriteCommands.Commands());
         YT_VERIFY(storeManager->ExecuteWrites(&wrapper, &context));
         YT_VERIFY(writeRecord.RowCount == context.RowCount);
 
@@ -1264,7 +1059,7 @@ private:
             context.CommitTimestamp = commitTimestamp;
 
             const auto& storeManager = Tablet_->GetStoreManager();
-            auto wrapper = TWireWriteCommandsAsReader(record.WriteCommands.Commands());
+            auto wrapper = TWireWriteCommandsReaderAdapter(record.WriteCommands.Commands());
             YT_VERIFY(storeManager->ExecuteWrites(&wrapper, &context));
             YT_VERIFY(context.RowCount == record.RowCount);
 
@@ -1443,7 +1238,7 @@ private:
         context.Phase = EWritePhase::Lock;
 
         const auto& storeManager = Tablet_->GetStoreManager();
-        auto wrapper = TWireWriteCommandsAsReader(writeRecord.WriteCommands.Commands());
+        auto wrapper = TWireWriteCommandsReaderAdapter(writeRecord.WriteCommands.Commands());
         YT_VERIFY(storeManager->ExecuteWrites(&wrapper, &context));
 
         if (context.HasSharedWriteLocks) {

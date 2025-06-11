@@ -22,7 +22,7 @@ class TReqWriteRows;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IWireWriteCommandReader;
+struct IWireWriteCommandsReader;
 
 using TWireWriteCommand = NTableClient::TWireProtocolWriteCommand;
 using TWireWriteCommands = std::vector<TWireWriteCommand>;
