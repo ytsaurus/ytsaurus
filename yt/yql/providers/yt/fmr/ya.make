@@ -1,6 +1,7 @@
 RECURSE(
     coordinator
     fmr_tool_lib
+    gc_service
     job
     job_factory
     proto
