@@ -12,6 +12,7 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
+#include <yt/yt/ytlib/api/native/chaos_helpers.h>
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
@@ -197,29 +198,38 @@ private:
                 replicationCardCache->ForceRefresh(key, ReplicationCard_);
             }
 
-            auto replicationCard = WaitFor(replicationCardCache->GetReplicationCard(key))
-                .ValueOrThrow();
+            TReplicationCardPtr replicationCard;
 
-            if (auto snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
-                snapshotEra != InvalidReplicationEra && replicationCard->Era < snapshotEra)
-            {
-                key.RefreshEra = snapshotEra;
-                YT_LOG_DEBUG(
-                    "Forcing cached replication card update due to outdated copy obtained "
-                    "(FetchedEra: %v, SnapshotEra: %v)",
-                    replicationCard->Era,
-                    snapshotEra);
+            auto snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
+            if (snapshotEra == InvalidReplicationEra) {
+                YT_LOG_DEBUG("Getting replication card synchronously");
 
-                replicationCardCache->ForceRefresh(key, replicationCard);
+                replicationCard = NNative::GetSyncReplicationCard(
+                    LocalClient_->GetNativeConnection(),
+                    ReplicationCardId_);
+            } else {
                 replicationCard = WaitFor(replicationCardCache->GetReplicationCard(key))
                     .ValueOrThrow();
 
                 if (replicationCard->Era < snapshotEra) {
-                    YT_LOG_ALERT(
-                        "Replication card era is outdated after forced refresh "
+                    key.RefreshEra = snapshotEra;
+                    YT_LOG_DEBUG(
+                        "Forcing cached replication card update due to outdated copy obtained "
                         "(FetchedEra: %v, SnapshotEra: %v)",
                         replicationCard->Era,
                         snapshotEra);
+
+                    replicationCardCache->ForceRefresh(key, replicationCard);
+                    replicationCard = WaitFor(replicationCardCache->GetReplicationCard(key))
+                        .ValueOrThrow();
+
+                    if (replicationCard->Era < snapshotEra) {
+                        YT_LOG_ALERT(
+                            "Replication card era is outdated after forced refresh "
+                            "(FetchedEra: %v, SnapshotEra: %v)",
+                            replicationCard->Era,
+                            snapshotEra);
+                    }
                 }
             }
 

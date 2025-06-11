@@ -5181,6 +5181,18 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
         },
     }
 
+    DELTA_CHAOS_NODE_CONFIG = {
+        "cellar_node": {
+            "cellar_manager": {
+                "cellars": {
+                    "chaos": {
+                        "size": 10,
+                    },
+                },
+            },
+        },
+    }
+
     def setup_method(self, method):
         super().setup_method(method)
 
@@ -5260,6 +5272,67 @@ class TestChaosRpcProxyWithReplicationCardCache(ChaosTestBase):
         _insert_rows_with_retries(values2, replica_ids_to_alter=replica_ids1)
         assert lookup_rows("//tmp/ta1", [{"key": 2}], driver=remote_driver0) == values2
         assert lookup_rows("//tmp/ta2", [{"key": 2}], driver=remote_driver0) == values2
+
+    @authors("osidorkin")
+    def test_fast_replica_recreation(self):
+        iteration_count = 9
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        cell_ids = [self._sync_create_chaos_cell() for i in range(iteration_count)]
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/ts1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+        ]
+
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+        self._sync_replication_era(card_id, replicas)
+
+        def _try_insert_rows(values):
+            allowed_codes = {
+                yt_error_codes.ChaosCoordinatorsAreNotAvailable,
+                yt_error_codes.ChaosReplicationEraMismatch,
+                yt_error_codes.SyncReplicaNotInSync,
+            }
+
+            try:
+                insert_rows("//tmp/ts1", values)
+                return True
+            except YtError as e:
+                if e.find_matching_error(predicate=lambda error: int(error.code) in allowed_codes) is not None:
+                    return False
+                if e.contains_text("replica is identifying replication era"):
+                    return False
+                raise e
+
+        for i in range(iteration_count):
+            # remove old replication_log
+            sync_unmount_table("//tmp/q0")
+            remove("//tmp/q0")
+            replica_id_to_delete = replica_ids[1]
+            alter_table_replica(replica_id_to_delete, enabled=False)
+            wait(lambda: get("#{0}/@state".format(replica_id_to_delete)) == "disabled")
+            remove("#{}".format(replica_id_to_delete))
+
+            self._sync_migrate_replication_cards(cell_id, [card_id], cell_ids[i])
+            cell_id = cell_ids[i]
+
+            # create new replica
+            replica_ids[1] = self._create_chaos_table_replica(replicas[1], replication_card_id=card_id, catchup=False)
+            assert replica_ids[1] == replica_id_to_delete
+
+            self._create_replica_tables(
+                [replicas[1]],
+                [replica_ids[1]],
+                create_tablet_cells=False,
+                mount_tables=True,
+                ordered=False
+            )
+
+            values = [{"key": i, "value": "0"}]
+            wait(lambda: _try_insert_rows(values))
 
 
 ##################################################################
