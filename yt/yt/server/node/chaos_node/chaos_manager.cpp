@@ -1714,6 +1714,9 @@ private:
             }
 
             HandleReplicationCardStateTransition(replicationCard);
+
+            auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
+            ReplicationCardWatcher_->RegisterReplicationCard(replicationCardId, clientReplicationCard, replicationCard->GetCurrentTimestamp());
         }
 
         if (!request->has_migration_token()) {
