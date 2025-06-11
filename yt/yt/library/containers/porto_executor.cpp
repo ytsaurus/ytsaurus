@@ -617,7 +617,7 @@ private:
 
             for (const auto& address : spec.IPAddresses) {
                 auto* ipConfig = portoSpec.mutable_ip()->add_cfg();
-                ipConfig->set_dev(DefaultPortoNetworkInterface);
+                ipConfig->set_dev(spec.NetworkInterface.value_or(TString(DefaultPortoNetworkInterface)));
                 ipConfig->set_ip(ToString(address));
             }
 
