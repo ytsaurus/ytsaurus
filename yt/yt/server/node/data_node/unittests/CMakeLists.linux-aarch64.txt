@@ -31,9 +31,10 @@ target_link_libraries(unittester-data-node PUBLIC
   yutil
   cpp-testing-gtest
   cpp-testing-gtest_main
-  yt-core-test_framework
   yt-server-node
   yt-server-tools
+  yt-ytlib-test_framework
+  yt-core-test_framework
 )
 
 target_allocator(unittester-data-node
@@ -55,6 +56,7 @@ target_link_options(unittester-data-node PRIVATE
 target_sources(unittester-data-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/p2p_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/journal_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/data_node/unittests/data_node_service_ut.cpp
 )
 
 
