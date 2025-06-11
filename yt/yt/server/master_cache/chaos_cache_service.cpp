@@ -80,7 +80,6 @@ public:
         YT_LOG_DEBUG("Unknown replication card (ReplicationCardId: %v)",
             replicationCardId);
 
-        ReplicationCardsWatcher_->OnReplicationCardRemoved(replicationCardId);
         ChaosCache_->TryRemove(GetKey(replicationCardId));
     }
 
