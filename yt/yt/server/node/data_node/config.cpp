@@ -652,6 +652,18 @@ void TReplicateChunkJobDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_block_cache", &TThis::UseBlockCache)
         .Default(true);
 
+    registrar.Parameter("replication_range_size", &TThis::ReplicationRangeSize)
+        .Optional();
+
+    registrar.Parameter("enable_replication_job_throttling", &TThis::EnableReplicationJobThrottling)
+        .Default(false);
+
+    registrar.Parameter("throttling_sleep_time", &TThis::ThrottlingSleepTime)
+        .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("throttling_sleep_deadline", &TThis::ThrottlingSleepDeadline)
+        .Default(TDuration::Minutes(5));
+
     registrar.Preprocessor([] (TThis* config) {
         // Disable target allocation from master.
         config->Writer->UploadReplicationFactor = 1;
