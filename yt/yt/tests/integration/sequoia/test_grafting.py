@@ -195,7 +195,7 @@ class TestSequoiaSymlinks(YTEnvSetup):
 
     DELTA_CYPRESS_PROXY_CONFIG = {
         "testing": {
-            "enable_sync_mode": True,
+            "enable_ground_update_queues_sync": True,
         }
     }
 

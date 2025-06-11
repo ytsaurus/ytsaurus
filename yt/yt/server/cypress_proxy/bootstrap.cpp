@@ -258,7 +258,7 @@ private:
             GetRootClient(),
             UserDirectory_,
             GetControlInvoker(),
-            Config_->Testing->EnableSyncMode
+            Config_->Testing->EnableUserDirectorySync
                 ? NApi::EMasterChannelKind::Follower
                 : NApi::EMasterChannelKind::Cache);
 

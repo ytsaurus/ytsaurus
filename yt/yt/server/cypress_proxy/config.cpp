@@ -8,8 +8,14 @@ namespace NYT::NCypressProxy {
 
 void TTestConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable_sync_mode", &TThis::EnableSyncMode)
+    registrar.Parameter("enable_ground_update_queues_sync", &TThis::EnableGroundUpdateQueuesSync)
         .Default(false);
+
+        registrar.Parameter("enable_user_directory_sync", &TThis::EnableUserDirectorySync)
+        .Default(false);
+
+    registrar.Parameter("ground_update_queues_sync_request_timeout", &TThis::GroundUpdateQueuesSyncRequestTimeout)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

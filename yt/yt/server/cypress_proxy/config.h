@@ -24,7 +24,11 @@ struct TTestConfig
     : public NYTree::TYsonStruct
 {
     //! Synchronization with components for testing purposes.
-    bool EnableSyncMode;
+    bool EnableGroundUpdateQueuesSync;
+
+    bool EnableUserDirectorySync;
+
+    TDuration GroundUpdateQueuesSyncRequestTimeout;
 
     REGISTER_YSON_STRUCT(TTestConfig);
 
