@@ -31,6 +31,8 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/validate_logical_type.h>
 
+#include <yt/yt/client/node_tracker_client/public.h>
+
 #include <yt/yt/core/yson/lexer.h>
 #include <yt/yt/core/yson/parser.h>
 #include <yt/yt/core/yson/pull_parser.h>
@@ -120,6 +122,7 @@ using namespace NWebAssembly;
 using namespace NYson;
 using namespace NYTree;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3080,9 +3083,9 @@ ui64 HyperLogLogGetFingerprint(TValue* value)
 
 struct TChunkReplica
 {
-    TChunkId LocationUuid;
-    i64 Index;
-    ui64 NodeId;
+    TChunkLocationIndex::TUnderlying LocationIndex;
+    int ReplicaIndex;
+    TNodeId::TUnderlying NodeId;
 
     auto operator<=>(const TChunkReplica& other) const = default;
 };
@@ -3098,7 +3101,7 @@ TChunkReplicaList UniteReplicas(const TChunkReplicaList& first, const TChunkRepl
     SortUniqueBy(
         result,
         [] (const TChunkReplica& replica) {
-            return std::tie(replica.LocationUuid, replica.Index);
+            return std::tie(replica.LocationIndex, replica.ReplicaIndex);
         });
 
     return result;
@@ -3141,8 +3144,8 @@ TChunkReplica ParseReplica(TYsonPullParserCursor* cursor)
 
     Consume(cursor, EYsonItemType::BeginList);
 
-    replica.LocationUuid = TGuid::FromString(Consume(cursor, EYsonItemType::StringValue).UncheckedAsString());
-    replica.Index = Consume(cursor, EYsonItemType::Int64Value).UncheckedAsInt64();
+    replica.LocationIndex = Consume(cursor, EYsonItemType::Uint64Value).UncheckedAsUint64();
+    replica.ReplicaIndex = Consume(cursor, EYsonItemType::Int64Value).UncheckedAsInt64();
     replica.NodeId = Consume(cursor, EYsonItemType::Uint64Value).UncheckedAsUint64();
 
     Consume(cursor, EYsonItemType::EndList);
@@ -3203,8 +3206,8 @@ void DumpReplicas(IYsonConsumer* consumer, const TChunkReplicaList& replicas)
             fluent
                 .Item()
                 .BeginList()
-                    .Item().Value(TFormattableGuid(replica.LocationUuid).ToStringBuf())
-                    .Item().Value(replica.Index)
+                    .Item().Value(replica.LocationIndex)
+                    .Item().Value(replica.ReplicaIndex)
                     .Item().Value(replica.NodeId)
                 .EndList();
         });
@@ -3310,7 +3313,7 @@ void LastSeenReplicaSetMerge(
 
     std::optional<bool> isErasure;
     for (const auto& replica : lastSeenReplicas) {
-        auto isReplicaErasure = replica.Index < GenericChunkReplicaIndex;
+        auto isReplicaErasure = replica.ReplicaIndex < GenericChunkReplicaIndex;
         if (!isErasure.has_value()) {
             isErasure = isReplicaErasure;
         }
@@ -3323,8 +3326,8 @@ void LastSeenReplicaSetMerge(
         TCompactVector<std::optional<TChunkReplica>, GenericChunkReplicaIndex> erasureLastSeenReplicas;
         erasureLastSeenReplicas.resize(GenericChunkReplicaIndex);
         for (const auto& replica : lastSeenReplicas) {
-            YT_VERIFY(replica.Index < std::ssize(erasureLastSeenReplicas));
-            erasureLastSeenReplicas[replica.Index] = replica;
+            YT_VERIFY(replica.ReplicaIndex < std::ssize(erasureLastSeenReplicas));
+            erasureLastSeenReplicas[replica.ReplicaIndex] = replica;
         }
 
         lastSeenReplicas.clear();

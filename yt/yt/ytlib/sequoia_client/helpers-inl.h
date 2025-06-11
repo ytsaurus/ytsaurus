@@ -60,8 +60,8 @@ void ParseChunkReplicas(
         };
 
         consume(EYsonItemType::BeginList, [] (const TYsonItem&) {});
-        consume(EYsonItemType::StringValue, [&] (const TYsonItem& current) {
-            parsedReplica.LocationUuid = NChunkClient::TChunkLocationUuid::FromString(current.UncheckedAsString());
+        consume(EYsonItemType::Uint64Value, [&] (const TYsonItem& current) {
+            parsedReplica.LocationIndex = NNodeTrackerClient::TChunkLocationIndex(current.UncheckedAsUint64());
         });
         consume(EYsonItemType::Int64Value, [&] (const TYsonItem& current) {
             parsedReplica.ReplicaIndex = current.UncheckedAsInt64();

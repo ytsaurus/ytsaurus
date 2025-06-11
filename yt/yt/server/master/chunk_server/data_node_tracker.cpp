@@ -167,10 +167,13 @@ public:
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         const auto& originalRequest = context->Request();
-        THashSet<int> sequoiaLocationIndices;
+        THashSet<int> sequoiaLocationDirectoryIndices;
+        THashMap<int, TChunkLocationIndex> locationDirectoryIndexToLocationIndex;
         for (int i = 0; i < std::ssize(locationDirectory); ++i) {
-            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(locationDirectory[i])) {
-                InsertOrCrash(sequoiaLocationIndices, i);
+            auto* location = locationDirectory[i];
+            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(location)) {
+                InsertOrCrash(sequoiaLocationDirectoryIndices, i);
+                locationDirectoryIndexToLocationIndex[i] = location->GetIndex();
             }
         }
 
@@ -178,7 +181,7 @@ public:
         auto isSequoiaEnabled = sequoiaChunkReplicasConfig->Enable;
         auto sequoiaChunkProbability = sequoiaChunkReplicasConfig->ReplicasPercentage;
 
-        auto splitRequest = BIND([&, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] {
+        auto splitRequest = BIND([&, sequoiaLocationDirectoryIndices = std::move(sequoiaLocationDirectoryIndices)] {
             auto preparedRequest = NewWithOffloadedDtor<TFullHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
             if (!isSequoiaEnabled) {
@@ -188,17 +191,15 @@ public:
             preparedRequest->NonSequoiaRequest.mutable_chunks()->Clear();
 
             preparedRequest->SequoiaRequest->set_node_id(originalRequest.node_id());
-            for (auto* location : locationDirectory) {
-                ToProto(preparedRequest->SequoiaRequest->add_location_directory(), location->GetUuid());
-            }
 
-            for (const auto& chunkInfo : originalRequest.chunks()) {
+            for (auto chunkInfo : originalRequest.chunks()) {
                 auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-                auto locationIndex = chunkInfo.location_index();
-                if (sequoiaLocationIndices.contains(locationIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
-                    *preparedRequest->SequoiaRequest->add_added_chunks() = chunkInfo;
+                auto locationDirectoryIndex = chunkInfo.location_directory_index();
+                if (sequoiaLocationDirectoryIndices.contains(locationDirectoryIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
+                    chunkInfo.set_location_index(ToProto(GetOrCrash(locationDirectoryIndexToLocationIndex, locationDirectoryIndex)));
+                    *preparedRequest->SequoiaRequest->add_added_chunks() = std::move(chunkInfo);
                 } else {
-                    *preparedRequest->NonSequoiaRequest.add_chunks() = chunkInfo;
+                    *preparedRequest->NonSequoiaRequest.add_chunks() = std::move(chunkInfo);
                 }
             }
 
@@ -352,21 +353,13 @@ public:
         auto nodeId = FromProto<TNodeId>(originalRequest.node_id());
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
         auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, originalRequest);
-        THashSet<int> sequoiaLocationIndices;
+        THashSet<int> sequoiaLocationDirectoryIndices;
+        THashMap<int, TChunkLocationIndex> locationDirectoryIndexToLocationIndex;
         for (int i = 0; i < std::ssize(locationDirectory); ++i) {
-            YT_LOG_TRACE("Checking location (LocationIndex: %v, Uuid: %v)",
-                i,
-                locationDirectory[i]->GetUuid());
-
-            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(locationDirectory[i])) {
-                InsertOrCrash(sequoiaLocationIndices, i);
-                YT_LOG_TRACE("Location is Sequoia (LocationIndex: %v, Uuid: %v)",
-                    i,
-                    locationDirectory[i]->GetUuid());
-            } else {
-                YT_LOG_TRACE("Location is not Sequoia (LocationIndex: %v, Uuid: %v)",
-                    i,
-                    locationDirectory[i]->GetUuid());
+            auto* location = locationDirectory[i];
+            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(location)) {
+                InsertOrCrash(sequoiaLocationDirectoryIndices, i);
+                locationDirectoryIndexToLocationIndex[i] = location->GetIndex();
             }
         }
 
@@ -374,7 +367,7 @@ public:
         auto isSequoiaEnabled = sequoiaChunkReplicasConfig->Enable;
         auto sequoiaChunkProbability = sequoiaChunkReplicasConfig->ReplicasPercentage;
 
-        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] {
+        auto splitRequest = BIND([=, sequoiaLocationDirectoryIndices = std::move(sequoiaLocationDirectoryIndices)] {
             auto preparedRequest = NewWithOffloadedDtor<TIncrementalHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
             if (!isSequoiaEnabled) {
@@ -385,25 +378,26 @@ public:
             preparedRequest->NonSequoiaRequest.mutable_removed_chunks()->Clear();
 
             preparedRequest->SequoiaRequest->set_node_id(originalRequest.node_id());
-            preparedRequest->SequoiaRequest->mutable_location_directory()->CopyFrom(originalRequest.location_directory());
 
-            for (const auto& chunkInfo : originalRequest.added_chunks()) {
+            for (auto chunkInfo : originalRequest.added_chunks()) {
                 auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-                auto locationIndex = chunkInfo.location_index();
-                if (sequoiaLocationIndices.contains(locationIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
-                    *preparedRequest->SequoiaRequest->add_added_chunks() = chunkInfo;
+                auto locationDirectoryIndex = chunkInfo.location_directory_index();
+                if (sequoiaLocationDirectoryIndices.contains(locationDirectoryIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
+                    chunkInfo.set_location_index(ToProto(GetOrCrash(locationDirectoryIndexToLocationIndex, locationDirectoryIndex)));
+                    *preparedRequest->SequoiaRequest->add_added_chunks() = std::move(chunkInfo);
                 } else {
-                    *preparedRequest->NonSequoiaRequest.add_added_chunks() = chunkInfo;
+                    *preparedRequest->NonSequoiaRequest.add_added_chunks() = std::move(chunkInfo);
                 }
             }
 
-            for (const auto& chunkInfo : originalRequest.removed_chunks()) {
+            for (auto chunkInfo : originalRequest.removed_chunks()) {
                 auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-                auto locationIndex = chunkInfo.location_index();
-                if (sequoiaLocationIndices.contains(locationIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
-                    *preparedRequest->SequoiaRequest->add_removed_chunks() = chunkInfo;
+                auto locationDirectoryIndex = chunkInfo.location_directory_index();
+                if (sequoiaLocationDirectoryIndices.contains(locationDirectoryIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
+                    chunkInfo.set_location_index(ToProto(GetOrCrash(locationDirectoryIndexToLocationIndex, locationDirectoryIndex)));
+                    *preparedRequest->SequoiaRequest->add_removed_chunks() = std::move(chunkInfo);
                 } else {
-                    *preparedRequest->NonSequoiaRequest.add_removed_chunks() = chunkInfo;
+                    *preparedRequest->NonSequoiaRequest.add_removed_chunks() = std::move(chunkInfo);
                 }
             }
 
@@ -660,6 +654,19 @@ public:
     TChunkLocation* GetChunkLocationByUuid(TChunkLocationUuid locationUuid) override
     {
         return GetOrCrash(ChunkLocationUuidToLocation_, locationUuid);
+    }
+
+    TChunkLocation* FindChunkLocationByIndex(TChunkLocationIndex locationIndex) override
+    {
+        auto locationId = ObjectIdFromChunkLocationIndex(locationIndex);
+        return ChunkLocationMap_.Find(locationId);
+    }
+
+    TChunkLocation* GetChunkLocationByIndex(TChunkLocationIndex locationIndex) override
+    {
+        auto location = FindChunkLocationByIndex(locationIndex);
+        YT_VERIFY(IsObjectAlive(location));
+        return location;
     }
 
     TChunkLocationIndex GenerateChunkLocationIndex()

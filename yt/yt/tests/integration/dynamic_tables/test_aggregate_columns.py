@@ -511,29 +511,29 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
-            [['a-b-c-d', 1, yson.YsonUint64(2)], ['a-b-c-f', 3, yson.YsonUint64(4)]],
+            [[yson.YsonUint64(20), 1, yson.YsonUint64(2)], [yson.YsonUint64(30), 3, yson.YsonUint64(4)]],
             []
         ])}], aggregate=True)
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
-        assert value == [['a-b-c-d', 1, yson.YsonUint64(2)], ['a-b-c-f', 3, yson.YsonUint64(4)]]
+        assert value == [[yson.YsonUint64(20), 1, yson.YsonUint64(2)], [yson.YsonUint64(30), 3, yson.YsonUint64(4)]]
 
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
             [],
-            [['a-b-c-d', 1, yson.YsonUint64(2)]]
+            [[yson.YsonUint64(20), 1, yson.YsonUint64(2)]]
         ])}], aggregate=True)
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
-        assert value == [['a-b-c-f', 3, yson.YsonUint64(4)]]
+        assert value == [[yson.YsonUint64(30), 3, yson.YsonUint64(4)]]
 
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
-            [['a-b-c-d', 1, yson.YsonUint64(2)], ['a-b-c-f', 3, yson.YsonUint64(4)]],
+            [[yson.YsonUint64(20), 1, yson.YsonUint64(2)], [yson.YsonUint64(30), 3, yson.YsonUint64(4)]],
             []
         ])}], aggregate=True)
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
-        assert value == [['a-b-c-d', 1, yson.YsonUint64(2)], ['a-b-c-f', 3, yson.YsonUint64(4)]]
+        assert value == [[yson.YsonUint64(20), 1, yson.YsonUint64(2)], [yson.YsonUint64(30), 3, yson.YsonUint64(4)]]
 
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList([
             [],
-            [['a-b-c-d', 1, yson.YsonUint64(2)], ['a-b-c-f', 3, yson.YsonUint64(4)]]
+            [[yson.YsonUint64(20), 1, yson.YsonUint64(2)], [yson.YsonUint64(30), 3, yson.YsonUint64(4)]]
         ])}], aggregate=True)
 
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
@@ -550,13 +550,13 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         original_rows = [
-            ['a-b-c-{}'.format(str(i) if i < 10 else chr(ord('a') + i - 10)), 16, yson.YsonUint64(2)] for i in range(3)
+            [yson.YsonUint64(i), 16, yson.YsonUint64(2)] for i in range(3)
         ]
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList(original_rows)}], aggregate=True)
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
         assert value == original_rows
 
-        new_row = [['b-b-c-d', 16, yson.YsonUint64(2)]]
+        new_row = [[yson.YsonUint64(20), 16, yson.YsonUint64(2)]]
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList(new_row)}], aggregate=True)
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
         assert value == original_rows[1:] + new_row
@@ -572,14 +572,14 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         rows = [
-            ['a-b-c-{}'.format(str(i) if i < 10 else chr(ord('a') + i - 10)), i, yson.YsonUint64(2)] for i in range(16)
+            [yson.YsonUint64(i), i, yson.YsonUint64(2)] for i in range(16)
         ]
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList(rows)}], aggregate=True)
         value = lookup_rows("//tmp/t", [{"key": 1}])[0]["value"]
         assert value == rows
 
-        new_row_3 = [['b-b-c-d', 3, yson.YsonUint64(2)]]
-        new_row_5 = [['b-b-c-1', 5, yson.YsonUint64(2)]]
+        new_row_3 = [[yson.YsonUint64(20), 3, yson.YsonUint64(2)]]
+        new_row_5 = [[yson.YsonUint64(30), 5, yson.YsonUint64(2)]]
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList(new_row_3)}], aggregate=True)
         insert_rows("//tmp/t", [{"key": 1, "value": yson.YsonList(new_row_5)}], aggregate=True)
 

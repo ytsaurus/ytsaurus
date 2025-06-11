@@ -1436,7 +1436,7 @@ private:
         chunkAddInfo.set_sealed(chunk->GetInfo().sealed());
 
         auto locationUuid = chunk->GetLocation()->GetUuid();
-        chunkAddInfo.set_location_index(locationDirectory->GetOrCreateIndex(locationUuid));
+        chunkAddInfo.set_location_directory_index(locationDirectory->GetOrCreateIndex(locationUuid));
         // COMPAT(kvk1920): Remove after 23.2.
         if (LocationUuidsRequired_) {
             ToProto(chunkAddInfo.mutable_location_uuid(), locationUuid);
@@ -1460,7 +1460,7 @@ private:
         chunkRemoveInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
 
         auto locationUuid = chunk->GetLocation()->GetUuid();
-        chunkRemoveInfo.set_location_index(locationDirectory->GetOrCreateIndex(locationUuid));
+        chunkRemoveInfo.set_location_directory_index(locationDirectory->GetOrCreateIndex(locationUuid));
         if (LocationUuidsRequired_) {
             ToProto(chunkRemoveInfo.mutable_location_uuid(), locationUuid);
         }

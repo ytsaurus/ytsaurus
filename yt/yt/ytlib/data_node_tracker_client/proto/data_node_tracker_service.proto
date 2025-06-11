@@ -29,8 +29,6 @@ message TReqModifyReplicas
     repeated NChunkClient.NProto.TChunkAddInfo added_chunks = 2;
     repeated NChunkClient.NProto.TChunkRemoveInfo removed_chunks = 3;
 
-    repeated NYT.NProto.TGuid location_directory = 4; // TChunkLocationDirectory
-
     repeated NYT.NProto.TGuid dead_chunk_ids = 5;
 
     required bool caused_by_node_disposal = 6 [default = false];
@@ -41,6 +39,8 @@ message TReqModifyReplicas
     optional bool enable_sequoia_chunk_refresh = 8;
 
     optional bool is_incremental_heartbeat = 9;
+
+    reserved 4;
 }
 
 message TRspModifyReplicas
