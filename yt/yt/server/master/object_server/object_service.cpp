@@ -1604,7 +1604,7 @@ private:
             batch.Indexes.push_back(subrequestIndex);
 
             YT_LOG_DEBUG("Forwarding object request (ForwardedRequestId: %v, Method: %v.%v, "
-                "%v%v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+                "%v%v%v%v, Mutating: %v%v, Retry: %v, CellTag: %v, PeerKind: %v)",
                 batch.BatchReq->GetRequestId(),
                 requestHeader.service(),
                 requestHeader.method(),
@@ -1625,6 +1625,14 @@ private:
                 }),
                 RpcContext_->GetAuthenticationIdentity(),
                 ypathExt.mutating(),
+                MakeFormatterWrapper([&] (auto* builder) {
+                    if (!ypathExt.mutating()) {
+                        return;
+                    }
+                    builder->AppendFormat(", OriginMutationId: %v",
+                        NRpc::GetMutationId(subrequest.RequestHeader));
+                }),
+                subrequest.RequestHeader.retry(),
                 subrequest.ForwardedCellTag,
                 peerKind);
         }

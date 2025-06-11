@@ -381,6 +381,17 @@ private:
             const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             auto mutatingSubrequest = ypathExt.mutating();
 
+            YT_LOG_DEBUG("Parsed subrequest (Method: %v, TargetPath: %v, Mutating: %v%v, Retry: %v)",
+                header.method(),
+                ypathExt.target_path(),
+                mutatingSubrequest,
+                MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
+                    if (mutatingSubrequest) {
+                        builder->AppendFormat(", MutationId: %v", NRpc::GetMutationId(header));
+                    }
+                }),
+                header.retry());
+
             if (!mutating.has_value()) {
                 mutating = mutatingSubrequest;
             }
@@ -649,6 +660,10 @@ private:
             // In case of backoff alarm master can omit response for some
             // subrequests. Such subrequests shouldn't be invoked in Sequoia.
             Subrequests_[index].Target = ERequestTarget::None;
+        }
+
+        for (int uncertainIndex : masterResponse->uncertain_subrequest_indexes()) {
+            RpcContext_->Response().add_uncertain_subrequest_indexes(subrequestIndices[uncertainIndex]);
         }
     }
 
