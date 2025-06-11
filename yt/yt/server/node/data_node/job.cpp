@@ -601,9 +601,26 @@ private:
         int currentBlockIndex = 0;
         int blockCount = GetBlockCount(ChunkId_, *meta);
         while (currentBlockIndex < blockCount) {
+            if (DynamicConfig_->EnableReplicationJobThrottling) {
+                auto startThorttling = TInstant::Now();
+                while (chunk->GetLocation()->CheckReadThrottling(workloadDescriptor).Enabled) {
+                    if (TInstant::Now() - startThorttling > DynamicConfig_->ThrottlingSleepDeadline) {
+                        THROW_ERROR_EXCEPTION("Throttling timeout exceeded");
+                    }
+                    TDelayedExecutor::WaitForDuration(DynamicConfig_->ThrottlingSleepTime);
+                }
+            }
+
+            int blocksToRead;
+            if (DynamicConfig_->ReplicationRangeSize) {
+                blocksToRead = CalculateBlocksToRead(ChunkId_, *meta, currentBlockIndex, *DynamicConfig_->ReplicationRangeSize);
+            } else {
+                blocksToRead = blockCount - currentBlockIndex;
+            }
+
             auto asyncReadBlocks = chunk->ReadBlockRange(
                 currentBlockIndex,
-                blockCount - currentBlockIndex,
+                blocksToRead,
                 chunkReadOptions);
 
             auto readBlocks = WaitFor(asyncReadBlocks)
@@ -666,6 +683,38 @@ private:
                 .ThrowOnError();
 
             YT_LOG_DEBUG("Writer closed");
+        }
+    }
+
+    static int CalculateBlocksToRead(TChunkId chunkId, const TChunkMeta& meta, int startIndex, i64 rangeSize)
+    {
+        switch (TypeFromId(DecodeChunkId(chunkId).Id)) {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk: {
+                auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta.extensions());
+                auto blocks = blocksExt.blocks();
+                i64 size = blocks[startIndex].size();
+                int blockIndex = startIndex;
+                ++blockIndex;
+                while (blockIndex < std::ssize(blocks) && size < rangeSize) {
+                    size += blocks[blockIndex].size();
+                    ++blockIndex;
+                }
+                return blockIndex - startIndex;
+            }
+
+            case EObjectType::JournalChunk:
+            case EObjectType::ErasureJournalChunk: {
+                auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
+                if (!miscExt.sealed()) {
+                    THROW_ERROR_EXCEPTION("Cannot replicate an unsealed chunk %v",
+                        chunkId);
+                }
+                return miscExt.row_count() - startIndex;
+            }
+
+            default:
+                YT_ABORT();
         }
     }
 
