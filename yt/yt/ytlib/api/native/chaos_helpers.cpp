@@ -112,7 +112,8 @@ TReplicationCardPtr GetSyncReplicationCard(
             coordinatorEra);
     }
 
-    THROW_ERROR_EXCEPTION("Unable to synchronize replication card")
+    THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::UnableToSynchronizeReplicationCard,
+        "Unable to synchronize replication card")
         << TErrorAttribute("replication_card_id", tableInfo->ReplicationCardId);
 }
 
