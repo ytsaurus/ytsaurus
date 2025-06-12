@@ -1382,6 +1382,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
         auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         ext->set_in_memory_mode(ToProto(inMemoryMode));
+        ext->set_has_hunk_columns(resultSchema->HasHunkColumns());
 
         auto* executeExt = req->Header().MutableExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
         if (options.ExecutionPool) {
