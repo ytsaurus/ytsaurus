@@ -450,9 +450,11 @@ class TFilteringConsumer
 public:
     TFilteringConsumer(
         TListOperationsCountingFilter* countingFilter,
-        const TListOperationsOptions& options)
+        const TListOperationsOptions& options,
+        const TListOperationsContextPtr& context)
         : CountingFilter_(countingFilter)
         , Options_(options)
+        , Context_(context)
     { }
 
     TListOperationsFilter::TLightOperation ExtractCurrent()
@@ -593,7 +595,9 @@ public:
         cursor->ParseMap([&] (TYsonPullParserCursor* cursor) {
             YT_VERIFY((*cursor)->GetType() == EYsonItemType::StringValue);
             auto key = (*cursor)->UncheckedAsString();
-            if (Options_.AccessFilter && key == TStringBuf("acl")) {
+            if (key == TStringBuf("acl") &&
+                (Context_->StrictOperationInfoAccessValidation || Options_.AccessFilter))
+            {
                 cursor->Next();
                 HasAcl_ = true;
                 Deserialize(Acl_, cursor);
@@ -701,6 +705,7 @@ public:
 private:
     TListOperationsCountingFilter* CountingFilter_;
     const TListOperationsOptions Options_;
+    const TListOperationsContextPtr Context_;
 
     TListOperationsFilter::TLightOperation CurrentOperation_ = {};
     bool HasAcl_ = false;
@@ -736,6 +741,22 @@ private:
             (Options_.ToTime && CurrentOperation_.StartTime >= *Options_.ToTime))
         {
             return false;
+        }
+
+        // Verify that the user has "read" access to the operation.
+        if (Context_->StrictOperationInfoAccessValidation &&
+            !Context_->UserTransitiveClosure.contains(SuperusersGroupName))
+        {
+            if (!HasAcl_) {
+                return false;
+            }
+            auto userReadSecurityAction = CheckPermissionsByAclAndSubjectClosure(
+                Acl_,
+                Context_->UserTransitiveClosure,
+                EPermissionSet::Read);
+            if (userReadSecurityAction != ESecurityAction::Allow) {
+                return false;
+            }
         }
 
         if (Options_.AccessFilter) {
@@ -783,9 +804,11 @@ private:
 
 TListOperationsFilter::TListOperationsFilter(
     const TListOperationsOptions& options,
+    const TListOperationsContextPtr& context,
     const IInvokerPtr& invoker,
     const NLogging::TLogger& logger)
     : Options_(options)
+    , Context_(context)
     , CountingFilter_(Options_)
     , Invoker_(invoker)
     , Logger(logger)
@@ -873,7 +896,7 @@ TListOperationsFilter::TParseResult TListOperationsFilter::ParseOperationsYson(T
     std::vector<TLightOperation> operations;
 
     TListOperationsCountingFilter countingFilter(Options_);
-    TFilteringConsumer filteringConsumer(&countingFilter, Options_);
+    TFilteringConsumer filteringConsumer(&countingFilter, Options_, Context_);
 
     TString singleOperationYson;
 
