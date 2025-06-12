@@ -53,9 +53,9 @@ class TestTables(YTEnvSetup):
 
     @authors("ignat")
     def test_invalid_type(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             read_table("//tmp")
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid type"):
             write_table("//tmp", [])
 
     @authors("savrus", "ignat")
@@ -100,7 +100,7 @@ class TestTables(YTEnvSetup):
 
         set_all_nodes_banned(True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("is unavailable"):
             read_table("//tmp/table")
 
         set_all_nodes_banned(False)
@@ -127,7 +127,7 @@ class TestTables(YTEnvSetup):
         next_key = 4 if sort_order == "ascending" else -1
         write_table("<append=true>//tmp/table", {"key": next_key})
         assert not get("//tmp/table/@sorted")
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"sorted_by\" is not found"):
             get("//tmp/table/@sorted_by")
 
     @authors("monster")
@@ -182,7 +182,7 @@ class TestTables(YTEnvSetup):
 
         tx_b3 = start_transaction(tx=tx_b1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort order violation"):
             write_table(
                 "<append=true>//tmp/table",
                 second_chunk,
@@ -332,7 +332,7 @@ class TestTables(YTEnvSetup):
             "//tmp/table",
             [{"a": 0}],
             sorted_by=[{"name": "a", "sort_order": "ascending"}])
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort columns mismatch while trying to append sorted data into a non-empty table"):
             write_table(
                 "<append=true>//tmp/table",
                 [{"a": 0}],
@@ -369,25 +369,25 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/table")
 
         # we can write only list fragments
-        with pytest.raises(YtError):
+        with raises_yt_error("Error occurred while parsing YSON"):
             write_table("<append=true>//tmp/table", yson.loads(b"string"))
         wait_until_unlocked("//tmp/table")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error occurred while parsing YSON"):
             write_table("<append=true>//tmp/table", yson.loads(b"100"))
         wait_until_unlocked("//tmp/table")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Error occurred while parsing YSON"):
             write_table("<append=true>//tmp/table", yson.loads(b"3.14"))
         wait_until_unlocked("//tmp/table")
 
         # check max_row_weight limit
-        with pytest.raises(YtError):
+        with raises_yt_error("Validation failed at /max_row_weight"):
             write_table("//tmp/table", {"a": "long_string"}, table_writer={"max_row_weight": 2})
         wait_until_unlocked("//tmp/table")
 
         # check max_key_weight limit
-        with pytest.raises(YtError):
+        with raises_yt_error("Key weight is too large"):
             write_table(
                 "//tmp/table",
                 {"a": "long_string"},
@@ -397,7 +397,7 @@ class TestTables(YTEnvSetup):
         wait_until_unlocked("//tmp/table")
 
         # check duplicate ids
-        with pytest.raises(YtError):
+        with raises_yt_error("Duplicate \"a\" column in unversioned row"):
             write_table("//tmp/table", b"{a=version1; a=version2}", is_raw=True)
         wait_until_unlocked("//tmp/table")
 
@@ -406,7 +406,7 @@ class TestTables(YTEnvSetup):
         content = b"some_data"
         create("file", "//tmp/file")
         write_file("//tmp/file", content)
-        with pytest.raises(YtError):
+        with raises_yt_error("expected any of \"[table]\", actual \"file\""):
             read_table("//tmp/file")
 
     @authors("psushin")
@@ -474,7 +474,7 @@ class TestTables(YTEnvSetup):
         write_table("<optimize_for=scan>//tmp/table", [{"key": 0}])
         assert get("//tmp/table/@optimize_for") == "scan"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("YPath attributes \"append\" and \"optimize_for\" are not compatible"):
             write_table("<append=true;optimize_for=scan>//tmp/table", [{"key": 0}])
         wait_until_unlocked("//tmp/table")
 
@@ -488,7 +488,7 @@ class TestTables(YTEnvSetup):
         write_table("<compression_codec=lz4>//tmp/table", [{"key": 0}])
         assert get("//tmp/table/@compression_codec") == "lz4"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("attributes \"append\" and \"compression_codec\" are not compatible"):
             write_table("<append=true;compression_codec=lz4>//tmp/table", [{"key": 0}])
         wait_until_unlocked("//tmp/table")
 
@@ -566,7 +566,7 @@ class TestTables(YTEnvSetup):
 
         assert get("//tmp/table/@schema_mode") == "strong"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Sort order violation"):
             write_table("//tmp/table", [{"k2": 1}, {"k2": 0}])
         wait_until_unlocked("//tmp/table")
 
@@ -702,7 +702,7 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table[#1]") == [{"b": 1}]
 
         # reading key selectors from unsorted table
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot use key or key bound in read limit for an unsorted object"):
             read_table("//tmp/table[:a]")
 
     @authors("psushin")
@@ -1022,7 +1022,7 @@ class TestTables(YTEnvSetup):
 
         alter_table("//tmp/table", schema=schema1, tx=tx1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("since \"exclusive\" lock is taken by concurrent transaction"):
             alter_table("//tmp/table", schema=schema2, tx=tx2)
 
         assert normalize_schema(get("//tmp/table/@schema")) == schema
@@ -1108,7 +1108,7 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         write_table("//tmp/t", {"a": "b"})
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot copy or move a node to itself"):
             copy("//tmp/t", "//tmp/t")
 
     @authors("babenko", "ignat")
@@ -1209,15 +1209,15 @@ class TestTables(YTEnvSetup):
         create("table", "//tmp/t")
         assert get("//tmp/t/@replication_factor") == 3
 
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot be removed"):
             remove("//tmp/t/@replication_factor")
-        with pytest.raises(YtError):
+        with raises_yt_error("Replication factor 0 is out of range [1,20]"):
             set("//tmp/t/@replication_factor", 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot parse \"i32\" from \"end_of_stream\""):
             set("//tmp/t/@replication_factor", {})
 
         tx = start_transaction()
-        with pytest.raises(YtError):
+        with raises_yt_error("Operation cannot be performed in transaction"):
             set("//tmp/t/@replication_factor", 2, tx=tx)
 
     @authors("babenko", "ignat")
@@ -1620,7 +1620,7 @@ class TestTables(YTEnvSetup):
 
     @authors("babenko")
     def test_dynamic_table_schema_required(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Either \"schema\" or \"schema_id\" must be specified for dynamic tables"):
             create("table", "//tmp/t", attributes={"dynamic": True})
 
     @authors("savrus")
