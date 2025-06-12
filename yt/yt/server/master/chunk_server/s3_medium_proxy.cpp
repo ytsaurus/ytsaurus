@@ -14,6 +14,7 @@
 
 namespace NYT::NChunkServer {
 
+using namespace NChunkClient;
 using namespace NYTree;
 using namespace NYson;
 using namespace NObjectServer;
@@ -62,6 +63,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::Config: {
+                // TODO(achulkov2): [PForReview] Forbid changing some fields. Maybe ask about best practices for this.
                 auto config = ConvertTo<TS3MediumConfigPtr>(value);
                 medium->Config() = std::move(config);
                 return true;

@@ -52,6 +52,9 @@ ENV PATH="${GOPATH}/bin:/usr/local/go/bin:${PATH}"
 RUN CGO_ENABLED=0 go install github.com/google/pprof@v0.0.0-20200417002340-c6e0a841f49a
 RUN mv /go/bin/pprof /usr/bin/pprof
 
+# Dynamic libraries.
+COPY ./artifacts/libiconv.so /lib/libiconv.so
+
 ##########################################################################################
 
 FROM base AS build-ytsaurus-python-binaries

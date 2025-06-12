@@ -11,3 +11,4 @@ numpy==1.26.4
 pyarrow==14.0.0
 pandas==2.0.3
 confluent-kafka==2.3.0
+boto3

@@ -383,14 +383,16 @@ void TChunkRequisition::Load(NCellMaster::TLoadContext& context)
     Load(context, Vital_);
 }
 
-void TChunkRequisition::ForceReplicationFactor(int replicationFactor)
+void TChunkRequisition::CorrectReplicationFactor(const IChunkManagerPtr& chunkManager, bool isErasureChunk)
 {
-    YT_ASSERT(replicationFactor > 0);
-
+    static_assert(MinReplicationFactor <= 1 && 1 <= MaxReplicationFactor,
+        "Replication factor limits are incorrect.");
+        
     for (auto& entry : Entries_) {
-        auto& replicationPolicy = entry.ReplicationPolicy;
-        YT_VERIFY(replicationPolicy);
-        replicationPolicy.SetReplicationFactor(replicationFactor);
+        auto* medium = chunkManager->GetMediumByIndex(entry.MediumIndex);
+        if (isErasureChunk || medium->IsOffshore()) {
+            entry.ReplicationPolicy.SetReplicationFactor(1);
+        }
     }
 }
 
