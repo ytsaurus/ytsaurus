@@ -32,13 +32,13 @@ struct TContainerEnvironmentCri
     : public TContainerEnvironmentBase
 {
     TContainerEnvironmentCri(
-        NContainers::NCri::TCriPodDescriptor PodDescriptor,
+        NContainers::NCri::TCriPodDescriptorPtr PodDescriptor,
         NContainers::NCri::TCriPodSpecPtr PodSpec)
         : PodDescriptor{std::move(PodDescriptor)}
         , PodSpec{std::move(PodSpec)}
     { }
 
-    NContainers::NCri::TCriPodDescriptor PodDescriptor;
+    NContainers::NCri::TCriPodDescriptorPtr PodDescriptor;
     NContainers::NCri::TCriPodSpecPtr PodSpec;
 };
 

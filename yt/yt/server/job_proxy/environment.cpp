@@ -1148,18 +1148,6 @@ public:
         , Config_(std::move(config))
         , Executor_(CreateCriExecutor(Config_->CriExecutor))
         , ImageCache_(NContainers::NCri::CreateCriImageCache(Config_->CriImageCache, Executor_))
-        , CriPodDescriptor_{Config_->PodDescriptorName, Config_->PodDescriptorId}
-        , CriPodSpec_{New<NContainers::NCri::TCriPodSpec>(
-            Config_->PodSpecName,
-            NContainers::NCri::TCriContainerResources{
-                Config_->PodSpecCpuLimit,
-                Config_->PodSpecCpuRequest,
-                Config_->PodSpecMemoryLimit,
-                Config_->PodSpecCpuRequest,
-                Config_->PodSpecMemoryOomGroup,
-                Config_->PodSpecCpusetCpus
-            })
-        }
     { }
 
     void SetCpuGuarantee(double /*value*/) override
@@ -1264,6 +1252,8 @@ public:
         Host_ = std::move(host);
         FailJobCallback_ = std::move(failJobCallback);
 
+        const auto& podDescriptor = Config_->PodDescriptor;
+        const auto& podSpec = Config_->PodSpec;
         for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
             // Prepare the sidecar job spec.
             auto sidecarSpec = New<NScheduler::TSidecarJobSpec>();
@@ -1281,17 +1271,19 @@ public:
 
             // Prepare the sidecar container spec.
             auto containerSpec = New<NCri::TCriContainerSpec>();
-            containerSpec->Name = Format("sidecar-%v-%v-%v", Config_->PodDescriptorName, Config_->PodSpecName, name);
+            containerSpec->Resources = New<NCri::TCriContainerResources>();
+
+            containerSpec->Name = Format("sidecar-%v-%v-%v", podDescriptor->Name, podSpec->Name, name);
 
             // If no Docker image is provided, use the one from the main job.
             containerSpec->Image.Image = sidecarSpec->DockerImage.value_or(Config_->JobProxyImage);
 
-            containerSpec->Resources.CpuLimit = sidecarSpec->CpuLimit;
-            containerSpec->Resources.MemoryLimit = sidecarSpec->MemoryLimit;
+            containerSpec->Resources->CpuLimit = sidecarSpec->CpuLimit;
+            containerSpec->Resources->MemoryLimit = sidecarSpec->MemoryLimit;
 
-            const auto& cpusetCpu = CriPodSpec_->Resources.CpusetCpus;
+            const auto& cpusetCpu = podSpec->Resources->CpusetCpus;
             if (cpusetCpu != EmptyCpuSet) {
-                containerSpec->Resources.CpusetCpus = cpusetCpu;
+                containerSpec->Resources->CpusetCpus = cpusetCpu;
             }
 
             containerSpec->CapabilitiesToAdd.push_back("SYS_PTRACE");
@@ -1355,8 +1347,8 @@ public:
         auto process = Executor_->CreateProcess(
             sidecarConfig.Command,
             sidecarConfig.ContainerSpec,
-            CriPodDescriptor_,
-            CriPodSpec_
+            Config_->PodDescriptor,
+            Config_->PodSpec
         );
         process->AddArguments(sidecarConfig.Arguments);
         process->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
@@ -1431,9 +1423,6 @@ private:
     const TCriJobEnvironmentConfigPtr Config_;
     const NContainers::NCri::ICriExecutorPtr Executor_;
     const NContainers::NCri::ICriImageCachePtr ImageCache_;
-
-    const NContainers::NCri::TCriPodDescriptor CriPodDescriptor_;
-    const NContainers::NCri::TCriPodSpecPtr CriPodSpec_;
 
     IJobHostPtr Host_;
     std::function<void(TError)> FailJobCallback_;

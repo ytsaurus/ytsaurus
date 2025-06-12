@@ -304,17 +304,8 @@ struct TCriJobEnvironmentConfig
     //! Do not bind mount jobproxy binary into container
     bool UseJobProxyFromImage;
 
-    // TODO: maybe define the TCriDescriptor, TCriPodSpec and TCriContainerResources as YSON?
-    TString PodDescriptorName;
-    TString PodDescriptorId;
-
-    TString PodSpecName;
-    std::optional<double> PodSpecCpuLimit;
-    std::optional<double> PodSpecCpuRequest;
-    std::optional<i64> PodSpecMemoryLimit;
-    std::optional<i64> PodSpecMemoryRequest;
-    std::optional<bool> PodSpecMemoryOomGroup;
-    std::optional<TString> PodSpecCpusetCpus;
+    NContainers::NCri::TCriPodDescriptorPtr PodDescriptor;
+    NContainers::NCri::TCriPodSpecPtr PodSpec;
 
     REGISTER_YSON_STRUCT(TCriJobEnvironmentConfig);
 
