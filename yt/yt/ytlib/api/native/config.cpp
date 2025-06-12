@@ -500,6 +500,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("request_full_statistics_for_brief_statistics_in_list_jobs", &TThis::RequestFullStatisticsForBriefStatisticsInListJobs)
         .Default(true);
 
+    registrar.Parameter("strict_operation_info_access_validation", &TThis::StrictOperationInfoAccessValidation)
+        .Default(false);
+
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {
             config->UploadTransactionPingPeriod = config->UploadTransactionTimeout / 2;
