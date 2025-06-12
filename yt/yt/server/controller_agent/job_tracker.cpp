@@ -2389,7 +2389,10 @@ void TJobTracker::DoReleaseJobs(
         grouppedJobsToRelease[nodeId][allocationId].push_back(job);
     }
 
-    auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
+    TOperationUpdatesProcessingContext context{.OperationId = operationId,};
+    context.OperationLogger = Logger().WithTag("OperationId: %v", operationId);
+    context.OperationInfo = &GetOrCrash(RegisteredOperations_, operationId);
+    context.OperationController = context.OperationInfo->OperationController.Lock();
 
     for (const auto& [nodeId, allocationIdToJobsToRelease] : grouppedJobsToRelease) {
         auto* nodeInfo = FindNodeInfo(nodeId);
@@ -2429,13 +2432,17 @@ void TJobTracker::DoReleaseJobs(
                 if (jobErased) {
                     // NB(pogorelov): No postponed allocation event expected here,
                     // since events are postponed only for allocations with running jobs.
-                    auto allocationInfo = EraseAllocationIfNeeded(nodeJobs, allocationIt, &operationInfo);
+                    auto allocationInfo = EraseAllocationIfNeeded(nodeJobs, allocationIt, context.OperationInfo);
 
-                    YT_VERIFY(!allocationInfo || !allocationInfo->GetPostponedEvent());
+                    if (allocationInfo && allocationInfo->GetPostponedEvent()) {
+                        context.AddAllocationEvent(allocationInfo->ConsumePostponedEventOrCrash());
+                    }
                 }
             }
         }
     }
+
+    ProcessOperationContext(std::move(context));
 }
 
 void TJobTracker::RequestJobAbortion(
