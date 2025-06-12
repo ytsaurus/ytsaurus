@@ -51,6 +51,7 @@ struct TJobWorkspaceBuildingContext
     std::optional<TString> DockerImage;
     NContainers::NCri::TCriAuthConfigPtr DockerAuth;
 
+    bool NeedGpu = false;
     std::optional<TGpuCheckOptions> GpuCheckOptions;
 };
 
@@ -122,6 +123,8 @@ protected:
 
     virtual TFuture<void> DoRunSetupCommand() = 0;
 
+    virtual TFuture<void> DoRunCustomPreparations() = 0;
+
     virtual TFuture<void> DoRunGpuCheckCommand() = 0;
 
     void ValidateJobPhase(EJobPhase expectedPhase) const;
@@ -161,7 +164,8 @@ TJobWorkspaceBuilderPtr CreateSimpleJobWorkspaceBuilder(
 TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
     IInvokerPtr invoker,
     TJobWorkspaceBuildingContext context,
-    IJobDirectoryManagerPtr directoryManager);
+    IJobDirectoryManagerPtr directoryManager,
+    TGpuManagerPtr gpuManager);
 
 #endif
 

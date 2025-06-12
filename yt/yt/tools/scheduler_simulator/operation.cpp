@@ -36,7 +36,7 @@ NScheduler::EOperationState TOperation::GetState() const
 
 const NScheduler::TOperationOptionsPtr& TOperation::GetOperationOptions() const
 {
-    static auto stub = New<NScheduler::TOperationOptions>();
+    static const auto stub = New<NScheduler::TOperationOptions>();
     return stub;
 }
 

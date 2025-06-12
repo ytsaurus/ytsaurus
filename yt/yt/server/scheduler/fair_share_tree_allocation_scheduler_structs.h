@@ -72,6 +72,7 @@ struct TFairShareTreeAllocationSchedulerOperationState final
 
     std::optional<ESchedulingSegment> SchedulingSegment;
     TSchedulingSegmentModule SchedulingSegmentModule;
+    std::optional<TNetworkPriority> NetworkPriority;
     std::optional<THashSet<TString>> SpecifiedSchedulingSegmentModules;
     std::optional<TInstant> FailingToScheduleAtModuleSince;
     std::optional<TInstant> FailingToAssignToModuleSince;

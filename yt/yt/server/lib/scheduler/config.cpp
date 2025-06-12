@@ -133,6 +133,16 @@ void TFairShareStrategyOperationControllerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TModuleShareAndNetworkPriority::Register(TRegistrar registrar)
+{
+    registrar.Parameter("module_share", &TThis::ModuleShare)
+        .InRange(0.0, 1.0);
+
+    registrar.Parameter("network_priority", &TThis::NetworkPriority)
+        .InRange(MinNetworkPriority, MaxNetworkPriority);
+}
+////////////////////////////////////////////////////////////////////////////////
+
 void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("mode", &TThis::Mode)
@@ -193,12 +203,25 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Parameter("force_incompatible_segment_preemption", &TThis::ForceIncompatibleSegmentPreemption)
         .Default(false);
 
+    registrar.Parameter("module_share_to_network_priority", &TThis::ModuleShareToNetworkPriority)
+        .Default();
+
     registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
         for (const auto& schedulingSegmentModule : config->DataCenters) {
             ValidateDataCenterName(schedulingSegmentModule);
         }
         for (const auto& schedulingSegmentModule : config->InfinibandClusters) {
             ValidateInfinibandClusterName(schedulingSegmentModule);
+        }
+
+        double previousModuleShare = 0.0;
+        for (const auto& entry : config->ModuleShareToNetworkPriority) {
+            if (entry.ModuleShare <= previousModuleShare && entry.ModuleShare > 0) {
+                THROW_ERROR_EXCEPTION("Module shares must be in strictly ascending order")
+                    << TErrorAttribute("module", entry.ModuleShare)
+                    << TErrorAttribute("previous_module", previousModuleShare);
+            }
+            previousModuleShare = entry.ModuleShare;
         }
     });
 
