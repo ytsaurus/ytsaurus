@@ -1532,7 +1532,7 @@ print(json.dumps(input))
     )
     @pytest.mark.ignore_in_opensource_ci
     def test_map_interrupt_job_with_delivery_fenced_pipe_writer(self, ordered, fmt, use_new_delivery_fenced_connection):
-        if any(version in getattr(self, "ARTIFACT_COMPONENTS", {}) for version in ["23_2", "24_1"]):
+        if any(version in getattr(self, "ARTIFACT_COMPONENTS", {}) for version in ["23_2", "24_1", "24_2", "25_1"]):
             pytest.xfail("Is not supported for older versions of server components")
 
         skip_if_delivery_fenced_pipe_writer_not_supported(use_new_delivery_fenced_connection)
@@ -1628,7 +1628,7 @@ print(json.dumps(input))
         ]
     )
     def test_adaptive_buffer_row_count(self, ordered, use_new_delivery_fenced_connection):
-        skip_if_old(self.Env, (24, 2), "Option is not present in older binaries")
+        skip_if_old(self.Env, (25, 2), "Option is not present in older binaries")
 
         skip_if_delivery_fenced_pipe_writer_not_supported(use_new_delivery_fenced_connection)
 
