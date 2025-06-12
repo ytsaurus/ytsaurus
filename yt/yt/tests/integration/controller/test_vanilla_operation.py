@@ -39,7 +39,7 @@ def _get_job_tracker_orchid_path(op):
 
 
 class TestSidecarVanilla(YTEnvSetup):
-    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    ENABLE_MULTIDAEMON = False
     NUM_TEST_PARTITIONS = 3
 
     NUM_MASTERS = 1
@@ -54,22 +54,8 @@ class TestSidecarVanilla(YTEnvSetup):
         }
     }
 
-    @authors("pavel-bash")
-    def test_sidecars_success(self):
+    def launch_operation(self, master_command, sidecar_command, sidecar_restart_policy = "FailOnError"):
         docker_image = self.Env.yt_config.default_docker_image
-
-        master_command = " ; ".join(
-            [
-                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
-                events_on_fs().wait_event_cmd("finish"),
-            ]
-        )
-        sidecar_command = " ; ".join(
-            [
-                events_on_fs().notify_event_cmd("sidecar_job_started"),
-                events_on_fs().wait_event_cmd("finish"),
-            ]
-        )
 
         # Prepare a sidecar bash file as it seems to be impossible to just concatenate several commands
         # under "command" section of sidecar definition, so we invoke a bash file.
@@ -93,21 +79,18 @@ class TestSidecarVanilla(YTEnvSetup):
                                 "job_count": 1,
                                 "command": f"/bin/bash {sidecar_cmds_file}",
                                 "docker_image": docker_image,
+                                "restart_policy": sidecar_restart_policy,
                             }
                         }
                     },
                 },
             },
         )
-
         wait(lambda: len(get(op.get_path() + "/@progress/tasks")) == 1, ignore_exceptions=True)
+        return op
 
-        # Ensure that all three jobs have started.
-        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
-        events_on_fs().wait_event("sidecar_job_started", timeout=datetime.timedelta(1000))
 
-        events_on_fs().notify_event("finish")
-
+    def ensure_operation_finish(self, op):
         op.track()
 
         data_flow_graph_path = op.get_path() + "/@progress/data_flow_graph"
@@ -123,6 +106,265 @@ class TestSidecarVanilla(YTEnvSetup):
         assert tasks["master"]["job_counter"]["completed"]["total"] == 1
 
         assert get(op.get_path() + "/@progress/total_job_counter/completed/total") == 1
+
+
+    @authors("pavel-bash")
+    def test_general(self):
+        """
+        Check that sidecars work in general by creating one alongside the master job and putting
+        the corresponding event when it's launched.
+        """
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+        sidecar_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("sidecar_job_started"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+
+        op = self.launch_operation(master_command, sidecar_command)
+
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("sidecar_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("finish")
+
+        self.ensure_operation_finish(op)
+
+
+    @authors("pavel-bash")
+    def test_restart_always_after_success(self):
+        """
+        Check the {RestartPolicy=Always & sidecar-finished-with-success} case; we expect that
+        the sidecar will be launched for the 2nd time, emitting the corresponding event.
+        """
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+        sidecar_command = f"""
+#!/bin/bash
+if [ -f {events_on_fs()._get_event_filename("sidecar_first_job_started")} ]; then
+  # It's the 2nd time the sidecar is launched
+  {events_on_fs().notify_event_cmd("sidecar_second_job_started")}
+  {events_on_fs().wait_event_cmd("finish_sidecar_second")}
+else
+  {events_on_fs().notify_event_cmd("sidecar_first_job_started")}
+  {events_on_fs().wait_event_cmd("finish_sidecar_first")}
+fi
+"""
+
+        op = self.launch_operation(master_command, sidecar_command, "always")
+
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+
+        events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("finish_sidecar_first")
+
+        events_on_fs().wait_event("sidecar_second_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("finish_sidecar_second")
+
+        events_on_fs().notify_event("finish")
+
+        self.ensure_operation_finish(op)
+
+
+    @authors("pavel-bash")
+    def test_restart_always_after_failure(self):
+        """
+        Check the {RestartPolicy=Always & sidecar-finished-with-failure} case; we expect that
+        the sidecar will be launched for the 2nd time, emitting the corresponding event.
+        """
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+        sidecar_command = f"""
+#!/bin/bash
+if [ -f {events_on_fs()._get_event_filename("sidecar_first_job_started")} ]; then
+  # It's the 2nd time the sidecar is launched
+  {events_on_fs().notify_event_cmd("sidecar_second_job_started")}
+  {events_on_fs().wait_event_cmd("finish_sidecar_second")}
+else
+  {events_on_fs().notify_event_cmd("sidecar_first_job_started")}
+  {events_on_fs().wait_event_cmd("finish_sidecar_first")}
+  exit 1
+fi
+"""
+
+        op = self.launch_operation(master_command, sidecar_command, "always")
+
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+
+        events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("finish_sidecar_first")
+
+        events_on_fs().wait_event("sidecar_second_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("finish_sidecar_second")
+
+        events_on_fs().notify_event("finish")
+
+        self.ensure_operation_finish(op)
+
+
+    @authors("pavel-bash")
+    def test_restart_on_failure_after_success(self):
+        """
+        Check the {RestartPolicy=OnFailure & sidecar-finished-with-success} case; the sidecar
+        must not be restarted.
+        """
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+        sidecar_command = f"""
+#!/bin/bash
+if [ -f {events_on_fs()._get_event_filename("sidecar_first_job_started")} ]; then
+  {events_on_fs().notify_event_cmd("sidecar_second_job_started")}
+else
+  {events_on_fs().notify_event_cmd("sidecar_first_job_started")}
+  {events_on_fs().wait_event_cmd("finish_sidecar_first")}
+fi
+"""
+
+        op = self.launch_operation(master_command, sidecar_command, "OnFailure")
+
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+
+        events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("finish_sidecar_first")
+
+        # Wait here a little bit to allow the sidecar to start (if it's going to)
+        time.sleep(5)
+
+        events_on_fs().notify_event("finish")
+
+        self.ensure_operation_finish(op)
+
+        assert not events_on_fs().check_event("sidecar_second_job_started")
+
+
+    @authors("pavel-bash")
+    def test_restart_on_failure_after_failure(self):
+        """
+        Check the {RestartPolicy=OnFailure & sidecar-finished-with-failure} case; we expect that
+        the sidecar will be launched for the 2nd time, emitting the corresponding event.
+        """
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+        sidecar_command = f"""
+#!/bin/bash
+if [ -f {events_on_fs()._get_event_filename("sidecar_first_job_started")} ]; then
+  # It's the 2nd time the sidecar is launched
+  {events_on_fs().notify_event_cmd("sidecar_second_job_started")}
+  {events_on_fs().wait_event_cmd("finish_sidecar_second")}
+else
+  {events_on_fs().notify_event_cmd("sidecar_first_job_started")}
+  {events_on_fs().wait_event_cmd("finish_sidecar_first")}
+  exit 1
+fi
+"""
+
+        op = self.launch_operation(master_command, sidecar_command, "OnFailure")
+
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+
+        events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("finish_sidecar_first")
+
+        events_on_fs().wait_event("sidecar_second_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("finish_sidecar_second")
+
+        events_on_fs().notify_event("finish")
+
+        self.ensure_operation_finish(op)
+
+
+    @authors("pavel-bash")
+    def test_fail_on_error_after_success(self):
+        """
+        Check the {RestartPolicy=FailOnError & sidecar-finished-with-success} case; the sidecar
+        must not be restarted.
+        """
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+        sidecar_command = f"""
+#!/bin/bash
+if [ -f {events_on_fs()._get_event_filename("sidecar_first_job_started")} ]; then
+  {events_on_fs().notify_event_cmd("sidecar_second_job_started")}
+else
+  {events_on_fs().notify_event_cmd("sidecar_first_job_started")}
+  {events_on_fs().wait_event_cmd("finish_sidecar_first")}
+fi
+"""
+
+        op = self.launch_operation(master_command, sidecar_command, "FailOnError")
+
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+
+        events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("finish_sidecar_first")
+
+        # Wait here a little bit to allow the sidecar to start (if it's going to)
+        time.sleep(5)
+
+        events_on_fs().notify_event("finish")
+
+        self.ensure_operation_finish(op)
+
+        assert not events_on_fs().check_event("sidecar_second_job_started")
+
+
+    @authors("pavel-bash")
+    def test_fail_on_error_after_failure(self):
+        """
+        Check the {RestartPolicy=OnFailure & sidecar-finished-with-failure} case; we expect that
+        the whole job will be failed because of this.
+        """
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().wait_event_cmd("finish"),  # Will not arrive.
+            ]
+        )
+        sidecar_command = f"""
+#!/bin/bash
+if [ -f {events_on_fs()._get_event_filename("sidecar_first_job_started")} ]; then
+  {events_on_fs().notify_event_cmd("sidecar_second_job_started")}
+else
+  {events_on_fs().notify_event_cmd("sidecar_first_job_started")}
+  {events_on_fs().wait_event_cmd("finish_sidecar_first")}
+  exit 1
+fi
+"""
+
+        op = self.launch_operation(master_command, sidecar_command, "FailOnError")
+
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+
+        events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("finish_sidecar_first")
+
+        op.wait_for_state("failed")
+        assert not events_on_fs().check_event("sidecar_second_job_started")
 
 
 class TestSchedulerVanillaCommands(YTEnvSetup):
