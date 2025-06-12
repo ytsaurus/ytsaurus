@@ -10234,7 +10234,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_start_queue_consumer_registration_manager(jobSpecConfig->StartQueueConsumerRegistrationManager);
 
-    // Pass normalized docker image reference into job spec.
     const auto normalizeDockerImage = [this](const TString& dockerImage, auto* jobSpec)
     {
         std::optional<TString> normalizedImage;
@@ -10249,6 +10248,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
         return normalizedImage;
     };
+
+    // Pass normalized docker image reference into job spec.
     if (jobSpecConfig->DockerImage) {
         auto normalizedImage = normalizeDockerImage(*jobSpecConfig->DockerImage, jobSpec);
         if (normalizedImage) {

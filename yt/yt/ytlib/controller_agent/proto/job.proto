@@ -173,9 +173,10 @@ message TSidecarJobSpec
     // The user command to be executed.
     required string command = 1;
 
+    // CPU limit; not supported yet.
     optional double cpu_limit = 2 [default = 0];
 
-    // Hard memory limit for user process, in bytes.
+    // Hard memory limit for user process, in bytes; not supported yet.
     optional int64 memory_limit = 3 [default = 0];
 
     optional string docker_image = 4;
