@@ -972,9 +972,6 @@ struct TDataNodeConfig
     //! This is a per-location limit.
     i64 DiskReadThrottlingLimit;
 
-    //! If |true| then IO requests in one session are proccessed sequentially.
-    bool SequentiallyIORequests;
-
     //! Regular storage locations.
     std::vector<TStoreLocationConfigPtr> StoreLocations;
 
@@ -1139,8 +1136,6 @@ struct TDataNodeDynamicConfig
 
     std::optional<i64> DiskWriteThrottlingLimit;
     std::optional<i64> DiskReadThrottlingLimit;
-
-    std::optional<bool> SequentiallyIORequests;
 
     std::optional<bool> EnableSendBlocksNetThrottling;
 

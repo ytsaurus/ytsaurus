@@ -15,7 +15,7 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/ytlib/test_framework/test_connection.h>
+#include <yt/yt/ytlib/unittests/misc/test_connection.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 #include <yt/yt/core/test_framework/test_proxy_service.h>

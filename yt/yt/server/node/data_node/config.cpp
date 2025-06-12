@@ -902,9 +902,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(512_MB);
 
-    registrar.Parameter("sequentially_io_requests", &TThis::SequentiallyIORequests)
-        .Default(true);
-
     registrar.Parameter("store_locations", &TThis::StoreLocations)
         .Default();
 
@@ -1153,9 +1150,6 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("disk_write_throttling_limit", &TThis::DiskWriteThrottlingLimit)
         .Default();
     registrar.Parameter("disk_read_throttling_limit", &TThis::DiskReadThrottlingLimit)
-        .Default();
-
-    registrar.Parameter("sequentially_io_requests", &TThis::SequentiallyIORequests)
         .Default();
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)
