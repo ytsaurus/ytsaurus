@@ -205,4 +205,40 @@ arrow::Result<std::shared_ptr<arrow::Buffer>> TStatlessArrowRandomAccessFileBase
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCompositeBufferArrowRandomAccessFile::TCompositeBufferArrowRandomAccessFile(const std::vector<TBufferDescriptor>& buffers, i64 fileSize)
+    : Buffers_(buffers)
+    , FileSize_(fileSize)
+{
+    YT_VERIFY(!Buffers_.empty());
+    YT_VERIFY(FileSize_ > 0);
+    YT_VERIFY(std::all_of(Buffers_.begin(), Buffers_.end(), [this] (const TBufferDescriptor& buffer) {
+        return buffer.Offset >= 0 && buffer.Offset + std::ssize(buffer.Data) <= FileSize_;
+    }));
+}
+
+arrow::Result<int64_t> TCompositeBufferArrowRandomAccessFile::GetSize()
+{
+    return FileSize_;
+}
+
+arrow::Result<int64_t> TCompositeBufferArrowRandomAccessFile::ReadAt(int64_t position, int64_t nbytes, void* out)
+{
+    if (position < 0 || position + nbytes > FileSize_) {
+        return arrow::Status::IOError(Format(
+            "Cannot read %v bytes at position %v from file of size %v", nbytes, position, FileSize_));
+    }
+
+    for (const auto& buffer : Buffers_) {
+        if (position >= buffer.Offset && position + nbytes <= buffer.Offset + std::ssize(buffer.Data)) {
+            i64 offsetInBuffer = position - buffer.Offset;
+            std::memcpy(out, buffer.Data.Begin() + offsetInBuffer, nbytes);
+            return nbytes;
+        }
+    }
+
+    return arrow::Status::IOError(Format("Requested read range [%v-%v) does not fall into any buffer", position, position + nbytes));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NArrow

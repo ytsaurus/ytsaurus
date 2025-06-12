@@ -586,6 +586,8 @@ protected:
     }
 
     TFuture<void> InitBlockFetcher();
+    //! Initializes appropriate block reader for the current block.
+    void InitBlockReader();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -612,6 +614,48 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitBlockFetcher()
     }
 
     return DoOpen(std::move(blocks), ChunkMeta_->Misc());
+}
+
+void THorizontalSchemalessChunkReaderBase::InitBlockReader()
+{
+    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
+    const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
+
+    YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
+
+    // TODO(achulkov2): This is a hack, dispatch properly by chunk format here, once proper chunk formats are used.
+    auto replicasByType = GetReplicasByType(GetReplicasFromChunkSpec(ChunkSpec_));
+
+    if (!replicasByType.DomesticReplicas.empty()) {
+        YT_LOG_DEBUG("Initializing regular horizontal block reader (BlockIndex: %v, ChunkFormat: %lv)", blockIndex, ChunkMeta_->GetChunkFormat());
+        BlockReader_.reset(new THorizontalBlockReader(
+            CurrentBlock_.Get().ValueOrThrow().Data,
+            blockMeta,
+            GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
+            GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
+            ChunkMeta_->HunkChunkRefs(),
+            ChunkMeta_->HunkChunkMetas(),
+            ChunkToReaderIdMapping_,
+            SortOrders_,
+            CommonKeyPrefix_,
+            KeyWideningOptions_,
+            GetRootSystemColumnCount()));
+    } else {
+        YT_LOG_DEBUG("Initializing arrow horizontal block reader (BlockIndex: %v, ChunkFormat: %lv)", blockIndex, ChunkMeta_->GetChunkFormat());
+        BlockReader_.reset(new TArrowHorizontalBlockReader(
+            CurrentBlock_.Get().ValueOrThrow().Data,
+            blockMeta,
+            ChunkMeta_,
+            GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
+            GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
+            ChunkMeta_->HunkChunkRefs(),
+            ChunkMeta_->HunkChunkMetas(),
+            ChunkToReaderIdMapping_,
+            SortOrders_,
+            CommonKeyPrefix_,
+            KeyWideningOptions_,
+            GetRootSystemColumnCount()));
+    }
 }
 
 TDataStatistics THorizontalSchemalessChunkReaderBase::GetDataStatistics() const
@@ -758,45 +802,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
     const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
 
-    YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
-
-    auto replicasByType = GetReplicasByType(GetReplicasFromChunkSpec(ChunkSpec_));
-
-    Cerr << Format("Initializing first block (DomesticReplicas: %v, OffshoreReplicas: %v, BlockIndex: %v)",
-        replicasByType.DomesticReplicas.size(),
-        replicasByType.OffshoreReplicas.size(),
-        blockIndex) << Endl;
-
-    if (!replicasByType.DomesticReplicas.empty()) {
-        Cerr << "Initializing regular block reader" << Endl;
-        BlockReader_.reset(new THorizontalBlockReader(
-            CurrentBlock_.Get().ValueOrThrow().Data,
-            blockMeta,
-            GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
-            GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-            ChunkMeta_->HunkChunkRefs(),
-            ChunkMeta_->HunkChunkMetas(),
-            ChunkToReaderIdMapping_,
-            SortOrders_,
-            CommonKeyPrefix_,
-            KeyWideningOptions_,
-            GetRootSystemColumnCount()));
-    } else {
-        Cerr << "Initializing arrow block reader" << Endl;
-        BlockReader_.reset(new TArrowHorizontalBlockReader(
-            CurrentBlock_.Get().ValueOrThrow().Data,
-            blockMeta,
-            ChunkMeta_,
-            GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
-            GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-            ChunkMeta_->HunkChunkRefs(),
-            ChunkMeta_->HunkChunkMetas(),
-            ChunkToReaderIdMapping_,
-            SortOrders_,
-            CommonKeyPrefix_,
-            KeyWideningOptions_,
-            GetRootSystemColumnCount()));
-    }
+    InitBlockReader();
 
     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count();
 
@@ -1205,21 +1211,7 @@ void THorizontalSchemalessLookupChunkReaderBase::ComputeBlockIndexes(TRange<TLeg
 
 void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
 {
-    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-    const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
-
-    BlockReader_.reset(new THorizontalBlockReader(
-        CurrentBlock_.Get().ValueOrThrow().Data,
-        blockMeta,
-        GetCompositeColumnFlags(ChunkMeta_->ChunkSchema()),
-        GetHunkColumnFlags(ChunkMeta_->GetChunkFormat(), ChunkMeta_->GetChunkFeatures(), ChunkMeta_->ChunkSchema()),
-        ChunkMeta_->HunkChunkRefs(),
-        ChunkMeta_->HunkChunkMetas(),
-        ChunkToReaderIdMapping_,
-        SortOrders_,
-        CommonKeyPrefix_,
-        KeyWideningOptions_,
-        GetRootSystemColumnCount()));
+    InitBlockReader();
 }
 
 void THorizontalSchemalessLookupChunkReaderBase::InitNextBlock()

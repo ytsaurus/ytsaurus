@@ -62,6 +62,7 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
     ChunkFeatures_ = FromProto<EChunkFeatures>(chunkMeta.features());
 
     Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
+    Blocks_ = New<TRefCountedBlocksExt>(GetProtoExtension<TBlocksExt>(chunkMeta.extensions()));
     DataBlockMeta_ = New<TRefCountedDataBlockMeta>(GetProtoExtension<TDataBlockMetaExt>(chunkMeta.extensions()));
 
     if (auto columnGroupInfos = FindProtoExtension<TColumnGroupInfosExt>(chunkMeta.extensions())) {
@@ -79,9 +80,6 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
         ChunkNameTable_ = New<TNameTable>();
         FromProto(&ChunkNameTable_, *nameTableExt);
     }
-
-    Cerr << Format("NameTable: %v", *ChunkNameTable_) << Endl;
-    Cerr << Format("Schema: %v", *ChunkSchema_) << Endl;
 
     auto buffer = New<TRowBuffer>(TBlockLastKeysBufferTag());
 
@@ -125,7 +123,6 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
     ColumnarStatisticsExt_ = FindProtoExtension<TColumnarStatisticsExt>(chunkMeta.extensions());
     LargeColumnarStatisticsExt_ = FindProtoExtension<TLargeColumnarStatisticsExt>(chunkMeta.extensions());
     ParquetFormatMetaExt_ = FindProtoExtension<TParquetFormatMetaExt>(chunkMeta.extensions());
-    BlocksExt_ = FindProtoExtension<TBlocksExt>(chunkMeta.extensions());
 }
 
 i64 TColumnarChunkMeta::GetMemoryUsage() const

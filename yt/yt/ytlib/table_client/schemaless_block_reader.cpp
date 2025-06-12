@@ -20,8 +20,9 @@
 // TODO(achulkov2): Remove unnecessary includes.
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/value_consumer.h>
+
+#include <yt/yt/library/arrow_parquet_adapter/arrow.h>
 
 namespace NYT::NTableClient {
 
@@ -429,119 +430,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRowGroupReader
-    : public arrow::io::RandomAccessFile
-{
-public:
-    TRowGroupReader(const TSharedRef& data, i64 rowGroupOffset, i64 fileSize)
-        : Data_(data)
-        , RowGroupOffset_(rowGroupOffset)
-        , FileSize_(fileSize)
-    {
-        YT_VERIFY(RowGroupOffset_ >= 0);
-        YT_VERIFY(FileSize_ > RowGroupOffset_);
-        YT_VERIFY(RowGroupOffset_ + std::ssize(Data_) <= FileSize_);
-    }
-
-    arrow::Result<int64_t> GetSize() override
-    {
-        return FileSize_;
-    }
-
-    arrow::Status Seek(int64_t position) override
-    {
-        Cerr << "Seek to " << position << Endl;
-        if (position < 0 || position > FileSize_) {
-            return arrow::Status::Invalid(std::string{Format("Position %v is out of bounds, [%v, %v); file_size=%v", position, RowGroupOffset_, RowGroupOffset_ + std::ssize(Data_), FileSize_)});
-        }
-        FilePosition_ = position;
-        return arrow::Status::OK();
-    }
-
-    arrow::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override
-    {
-        Cerr << "ReadAt " << nbytes << " bytes at " << position << Endl;
-        return arrow::io::RandomAccessFile::ReadAt(position, nbytes, out);
-    }
-
-    arrow::Result<std::shared_ptr<arrow::Buffer>> ReadAt(int64_t position, int64_t nbytes) override
-    {
-        Cerr << "ReadAt " << nbytes << " bytes at " << position << Endl;
-        return arrow::io::RandomAccessFile::ReadAt(position, nbytes);
-    }
-
-    arrow::Result<int64_t> Read(int64_t nbytes, void* out) override
-    {
-        Cerr << "Read " << nbytes << " bytes at " << FilePosition_ << Endl;
-        if (IsMagicPosition(FilePosition_) && nbytes == 4) {
-            const char* magic = "PAR1";
-            std::memcpy(out, magic, 4);
-            FilePosition_ += nbytes;
-            return nbytes;
-        }
-
-        if (FilePosition_ < RowGroupOffset_ || FilePosition_ + nbytes > RowGroupOffset_ + std::ssize(Data_)) {
-            return arrow::Status::Invalid(std::string{Format("Read %v is out of bounds, [%v, %v); file_size=%v", FilePosition_, RowGroupOffset_, RowGroupOffset_ + std::ssize(Data_), FileSize_)});
-        }
-
-        std::memcpy(out, Data_.Begin() + FilePosition_ - RowGroupOffset_, nbytes);
-        FilePosition_ += nbytes;
-        return nbytes;
-    }
-
-    arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nbytes) override
-    {
-        auto bufferResult = arrow::AllocateBuffer(nbytes);
-        ARROW_ASSIGN_OR_RAISE(auto buffer, bufferResult);
-
-        auto bytesReadResult = Read(nbytes, buffer->mutable_data());
-        RETURN_NOT_OK(bytesReadResult);
-
-        return buffer;
-    }
-
-    arrow::Result<int64_t> Tell() const override
-    {
-        return FilePosition_;
-    }
-
-    arrow::Status Close() override
-    {
-        Closed_ = true;
-        return arrow::Status::OK();
-    }
-
-    bool closed() const override
-    {
-        return Closed_;
-    }
-
-private:
-    TSharedRef Data_;
-    i64 RowGroupOffset_;
-    i64 FileSize_;
-
-    i64 FilePosition_ = 0;
-    bool Closed_ = false;
-
-    bool IsMagicPosition(int64_t position) const
-    {
-        return position == 0 || position == FileSize_ - 4;
-    }
-
-    bool IsOutOfBounds(int64_t position) const
-    {
-        return position < RowGroupOffset_ || position > RowGroupOffset_ + std::ssize(Data_);
-    }
-};
-
 void CreateArrowTableForParquet(
     const TSharedRef& block,
     const NProto::TDataBlockMeta& dataBlockMeta,
     const TColumnarChunkMetaPtr& chunkMeta,
     std::shared_ptr<arrow::Table>* table)
 {
-    // TODO(achulkov2): Throw?
+    YT_VERIFY(chunkMeta->Blocks());
     YT_VERIFY(chunkMeta->ParquetFormatMetaExt());
 
     auto footer = chunkMeta->ParquetFormatMetaExt()->footer();
@@ -551,16 +446,19 @@ void CreateArrowTableForParquet(
         footer.data(),
         &footerSize);
 
-    auto blockIndex = dataBlockMeta.block_index();
-    YT_VERIFY(chunkMeta->BlocksExt());
-    auto chunkBlockMeta = chunkMeta->BlocksExt()->blocks(blockIndex);
-    auto rowGroupOffset = chunkBlockMeta.offset();
-
     auto parquetFileSize = chunkMeta->ParquetFormatMetaExt()->file_size();
 
-    auto rowGroupReader = std::make_shared<TRowGroupReader>(
-        block,
-        rowGroupOffset,
+    auto blockIndex = dataBlockMeta.block_index();
+    auto chunkBlockMeta = chunkMeta->Blocks()->blocks(blockIndex);
+    auto rowGroupOffset = chunkBlockMeta.offset();
+
+    // TODO(achulkov2): Introduce constsant for ref to PAR1 string?
+    auto rowGroupReader = std::make_shared<NArrow::TCompositeBufferArrowRandomAccessFile>(
+        std::vector<NArrow::TCompositeBufferArrowRandomAccessFile::TBufferDescriptor>{
+            {TSharedRef::FromString("PAR1"), 0},
+            {block, rowGroupOffset},
+            {TSharedRef::FromString("PAR1"), parquetFileSize - 4},
+        },
         parquetFileSize);
 
     auto parquetReader = parquet::ParquetFileReader::Open(rowGroupReader, 
@@ -568,11 +466,10 @@ void CreateArrowTableForParquet(
         fileMeta);
 
     std::unique_ptr<parquet::arrow::FileReader> arrowParquetReader;
-    PARQUET_THROW_NOT_OK(
-        parquet::arrow::FileReader::Make(
-            arrow::default_memory_pool(),
-            std::move(parquetReader),
-            &arrowParquetReader));
+    PARQUET_THROW_NOT_OK(parquet::arrow::FileReader::Make(
+        arrow::default_memory_pool(),
+        std::move(parquetReader),
+        &arrowParquetReader));
 
     PARQUET_THROW_NOT_OK(arrowParquetReader->ReadRowGroup(blockIndex, table));
 }
@@ -583,15 +480,15 @@ void CreateArrowTableForJson(
     const TColumnarChunkMetaPtr& /*chunkMeta*/,
     std::shared_ptr<arrow::Table>* table)
 {
-    auto jsonReader = arrow::json::TableReader::Make(
+    PARQUET_ASSIGN_OR_THROW(auto jsonReader, arrow::json::TableReader::Make(
         arrow::default_memory_pool(),
         std::make_shared<arrow::io::BufferReader>(
             reinterpret_cast<const uint8_t*>(block.Data()),
             block.Size()),
         arrow::json::ReadOptions::Defaults(),
         arrow::json::ParseOptions::Defaults()
-    ).ValueOrDie();
-    *table = jsonReader->Read().ValueOrDie();
+    ));
+    PARQUET_ASSIGN_OR_THROW(*table, jsonReader->Read());
 }
 
 std::shared_ptr<arrow::Table> CreateArrowTable(
@@ -645,11 +542,10 @@ TArrowHorizontalBlockReader::TArrowHorizontalBlockReader(
     , ExtraColumnCount_(extraColumnCount)
     , DecodeInlineHunkValues_(decodeInlineHunkValues)
 {
-    Cerr << "Trying to parse Parquet block" << Endl;
-    Cerr << "Block size: " << Block_.Size() << Endl;
-
     // TODO(achulkov2): Check that there are no hunk columns in the block. Or in the decoded values!
+    // TODO(achulkov2): Throw when reading sorted chunks (for now).
 
+    // TODO(achulkov2): Insert proper format here once they are actually supported.
     std::shared_ptr<arrow::Table> table = CreateArrowTable(
         Block_,
         DataBlockMeta_,
@@ -672,40 +568,6 @@ TArrowHorizontalBlockReader::TArrowHorizontalBlockReader(
             NFormats::DecodeRecordBatch(batch, &consumer));
     }
     
-    // // 3) Serialize the Table as an Arrow IPC stream into a new buffer
-    // auto sink = arrow::io::BufferOutputStream::Create().ValueOrDie();
-
-    // std::shared_ptr<arrow::ipc::RecordBatchWriter> ipc_writer;
-    // PARQUET_ASSIGN_OR_THROW(
-    //     ipc_writer,
-    //     arrow::ipc::MakeStreamWriter(
-    //         /*sink=*/sink.get(),
-    //         /*schema=*/table->schema()
-    //     )
-    // );
-
-
-    // // Write out all record batches at once
-    // PARQUET_THROW_NOT_OK(ipc_writer->WriteTable(*table));
-    // PARQUET_THROW_NOT_OK(ipc_writer->Close());
-
-    // // Grab the finished IPC buffer
-    // std::shared_ptr<arrow::Buffer> arrow_ipc_buffer =
-    //     sink->Finish().ValueOrDie();
-
-    // // Copy into a std::string (or your own buffer type)
-    // std::string ipc_data(
-    //     reinterpret_cast<const char*>(arrow_ipc_buffer->data()),
-    //     arrow_ipc_buffer->size());
-
-    // // 4) Parse it with your Arrow‐based parser
-    // TCollectingValueConsumer consumer;
-    // auto parser = NFormats::CreateParserForArrow(&consumer);
-
-    // // Give it the new IPC payload instead of Block_
-    // parser->Read(TStringBuf(ipc_data.data(), ipc_data.size()));
-    // parser->Finish();
-
     Rows_ = std::move(consumer.GetRowList());
 
     KeyBuffer_.reserve(GetUnversionedRowByteSize(GetKeyColumnCount()));
@@ -718,8 +580,6 @@ TArrowHorizontalBlockReader::TArrowHorizontalBlockReader(
     }
 
     JumpToRowIndex(0);
-
-    Cerr << "Parsed " << Rows_.size() << " rows from Parquet block " << dataBlockMeta.block_index() << Endl;
 }
 
 bool TArrowHorizontalBlockReader::NextRow()

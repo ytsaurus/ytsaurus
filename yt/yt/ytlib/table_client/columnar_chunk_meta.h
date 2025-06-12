@@ -19,6 +19,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkType, ChunkType);
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkFormat, ChunkFormat);
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkFeatures, ChunkFeatures);
+    DEFINE_BYREF_RO_PROPERTY(NChunkClient::TRefCountedBlocksExtPtr, Blocks);
     DEFINE_BYREF_RO_PROPERTY(TRefCountedDataBlockMetaPtr, DataBlockMeta);
     DEFINE_BYREF_RO_PROPERTY(TRefCountedColumnGroupInfosExtPtr, ColumnGroupInfos);
     DEFINE_BYREF_RO_PROPERTY(TRefCountedColumnMetaPtr, ColumnMeta);
@@ -30,9 +31,8 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<THunkChunkMeta>, HunkChunkMetas);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TColumnarStatisticsExt>, ColumnarStatisticsExt);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TLargeColumnarStatisticsExt>, LargeColumnarStatisticsExt);
+    //! Format-specific metadata.
     DEFINE_BYREF_RO_PROPERTY(std::optional<NTableClient::NProto::TParquetFormatMetaExt>, ParquetFormatMetaExt);
-    // TODO(achulkov2): Temporary. We will need to move the offset to a data block meta extension.
-    DEFINE_BYREF_RO_PROPERTY(std::optional<NChunkClient::NProto::TBlocksExt>, BlocksExt);
 
 public:
 
