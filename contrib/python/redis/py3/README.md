@@ -14,7 +14,7 @@ The Python interface to the Redis key-value store.
 ---------------------------------------------
 
 **Note:** redis-py 5.0 will be the last version of redis-py to support Python 3.7, as it has reached [end of life](https://devguide.python.org/versions/). redis-py 5.1 will support Python 3.8+.
-
+**Note:** redis-py 6.1.0 will be the last version of redis-py to support Python 3.8, as it has reached [end of life](https://devguide.python.org/versions/). redis-py 6.2.0 will support Python 3.9+.
 ---------------------------------------------
 
 ## How do I Redis?
@@ -34,14 +34,13 @@ The Python interface to the Redis key-value store.
 Start a redis via docker (for Redis versions >= 8.0):
 
 ``` bash
-$ docker run -p 6379:6379 -it redis:latest
+docker run -p 6379:6379 -it redis:latest
 ```
 
 Start a redis via docker (for Redis versions < 8.0):
 
 ``` bash
-$ docker run -p 6379:6379 -it redis/redis-stack:latest
-```
+docker run -p 6379:6379 -it redis/redis-stack:latest
 
 To install redis-py, simply:
 
