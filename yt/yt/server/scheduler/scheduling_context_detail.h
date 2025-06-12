@@ -68,7 +68,8 @@ public:
         const TAllocationStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode,
         int schedulingIndex,
-        EAllocationSchedulingStage schedulingStage) override;
+        EAllocationSchedulingStage schedulingStage,
+        std::optional<TNetworkPriority> networkPriority) override;
 
     void PreemptAllocation(const TAllocationPtr& allocation, TDuration preemptionTimeout, EAllocationPreemptionReason preemptionReason) override;
 

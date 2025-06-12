@@ -122,7 +122,8 @@ struct ISchedulingContext
         const TAllocationStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode,
         int schedulingIndex,
-        EAllocationSchedulingStage schedulingStage) = 0;
+        EAllocationSchedulingStage schedulingStage,
+        std::optional<TNetworkPriority> networkPriority) = 0;
 
     virtual void PreemptAllocation(const TAllocationPtr& allocation, TDuration preemptionTimeout, EAllocationPreemptionReason preemptionReason) = 0;
 

@@ -772,6 +772,7 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
         auto operationFairShare = element->Attributes().FairShare.Total[keyResource];
         context->FairSharePerSegment.At(*segment).MutableAt(operation->SchedulingSegmentModule) -= operationFairShare;
         operation->SchedulingSegmentModule = bestModule;
+        operation->NetworkPriority = GetNetworkPriority(operationDemand, context->TotalCapacityPerModule[bestModule]);
         context->FairSharePerSegment.At(*segment).MutableAt(operation->SchedulingSegmentModule) += operationFairShare;
 
         context->FairResourceAmountPerSegment.At(*segment).MutableAt(operation->SchedulingSegmentModule) += operationDemand;
@@ -783,21 +784,43 @@ void TSchedulingSegmentManager::AssignOperationsToModules(TUpdateSchedulingSegme
             .Item("operation_id").Value(operationId)
             .Item("scheduling_segment_module").Value(*operation->SchedulingSegmentModule)
             .Item("remaining_capacity_per_module").Value(context->RemainingCapacityPerModule)
-            .Item("total_capacity_per_module").Value(context->TotalCapacityPerModule);
+            .Item("total_capacity_per_module").Value(context->TotalCapacityPerModule)
+            .Item("network_priority").Value(operation->NetworkPriority);
 
         YT_LOG_INFO(
             "Assigned operation to a new scheduling segment module "
             "(SchedulingSegment: %v, Module: %v, SpecifiedModules: %v, "
             "OperationDemand: %v, RemainingCapacityPerModule: %v, TotalCapacityPerModule: %v, "
-            "OperationId: %v)",
+            "OperationNetworkPriority: %v, OperationId: %v)",
             segment,
             operation->SchedulingSegmentModule,
             operation->SpecifiedSchedulingSegmentModules,
             operationDemand,
             context->RemainingCapacityPerModule,
             context->TotalCapacityPerModule,
+            operation->NetworkPriority,
             operationId);
     }
+}
+
+std::optional<TNetworkPriority> TSchedulingSegmentManager::GetNetworkPriority(double operationDemand, double moduleCapacity) const
+{
+    if (Config_->ModuleShareToNetworkPriority.empty() || moduleCapacity < NVectorHdrf::RatioComparisonPrecision) {
+        return std::nullopt;
+    }
+
+    auto operationModuleShare = operationDemand / moduleCapacity;
+
+    std::optional<TNetworkPriority> previousPriority;
+    // NB: Config_->ModuleShareToNetworkPriority is sorted in postprocessor.
+    for (const auto& entry : Config_->ModuleShareToNetworkPriority) {
+        if (operationModuleShare < entry.ModuleShare) {
+            return previousPriority;
+        }
+        previousPriority = entry.NetworkPriority;
+    }
+
+    return previousPriority;
 }
 
 void TSchedulingSegmentManager::ValidateInfinibandClusterTags(TUpdateSchedulingSegmentsContext* context) const

@@ -980,7 +980,8 @@ private:
         return CreatePortoJobWorkspaceBuilder(
             invoker,
             std::move(context),
-            directoryManager);
+            directoryManager,
+            Bootstrap_->GetGpuManager());
     }
 };
 

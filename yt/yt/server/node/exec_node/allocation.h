@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
+#include <yt/yt/library/gpu/public.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,6 +52,7 @@ public:
         TOperationId operationId,
         const NClusterNode::TJobResources& resourceUsage,
         NScheduler::TAllocationAttributes attributes,
+        std::optional<NGpu::TNetworkPriority> networkPriority,
         TControllerAgentDescriptor agentDescriptor,
         IBootstrap* bootstrap);
     ~TAllocation();
@@ -64,6 +67,8 @@ public:
     int GetRequestedGpu() const noexcept;
     double GetRequestedCpu() const noexcept;
     i64 GetRequestedMemory() const noexcept;
+
+    std::optional<NGpu::TNetworkPriority> GetNetworkPriority() const noexcept;
 
     void Start();
     void Cleanup();
@@ -118,6 +123,9 @@ private:
     NScheduler::TAllocationAttributes Attributes_;
 
     TControllerAgentAffiliationInfo ControllerAgentInfo_;
+
+    const std::optional<NGpu::TNetworkPriority> NetworkPriority_;
+
     // TODO(pogorelov): Maybe strong ref?
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
 
@@ -167,6 +175,7 @@ TAllocationPtr CreateAllocation(
     TOperationId operationId,
     const NClusterNode::TJobResources& resourceDemand,
     NScheduler::TAllocationAttributes attributes,
+    std::optional<NGpu::TNetworkPriority> networkPriority,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap);
 

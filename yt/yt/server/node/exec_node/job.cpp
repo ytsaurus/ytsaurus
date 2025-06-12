@@ -797,6 +797,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         case EJobPhase::PreparingNodeDirectory:
         case EJobPhase::DownloadingArtifacts:
         case EJobPhase::PreparingRootVolume:
+        case EJobPhase::RunningCustomPreparations:
         case EJobPhase::PreparingGpuCheckVolume:
         case EJobPhase::PreparingSandboxDirectories:
         case EJobPhase::RunningSetupCommands:
@@ -2391,6 +2392,7 @@ void TJob::RunWithWorkspaceBuilder()
         .DockerImage = DockerImage_,
         .DockerAuth = BuildDockerAuthConfig(),
 
+        .NeedGpu = NeedGpu(),
         .GpuCheckOptions = NeedsGpuCheck()
             ? std::make_optional(GetGpuCheckOptions())
             : std::nullopt,
@@ -2510,7 +2512,7 @@ void TJob::RunJobProxy()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    if (JobPhase_ != EJobPhase::RunningSetupCommands &&
+    if (JobPhase_ != EJobPhase::RunningCustomPreparations &&
         JobPhase_ != EJobPhase::RunningGpuCheckCommand)
     {
         YT_LOG_ALERT("Unexpected phase before run job proxy (ActualPhase: %v)", JobPhase_);

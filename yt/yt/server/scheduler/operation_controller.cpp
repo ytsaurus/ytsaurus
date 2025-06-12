@@ -145,6 +145,7 @@ void FromProto(
             allocationProto.tree_id(),
             UndefinedSchedulingIndex,
             /*schedulingStage*/ std::nullopt,
+            /*networkPriority*/ std::nullopt,
             FromProto<NNodeTrackerClient::TNodeId>(allocationProto.node_id()),
             allocationProto.node_address());
         allocation->SetState(EAllocationState::Running);
