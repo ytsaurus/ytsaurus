@@ -30,6 +30,7 @@ type Config struct {
 	LocalBinariesDir          *string              `yson:"local_binaries_dir"`
 	LogRotationMode           *LogRotationModeType `yson:"log_rotation_mode"`
 	AddressResolver           map[string]any       `yson:"address_resolver"`
+	BusServer                 map[string]any       `yson:"bus_server"`
 	EnableYandexSpecificLinks *bool                `yson:"enable_yandex_specific_links"`
 	ExportSystemLogTables     *bool                `yson:"export_system_log_tables"`
 	EnableGeodata             *bool                `yson:"enable_geodata"`
