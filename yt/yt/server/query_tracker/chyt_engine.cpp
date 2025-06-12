@@ -15,6 +15,7 @@
 #include <yt/yt/library/clickhouse_discovery/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
@@ -405,7 +406,8 @@ public:
         , StateRoot_(std::move(stateRoot))
         , ControlQueue_(New<TActionQueue>("MockEngineControl"))
         , ClusterDirectory_(StateClient_->GetNativeConnection()->GetClusterDirectory())
-        , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>())))
+        , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(
+            StateClient_->GetNativeConnection()->GetConfig()->BusClient)))
     { }
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
