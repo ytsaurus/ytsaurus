@@ -133,10 +133,11 @@ TControllerAgentConnectorPool::TControllerAgentConnector::SettleJob(
     jobTrackerServiceProxy.SetDefaultTimeout(settleJobsTimeout);
 
     YT_LOG_DEBUG(
-        "Add settle job request (AgentDescriptor: %v, AllocationId: %v, OperationId: %v)",
+        "Add settle job request (AgentDescriptor: %v, AllocationId: %v, OperationId: %v, LastJobId: %v)",
         ControllerAgentDescriptor_,
         allocationId,
-        operationId);
+        operationId,
+        lastJobId);
 
     auto settleJobRequest = jobTrackerServiceProxy.SettleJob();
 
