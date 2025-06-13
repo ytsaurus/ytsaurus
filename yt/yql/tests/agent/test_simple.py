@@ -244,7 +244,7 @@ class TestTypes(TestQueriesYqlBase):
                "Set": [[["Two", 2], None], [["One", 1], None]],
                "Variant": ["var", 88],
                "Tagged": 123,
-               "Decimal": "123456.789",
+               "Decimal": b"\x80\x00\x00\x00\x07[\xcd\x15",
                "Json": '[1, "text", 3.14]',
                "Yson": [7, 'str', -3.14]
                }])

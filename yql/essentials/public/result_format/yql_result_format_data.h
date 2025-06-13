@@ -46,7 +46,7 @@ public:
     virtual void OnTzDatetime64(TStringBuf value) = 0;
     virtual void OnTzTimestamp64(TStringBuf value) = 0;
     virtual void OnInterval64(i64 value) = 0;
-    virtual void OnDecimal(TStringBuf value) = 0;
+    virtual void OnDecimal(TStringBuf value, ui32 precision, ui32 scale) = 0;
     virtual void OnBeginOptional() = 0;
     virtual void OnEmptyOptional() = 0;
     virtual void OnBeforeOptionalItem() = 0;
@@ -115,7 +115,7 @@ public:
     void OnTzDatetime64(TStringBuf value) override;
     void OnTzTimestamp64(TStringBuf value) override;
     void OnInterval64(i64 value) override;
-    void OnDecimal(TStringBuf value) override;
+    void OnDecimal(TStringBuf value, ui32 precision, ui32 scale) override;
     void OnBeginOptional() override;
     void OnBeforeOptionalItem() override;
     void OnAfterOptionalItem() override;
@@ -202,7 +202,7 @@ public:
     void OnTzDatetime64(TStringBuf value) final;
     void OnTzTimestamp64(TStringBuf value) final;
     void OnInterval64(i64 value) final;
-    void OnDecimal(TStringBuf value) final;
+    void OnDecimal(TStringBuf value, ui32 precision, ui32 scale) final;
     void OnBeginOptional() final;
     void OnBeforeOptionalItem() final;
     void OnAfterOptionalItem() final;

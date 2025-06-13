@@ -1,5 +1,8 @@
 #include "data_builder.h"
 
+#include <yt/yt/library/decimal/decimal.h>
+
+
 namespace NYT::NYqlAgent {
 
 using namespace NTableClient;
@@ -191,9 +194,10 @@ void TDataBuilder::OnInterval64(i64 value)
     AddSigned(value);
 }
 
-void TDataBuilder::OnDecimal(TStringBuf value)
+void TDataBuilder::OnDecimal(TStringBuf value, ui32 precision, ui32 scale)
 {
-    AddString(value);
+    std::array<char, NDecimal::TDecimal::MaxBinarySize> buffer;
+    AddString(NDecimal::TDecimal::TextToBinary(value, precision, scale, buffer.data(), buffer.size()));
 }
 
 void TDataBuilder::OnBeginOptional()
