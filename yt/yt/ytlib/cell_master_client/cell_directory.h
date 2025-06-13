@@ -19,7 +19,7 @@ NRpc::IChannelPtr CreateMasterCacheChannel(
     const NApi::NNative::TMasterConnectionConfigPtr& masterCacheConfig,
     const NRpc::IChannelFactoryPtr channelFactory,
     const NApi::NNative::TConnectionOptions& options,
-    const std::vector<TString>& discoveredAddresses);
+    const std::vector<std::string>& discoveredAddresses);
 
 ////////////////////////////////////////////////////////////////////////////////
 

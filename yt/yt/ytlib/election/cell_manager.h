@@ -27,7 +27,7 @@ public:
     int GetSelfPeerId() const;
     const TCellPeerConfigPtr& GetSelfConfig() const;
 
-    THashSet<TString> GetClusterPeersAddresses() const;
+    THashSet<std::string> GetClusterPeersAddresses() const;
 
     int GetVotingPeerCount() const;
     int GetQuorumPeerCount() const;
