@@ -35,6 +35,13 @@ NYT::NApi::IClientPtr CreateApiClient(const TClientContext& context)
         connectionConfig->ProxyAddresses = {*context.ProxyAddress};
     }
 
+    THashMap<std::string, std::string> proxyUrlAliasingRules;
+    for (const auto& [clusterName, url] : context.Config->ProxyUrlAliasingRules) {
+        proxyUrlAliasingRules.emplace(clusterName, url);
+    }
+
+    connectionConfig->ProxyUrlAliasingRules = std::move(proxyUrlAliasingRules);
+
     NApi::TClientOptions clientOptions;
     clientOptions.Token = context.Token;
     if (context.ServiceTicketAuth) {
