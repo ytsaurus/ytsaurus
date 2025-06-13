@@ -64,6 +64,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((CompressedDataSizePerJob)              (301804))
     ((DropSolidFromChunkStripe)              (301805))
     ((IntroduceInputStatistics)              (301806))
+    ((DropUnusedFieldInJobSizeConstraints)   (301807))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
