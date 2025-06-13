@@ -123,6 +123,8 @@ protected:
     TRefCountedChunkMetaPtr ChunkMeta_;
 
 protected:
+    virtual NTableClient::TTableSchemaPtr GetChunkSchema() const = 0;
+    virtual NTableClient::TNameTablePtr GetChunkNameTable() const = 0;
     virtual EChunkFormat GetChunkFormat() const = 0;
 
     virtual i64 GetRowCount() const = 0;
@@ -274,6 +276,55 @@ protected:
         dataBlockMeta->set_uncompressed_size(GetUncompressedSize());
         dataBlockMeta->set_block_index(0);
     }
+};
+
+class TFileChunkMetaGenerator
+    : public IChunkMetaGenerator
+{
+public:
+    TFileChunkMetaGenerator(std::shared_ptr<arrow::io::RandomAccessFile> chunkFile)
+        : ChunkFile_(chunkFile)
+    { }
+
+    void Generate() override
+    {
+        PARQUET_ASSIGN_OR_THROW(auto chunkFileSize, ChunkFile_->GetSize());
+
+        auto meta = New<TRefCountedChunkMeta>();
+
+        meta->set_type(ToProto(EChunkType::File));
+        meta->set_format(ToProto(EChunkFormat::FileDefault));
+
+        i64 maxDataBlockSize = 4 << 20;
+        NProto::TBlocksExt blocksExt;
+        while (auto remaining = chunkFileSize) {
+            auto size = remaining < maxDataBlockSize ? remaining : maxDataBlockSize;
+            remaining -= size;
+            auto* block = blocksExt.add_blocks();
+            block->set_size(size);
+        }
+
+        SetProtoExtension(meta->mutable_extensions(), blocksExt);
+        NProto::TMiscExt miscExt;
+        miscExt.set_uncompressed_data_size(chunkFileSize);
+        miscExt.set_compressed_data_size(chunkFileSize);
+        miscExt.set_max_data_block_size(maxDataBlockSize);
+        miscExt.set_meta_size(meta->ByteSize());
+        SetProtoExtension(meta->mutable_extensions(), miscExt);
+
+        ChunkMeta_ = meta;
+    }
+
+    TRefCountedChunkMetaPtr GetChunkMeta() const override
+    {
+        return ChunkMeta_;
+    }
+
+protected:
+    TRefCountedChunkMetaPtr ChunkMeta_;
+
+private:
+    std::shared_ptr<arrow::io::RandomAccessFile> ChunkFile_;
 };
 
 class TJsonChunkMetaGenerator
@@ -485,6 +536,8 @@ IChunkMetaGeneratorPtr CreateArrowChunkMetaGenerator(
     const std::shared_ptr<arrow::io::RandomAccessFile>& chunkFile)
 {
     switch (chunkFormat) {
+        case EChunkFormat::FileDefault:
+            return New<TFileChunkMetaGenerator>(chunkFile);
         case EChunkFormat::TableUnversionedArrowJson:
             return New<TJsonChunkMetaGenerator>(chunkFile);
         case EChunkFormat::TableUnversionedArrowCsv:

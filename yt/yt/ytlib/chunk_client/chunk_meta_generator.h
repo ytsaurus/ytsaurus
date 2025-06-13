@@ -19,8 +19,6 @@ struct IChunkMetaGenerator
     
     //! Static accessors to the generated objects.
     virtual TRefCountedChunkMetaPtr GetChunkMeta() const = 0;
-    virtual NTableClient::TTableSchemaPtr GetChunkSchema() const = 0;
-    virtual NTableClient::TNameTablePtr GetChunkNameTable() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkMetaGenerator)
