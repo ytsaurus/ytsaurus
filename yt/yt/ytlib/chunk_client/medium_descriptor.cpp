@@ -139,17 +139,17 @@ TS3MediumDescriptor::TS3MediumDescriptor(TString name, int index, int priority, 
     , Client_(CreateClient(Config_))
 { }
 
-TS3MediumDescriptor::TS3ObjectPlacement TS3MediumDescriptor::GetChunkPlacement(TChunkId chunkId) const
+TS3MediumDescriptor::TS3ObjectPlacement TS3MediumDescriptor::GetChunkPlacement(TChunkId chunkId, std::string_view objectKey) const
 {
     return {
         .Bucket = Config_->Bucket,
-        .Key = Format("chunk-data/%v", chunkId)
+        .Key = objectKey.empty() ? Format("chunk-data/%v", chunkId) : TString(objectKey)
     };
 };
 
-TS3MediumDescriptor::TS3ObjectPlacement TS3MediumDescriptor::GetChunkMetaPlacement(TChunkId chunkId) const
+TS3MediumDescriptor::TS3ObjectPlacement TS3MediumDescriptor::GetChunkMetaPlacement(TChunkId chunkId, std::string_view objectKey) const
 {
-    auto metaPlacement = GetChunkPlacement(chunkId);
+    auto metaPlacement = GetChunkPlacement(chunkId, objectKey);
     metaPlacement.Key += ChunkMetaSuffix;
     return metaPlacement;
 };

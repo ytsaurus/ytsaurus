@@ -11,7 +11,8 @@ namespace NYT::NChunkClient {
 IChunkReaderPtr CreateS3Reader(
     TS3MediumDescriptorPtr mediumDescriptor,
     TS3ReaderConfigPtr config,
-    TChunkId chunkId);
+    TChunkId chunkId,
+    std::string_view objectKey);
 
 IChunkReaderPtr TryCreateS3ReaderThrottlingAdapter(
     const IChunkReaderPtr& underlyingReader,

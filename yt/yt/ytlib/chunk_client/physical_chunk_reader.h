@@ -19,6 +19,7 @@ IChunkReaderPtr CreatePhysicalChunkReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
+    const NProto::TChunkSpec& chunkSpec,
     TChunkReplicaWithMediumList seedReplicas);
 
 ////////////////////////////////////////////////////////////////////////////////

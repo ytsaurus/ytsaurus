@@ -350,12 +350,14 @@ private:
         TChunkId chunkId,
         TMediumPtrWithReplicaInfoList offshoreReplicas)
     {
-        SortBy(offshoreReplicas, [] (TMediumPtrWithReplicaInfo replica) {
+        SortBy(offshoreReplicas, [] (const auto& offshoreReplica) {
+            auto& replica = offshoreReplica.MediumWithReplica;
             return std::tuple(replica.GetReplicaIndex(), replica.GetPtr()->GetIndex());
         });
 
         BuildYsonFluently(consumer)
-            .DoListFor(offshoreReplicas, [&] (TFluentList fluent, TMediumPtrWithReplicaInfo replica) {
+            .DoListFor(offshoreReplicas, [&] (TFluentList fluent, TOffshoreReplica offshoreReplica) {
+                auto& replica = offshoreReplica.MediumWithReplica;
                 const auto* medium = replica.GetPtr();
                 SerializeReplica(
                     fluent,
@@ -1323,8 +1325,12 @@ private:
         auto* chunkSpec = response->add_chunks();
         ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
         ToProto(chunkSpec->mutable_replicas(), replicas);
+        for (size_t i = 0; i < replicas.size(); i++) {
+            chunkSpec->add_replicas_s3_keys("");
+        }
         for (const auto& offshoreReplica : offshoreReplicas) {
-            chunkSpec->add_replicas(ToProto(offshoreReplica));
+            chunkSpec->add_replicas(ToProto(offshoreReplica.MediumWithReplica));
+            chunkSpec->add_replicas_s3_keys(offshoreReplica.S3Key);
         }
         ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
         chunkSpec->set_erasure_codec(ToProto(chunk->GetErasureCodec()));

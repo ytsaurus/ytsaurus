@@ -139,6 +139,27 @@ void ToProto(ui64* protoValue, TMediumPtrWithReplicaInfo value)
     NChunkClient::ToProto(protoValue, replica);
 }
 
+void FormatValue(TStringBuilderBase* builder, TOffshoreReplica value, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("%v", value.MediumWithReplica);
+}
+
+void TOffshoreReplica::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, MediumWithReplica);
+    Load(context, S3Key);
+}
+
+void TOffshoreReplica::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, MediumWithReplica);
+    Save(context, S3Key);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkIdWithIndex ToChunkIdWithIndex(TChunkPtrWithReplicaIndex chunkWithIndex)

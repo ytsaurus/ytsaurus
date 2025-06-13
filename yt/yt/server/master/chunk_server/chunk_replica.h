@@ -219,7 +219,16 @@ using TChunkLocationPtrWithReplicaAndMediumIndex = TPtrWithReplicaAndMediumIndex
 using TChunkLocationPtrWithReplicaAndMediumIndexList = TCompactVector<TChunkLocationPtrWithReplicaAndMediumIndex, TypicalReplicaCount>;
 
 using TMediumPtrWithReplicaInfo = TPtrWithReplicaInfo<TMedium>;
-using TMediumPtrWithReplicaInfoList = TCompactVector<TMediumPtrWithReplicaInfo, 1>;
+
+struct TOffshoreReplica {
+    TMediumPtrWithReplicaInfo MediumWithReplica;
+    std::string S3Key;
+
+    void Load(NCellMaster::TLoadContext& context);
+    void Save(NCellMaster::TSaveContext& context) const;
+};
+
+using TMediumPtrWithReplicaInfoList = TCompactVector<TOffshoreReplica, 1>;
 
 using TChunkPtrWithReplicaInfo = TPtrWithReplicaInfo<TChunk>;
 using TChunkPtrWithReplicaIndex = TPtrWithReplicaIndex<TChunk>;
@@ -263,6 +272,8 @@ void FormatValue(TStringBuilderBase* builder, TMediumPtrWithReplicaInfo value, T
 
 //! Serializes node id = OffshoreNodeId sentinel, replica index, medium index.
 void ToProto(ui64* protoValue, TMediumPtrWithReplicaInfo value);
+
+void FormatValue(TStringBuilderBase* builder, TOffshoreReplica value, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

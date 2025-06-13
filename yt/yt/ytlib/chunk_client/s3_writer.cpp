@@ -654,7 +654,7 @@ public:
         , SessionId_(sessionId)
         , BlockCache_(std::move(blockCache))
         , ChunkLayoutFacade_(New<TChunkLayoutFacade>(SessionId_.ChunkId))
-        , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(SessionId_.ChunkId))
+        , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(SessionId_.ChunkId, ""))
         , Logger(ChunkClientLogger().WithTag("ChunkId: %v", SessionId_.ChunkId))
         , ChunkUploadSession_(New<TS3MultiPartUploadSession>(
             Client_,
@@ -667,7 +667,7 @@ public:
             Logger))
         , ChunkMetaUploadSession_(New<TS3SimpleUploadSession>(
             Client_,
-            MediumDescriptor_->GetChunkMetaPlacement(SessionId_.ChunkId),
+            MediumDescriptor_->GetChunkMetaPlacement(SessionId_.ChunkId, ""),
             TDispatcher::Get()->GetWriterInvoker(),
             Logger))
     { }

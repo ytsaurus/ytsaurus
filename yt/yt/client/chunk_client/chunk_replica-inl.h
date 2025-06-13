@@ -51,6 +51,11 @@ Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(
         GenericMediumIndex)
 { }
 
+Y_FORCE_INLINE ui64 TChunkReplicaWithMedium::GetValue() const
+{
+    return Value_;
+}
+
 Y_FORCE_INLINE NNodeTrackerClient::TNodeId TChunkReplicaWithMedium::GetNodeId() const
 {
     return NNodeTrackerClient::TNodeId(Value_ & 0x00ffffff);

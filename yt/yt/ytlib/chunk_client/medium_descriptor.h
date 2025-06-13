@@ -89,8 +89,9 @@ public:
         TString Key;
     };
 
-    TS3ObjectPlacement GetChunkPlacement(TChunkId chunkId) const;
-    TS3ObjectPlacement GetChunkMetaPlacement(TChunkId chunkId) const;
+    TS3ObjectPlacement GetChunkPlacement(TChunkId chunkId, std::string_view objectKey) const;
+
+    TS3ObjectPlacement GetChunkMetaPlacement(TChunkId chunkId, std::string_view objectKey) const;
 
 private:
     void FillProto(NProto::TMediumDirectory::TMediumDescriptor* protoItem) const override;

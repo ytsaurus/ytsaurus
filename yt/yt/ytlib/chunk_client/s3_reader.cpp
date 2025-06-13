@@ -39,13 +39,14 @@ public:
     TS3Reader(
         TS3MediumDescriptorPtr mediumDescriptor,
         TS3ReaderConfigPtr config,
-        TChunkId chunkId)
+        TChunkId chunkId,
+        std::string_view objectKey)
         : MediumDescriptor_(std::move(mediumDescriptor))
         , Client_(MediumDescriptor_->GetClient())
         , Config_(std::move(config))
         , ChunkId_(std::move(chunkId))
-        , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(ChunkId_))
-        , ChunkMetaPlacement_(MediumDescriptor_->GetChunkMetaPlacement(ChunkId_))
+        , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(ChunkId_, objectKey))
+        , ChunkMetaPlacement_(MediumDescriptor_->GetChunkMetaPlacement(ChunkId_, objectKey))
         // TODO(achulkov2): [PDuringReview] Format S3 paths in such a way that they can be passed to S3 clients (e.g. with bucket).
         , ChunkLayoutReader_(New<TChunkLayoutReader>(ChunkId_, ChunkPlacement_.Key, ChunkMetaPlacement_.Key, TChunkLayoutReader::TOptions()))
     {
@@ -175,11 +176,9 @@ private:
 
     TFuture<TRefCountedChunkMetaPtr> FetchMetaFromMetaFile()
     {
-        auto metaPlacement = MediumDescriptor_->GetChunkMetaPlacement(ChunkId_);
-
         NS3::TGetObjectRequest request;
-        request.Bucket = metaPlacement.Bucket;
-        request.Key = metaPlacement.Key;
+        request.Bucket = ChunkMetaPlacement_.Bucket;
+        request.Key = ChunkMetaPlacement_.Key;
 
         return Client_->GetObject(request)
             .Apply(BIND([this, this_ = MakeStrong(this)] (const NS3::TGetObjectResponse& response) {
@@ -240,7 +239,8 @@ private:
 IChunkReaderPtr CreateS3Reader(
     TS3MediumDescriptorPtr mediumDescriptor,
     TS3ReaderConfigPtr config,
-    TChunkId chunkId)
+    TChunkId chunkId,
+    std::string_view objectKey)
 {
     YT_VERIFY(IsRegularChunkId(chunkId));
 
@@ -252,7 +252,8 @@ IChunkReaderPtr CreateS3Reader(
     return New<TS3Reader>(
         std::move(mediumDescriptor),
         std::move(config),
-        std::move(chunkId));
+        std::move(chunkId),
+        objectKey);
 }
 
 ////////////////////////////////////////////////////////////////////////////

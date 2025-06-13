@@ -324,7 +324,7 @@ void TChunk::AddOffshoreReplica(
     YT_VERIFY(replica.GetPtr()->IsOffshore());
 
     auto* data = MutableOffshoreReplicasData();
-    data->StoredReplicas.push_back(replica);
+    data->StoredReplicas.push_back({replica, ""});
 }
 
 // void TChunk::ClearOffshoreReplicas()

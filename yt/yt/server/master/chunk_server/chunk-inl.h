@@ -18,7 +18,7 @@ inline TRange<TChunkLocationPtrWithReplicaInfo> TChunk::StoredReplicas() const
     return data.GetStoredReplicas();
 }
 
-inline TRange<TMediumPtrWithReplicaInfo> TChunk::StoredOffshoreReplicas() const
+inline TRange<TOffshoreReplica> TChunk::StoredOffshoreReplicas() const
 {
     const auto& data = OffshoreReplicasData();
     return data.StoredReplicas;

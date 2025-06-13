@@ -172,7 +172,7 @@ public:
     bool HasParents() const;
 
     TRange<TChunkLocationPtrWithReplicaInfo> StoredReplicas() const;
-    TRange<TMediumPtrWithReplicaInfo> StoredOffshoreReplicas() const;
+    TRange<TOffshoreReplica> StoredOffshoreReplicas() const;
 
     //! For non-erasure chunks, contains a FIFO queue of seen replicas; its tail position is kept in #CurrentLastSeenReplicaIndex_.
     //! For erasure chunks, this array is directly addressed by replica indexes; at most one replica is kept per part.
@@ -467,7 +467,7 @@ private:
 
     struct TOffshoreReplicasData
     {
-        using TStoredReplicas = TCompactVector<TMediumPtrWithReplicaInfo, 1>;
+        using TStoredReplicas = TCompactVector<TOffshoreReplica, 1>;
 
         TStoredReplicas StoredReplicas;
 
