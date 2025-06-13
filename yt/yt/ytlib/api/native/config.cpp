@@ -495,6 +495,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("banned_in_sync_replica_clusters", &TThis::BannedInSyncReplicaClusters)
         .Default();
 
+    registrar.Parameter("strict_operation_info_access_validation", &TThis::StrictOperationInfoAccessValidation)
+        .Default(false);
+
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {
             config->UploadTransactionPingPeriod = config->UploadTransactionTimeout / 2;

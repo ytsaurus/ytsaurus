@@ -383,6 +383,9 @@ struct TConnectionDynamicConfig
 
     THashSet<std::string> BannedInSyncReplicaClusters;
 
+    //! Enables strict access validation in operation info commands.
+    bool StrictOperationInfoAccessValidation;
+
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 
     static void Register(TRegistrar registrar);
