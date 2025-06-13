@@ -98,7 +98,7 @@ public:
 
     std::pair<TParDoTreeBuilder*, TParDoTreeBuilder::TPCollectionNodeId> ResolveOperationConnector(const TOperationConnector&) override
     {
-        return {nullptr, 0};
+        return {nullptr, TParDoTreeBuilder::TPCollectionNodeId(0)};
     }
 
     static std::shared_ptr<TMergeOperationNode> MakeShared(TString firstName, THashSet<TString> transformNames)
@@ -188,7 +188,7 @@ public:
 
     std::pair<TParDoTreeBuilder*, TParDoTreeBuilder::TPCollectionNodeId> ResolveOperationConnector(const TOperationConnector&) override
     {
-        return {nullptr, 0};
+        return {nullptr, TParDoTreeBuilder::TPCollectionNodeId(0)};
     }
 
     const IRawYtSortedWrite* GetWrite() const

@@ -25,8 +25,8 @@ DEFINE_REFCOUNTED_TYPE(IParDoTree);
 class TParDoTreeBuilder
 {
 public:
-    using TPCollectionNodeId = int;
-    static constexpr TPCollectionNodeId RootNodeId = 0;
+    YT_DEFINE_STRONG_TYPEDEF(TPCollectionNodeId, ssize_t);
+    static constexpr TPCollectionNodeId RootNodeId = TPCollectionNodeId(0);
 
 public:
     std::vector<TPCollectionNodeId> AddParDo(IRawParDoPtr parDo, TPCollectionNodeId input);
@@ -67,9 +67,9 @@ private:
 
 private:
     TPCollectionNodeId AddPCollectionNode(const TRowVtable& sourceParDoNode);
-    const TParDoNode& FindParDoByOutput(int pCollectionIndex) const noexcept;
+    const TParDoNode& FindParDoByOutput(TPCollectionNodeId pCollectionIndex) const noexcept;
     void CheckNoHangingPCollectionNodes() const;
-    void CheckPCollectionType(int pCollectionNodeId, TStringBuf expectedDescription, const TRowVtable& expectedRowVtable);
+    void CheckPCollectionType(TPCollectionNodeId pCollectionNodeId, TStringBuf expectedDescription, const TRowVtable& expectedRowVtable);
 
 private:
     static constexpr int InvalidOutputIndex = -1;
