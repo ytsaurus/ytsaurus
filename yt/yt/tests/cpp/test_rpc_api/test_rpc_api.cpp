@@ -57,18 +57,18 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TryGetStickyProxyAddress(const ITransactionPtr& transaction)
+std::optional<std::string> TryGetStickyProxyAddress(const ITransactionPtr& transaction)
 {
     return transaction
         ->As<NRpcProxy::TTransaction>()
         ->GetStickyProxyAddress();
 }
 
-TString GetStickyProxyAddress(const ITransactionPtr& transaction)
+std::string GetStickyProxyAddress(const ITransactionPtr& transaction)
 {
     auto address = TryGetStickyProxyAddress(transaction);
     EXPECT_TRUE(address);
-    return address;
+    return *address;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

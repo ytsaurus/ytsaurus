@@ -412,7 +412,7 @@ TErrorOr<IChannelPtr> TClient::TryCreateChannelToJobNode(
                 *addresses);
             return ChannelFactory_->CreateChannel(*addresses);
         } else {
-            auto address = ConvertToNode(jobYsonString)->AsMap()->GetChildValueOrThrow<TString>("address");
+            auto address = ConvertToNode(jobYsonString)->AsMap()->GetChildValueOrThrow<std::string>("address");
             YT_LOG_DEBUG(
                 jobNodeDescriptorOrError,
                 "Creating channel using job's address field from archive (OperationId: %v, JobId: %v, Address: %v)",
@@ -1962,7 +1962,7 @@ static void ParseJobsFromControllerAgentResponse(
             }
         }
         if (needAddress) {
-            job.Address = jobMapNode->GetChildValueOrThrow<TString>("address");
+            job.Address = jobMapNode->GetChildValueOrThrow<std::string>("address");
         }
         if (needAddresses) {
             if (auto childNode = jobMapNode->FindChild("addresses")) {
@@ -2054,7 +2054,7 @@ static void ParseJobsFromControllerAgentResponse(
 
     auto filter = [&] (const INodePtr& jobNode) -> bool {
         const auto& jobMap = jobNode->AsMap();
-        auto address = jobMap->GetChildValueOrThrow<TString>("address");
+        auto address = jobMap->GetChildValueOrThrow<std::string>("address");
         auto type = ConvertTo<EJobType>(jobMap->GetChildOrThrow("job_type"));
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
@@ -2092,7 +2092,7 @@ static void ParseJobsFromControllerAgentResponse(
 
 TFuture<TListJobsFromControllerAgentResult> TClient::DoListJobsFromControllerAgentAsync(
     TOperationId operationId,
-    const std::optional<TString>& controllerAgentAddress,
+    const std::optional<std::string>& controllerAgentAddress,
     TInstant deadline,
     const TListJobsOptions& options,
     const THashSet<TString>& attributes)

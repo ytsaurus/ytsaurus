@@ -1436,7 +1436,7 @@ private:
 
     TFuture<TListJobsFromControllerAgentResult> DoListJobsFromControllerAgentAsync(
         NScheduler::TOperationId operationId,
-        const std::optional<TString>& controllerAgentAddress,
+        const std::optional<std::string>& controllerAgentAddress,
         TInstant deadline,
         const TListJobsOptions& options,
         const THashSet<TString>& attributes);

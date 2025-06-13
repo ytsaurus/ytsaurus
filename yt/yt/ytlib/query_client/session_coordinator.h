@@ -30,7 +30,7 @@ struct IDistributedSessionCoordinator
     virtual TDistributedSessionId GetDistributedSessionId() const = 0;
 
     //! Forces coordinator to start pinging a remote session created by another remote session.
-    virtual void BindToRemoteSession(TString address) = 0;
+    virtual void BindToRemoteSession(std::string address) = 0;
 
     //! Cancels query execution initiated by coordinator.
     virtual void Abort(TError error) = 0;

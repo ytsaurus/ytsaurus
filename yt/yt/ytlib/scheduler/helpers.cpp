@@ -179,13 +179,13 @@ const TYPath& GetUserToDefaultPoolMapPath()
     return path;
 }
 
-std::optional<TString> FindControllerAgentAddressFromCypress(
+std::optional<std::string> FindControllerAgentAddressFromCypress(
     TOperationId operationId,
     const NApi::NNative::IClientPtr& client)
 {
     using NYT::ToProto;
 
-    static const std::vector<TString> attributes = {"controller_agent_address"};
+    static const std::vector<std::string> attributes = {"controller_agent_address"};
 
     auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();

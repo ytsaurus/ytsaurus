@@ -61,9 +61,9 @@ const TCellPeerConfigPtr& TCellManager::GetSelfConfig() const
     return GetPeerConfig(GetSelfPeerId());
 }
 
-THashSet<TString> TCellManager::GetClusterPeersAddresses() const
+THashSet<std::string> TCellManager::GetClusterPeersAddresses() const
 {
-    THashSet<TString> clusterPeers;
+    THashSet<std::string> clusterPeers;
     clusterPeers.reserve(ssize(Config_->Peers));
 
     for (const auto& peer : Config_->Peers) {

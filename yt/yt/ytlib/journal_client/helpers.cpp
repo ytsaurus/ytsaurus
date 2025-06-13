@@ -738,7 +738,7 @@ private:
 
     void OnComplete(const TError& /*error*/)
     {
-        THashMap<TChunkLocationUuid, TString> locationUuidToAddress;
+        THashMap<TChunkLocationUuid, std::string> locationUuidToAddress;
         for (const auto& result : ChunkMetaResults_) {
             if (!result.LocationUuid) {
                 continue;
