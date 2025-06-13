@@ -23,6 +23,7 @@ TAllocation::TAllocation(
     TString treeId,
     int schedulingIndex,
     std::optional<EAllocationSchedulingStage> schedulingStage,
+    std::optional<TNetworkPriority> networkPriority,
     NNodeTrackerClient::TNodeId revivalNodeId,
     std::string revivalNodeAddress)
     : Id_(id)
@@ -41,6 +42,7 @@ TAllocation::TAllocation(
     , PreemptionMode_(preemptionMode)
     , SchedulingIndex_(schedulingIndex)
     , SchedulingStage_(schedulingStage)
+    , NetworkPriority_(networkPriority)
     , Logger_(CreateLogger())
     , Codicil_(Format("AllocationId: %v, OperationId: %v",
         Id_,

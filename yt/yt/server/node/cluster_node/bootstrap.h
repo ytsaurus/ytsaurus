@@ -88,6 +88,8 @@ struct IBootstrapBase
 
     virtual const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() const = 0;
 
+    virtual const NIO::IHugePageManagerPtr& GetHugePageManager() const = 0;
+
     // Config stuff.
     virtual const TClusterNodeBootstrapConfigPtr& GetConfig() const = 0;
     virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
@@ -265,6 +267,8 @@ public:
     const NProfiling::TBufferedProducerPtr& GetBufferedProducer() const override;
 
     const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() const override;
+
+    const NIO::IHugePageManagerPtr& GetHugePageManager() const override;
 
     const TClusterNodeBootstrapConfigPtr& GetConfig() const override;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override;

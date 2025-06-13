@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <algorithm>
 
 namespace NYT::NControllerAgent {
@@ -142,7 +144,7 @@ void BuildFileSpec(
                 descriptor->set_file_name(file.FileName);
                 break;
             case EObjectType::Table:
-                descriptor->set_format(file.Format.ToString());
+                descriptor->set_format(ToProto(file.Format));
                 break;
             default:
                 YT_ABORT();
@@ -459,7 +461,6 @@ std::unique_ptr<TPartitionTreeSkeleton> BuildPartitionTreeSkeleton(int partition
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 TDiskQuota CreateDiskQuota(
     const TDiskRequestConfigPtr& diskRequestConfig,

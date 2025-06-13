@@ -37,6 +37,7 @@
 #include <yt/yt/core/yson/writer.h>
 #include <yt/yt/core/yson/async_writer.h>
 #include <yt/yt/core/yson/attribute_consumer.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
@@ -948,7 +949,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
                     for (int index = 0; index < response->items_size(); ++index) {
                         const auto& value = values[index];
                         if (!value.AsStringBuf().empty()) {
-                            response->mutable_items(index)->set_attributes(value.ToString());
+                            response->mutable_items(index)->set_attributes(ToProto(value));
                         }
                     }
 

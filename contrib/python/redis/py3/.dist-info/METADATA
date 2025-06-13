@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: redis
-Version: 6.1.0
+Version: 6.2.0
 Summary: Python client for Redis database and key-value store
 Project-URL: Changes, https://github.com/redis/redis-py/releases
 Project-URL: Code, https://github.com/redis/redis-py
@@ -19,7 +19,6 @@ Classifier: Operating System :: OS Independent
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3 :: Only
-Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
@@ -27,10 +26,10 @@ Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
-Requires-Python: >=3.8
+Requires-Python: >=3.9
 Requires-Dist: async-timeout>=4.0.3; python_full_version < '3.11.3'
 Provides-Extra: hiredis
-Requires-Dist: hiredis>=3.0.0; extra == 'hiredis'
+Requires-Dist: hiredis>=3.2.0; extra == 'hiredis'
 Provides-Extra: jwt
 Requires-Dist: pyjwt>=2.9.0; extra == 'jwt'
 Provides-Extra: ocsp
@@ -55,7 +54,7 @@ The Python interface to the Redis key-value store.
 ---------------------------------------------
 
 **Note:** redis-py 5.0 will be the last version of redis-py to support Python 3.7, as it has reached [end of life](https://devguide.python.org/versions/). redis-py 5.1 will support Python 3.8+.
-
+**Note:** redis-py 6.1.0 will be the last version of redis-py to support Python 3.8, as it has reached [end of life](https://devguide.python.org/versions/). redis-py 6.2.0 will support Python 3.9+.
 ---------------------------------------------
 
 ## How do I Redis?
@@ -75,14 +74,13 @@ The Python interface to the Redis key-value store.
 Start a redis via docker (for Redis versions >= 8.0):
 
 ``` bash
-$ docker run -p 6379:6379 -it redis:latest
+docker run -p 6379:6379 -it redis:latest
 ```
 
 Start a redis via docker (for Redis versions < 8.0):
 
 ``` bash
-$ docker run -p 6379:6379 -it redis/redis-stack:latest
-```
+docker run -p 6379:6379 -it redis/redis-stack:latest
 
 To install redis-py, simply:
 

@@ -303,14 +303,14 @@ private:
     {
         const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         auto inMemoryMode = FromProto<EInMemoryMode>(ext.in_memory_mode());
+        auto definitelyNotInMemory = (inMemoryMode == EInMemoryMode::None) || (ext.has_has_hunk_columns() && ext.has_hunk_columns());
+        auto definitelyInMemory = (inMemoryMode != EInMemoryMode::None) && (ext.has_has_hunk_columns() && !ext.has_hunk_columns());
 
         auto useQueryPoolForLookups = UseQueryPoolForLookups_.load();
         auto useQueryPoolForInMemoryLookups = UseQueryPoolForInMemoryLookups_.load();
 
-        if ((inMemoryMode == EInMemoryMode::None &&
-            useQueryPoolForLookups) ||
-            (inMemoryMode != EInMemoryMode::None &&
-            useQueryPoolForInMemoryLookups))
+        if ((definitelyNotInMemory && useQueryPoolForLookups) ||
+            (definitelyInMemory && useQueryPoolForInMemoryLookups))
         {
             std::string tag;
             std::string poolName;

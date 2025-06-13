@@ -43,6 +43,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <util/datetime/base.h>
 
@@ -142,7 +143,7 @@ protected:
     void AddWriteSubrequest(const TReqExecuteBatchPtr& batchReq)
     {
         auto req = TCypressYPathProxy::Set(GetRecentTablePath() + "/@replication_factor");
-        req->set_value(TYsonString(TStringBuf("3")).ToString());
+        req->set_value(ToProto(TYsonString(TStringBuf("3"))));
         GenerateMutationId(req);
         batchReq->AddRequest(req, GenerateRequestKey("set"));
     }

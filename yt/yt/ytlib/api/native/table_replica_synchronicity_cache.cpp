@@ -38,14 +38,14 @@ TFuture<TReplicaSynchronicityList> FetchChaosTableReplicaSynchronicities(
     const IConnectionPtr& connection,
     const NTabletClient::TTableMountInfoPtr& tableMountInfo)
 {
-    return BIND(&GetSyncReplicationCard, connection, tableMountInfo)
+    return BIND(&GetSyncReplicationCard, connection, tableMountInfo->ReplicationCardId)
         .AsyncVia(GetCurrentInvoker())
         .Run()
         .ApplyUnique(BIND([
             tableMountInfo,
-            bannerReplicaTracker=connection->GetBannedReplicaTrackerCache()->GetTracker(tableMountInfo->TableId)
+            bannedReplicaTracker=connection->GetBannedReplicaTrackerCache()->GetTracker(tableMountInfo->TableId)
         ] (TReplicationCardPtr&& replicationCard) {
-            bannerReplicaTracker->SyncReplicas(replicationCard);
+            bannedReplicaTracker->SyncReplicas(replicationCard);
 
             auto replicas = TReplicaSynchronicityList();
 

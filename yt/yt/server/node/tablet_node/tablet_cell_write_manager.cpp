@@ -93,7 +93,7 @@ public:
 
     TFuture<void> Write(
         const TTabletSnapshotPtr& tabletSnapshot,
-        TWireWriteCommandBatchReader* reader,
+        TWireWriteCommandsBatchingReader* reader,
         const TTabletCellWriteParams& params) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);

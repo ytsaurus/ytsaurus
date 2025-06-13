@@ -118,6 +118,12 @@ void TTestingTableMountConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("write_response_delay", &TThis::WriteResponseDelay)
         .Default();
+
+    registrar.Parameter("opaque_stores_in_orchid", &TThis::OpaqueStoresInOrchid)
+        .Default(true);
+
+    registrar.Parameter("opaque_settings_in_orchid", &TThis::OpaqueSettingsInOrchid)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

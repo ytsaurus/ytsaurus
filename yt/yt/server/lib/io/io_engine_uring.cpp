@@ -1657,11 +1657,13 @@ public:
     TUringIOEngineBase(
         TConfigPtr config,
         TString locationId,
+        IHugePageManagerPtr hugePageManager,
         TProfiler profiler,
         NLogging::TLogger logger)
         : TIOEngineBase(
             config,
             locationId,
+            std::move(hugePageManager),
             std::move(profiler),
             std::move(logger))
         , StaticConfig_(std::move(config))
@@ -1870,6 +1872,7 @@ IIOEnginePtr CreateIOEngineUring(
     EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
     TString locationId,
+    IHugePageManagerPtr hugePageManager,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
 
@@ -1884,12 +1887,14 @@ IIOEnginePtr CreateIOEngineUring(
             return CreateIOEngine<TFairUringIOEngine>(
                 std::move(ioConfig),
                 std::move(locationId),
+                std::move(hugePageManager),
                 std::move(profiler),
                 std::move(logger));
         case EIOEngineType::Uring:
             return CreateIOEngine<TUringIOEngine>(
                 std::move(ioConfig),
                 std::move(locationId),
+                std::move(hugePageManager),
                 std::move(profiler),
                 std::move(logger));
         default:

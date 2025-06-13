@@ -95,6 +95,8 @@
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/stream.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 #include <library/cpp/yt/memory/non_null_ptr.h>
 
@@ -728,6 +730,7 @@ public:
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PatchOperationSpec));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetOperation));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListOperations));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListOperationEvents));
 
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListJobs));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(DumpJobContext));
@@ -1720,7 +1723,7 @@ private:
             },
             [] (const auto& context, const TYsonString& result) {
                 auto* response = &context->Response();
-                response->set_value(result.ToString());
+                response->set_value(ToProto(result));
             });
     }
 
@@ -1813,7 +1816,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_value(result.ToString());
+                response->set_value(ToProto(result));
             });
     }
 
@@ -1861,7 +1864,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_value(result.ToString());
+                response->set_value(ToProto(result));
             });
     }
 
@@ -3057,7 +3060,35 @@ private:
             },
             [] (const auto& context, const auto& operation) {
                 auto* response = &context->Response();
-                response->set_meta(ConvertToYsonString(operation).ToString());
+                response->set_meta(ToProto(ConvertToYsonString(operation)));
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListOperationEvents)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
+
+        TListOperationEventsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_event_type()) {
+            options.EventType = NApi::NRpcProxy::NProto::ConvertOperationEventTypeFromProto(request->event_type());
+        }
+
+        options.Limit = request->limit();
+
+        context->SetRequestInfo("OperationIdOrAlias: %v", operationIdOrAlias);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->ListOperationEvents(operationIdOrAlias, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_events(), result);
             });
     }
 
@@ -3330,7 +3361,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_paths(result.ToString());
+                response->set_paths(ToProto(result));
             });
     }
 
@@ -3361,7 +3392,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_job_spec(result.ToString());
+                response->set_job_spec(ToProto(result));
             });
     }
 
@@ -3492,7 +3523,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_info(result.ToString());
+                response->set_info(ToProto(result));
             });
     }
 
@@ -3538,7 +3569,7 @@ private:
             },
             [] (const auto& context, const auto& pollJobShellResponse) {
                 auto* response = &context->Response();
-                response->set_result(pollJobShellResponse.Result.ToString());
+                response->set_result(ToProto(pollJobShellResponse.Result));
             });
     }
 
@@ -4203,7 +4234,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_value(result.ToString());
+                response->set_value(ToProto(result));
             });
     }
 
@@ -6309,7 +6340,7 @@ private:
                 return client->StartDistributedWriteSession(path, options);
             },
             [] (const auto& context, const auto& result) {
-                context->Response().set_signed_session(ConvertToYsonString(result.Session).ToString());
+                context->Response().set_signed_session(ToProto(ConvertToYsonString(result.Session)));
                 for (const auto& cookie : result.Cookies) {
                     context->Response().add_signed_cookies(ConvertToYsonString(cookie).ToString());
                 }
@@ -6401,7 +6432,7 @@ private:
             tableWriter,
             [&, tableWriter] {
                 auto writeResult = tableWriter->GetWriteFragmentResult();
-                response->set_signed_write_result(ConvertToYsonString(writeResult).ToString());
+                response->set_signed_write_result(ToProto(ConvertToYsonString(writeResult)));
             });
     }
 
@@ -6510,7 +6541,7 @@ private:
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_version(ToProto(result.Version));
-                response->set_spec(result.Spec.ToString());
+                response->set_spec(ToProto(result.Spec));
 
                 context->SetResponseInfo("Version: %v",
                     result.Version);
@@ -6571,7 +6602,7 @@ private:
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_version(ToProto(result.Version));
-                response->set_spec(result.Spec.ToString());
+                response->set_spec(ToProto(result.Spec));
 
                 context->SetResponseInfo("Version: %v",
                     result.Version);
@@ -6707,7 +6738,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_flow_view_part(result.FlowViewPart.ToString());
+                response->set_flow_view_part(ToProto(result.FlowViewPart));
             });
     }
 
@@ -6730,7 +6761,7 @@ private:
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                response->set_result(result.Result.ToString());
+                response->set_result(ToProto(result.Result));
             });
     }
 
@@ -6998,7 +7029,7 @@ private:
             },
             [] (const auto& context, const auto& signedShuffleHandle) {
                 auto* response = &context->Response();
-                response->set_signed_shuffle_handle(ConvertToYsonString(signedShuffleHandle).ToString());
+                response->set_signed_shuffle_handle(ToProto(ConvertToYsonString(signedShuffleHandle)));
                 // TODO(pavook): friendly YSON wrapper.
                 auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonStringBuf(signedShuffleHandle.Underlying()->Payload()));
                 context->SetResponseInfo("TransactionId: %v", shuffleHandle->TransactionId);

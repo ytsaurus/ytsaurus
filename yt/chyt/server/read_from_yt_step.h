@@ -21,7 +21,7 @@ public:
     TReadFromYTStep(
         DB::Pipe pipe,
         DB::ContextPtr context,
-        const DB::SelectQueryInfo & queryInfo,
+        const DB::SelectQueryInfo& queryInfo,
         std::vector<std::shared_ptr<IChytIndexStat>> indexStats,
         const std::vector<TTablePtr>& tables);
 
@@ -36,8 +36,8 @@ public:
     void describeActions(DB::JSONBuilder::JSONMap& map) const override;
 
 private:
-    std::vector<std::shared_ptr<IChytIndexStat>> IndexStats_;
-    DB::PrewhereInfoPtr PrewhereInfo_;
+    const std::vector<std::shared_ptr<IChytIndexStat>> IndexStats_;
+    const DB::PrewhereInfoPtr PrewhereInfo_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

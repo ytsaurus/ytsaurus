@@ -26,6 +26,8 @@
 
 #include <yt/yt/client/security_client/access_control.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NScheduler {
@@ -307,7 +309,13 @@ const NYPath::TYPath& GetOperationsArchiveOperationIdsPath()
 
 const NYPath::TYPath& GetOperationsArchiveJobTraceEventsPath()
 {
-    static const TYPath path = "//sys/operations_archive/job_trace_events";
+    static const TYPath path = GetOperationsArchivePath() + "/job_trace_events";
+    return path;
+}
+
+const NYPath::TYPath& GetOperationsArchiveOperationEventsPath()
+{
+    static const TYPath path = GetOperationsArchivePath() + "/operation_events";
     return path;
 }
 
@@ -770,7 +778,7 @@ void ToProto(
 
     if (allocationBriefInfo.OperationAcl) {
         auto aclYson = ConvertToYsonString(*allocationBriefInfo.OperationAcl);
-        allocationBriefInfoProto->set_operation_acl(aclYson.ToString());
+        allocationBriefInfoProto->set_operation_acl(ToProto(aclYson));
     }
     if (allocationBriefInfo.OperationAcoName) {
         allocationBriefInfoProto->set_operation_aco_name(*allocationBriefInfo.OperationAcoName);

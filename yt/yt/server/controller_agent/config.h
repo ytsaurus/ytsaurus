@@ -375,6 +375,9 @@ struct TOperationOptions
     double CpuLimitOvercommitMultiplier;
     double InitialCpuLimitOvercommit;
 
+    //! Min allowed cpu limit specified by user.
+    double MinCpuLimit;
+
     //! Enforce slot container memory limit.
     bool SetSlotContainerMemoryLimit;
 
@@ -1303,6 +1306,8 @@ struct TControllerAgentConfig
 
     // COMPAT(dave11ar): Remove when all masters will be 25.2.
     bool RegisterLockableDynamicTables;
+
+    NServer::TOperationEventReporterConfigPtr OperationEventsReporter;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig);
 

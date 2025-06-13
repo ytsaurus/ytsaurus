@@ -35,6 +35,8 @@
 
 #include <yt/yt/core/ypath/helpers.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
@@ -941,12 +943,12 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
-        "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, PartitionTag: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
-        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, "
-        "Interruptible: %v)",
+        "Approximate: %v, DataWeight: %v (%v local), CompressedDataSize: %v, RowCount: %v, PartitionTag: %v, Restarted: %v, "
+        "EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, UserJobMemoryReserveFactor: %v, ResourceLimits: %v, "
+        "CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v)",
         joblet->JobId,
         joblet->JobType,
-        NNodeTrackerClient::GetDefaultAddress(context.GetNodeDescriptor().Addresses),
+        GetDefaultAddress(context.GetNodeDescriptor().Addresses),
         joblet->JobIndex,
         joblet->OutputCookie,
         joblet->InputStripeList->TotalChunkCount,
@@ -954,6 +956,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         joblet->InputStripeList->IsApproximate,
         joblet->InputStripeList->TotalDataWeight,
         joblet->InputStripeList->LocalDataWeight,
+        joblet->InputStripeList->TotalCompressedDataSize,
         joblet->InputStripeList->TotalRowCount,
         joblet->InputStripeList->PartitionTag,
         restarted,
@@ -1824,9 +1827,9 @@ void TTask::AddOutputTableSpecs(
     for (int index = 0; index < std::ssize(outputStreamDescriptors); ++index) {
         const auto& streamDescriptor = outputStreamDescriptors[index];
         auto* outputSpec = jobSpecExt->add_output_table_specs();
-        outputSpec->set_table_writer_options(ConvertToYsonString(streamDescriptor->TableWriterOptions).ToString());
+        outputSpec->set_table_writer_options(ToProto(ConvertToYsonString(streamDescriptor->TableWriterOptions)));
         if (streamDescriptor->TableWriterConfig) {
-            outputSpec->set_table_writer_config(streamDescriptor->TableWriterConfig.ToString());
+            outputSpec->set_table_writer_config(ToProto(streamDescriptor->TableWriterConfig));
         }
         const auto& outputTableSchema = streamDescriptor->TableUploadOptions.TableSchema.Get();
         auto schemaId = streamDescriptor->TableUploadOptions.SchemaId;
@@ -2100,7 +2103,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
             ApproximateSizesBoostFactor));
     }
 
-    jobSpecExt->set_job_cpu_monitor_config(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor).ToString());
+    jobSpecExt->set_job_cpu_monitor_config(ToProto(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor)));
 
     auto failOperation = [&] (TError error) {
         TaskHost_->GetCancelableInvoker()->Invoke(BIND(

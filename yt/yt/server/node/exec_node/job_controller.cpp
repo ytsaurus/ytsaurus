@@ -73,6 +73,7 @@ using namespace NProfiling;
 using namespace NScheduler;
 using namespace NControllerAgent;
 using namespace NServer;
+using namespace NGpu;
 
 using NNodeTrackerClient::NProto::TNodeResources;
 
@@ -141,6 +142,8 @@ public:
     void Initialize() override
     {
         auto dynamicConfig = GetDynamicConfig();
+
+        InitAllocationProfiler(Profiler_);
 
         JobResourceManager_ = Bootstrap_->GetJobResourceManager();
         JobResourceManager_->RegisterResourcesConsumer(
@@ -675,6 +678,8 @@ private:
             auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
             auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
 
+            std::optional<TNetworkPriority> networkPriority = YT_OPTIONAL_FROM_PROTO(startInfoProto, network_priority);
+
             auto incarnationId = FromProto<NScheduler::TIncarnationId>(
                 startInfoProto.controller_agent_descriptor().incarnation_id());
 
@@ -691,6 +696,7 @@ private:
                 operationId,
                 resourceDemand,
                 std::move(allocationAttributes),
+                networkPriority,
                 agentDescriptor,
                 Bootstrap_->GetExecNodeBootstrap());
 

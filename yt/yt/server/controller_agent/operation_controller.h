@@ -215,6 +215,7 @@ struct IOperationControllerHost
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
     virtual const NServer::TJobReporterPtr& GetJobReporter() = 0;
+    virtual const NServer::TOperationEventReporterPtr& GetOperationEventReporter() = 0;
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() = 0;
 
     virtual int GetAvailableExecNodeCount() = 0;

@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
+#include <yt/yt/library/profiling/public.h>
+
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -29,8 +31,76 @@ using namespace NControllerAgent;
 using namespace NControllerAgent::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
+using namespace NProfiling;
+using namespace NGpu;
 
 using TJobStartInfo = TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAllocationProfiler
+{
+public:
+    TAllocationProfiler(const NProfiling::TProfiler& profiler)
+        : Profiler_(profiler.WithPrefix("/allocations"))
+        , AllocationJobCounts_(Profiler_
+            .RateHistogram("/job_count_in_allocation", {0, 1, 3, 5, 10}))
+        , SettleJobDuration_(Profiler_
+            .TimeHistogram("/settle_job_duration", {
+                TDuration::MilliSeconds(100),
+                TDuration::MilliSeconds(500),
+                TDuration::Seconds(1),
+                TDuration::Seconds(5),
+                TDuration::Seconds(10),
+            }))
+    { }
+
+    void OnAllocationFinished(int jobCount, EAllocationFinishReason finishReason)
+    {
+        AllocationJobCounts_.Add(jobCount);
+
+        auto* finishReasonCounter = FinishReasonCounters_.Find(finishReason);
+        if (!finishReasonCounter) {
+            bool inserted;
+            std::tie(finishReasonCounter, inserted) = FinishReasonCounters_.FindOrEmplace(
+                finishReason,
+                Profiler_.Counter(FormatEnum(finishReason)));
+        }
+
+        YT_VERIFY(finishReasonCounter);
+        finishReasonCounter->Increment();
+    }
+
+    void OnSettleJobFinished(TDuration duration, std::optional<EScheduleFailReason> failReason)
+    {
+        SettleJobDuration_.Record(duration);
+
+        if (failReason) {
+            auto* failReasonCounter = ScheduleFailReasonCounters_.Find(*failReason);
+            if (!failReasonCounter) {
+                bool inserted;
+                std::tie(failReasonCounter, inserted) = ScheduleFailReasonCounters_.FindOrEmplace(
+                    *failReason,
+                    Profiler_.Counter(FormatEnum(*failReason)));
+            }
+
+            YT_VERIFY(failReasonCounter);
+            failReasonCounter->Increment();
+        }
+    }
+
+private:
+    TProfiler Profiler_;
+
+    TRateHistogram AllocationJobCounts_;
+    TEventTimer SettleJobDuration_;
+
+    TSyncMap<EScheduleFailReason, TCounter> ScheduleFailReasonCounters_;
+
+    TSyncMap<EAllocationFinishReason, TCounter> FinishReasonCounters_;
+};
+
+std::optional<TAllocationProfiler> AllocationProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +129,13 @@ void RecalculateCpu(TNonNullPtr<NClusterNode::TJobResources> jobResources, doubl
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void InitAllocationProfiler(const NProfiling::TProfiler& profiler)
+{
+    AllocationProfiler.emplace(profiler);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TAllocation::TEvent::Fire() noexcept
 {
     Fired_ = true;
@@ -76,6 +153,7 @@ TAllocation::TAllocation(
     TOperationId operationId,
     const NClusterNode::TJobResources& resourceDemand,
     NScheduler::TAllocationAttributes attributes,
+    std::optional<TNetworkPriority> networkPriority,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap)
     : TResourceOwner(
@@ -96,6 +174,7 @@ TAllocation::TAllocation(
     , InitialResourceDemand_(resourceDemand)
     , Attributes_(std::move(attributes))
     , ControllerAgentInfo_(std::move(agentDescriptor))
+    , NetworkPriority_(networkPriority)
     , ControllerAgentConnector_(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor()))
 {
@@ -156,6 +235,13 @@ i64 TAllocation::GetRequestedMemory() const noexcept
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return RequestedMemory_;
+}
+
+std::optional<TNetworkPriority> TAllocation::GetNetworkPriority() const noexcept
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return NetworkPriority_;
 }
 
 void TAllocation::Start()
@@ -267,10 +353,10 @@ void TAllocation::Abort(TError error)
         YT_LOG_DEBUG("Empty allocation aborted");
     }
 
-    OnAllocationFinished();
+    OnAllocationFinished(EAllocationFinishReason::Aborted);
 }
 
-void TAllocation::Complete()
+void TAllocation::Complete(EAllocationFinishReason finishReason)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -290,7 +376,7 @@ void TAllocation::Complete()
         YT_LOG_DEBUG("Empty allocation completed");
     }
 
-    OnAllocationFinished();
+    OnAllocationFinished(finishReason);
 }
 
 void TAllocation::Preempt(
@@ -363,12 +449,15 @@ void TAllocation::SettleJob()
         "Requesting controller agent to settle new job (ControllerAgentDescriptor: %v)",
         ControllerAgentInfo_.GetDescriptor());
 
+    TWallTimer timer;
+
     controllerAgentConnector->SettleJob(OperationId_, Id_, LastJobId_)
-        .SubscribeUnique(BIND(&TAllocation::OnSettledJobReceived, MakeStrong(this))
+        .SubscribeUnique(BIND(&TAllocation::OnSettledJobReceived, MakeStrong(this), TWallTimer())
             .Via(Bootstrap_->GetJobInvoker()));
 }
 
 void TAllocation::OnSettledJobReceived(
+    const TWallTimer& timer,
     TErrorOr<TJobStartInfo>&& jobInfoOrError)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -376,15 +465,19 @@ void TAllocation::OnSettledJobReceived(
     TForbidContextSwitchGuard guard;
 
     if (!jobInfoOrError.IsOK()) {
-        if (auto maybeFailReason = FindAttributeRecursive<EScheduleFailReason>(jobInfoOrError, "fail_reason")) {
+        auto maybeFailReason = FindAttributeRecursive<EScheduleFailReason>(jobInfoOrError, "fail_reason");
+        AllocationProfiler->OnSettleJobFinished(timer.GetElapsedTime(), maybeFailReason);
+
+        if (maybeFailReason) {
             YT_LOG_INFO(
                 jobInfoOrError,
                 "Job was not settled in allocation; completing allocation (ScheduleJobFailReason: %v)",
                 *maybeFailReason);
 
-            Complete();
+            Complete(EAllocationFinishReason::NoNewJobSettled);
             return;
         }
+
 
         auto error = TError("Failed to get job spec")
             << jobInfoOrError;
@@ -396,6 +489,8 @@ void TAllocation::OnSettledJobReceived(
         Abort(std::move(error));
         return;
     }
+
+    AllocationProfiler->OnSettleJobFinished(timer.GetElapsedTime(), std::nullopt);
 
     auto& jobInfo = jobInfoOrError.Value();
 
@@ -612,7 +707,7 @@ void TAllocation::InterruptJob(NScheduler::EInterruptionReason interruptionReaso
         /*preemptedFor*/ std::nullopt);
 }
 
-void TAllocation::OnAllocationFinished()
+void TAllocation::OnAllocationFinished(EAllocationFinishReason finishReason)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -625,6 +720,8 @@ void TAllocation::OnAllocationFinished()
     }
 
     ResourceHolder_.Reset();
+
+    AllocationProfiler->OnAllocationFinished(TotalJobCount_, finishReason);
 }
 
 void TAllocation::OnJobPrepared(TJobPtr job)
@@ -640,11 +737,14 @@ void TAllocation::OnJobFinished(TJobPtr job)
 
     auto settlementNewJobOnJobAbortRequested = SettlementNewJobOnAbortRequested_.Consume();
 
+    std::optional<EAllocationFinishReason> finishReason;
+
     auto settleNewJob = [&] {
         if (Preempted_) {
             YT_LOG_INFO(
                 "Job finished and allocation is preempted, completing allocation (JobId: %v)",
                 job->GetId());
+            finishReason = EAllocationFinishReason::Preempted;
             return false;
         }
 
@@ -667,6 +767,14 @@ void TAllocation::OnJobFinished(TJobPtr job)
         YT_LOG_INFO(
             "Job finished, new job settlement disabled; completing allocation (JobId: %v)",
             job->GetId());
+
+        if (!enableMultipleJobs) {
+            finishReason = EAllocationFinishReason::MultipleJobsDisabled;
+            return false;
+        }
+
+        YT_VERIFY(job->IsFinishedUnsuccessfully());
+        finishReason = EAllocationFinishReason::JobFinishedUnsuccessfully;
 
         return false;
     }();
@@ -697,7 +805,7 @@ void TAllocation::OnJobFinished(TJobPtr job)
                         "Controller agent requested to settle job but allocation is preempted, settling job skipped (JobId: %v)",
                         jobId);
 
-                    Complete();
+                    Complete(EAllocationFinishReason::Preempted);
 
                     return;
                 }
@@ -707,7 +815,7 @@ void TAllocation::OnJobFinished(TJobPtr job)
                         "Allocation is not assigned to controller agent, skip new job settlement (JobId: %v)",
                         jobId);
 
-                    Complete();
+                    Complete(EAllocationFinishReason::AgentDisconnected);
 
                     return;
                 }
@@ -721,7 +829,8 @@ void TAllocation::OnJobFinished(TJobPtr job)
             })
                 .Via(Bootstrap_->GetJobInvoker()));
     } else {
-        Complete();
+        YT_VERIFY(finishReason);
+        Complete(*finishReason);
     }
 
     JobFinished_.Fire(std::move(job));
@@ -760,6 +869,7 @@ TAllocationPtr CreateAllocation(
     TOperationId operationId,
     const NClusterNode::TJobResources& resourceDemand,
     NScheduler::TAllocationAttributes attributes,
+    std::optional<TNetworkPriority> networkPriority,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap)
 {
@@ -769,6 +879,7 @@ TAllocationPtr CreateAllocation(
         operationId,
         resourceDemand,
         std::move(attributes),
+        networkPriority,
         std::move(agentDescriptor),
         bootstrap);
 }

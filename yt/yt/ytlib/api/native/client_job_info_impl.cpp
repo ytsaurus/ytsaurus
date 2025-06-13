@@ -130,7 +130,6 @@ static const THashSet<TString> SupportedJobsAttributes = {
     "progress",
     "exec_attributes",
     "events",
-    "statistics",
     "is_stale",
 };
 
@@ -892,18 +891,6 @@ static NJobProxy::IJobSpecHelperPtr MaybePatchDataSourceDirectory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TSelectRowsOptions GetDefaultSelectRowsOptions(TInstant deadline)
-{
-    TSelectRowsOptions selectRowsOptions;
-    selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
-    selectRowsOptions.Timeout = deadline - Now();
-    selectRowsOptions.InputRowLimit = std::numeric_limits<i64>::max();
-    selectRowsOptions.MemoryLimitPerNode = 100_MB;
-    return selectRowsOptions;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
     TJobId jobId,
     const TGetJobInputOptions& options)
@@ -1264,7 +1251,8 @@ std::vector<TJobTraceEvent> TClient::DoGetJobTraceFromTraceEventsTable(
         builder.AddWhereConjunct(Format("event_time <= %v", *options.ToTime));
     }
 
-    auto rowset = WaitFor(GetOperationsArchiveClient()->SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)))
+    auto selectOptions = GetDefaultSelectRowsOptions(deadline, AsyncLastCommittedTimestamp);
+    auto rowset = WaitFor(GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions))
         .ValueOrThrow()
         .Rowset;
 
@@ -1597,7 +1585,8 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     builder.AddGroupByExpression("job_type");
     builder.AddGroupByExpression("job_state");
 
-    return GetOperationsArchiveClient()->SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND([=] (const TSelectRowsResult& result) {
+    auto selectOptions = GetDefaultSelectRowsOptions(deadline, AsyncLastCommittedTimestamp);
+    return GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions).Apply(BIND([=] (const TSelectRowsResult& result) {
         TListJobsStatistics statistics;
         for (auto row : result.Rowset->GetRows()) {
             // Skip jobs that was not fully written (usually it is written only by controller).
@@ -1901,7 +1890,8 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
         AddOrderByExpression(&builder, options);
     }
 
-    return GetOperationsArchiveClient()->SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)).Apply(BIND(
+    auto selectOptions = GetDefaultSelectRowsOptions(deadline, AsyncLastCommittedTimestamp);
+    return GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions).Apply(BIND(
         [operationId, attributes = std::move(attributes), this_ = MakeStrong(this)] (const TSelectRowsResult& result) {
         auto idMapping = NRecords::TJobPartial::TRecordDescriptor::TIdMapping(result.Rowset->GetNameTable());
         auto records = ToRecords<NRecords::TJobPartial>(result.Rowset->GetRows(), idMapping);
@@ -2441,6 +2431,10 @@ TListJobsResult TClient::DoListJobs(
             operationId = ResolveOperationAlias(alias, optionsResult, deadline);
         });
 
+    if (Connection_->GetConfig()->StrictOperationInfoAccessValidation) {
+        ValidateOperationAccess(operationId, NullJobId, EPermissionSet(EPermission::Read));
+    }
+
     // Get jobs from archive.
     // Issue the requests in parallel.
     TFuture<std::vector<TJob>> archiveResultFuture;
@@ -2755,6 +2749,10 @@ TYsonString TClient::DoGetJob(
         [&] (const TString& alias) {
             operationId = ResolveOperationAlias(alias, options, deadline);
         });
+
+    if (Connection_->GetConfig()->StrictOperationInfoAccessValidation) {
+        ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
+    }
 
     auto operationInfoFuture = GetOperation(operationId, TGetOperationOptions{
         .Attributes = {{"state"}},

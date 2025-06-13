@@ -31,8 +31,6 @@
 #include <yt/yt/server/master/security_server/acl.h>
 #include <yt/yt/server/master/security_server/user.h>
 
-#include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
-
 #include <yt/yt/server/master/table_server/table_manager.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -43,8 +41,6 @@
 
 #include <yt/yt/ytlib/election/config.h>
 
-#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
-
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/yt/core/misc/range_formatters.h>
@@ -52,6 +48,8 @@
 #include <yt/yt/core/rpc/message.h>
 
 #include <yt/yt/core/ytree/helpers.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <library/cpp/iterator/zip.h>
 
@@ -98,7 +96,6 @@ private:
         DISPATCH_YPATH_SERVICE_METHOD(MaterializeNode);
         DISPATCH_YPATH_SERVICE_METHOD(VectorizedRead);
         DISPATCH_YPATH_SERVICE_METHOD(GetOrRegisterTableSchema);
-        DISPATCH_YPATH_SERVICE_METHOD(SyncWithGroundUpdateQueue);
         return TBase::DoInvoke(context);
     }
 
@@ -245,7 +242,7 @@ private:
             for (const auto& [key, child] : mapNode->GetChildren()) {
                 auto* protoItem = protoClusterDirectory->add_items();
                 protoItem->set_name(ToProto(key));
-                protoItem->set_config(ConvertToYsonString(child).ToString());
+                protoItem->set_config(ToProto(ConvertToYsonString(child)));
             }
         }
 
@@ -296,7 +293,7 @@ private:
         if (populateFeatures) {
             const auto& configManager = Bootstrap_->GetConfigManager();
             const auto& chunkManagerConfig = configManager->GetConfig()->ChunkManager;
-            response->set_features(CreateFeatureRegistryYson(chunkManagerConfig->ForbiddenCompressionCodecs).ToString());
+            response->set_features(ToProto(CreateFeatureRegistryYson(chunkManagerConfig->ForbiddenCompressionCodecs)));
         }
 
         if (populateUserDirectory) {
@@ -694,7 +691,7 @@ private:
             // It's impossible to clear response without wiping the whole context, so it has to be created anew for each node.
             auto subcontext = CreateYPathContext(templateRequest, Logger());
 
-            if (auto* object = objectManager->FindObject(objectId)) {
+            if (auto* object = objectManager->FindObject(objectId); IsObjectAlive(object)) {
                 auto proxy = objectManager->GetProxy(object, transaction);
                 proxy->Invoke(subcontext);
             } else {
@@ -787,14 +784,6 @@ private:
             result->GetId());
 
         context->Reply();
-    }
-
-    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, SyncWithGroundUpdateQueue)
-    {
-        context->SetRequestInfo();
-        const auto& queueManager = Bootstrap_->GetGroundUpdateQueueManager();
-        context->ReplyFrom(
-            queueManager->Sync(NSequoiaClient::EGroundUpdateQueue::Sequoia));
     }
 };
 

@@ -37,7 +37,7 @@ public:
 
     // IStoreManager overrides.
     bool ExecuteWrites(
-        IWireWriteCommandReader* reader,
+        IWireWriteCommandsReader* reader,
         TWriteContext* context) override;
 
 

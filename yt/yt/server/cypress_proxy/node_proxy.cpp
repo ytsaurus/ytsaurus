@@ -49,6 +49,7 @@
 
 #include <yt/yt/core/yson/writer.h>
 #include <yt/yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/exception_helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
@@ -1349,6 +1350,149 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, BeginCopy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(kvk1920): make a common class for Orchid and document nodes.
+class TDocumentNodeProxy
+    : public TNodeProxy
+{
+public:
+    using TNodeProxy::TNodeProxy;
+
+private:
+    DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, GetBasicAttributes);
+
+    bool DoInvoke(const ISequoiaServiceContextPtr& context) override
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(GetBasicAttributes);
+
+        return TNodeProxy::DoInvoke(context);
+    }
+
+    void SetRecursive(
+        const NYPath::TYPath& path,
+        TReqSet* request,
+        TRspSet* /*response*/,
+        const TCtxSetPtr& context) override
+    {
+        context->SetRequestInfo("TargetNodeId: %v, PathSuffix: %v, Force: %v",
+            Id_,
+            path,
+            request->force());
+        AbortSequoiaSessionForLaterForwardingToMaster();
+    }
+
+    void RemoveRecursive(
+        const NYPath::TYPath& path,
+        TReqRemove* request,
+        TRspRemove* /*response*/,
+        const TCtxRemovePtr& context) override
+    {
+        context->SetRequestInfo("TargetNodeId: %v, PathSuffix: %v, Force: %v, Recursive: %v",
+            Id_,
+            path,
+            request->force(),
+            request->recursive());
+
+        AbortSequoiaSessionForLaterForwardingToMaster();
+    }
+
+    void GetRecursive(
+        const NYPath::TYPath& path,
+        TReqGet* request,
+        TRspGet* /*response*/,
+        const TCtxGetPtr& context) override
+    {
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
+
+        context->SetRequestInfo("Path: %v, TargetObjectId: %v, AttributeFilter: %v, Limit: %v",
+            path,
+            TVersionedNodeId(Id_, SequoiaSession_->GetCurrentCypressTransactionId()),
+            attributeFilter,
+            limit);
+
+        AbortSequoiaSessionForLaterForwardingToMaster();
+    }
+
+    // Document differs from map node: its children are stored at master instead
+    // of Sequoia resolve tables so it's necessary to forward "exists" request
+    // to master.
+    void ExistsRecursive(
+        const NYPath::TYPath& path,
+        TReqExists* /*request*/,
+        TRspExists* /*response*/,
+        const TCtxExistsPtr& context) override
+    {
+        context->SetRequestInfo("Path: %v, TargetObjectId: %v",
+            path,
+            TVersionedNodeId(Id_, SequoiaSession_->GetCurrentCypressTransactionId()));
+
+        AbortSequoiaSessionForLaterForwardingToMaster();
+    }
+
+    void GetSelf(TReqGet* request, TRspGet* /*response*/, const TCtxGetPtr& context) override
+    {
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
+
+        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+            limit,
+            attributeFilter);
+
+        AbortSequoiaSessionForLaterForwardingToMaster();
+    }
+
+    void ListSelf(TReqList* request, TRspList* /*response*/, const TCtxListPtr& context) override
+    {
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
+
+        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+            limit,
+            attributeFilter);
+
+        AbortSequoiaSessionForLaterForwardingToMaster();
+    }
+
+    void ListRecursive(
+        const NYPath::TYPath& path,
+        TReqList* request,
+        TRspList* /*response*/,
+        const TCtxListPtr& context) override
+    {
+        auto attributeFilter = request->has_attributes()
+            ? FromProto<TAttributeFilter>(request->attributes())
+            : TAttributeFilter();
+
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
+
+        context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
+            limit,
+            attributeFilter);
+
+        NYPath::TTokenizer tokenizer(path);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+
+        AbortSequoiaSessionForLaterForwardingToMaster();
+    }
+};
+
+DEFINE_YPATH_SERVICE_METHOD(TDocumentNodeProxy, GetBasicAttributes)
+{
+    context->SetRequestInfo();
+    AbortSequoiaSessionForLaterForwardingToMaster();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOrchidNodeProxy
     : public TNodeProxy
 {
@@ -2021,7 +2165,7 @@ private:
 
         auto result = WaitForFast(writer.Finish())
             .ValueOrThrow();
-        response->set_value(result.ToString());
+        response->set_value(ToProto(result));
 
         MaybeTouchCurrentNode(TYPathProxy::List, context);
         // Should not throw after this point.
@@ -2040,7 +2184,9 @@ INodeProxyPtr CreateNodeProxy(
     auto type = TypeFromId(resolveResult.Id);
     ValidateSupportedSequoiaType(type);
 
-    if (type == EObjectType::Orchid) {
+    if (type == EObjectType::Document) {
+        return New<TDocumentNodeProxy>(bootstrap, std::move(session), std::move(resolveResult));
+    } else if (type == EObjectType::Orchid) {
         return New<TOrchidNodeProxy>(bootstrap, std::move(session), std::move(resolveResult));
     } else if (IsSequoiaCompositeNodeType(type)) {
         return New<TMapLikeNodeProxy>(bootstrap, std::move(session), std::move(resolveResult));

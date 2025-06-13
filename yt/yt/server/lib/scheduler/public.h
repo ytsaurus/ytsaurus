@@ -109,6 +109,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((UnavailableNetworkBandwidthToClusters)       (40))
     ((WriteBufferMemoryOverrun)                    (41))
     ((Unknown)                                     (42))
+    ((SpecifiedCpuLimitIsTooSmall)                 (43))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EOperationAlertType, Unknown);
@@ -249,6 +250,10 @@ static constexpr TControllerEpoch InvalidControllerEpoch = TControllerEpoch(-1);
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const TString CommittedAttribute;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TNetworkPriority = i8;
 
 ////////////////////////////////////////////////////////////////////////////////
 

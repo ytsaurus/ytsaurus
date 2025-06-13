@@ -5,9 +5,24 @@
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
+#include <yt/yt/library/gpu/public.h>
+
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void InitAllocationProfiler(const NProfiling::TProfiler& profiler);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EAllocationFinishReason,
+    (Aborted)
+    (Preempted)
+    (MultipleJobsDisabled)
+    (NoNewJobSettled)
+    (AgentDisconnected)
+    (JobFinishedUnsuccessfully)
+);
 
 class TAllocation
     : public NJobAgent::TResourceOwner
@@ -37,6 +52,7 @@ public:
         TOperationId operationId,
         const NClusterNode::TJobResources& resourceUsage,
         NScheduler::TAllocationAttributes attributes,
+        std::optional<NGpu::TNetworkPriority> networkPriority,
         TControllerAgentDescriptor agentDescriptor,
         IBootstrap* bootstrap);
     ~TAllocation();
@@ -52,6 +68,8 @@ public:
     double GetRequestedCpu() const noexcept;
     i64 GetRequestedMemory() const noexcept;
 
+    std::optional<NGpu::TNetworkPriority> GetNetworkPriority() const noexcept;
+
     void Start();
     void Cleanup();
 
@@ -64,7 +82,7 @@ public:
     NClusterNode::TJobResources GetResourceUsage(bool excludeReleasing = false) const noexcept;
 
     void Abort(TError error);
-    void Complete();
+    void Complete(EAllocationFinishReason finishReason);
     void Preempt(
         TDuration timeout,
         TString preemptionReason,
@@ -105,6 +123,9 @@ private:
     NScheduler::TAllocationAttributes Attributes_;
 
     TControllerAgentAffiliationInfo ControllerAgentInfo_;
+
+    const std::optional<NGpu::TNetworkPriority> NetworkPriority_;
+
     // TODO(pogorelov): Maybe strong ref?
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
 
@@ -126,13 +147,14 @@ private:
     void SettleJob();
 
     void OnSettledJobReceived(
+        const NProfiling::TWallTimer& timer,
         TErrorOr<TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo>&& jobInfoOrError);
 
     void CreateAndSettleJob(
         TJobId jobId,
         NControllerAgent::NProto::TJobSpec&& jobSpec);
 
-    void OnAllocationFinished();
+    void OnAllocationFinished(EAllocationFinishReason finishReason);
 
     void OnJobPrepared(TJobPtr job);
     void OnJobFinished(TJobPtr job);
@@ -153,6 +175,7 @@ TAllocationPtr CreateAllocation(
     TOperationId operationId,
     const NClusterNode::TJobResources& resourceDemand,
     NScheduler::TAllocationAttributes attributes,
+    std::optional<NGpu::TNetworkPriority> networkPriority,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap);
 

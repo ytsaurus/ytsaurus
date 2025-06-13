@@ -159,6 +159,20 @@ private:
 
     struct TFinishedJobInfo { };
 
+    struct TOutBarrier
+    {
+        TPromise<void> Promise;
+        TGuid Id = TGuid::Create();
+    };
+
+    struct TInBarrier
+    {
+        TFuture<void> Future;
+        TGuid Id;
+
+        TInBarrier(const TOutBarrier& outBarrier);
+    };
+
     class TAllocationInfo
         : private NNonCopyable::TMoveOnly
     {
@@ -200,6 +214,12 @@ private:
         template <class TEvent>
         static TEvent& GetEventOrCrash(TNonNullPtr<TSchedulerToAgentAllocationEvent> event);
 
+        void SetNewJobSettlingBarrier(TInBarrier barrier);
+        // NB(pogorelov): When new job is settling, we must ensure that previous job events are already processed by controller.
+        // Barrier is meaningful only for events that led to job storing.
+        // For more details see YT-25343.
+        const std::optional<TInBarrier>& GetNewJobSettlingBarrier() const;
+
     private:
         std::optional<TRunningJobInfo> RunningJob_;
         THashMap<TJobId, TFinishedJobInfo> FinishedJobs_;
@@ -207,6 +227,8 @@ private:
         bool Finished_ = false;
 
         std::optional<TSchedulerToAgentAllocationEvent> PostponedAllocationEvent_;
+
+        std::optional<TInBarrier> NewJobSettlingBarrier_;
     };
 
     struct TNodeJobs
@@ -343,6 +365,8 @@ private:
         //! Should be used only in job thread.
         TOperationInfo* OperationInfo;
 
+        TOutBarrier ContextProcessedBarrier;
+
         void AddAllocationEvent(TSchedulerToAgentAllocationEvent&& allocationEvent);
     };
 
@@ -372,7 +396,8 @@ private:
         TNonNullPtr<THashMap<TOperationId, TOperationUpdatesProcessingContext>> contexts,
         TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
         TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult,
-        TOperationId operationId);
+        TOperationId operationId,
+        bool createBarrier = false);
 
     // Returns |true| iff job event was handled (not throttled).
     bool HandleJobInfo(

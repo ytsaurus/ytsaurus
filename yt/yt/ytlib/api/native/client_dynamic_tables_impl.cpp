@@ -97,7 +97,10 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/range_formatters.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/library/query/secondary_index/transform.h>
 
@@ -1082,7 +1085,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
         auto pickInSyncReplicas = [&] {
             if (tableInfo->ReplicationCardId) {
-                auto replicationCard = GetSyncReplicationCard(Connection_, tableInfo);
+                auto replicationCard = GetSyncReplicationCard(Connection_, tableInfo->ReplicationCardId);
                 bannedReplicaTracker->SyncReplicas(replicationCard);
 
                 auto replicaIds = GetChaosTableInSyncReplicas(
@@ -1382,6 +1385,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
         auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         ext->set_in_memory_mode(ToProto(inMemoryMode));
+        ext->set_has_hunk_columns(resultSchema->HasHunkColumns());
 
         auto* executeExt = req->Header().MutableExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
         if (options.ExecutionPool) {
@@ -3648,7 +3652,7 @@ void TClient::DoAlterReplicationCard(
     ToProto(req->mutable_replication_card_id(), replicationCardId);
 
     if (options.ReplicatedTableOptions) {
-        req->set_replicated_table_options(ConvertToYsonString(options.ReplicatedTableOptions).ToString());
+        req->set_replicated_table_options(ToProto(ConvertToYsonString(options.ReplicatedTableOptions)));
     }
     if (options.EnableReplicatedTableTracker) {
         req->set_enable_replicated_table_tracker(*options.EnableReplicatedTableTracker);
@@ -3657,7 +3661,7 @@ void TClient::DoAlterReplicationCard(
         ToProto(req->mutable_replication_card_collocation_id(), *options.ReplicationCardCollocationId);
     }
     if (options.CollocationOptions) {
-        req->set_collocation_options(ConvertToYsonString(options.CollocationOptions).ToString());
+        req->set_collocation_options(ToProto(ConvertToYsonString(options.CollocationOptions)));
     }
 
     auto result = WaitFor(req->Invoke());

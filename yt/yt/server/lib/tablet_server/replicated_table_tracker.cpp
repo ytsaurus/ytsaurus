@@ -19,6 +19,7 @@
 #include <yt/yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/virtual.h>
@@ -66,7 +67,7 @@ void ToProto(
     const TReplicatedTableData& tableData)
 {
     ToProto(protoTableData->mutable_table_id(), tableData.Id);
-    protoTableData->set_table_options(ConvertToYsonString(tableData.Options).ToString());
+    protoTableData->set_table_options(ToProto(ConvertToYsonString(tableData.Options)));
 }
 
 void FromProto(
@@ -113,7 +114,7 @@ void ToProto(
     for (auto tableId : collocationData.TableIds) {
         ToProto(protoCollocationData->add_table_ids(), tableId);
     }
-    protoCollocationData->set_options(ConvertToYsonString(collocationData.Options).ToString());
+    protoCollocationData->set_options(ToProto(ConvertToYsonString(collocationData.Options)));
 }
 
 void FromProto(

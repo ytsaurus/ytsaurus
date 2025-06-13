@@ -193,6 +193,8 @@ SRCS(
     tablet_node/versioned_chunk_meta_manager.cpp
     tablet_node/overload_controller.cpp
     tablet_node/overload_controlling_service_base.cpp
+    tablet_node/write_commands.cpp
+    tablet_node/write_log.cpp
 )
 
 PEERDIR(

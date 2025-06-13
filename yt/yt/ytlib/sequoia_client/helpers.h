@@ -32,10 +32,11 @@ TString ToStringLiteral(TStringBuf key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr TErrorCode RetriableSequoiaErrorCodes[] = {
+inline constexpr TErrorCode RetriableSequoiaErrorCodes[] = {
     NTabletClient::EErrorCode::TransactionLockConflict,
     NTabletClient::EErrorCode::BlockedRowWaitTimeout,
     NTabletClient::EErrorCode::NoSuchTablet,
+    NTabletClient::EErrorCode::ChunkIsNotPreloaded,
 };
 
 bool IsRetriableSequoiaError(const TError& error);
@@ -58,7 +59,7 @@ struct TParsedChunkReplica
 {
     NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
     int ReplicaIndex = NChunkClient::GenericChunkReplicaIndex;
-    NChunkClient::TChunkLocationUuid LocationUuid;
+    NNodeTrackerClient::TChunkLocationIndex LocationIndex = NNodeTrackerClient::InvalidChunkLocationIndex;
 };
 
 template <class TOnReplica>

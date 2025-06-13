@@ -91,6 +91,7 @@ public:
 public:
     TListOperationsFilter(
         const TListOperationsOptions& options,
+        const TListOperationsContextPtr& context,
         const IInvokerPtr& invoker,
         const NLogging::TLogger& logger);
 
@@ -115,6 +116,7 @@ private:
     // NB. TListOperationsFilter must own all its fields because it is used
     // in async context.
     const TListOperationsOptions Options_;
+    const TListOperationsContextPtr Context_;
     TListOperationsCountingFilter CountingFilter_;
     const IInvokerPtr Invoker_;
     const NLogging::TLogger Logger;

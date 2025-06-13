@@ -40,6 +40,8 @@
 
 #include <yt/yt/core/phoenix/type_decl.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <util/generic/cast.h>
@@ -390,9 +392,9 @@ protected:
                     EstimatedInputStatistics_->PrimaryCompressedDataSize,
                     /*inputRowCount*/ std::numeric_limits<i64>::max() / 4, // It is not important in sorted operations.
                     GetForeignInputDataWeight(),
+                    GetForeignInputCompressedDataSize(),
                     InputManager_->GetInputTables().size(),
-                    GetPrimaryInputTableCount(),
-                    /*sortedOperation*/ true);
+                    GetPrimaryInputTableCount());
                 break;
         }
 
@@ -586,6 +588,8 @@ protected:
     virtual void AdjustSortColumns() = 0;
 
     virtual i64 GetForeignInputDataWeight() const = 0;
+
+    virtual i64 GetForeignInputCompressedDataSize() const = 0;
 
     void PrepareOutputTables() override
     {
@@ -889,7 +893,7 @@ public:
         JobSpecTemplate_.set_type(ToProto(EJobType::SortedMerge));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
         auto* mergeJobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO))));
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
@@ -897,7 +901,7 @@ public:
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ToProto(ConvertToYsonString(JobIOConfig_)));
 
         ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(PrimarySortColumns_));
         ToProto(mergeJobSpecExt->mutable_sort_columns(), PrimarySortColumns_);
@@ -968,6 +972,11 @@ public:
     }
 
     i64 GetForeignInputDataWeight() const override
+    {
+        return 0;
+    }
+
+    i64 GetForeignInputCompressedDataSize() const override
     {
         return 0;
     }
@@ -1073,7 +1082,7 @@ public:
 
     TCpuResource GetCpuLimit() const override
     {
-        return TCpuResource(Spec_->Reducer->CpuLimit);
+        return TCpuResource(TOperationControllerBase::GetCpuLimit(Spec_->Reducer));
     }
 
     TUserJobSpecPtr GetUserJobSpec() const override
@@ -1118,7 +1127,7 @@ public:
 
         JobSpecTemplate_.set_type(ToProto(GetJobType()));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO))));
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
@@ -1132,7 +1141,7 @@ public:
                     ? std::make_optional(GetSpec()->IntermediateDataAccount)
                     : std::nullopt));
 
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ToProto(ConvertToYsonString(JobIOConfig_)));
 
         InitUserJobSpecTemplate(
             jobSpecExt->mutable_user_job_spec(),
@@ -1248,6 +1257,11 @@ public:
     i64 GetForeignInputDataWeight() const override
     {
         return Spec_->ConsiderOnlyPrimarySize ? 0 : EstimatedInputStatistics_->ForeignDataWeight;
+    }
+
+    i64 GetForeignInputCompressedDataSize() const override
+    {
+        return Spec_->ConsiderOnlyPrimarySize ? 0 : EstimatedInputStatistics_->ForeignCompressedDataSize;
     }
 
     TYsonStructPtr GetTypedSpec() const override

@@ -25,6 +25,8 @@
 
 #include <yt/yt/library/process/subprocess.h>
 
+#include <yt/yt/core/logging/fluent_log.h>
+
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/proc.h>
 
@@ -567,6 +569,8 @@ void TGpuManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
 
     BuildYsonFluently(consumer).BeginMap()
         .Item("gpu_infos").Value(GetGpuInfoMap())
+        .Item("rdma_devices").Value(GetRdmaDevices())
+        .Item("current_network_priority").Value(CurrentNetworkPriority_)
     .EndMap();
 }
 
@@ -723,6 +727,53 @@ void TGpuManager::PopulateAlerts(std::vector<TError>* alerts) const
     }
 }
 
+
+void TGpuManager::ApplyNetworkPriority(std::optional<TNetworkPriority> networkPriority)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    auto config = DynamicConfig_.Acquire();
+    if (!config->EnableNetworkServiceLevel) {
+        YT_LOG_DEBUG("Tuning of network service level is disabled");
+        return;
+    }
+
+    TNetworkPriority newNetworkPriority = networkPriority.value_or(DefaultNetworkPriority);
+
+    YT_LOG_DEBUG("Applying network priority (Old: %v, New: %v)", CurrentNetworkPriority_, networkPriority);
+
+    if (newNetworkPriority == CurrentNetworkPriority_) {
+        return;
+    }
+    // TODO(renadeen): Move this to testing GPU provider.
+    if (StaticConfig_->Testing->TestResource) {
+        NLogging::LogStructuredEventFluently(Logger(), NLogging::ELogLevel::Info)
+            .Item("event_type").Value("apply_network_priority_in_test")
+            .Item("network_priority").Value(newNetworkPriority);
+        CurrentNetworkPriority_ = newNetworkPriority;
+        return;
+    }
+
+    std::vector<TString> rdmaDeviceIds;
+    {
+        auto guard = Guard(SpinLock_);
+        rdmaDeviceIds.reserve(RdmaDevices_.size());
+        for (const auto& device : RdmaDevices_) {
+            rdmaDeviceIds.push_back(device.DeviceId);
+        }
+    }
+    try {
+        GpuInfoProvider_.Acquire()->ApplyNetworkServiceLevel(
+            std::move(rdmaDeviceIds),
+            newNetworkPriority,
+            config->ApplyNetworkServiceLevelTimeout);
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to apply network priority");
+        return;
+    }
+
+    CurrentNetworkPriority_ = newNetworkPriority;
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

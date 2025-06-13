@@ -411,6 +411,10 @@ void TOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("set_container_cpu_limit", &TThis::SetContainerCpuLimit)
         .Default(false);
 
+    registrar.Parameter("min_cpu_limit", &TThis::MinCpuLimit)
+        .Default(0.0)
+        .GreaterThanOrEqual(0.0);
+
     registrar.Parameter("set_slot_container_memory_limit", &TThis::SetSlotContainerMemoryLimit)
         .Default(false);
 
@@ -1391,6 +1395,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("register_lockable_dynamic_tables", &TThis::RegisterLockableDynamicTables)
         .Default(false);
+
+    registrar.Parameter("operation_events_reporter", &TThis::OperationEventsReporter)
+        .DefaultNew();
 
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;

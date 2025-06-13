@@ -15,6 +15,8 @@
 #include <yt/yt/core/ytree/node_detail.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -24,6 +26,8 @@ using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
 using namespace NServer;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -479,7 +483,7 @@ protected:
 
         auto forwardToParent = [&] (TInternedAttributeKey renamedKey) {
             auto req = TYPathProxy::Set("/@" + renamedKey.Unintern());
-            req->set_value(value.ToString());
+            req->set_value(ToProto(value));
             req->set_force(force);
             auto context = CreateYPathContext(req->Serialize(), Logger());
             auto typedContext = New<TCtxSet>(context, NRpc::THandlerInvocationOptions());

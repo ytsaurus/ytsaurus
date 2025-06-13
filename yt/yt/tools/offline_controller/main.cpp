@@ -309,6 +309,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const TOperationEventReporterPtr& GetOperationEventReporter() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override
     {
         return MediumDirectory_;

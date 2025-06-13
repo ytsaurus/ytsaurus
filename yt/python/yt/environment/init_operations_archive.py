@@ -63,7 +63,7 @@ def table_init_callback(client, table_path):
 
     if table_name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids"]:
         set_table_ttl(client, table_path, ttl=one_week, auto_compaction_period=one_day, forbid_obsolete_rows=True)
-    if table_name in ["ordered_by_id", "ordered_by_start_time"]:
+    if table_name in ["ordered_by_id", "ordered_by_start_time", "operation_events"]:
         set_table_ttl(client, table_path, ttl=two_years, auto_compaction_period=one_month, forbid_obsolete_rows=True)
 
 
@@ -863,6 +863,27 @@ TRANSFORMS[58] = [
             })),
 ]
 
+TRANSFORMS[59] = [
+    Conversion(
+        "operation_events",
+        table_info=TableInfo(
+            [
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("event_type", "string"),
+                ("timestamp", "uint64"),
+            ], [
+                ("incarnation", "string"),
+                ("incarnation_switch_reason", "string"),
+                ("incarnation_switch_info", "any"),
+            ],
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+]
 
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
 

@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
@@ -93,7 +95,7 @@ TSetPipelineSpecResult TClient::DoSetPipelineSpec(
     auto req = proxy.SetSpec();
     // TODO(nadya02): Set the correct timeout here.
     req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
-    req->set_spec(spec.ToString());
+    req->set_spec(ToProto(spec));
     req->set_force(options.Force);
     if (options.ExpectedVersion) {
         req->set_expected_version(ToProto(*options.ExpectedVersion));
@@ -130,7 +132,7 @@ TSetPipelineDynamicSpecResult TClient::DoSetPipelineDynamicSpec(
     auto req = proxy.SetDynamicSpec();
     // TODO(nadya02): Set the correct timeout here.
     req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
-    req->set_spec(spec.ToString());
+    req->set_spec(ToProto(spec));
     if (options.ExpectedVersion) {
         req->set_expected_version(ToProto(*options.ExpectedVersion));
     }
@@ -222,7 +224,7 @@ TFlowExecuteResult TClient::DoFlowExecute(
     req->SetTimeout(options.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
     req->set_command(command);
     if (argument) {
-        req->set_argument(argument.ToString());
+        req->set_argument(ToProto(argument));
     }
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();

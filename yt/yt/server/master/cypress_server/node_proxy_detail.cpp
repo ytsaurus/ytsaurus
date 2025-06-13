@@ -63,6 +63,8 @@
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_detail.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/core/yson/async_writer.h>
 
 #include <yt/yt/core/compression/codec.h>
@@ -1174,7 +1176,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
     visitor.Run(TrunkNode_);
     visitor.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
         if (resultOrError.IsOK()) {
-            response->set_value(resultOrError.Value().ToString());
+            response->set_value(ToProto(resultOrError.Value()));
             context->Reply();
         } else {
             context->Reply(resultOrError);
@@ -2250,7 +2252,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
                     // This helps to avoid creating an extra ephemeral attributes instance.
                     auto* attributeOverride = attributeOverrideDictionary->add_attributes();
                     attributeOverride->set_key(key);
-                    attributeOverride->set_value(value.ToString());
+                    attributeOverride->set_value(ToProto(value));
                 });
             continue;
         }
@@ -3472,7 +3474,7 @@ void TCypressMapNodeProxy::ListSelf(
     writer.Finish()
         .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
-                response->set_value(resultOrError.Value().ToString());
+                response->set_value(ToProto(resultOrError.Value()));
                 context->Reply();
             } else {
                 context->Reply(resultOrError);
@@ -3559,7 +3561,7 @@ void TSequoiaMapNodeProxy::GetSelf(
 
     writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
         if (resultOrError.IsOK()) {
-            response->set_value(resultOrError.Value().ToString());
+            response->set_value(ToProto(resultOrError.Value()));
             context->Reply();
         } else {
             context->Reply(resultOrError);

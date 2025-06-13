@@ -1853,6 +1853,22 @@ def add_list_operations_parser(add_parser):
     add_structured_format_argument(parser)
 
 
+@copy_docstring_from(yt.list_operation_events)
+def list_operation_events(**kwargs):
+    result = yt.list_operation_events(**kwargs)
+    if kwargs["format"] is None:
+        result = dump_data(result)
+    print_to_output(result, eoln=False)
+
+
+@copy_docstring_from(yt.list_operations)
+def add_list_operation_events_parser(add_parser):
+    parser = add_parser("list-operation-events", list_operation_events)
+    operation_id_args(parser, dest="operation_id")
+    parser.add_argument("--event-type", help="filter events by type")
+    add_structured_format_argument(parser)
+
+
 @copy_docstring_from(yt.start_transaction)
 def start_tx(**kwargs):
     print(yt.start_transaction(**kwargs))
@@ -2984,6 +3000,7 @@ def _prepare_parser():
     add_patch_op_spec_parser(add_parser)
     add_get_operation_parser(add_parser)
     add_list_operations_parser(add_parser)
+    add_list_operation_events_parser(add_parser)
 
     add_start_tx_parser(add_parser)
     add_abort_tx_parser(add_parser)

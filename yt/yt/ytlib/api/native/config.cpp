@@ -334,6 +334,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("default_list_operations_timeout", &TThis::DefaultListOperationsTimeout)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("default_list_operation_events_timeout", &TThis::DefaultListOperationEventsTimeout)
+        .Default(TDuration::Seconds(60));
     registrar.Parameter("default_pull_rows_timeout", &TThis::DefaultPullRowsTimeout)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("default_sync_alien_cells_timeout", &TThis::DefaultSyncAlienCellsTimeout)
@@ -497,6 +499,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("request_full_statistics_for_brief_statistics_in_list_jobs", &TThis::RequestFullStatisticsForBriefStatisticsInListJobs)
         .Default(true);
+
+    registrar.Parameter("strict_operation_info_access_validation", &TThis::StrictOperationInfoAccessValidation)
+        .Default(false);
 
     registrar.Postprocessor([] (TConnectionDynamicConfig* config) {
         if (!config->UploadTransactionPingPeriod.has_value()) {

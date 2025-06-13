@@ -35,6 +35,10 @@ class TestShuffleService(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
+    DELTA_RPC_DRIVER_CONFIG = {
+        "enable_retries": True,
+    }
+
     DELTA_RPC_PROXY_CONFIG = {
         "enable_shuffle_service": True,
         "signature_generation": {

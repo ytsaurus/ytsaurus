@@ -14,7 +14,7 @@ from .dynamic_table_commands import (  # noqa
 from .operation_commands import (  # noqa
     suspend_operation, resume_operation, get_operation_attributes,
     update_operation_parameters, patch_operation_spec,
-    get_operation, list_operations)
+    get_operation, list_operations, list_operation_events)
 from .job_commands import get_job, list_jobs  # noqa
 from .transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction  # noqa
 from .job_commands import abort_job  # noqa

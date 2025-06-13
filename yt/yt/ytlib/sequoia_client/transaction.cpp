@@ -943,8 +943,8 @@ TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     auto transaction = New<TSequoiaTransaction>(
         std::move(sequoiaClient),
         type,
-    std::move(localClient),
-    std::move(groundClient),
+        std::move(localClient),
+        std::move(groundClient),
         sequoiaTransactionOptions);
     return transaction->Start(transactionStartOptions);
 }

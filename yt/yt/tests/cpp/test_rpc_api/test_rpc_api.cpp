@@ -29,6 +29,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/library/named_value/named_value.h>
 
 #include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
@@ -611,7 +613,7 @@ TEST_F(TSkiffTest, EmptyTableSkiffReading_YT18817)
             .EndAttributes()
             .Value("skiff");
 
-        req->set_format(format.ToString());
+        req->set_format(ToProto(format));
 
         ToProto(req->mutable_path(), path);
         auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
@@ -674,7 +676,7 @@ TEST_F(TSkiffTest, ErroneousSkiffReading_YTADMINREQ_32428)
         .EndAttributes()
         .Value("skiff");
 
-    req->set_format(format.ToString());
+    req->set_format(ToProto(format));
 
     ToProto(req->mutable_path(), path);
     auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
@@ -738,7 +740,7 @@ TEST_F(TRpcProxyFormatTest, FordiddenFormat_YT_20098)
     req->set_desired_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
     auto format = BuildYsonStringFluently().Value("arrow");
 
-    req->set_format(format.ToString());
+    req->set_format(ToProto(format));
 
     ToProto(req->mutable_path(), path);
 

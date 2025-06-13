@@ -12,6 +12,8 @@
 
 #include <yt/yt/client/tablet_client/config.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NYPath;
@@ -187,7 +189,7 @@ private:
         request.set_table_path(tablePath);
         request.set_table_cluster_name(tableClusterName);
         if (replicatedTableOptions) {
-            request.set_replicated_table_options(ConvertToYsonString(replicatedTableOptions).ToString());
+            request.set_replicated_table_options(ToProto(ConvertToYsonString(replicatedTableOptions)));
         }
 
         const auto& connection = Client_->GetNativeConnection();

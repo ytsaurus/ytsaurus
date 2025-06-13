@@ -153,6 +153,8 @@
 #include <yt/yt/core/ytree/ypath_resolver.h>
 #include <yt/yt/core/ytree/yson_struct_update.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/phoenix/type_registry.h>
@@ -874,6 +876,14 @@ void TOperationControllerBase::InitializeStructures()
                 file.GpuCheck = true;
                 files.push_back(std::move(file));
             }
+        }
+
+        if (userJobSpec->CpuLimit < Options_->MinCpuLimit) {
+            SetOperationAlert(
+                EOperationAlertType::SpecifiedCpuLimitIsTooSmall,
+                TError("Specified CPU limit is too small: %v < %v",
+                    userJobSpec->CpuLimit,
+                    Options_->MinCpuLimit));
         }
     }
 
@@ -2184,7 +2194,7 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
 
         auto path = GetOperationPath(OperationId_) + "/@output_completion_transaction_id";
         auto req = TYPathProxy::Set(path);
-        req->set_value(ConvertToYsonStringNestingLimited(OutputCompletionTransaction_->GetId()).ToString());
+        req->set_value(ToProto(ConvertToYsonStringNestingLimited(OutputCompletionTransaction_->GetId())));
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
@@ -2232,7 +2242,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
         NNative::NProto::TReqSetAttributeOnTransactionCommit action;
         ToProto(action.mutable_node_id(), operationCypressNodeId);
         action.set_attribute(CommittedAttribute);
-        action.set_value(ConvertToYsonStringNestingLimited(true).ToString());
+        action.set_value(ToProto(ConvertToYsonStringNestingLimited(true)));
 
         auto transactionCoordinatorCellTag = CellTagFromId(OutputCompletionTransaction_->GetId());
         auto connection = Client_->GetNativeConnection();
@@ -2245,7 +2255,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
         auto path = GetOperationPath(OperationId_) + "/@" + CommittedAttribute;
         auto req = TYPathProxy::Set(path);
         SetTransactionId(req, outputCompletionTransactionId);
-        req->set_value(ConvertToYsonStringNestingLimited(true).ToString());
+        req->set_value(ToProto(ConvertToYsonStringNestingLimited(true)));
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
@@ -2367,7 +2377,7 @@ void TOperationControllerBase::StartDebugCompletionTransaction()
 
         auto path = GetOperationPath(OperationId_) + "/@debug_completion_transaction_id";
         auto req = TYPathProxy::Set(path);
-        req->set_value(ConvertToYsonStringNestingLimited(DebugCompletionTransaction_->GetId()).ToString());
+        req->set_value(ToProto(ConvertToYsonStringNestingLimited(DebugCompletionTransaction_->GetId())));
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }
@@ -3011,13 +3021,13 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                 {
                     auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@part_size");
                     SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
-                    req->set_value(ConvertToYsonStringNestingLimited(GetPartSize(table->OutputType)).ToString());
+                    req->set_value(ToProto(ConvertToYsonStringNestingLimited(GetPartSize(table->OutputType))));
                     batchReq->AddRequest(req);
                 }
                 if (table->OutputType == EOutputTableType::Core) {
                     auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@sparse");
                     SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
-                    req->set_value(ConvertToYsonStringNestingLimited(true).ToString());
+                    req->set_value(ToProto(ConvertToYsonStringNestingLimited(true)));
                     batchReq->AddRequest(req);
                 }
             }
@@ -4783,7 +4793,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
 
-    jobSpecExt->set_testing_options(ConvertToYsonString(Spec_->JobTestingOptions).ToString());
+    jobSpecExt->set_testing_options(ToProto(ConvertToYsonString(Spec_->JobTestingOptions)));
 
     jobSpecExt->set_enable_prefetching_job_throttler(true);
 
@@ -4825,7 +4835,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
     if (AcoName_) {
         jobSpecExt->set_aco_name(*AcoName_);
     } else {
-        jobSpecExt->set_acl(ConvertToYsonString(Acl_).ToString());
+        jobSpecExt->set_acl(ToProto(ConvertToYsonString(Acl_)));
     }
 }
 
@@ -10042,6 +10052,11 @@ i64 TOperationControllerBase::GetDataSliceCount() const
     return result;
 }
 
+double TOperationControllerBase::GetCpuLimit(const TUserJobSpecPtr& userJobSpec) const
+{
+    return std::max(userJobSpec->CpuLimit, Options_->MinCpuLimit);
+}
+
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TUserJobSpecPtr& jobSpecConfig,
@@ -10066,29 +10081,30 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_set_container_cpu_limit(jobSpecConfig->SetContainerCpuLimit || Options_->SetContainerCpuLimit);
     jobSpec->set_redirect_stdout_to_stderr(jobSpecConfig->RedirectStdoutToStderr);
 
+    auto specifiedCpuLimit = GetCpuLimit(jobSpecConfig);
     // This is common policy for all operations of given type.
     if (Options_->SetContainerCpuLimit) {
         double cpuLimit;
         switch (Options_->CpuLimitOvercommitMode) {
             case ECpuLimitOvercommitMode::Linear:
-                cpuLimit = Options_->CpuLimitOvercommitMultiplier * jobSpecConfig->CpuLimit + Options_->InitialCpuLimitOvercommit;
+                cpuLimit = Options_->CpuLimitOvercommitMultiplier * specifiedCpuLimit + Options_->InitialCpuLimitOvercommit;
                 break;
             case ECpuLimitOvercommitMode::Minimum:
                 cpuLimit = std::min(
-                    jobSpecConfig->CpuLimit * Options_->CpuLimitOvercommitMultiplier,
-                    jobSpecConfig->CpuLimit + Options_->InitialCpuLimitOvercommit);
+                    specifiedCpuLimit * Options_->CpuLimitOvercommitMultiplier,
+                    specifiedCpuLimit + Options_->InitialCpuLimitOvercommit);
                 break;
         }
         jobSpec->set_container_cpu_limit(cpuLimit);
     }
 
     // This is common policy for all operations of given type.
-    i64 threadLimit = ceil(userJobOptions->InitialThreadLimit + userJobOptions->ThreadLimitMultiplier * jobSpecConfig->CpuLimit);
+    i64 threadLimit = ceil(userJobOptions->InitialThreadLimit + userJobOptions->ThreadLimitMultiplier * specifiedCpuLimit);
     jobSpec->set_thread_limit(threadLimit);
 
     // Option in task spec overrides value in operation options.
     if (jobSpecConfig->SetContainerCpuLimit) {
-        jobSpec->set_container_cpu_limit(jobSpecConfig->CpuLimit);
+        jobSpec->set_container_cpu_limit(specifiedCpuLimit);
     }
 
     jobSpec->set_force_core_dump(jobSpecConfig->ForceCoreDump);
@@ -10140,8 +10156,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
             outputFormat = *jobSpecConfig->OutputFormat;
         }
 
-        jobSpec->set_input_format(ConvertToYsonString(inputFormat).ToString());
-        jobSpec->set_output_format(ConvertToYsonString(outputFormat).ToString());
+        jobSpec->set_input_format(ToProto(ConvertToYsonString(inputFormat)));
+        jobSpec->set_output_format(ToProto(ConvertToYsonString(outputFormat)));
     }
 
     jobSpec->set_enable_gpu_layers(jobSpecConfig->EnableGpuLayers);
@@ -10415,13 +10431,13 @@ void TOperationControllerBase::AddStderrOutputSpecs(
 
     auto* stderrTableSpec = jobSpec->mutable_stderr_table_spec();
     auto* outputSpec = stderrTableSpec->mutable_output_table_spec();
-    outputSpec->set_table_writer_options(ConvertToYsonString(StderrTable_->TableWriterOptions).ToString());
+    outputSpec->set_table_writer_options(ToProto(ConvertToYsonString(StderrTable_->TableWriterOptions)));
     outputSpec->set_table_schema(SerializeToWireProto(StderrTable_->TableUploadOptions.TableSchema.Get()));
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->StderrTableChunkListId);
 
     auto writerConfig = GetStderrTableWriterConfig();
     YT_VERIFY(writerConfig);
-    stderrTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).ToString());
+    stderrTableSpec->set_blob_table_writer_config(ToProto(ConvertToYsonString(writerConfig)));
 }
 
 void TOperationControllerBase::AddCoreOutputSpecs(
@@ -10432,13 +10448,13 @@ void TOperationControllerBase::AddCoreOutputSpecs(
 
     auto* coreTableSpec = jobSpec->mutable_core_table_spec();
     auto* outputSpec = coreTableSpec->mutable_output_table_spec();
-    outputSpec->set_table_writer_options(ConvertToYsonString(CoreTable_->TableWriterOptions).ToString());
+    outputSpec->set_table_writer_options(ToProto(ConvertToYsonString(CoreTable_->TableWriterOptions)));
     outputSpec->set_table_schema(SerializeToWireProto(CoreTable_->TableUploadOptions.TableSchema.Get()));
     ToProto(outputSpec->mutable_chunk_list_id(), joblet->CoreTableChunkListId);
 
     auto writerConfig = GetCoreTableWriterConfig();
     YT_VERIFY(writerConfig);
-    coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).ToString());
+    coreTableSpec->set_blob_table_writer_config(ToProto(ConvertToYsonString(writerConfig)));
 }
 
 i64 TOperationControllerBase::GetFinalOutputIOMemorySize(

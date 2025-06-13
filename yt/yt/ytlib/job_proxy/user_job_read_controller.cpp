@@ -105,7 +105,7 @@ public:
 
     double GetProgress() const override
     {
-        if (!Initialized_) {
+        if (!ReaderInitialized_) {
             return 0;
         }
 
@@ -121,7 +121,7 @@ public:
 
     TFuture<std::vector<TBlob>> GetInputContext() const override
     {
-        if (!Initialized_) {
+        if (!WriterInitialized_) {
             return MakeFuture(std::vector<TBlob>());
         }
 
@@ -138,12 +138,12 @@ public:
 
     std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        return Initialized_ ? Reader_->GetFailedChunkIds() : std::vector<TChunkId>();
+        return ReaderInitialized_ ? Reader_->GetFailedChunkIds() : std::vector<TChunkId>();
     }
 
     std::optional<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const override
     {
-        if (!Initialized_) {
+        if (!ReaderInitialized_ || !WriterInitialized_) {
             return std::nullopt;
         }
         auto dataStatistics = Reader_->GetDataStatistics();
@@ -167,7 +167,7 @@ public:
 
     std::optional<TCodecStatistics> GetDecompressionStatistics() const override
     {
-        if (!Initialized_) {
+        if (!ReaderInitialized_) {
             return std::nullopt;
         }
         return Reader_->GetDecompressionStatistics();
@@ -175,7 +175,7 @@ public:
 
     std::optional<TTimingStatistics> GetTimingStatistics() const override
     {
-        if (!Initialized_) {
+        if (!ReaderInitialized_) {
             return std::nullopt;
         }
         return Reader_->GetTimingStatistics();
@@ -183,7 +183,7 @@ public:
 
     void InterruptReader() override
     {
-        if (!Initialized_) {
+        if (!ReaderInitialized_) {
             THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::JobNotPrepared, "Cannot interrupt uninitialized reader");
         }
 
@@ -221,7 +221,7 @@ public:
 
     std::optional<TDuration> GetReaderTimeToFirstBatch() const override
     {
-        if (Initialized_) {
+        if (ReaderInitialized_) {
             return Reader_->GetTimeToFirstBatch();
         }
         return std::nullopt;
@@ -229,7 +229,7 @@ public:
 
     std::optional<TDuration> GetWriterTimeToFirstBatch() const override
     {
-        if (!FormatWriters_.empty()) {
+        if (WriterInitialized_) {
             YT_VERIFY(FormatWriters_.size() == 1);
             return FormatWriters_[0]->GetTimeToFirstBatch();
         }
@@ -248,7 +248,8 @@ private:
     std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics_;
     std::vector<IProfilingSchemalessFormatWriterPtr> FormatWriters_;
     std::optional<TString> UdfDirectory_;
-    std::atomic<bool> Initialized_ = {false};
+    std::atomic<bool> ReaderInitialized_ = {false};
+    std::atomic<bool> WriterInitialized_ = {false};
     std::atomic<bool> Interrupted_ = {false};
 
     // Jobs have interruption timeout
@@ -367,6 +368,7 @@ private:
         }
 
         FormatWriters_.push_back(CreateProfilingSchemalessFormatWriter(std::move(writer), IOStartTime_));
+        WriterInitialized_ = true;
 
         return FormatWriters_.back();
     }
@@ -445,6 +447,7 @@ private:
                         CreateProfilingSchemalessFormatWriter(
                             std::move(schemalessWriter),
                             IOStartTime_));
+                    WriterInitialized_ = true;
 
                     return FormatWriters_.back();
                 },
@@ -471,7 +474,7 @@ private:
             columnFilter);
         Reader_ = CreateProfilingMultiChunkReader(std::move(result.Reader), IOStartTime_);
         PreparationDataStatistics_ = std::move(result.PreparationDataStatistics);
-        Initialized_ = true;
+        ReaderInitialized_ = true;
     }
 };
 

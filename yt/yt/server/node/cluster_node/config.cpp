@@ -361,6 +361,9 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
 
+    registrar.Parameter("huge_page_manager", &TThis::HugePageManager)
+        .DefaultNew();
+
     registrar.Parameter("rack", &TThis::Rack)
         .Default();
     registrar.Parameter("data_center", &TThis::DataCenter)
@@ -532,6 +535,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("memory_limit_exceeded_for_category_threshold", &TThis::MemoryLimitExceededForCategoryThreshold)
         .Default(1.1);
     registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCache)
+        .DefaultNew();
+    registrar.Parameter("huge_page_manager", &TThis::HugePageManager)
         .DefaultNew();
 }
 

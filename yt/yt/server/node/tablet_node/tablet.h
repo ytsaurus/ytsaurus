@@ -436,6 +436,8 @@ public:
     NTabletClient::ETableReplicaStatus GetStatus() const;
     void RecomputeReplicaStatus();
 
+    void BuildOrchidYson(NYTree::TFluentMap fluent) const;
+
 private:
     const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();
 };
@@ -888,6 +890,8 @@ public:
     bool IsVersionedWriteUnversioned() const;
 
     TPreloadStatistics ComputePreloadStatistics() const;
+
+    void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
 private:
     struct TTabletSizeMetrics

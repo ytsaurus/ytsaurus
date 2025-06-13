@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/rpc/service_detail.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NQueryTracker {
 
 using namespace NApi;
@@ -23,6 +25,8 @@ using namespace NComponentStateChecker;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
+
+using NYT::ToProto;
 
 static const TYsonString EmptyMap = TYsonString(TString("{}"));
 
@@ -362,7 +366,7 @@ private:
 
         rpcResponse->set_query_tracker_stage(result.QueryTrackerStage);
         rpcResponse->set_cluster_name(result.ClusterName);
-        rpcResponse->set_supported_features(result.SupportedFeatures.ToString());
+        rpcResponse->set_supported_features(ToProto(result.SupportedFeatures));
         for (const auto& accessControlObject : result.AccessControlObjects) {
             *rpcResponse->add_access_control_objects() = accessControlObject;
         }

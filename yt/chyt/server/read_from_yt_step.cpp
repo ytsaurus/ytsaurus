@@ -12,7 +12,7 @@ TReadFromYTStep::TReadFromYTStep(
     const DB::SelectQueryInfo& queryInfo,
     std::vector<std::shared_ptr<IChytIndexStat>> indexStats,
     const std::vector<TTablePtr>& tables)
-    : DB::ReadFromStorageStep(std::move(pipe), "" /*storage_name*/, context, queryInfo)
+    : DB::ReadFromStorageStep(std::move(pipe), /*storage_name*/ "", context, queryInfo)
     , IndexStats_(std::move(indexStats))
     , PrewhereInfo_(queryInfo.prewhere_info)
 {

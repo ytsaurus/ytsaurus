@@ -228,7 +228,8 @@ void TSchedulingContextBase::StartAllocation(
     const TAllocationStartDescriptor& startDescriptor,
     EPreemptionMode preemptionMode,
     int schedulingIndex,
-    EAllocationSchedulingStage schedulingStage)
+    EAllocationSchedulingStage schedulingStage,
+    std::optional<TNetworkPriority> networkPriority)
 {
     ResourceUsage_ += startDescriptor.ResourceLimits.ToJobResources();
     if (startDescriptor.ResourceLimits.DiskQuota()) {
@@ -246,7 +247,8 @@ void TSchedulingContextBase::StartAllocation(
         preemptionMode,
         treeId,
         schedulingIndex,
-        schedulingStage);
+        schedulingStage,
+        networkPriority);
     StartedAllocations_.push_back(std::move(allocation));
 }
 

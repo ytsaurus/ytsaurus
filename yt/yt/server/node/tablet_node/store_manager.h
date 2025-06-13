@@ -55,7 +55,7 @@ struct IStoreManager
     virtual void StopEpoch() = 0;
 
     [[nodiscard]] virtual bool ExecuteWrites(
-        IWireWriteCommandReader* reader,
+        IWireWriteCommandsReader* reader,
         TWriteContext* context) = 0;
 
     virtual void UpdateCommittedStoreRowCount() = 0;

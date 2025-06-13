@@ -39,6 +39,7 @@ using namespace NChunkClient::NProto;
 using namespace NDataNodeTrackerClient;
 using namespace NSequoiaClient;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 
 using NYT::FromProto;
 
@@ -292,7 +293,8 @@ private:
         }
         location->SetBeingDisposed(true);
 
-        chunkReplicaFetcher->GetSequoiaLocationReplicas(node->GetId(), location->GetUuid())
+        auto globalLocationIndex = location->GetIndex();
+        chunkReplicaFetcher->GetSequoiaLocationReplicas(node->GetId(), globalLocationIndex)
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& replicasOrError) {
                 if (!replicasOrError.IsOK()) {
                     location->SetBeingDisposed(false);
@@ -302,14 +304,14 @@ private:
 
                 const auto& sequoiaReplicas = replicasOrError.Value();
 
-                YT_LOG_INFO("Disposing location (NodeId: %v, Address: %v, LocationIndex: %v, LocationUuid: %v)",
+                YT_LOG_INFO("Disposing location (NodeId: %v, Address: %v, LocalLocationIndex: %v, LocationUuid: %v, LocationIndex: %v)",
                     node->GetId(),
                     node->GetDefaultAddress(),
                     locationIndex,
-                    location->GetUuid());
+                    location->GetUuid(),
+                    globalLocationIndex);
 
                 auto sequoiaRequest = std::make_unique<TReqModifyReplicas>();
-                TChunkLocationDirectory locationDirectory;
                 sequoiaRequest->set_node_id(ToProto(node->GetId()));
                 sequoiaRequest->set_caused_by_node_disposal(true);
                 for (const auto& replica : sequoiaReplicas) {
@@ -320,12 +322,10 @@ private:
                     idWithIndex.ReplicaIndex = replica.Key.ReplicaIndex;
 
                     ToProto(chunkRemoveInfo.mutable_chunk_id(), EncodeChunkId(idWithIndex));
-                    chunkRemoveInfo.set_location_index(locationDirectory.GetOrCreateIndex(location->GetUuid()));
+                    chunkRemoveInfo.set_location_index(ToProto(globalLocationIndex));
 
                     *sequoiaRequest->add_removed_chunks() = chunkRemoveInfo;
                 }
-
-                ToProto(sequoiaRequest->mutable_location_directory(), locationDirectory);
 
                 TReqDisposeLocation request;
                 request.set_node_id(ToProto(node->GetId()));

@@ -19,6 +19,8 @@
 
 #include <yt/yt/core/rpc/roaming_channel.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NQueryTracker {
 
 using namespace NQueryTrackerClient;
@@ -173,7 +175,7 @@ private:
         startQueryReq->set_row_count_limit(Config_->RowCountLimit);
         ToProto(startQueryReq->mutable_query_id(), QueryId_);
         yqlRequest->set_query(Query_);
-        yqlRequest->set_settings(ConvertToYsonString(SettingsNode_).ToString());
+        yqlRequest->set_settings(ToProto(ConvertToYsonString(SettingsNode_)));
         yqlRequest->set_mode(ToProto(ExecuteMode_));
 
         for (const auto& file : Files_) {

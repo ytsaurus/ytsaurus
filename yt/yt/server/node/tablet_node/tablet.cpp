@@ -14,6 +14,7 @@
 #include "sorted_dynamic_store.h"
 #include "store_manager.h"
 #include "structured_logger.h"
+#include "table_puller.h"
 #include "tablet_manager.h"
 #include "tablet_profiling.h"
 #include "tablet_slot.h"
@@ -31,8 +32,6 @@
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
-#include <yt/yt/client/chaos_client/helpers.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -42,6 +41,9 @@
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/yt/client/chaos_client/helpers.h>
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
@@ -62,6 +64,8 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/tls_cache.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
@@ -568,6 +572,23 @@ void TTableReplicaInfo::RecomputeReplicaStatus()
     }
 
     RuntimeData_->Status = newStatus;
+}
+
+void TTableReplicaInfo::BuildOrchidYson(TFluentMap fluent) const
+{
+    fluent
+        .Item("cluster_name").Value(GetClusterName())
+        .Item("replica_path").Value(GetReplicaPath())
+        .Item("state").Value(GetState())
+        .Item("mode").Value(GetMode())
+        .Item("atomicity").Value(GetAtomicity())
+        .Item("preserve_timestamps").Value(GetPreserveTimestamps())
+        .Item("start_replication_timestamp").Value(GetStartReplicationTimestamp())
+        .Item("current_replication_row_index").Value(GetCurrentReplicationRowIndex())
+        .Item("committed_replication_row_index").Value(GetCommittedReplicationRowIndex())
+        .Item("current_replication_timestamp").Value(GetCurrentReplicationTimestamp())
+        .Item("prepared_replication_transaction").Value(GetPreparedReplicationTransactionId())
+        .Item("prepared_replication_row_index").Value(GetPreparedReplicationRowIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2579,7 +2600,7 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
     replicatableContent->set_retained_timestamp(RetainedTimestamp_);
     replicatableContent->set_cumulative_data_weight(CumulativeDataWeight_);
     if (CustomRuntimeData_) {
-        replicatableContent->set_custom_runtime_data(CustomRuntimeData_.ToString());
+        replicatableContent->set_custom_runtime_data(ToProto(CustomRuntimeData_));
     }
     ToProto(request->mutable_allocated_dynamic_store_ids(), this->DynamicStoreIdPool_);
 
@@ -3042,46 +3063,182 @@ TPreloadStatistics TTablet::ComputePreloadStatistics() const
     return result;
 }
 
+void TTablet::BuildOrchidYson(TFluentMap fluent) const
+{
+    const auto& storeManager = GetStoreManager();
+    bool opaqueStores = GetSettings().MountConfig->Testing.OpaqueStoresInOrchid;
+
+    fluent
+        .Item("table_id").Value(GetTableId())
+        .Item("state").Value(GetState())
+        .Item("total_lock_count").Value(GetTotalTabletLockCount())
+        .Item("lock_count").DoMapFor(
+            TEnumTraits<ETabletLockType>::GetDomainValues(),
+            [&] (auto fluent, auto lockType) {
+                fluent.Item(FormatEnum(lockType)).Value(GetTabletLockCount(lockType));
+            })
+        .Item("hash_table_size").Value(GetHashTableSize())
+        .Item("overlapping_store_count").Value(GetOverlappingStoreCount())
+        .Item("dynamic_store_count").Value(GetDynamicStoreCount())
+        .Item("retained_timestamp").Value(GetRetainedTimestamp())
+        .Item("last_periodic_rotation_time").Value(storeManager->GetLastPeriodicRotationTime())
+        .Item("in_flight_user_mutation_count").Value(GetInFlightUserMutationCount())
+        .Item("in_flight_replicator_mutation_count").Value(GetInFlightReplicatorMutationCount())
+        .Item("pending_user_write_record_count").Value(GetPendingUserWriteRecordCount())
+        .Item("pending_replicator_write_record_count").Value(GetPendingReplicatorWriteRecordCount())
+        .Item("upstream_replica_id").Value(GetUpstreamReplicaId())
+        .Item("replication_card").Value(RuntimeData()->ReplicationCard.Acquire())
+        .Item("replication_progress").Value(RuntimeData()->ReplicationProgress.Acquire())
+        .Item("replication_era").Value(RuntimeData()->ReplicationEra.load())
+        .Item("replication_round").Value(ChaosData()->ReplicationRound.load())
+        .Item("write_mode").Value(RuntimeData()->WriteMode.load())
+        .Item("lsm_statistics")
+            .BeginMap()
+            .Item("pending_compaction_store_count").DoMapFor(
+                TEnumTraits<NLsm::EStoreCompactionReason>::GetDomainValues(),
+                [&] (auto fluent, auto reason) {
+                    auto value = LsmStatistics().PendingCompactionStoreCount[reason];
+                    if (reason != NLsm::EStoreCompactionReason::None &&
+                        reason != NLsm::EStoreCompactionReason::DiscardByTtl)
+                    {
+                        fluent
+                            .Item(Format("%lv", reason)).Value(value);
+                    }
+                })
+            .EndMap()
+        .Do(BIND(&BuildTableSettingsOrchidYson, GetSettings()))
+        .Item("raw_settings").BeginMap()
+            .Item("global_patch").Value(RawSettings().GlobalPatch)
+            .Item("experiments").Value(RawSettings().Experiments)
+            .Item("provided_config").Value(RawSettings().Provided.MountConfigNode)
+            .Item("provided_extra_config").Value(RawSettings().Provided.ExtraMountConfig)
+        .EndMap()
+        .OptionalItem("custom_runtime_data", CustomRuntimeData())
+        .DoIf(IsPhysicallySorted(), [&] (auto fluent) {
+            fluent
+                .Item("pivot_key").Value(GetPivotKey())
+                .Item("next_pivot_key").Value(GetNextPivotKey())
+                .Item("eden").DoMap(BIND(&TPartition::BuildOrchidYson, GetEden()))
+                .Item("partitions").DoListFor(
+                    PartitionList(), [&] (auto fluent, const std::unique_ptr<TPartition>& partition) {
+                        fluent
+                            .Item()
+                            .DoMap(BIND(&TPartition::BuildOrchidYson, partition.get()));
+                    });
+        })
+        .DoIf(IsPhysicallyOrdered(), [&] (auto fluent) {
+            fluent
+                .Item("stores").DoMapFor(
+                    StoreIdMap(),
+                    [&] (auto fluent, const auto& pair) {
+                        const auto& [storeId, store] = pair;
+                        fluent
+                            .Item(ToString(storeId))
+                            .Do(BIND(&IStore::BuildOrchidYson, store, opaqueStores));
+                    })
+                .Item("total_row_count").Value(GetTotalRowCount())
+                .Item("trimmed_row_count").Value(GetTrimmedRowCount());
+        })
+        .Item("hunk_chunks").DoMapFor(HunkChunkMap(), [&] (auto fluent, const auto& pair) {
+            const auto& [chunkId, hunkChunk] = pair;
+            fluent
+                .Item(ToString(chunkId))
+                .Do(BIND(&THunkChunk::BuildOrchidYson, hunkChunk, opaqueStores));
+        })
+        .Item("hunk_lock_manager").Do(BIND(&IHunkLockManager::BuildOrchid, GetHunkLockManager()))
+        .DoIf(IsReplicated(), [&] (auto fluent) {
+            fluent
+                .Item("replicas").DoMapFor(
+                    Replicas(),
+                    [&] (auto fluent, const auto& pair) {
+                        const auto& [replicaId, replica] = pair;
+                        fluent
+                            .Item(ToString(replicaId))
+                            .DoMap(BIND(&TTableReplicaInfo::BuildOrchidYson, Unretained(&replica)));
+                    });
+        })
+        .Do([&] (auto fluent) {
+            if (auto tablePuller = GetTablePuller()) {
+                tablePuller->BuildOrchidYson(fluent);
+            }
+        })
+        .DoIf(IsPhysicallySorted(), [&] (auto fluent) {
+            fluent
+                .Item("dynamic_table_locks").DoMap(
+                    BIND(&TLockManager::BuildOrchidYson, GetLockManager()));
+        })
+        .Item("errors").DoList([&] (auto fluentList) {
+            RuntimeData()->Errors.ForEachError([&] (const TError& error) {
+                if (!error.IsOK()) {
+                    fluentList.Item().Value(error);
+                }
+            });
+        })
+        .Item("replication_errors").DoMapFor(
+            Replicas(),
+            [&] (auto fluent, const auto& replica) {
+                auto replicaId = replica.first;
+                auto error = replica.second.GetError();
+                if (!error.IsOK()) {
+                    fluent
+                        .Item(ToString(replicaId)).Value(error);
+                }
+            })
+        .DoIf(GetSettings().MountConfig->EnableDynamicStoreRead, [&] (auto fluent) {
+            fluent
+                .Item("dynamic_store_id_pool")
+                    .DoAttributesIf(opaqueStores, [] (auto fluent) {
+                        fluent
+                            .Item("opaque").Value(true);
+                    })
+                    .DoListFor(
+                        DynamicStoreIdPool(),
+                        [&] (auto fluent, auto dynamicStoreId) {
+                            fluent
+                                .Item().Value(dynamicStoreId);
+                        });
+        })
+        .Item("backup_stage").Value(GetBackupStage())
+        .Item("backup_checkpoint_timestamp").Value(GetBackupCheckpointTimestamp())
+        .DoIf(SmoothMovementData().GetRole() != ESmoothMovementRole::None, [&] (auto fluent) {
+            fluent
+                .Item("smooth_movement").DoMap(
+                    BIND(&TSmoothMovementData::BuildOrchidYson, &SmoothMovementData()));
+        })
+        .Item("mount_revision").Value(GetMountRevision())
+        .Item("mount_time").Value(GetMountTime());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluentMap fluent)
 {
+    bool opaque = options.MountConfig->Testing.OpaqueSettingsInOrchid;
+
+    auto addMaybeOpaqueItem = [&] (TYsonStructPtr item, TFluentAny fluent) {
+        fluent
+            .DoAttributesIf(opaque, [] (auto fluent) {
+                fluent
+                    .Item("opaque").Value(true);
+            })
+            .Value(item);
+    };
+
     fluent
         .Item("config")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.MountConfig)
+            .Do(BIND(addMaybeOpaqueItem, options.MountConfig))
         .Item("store_writer_config")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.StoreWriterConfig)
+            .Do(BIND(addMaybeOpaqueItem, options.StoreWriterConfig))
         .Item("store_writer_options")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.StoreWriterOptions)
+            .Do(BIND(addMaybeOpaqueItem, options.StoreWriterOptions))
         .Item("hunk_writer_config")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.HunkWriterConfig)
+            .Do(BIND(addMaybeOpaqueItem, options.HunkWriterConfig))
         .Item("hunk_writer_options")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.HunkWriterOptions)
+            .Do(BIND(addMaybeOpaqueItem, options.HunkWriterOptions))
         .Item("store_reader_config")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.StoreReaderConfig)
+            .Do(BIND(addMaybeOpaqueItem, options.StoreReaderConfig))
         .Item("hunk_reader_config")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.HunkReaderConfig);
+            .Do(BIND(addMaybeOpaqueItem, options.HunkReaderConfig));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

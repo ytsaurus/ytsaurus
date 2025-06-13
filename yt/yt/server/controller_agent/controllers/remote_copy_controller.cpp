@@ -23,6 +23,8 @@
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/iterator/concatenate.h>
 
 #include <library/cpp/yt/memory/non_null_ptr.h>
@@ -936,7 +938,7 @@ private:
                 subrequest->set_attribute(ToYPathLiteral(attribute));
                 auto value = InputTableAttributes_->GetYson(attribute);
                 ValidateYson(value, GetYsonNestingLevelLimit());
-                subrequest->set_value(value.ToString());
+                subrequest->set_value(ToProto(value));
             }
 
             batchReq->AddRequest(req);
@@ -953,7 +955,7 @@ private:
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(
             TJobSpecExt::job_spec_ext);
 
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ToProto(ConvertToYsonString(JobIOConfig_)));
         jobSpecExt->set_table_reader_options("");
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
@@ -979,7 +981,7 @@ private:
 
         auto* remoteCopyJobSpecExt = JobSpecTemplate_.MutableExtension(TRemoteCopyJobSpecExt::remote_copy_job_spec_ext);
         auto connectionNode = ConvertToNode(connectionConfig)->AsMap();
-        remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionNode).ToString());
+        remoteCopyJobSpecExt->set_connection_config(ToProto(ConvertToYsonString(connectionNode)));
         remoteCopyJobSpecExt->set_concurrency(Spec_->Concurrency);
         remoteCopyJobSpecExt->set_block_buffer_size(Spec_->BlockBufferSize);
         remoteCopyJobSpecExt->set_delay_in_copy_chunk(ToProto(Spec_->DelayInCopyChunk));

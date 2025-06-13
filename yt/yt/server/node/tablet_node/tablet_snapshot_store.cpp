@@ -507,7 +507,7 @@ private:
                     .Item("stores").DoMapFor(snapshot->OrderedStores, [&] (auto fluent, const IStorePtr& store) {
                         fluent
                             .Item(ToString(store->GetId()))
-                            .Do(BIND(&TTabletSnapshotStore::BuildStoreOrchidYson, Unretained(this), store));
+                            .Do(BIND(&IStore::BuildOrchidYson, store, /*opaque*/ true));
                     });
             })
             .DoIf(!snapshot->Replicas.empty(), [&] (auto fluent) {
@@ -544,19 +544,8 @@ private:
             .Item("stores").DoMapFor(partition->Stores, [&] (auto fluent, const IStorePtr& store) {
                 fluent
                     .Item(ToString(store->GetId()))
-                    .Do(BIND(&TTabletSnapshotStore::BuildStoreOrchidYson, Unretained(this), store));
+                    .Do(BIND(&IStore::BuildOrchidYson, store, /*opaque*/ true));
             });
-    }
-
-    void BuildStoreOrchidYson(const IStorePtr& store, TFluentAny fluent) const
-    {
-        fluent
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .BeginMap()
-                .Do(BIND(&IStore::BuildOrchidYson, store))
-            .EndMap();
     }
 
     void BuildReplicaOrchidYson(const TTableReplicaSnapshotPtr& replica, TFluentAny fluent) const

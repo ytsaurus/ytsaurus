@@ -46,6 +46,8 @@
 #include <yt/yt/core/ypath/helpers.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <util/generic/algorithm.h>
 
 namespace NYT::NApi::NNative {
@@ -1365,7 +1367,7 @@ void TClient::DoSetNode(
     YT_VERIFY(value.GetType() == EYsonType::Node);
     auto binarizedValue = ConvertToYsonStringNestingLimited(value, nestingLevelLimit);
 
-    req->set_value(binarizedValue.ToString());
+    req->set_value(ToProto(binarizedValue));
 
     req->set_recursive(options.Recursive);
     req->set_force(options.Force);
@@ -1404,7 +1406,7 @@ void TClient::DoMultisetAttributesNode(
         auto* protoSubrequest = req->add_subrequests();
         protoSubrequest->set_attribute(ToProto(attribute));
         auto binarizedValue = ConvertToYsonStringNestingLimited(value, nestingLevelLimit);
-        protoSubrequest->set_value(binarizedValue.ToString());
+        protoSubrequest->set_value(ToProto(binarizedValue));
     }
 
     batchReq->AddRequest(req);

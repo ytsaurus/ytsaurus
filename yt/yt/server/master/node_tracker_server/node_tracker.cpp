@@ -91,6 +91,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <library/cpp/yt/containers/expiring_set.h>
@@ -2376,7 +2378,7 @@ private:
         request.set_node_id(ToProto(node->GetId()));
         ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
         ToProto(request.mutable_tags(), node->NodeTags());
-        request.set_cypress_annotations(node->GetAnnotations().ToString());
+        request.set_cypress_annotations(ToProto(node->GetAnnotations()));
         request.set_build_version(node->GetVersion());
         ToProto(request.mutable_flavors(), node->Flavors());
 
@@ -2492,7 +2494,7 @@ private:
         request.set_node_id(ToProto(node->GetId()));
         ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
         ToProto(request.mutable_tags(), node->NodeTags());
-        request.set_cypress_annotations(node->GetAnnotations().ToString());
+        request.set_cypress_annotations(ToProto(node->GetAnnotations()));
         request.set_build_version(node->GetVersion());
         ToProto(request.mutable_flavors(), node->Flavors());
 

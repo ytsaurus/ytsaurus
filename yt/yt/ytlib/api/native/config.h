@@ -296,6 +296,7 @@ struct TConnectionDynamicConfig
     TDuration DefaultListJobsTimeout;
     TDuration DefaultGetJobTimeout;
     TDuration DefaultListOperationsTimeout;
+    TDuration DefaultListOperationEventsTimeout;
     TDuration DefaultPullRowsTimeout;
     TDuration DefaultSyncAlienCellsTimeout;
     TDuration DefaultChaosNodeServiceTimeout;
@@ -384,6 +385,9 @@ struct TConnectionDynamicConfig
     THashSet<std::string> BannedInSyncReplicaClusters;
 
     bool RequestFullStatisticsForBriefStatisticsInListJobs;
+
+    //! Enables strict access validation in operation info commands.
+    bool StrictOperationInfoAccessValidation;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 

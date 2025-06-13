@@ -2,14 +2,11 @@
 
 #include "config.h"
 #include "key_info.h"
-#include "key_store.h"
 #include "private.h"
 #include "signature_header.h"
 #include "signature_preprocess.h"
 
 #include <yt/yt/client/signature/signature.h>
-
-#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NSignature {
 
@@ -58,7 +55,7 @@ void TSignatureGenerator::DoSign(const TSignaturePtr& signature) const
     TKeyPairPtr signingKeyPair = KeyPair_.Acquire();
 
     if (!signingKeyPair) {
-        THROW_ERROR_EXCEPTION("Trying to sign with an uninitialized generator");
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransientFailure, "Signature generator is not ready yet");
     }
 
     auto keyInfo = signingKeyPair->KeyInfo();

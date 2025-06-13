@@ -38,10 +38,10 @@ yt select-rows "item_id FROM [//mytable] WHERE (user_id, order_id) IN ((1, 1), (
 
 ```sql
 * | <select-expr-1> [AS <select-alias-1>], <select-expr-2> [AS <select-alias-2>], ...
-FROM [//path/to/table] [JOIN [//path/to/rhs1] USING <column-1>, <column-2>, ...]
+FROM [//path/to/table] [WITH INDEX [//path/to/index/table]] [JOIN [//path/to/rhs1] USING <column-1>, <column-2>, ...]
 [WHERE <predicate-expr>]
-[GROUP BY <group-by-expr-1> [AS <group-by-alias-1>], <group-by-expr-2> [AS <group-by-alias-2], ...]
-[ORDER BY <column-1>, <column-2>, ...]
+[GROUP BY <group-by-expr-1> [AS <group-by-alias-1>], <group-by-expr-2> [AS <group-by-alias-2], ... [WITH TOTALS HAVING <having-expr> | HAVING <having-expr> WITH TOTALS | WITH TOTALS | HAVING <having-expr>]]
+[ORDER BY <order-by-expr-1> [ASC|DESC], <order-by-expr-2> [ASC|DESC], ...]
 [OFFSET <n>]
 [LIMIT <m>]
 ```
@@ -245,7 +245,7 @@ For the `[my.column-1], [my+column-2] from ...` query, the schema will be `"my.c
 If expressions without an alias (`AS name`) are specified in the query, and the columns contain special characters, square brackets will be added.
 For the `[my.column-1] + x, [my+column-2] from ...` query, the schema will be `"[my.column-1] + x", "my+column-2"`.
 
-### Synonyms { #synonims }
+### Synonyms { #synonyms }
 Expressions can be named using the AS keyword. Synonym support is implemented similarly to [ClickHouse](https://clickhouse.yandex). Unlike standard SQL, synonyms can be declared not only at the top level of expressions: `((1 as x) + x) as y`. In addition, synonyms can be used in all query sections. **For example**: `a from [...] group by x % 2 as a`.
 
 This behavior is compatible with standard SQL as long as no synonyms are used that overlap the column names of the source tables.
@@ -316,6 +316,9 @@ Checks whether the `p` string is the `t` prefix.
 `lower(s) :: string -> string`
 Converts the `s` string to the lower case.
 
+`concat(lhs, rhs) :: string -> string -> string`
+Concatenates two strings.
+
 #### Accessing containers
 
 If a table column has the `Composite` data type, you can use the following syntax to access that column's fields:
@@ -384,7 +387,7 @@ The query language provides a set of functions for extracting data:
     The lists must be homogeneous.
     This function is supported on clusters version 24.2 or higher.
 4. `any_to_yson_string(yson) :: any -> string`
-    Converts a value of the `any` type into a string containing its binary [YSON](../../../user-guide/storage/yson.md) representation.
+    Converts a value of the `any` type into a string containing its text [YSON](../../../user-guide/storage/yson.md) representation.
 5. `yson_length(yson) :: any -> int64`
     Calculates the number of elements in a list or map.
 
@@ -475,17 +478,21 @@ Calculates [FarmHash](https://code.google.com/p/farmhash/) from the specified se
 `double(x) :: any | int64 | uint64 | double -> double`
 `boolean(x) :: any -> boolean`
 `string(x) :: any -> string`
-Converts the `x` numeric argument to the target type. Rounding and overflow rules are standard and C-like.
+Converts the `x` numeric argument to the target type. Rounding and overflow rules are standard and C-like. Starting with version 25.2, attempting to convert a floating-point number into an integer type will throw an error if that number is outside the valid range of that integer type.
 
-To convert a numeric type to a string, there is a function:
+To convert a numeric type into a string, use this function:
 `numeric_to_string :: int64 | uint64 | double -> string`
-To convert a string to a number:
+
+To convert a string into a number:
 `parse_int64 :: string -> int64`
 `parse_uint64 :: string -> uint64`
 `parse_double :: string -> double`
 
 Any type can be cast to `any`:
 `to_any :: int64 | uint64 | double | boolean | string | any -> any`
+
+`yson_string_to_any :: string -> any`
+Parses, validates, and converts a string value into a value of the `any` type.
 
 #### NULL value
 In most operators, using `NULL` values in operands results in a `NULL` value. Comparison operators have a different behavior. The result in them is always `boolean`. This is to ensure that the behavior of comparison operations is the same both when ordering data in the table by key and when calculating expressions within a query. The need to compare with `NULL` is due to the desire to make the order relation on the keys complete. `NULL` is considered less than the other values.
@@ -543,7 +550,6 @@ Let the table have key columns: `a, b, c`.
     ```
     [[1, 20] .. [1, 30]]
     ```
-
 - For the `a = 1 and b = 2 and c between 40 and 60` predicate, the following range will be output:
     ```
     [[1, 2, 40] .. [1, 2, 60]]
@@ -602,7 +608,7 @@ JOIN is executed in a special way when the master table and the reference table 
 ## Debugging a query { #query_debug }
 
 ### Execution statistics { #execution_stat }
-You can specify the `--print-statistics` option in the CLI. The statistics will be printed as follows:
+You can specify the `--print-statistics` option in the CLI. The statistics will be output as follows:
 ```yson
 {
   "incomplete_output" = %false;

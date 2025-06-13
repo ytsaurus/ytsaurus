@@ -15,6 +15,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NYson;
@@ -77,7 +79,7 @@ private:
         Client_->SetMutationId(req, options);
         ToProto(req->mutable_replication_card_ids(), replicationCardIds);
         if (maybeCollocationOptions) {
-            req->set_options(ConvertToYsonString(*maybeCollocationOptions).ToString());
+            req->set_options(ToProto(ConvertToYsonString(*maybeCollocationOptions)));
         }
         req->SetTimeout(options.Timeout.value_or(Client_->GetNativeConnection()->GetConfig()->DefaultChaosNodeServiceTimeout));
 

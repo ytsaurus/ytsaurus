@@ -24,9 +24,9 @@ def build_efficiency_rowset():
         .aggr(MonitoringTag("host"), "table_path", "table_tag", "account", "medium", "method"))
 
     disk_read = lambda method: MonitoringExpr(NodeTablet(f"yt.tablet_node.{method}.chunk_reader_statistics.data_bytes_read_from_disk.rate")
-        .aggr(MonitoringTag("host"), "table_path", "table_tag", "user"))
+        .aggr(MonitoringTag("host"), "table_path", "table_tag", "user", "medium"))
     method_read = lambda method: MonitoringExpr(NodeTablet(f"yt.tablet_node.{method}.data_weight.rate")
-        .aggr(MonitoringTag("host"), "table_path", "table_tag", "user"))
+        .aggr(MonitoringTag("host"), "table_path", "table_tag", "user", "medium"))
     decompression_cpu_time = lambda method: MonitoringExpr(NodeTablet(f"yt.tablet_node.{method}.decompression_cpu_time.rate")
         .aggr(MonitoringTag("host"), "table_path", "table_tag", "user"))
     method_cpu = lambda method: MonitoringExpr(NodeTablet(f"yt.tablet_node.{method}.cumulative_cpu_time.rate")

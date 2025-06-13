@@ -23,6 +23,8 @@
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
@@ -34,6 +36,8 @@ using namespace NObjectClient;
 using namespace NTabletClient;
 using namespace NSecurityClient;
 using namespace NTransactionClient;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +64,7 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
         req->set_user(ToProto(*user));
     }
     req->set_permission(ToProto(permission));
-    req->set_acl(ConvertToYsonString(acl).ToString());
+    req->set_acl(ToProto(ConvertToYsonString(acl)));
     req->set_ignore_missing_subjects(options.IgnoreMissingSubjects);
     SetCachingHeader(req, options);
 
@@ -255,7 +259,7 @@ void TClient::DoTransferAccountResources(
 
     auto req = TAccountYPathProxy::TransferAccountResources(GetAccountPath(dstAccount));
     req->set_src_account(srcAccount);
-    req->set_resource_delta(ConvertToYsonString(resourceDelta).ToString());
+    req->set_resource_delta(ToProto(ConvertToYsonString(resourceDelta)));
     SetMutationId(req, options);
 
     batchReq->AddRequest(req);

@@ -14,7 +14,7 @@ struct IMasterConnector
     virtual void Start() = 0;
 
     // Thread affinity: any.
-    virtual bool IsRegistered() const = 0;
+    virtual bool IsUp() const = 0;
     virtual void ValidateRegistration() const = 0;
 
     // Throws iff proxy is not registered.

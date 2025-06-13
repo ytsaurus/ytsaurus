@@ -55,7 +55,7 @@ public:
     void Save(TSaveContext& context) const override;
     void Load(TLoadContext& context) override;
 
-    void BuildOrchidYson(NYTree::TFluentMap fluent) override;
+    void BuildOrchidYson(bool opaque, NYTree::TFluentAny fluent) override final;
 
     const NLogging::TLogger& GetLogger() const;
 
@@ -92,6 +92,8 @@ protected:
     void SetDynamicMemoryUsage(i64 value);
 
     void PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor) override;
+
+    virtual void DoBuildOrchidYson(NYTree::TFluentMap fluent);
 
 private:
     i64 DynamicMemoryUsage_ = 0;
@@ -141,8 +143,6 @@ public:
     TInstant GetLastFlushAttemptTimestamp() const override;
     void UpdateFlushAttemptTimestamp() override;
 
-    void BuildOrchidYson(NYTree::TFluentMap fluent) override;
-
     bool IsDynamic() const override;
     IDynamicStorePtr AsDynamic() override;
 
@@ -175,6 +175,9 @@ protected:
     EMemoryCategory GetMemoryCategory() const override;
 
     void PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor) override;
+
+    void DoBuildOrchidYson(NYTree::TFluentMap fluent) override;
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -212,8 +215,6 @@ public:
 
     TCallback<void(TSaveContext&)> AsyncSave() override;
     void AsyncLoad(TLoadContext& context) override;
-
-    void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
     // IChunkStore implementation.
     TInstant GetCreationTime() const override;
@@ -307,6 +308,8 @@ protected:
     TTabletStoreReaderConfigPtr GetReaderConfig();
 
     void PopulateAddStoreDescriptor(NProto::TAddStoreDescriptor* descriptor) override;
+
+    void DoBuildOrchidYson(NYTree::TFluentMap fluent) override;
 
 private:
     const IBackendChunkReadersHolderPtr BackendReadersHolder_;
