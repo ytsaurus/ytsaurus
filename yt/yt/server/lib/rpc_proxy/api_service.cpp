@@ -7160,12 +7160,6 @@ private:
         }
 
         TShuffleWriterOptions options;
-        options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(
-            request->has_writer_config()
-            ? request->writer_config()
-            : "{}"));
-
-
         options.Config = request->has_writer_config()
             ? ConvertTo<TTableWriterConfigPtr>(TYsonString(request->writer_config()))
             : New<TTableWriterConfig>();
