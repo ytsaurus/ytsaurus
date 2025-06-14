@@ -7,7 +7,7 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 
-#include <yt/yt/core/logging/log.h>
+#include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/misc/proc.h>
 
@@ -21,45 +21,70 @@ namespace NYT::NTabletNode {
 
 using namespace NThreading;
 using namespace NConcurrency;
+using namespace NLogging;
 using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static auto Logger = TabletNodeLogger().WithTag("OverloadController");
 static const TString CpuThrottlingTrackerName = "CpuThrottling";
+static const TString LogDropTrackerName = "LogDrop";
 static const TString ControlGroupCpuName = "cpu";
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IMeanWaitTimeTracker
-    : public TRefCounted
-{
-    virtual TDuration GetAndReset() = 0;
-    virtual const TString& GetType() const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IMeanWaitTimeTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_REFCOUNTED_TYPE(TOverloadController::TState);
 
-class TMeanWaitTimeTracker
-    : public IMeanWaitTimeTracker
+////////////////////////////////////////////////////////////////////////////////
+
+class TOverloadTracker
+    : public TRefCounted
 {
 public:
-    TMeanWaitTimeTracker(TStringBuf trackerType, TStringBuf trackerId)
-        : Type_(std::move(trackerType))
-        , Id_(std::move(trackerId))
-        , Counter_(New<TPerCpuDurationSummary>())
+    TOverloadTracker(TStringBuf type, TStringBuf id)
+        : Type_(type)
+        , Id_(id)
     { }
+
+    virtual bool CalculateIsOverloaded(const TOverloadTrackerConfig& config) = 0;
+
+    const TString& GetType() const
+    {
+        return Type_;
+    }
+
+protected:
+    const TString Type_;
+    const TString Id_;
+
+    TCounter Overloaded_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TOverloadTracker);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMeanWaitTimeTracker
+    : public TOverloadTracker
+{
+public:
+    TMeanWaitTimeTracker(TStringBuf type, TStringBuf id, const TProfiler& profiler)
+        : TOverloadTracker(type, id)
+        , Counter_(New<TPerCpuDurationSummary>())
+    {
+        auto taggedProfiler = profiler.WithTag("tracker", std::string(Id_));
+
+        Overloaded_ = taggedProfiler.Counter("/overloaded");
+        MeanWaitTime_ = profiler.Timer("/mean_wait_time");
+        MeanWaitTimeThreshold_ = profiler.TimeGauge("/mean_wait_time_threshold");
+    }
 
     void Record(TDuration waitTime)
     {
         Counter_->Record(waitTime);
     }
 
-    TDuration GetAndReset() override
+    virtual bool CalculateIsOverloaded(const TOverloadTrackerConfig& config) override
     {
         auto summary = Counter_->GetSummaryAndReset();
         TDuration meanValue;
@@ -75,20 +100,28 @@ public:
             summary.Count(),
             meanValue);
 
-        return meanValue;
+        return ProfileAndGetOverloaded(meanValue, config.TryGetConcrete<TOverloadTrackerMeanWaitTimeConfig>());
     }
 
-    const TString& GetType() const override
+protected:
+    bool ProfileAndGetOverloaded(TDuration meanValue, const TOverloadTrackerMeanWaitTimeConfigPtr& config)
     {
-        return Type_;
+        bool overloaded = meanValue > config->MeanWaitTimeThreshold;
+
+        Overloaded_.Increment(static_cast<int>(overloaded));
+        MeanWaitTime_.Record(meanValue);
+        MeanWaitTimeThreshold_.Update(config->MeanWaitTimeThreshold);
+
+        return overloaded;
     }
 
 private:
     using TPerCpuDurationSummary = TPerCpuSummary<TDuration>;
 
-    const TString Type_;
-    const TString Id_;
     TIntrusivePtr<TPerCpuDurationSummary> Counter_;
+
+    TEventTimer MeanWaitTime_;
+    TTimeGauge MeanWaitTimeThreshold_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMeanWaitTimeTracker);
@@ -96,15 +129,12 @@ DEFINE_REFCOUNTED_TYPE(TMeanWaitTimeTracker);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TContainerCpuThrottlingTracker
-    : public IMeanWaitTimeTracker
+    : public TMeanWaitTimeTracker
 {
 public:
-    TContainerCpuThrottlingTracker(TStringBuf trackerType, TStringBuf trackerId)
-        : Type_(std::move(trackerType))
-        , Id_(std::move(trackerId))
-    { }
+    using TMeanWaitTimeTracker::TMeanWaitTimeTracker;
 
-    TDuration GetAndReset() override
+    bool CalculateIsOverloaded(const TOverloadTrackerConfig& config) override
     {
         auto cpuStats = GetStats();
         if (!cpuStats) {
@@ -127,17 +157,10 @@ public:
 
         LastCpuStats_ = cpuStats;
 
-        return throttlingTime;
-    }
-
-    const TString& GetType() const override
-    {
-        return CpuThrottlingTrackerName;
+        return ProfileAndGetOverloaded(throttlingTime, config.TryGetConcrete<TOverloadTrackerMeanWaitTimeConfig>());
     }
 
 private:
-    const TString Type_;
-    const TString Id_;
     std::optional<TCgroupCpuStat> LastCpuStats_;
     bool CgroupErrorLogged_ = false;
 
@@ -162,6 +185,50 @@ private:
         return {};
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TContainerCpuThrottlingTracker);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLogDropTracker
+    : public TOverloadTracker
+{
+public:
+    TLogDropTracker(TStringBuf type, TStringBuf id, const TProfiler& profiler)
+        : TOverloadTracker(type, id)
+    {
+        auto taggedProfiler = profiler.WithTag("tracker", std::string(Id_));
+
+        Overloaded_ = taggedProfiler.Counter("/overloaded");
+        BacklogQueueFillFraction_ = profiler.Gauge("/backlog_queue_fill_fraction");
+        BacklogQueueFillFractionThreshold_ = profiler.Gauge("/backlog_queue_fill_fraction_threshold");
+    }
+
+    bool CalculateIsOverloaded(const TOverloadTrackerConfig& config) override
+    {
+        double BacklogQueueFillFraction = TLogManager::Get()->GetBacklogQueueFillFraction();
+
+        YT_LOG_DEBUG("Reporting logging queue filling fraction "
+            "(BacklogQueueFillFraction: %v)",
+            BacklogQueueFillFraction);
+
+        const auto& logDropConfig = config.TryGetConcrete<TOverloadTrackerBacklogQueueFillFractionConfig>();
+
+        bool overloaded = BacklogQueueFillFraction > logDropConfig->BacklogQueueFillFractionThreshold;
+
+        Overloaded_.Increment(static_cast<int>(overloaded));
+        BacklogQueueFillFraction_.Update(BacklogQueueFillFraction);
+        BacklogQueueFillFractionThreshold_.Update(logDropConfig->BacklogQueueFillFractionThreshold);
+
+        return overloaded;
+    }
+
+private:
+    TGauge BacklogQueueFillFraction_;
+    TGauge BacklogQueueFillFractionThreshold_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TLogDropTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -295,6 +362,7 @@ TOverloadController::TOverloadController(TOverloadControllerConfigPtr config)
 {
     State_.Config = std::move(config);
     CreateGenericTracker<TContainerCpuThrottlingTracker>(CpuThrottlingTrackerName);
+    CreateGenericTracker<TLogDropTracker>(LogDropTrackerName);
     UpdateStateSnapshot(State_, Guard(SpinLock_));
 }
 
@@ -322,7 +390,7 @@ IInvoker::TWaitTimeObserver TOverloadController::CreateGenericWaitTimeObserver(T
     });
 }
 
-template <typename TTracker>
+template <class TTracker>
 TIntrusivePtr<TTracker> TOverloadController::CreateGenericTracker(TStringBuf trackerType, std::optional<TStringBuf> id)
 {
     YT_LOG_DEBUG("Creating overload tracker (TrackerType: %v, Id: %v)",
@@ -331,16 +399,13 @@ TIntrusivePtr<TTracker> TOverloadController::CreateGenericTracker(TStringBuf tra
 
     auto trackerId = id.value_or(trackerType);
 
-    auto tracker = New<TTracker>(trackerType, trackerId);
-    // TODO(babenko): switch to std::string
     auto profiler = Profiler.WithTag("tracker", std::string(trackerId));
 
+    auto tracker = New<TTracker>(trackerType, trackerId, profiler);
+
     auto guard = Guard(SpinLock_);
+
     State_.Trackers[trackerId] = tracker;
-    auto& sensors = State_.TrackerSensors[trackerId];
-    sensors.Overloaded = profiler.Counter("/overloaded");
-    sensors.MeanWaitTime = profiler.Timer("/mean_wait_time");
-    sensors.MeanWaitTimeThreshold = profiler.TimeGauge("/mean_wait_time_threshold");
 
     UpdateStateSnapshot(State_, std::move(guard));
 
@@ -445,14 +510,9 @@ void TOverloadController::DoAdjust(const THazardPtr<TState>& state)
             continue;
         }
 
-        auto movingMeanValue = tracker->GetAndReset();
-        bool trackerOverloaded = movingMeanValue > trackerIt->second->MeanWaitTimeThreshold;
+        const auto& trackerConfig = trackerIt->second;
 
-        if (auto it = state->TrackerSensors.find(trackerId); it != state->TrackerSensors.end()) {
-            it->second.Overloaded.Increment(static_cast<int>(trackerOverloaded));
-            it->second.MeanWaitTime.Record(movingMeanValue);
-            it->second.MeanWaitTimeThreshold.Update(trackerIt->second->MeanWaitTimeThreshold);
-        }
+        auto trackerOverloaded = tracker->CalculateIsOverloaded(trackerConfig);
 
         if (!trackerOverloaded) {
             continue;
