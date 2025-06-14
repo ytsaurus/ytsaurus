@@ -3376,7 +3376,7 @@ def create_table(path, force=None, dynamic=None, schema=None):
     return create("table", path, **kwargs)
 
 
-def create_dynamic_table(path, schema=None, driver=None, **attributes):
+def create_dynamic_table(path, schema=None, driver=None, return_response=False, **attributes):
     if "dynamic" not in attributes:
         attributes.update({"dynamic": True})
 
@@ -3386,7 +3386,7 @@ def create_dynamic_table(path, schema=None, driver=None, **attributes):
         del attributes["enable_dynamic_store_read"]
 
     attributes.update({"schema": schema})
-    return create("table", path, attributes=attributes, driver=driver)
+    return create("table", path, attributes=attributes, driver=driver, return_response=return_response)
 
 
 def create_area(name, **kwargs):

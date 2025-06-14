@@ -6890,7 +6890,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                         backupState);
                 }
 
-                if (UserTransactionId_) {
+                if (UserTransactionId_ && !Config_->AllowBulkInsertUnderUserTransaction) {
                     THROW_ERROR_EXCEPTION(
                         "Operations with output to dynamic tables cannot be run under user transaction")
                         << TErrorAttribute("user_transaction_id", UserTransactionId_);
