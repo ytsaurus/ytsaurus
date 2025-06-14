@@ -94,7 +94,8 @@ void TChunkList::CheckInvariants(TBootstrap* bootstrap) const
     if (kind == EChunkListKind::SortedDynamicTablet || kind == EChunkListKind::OrderedDynamicTablet) {
         for (auto parent : Parents_) {
             if (kind == EChunkListKind::SortedDynamicTablet) {
-                YT_VERIFY(parent->GetKind() == EChunkListKind::SortedDynamicRoot);
+                auto parentKind = parent->GetKind();
+                YT_VERIFY(parentKind == EChunkListKind::SortedDynamicRoot || parentKind == EChunkListKind::SortedDynamicTablet);
             } else {
                 YT_VERIFY(parent->GetKind() == EChunkListKind::OrderedDynamicRoot);
             }
@@ -216,6 +217,32 @@ TKeyBound TChunkList::GetPivotKeyBound() const
     return PivotKey_
         ? TKeyBound::FromRow() >= PivotKey_
         : TKeyBound::MakeUniversal(/*isUpper*/ false);
+}
+
+bool TChunkList::IsNewAppendTabletChunkList() const
+{
+    if (Children_.empty()) {
+        return false;
+    }
+
+    const auto& child = Children_.front();
+    return child->GetType() == EObjectType::ChunkList && child->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicTablet;
+}
+
+TChunkList::TAppendTabletChunkLists TChunkList::GetAppendTabletChunkLists() const
+{
+    YT_VERIFY(Kind_ == EChunkListKind::SortedDynamicTablet);
+    YT_VERIFY(Children_.size() == 2);
+
+    TAppendTabletChunkLists appendTabletChunkLists{
+        .OriginatingChunkList = Children_[0]->AsChunkList(),
+        .DeltaChunkList = Children_[1]->AsChunkList(),
+    };
+
+    YT_VERIFY(appendTabletChunkLists.OriginatingChunkList->Kind_ == EChunkListKind::SortedDynamicTablet);
+    YT_VERIFY(appendTabletChunkLists.DeltaChunkList->Kind_ == EChunkListKind::SortedDynamicSubtablet);
+
+    return appendTabletChunkLists;
 }
 
 bool TChunkList::IsSealed() const

@@ -765,7 +765,8 @@ protected:
                 if (entry->LowerLimit.KeyBound() || entry->UpperLimit.KeyBound()) {
                     // NB: If child is a chunk list, its children can be unsorted, so we can't prune by lower or upper key bounds.
                     if (childType == EObjectType::ChunkList) {
-                        YT_ASSERT(child->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicSubtablet);
+                        auto kind = child->AsChunkList()->GetKind();
+                        YT_ASSERT(kind == EChunkListKind::SortedDynamicTablet || kind == EChunkListKind::SortedDynamicSubtablet);
                         childLowerLimit.KeyBound() = TOwningKeyBound::MakeUniversal(false);
                         childUpperLimit.KeyBound() = TOwningKeyBound::MakeUniversal(true);
                     } else {
@@ -926,7 +927,10 @@ protected:
                     childChunkListKind == EChunkListKind::Hunk ||
                     childChunkListKind == EChunkListKind::HunkRoot;
 
-                if (childChunkListKind != EChunkListKind::SortedDynamicSubtablet && !isHunkChunkList) {
+                if (childChunkListKind != EChunkListKind::SortedDynamicTablet &&
+                    childChunkListKind != EChunkListKind::SortedDynamicSubtablet &&
+                    !isHunkChunkList)
+                {
                     THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv",
                         childChunkList->GetId(),
                         childChunkListKind);
