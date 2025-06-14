@@ -25,25 +25,10 @@ ARG SERVER_IMAGE_BASE="base-server"
 
 ##########################################################################################
 
-FROM mirror.gcr.io/ubuntu:focal AS pprof-builder
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-# Install pprof
-ENV GO_VERSION=1.22.3
-ENV GO_TARBALL=go${GO_VERSION}.linux-amd64.tar.gz
-ENV GO_SHA256=8920ea521bad8f6b7bc377b4824982e011c19af27df88a815e3586ea895f1b36
-
-RUN apt-get update && \
-    apt-get install -y curl ca-certificates build-essential tar && \
-    curl -fsSL "https://go.dev/dl/${GO_TARBALL}" -o "${GO_TARBALL}" && \
-    echo "${GO_SHA256}  ${GO_TARBALL}" | sha256sum -c - && \
-    tar -C /usr/local -xzf "${GO_TARBALL}" && \
-    rm "${GO_TARBALL}"
-
-ENV GOPATH=/go
-ENV PATH="${GOPATH}/bin:/usr/local/go/bin:${PATH}"
-RUN CGO_ENABLED=0 go install github.com/google/pprof@v0.0.0-20200417002340-c6e0a841f49a
+FROM mirror.gcr.io/golang:1.22.12@sha256:1cf6c45ba39db9fd6db16922041d074a63c935556a05c5ccb62d181034df7f02 AS pprof-builder
+ENV CGO_ENABLED=0
+ENV GOBIN=/
+RUN go install github.com/google/pprof@v0.0.0-20200417002340-c6e0a841f49a
 
 ##########################################################################################
 
@@ -128,7 +113,7 @@ rm -rf /var/lib/apt/lists/*
 
 EOT
 
-COPY --from=pprof-builder /go/bin/pprof /usr/local/bin/pprof
+COPY --from=pprof-builder /pprof /usr/local/bin/pprof
 
 ##########################################################################################
 
