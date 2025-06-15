@@ -68,7 +68,6 @@ protected:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, PrefetchLock_);
     int PrefetchIndex_ = 0;
-    bool CreatingReader_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, FailedChunksLock_);
     THashSet<TChunkId> FailedChunks_;
