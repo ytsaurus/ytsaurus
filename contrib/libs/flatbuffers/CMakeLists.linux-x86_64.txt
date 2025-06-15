@@ -31,7 +31,6 @@ target_include_directories(contrib-libs-flatbuffers PRIVATE
 target_link_libraries(contrib-libs-flatbuffers PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
-  abseil-cpp-absl-base
 )
 
 target_sources(contrib-libs-flatbuffers PRIVATE
