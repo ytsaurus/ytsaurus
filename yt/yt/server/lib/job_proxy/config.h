@@ -20,6 +20,7 @@
 #include <yt/yt/library/containers/config.h>
 
 #include <yt/yt/library/containers/cri/config.h>
+#include <yt/yt/library/containers/cri/cri_executor.h>
 
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 
@@ -302,6 +303,9 @@ struct TCriJobEnvironmentConfig
 
     //! Do not bind mount jobproxy binary into container
     bool UseJobProxyFromImage;
+
+    NContainers::NCri::TCriPodDescriptorPtr PodDescriptor;
+    NContainers::NCri::TCriPodSpecPtr PodSpec;
 
     REGISTER_YSON_STRUCT(TCriJobEnvironmentConfig);
 

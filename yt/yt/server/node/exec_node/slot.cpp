@@ -163,6 +163,22 @@ public:
                     TDelayedExecutor::WaitForDuration(*delay);
                 }
 
+                // Enrich the job proxy configuration file with CRI environment pod configuration parameters.
+                // Probably, it's not the best place and way to do so, but before this point we do not have access
+                // to the JobEnvironment, and after this point the configuration file is saved on the disk.
+                // TODO: decide if we want to move this logic somewhere and/or change it.
+                auto containerEnv = JobEnvironment_->GetContainerEnvironment(SlotIndex_);
+                if (auto criContainerEnv = DynamicPointerCast<TContainerEnvironmentCri>(containerEnv); containerEnv)
+                {
+                    auto criJobEnv = config->JobEnvironment.TryGetConcrete<NJobProxy::TCriJobEnvironmentConfig>();
+                    if (!criJobEnv) {
+                        THROW_ERROR_EXCEPTION("CRI container environment is set but not the CRI job environment");
+                    }
+
+                    criJobEnv->PodDescriptor = std::move(criContainerEnv->PodDescriptor);
+                    criJobEnv->PodSpec = std::move(criContainerEnv->PodSpec);
+                }
+
                 YT_LOG_DEBUG("Start making job proxy config (JobId: %v)", jobId);
 
                 {
