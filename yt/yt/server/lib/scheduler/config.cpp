@@ -469,7 +469,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("infer_weight_from_guarantees_share_multiplier", &TThis::InferWeightFromGuaranteesShareMultiplier)
         .Alias("infer_weight_from_strong_guarantee_share_multiplier")
-        .Alias("infer_weight_from_min_share_ratio_multiplier")
         .Default()
         .GreaterThanOrEqual(1.0);
 
