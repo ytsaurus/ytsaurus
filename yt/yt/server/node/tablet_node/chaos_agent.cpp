@@ -270,8 +270,7 @@ private:
 
         YT_LOG_DEBUG("Committing replication era advance (NewReplicationEra: %v, OldReplicationEra: %v)",
             newEra,
-            snapshotEra
-        );
+            snapshotEra);
 
         auto mutation = CreateMutation(Slot_->GetSimpleHydraManager(), req);
         WaitFor(mutation->Commit())
