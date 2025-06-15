@@ -11,9 +11,9 @@ LICENSE(
 
 LICENSE_TEXTS(.yandex_meta/licenses.list.txt)
 
-VERSION(3.1.0)
+VERSION(3.1.1)
 
-ORIGINAL_SOURCE(https://github.com/libjpeg-turbo/libjpeg-turbo/archive/3.1.0.tar.gz)
+ORIGINAL_SOURCE(https://github.com/libjpeg-turbo/libjpeg-turbo/archive/3.1.1.tar.gz)
 
 ADDINCL(
     contrib/libs/libjpeg-turbo

@@ -4,7 +4,7 @@ PROGRAM()
 
 WITHOUT_LICENSE_TEXTS()
 
-VERSION(3.1.0)
+VERSION(3.1.1)
 
 PEERDIR(
     contrib/libs/libjpeg-turbo
