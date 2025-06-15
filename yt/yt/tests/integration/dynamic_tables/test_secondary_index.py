@@ -811,6 +811,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 @pytest.mark.enabled_multidaemon
 class TestSecondaryIndexModifications(TestSecondaryIndexBase):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 2
 
     def _insert_rows(self, rows, table="//tmp/table", **kwargs):
         insert_rows(table, rows, **kwargs)
