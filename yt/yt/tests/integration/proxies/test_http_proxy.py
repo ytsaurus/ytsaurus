@@ -921,11 +921,9 @@ class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
 
 class TestHttpProxyAuth(HttpProxyTestBase):
     @classmethod
-    def setup_class(cls):
-        cls.DELTA_PROXY_CONFIG["auth"] = {
-            "enable_authentication": True,
-        }
-        super(TestHttpProxyAuth, cls).setup_class()
+    def modify_proxy_config(cls, configs):
+        for config in configs:
+            config["auth"]["enable_authentication"] = True
 
     def create_user_with_token(self, user):
         create_user(user)
@@ -1840,7 +1838,7 @@ class TestHttpProxyDiscovery(YTEnvSetup):
         self.driver = Driver(driver_config)
 
     @classmethod
-    def modify_proxy_config(cls, multidaemon_config, configs):
+    def modify_proxy_config(cls, configs):
         for config in configs:
             addresses = [["default", "localhost"], ["fastbone", "fb-localhost"]]
             config["addresses"] = addresses

@@ -71,6 +71,14 @@ TError CheckCsrfToken(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError EnsureUserExists(
+    bool createIfNotExists,
+    const ICypressUserManagerPtr& userManager,
+    const std::string& name,
+    const std::vector<std::string>& tags);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NAuth
 
 #define HELPERS_INL_H_

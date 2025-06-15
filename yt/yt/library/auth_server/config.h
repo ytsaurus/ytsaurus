@@ -162,6 +162,7 @@ class TOAuthAuthenticatorConfig
 public:
     //! Creates a new user if it doesn't exist. User name is taken from the "Login" field.
     bool CreateUserIfNotExists;
+    std::vector<std::string> DefaultUserTags;
 
     REGISTER_YSON_STRUCT(TOAuthAuthenticatorConfig);
 
@@ -322,11 +323,31 @@ DEFINE_REFCOUNTED_TYPE(TCachingCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(psushin): replace with TAsyncExpiringCache after migration.
+class TUserExistenceCheckCacheConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    TDuration ExpireAfterAccessTime;
+    TDuration ExpireAfterSuccessfulUpdateTime;
+
+    TAsyncExpiringCacheConfigPtr ToAsyncExpiringCacheConfig() const;
+
+    REGISTER_YSON_STRUCT(TUserExistenceCheckCacheConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserExistenceCheckCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCachingCypressUserManagerConfig
     : public TCypressUserManagerConfig
 {
 public:
-    TAuthCacheConfigPtr Cache;
+    // COMPAT(psushin): replace with TAsyncExpiringCache after migration.
+    TUserExistenceCheckCacheConfigPtr Cache;
 
     REGISTER_YSON_STRUCT(TCachingCypressUserManagerConfig);
 
@@ -506,6 +527,8 @@ public:
 
     bool CheckUserExists;
     bool CreateUserIfNotExists;
+
+    std::vector<std::string> DefaultUserTags;
 
     bool RetryAllServerErrors;
     std::vector<int> RetryStatusCodes;

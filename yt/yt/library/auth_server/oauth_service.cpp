@@ -59,7 +59,7 @@ public:
         , OAuthCallTime_(profiler.Timer("/oauth_call_time"))
     { }
 
-    TFuture<TOAuthUserInfoResult> GetUserInfo(const TString& accessToken) override
+    TFuture<TOAuthUserInfoResult> GetUserInfo(const std::string& accessToken) override
     {
         return BIND(&TOAuthService::DoGetUserInfo, MakeStrong(this), accessToken)
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
@@ -82,7 +82,7 @@ private:
         return config;
     }
 
-    TOAuthUserInfoResult DoGetUserInfo(const TString& accessToken)
+    TOAuthUserInfoResult DoGetUserInfo(const std::string& accessToken)
     {
         OAuthCalls_.Increment();
 
@@ -125,7 +125,7 @@ private:
         }
 
         const auto& formattedResponse = jsonResponseChecker->GetFormattedResponse()->AsMap();
-        auto login = formattedResponse->GetChildValueOrThrow<TString>(Config_->UserInfoLoginField);
+        auto login = formattedResponse->GetChildValueOrThrow<std::string>(Config_->UserInfoLoginField);
         for (const auto& transformation : Config_->LoginTransformations) {
             auto loginBeforeTransformation = login;
             auto replacementCount = RE2::GlobalReplace(
@@ -145,7 +145,7 @@ private:
         };
 
         if (Config_->UserInfoSubjectField) {
-            userInfo.Subject = formattedResponse->GetChildValueOrThrow<TString>(*Config_->UserInfoSubjectField);
+            userInfo.Subject = formattedResponse->GetChildValueOrThrow<std::string>(*Config_->UserInfoSubjectField);
         }
 
         YT_LOG_DEBUG("OAuth user info obtained (Login: %v, Subject: %v)", userInfo.Login, userInfo.Subject);

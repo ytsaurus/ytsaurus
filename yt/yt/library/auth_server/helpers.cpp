@@ -1,4 +1,10 @@
 #include "helpers.h"
+#include "config.h"
+#include "private.h"
+
+#include "cypress_user_manager.h"
+
+#include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/core/crypto/crypto.h>
 
@@ -13,6 +19,7 @@
 
 namespace NYT::NAuth {
 
+using namespace NConcurrency;
 using namespace NCrypto;
 using namespace NYson;
 using namespace NYTree;
@@ -182,6 +189,53 @@ TError CheckCsrfToken(
     }
 
     return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError EnsureUserExists(
+    bool createIfNotExists,
+    const ICypressUserManagerPtr& userManager,
+    const std::string& name,
+    const std::vector<std::string>& tags)
+{
+    const auto& Logger = AuthLogger;
+
+    YT_LOG_DEBUG("Checking if user exists (Name: %v)", name);
+    auto result = WaitFor(userManager->CheckUserExists(name));
+    if (!result.IsOK()) {
+        auto error = TError("Failed to verify if user exists")
+            << TErrorAttribute("name", name)
+            << std::move(result);
+        YT_LOG_WARNING(error);
+        return error;
+    }
+
+    if (result.Value()) {
+        YT_LOG_DEBUG("User exists (Name: %v)", name);
+        return TError();
+    }
+
+    YT_LOG_DEBUG("User does not exist (Name: %v)", name);
+    if (!createIfNotExists) {
+        auto error = TError(NRpc::EErrorCode::InvalidCredentials, "User does not exist")
+            << TErrorAttribute("name", name);
+        return error;
+    }
+
+    YT_LOG_DEBUG("Creating user (Name: %v, Tags: %v)", name, tags);
+
+    auto userOrError = WaitFor(userManager->CreateUser(name, tags));
+    if (userOrError.IsOK()) {
+        YT_LOG_DEBUG("User created (Name: %v)", name);
+        return TError();
+    }
+
+    auto error = TError("Failed to create user")
+        << TErrorAttribute("name", name)
+        << std::move(userOrError);
+    YT_LOG_WARNING(error);
+    return error;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
