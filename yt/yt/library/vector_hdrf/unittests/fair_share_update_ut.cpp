@@ -1672,7 +1672,7 @@ TEST_F(TFairShareUpdateTest, TestStrongGuaranteeAndRelaxedPoolVsRelaxedPool)
     auto totalResourceLimits = CreateTotalResourceLimitsWith100CPU();
     auto rootElement = CreateRootElement();
 
-    auto strongAndRelaxedPool = CreateRelaxedPool("min_share_and_relaxed", /*flowCpu*/ 100.0, /*strongGuaranteeCpu*/ 40.0);
+    auto strongAndRelaxedPool = CreateRelaxedPool("strong_and_relaxed", /*flowCpu*/ 100.0, /*strongGuaranteeCpu*/ 40.0);
     strongAndRelaxedPool->AttachParent(rootElement.Get());
 
     auto relaxedPool = CreateRelaxedPool("relaxed", /*flowCpu*/ 100.0);
