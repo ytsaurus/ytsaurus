@@ -245,6 +245,9 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
         config->HttpServer->Port = config->Port;
     });
 
+    registrar.Parameter("addresses", &TThis::Addresses)
+        .Default();
+
     registrar.Parameter("driver", &TThis::Driver)
         .Default();
     registrar.Parameter("auth", &TThis::Auth)

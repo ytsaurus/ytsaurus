@@ -1839,6 +1839,12 @@ class TestHttpProxyDiscovery(YTEnvSetup):
         driver_config["api_version"] = 4
         self.driver = Driver(driver_config)
 
+    @classmethod
+    def modify_proxy_config(cls, multidaemon_config, configs):
+        for config in configs:
+            addresses = [["default", "localhost"], ["fastbone", "fb-localhost"]]
+            config["addresses"] = addresses
+
     @authors("nadya73")
     def test_addresses(self):
         proxy = ls("//sys/http_proxies")[0]
@@ -1846,11 +1852,13 @@ class TestHttpProxyDiscovery(YTEnvSetup):
         addresses = get("//sys/http_proxies/" + proxy + "/@addresses")
         assert "http" in addresses
         assert "default" in addresses["http"]
+        assert "fastbone" in addresses["http"]
         assert proxy == addresses["http"]["default"]
 
     @authors("nadya73")
     def test_discovery(self):
         configured_proxy_addresses = sorted(self.Env.get_http_proxy_addresses())
+        configured_proxy_addresses_fb = ["fb-" + address for address in configured_proxy_addresses]
         configured_monitoring_addresses = sorted(self.Env.get_http_proxy_monitoring_addresses())
 
         for test_name, request, expected_addresses in [
@@ -1866,6 +1874,11 @@ class TestHttpProxyDiscovery(YTEnvSetup):
                 "explicit_params",
                 {"network_name": "default"},
                 configured_proxy_addresses,
+            ),
+            (
+                "explicit_params",
+                {"network_name": "fastbone"},
+                configured_proxy_addresses_fb,
             ),
             (
                 "monitoring_addresses",
