@@ -81,7 +81,7 @@ void TCpuLimits::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("pull_rows_thread_pool_size", &TThis::PullRowsThreadPoolSize)
         .GreaterThan(0)
-        .Optional(false);
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
