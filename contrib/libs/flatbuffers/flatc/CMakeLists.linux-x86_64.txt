@@ -30,7 +30,6 @@ target_include_directories(flatc PRIVATE
 target_link_libraries(flatc PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
-  abseil-cpp-absl-base
 )
 
 target_allocator(flatc
