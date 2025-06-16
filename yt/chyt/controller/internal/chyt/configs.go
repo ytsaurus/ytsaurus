@@ -188,6 +188,9 @@ func (c Controller) getPatchedYtConfig(ctx context.Context, oplet *strawberry.Op
 	} else if !strings.HasPrefix(val.(string), always_blocked_headers) {
 		configAsMap["http_header_blacklist"] = always_blocked_headers + "|(" + strings.ToLower(val.(string)) + ")"
 	}
+	if _, ok := configAsMap["enable_http_header_log"]; !ok {
+		configAsMap["enable_http_header_log"] = true
+	}
 	if _, ok := configAsMap["table_attribute_cache"]; !ok {
 		configAsMap["table_attribute_cache"] = make(map[string]any)
 	}
