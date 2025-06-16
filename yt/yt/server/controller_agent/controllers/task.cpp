@@ -941,9 +941,9 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
-        "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, PartitionTag: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
-        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, "
-        "Interruptible: %v)",
+        "Approximate: %v, DataWeight: %v (%v local), CompressedDataSize: %v, RowCount: %v, PartitionTag: %v, Restarted: %v, "
+        "EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, UserJobMemoryReserveFactor: %v, ResourceLimits: %v, "
+        "CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v, RestartedForLostChunk: %v, Interruptible: %v)",
         joblet->JobId,
         joblet->JobType,
         context.GetNodeDescriptor().Address,
@@ -954,6 +954,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         joblet->InputStripeList->IsApproximate,
         joblet->InputStripeList->TotalDataWeight,
         joblet->InputStripeList->LocalDataWeight,
+        joblet->InputStripeList->TotalCompressedDataSize,
         joblet->InputStripeList->TotalRowCount,
         joblet->InputStripeList->PartitionTag,
         restarted,

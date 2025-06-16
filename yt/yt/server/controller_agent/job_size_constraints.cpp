@@ -851,13 +851,13 @@ public:
         YT_VERIFY(JobCountByDataWeight_ != 0 || InputDataWeight_ == 0);
 
         if (JobCountByDataWeight_ > 0 && inputUncompressedDataSize / JobCountByDataWeight_ > Spec_->MaxDataWeightPerJob) {
+            // NB(apollo1321): There are no tests for this scenario.
             // Sometimes (but rarely) data weight can be smaller than data size. Let's protect from
             // unreasonable huge jobs.
-            JobCountByCompressedDataSize_ = DivCeil(inputUncompressedDataSize, 2 * Spec_->MaxDataWeightPerJob);
+            JobCountByDataWeight_ = DivCeil(inputUncompressedDataSize, 2 * Spec_->MaxDataWeightPerJob);
         }
 
-        JobCountByDataWeight_ = std::min(JobCountByDataWeight_, static_cast<i64>(Options_->MaxPartitionJobCount));
-        JobCountByDataWeight_ = std::min(JobCountByDataWeight_, InputRowCount_);
+        JobCountByDataWeight_ = std::min({JobCountByDataWeight_, static_cast<i64>(Options_->MaxPartitionJobCount), InputRowCount_});
         JobCountByCompressedDataSize_ = 0;
     }
 
