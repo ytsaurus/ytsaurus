@@ -3,7 +3,7 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from yt_commands import (
     authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows, trim_rows,
     lookup_rows, delete_rows, remount_table, build_master_snapshots, get_tablet_leader_address,
-    write_table, alter_table, read_table, map, sync_reshard_table, sync_create_cells,
+    write_table, alter_table, read_table, map, merge, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
     write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy,
@@ -27,6 +27,7 @@ import yt_error_codes
 import pytest
 import yt.yson as yson
 
+from copy import deepcopy
 import time
 
 import builtins
@@ -3569,6 +3570,91 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         self._perform_forced_compaction("//tmp/t", "compaction")
 
         assert len(_get_eden_chunk_ids()) == 0
+
+    @authors("coteeq", "akozhikhov")
+    def test_value_compression_merge_with_filter(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 10},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ]
+        self._create_table(schema=schema)
+        self._setup_for_dictionary_compression("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value1": "i am huuuunk" * 5, "value2": "i am hunk too" * 5} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        merge(
+            in_="//tmp/t",
+            out="<create=%true>//tmp/t_static",
+            mode="unordered",
+            spec={
+                "force_transform": True,
+            },
+        )
+
+        assert read_table("//tmp/t_static") == rows
+
+        def _run_merge_with_column_subset(columns):
+            merge(
+                in_="<columns=[{}]>//tmp/t".format("; ".join(columns)),
+                out="<create=%true>//tmp/t_static",
+                mode="unordered",
+                spec={
+                    "force_transform": True,
+                },
+            )
+
+            def drop_value(row):
+                row = deepcopy(row)
+                for column in schema:
+                    if column["name"] in columns:
+                        continue
+                    row[column["name"]] = yson.YsonEntity()
+                return row
+
+            assert read_table("//tmp/t_static") == [drop_value(row) for row in rows]
+
+        _run_merge_with_column_subset(["key", "value1"])
+        _run_merge_with_column_subset(["value1", "value2"])
+        _run_merge_with_column_subset(["key", "value2"])
+        _run_merge_with_column_subset(["value2"])
+
+    @authors("akozhikhov")
+    def test_value_compression_select_with_key_filter(self):
+        sync_create_cells(1)
+        self._create_table(schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 10},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ])
+        self._setup_for_dictionary_compression("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value1": "i am huuuunk" * 30, "value2": "i am hunk too" * 30} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        def _filter_rows(rows, keys):
+            new_rows = []
+            for row in rows:
+                new_rows.append(dict([(key, row[key]) for key in keys]))
+            return new_rows
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert_items_equal(select_rows("key, value1 from [//tmp/t]"),  _filter_rows(rows, ["key", "value1"]))
+        assert_items_equal(select_rows("value1, value2 from [//tmp/t]"),  _filter_rows(rows, ["value1", "value2"]))
+        assert_items_equal(select_rows("key, value2 from [//tmp/t]"),  _filter_rows(rows, ["key", "value2"]))
+        assert_items_equal(select_rows("value2 from [//tmp/t]"),  _filter_rows(rows, ["value2"]))
 
 
 ################################################################################

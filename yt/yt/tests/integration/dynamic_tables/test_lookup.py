@@ -1095,7 +1095,7 @@ class TestLookup(TestSortedDynamicTablesBase):
 @pytest.mark.enabled_multidaemon
 class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
 
     DELTA_NODE_CONFIG = {
         "resource_limits": {
