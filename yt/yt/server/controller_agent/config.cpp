@@ -1394,6 +1394,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("register_lockable_dynamic_tables", &TThis::RegisterLockableDynamicTables)
         .Default(false);
 
+    registrar.Parameter("operation_events_reporter", &TThis::OperationEventsReporter)
+        .DefaultNew();
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
 

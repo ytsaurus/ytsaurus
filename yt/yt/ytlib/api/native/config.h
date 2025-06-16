@@ -296,6 +296,7 @@ struct TConnectionDynamicConfig
     TDuration DefaultListJobsTimeout;
     TDuration DefaultGetJobTimeout;
     TDuration DefaultListOperationsTimeout;
+    TDuration DefaultListOperationEventsTimeout;
     TDuration DefaultPullRowsTimeout;
     TDuration DefaultSyncAlienCellsTimeout;
     TDuration DefaultChaosNodeServiceTimeout;

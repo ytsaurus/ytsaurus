@@ -728,6 +728,7 @@ public:
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PatchOperationSpec));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(GetOperation));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListOperations));
+        registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListOperationEvents));
 
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(ListJobs));
         registerMethod(EMultiproxyMethodKind::Read, RPC_SERVICE_METHOD_DESC(DumpJobContext));
@@ -3058,6 +3059,34 @@ private:
             [] (const auto& context, const auto& operation) {
                 auto* response = &context->Response();
                 response->set_meta(ConvertToYsonString(operation).ToString());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ListOperationEvents)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
+
+        TListOperationEventsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        if (request->has_event_type()) {
+            options.EventType = NApi::NRpcProxy::NProto::ConvertOperationEventTypeFromProto(request->event_type());
+        }
+
+        options.Limit = request->limit();
+
+        context->SetRequestInfo("OperationIdOrAlias: %v", operationIdOrAlias);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->ListOperationEvents(operationIdOrAlias, options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_events(), result);
             });
     }
 

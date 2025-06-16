@@ -443,6 +443,11 @@ const TJobReporterPtr& TOperationControllerHost::GetJobReporter()
     return Bootstrap_->GetControllerAgent()->GetJobReporter();
 }
 
+const TOperationEventReporterPtr& TOperationControllerHost::GetOperationEventReporter()
+{
+    return Bootstrap_->GetControllerAgent()->GetOperationEventReporter();
+}
+
 const NChunkClient::TMediumDirectoryPtr& TOperationControllerHost::GetMediumDirectory()
 {
     return Bootstrap_

@@ -17,6 +17,8 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <yt/yt/client/table_client/public.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 namespace NYT::NApi::NNative {
@@ -264,6 +266,20 @@ THashSet<TString> DeduceActualAttributes(
         attributes.erase(attribute);
     }
     return attributes;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSelectRowsOptions GetDefaultSelectRowsOptions(
+    TInstant deadline,
+    NTransactionClient::TTimestamp timestamp)
+{
+    TSelectRowsOptions selectRowsOptions;
+    selectRowsOptions.Timestamp = timestamp;
+    selectRowsOptions.Timeout = deadline - Now();
+    selectRowsOptions.InputRowLimit = std::numeric_limits<i64>::max();
+    selectRowsOptions.MemoryLimitPerNode = 100_MB;
+    return selectRowsOptions;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

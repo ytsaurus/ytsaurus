@@ -460,7 +460,6 @@ std::unique_ptr<TPartitionTreeSkeleton> BuildPartitionTreeSkeleton(int partition
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 TDiskQuota CreateDiskQuota(
     const TDiskRequestConfigPtr& diskRequestConfig,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory)

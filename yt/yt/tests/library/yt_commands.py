@@ -651,6 +651,11 @@ def get_job_fail_context(operation_id, job_id, **kwargs):
     return execute_command("get_job_fail_context", kwargs)
 
 
+def list_operation_events(operation_id, **kwargs):
+    kwargs["operation_id"] = operation_id
+    return execute_command("list_operation_events", kwargs, parse_yson=True)
+
+
 def list_operations(**kwargs):
     return execute_command("list_operations", kwargs, parse_yson=True)
 

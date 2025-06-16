@@ -277,4 +277,20 @@ DEFINE_REFCOUNTED_TYPE(THeapProfilerTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOperationEventReporterConfig
+    : public TArchiveReporterConfig
+{
+    NServer::TArchiveHandlerConfigPtr Handler;
+
+    std::string User;
+
+    REGISTER_YSON_STRUCT(TOperationEventReporterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationEventReporterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NServer
