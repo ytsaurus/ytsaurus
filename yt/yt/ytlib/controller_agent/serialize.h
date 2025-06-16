@@ -65,6 +65,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DropSolidFromChunkStripe)              (301805))
     ((IntroduceInputStatistics)              (301806))
     ((DropUnusedFieldInJobSizeConstraints)   (301807))
+    ((DropOutputOrder)                       (301808))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

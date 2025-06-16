@@ -125,6 +125,11 @@ protected:
             return ChunkPool_;
         }
 
+        IOrderedChunkPoolPtr GetOrderedChunkPool() const
+        {
+            return ChunkPool_;
+        }
+
         void FinishInitialization()
         {
             IsInitializationCompleted_ = true;
@@ -142,7 +147,7 @@ protected:
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
-            TChunkStripeKey key(TOutputOrder::TEntry(joblet->OutputCookie));
+            TChunkStripeKey key(joblet->OutputCookie);
             RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /*processEmptyStripes*/ true);
 
             return result;
@@ -165,7 +170,7 @@ protected:
         }
 
     private:
-        IPersistentChunkPoolPtr ChunkPool_;
+        IOrderedChunkPoolPtr ChunkPool_;
 
         // On which it depends.
         std::vector<TRemoteCopyTaskBaseWeakPtr> Dependencies_;
@@ -652,9 +657,21 @@ private:
             .ValueOrThrow();
     }
 
-    TOutputOrderPtr GetOutputOrder() const override
+    bool IsOrderedOutputRequired() const override
     {
-        return MainTask_->GetChunkPoolOutput()->GetOutputOrder();
+        return true;
+    }
+
+    std::vector<TChunkTreeId> GetOutputChunkTreesInOrder(const TOutputTablePtr& table) const override
+    {
+        std::vector<std::pair<TOutputCookie, TChunkTreeId>> cookieAndTreeIdList;
+        cookieAndTreeIdList.reserve(table->OutputChunkTreeIds.size());
+        for (const auto& [key, treeId] : table->OutputChunkTreeIds) {
+            YT_VERIFY(key.IsOutputCookie());
+            cookieAndTreeIdList.emplace_back(key.AsOutputCookie(), treeId);
+        }
+
+        return MainTask_->GetOrderedChunkPool()->ArrangeOutputChunkTrees(cookieAndTreeIdList);
     }
 
     void CustomMaterialize() override
@@ -758,7 +775,6 @@ private:
         chunkPoolOptions.EnablePeriodicYielder = true;
         chunkPoolOptions.MinTeleportChunkSize = std::numeric_limits<i64>::max() / 4;
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
-        chunkPoolOptions.BuildOutputOrder = true;
         chunkPoolOptions.ShouldSliceByRowIndices = false;
         chunkPoolOptions.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInOrderedPool;
         chunkPoolOptions.Logger = Logger().WithTag("Name: Root");

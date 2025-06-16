@@ -210,7 +210,6 @@ SRCS(
     chunk_pools/chunk_pool_factory.cpp
     chunk_pools/chunk_stripe_key.cpp
     chunk_pools/chunk_stripe.cpp
-    chunk_pools/output_order.cpp
 
     controller_agent/helpers.cpp
     controller_agent/persistence.cpp
