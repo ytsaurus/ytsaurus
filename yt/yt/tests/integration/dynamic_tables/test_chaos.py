@@ -3312,7 +3312,12 @@ class TestChaos(ChaosTestBase):
             {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
             {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/r"},
         ]
-        self._create_chaos_tables(cell_id, replicas, ordered=True)
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, ordered=True)
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "chaos_cell_bundle": "c",
+            "replication_card_id": card_id
+        })
+
         remote_driver0 = self._get_drivers()[1]
 
         data_values = [{"key": i, "value": f"{i}"} for i in range(rows_to_insert)]
@@ -3326,6 +3331,15 @@ class TestChaos(ChaosTestBase):
 
             sync_flush_table("//tmp/t")
             sync_flush_table("//tmp/r", driver=remote_driver0)
+
+        # wait until replication card is updated on chaos nodes
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[1]}/replication_lag_timestamp") > timestamp)
+
+        # Trigger era change and wait this exact replication card to reach all nodes
+        alter_table_replica(replica_ids[1], enabled=False)
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
 
         trim_rows("//tmp/t", 0, 1)
         trim_rows("//tmp/r", 0, 1, driver=remote_driver0)
