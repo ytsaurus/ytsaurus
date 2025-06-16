@@ -115,6 +115,8 @@ SRCS(
     chaos_client/master_cache_channel.cpp
     chaos_client/native_replication_card_cache_detail.cpp
     chaos_client/replication_card_channel_factory.cpp
+    chaos_client/replication_card_updates_batcher.cpp
+    chaos_client/replication_card_updates_batcher_serialization.cpp
     chaos_client/replication_cards_watcher.cpp
     chaos_client/replication_cards_watcher_client.cpp
 

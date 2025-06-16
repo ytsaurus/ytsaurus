@@ -16,6 +16,8 @@
 
 #include <yt/yt/core/compression/public.h>
 
+#include <yt/yt/ytlib/chaos_client/public.h>
+
 #include <yt/yt/core/concurrency/config.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -728,6 +730,8 @@ struct TTabletNodeDynamicConfig
     bool EnableCollocatedDatNodeThrottling;
     bool EnableSnapshotNetworkThrottling;
 
+    NChaosClient::TChaosReplicationCardUpdatesBatcherConfigPtr ChaosReplicationCardUpdatesBatcher;
+
     REGISTER_YSON_STRUCT(TTabletNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -808,6 +812,9 @@ struct TTabletNodeConfig
     TMasterConnectorConfigPtr MasterConnector;
 
     TSlruCacheConfigPtr CompressionDictionaryCache;
+
+    //! Per node chaos replication progress update batcher
+    NChaosClient::TChaosReplicationCardUpdatesBatcherConfigPtr ChaosReplicationCardUpdatesBatcher;
 
     //! Used for local mode. If false, node will crash when recovering
     //! a tablet cell from the different reign.

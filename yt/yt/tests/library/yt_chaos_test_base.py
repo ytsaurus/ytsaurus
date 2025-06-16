@@ -22,6 +22,16 @@ class ChaosTestBase(DynamicTablesBase):
     NUM_NODES = 4
     NUM_CHAOS_NODES = 1
 
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "tablet_node": {
+                "replication_card_updates_batcher": {
+                    "enable": True,
+                }
+            }
+        }
+    }
+
     def _get_drivers(self):
         return [get_driver(cluster=cluster_name) for cluster_name in self.get_cluster_names()]
 
