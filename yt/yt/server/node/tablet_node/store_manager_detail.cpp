@@ -527,6 +527,12 @@ void TStoreManagerBase::PopulateReplicateTabletContentRequest(
     if (const auto& activeStore = Tablet_->GetActiveStore()) {
         ToProto(request->mutable_active_store_id(), activeStore->GetId());
     }
+
+    for (const auto& policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+        ToProto(
+            request->add_compression_dictionaries_by_policy(),
+            Tablet_->GetCompressionDictionaryId(policy));
+    }
 }
 
 void TStoreManagerBase::LoadReplicatedContent(
@@ -570,6 +576,22 @@ void TStoreManagerBase::LoadReplicatedContent(
                     Tablet_->UpdateHunkChunkRef(ref, +1);
                 }
             }
+        }
+    }
+
+    // TODO(ifsmirnov): reign promotion is a nuisance for smooth movement, YT-25347.
+    // This may be technically incorrect with respect to the persistent state
+    // if the size of the enum changes, but still, this is not very important part
+    // of the state and snapshot validation alerts should be the worst consequence.
+    {
+        const auto& policies = TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues();
+        int policyCount = std::min<int>(
+            request->compression_dictionaries_by_policy().size(),
+            ssize(policies));
+        for (int index = 0; index < policyCount; ++index) {
+            Tablet_->AttachCompressionDictionary(
+                policies[index],
+                FromProto<TChunkId>(request->compression_dictionaries_by_policy()[index]));
         }
     }
 

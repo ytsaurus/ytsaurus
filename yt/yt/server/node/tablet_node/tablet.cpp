@@ -67,6 +67,8 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
@@ -106,16 +108,10 @@ TPreloadStatistics& TPreloadStatistics::operator+=(const TPreloadStatistics& oth
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCompressionDictionaryInfo::Save(TSaveContext& context) const
+void TCompressionDictionaryInfo::Persist(const TPersistenceContext& context)
 {
-    using NYT::Save;
-    Save(context, ChunkId);
-}
-
-void TCompressionDictionaryInfo::Load(TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, ChunkId);
+    using NYT::Persist;
+    Persist(context, ChunkId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2996,6 +2992,11 @@ void TTablet::SetCompressionDictionaryRebuildBackoffTime(
     CompressionDictionaryInfos_[policy].RebuildBackoffTime = backoffTime;
 }
 
+TChunkId TTablet::GetCompressionDictionaryId(EDictionaryCompressionPolicy policy) const
+{
+    return CompressionDictionaryInfos_[policy].ChunkId;
+}
+
 void TTablet::InitializeTargetServantActivationFuture()
 {
     if (!IsActiveServant() && SmoothMovementData_.GetRole() == ESmoothMovementRole::Target) {
@@ -3205,7 +3206,19 @@ void TTablet::BuildOrchidYson(TFluentMap fluent) const
                     BIND(&TSmoothMovementData::BuildOrchidYson, &SmoothMovementData()));
         })
         .Item("mount_revision").Value(GetMountRevision())
-        .Item("mount_time").Value(GetMountTime());
+        .Item("mount_time").Value(GetMountTime())
+        .Item("compression_dictionary_infos").DoMapFor(
+            Zip(
+                TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues(),
+                CompressionDictionaryInfos_),
+            [] (auto fluent, const auto& item) {
+                const auto& [policy, info] = item;
+                fluent.Item(FormatEnum(policy)).BeginMap()
+                    .Item("chunk_id").Value(info.ChunkId)
+                    .Item("rebuild_backoff_time").Value(info.RebuildBackoffTime)
+                    .Item("building_in_progress").Value(info.BuildingInProgress)
+                    .EndMap();
+            });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
