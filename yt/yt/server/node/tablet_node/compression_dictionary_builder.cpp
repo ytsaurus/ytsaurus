@@ -966,6 +966,10 @@ private:
             return {};
         }
 
+        if (!tablet->SmoothMovementData().IsTabletStoresUpdateAllowed(/*isCommonFlush*/ false)) {
+            return {};
+        }
+
         const auto& schema = tablet->GetPhysicalSchema();
         bool hasHunkValueColumns = false;
         for (int index = schema->GetKeyColumnCount(); index < schema->GetColumnCount(); ++index) {
