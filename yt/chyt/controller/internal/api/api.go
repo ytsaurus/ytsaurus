@@ -211,7 +211,7 @@ func (a *API) validatePoolOption(ctx context.Context, poolValue any, poolTreesVa
 				fmt.Sprintf("pool_trees option has unexpected value type %v", typeName),
 				yterrors.Attr("type", typeName))
 		}
-		poolTrees = make([]string, len(poolTreeValues))
+		poolTrees = make([]string, 0, len(poolTreeValues))
 		for _, poolTreeValue := range poolTreeValues {
 			poolTree, ok := poolTreeValue.(string)
 			if !ok {
