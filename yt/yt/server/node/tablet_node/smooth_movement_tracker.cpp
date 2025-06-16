@@ -305,7 +305,7 @@ private:
         movementData.SetRole(ESmoothMovementRole::Source);
         movementData.SetSiblingCellId(targetCellId);
         movementData.SetStage(ESmoothMovementStage::TargetAllocated);
-        movementData.SetLastStageChangeTime(GetCurrentMutationContext()->GetTimestamp());
+        movementData.SetLastStageChangeTime(TInstant::Now());
         movementData.SetSiblingMountRevision(targetMountRevision);
 
         auto& runtimeData = tablet->RuntimeData()->SmoothMovementData;
@@ -430,11 +430,18 @@ private:
         auto masterEndpointId = FromProto<TAvenueEndpointId>(request->master_avenue_endpoint_id());
         auto mailboxCookie = FromProto<TPersistentMailboxStateCookie>(request->master_mailbox_cookie());
 
+        auto inFlightTime = TInstant::Now() - FromProto<TInstant>(request->sending_time());
+
+        if (!IsRecovery()) {
+            tablet->GetTableProfiler()->GetSmoothMovementCounters()->SwitchTime.Record(inFlightTime);
+        }
+
         YT_LOG_DEBUG("Got servant switch request (%v, MasterAvenueEndpointId: %v, "
-            "FirstOutcomingMessageId: %v)",
+            "FirstOutcomingMessageId: %v, InFlightTime: %v)",
             tablet->GetLoggingTag(),
             masterEndpointId,
-            mailboxCookie.FirstOutcomingMessageId);
+            mailboxCookie.FirstOutcomingMessageId,
+            inFlightTime);
 
         tablet->SetMasterAvenueEndpointId(masterEndpointId);
         Host_->RegisterMasterAvenue(tabletId, masterEndpointId, std::move(mailboxCookie));
@@ -485,11 +492,20 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Changing smooth movement stage (%v)", tags);
+        auto timeInStage = TInstant::Now() - movementData.GetLastStageChangeTime();
+
+        if (!IsRecovery() && movementData.GetRole() == ESmoothMovementRole::Source) {
+            tablet->GetTableProfiler()->GetSmoothMovementCounters()->StageTime[expectedStage]
+                .Record(timeInStage);
+        }
+
+        YT_LOG_DEBUG("Changing smooth movement stage (%v, TimeInStage: %v)",
+            tags,
+            timeInStage);
 
         movementData.SetStage(newStage);
         movementData.SetStageChangeScheduled(false);
-        movementData.SetLastStageChangeTime(GetCurrentMutationContext()->GetTimestamp());
+        movementData.SetLastStageChangeTime(TInstant::Now());
 
         auto role = movementData.GetRole();
 
@@ -595,6 +611,8 @@ private:
                     ToProto(req.mutable_master_avenue_endpoint_id(), masterEndpointId);
                     auto mailboxCookie = Host_->UnregisterMasterAvenue(masterEndpointId);
                     ToProto(req.mutable_master_mailbox_cookie(), mailboxCookie);
+
+                    req.set_sending_time(ToProto(GetCurrentMutationContext()->GetTimestamp()));
 
                     Host_->PostAvenueMessage(
                         movementData.GetSiblingAvenueEndpointId(),

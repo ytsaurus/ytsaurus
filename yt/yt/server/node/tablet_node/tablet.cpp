@@ -1937,7 +1937,7 @@ void TTablet::StartEpoch(const ITabletSlotPtr& slot)
 
     InitializeTargetServantActivationFuture();
 
-    SmoothMovementData().SetLastStageChangeTime(TInstant::Zero());
+    SmoothMovementData().SetLastStageChangeTime(TInstant::Now());
 }
 
 void TTablet::StopEpoch()
