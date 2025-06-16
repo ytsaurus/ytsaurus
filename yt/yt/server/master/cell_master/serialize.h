@@ -133,6 +133,7 @@ DEFINE_ENUM(EMasterReign,
     ((LostVitalChunksSample_25_1)                                   (2844))  // koloshmet
     ((SecondaryIndexOuroboros)                                      (2845))  // sabdenovch
     ((FixDetachmentOfJournalHunkChunk_25_1)                         (2846))  // akozhikhov
+    ((CheckReplicationProgressSchema_25_1)                          (2847))  // savrus
     // 25.2 starts here.
     ((Start_25_2)                                                   (2900))  // ponasenko-rs
     ((TabletTransactionSerializationType)                           (2901))  // ponasenko-rs
@@ -185,6 +186,7 @@ DEFINE_ENUM(EMasterReign,
     ((DontValidateLockCountOnExternalCells)                         (2948))  // h0pless
     ((DedicatedChunkHostInRoleValidation)                           (2949))  // cherepashka
     ((DocumentInSequoia)                                            (2950))  // kvk1920
+    ((CheckReplicationProgressSchema)                               (2951))  // savrus
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
