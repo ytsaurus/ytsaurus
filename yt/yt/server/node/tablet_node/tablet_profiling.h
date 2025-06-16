@@ -420,6 +420,21 @@ private:
         TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason);
 };
 
+struct TSmoothMovementCounters
+{
+    TSmoothMovementCounters() = default;
+
+    explicit TSmoothMovementCounters(const NProfiling::TProfiler& profiler);
+
+    // Stage times are profiled at smooth movement source and denote the time
+    // of the corresponding stage.
+    // Switch time is profiled at target and denotes the time between the moment
+    // when TReqSwitchServant mutation is sent by source and the moment when
+    // it arrives at target.
+    TEnumIndexedArray<ESmoothMovementStage, NProfiling::TEventTimer> StageTime;
+    NProfiling::TEventTimer SwitchTime;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableProfilerPtr CreateTableProfiler(
@@ -485,6 +500,7 @@ public:
     NProfiling::TEventTimer* GetThrottlerTimer(ETabletDistributedThrottlerKind kind);
     NProfiling::TCounter* GetThrottlerCounter(ETabletDistributedThrottlerKind kind);
     TLsmCounters* GetLsmCounters();
+    TSmoothMovementCounters* GetSmoothMovementCounters();
 
     const NProfiling::TProfiler& GetProfiler() const;
 
@@ -528,6 +544,7 @@ private:
     TTabletDistributedThrottlerTimersVector ThrottlerWaitTimers_;
     TTabletDistributedThrottlerCounters ThrottlerCounters_;
     TLsmCounters LsmCounters_;
+    std::optional<TSmoothMovementCounters> SmoothMovementCounters_;
 
     template <class TCounter>
     TCounter* GetCounterUnlessDisabled(TCounter* counter);

@@ -404,6 +404,33 @@ void TLsmCounters::DoProfileCompaction(
     counters->HunkChunks.OutStoreCount.Increment(hunkChunkWriterStatistics.chunk_count());
 }
 
+TSmoothMovementCounters::TSmoothMovementCounters(const TProfiler& profiler)
+{
+    auto movementProfiler = profiler
+        .WithHot(false)
+        .WithSparse()
+        .WithPrefix("/smooth_tablet_movement");
+
+    SwitchTime = movementProfiler
+        .WithTag("writable", "false")
+        .WithTag("stage", "switch", /*parent*/ -1)
+        .Timer("/stage_time");
+
+    for (auto stage : TEnumTraits<ESmoothMovementStage>::GetDomainValues()) {
+        bool writable = true;
+        if (stage == ESmoothMovementStage::WaitingForLocksBeforeActivation ||
+            stage == ESmoothMovementStage::WaitingForLocksBeforeSwitch)
+        {
+            writable = false;
+        }
+
+        StageTime[stage] = movementProfiler
+            .WithTag("writable", writable ? "true" : "false")
+            .WithTag("stage", FormatEnum(stage), /*parent*/ -1)
+            .Timer("/stage_time");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TWriterProfiler::Profile(
@@ -862,6 +889,20 @@ TCounter* TTableProfiler::GetThrottlerCounter(ETabletDistributedThrottlerKind ki
 TLsmCounters* TTableProfiler::GetLsmCounters()
 {
     return GetCounterUnlessDisabled(&LsmCounters_);
+}
+
+TSmoothMovementCounters* TTableProfiler::GetSmoothMovementCounters()
+{
+    if (Disabled_) {
+        static TSmoothMovementCounters counters;
+        return &counters;
+    }
+
+    if (!SmoothMovementCounters_) {
+        SmoothMovementCounters_.emplace(Profiler_);
+    }
+
+    return &SmoothMovementCounters_.value();
 }
 
 const TProfiler& TTableProfiler::GetProfiler() const
