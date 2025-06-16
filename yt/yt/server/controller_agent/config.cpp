@@ -1394,6 +1394,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("register_lockable_dynamic_tables", &TThis::RegisterLockableDynamicTables)
         .Default(false);
 
+    registrar.Parameter("allow_bulk_insert_under_user_transaction", &TThis::AllowBulkInsertUnderUserTransaction)
+        .Default(false);
+
     registrar.Parameter("operation_events_reporter", &TThis::OperationEventsReporter)
         .DefaultNew();
 

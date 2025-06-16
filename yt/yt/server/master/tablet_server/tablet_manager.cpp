@@ -1733,31 +1733,28 @@ public:
                 auto* appendChunkList = branchedChunkLists[contentType]->Children()[index]->AsChunkList();
                 auto* tabletChunkList = originatingChunkLists[contentType]->Children()[index]->AsChunkList();
 
-                if (updateMode == EUpdateMode::Overwrite && contentType == EChunkListContentType::Main) {
-                    YT_VERIFY(appendChunkList->GetKind() == EChunkListKind::SortedDynamicTablet);
-                    appendChunkList->SetPivotKey(tabletChunkList->GetPivotKey());
-                }
-
                 if (updateMode == EUpdateMode::Append) {
+                    // COMPAT(dave11ar): Remove when all branched append chunk lists will be in new format.
+                    if (appendChunkList->IsNewAppendTabletChunkList()) {
+                        appendChunkList = appendChunkList->GetAppendTabletChunkLists().DeltaChunkList;
+                    }
+
                     if (!appendChunkList->Children().empty()) {
                         chunkManager->AttachToChunkList(tabletChunkList, {appendChunkList});
                     }
-                }
-
-                if (originatingNode->GetInMemoryMode() != EInMemoryMode::None &&
-                    tablet->GetState() != ETabletState::Unmounted &&
-                    contentType == EChunkListContentType::Main)
-                {
-                    auto& nodeStatistics = tablet->NodeStatistics();
-                    nodeStatistics.set_preload_pending_store_count(
-                        nodeStatistics.preload_pending_store_count() +
-                        ssize(appendChunkList->Children()));
                 }
 
                 if (tablet->GetState() != ETabletState::Unmounted &&
                     contentType == EChunkListContentType::Main)
                 {
                     EnumerateStoresInChunkTree(appendChunkList, &stores);
+
+                    if (originatingNode->GetInMemoryMode() != EInMemoryMode::None) {
+                        auto& nodeStatistics = tablet->NodeStatistics();
+                        nodeStatistics.set_preload_pending_store_count(updateMode == EUpdateMode::Append
+                            ? nodeStatistics.preload_pending_store_count() + ssize(stores)
+                            : ssize(stores));
+                    }
                 }
             }
 
