@@ -503,6 +503,8 @@ struct TClusterNodeDynamicConfig
     //! Configuration for huge page manager.
     NIO::THugePageManagerDynamicConfigPtr HugePageManager;
 
+    TFairShareHierarchicalSchedulerDynamicConfigPtr FairShareHierarchicalScheduler;
+
     bool UsePortoNetworkLimitInThrottler;
 
     double MemoryUsageIsCloseToLimitThreshold;

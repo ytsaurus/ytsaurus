@@ -1507,6 +1507,10 @@ private:
             : Config_->DataNode->AnnounceChunkReplicaRpsOutThrottler);
         RawUserJobContainerCreationThrottler_->Reconfigure(newConfig->ExecNode->UserJobContainerCreationThrottler);
 
+        if (auto fairShareScheduler = FairShareHierarchicalScheduler_) {
+            fairShareScheduler->Reconfigure(newConfig->FairShareHierarchicalScheduler);
+        }
+
         BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
         RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
