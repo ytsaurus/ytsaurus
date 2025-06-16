@@ -45,6 +45,9 @@
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 
+#include <yt/yt/ytlib/chaos_client/config.h>
+#include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher.h>
+
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
@@ -69,6 +72,7 @@ namespace NYT::NTabletNode {
 using namespace NCellarAgent;
 using namespace NCellarClient;
 using namespace NCellarNode;
+using namespace NChaosClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NDataNode;
@@ -322,6 +326,13 @@ public:
             GetConnection(),
             NApi::TClientOptions::FromUser(NSecurityClient::ReplicatorUserName),
             GetConfig()->TabletNode->AlienClusterClientCacheEvictionPeriod);
+        ReplicationCardUpdatesBatcher_ = CreateClientReplicationCardUpdatesBatcher(
+            GetConfig()->TabletNode->ChaosReplicationCardUpdatesBatcher,
+            GetConnection(),
+            Logger());
+        if (ReplicationCardUpdatesBatcher_) {
+            ReplicationCardUpdatesBatcher_->Start();
+        }
 
         InitializeOverloadController();
 
@@ -586,6 +597,11 @@ public:
         return ReplicatorClientCache_;
     }
 
+    const IReplicationCardUpdatesBatcherPtr& GetReplicationCardUpdatesBatcher() const override
+    {
+        return ReplicationCardUpdatesBatcher_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -628,15 +644,18 @@ private:
     ICompressionDictionaryManagerPtr CompressionDictionaryManager_;
     TOverloadControllerPtr OverloadController_;
     IAlienClusterClientCachePtr ReplicatorClientCache_;
+    IReplicationCardUpdatesBatcherPtr ReplicationCardUpdatesBatcher_;
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
+        const auto& tabletNodeConfig = newConfig->TabletNode;
+
         if (!GetConfig()->EnableFairThrottler) {
             for (auto kind : TEnumTraits<NTabletNode::ETabletNodeThrottlerKind>::GetDomainValues()) {
-                const auto& initialThrottlerConfig = newConfig->TabletNode->Throttlers[kind]
-                    ? newConfig->TabletNode->Throttlers[kind]
+                const auto& initialThrottlerConfig = tabletNodeConfig->Throttlers[kind]
+                    ? tabletNodeConfig->Throttlers[kind]
                     : GetConfig()->TabletNode->Throttlers[kind];
                 auto throttlerConfig = ClusterNodeBootstrap_->PatchRelativeNetworkThrottlerConfig(initialThrottlerConfig);
                 LegacyRawThrottlers_[kind]->Reconfigure(std::move(throttlerConfig));
@@ -644,20 +663,24 @@ private:
         }
 
         TableReplicatorThreadPool_->SetThreadCount(
-            newConfig->TabletNode->TabletManager->ReplicatorThreadPoolSize.value_or(
+            tabletNodeConfig->TabletManager->ReplicatorThreadPoolSize.value_or(
                 GetConfig()->TabletNode->TabletManager->ReplicatorThreadPoolSize));
-        ColumnEvaluatorCache_->Configure(newConfig->TabletNode->ColumnEvaluatorCache);
+        ColumnEvaluatorCache_->Configure(tabletNodeConfig->ColumnEvaluatorCache);
 
         auto bundleConfig = GetBundleDynamicConfigManager()->GetConfig();
         ReconfigureQueryAgent(bundleConfig, newConfig);
 
-        OverloadController_->Reconfigure(newConfig->TabletNode->OverloadController);
+        OverloadController_->Reconfigure(tabletNodeConfig->OverloadController);
 
         StatisticsReporter_->Reconfigure(newConfig);
 
-        CompressionDictionaryManager_->OnDynamicConfigChanged(newConfig->TabletNode->CompressionDictionaryCache);
+        CompressionDictionaryManager_->OnDynamicConfigChanged(tabletNodeConfig->CompressionDictionaryCache);
 
         ErrorManager_->Reconfigure(newConfig);
+
+        if (ReplicationCardUpdatesBatcher_) {
+            ReplicationCardUpdatesBatcher_->Reconfigure(tabletNodeConfig->ChaosReplicationCardUpdatesBatcher);
+        }
     }
 
     void OnBundleDynamicConfigChanged(

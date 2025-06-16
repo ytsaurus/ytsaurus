@@ -11,6 +11,7 @@
 #include "replication_card_batcher.h"
 #include "replication_card_collocation.h"
 #include "replication_card_observer.h"
+#include "replication_card_serialization.h"
 #include "transaction.h"
 #include "transaction_manager.h"
 
@@ -31,6 +32,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
+#include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher_serialization.h>
 
 #include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
@@ -142,6 +144,8 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraAlterTableReplica, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateTableReplicaProgress, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateTableProgress, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateMultipleTableProgresses, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCommenceNewReplicationEra, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraPropagateCurrentTimestamps, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRspGrantShortcuts, Unretained(this)));
@@ -261,6 +265,26 @@ public:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
+    void UpdateTableProgress(const TCtxUpdateTableProgressPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraUpdateTableProgress,
+            this);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    void UpdateMultipleTableProgresses(const TCtxUpdateMultipleTableProgressesPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraUpdateMultipleTableProgresses,
+            this);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
     void MigrateReplicationCards(const TCtxMigrateReplicationCardsPtr& context) override
     {
         auto mutation = CreateMutation(
@@ -326,6 +350,17 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ReplicationCard, TReplicationCard);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ReplicationCardCollocation, TReplicationCardCollocation);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChaosLease, TChaosLease);
+
+    TReplicationCard* FindNotMigratedReplicationCard(TReplicationCardId replicationCardId)
+    {
+        auto* replicationCard = FindReplicationCard(replicationCardId);
+
+        if (!replicationCard || IsReplicationCardMigrated(replicationCard)) {
+            return nullptr;
+        }
+
+        return replicationCard;
+    }
 
     TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId, bool allowMigrated=false) override
     {
@@ -2458,6 +2493,109 @@ private:
                 "(ReplicationCardId: %v, ReplicaId: %v)",
                 replicationCardId,
                 replicaId);
+        }
+    }
+
+    void HydraUpdateTableProgress(
+        const TCtxUpdateTableProgressPtr& /*context*/,
+        NChaosClient::NProto::TReqUpdateTableProgress* request,
+        NChaosClient::NProto::TRspUpdateTableProgress* response)
+    {
+        auto replicationCardProgressUpdate = FromProto<TReplicationCardProgressUpdate>(
+            request->replication_card_progress_update());
+
+        auto* replicationCard = GetReplicationCardOrThrow(replicationCardProgressUpdate.ReplicationCardId);
+        for (const auto& replicaProgressUpdate : replicationCardProgressUpdate.ReplicaProgressUpdates) {
+            auto* replicaInfo = replicationCard->FindReplica(replicaProgressUpdate.ReplicaId);
+            if (!replicaInfo) {
+                YT_LOG_DEBUG("Replica progress was not updated because replica had not been found "
+                    "(ReplicationCardId: %v, ReplicaId: %v)",
+                    replicationCardProgressUpdate.ReplicationCardId,
+                    replicaProgressUpdate.ReplicaId);
+            }
+
+            if (replicaInfo->History.empty()) {
+                YT_LOG_DEBUG("Replication progress update is prohibited because replica history has "
+                    "not been started yet (ReplicationCardId: %v, ReplicaId: %v)",
+                    replicationCardProgressUpdate.ReplicationCardId,
+                    replicaProgressUpdate.ReplicaId);
+
+                continue;
+            }
+
+            replicaInfo->ReplicationProgress = BuildMaxProgress(
+                replicaInfo->ReplicationProgress,
+                replicaProgressUpdate.ReplicationProgressUpdate);
+        }
+
+        if (replicationCardProgressUpdate.FetchOptions) {
+            ToProto(
+                response->mutable_replication_card(),
+                *replicationCard,
+                *replicationCardProgressUpdate.FetchOptions);
+        }
+
+        YT_LOG_DEBUG("Successfully updated replication progress (ReplicationCardId: %v)",
+            replicationCardProgressUpdate.ReplicationCardId);
+    }
+
+    void HydraUpdateMultipleTableProgresses(
+        const TCtxUpdateMultipleTableProgressesPtr& /*context*/,
+        NChaosClient::NProto::TReqUpdateMultipleTableProgresses* request,
+        NChaosClient::NProto::TRspUpdateMultipleTableProgresses* response)
+    {
+        auto replicationCardProgressUpdatesBatch = FromProto<TReplicationCardProgressUpdatesBatch>(*request);
+        const auto& replicationCardProgressUpdates = replicationCardProgressUpdatesBatch.ReplicationCardProgressUpdates;
+
+        response->mutable_replication_card_progress_update_results()->Reserve(replicationCardProgressUpdates.size());
+
+        for (const auto& replicationCardProgressUpdate : replicationCardProgressUpdates) {
+            auto* updateResult = response->add_replication_card_progress_update_results();
+            ToProto(updateResult->mutable_replication_card_id(), replicationCardProgressUpdate.ReplicationCardId);
+
+            auto* replicationCard = FindNotMigratedReplicationCard(replicationCardProgressUpdate.ReplicationCardId);
+            if (!replicationCard) {
+                YT_LOG_DEBUG("Replication card not found (ReplicationCardId: %v)",
+                    replicationCardProgressUpdate.ReplicationCardId);
+
+                ToProto(updateResult->mutable_error(), TError("Replication card not found"));
+                continue;
+            }
+
+            for (const auto& replicaProgressUpdate : replicationCardProgressUpdate.ReplicaProgressUpdates) {
+                auto* replicaInfo = replicationCard->FindReplica(replicaProgressUpdate.ReplicaId);
+                if (!replicaInfo) {
+                    YT_LOG_DEBUG("Replica progress was not updated because replica had not been found "
+                        "(ReplicationCardId: %v, ReplicaId: %v)",
+                        replicationCardProgressUpdate.ReplicationCardId,
+                        replicaProgressUpdate.ReplicaId);
+
+                    continue;
+                }
+
+                if (replicaInfo->History.empty()) {
+                    YT_LOG_DEBUG("Replication progress update is prohibited because replica history has "
+                        "not been started yet (ReplicationCardId: %v, ReplicaId: %v)",
+                        replicationCardProgressUpdate.ReplicationCardId,
+                        replicaProgressUpdate.ReplicaId);
+
+                    continue;
+                }
+
+                replicaInfo->ReplicationProgress = BuildMaxProgress(
+                    replicaInfo->ReplicationProgress,
+                    replicaProgressUpdate.ReplicationProgressUpdate);
+            }
+
+            if (replicationCardProgressUpdate.FetchOptions) {
+                ToProto(
+                    updateResult->mutable_result()->mutable_replication_card(),
+                    *replicationCard,
+                    *replicationCardProgressUpdate.FetchOptions);
+            }
+
+            YT_LOG_DEBUG("Successfully updated replication progress (ReplicationCardId: %v)",
+                replicationCardProgressUpdate.ReplicationCardId);
         }
     }
 

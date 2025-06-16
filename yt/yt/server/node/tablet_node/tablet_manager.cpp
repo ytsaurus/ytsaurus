@@ -308,6 +308,8 @@ public:
 
         const auto& configManager = Bootstrap_->GetDynamicConfigManager();
         configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
+
+        OnDynamicConfigChanged(configManager->GetConfig(), configManager->GetConfig());
     }
 
     void Finalize() override
@@ -4339,7 +4341,8 @@ private:
             tablet,
             Slot_,
             replicationCardId,
-            Bootstrap_->GetReplicatorClientCache()->GetLocalClient()));
+            Bootstrap_->GetReplicatorClientCache()->GetLocalClient(),
+            Bootstrap_->GetReplicationCardUpdatesBatcher()));
         tablet->SetTablePuller(CreateTablePuller(
             Config_,
             tablet,

@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/transaction_supervisor/config.h>
 
+#include <yt/yt/ytlib/chaos_client/config.h>
+
 #include <yt/yt/library/dynamic_config/config.h>
 
 #include <yt/yt/library/query/engine_api/config.h>
@@ -654,6 +656,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_snapshot_network_throttling", &TThis::EnableSnapshotNetworkThrottling)
         .Default(false);
+
+    registrar.Parameter("replication_card_updates_batcher", &TThis::ChaosReplicationCardUpdatesBatcher)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -731,6 +736,9 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("compression_dictionary_cache", &TThis::CompressionDictionaryCache)
+        .DefaultNew();
+
+    registrar.Parameter("replication_card_updates_batcher", &TThis::ChaosReplicationCardUpdatesBatcher)
         .DefaultNew();
 
     registrar.Parameter("allow_reign_change", &TThis::AllowReignChange)
