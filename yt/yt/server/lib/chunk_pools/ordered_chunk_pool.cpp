@@ -93,14 +93,20 @@ public:
                 options.JobSizeAdjusterConfig);
         }
 
-        YT_LOG_DEBUG("Ordered chunk pool created (DataWeightPerJob: %v, MaxDataSlicesPerJob: %v, "
-            "InputSliceDataWeight: %v, InputSliceRowCount: %v, BatchRowCount: %v, SingleJob: %v, "
-            "HasJobSizeAdjuster: %v)",
-            GetDataWeightPerJob(),
+        if (JobSizeConstraints_->GetBatchRowCount()) {
+            YT_VERIFY(!JobSizeConstraints_->GetSamplingRate());
+        }
+
+        YT_LOG_DEBUG("Ordered chunk pool created (DataWeightPerJob: %v, SamplingDataWeightPerJob: %v, "
+            "MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, "
+            "BatchRowCount: %v, SamplingRate: %v, SingleJob: %v, HasJobSizeAdjuster: %v)",
+            JobSizeConstraints_->GetDataWeightPerJob(),
+            JobSizeConstraints_->GetSamplingRate() ? std::optional<i64>(JobSizeConstraints_->GetSamplingDataWeightPerJob()) : std::nullopt,
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->GetBatchRowCount(),
+            JobSizeConstraints_->GetSamplingRate(),
             SingleJob_,
             static_cast<bool>(JobSizeAdjuster_));
     }
@@ -186,7 +192,6 @@ public:
 
             if (action == EJobAdjustmentAction::RebuildJobs) {
                 YT_LOG_INFO("Job completion triggered enlargement (JobCookie: %v)", cookie);
-                // NB: totalDataWeight == primaryDataWeight for ordered pool.
                 JobManager_->Enlarge(
                     JobSizeAdjuster_->GetDataWeightPerJob(),
                     JobSizeAdjuster_->GetDataWeightPerJob(),
@@ -329,7 +334,7 @@ private:
             YT_LOG_DEBUG(
                 "Building jobs with sampling "
                 "(SamplingRate: %v, SamplingDataWeightPerJob: %v, SamplingPrimaryDataWeightPerJob: %v)",
-                *JobSizeConstraints_->GetSamplingRate(),
+                *samplingRate,
                 JobSizeConstraints_->GetSamplingDataWeightPerJob(),
                 JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
         }
@@ -381,10 +386,10 @@ private:
                     if (UseNewSlicingImplementation_) {
                         AddSplittablePrimaryDataSliceNew(dataSlice, inputCookie);
                     } else {
-                        AddSplittablePrimaryDataSliceOld(dataSlice, inputCookie, GetDataWeightPerJob());
+                        AddSplittablePrimaryDataSliceOld(dataSlice, inputCookie, GetDataWeightPerJobForBuildingJobs());
                     }
                 } else {
-                    AddUnsplittablePrimaryDataSlice(dataSlice, inputCookie, GetDataWeightPerJob());
+                    AddUnsplittablePrimaryDataSlice(dataSlice, inputCookie, GetDataWeightPerJobForBuildingJobs());
                 }
             }
         }
@@ -396,9 +401,8 @@ private:
             droppedTeleportChunkCount);
 
         if (JobSizeConstraints_->GetSamplingRate()) {
-            // xxx(coteeq): There are no tests for this behaviour.
             JobManager_->Enlarge(
-                GetDataWeightPerJob(),
+                JobSizeConstraints_->GetDataWeightPerJob(),
                 JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
                 JobSizeConstraints_);
         }
@@ -447,11 +451,13 @@ private:
         return childCookies;
     }
 
-    i64 GetDataWeightPerJob() const
+    // NB(apollo1321): Might be smaller than actual DWPJ when sampling is enabled.
+    // Small job stripes will be enlarged after processing all input data.
+    i64 GetDataWeightPerJobForBuildingJobs() const
     {
         return
             JobSizeConstraints_->GetSamplingRate()
-            ? std::max(JobSizeConstraints_->GetDataWeightPerJob(), JobSizeConstraints_->GetSamplingDataWeightPerJob())
+            ? JobSizeConstraints_->GetSamplingDataWeightPerJob()
             : JobSizeConstraints_->GetDataWeightPerJob();
     }
 
@@ -688,7 +694,7 @@ private:
                 std::min<i64>(JobSizeConstraints_->GetInputSliceRowCount(), chunkSlice->GetRowCount()));
         }
 
-        i64 dataWeightUntilJobSplit = std::max<i64>(0, GetDataWeightPerJob() - CurrentJob()->GetDataWeight());
+        i64 dataWeightUntilJobSplit = std::max<i64>(0, GetDataWeightPerJobForBuildingJobs() - CurrentJob()->GetDataWeight());
         if (!RowCountUntilJobSplitNew_.has_value() && dataWeightUntilJobSplit <= chunkSlice->GetDataWeight()) {
             // Finally, we can estimate row count until job split.
             RowCountUntilJobSplitNew_ = std::ceil(static_cast<double>(dataWeightUntilJobSplit) * chunkSlice->GetRowCount() / chunkSlice->GetDataWeight());
