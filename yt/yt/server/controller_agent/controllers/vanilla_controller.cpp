@@ -962,6 +962,8 @@ private:
 
     const TOperationEventReporterPtr& GetOperationEventReporter() const;
 
+    void ReportGangRankToArchive(const TGangJobletPtr& joblet) const;
+
     void OnJobStarted(const TJobletPtr& joblet) final;
 
     void InitUserJobSpec(
@@ -1586,11 +1588,18 @@ const TOperationEventReporterPtr& TGangOperationController::GetOperationEventRep
     return Host_->GetOperationEventReporter();
 }
 
+void TGangOperationController::ReportGangRankToArchive(const TGangJobletPtr& joblet) const
+{
+    HandleJobReport(joblet, TControllerJobReport()
+        .GangRank(joblet->Rank));
+}
+
 void TGangOperationController::OnJobStarted(const TJobletPtr& joblet)
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     TOperationControllerBase::OnJobStarted(joblet);
+    ReportGangRankToArchive(StaticPointerCast<TGangJoblet>(joblet));
     ReportOperationIncarnationToArchive(StaticPointerCast<TGangJoblet>(joblet));
 }
 
@@ -1634,7 +1643,7 @@ void TGangOperationController::EnrichJobInfo(NYTree::TFluentMap fluent, const TJ
     const auto& gangJoblet = static_cast<const TGangJoblet&>(*joblet);
 
     fluent
-        .Item("operation_incarnation").Value(static_cast<const TGangJoblet&>(*joblet).OperationIncarnation)
+        .Item("operation_incarnation").Value(gangJoblet.OperationIncarnation)
         .OptionalItem("gang_rank", gangJoblet.Rank);
 }
 

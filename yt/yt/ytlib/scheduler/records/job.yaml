@@ -216,3 +216,8 @@ types:
         cpp_type: i64
         column_name: controller_finish_time
         column_type: Int64
+
+      - cpp_name: GangRank
+        cpp_type: i64
+        column_name: gang_rank
+        column_type: Int64
