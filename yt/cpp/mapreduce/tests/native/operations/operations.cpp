@@ -1765,21 +1765,20 @@ TEST(Operations, MaxOperationCountExceeded)
     TConfig::Get()->StartOperationRetryCount = 3;
     TConfig::Get()->StartOperationRetryInterval = TDuration::MilliSeconds(0);
 
+    const auto poolName = TString("max_operation_count_exceeded");
+
     size_t maxOperationCount = 1;
     client->Create(
         "",
         NT_SCHEDULER_POOL,
         TCreateOptions().Attributes(NYT::TNode()
-            ("name", "research")
-            ("pool_tree", "default")));
-    client->Create(
-        "",
-        NT_SCHEDULER_POOL,
-        TCreateOptions().Attributes(NYT::TNode()
-            ("name", "testing")
+            ("name", poolName)
             ("pool_tree", "default")
-            ("parent_name", "research")));
-    client->Set("//sys/pools/research/testing/@max_operation_count", maxOperationCount);
+            ("max_operation_count", maxOperationCount)));
+
+    Y_DEFER {
+        client->Remove("//sys/pools/" + poolName);
+    };
 
     CreateTableWithFooColumn(client, workingDir + "/input");
 
@@ -1791,21 +1790,22 @@ TEST(Operations, MaxOperationCountExceeded)
         }
     };
 
-    try {
-        for (size_t i = 0; i < maxOperationCount + 1; ++i) {
-            operations.push_back(client->Map(
-                TMapOperationSpec()
-                    .AddInput<TNode>(workingDir + "/input")
-                    .AddOutput<TNode>(workingDir + "/output_" + ToString(i)),
-                new TSleepingMapper(TDuration::Seconds(3600)),
-                TOperationOptions()
-                    .Spec(TNode()("pool", "testing"))
-                    .Wait(false)));
-        }
-        FAIL() << "Too many Maps must have been failed";
-    } catch (const TErrorResponse& error) {
-        // It's OK
+    auto startOp = [&] {
+        return client->Map(
+            TMapOperationSpec()
+                .Pool(poolName)
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(TRichYPath(workingDir + "/output").Append(true)),
+            new TSleepingMapper(TDuration::Seconds(3600)),
+            TOperationOptions()
+                .Wait(false));
+    };
+
+    for (size_t i = 0; i < maxOperationCount; ++i) {
+        operations.push_back(startOp());
     }
+
+    EXPECT_THROW_MESSAGE_HAS_SUBSTR(startOp(), std::exception, "Limit for the number of concurrent operations");
 }
 
 TEST(Operations, NetworkProblems)
@@ -2582,27 +2582,29 @@ TEST(Operations, CacheCleanedWhenOperationStartWasRetried)
         os << CreateGuidAsString();
     }
 
+    const auto poolName = TString("cache_cleaned_when_operation_start_was_retried");
+
     client->Create(
         "",
         NT_SCHEDULER_POOL,
         TCreateOptions().Attributes(NYT::TNode()
-            ("name", "testing")
+            ("name", poolName)
             ("pool_tree", "default")
             ("max_running_operation_count", 1)
             ("max_pending_operation_count", 1)
         ));
 
     Y_DEFER {
-        client->Remove("//sys/pools/testing");
+        client->Remove("//sys/pools/" + poolName);
     };
 
     auto sleepingOp = client->Map(
         TMapOperationSpec()
+            .Pool(poolName)
             .AddInput<TNode>(workingDir + "/input")
             .AddOutput<TNode>(workingDir + "/output"),
         new TSleepingMapper(TDuration::Minutes(10)),
         TOperationOptions()
-            .Spec(TNode()("pool", "testing"))
             .Wait(false));
 
     Y_DEFER {
@@ -2614,13 +2616,12 @@ TEST(Operations, CacheCleanedWhenOperationStartWasRetried)
     auto runMap = [&] {
         auto opWithFile = client->Map(
             TMapOperationSpec()
+                .Pool(poolName)
                 .AddInput<TNode>(workingDir + "/input")
                 .AddOutput<TNode>(workingDir + "/output_1")
                 .MapperSpec(TUserJobSpec()
                     .AddLocalFile(tempFile.Name(), TAddLocalFileOptions().PathInJob("myfile"))),
-            new TMapperThatChecksFile("myfile"),
-            TOperationOptions()
-                .Spec(TNode()("pool", "testing")));
+            new TMapperThatChecksFile("myfile"));
     };
 
     auto threadPool = SystemThreadFactory();
@@ -2666,25 +2667,26 @@ TEST(Operations, CacheCleanedWhenOperationWasPending)
         os << CreateGuidAsString();
     }
 
+    const auto poolName = TString("cache_cleaned_when_operation_was_pending");
     client->Create(
         "",
         NT_SCHEDULER_POOL,
         TCreateOptions().Attributes(NYT::TNode()
-            ("name", "testing")
+            ("name", poolName)
             ("pool_tree", "default")
             ("max_running_operation_count", 1)));
 
     Y_DEFER {
-        client->Remove("//sys/pools/testing");
+        client->Remove("//sys/pools/" + poolName);
     };
 
     auto sleepingOp = client->Map(
         TMapOperationSpec()
+            .Pool(poolName)
             .AddInput<TNode>(workingDir + "/input")
             .AddOutput<TNode>(workingDir + "/output"),
         new TSleepingMapper(TDuration::Minutes(10)),
         TOperationOptions()
-            .Spec(TNode()("pool", "testing"))
             .Wait(false));
 
     Y_DEFER {
@@ -2695,13 +2697,13 @@ TEST(Operations, CacheCleanedWhenOperationWasPending)
 
     auto opWithFile = client->Map(
         TMapOperationSpec()
+            .Pool(poolName)
             .AddInput<TNode>(workingDir + "/input")
             .AddOutput<TNode>(workingDir + "/output_1")
             .MapperSpec(TUserJobSpec()
                 .AddLocalFile(tempFile.Name(), TAddLocalFileOptions().PathInJob("myfile"))),
         new TMapperThatChecksFile("myfile"),
         TOperationOptions()
-            .Spec(TNode()("pool", "testing"))
             .Wait(false));
 
     WaitOperationHasState(opWithFile, "pending");
