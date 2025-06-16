@@ -533,6 +533,38 @@ class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
 
+@pytest.mark.enabled_multidaemon
+class TestHttpProxyPoolMetrics(HttpProxyTestBase):
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_memory_pool_metrics(self):
+        http_proxies = ls("//sys/http_proxies")
+        assert len(http_proxies) == 1
+
+        create_user("nadya")
+
+        create("table", "//tmp/test")
+
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+        time.sleep(5)
+
+        profiler = profiler_factory().at_http_proxy(http_proxies[0])
+        pool_limit_memory_usage_gauge = profiler.gauge("http_proxy/memory_usage/pool_limit")
+
+        metrics = pool_limit_memory_usage_gauge.get_all()
+        metric_count = 0
+        has_heavy_request_tag = False
+        for metric in metrics:
+            if metric["tags"]:
+                if "pool" in metric["tags"] and metric["tags"]["pool"] == "nadya":
+                    metric_count += 1
+                    if "category" in metric["tags"] and metric["tags"]["category"] == "heavy_request":
+                        has_heavy_request_tag = True
+
+        assert has_heavy_request_tag
+        assert metric_count < 5
+
+
 class TestFullDiscoverVersions(HttpProxyTestBase):
     NUM_DISCOVERY_SERVERS = 1
     NUM_TIMESTAMP_PROVIDERS = 1
