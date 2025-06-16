@@ -40,7 +40,7 @@ RUN apt-get update \
 
 ##########################################################################################
 
-FROM golang:1.22.12@sha256:1cf6c45ba39db9fd6db16922041d074a63c935556a05c5ccb62d181034df7f02 AS pprof-builder
+FROM golang:1.22.12 AS pprof-builder
 ENV CGO_ENABLED=0
 ENV GOBIN=/
 RUN go install github.com/google/pprof@v0.0.0-20200417002340-c6e0a841f49a
