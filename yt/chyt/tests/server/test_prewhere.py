@@ -10,7 +10,7 @@ import random
 
 
 class TestClickHousePrewhere(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
 
     def get_config_patch(self, optimize_move_to_prewhere, prefilter_data_slices=False):
         return {

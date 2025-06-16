@@ -834,7 +834,6 @@ class TestJoinAndIn(ClickHouseTestBase):
 
     # CHYT-1300
     @authors("buyval01")
-    @pytest.mark.timeout(0)
     def test_global_join_missing_aliases(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t1", [{"a": 1}, {"a": 2}])
@@ -960,7 +959,6 @@ class TestJoinAndInStress(ClickHouseTestBase):
         index = 0
         for instance_count in range(1, 5):
             with Clique(instance_count) as clique:
-                # TODO(max42): CHYT-390.
                 for lhs_arg in ('"//tmp/t1"', '(select * from "//tmp/t1")'):
                     for rhs_arg in ('"//tmp/t2"', '(select * from "//tmp/t2")'):
                         for globalness in ("", "global"):
