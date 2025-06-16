@@ -72,8 +72,6 @@ struct IChunkPoolOutput
     virtual const NControllerAgent::TProgressCounterPtr& GetRowCounter() const = 0;
     virtual const NControllerAgent::TProgressCounterPtr& GetDataSliceCounter() const = 0;
 
-    virtual TOutputOrderPtr GetOutputOrder() const = 0;
-
     virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const = 0;
 
     //! Approximate average stripe list statistics to estimate memory usage.
@@ -120,4 +118,3 @@ DEFINE_REFCOUNTED_TYPE(IChunkPool)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkPools
-

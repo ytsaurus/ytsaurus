@@ -55,8 +55,6 @@ public:
     const TProgressCounterPtr& GetRowCounter() const override;
     const TProgressCounterPtr& GetDataSliceCounter() const override;
 
-    NChunkPools::TOutputOrderPtr GetOutputOrder() const override;
-
     i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const override;
 
     NTableClient::TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;

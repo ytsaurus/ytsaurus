@@ -822,8 +822,7 @@ void TNewJobManager::InvalidateAllJobs()
 void TNewJobManager::Enlarge(
     i64 dataWeightPerJob,
     i64 primaryDataWeightPerJob,
-    const IJobSizeConstraintsPtr& jobSizeConstraints,
-    const TOutputOrderPtr& outputOrder)
+    const IJobSizeConstraintsPtr& jobSizeConstraints)
 {
     YT_LOG_DEBUG("Enlarging jobs (DataWeightPerJob: %v, PrimaryDataWeightPerJob: %v)",
         dataWeightPerJob,
@@ -952,12 +951,7 @@ void TNewJobManager::Enlarge(
 
             currentJobStub->Finalize();
             JobOrder_->Seek(joinedJobCookies.back());
-            auto newCookie = AddJob(std::move(currentJobStub));
-            if (outputOrder) {
-                // xxx(coteeq): Is it okay to leave some cookies just.. never finished?
-                outputOrder->SeekCookie(joinedJobCookies.back());
-                outputOrder->Push(newCookie);
-            }
+            AddJob(std::move(currentJobStub));
 
             JobOrder_->Seek(*startIndex);
             for (int index : joinedJobCookies) {
@@ -974,6 +968,19 @@ void TNewJobManager::Enlarge(
 void TNewJobManager::SeekOrder(TOutputCookie cookie)
 {
     JobOrder_->Seek(cookie);
+}
+
+std::vector<int> TNewJobManager::GetCookieToPosition() const
+{
+    int position = 0;
+    std::vector<int> cookieToPosition;
+    cookieToPosition.resize(Jobs_.size(), -1);
+    for (auto cookie = JobOrder_->GetFirstCookie(); cookie; cookie = JobOrder_->Next(*cookie)) {
+        YT_VERIFY(cookieToPosition[*cookie] == -1);
+        cookieToPosition[*cookie] = position++;
+    }
+
+    return cookieToPosition;
 }
 
 std::pair<TKeyBound, TKeyBound> TNewJobManager::GetBounds(IChunkPoolOutput::TCookie cookie) const

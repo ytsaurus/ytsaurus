@@ -26,6 +26,7 @@ DECLARE_REFCOUNTED_STRUCT(IMultiChunkPoolOutput)
 DECLARE_REFCOUNTED_STRUCT(IMultiChunkPool)
 DECLARE_REFCOUNTED_STRUCT(IPersistentChunkPoolJobSplittingHost)
 DECLARE_REFCOUNTED_STRUCT(IVanillaChunkPoolOutput)
+DECLARE_REFCOUNTED_STRUCT(IOrderedChunkPool)
 
 YT_DEFINE_ERROR_ENUM(
     ((DataSliceLimitExceeded)              (2000))

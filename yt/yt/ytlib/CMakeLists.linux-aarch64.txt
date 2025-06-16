@@ -346,7 +346,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_pool_factory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe_key.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/chunk_stripe.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_pools/output_order.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/persistence.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/public.cpp

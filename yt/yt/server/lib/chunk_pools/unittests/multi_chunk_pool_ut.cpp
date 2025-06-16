@@ -287,10 +287,6 @@ protected:
             if (poolIndex < poolsToAdd) {
                 mockPtrs.push_back(mock);
             }
-            // Multi chunk pool checks that underlying pool does not have
-            // output order during initialization.
-            EXPECT_CALL(*mock, GetOutputOrder())
-                .WillOnce(Return(nullptr));
         }
 
         Pool_ = CreateMultiChunkPoolOutput(mockPtrs);
@@ -373,14 +369,6 @@ TEST_F(TMultiChunkPoolOutputTest, TestTeleportChunks)
     EXPECT_EQ(teleportChunks[2], std::pair(chunk3, 1));
 
     EXPECT_TRUE(Pool_->IsCompleted());
-}
-
-TEST_F(TMultiChunkPoolOutputTest, TestGetOutputOrder)
-{
-    // Output order is not supported for now.
-    InitPools({1});
-    EXPECT_EQ(Pool_->GetOutputOrder(), TOutputOrderPtr{});
-    EXPECT_EQ(Pool_->Extract(), 0);
 }
 
 TEST_F(TMultiChunkPoolOutputTest, TestGetLocality)

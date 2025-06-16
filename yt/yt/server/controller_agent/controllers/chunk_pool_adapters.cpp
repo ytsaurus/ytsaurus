@@ -84,11 +84,6 @@ const TProgressCounterPtr& TChunkPoolOutputAdapterBase::GetDataSliceCounter() co
     return UnderlyingOutput_->GetDataSliceCounter();
 }
 
-TOutputOrderPtr TChunkPoolOutputAdapterBase::GetOutputOrder() const
-{
-    return UnderlyingOutput_->GetOutputOrder();
-}
-
 i64 TChunkPoolOutputAdapterBase::GetLocality(TNodeId nodeId) const
 {
     return UnderlyingOutput_->GetLocality(nodeId);

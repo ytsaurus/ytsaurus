@@ -918,7 +918,8 @@ protected:
     //! Enables verification that the output is sorted.
     virtual bool ShouldVerifySortedOutput() const;
 
-    virtual NChunkPools::TOutputOrderPtr GetOutputOrder() const;
+    virtual bool IsOrderedOutputRequired() const;
+    virtual std::vector<NChunkClient::TChunkTreeId> GetOutputChunkTreesInOrder(const TOutputTablePtr& table) const;
 
     NChunkClient::EChunkAvailabilityPolicy GetChunkAvailabilityPolicy() const override;
 
