@@ -139,7 +139,7 @@ func newDecompressor(logger *slog.Logger, filepath string, filePosition int64) (
 		return nil, fmt.Errorf("failed to create zstd frame iterator: %w", err)
 	}
 	decoder, err := zstd.NewReader(nil,
-		zstd.WithDecoderMaxMemory(128<<20), // 128 MiB
+		zstd.WithDecoderMaxMemory(100<<20), // 100 MiB
 		zstd.WithDecoderConcurrency(1),
 	)
 	if err != nil {
@@ -237,7 +237,7 @@ func newZstdFrameIterator(logger *slog.Logger, filepath string, filePosition int
 	return &zstdFrameIterator{
 		logger:  logger,
 		ff:      ff,
-		buffer:  make([]byte, 10*(maxZstdFrameLength+zstdSyncTagLength)),
+		buffer:  make([]byte, 5*(maxZstdFrameLength+zstdSyncTagLength)),
 		filePos: filePosition,
 	}, nil
 }
