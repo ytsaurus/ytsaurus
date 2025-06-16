@@ -538,6 +538,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("huge_page_manager", &TThis::HugePageManager)
         .DefaultNew();
+    registrar.Parameter("fair_share_hierarchical_scheduler", &TThis::FairShareHierarchicalScheduler)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
