@@ -117,8 +117,15 @@ public:
                     replicationCard));
         }
 
-        auto migratedCardsGuard = WriterGuard(MigratedCardsLock_);
-        MigratedCards_.erase(replicationCardId);
+        {
+            auto deletedCardsGuard = WriterGuard(DeletedCardsLock_);
+            DeletedCards_.erase(replicationCardId);
+        }
+
+        {
+            auto migratedCardsGuard = WriterGuard(MigratedCardsLock_);
+            MigratedCards_.erase(replicationCardId);
+        }
     }
 
     void OnReplcationCardUpdated(

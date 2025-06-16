@@ -1647,6 +1647,7 @@ private:
 
             auto replicationCardId = FromProto<TReplicationCardId>(protoMigrationCard.replication_card_id());
             auto* replicationCard = FindReplicationCard(replicationCardId);
+            bool replicationCardCreated = false;
             if (!replicationCard) {
                 if (IsDomesticReplicationCard(replicationCardId)) {
                     // Seems like card has been removed.
@@ -1659,6 +1660,7 @@ private:
                 replicationCard = replicationCardHolder.get();
 
                 ReplicationCardMap_.Insert(replicationCardId, std::move(replicationCardHolder));
+                replicationCardCreated = true;
 
                 YT_LOG_DEBUG("Replication card created for immigration (ReplicationCardId: %v)",
                     replicationCardId);
@@ -1713,10 +1715,15 @@ private:
                 BindReplicationCardToRtt(replicationCard);
             }
 
-            HandleReplicationCardStateTransition(replicationCard);
+            if (replicationCardCreated) {
+                auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
+                ReplicationCardWatcher_->RegisterReplicationCard(
+                    replicationCardId,
+                    clientReplicationCard,
+                    replicationCard->GetCurrentTimestamp());
+            }
 
-            auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
-            ReplicationCardWatcher_->RegisterReplicationCard(replicationCardId, clientReplicationCard, replicationCard->GetCurrentTimestamp());
+            HandleReplicationCardStateTransition(replicationCard);
         }
 
         if (!request->has_migration_token()) {
