@@ -212,16 +212,24 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
 
     YT_VERIFY(element->Initialized_);
 
-    TResourceTreeElement* current = element.Get();
-    if (!current->IncreaseLocalResourceUsagePrecommit(delta)) {
-        YT_LOG_DEBUG("Local increase of usage precommit failed (Id: %v)", element->GetId());
+    auto increaseLocalResourceUsagePrecommit = [element] (auto* current, const TJobResources& delta) {
+        bool success = current->IncreaseLocalResourceUsagePrecommit(delta);
+        YT_LOG_DEBUG_UNLESS(
+            success,
+            "Local increase of usage precommit failed (Delta: %v, CurrentElement: %v, SourceElement: %v)",
+            delta,
+            current->GetId(),
+            element->GetId());
+        return success;
+    };
+
+    if (!increaseLocalResourceUsagePrecommit(element.Get(), delta)) {
         return;
     }
-    current = current->Parent_.Get();
 
-    while (current != nullptr) {
-        auto result = current->IncreaseLocalResourceUsagePrecommit(delta);
-        YT_ASSERT(result);
+    auto* current = element->Parent_.Get();
+    while (current) {
+        YT_ASSERT(increaseLocalResourceUsagePrecommit(current, delta));
         current = current->Parent_.Get();
     }
 }
