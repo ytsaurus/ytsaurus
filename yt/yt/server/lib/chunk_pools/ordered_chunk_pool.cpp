@@ -396,10 +396,8 @@ private:
             dataWeightPerJob = DivCeil(dataSize, static_cast<i64>(splitJobCount));
         }
 
-        // Teleport chunks do not affect the job split process since each original
+        // NB: Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.
-        // xxx(coteeq): This is unused.
-        std::vector<TInputChunkPtr> teleportChunks;
 
         // Insert consequent jobs after the parent cookie.
         if (OutputOrder_) {
