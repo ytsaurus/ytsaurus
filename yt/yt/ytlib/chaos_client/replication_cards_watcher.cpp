@@ -98,8 +98,10 @@ public:
             }
         }
 
-        WaitFor(ExpirationExecutor_->Stop())
-            .ThrowOnError();
+        auto stopResult = WaitFor(ExpirationExecutor_->Stop());
+        if (!stopResult.IsOK()) {
+            YT_LOG_WARNING(stopResult, "Failed to stop expiration executor");
+        }
     }
 
     void RegisterReplicationCard(

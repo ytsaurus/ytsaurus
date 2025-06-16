@@ -44,4 +44,14 @@ void TReplicationCardsWatcherConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChaosReplicationCardUpdatesBatcherConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Optional();
+    registrar.Parameter("flush_period", &TThis::FlushPeriod)
+        .Default(TDuration::Seconds(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChaosClient

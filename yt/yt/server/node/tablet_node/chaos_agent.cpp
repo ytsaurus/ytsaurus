@@ -12,6 +12,10 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
+#include <yt/yt/server/node/cluster_node/config.h>
+
+#include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher.h>
+
 #include <yt/yt/ytlib/api/native/chaos_helpers.h>
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -38,6 +42,7 @@ namespace NYT::NTabletNode {
 
 using namespace NApi;
 using namespace NChaosClient;
+using namespace NClusterNode;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NObjectClient;
@@ -54,12 +59,14 @@ public:
         TTablet* tablet,
         ITabletSlotPtr slot,
         TReplicationCardId replicationCardId,
-        NNative::IClientPtr localClient)
+        NNative::IClientPtr localClient,
+        IReplicationCardUpdatesBatcherPtr replicationCardUpdatesBatcher)
         : Tablet_(tablet)
         , Slot_(std::move(slot))
         , MountConfig_(tablet->GetSettings().MountConfig)
         , ReplicationCardId_(replicationCardId)
         , LocalClient_(std::move(localClient))
+        , ReplicationCardUpdatesBatcher_(std::move(replicationCardUpdatesBatcher))
         , Logger(TabletNodeLogger()
             .WithTag("%v, ReplicationCardId: %v",
                 tablet->GetLoggingTag(),
@@ -131,6 +138,8 @@ private:
     const TTableMountConfigPtr MountConfig_;
     const TReplicationCardId ReplicationCardId_;
     const NNative::IClientPtr LocalClient_;
+    // Nullable.
+    const IReplicationCardUpdatesBatcherPtr ReplicationCardUpdatesBatcher_;
 
     TReplicationCardPtr ReplicationCard_;
 
@@ -395,19 +404,37 @@ private:
             counters->LagTime.Update(time);
         }
 
-        auto options = TUpdateChaosTableReplicaProgressOptions{
-            .Progress = *progress
-        };
-        auto future = LocalClient_->UpdateChaosTableReplicaProgress(
-            Tablet_->GetUpstreamReplicaId(),
-            options);
-        auto resultOrError = WaitFor(future);
+        if (!ReplicationCardUpdatesBatcher_ || !ReplicationCardUpdatesBatcher_->Enabled()) {
+            auto options = TUpdateChaosTableReplicaProgressOptions{
+                .Progress = *progress
+            };
+            auto future = LocalClient_->UpdateChaosTableReplicaProgress(
+                Tablet_->GetUpstreamReplicaId(),
+                options);
+            auto resultOrError = WaitFor(future);
 
-        if (resultOrError.IsOK()) {
-            YT_LOG_DEBUG("Replication progress updated successfully (ReplicationProgress: %v)",
-                options.Progress);
+            if (resultOrError.IsOK()) {
+                YT_LOG_DEBUG("Replication progress updated successfully (ReplicationProgress: %v)",
+                    options.Progress);
+            } else {
+                YT_LOG_ERROR(resultOrError, "Failed to update replication progress");
+            }
         } else {
-            YT_LOG_ERROR(resultOrError, "Failed to update replication progress");
+            YT_LOG_DEBUG("Updating replication progress with batching (ReplicationProgressUpdate: %v)",
+                *progress);
+
+            auto future = ReplicationCardUpdatesBatcher_->AddTabletProgressUpdate(
+                Tablet_->GetReplicationCardId(),
+                Tablet_->GetUpstreamReplicaId(),
+                *progress);
+
+            auto resultOrError = WaitFor(std::move(future));
+            if (resultOrError.IsOK()) {
+                YT_LOG_DEBUG("Replication progress updated successfully (ReplicationProgress: %v)",
+                    *progress);
+            } else {
+                YT_LOG_ERROR(resultOrError, "Failed to update replication progress");
+            }
         }
     }
 };
@@ -418,13 +445,15 @@ IChaosAgentPtr CreateChaosAgent(
     TTablet* tablet,
     ITabletSlotPtr slot,
     TReplicationCardId replicationCardId,
-    NNative::IClientPtr localClient)
+    NNative::IClientPtr localClient,
+    IReplicationCardUpdatesBatcherPtr replicationCardUpdatesBatcher)
 {
     return New<TChaosAgent>(
         tablet,
         std::move(slot),
         replicationCardId,
-        std::move(localClient));
+        std::move(localClient),
+        std::move(replicationCardUpdatesBatcher));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,7 @@ package NYT.NChaosClient.NProto;
 
 import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 import "yt_proto/yt/client/chaos_client/proto/chaos_lease.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,6 +194,51 @@ message TReqUpdateTableReplicaProgress
 
 message TRspUpdateTableReplicaProgress
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReplicaProgressUpdateItem
+{
+    required NYT.NProto.TGuid replica_id = 1; // NChaosClient::TReplicaId
+    required TReplicationProgress replication_progress = 2;
+}
+
+message TReplicationCardProgressUpdateItem
+{
+    required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
+    repeated TReplicaProgressUpdateItem replica_progress_updates = 2;
+    optional TReplicationCardFetchOptions fetch_options = 3;
+}
+
+message TReqUpdateTableProgress
+{
+    required TReplicationCardProgressUpdateItem replication_card_progress_update = 1;
+}
+
+message TRspUpdateTableProgress
+{
+    optional TReplicationCard replication_card = 1;
+}
+
+message TReqUpdateMultipleTableProgresses
+{
+    repeated TReplicationCardProgressUpdateItem replication_card_progress_updates = 1;
+}
+
+message TRspUpdateMultipleTableProgresses
+{
+    message TUpdateMultipleTableProgressesResult
+    {
+        required NYT.NProto.TGuid replication_card_id = 1; // NChaosClient::TReplicationCardId
+
+        oneof result_or_error {
+            TRspUpdateTableProgress result = 2;
+            NYT.NProto.TError error = 3;
+        }
+    }
+
+    repeated TUpdateMultipleTableProgressesResult replication_card_progress_update_results = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

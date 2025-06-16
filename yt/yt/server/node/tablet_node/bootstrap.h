@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/security_server/public.h>
 
+#include <yt/yt/ytlib/chaos_client/public.h>
+
 #include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
 namespace NYT::NTabletNode {
@@ -76,6 +78,7 @@ struct IBootstrap
 
     virtual const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const = 0;
     virtual const IAlienClusterClientCachePtr& GetReplicatorClientCache() const = 0;
+    virtual const NChaosClient::IReplicationCardUpdatesBatcherPtr& GetReplicationCardUpdatesBatcher() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

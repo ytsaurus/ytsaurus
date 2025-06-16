@@ -11,6 +11,9 @@ void TChaosCacheConfig::Register(TRegistrar registrar)
     registrar.Parameter("replication_cards_watcher", &TThis::ReplicationCardsWatcher)
         .DefaultNew();
 
+    registrar.Parameter("replication_cards_update_batcher", &TThis::ReplicationCardUpdateBatcher)
+        .DefaultNew();
+
     registrar.Parameter("unwatched_cards_expiration_delay", &TThis::UnwatchedCardExpirationDelay)
         .Default(TDuration::Minutes(15));
 

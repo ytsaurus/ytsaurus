@@ -86,6 +86,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingChaosLease));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveChaosLease));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChaosObject));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateTableProgress));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateMultipleTableProgresses));
     }
 
 private:
@@ -374,6 +376,22 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->UpdateTableReplicaProgress(std::move(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, UpdateTableProgress)
+    {
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->UpdateTableProgress(std::move(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, UpdateMultipleTableProgresses)
+    {
+        int replicationCardUpdatesSize = request->replication_card_progress_updates().size();
+        context->SetRequestInfo("ReplicationCardCount: %v",
+            replicationCardUpdatesSize);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->UpdateMultipleTableProgresses(std::move(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, AlterReplicationCard)

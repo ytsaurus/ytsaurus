@@ -2408,6 +2408,7 @@ class YTInstance(object):
             self.modify_dynamic_configs_func(patched_dynamic_node_config, self.abi_version)
 
         client.set("//sys/cluster_nodes/@config", patched_dynamic_node_config)
+        logger.debug(patched_dynamic_node_config)
 
         return patched_dynamic_node_config["%true"]
 
