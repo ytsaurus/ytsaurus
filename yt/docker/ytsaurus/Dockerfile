@@ -25,7 +25,7 @@ ARG SERVER_IMAGE_BASE="base-server"
 
 ##########################################################################################
 
-FROM mirror.gcr.io/ubuntu:focal AS ubuntu-base
+FROM ubuntu:focal AS ubuntu-base
 
 ARG APT_MIRROR="http://archive.ubuntu.com/"
 
@@ -37,6 +37,13 @@ RUN apt-get update \
       python3.8  \
       python3.8-distutils \
       linux-tools-generic
+
+##########################################################################################
+
+FROM golang:1.22.12 AS pprof-builder
+ENV CGO_ENABLED=0
+ENV GOBIN=/
+RUN go install github.com/google/pprof@v0.0.0-20200417002340-c6e0a841f49a
 
 ##########################################################################################
 
@@ -97,7 +104,6 @@ packages=(
   wget
   llvm
   git
-  tar
 )
 
 apt-get install -y "${packages[@]}"
@@ -107,16 +113,7 @@ rm -rf /var/lib/apt/lists/*
 
 EOT
 
-# Install pprof
-ENV GO_VERSION=1.22.3
-RUN wget https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz && \
-    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
-    rm go${GO_VERSION}.linux-amd64.tar.gz
-
-ENV GOPATH=/go
-ENV PATH="${GOPATH}/bin:/usr/local/go/bin:${PATH}"
-RUN CGO_ENABLED=0 go install github.com/google/pprof@v0.0.0-20200417002340-c6e0a841f49a
-RUN mv /go/bin/pprof /usr/bin/pprof
+COPY --from=pprof-builder /pprof /usr/local/bin/pprof
 
 ##########################################################################################
 
