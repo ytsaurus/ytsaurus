@@ -258,7 +258,10 @@ private:
             Config_->UserDirectorySynchronizer,
             GetRootClient(),
             UserDirectory_,
-            GetControlInvoker());
+            GetControlInvoker(),
+            Config_->Testing->EnableUserDirectorySync
+                ? NApi::EMasterChannelKind::Follower
+                : NApi::EMasterChannelKind::Cache);
 
         MasterConnector_ = CreateMasterConnector(this);
 

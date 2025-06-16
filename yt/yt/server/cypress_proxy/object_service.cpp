@@ -26,9 +26,12 @@
 
 #include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
+
+#include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -910,11 +913,16 @@ private:
         const auto& masterConnector = Owner_->Bootstrap_->GetMasterConnector();
         masterConnector->ValidateRegistration();
 
+        auto processInitialSync = true;
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
             auto& subrequest = Subrequests_[index];
             auto target = subrequest.Target;
             if (target != ERequestTarget::Undetermined && target != ERequestTarget::Sequoia) {
                 continue;
+            }
+
+            if (std::exchange(processInitialSync, false)) {
+                MaybeSyncWithMaster();
             }
 
             YT_LOG_DEBUG("Executing subrequest in Sequoia (SubrequestIndex: %v)",
@@ -954,6 +962,66 @@ private:
             response.Attachments().end(),
             subresponseMessage.Begin(),
             subresponseMessage.End());
+    }
+
+    // Performs selective synchronization with
+    // - the user directory,
+    // - the ground update queues across all master cells.
+    void MaybeSyncWithMaster() const
+    {
+        const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
+        if (!config->EnableUserDirectorySync &&
+            !config->EnableGroundUpdateQueuesSync)
+        {
+            return;
+        }
+
+        YT_LOG_DEBUG(
+            "Synchronizing with master before Sequoia request invocation "
+            "(UserDirectorySync: %v, GroundUpdateQueuesSync: %v)",
+            config->EnableUserDirectorySync,
+            config->EnableGroundUpdateQueuesSync);
+
+        std::vector<TFuture<void>> futures;
+        if (config->EnableUserDirectorySync) {
+            const auto& userDirectorySynchronizer = Owner_->Bootstrap_->GetUserDirectorySynchronizer();
+            futures.push_back(userDirectorySynchronizer->NextSync(true));
+        }
+        if (config->EnableGroundUpdateQueuesSync) {
+            futures.push_back(DoSyncWithGroundUpdateQueues());
+        }
+
+        WaitFor(AllSucceeded(std::move(futures)))
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Successfully synchronized with master");
+    }
+
+    TFuture<void> DoSyncWithGroundUpdateQueues() const
+    {
+        const auto& connection = Owner_->Bootstrap_->GetNativeConnection();
+        const auto& masterCellDirectory = connection->GetMasterCellDirectory();
+        auto cellTagsToSyncWith = masterCellDirectory->GetMasterCellTagsWithRole(
+            NCellMasterClient::EMasterCellRole::CypressNodeHost);
+
+        const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
+
+        auto syncWithCell = [&] (TCellTag cellTag) {
+            const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(
+                EMasterChannelKind::Follower,
+                cellTag);
+            auto proxy = TSequoiaTransactionServiceProxy(std::move(nakedMasterChannel));
+            proxy.SetDefaultTimeout(config->GroundUpdateQueuesSyncRequestTimeout);
+
+            auto request = proxy.SyncWithGroundUpdateQueue();
+            return request->Invoke().AsVoid();
+        };
+
+        std::vector<TFuture<void>> futures;
+        for (auto cellTag : cellTagsToSyncWith) {
+            futures.push_back(syncWithCell(cellTag));
+        }
+        return AllSucceeded(std::move(futures));
     }
 };
 

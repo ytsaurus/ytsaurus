@@ -147,6 +147,24 @@ class MasterCellAdditionBase(YTEnvSetup):
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
     @classmethod
+    def _wait_for_nodes_state(cls, expected_state):
+        def check():
+            nodes = ls("//sys/cluster_nodes", attributes=["multicell_states"])
+            return all(
+                all(
+                    v == expected_state
+                    for v in node.attributes["multicell_states"].values()
+                )
+                for node in nodes
+            )
+
+        wait(
+            check,
+            ignore_exceptions=True,
+            error_message=f"Nodes were not {expected_state} for 30 seconds",
+            timeout=30)
+
+    @classmethod
     def _disable_last_cell(cls):
         print_debug("Disabling last master cell")
 
@@ -226,7 +244,7 @@ class MasterCellAdditionBase(YTEnvSetup):
             _move_files(changelogs_path)
 
     @classmethod
-    def _enable_last_cell(cls, downtime):
+    def _enable_last_cell(cls, downtime, wait_for_nodes=True):
         print_debug("Enabling last master cell")
 
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
@@ -270,6 +288,9 @@ class MasterCellAdditionBase(YTEnvSetup):
             id = str(tx)
             if "World initialization" in title:
                 abort_transaction(id)
+
+        if wait_for_nodes:
+            cls._wait_for_nodes_state("online")
 
         cls.PATCHED_CONFIGS = []
         cls.STASHED_CELL_CONFIGS = []

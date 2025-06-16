@@ -6,6 +6,20 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTestConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_ground_update_queues_sync", &TThis::EnableGroundUpdateQueuesSync)
+        .Default(false);
+
+        registrar.Parameter("enable_user_directory_sync", &TThis::EnableUserDirectorySync)
+        .Default(false);
+
+    registrar.Parameter("ground_update_queues_sync_request_timeout", &TThis::GroundUpdateQueuesSyncRequestTimeout)
+        .Default(TDuration::Seconds(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCypressProxyBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
@@ -19,6 +33,9 @@ void TCypressProxyBootstrapConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
         .Default(TDuration::Seconds(15));
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

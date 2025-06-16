@@ -182,7 +182,7 @@ class TestSequoiaSymlinks(YTEnvSetup):
 
     NUM_SECONDARY_MASTER_CELLS = 2
     MASTER_CELL_DESCRIPTORS = {
-        "10": {"roles": ["sequoia_node_host"]},
+        "10": {"roles": ["cypress_node_host", "sequoia_node_host"]},
         # Master cell with tag 11 is reserved for portals.
         "12": {"roles": ["sequoia_node_host"]},
     }
@@ -191,6 +191,12 @@ class TestSequoiaSymlinks(YTEnvSetup):
         "sequoia_manager": {
             "enable_ground_update_queues": True
         },
+    }
+
+    DELTA_CYPRESS_PROXY_CONFIG = {
+        "testing": {
+            "enable_ground_update_queues_sync": True,
+        }
     }
 
     def setup_method(self, method):
@@ -223,9 +229,7 @@ class TestSequoiaSymlinks(YTEnvSetup):
         link("//cypress/t1", "//tmp/l1")
         link("//tmp/l1", "//tmp/l2")
         link("//tmp/l2", "//cypress/l3")
-        wait(lambda: len(lookup_path_to_node_id('//cypress/l3')) == 1)
         link("//cypress/l3", "//cypress/l4")
-        wait(lambda: len(lookup_path_to_node_id('//cypress/l4')) == 1)
         assert get("//tmp/l1/@id") == id1
         assert get("//tmp/l2/@id") == id1
         assert get("//cypress/l3/@id") == id1
@@ -237,30 +241,24 @@ class TestSequoiaSymlinks(YTEnvSetup):
         set("//tmp/n2", 2)
 
         link("//tmp/n1", "//cypress/link")
-        wait(lambda: len(lookup_path_to_node_id("//cypress/link")) == 1)
         assert get("//cypress/link") == 1
 
         tx0 = start_transaction(timeout=180000)
         remove("//cypress/link&", tx=tx0)
-        wait(lambda: len(lookup_path_to_node_id("//cypress/link", tx=tx0)) == 0)
         with raises_yt_error('Node //cypress has no child with key "link"'):
             get("//cypress/link", tx=tx0)
 
         tx1 = start_transaction(tx=tx0, timeout=180000)
         link("//tmp/n2", "//cypress/link", tx=tx1)
-        wait(lambda: len(lookup_path_to_node_id("//cypress/link", tx=tx1)) == 1)
         assert get("//cypress/link", tx=tx1) == 2
 
         commit_transaction(tx1)
-        # TODO(danilalexeev): Remove once GUQM sync is implemented.
-        wait(lambda: len(lookup_path_to_node_id("//cypress/link", tx=tx0)) == 1)
         assert get("//cypress/link", tx=tx0) == 2
 
     @authors("danilalexeev")
     def test_cyclic_link_through_sequoia(self):
         link("//cypress/l2", "//tmp/l1", force=True)
         link("//tmp/l3", "//cypress/l2", force=True)
-        wait(lambda: len(lookup_path_to_node_id("//cypress/l2")) == 1)
         with raises_yt_error("Failed to create link: link is cyclic"):
             link("//tmp/l1", "//tmp/l3", force=True)
 

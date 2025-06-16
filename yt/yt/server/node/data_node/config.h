@@ -474,6 +474,9 @@ struct TMasterConnectorDynamicConfig
     //! Timeout for full data node heartbeat.
     TDuration FullHeartbeatTimeout;
 
+    //! Timeout for location full data node heartbeat.
+    TDuration LocationFullHeartbeatTimeout;
+
     //! Period between consequent job heartbeats to a given cell.
     std::optional<TDuration> JobHeartbeatPeriod;
 
@@ -491,6 +494,10 @@ struct TMasterConnectorDynamicConfig
 
     //! Test location disable during full heartbeat, contains location uuid.
     std::optional<TChunkLocationUuid> LocationUuidToDisableDuringFullHeartbeat;
+
+    // COMPAT(danilalexeev): YT-23781.
+    //! Retrying channel for location full heartbeats.
+    NRpc::TRetryingChannelConfigPtr FullHeartbeatSessionRetryingChannel;
 
     //! Test data node intermediate state at master during full hearbteat session.
     std::optional<TDuration> FullHeartbeatSessionSleepDuration;

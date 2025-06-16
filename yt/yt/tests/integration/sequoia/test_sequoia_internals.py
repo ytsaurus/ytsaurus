@@ -93,8 +93,8 @@ class TestSequoiaInternals(YTEnvSetup):
     DELTA_CYPRESS_PROXY_CONFIG = {
         "user_directory_synchronizer": {
             "sync_period": 100,
+            "sync_period_splay": 100,
         },
-        "heartbeat_period": 1000,
     }
 
     @authors("kvk1920")

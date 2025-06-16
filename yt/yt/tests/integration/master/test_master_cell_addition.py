@@ -388,6 +388,8 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         set("//sys/@config/multicell_manager/testing/discovered_masters_cell_tags", [13])
         set("//sys/@config/multicell_manager/cell_descriptors", {"13": {"roles": ["cypress_node_host", "chunk_host"]}})
 
+        self._wait_for_nodes_state("online")
+
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
         write_table("//tmp/t", [{"a" : "b"}])
         assert read_table("//tmp/t") == [{"a" : "b"}]
@@ -448,7 +450,7 @@ class TestMasterCellDynamicPropagationDuringRegistration(MasterCellAdditionBase)
     @authors("cherepashka")
     def test_registration_after_synchronization(self):
         self.Env.kill_nodes()
-        self._enable_last_cell(downtime=False)
+        self._enable_last_cell(downtime=False, wait_for_nodes=False)
         # Registration on primary master triggers master cell synhronization, which follows receiving new master cell
         # and attempt of starting cellar/data/tablet heartbeats before actual registration.
         # This shouldn't crash node.

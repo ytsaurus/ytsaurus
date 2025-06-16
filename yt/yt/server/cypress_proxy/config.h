@@ -20,6 +20,25 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTestConfig
+    : public NYTree::TYsonStruct
+{
+    //! Synchronization with components for testing purposes.
+    bool EnableGroundUpdateQueuesSync;
+
+    bool EnableUserDirectorySync;
+
+    TDuration GroundUpdateQueuesSyncRequestTimeout;
+
+    REGISTER_YSON_STRUCT(TTestConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCypressProxyBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
@@ -30,6 +49,8 @@ struct TCypressProxyBootstrapConfig
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
 
     TDuration HeartbeatPeriod;
+
+    TTestConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TCypressProxyBootstrapConfig);
 
