@@ -1768,11 +1768,12 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     return jobs;
 }
 
-static void AddSelectExpressions(
+void TClient::AddSelectExpressions(
     TQueryBuilder* builder,
     const THashSet<TString>& attributes,
     int archiveVersion)
 {
+    bool needFullStatisticsForBriefStatistics = GetNativeConnection()->GetConfig()->RequestFullStatisticsForBriefStatisticsInListJobs;
     for (const auto& attribute : attributes) {
         if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
             continue;
@@ -1799,10 +1800,13 @@ static void AddSelectExpressions(
         } else if (attribute == "statistics") {
             builder->AddSelectExpression("statistics");
             builder->AddSelectExpression("statistics_lz4");
-        } else if (attribute == "brief_statistics" && !attributes.contains("statistics")) {
-            // TODO(bystrovserg): Switch to brief_statistics when request "brief_statistics".
-            builder->AddSelectExpression("statistics");
-            builder->AddSelectExpression("statistics_lz4");
+        } else if (attribute == "brief_statistics") {
+            if (needFullStatisticsForBriefStatistics && !attributes.contains("statistics")) {
+                builder->AddSelectExpression("statistics");
+                builder->AddSelectExpression("statistics_lz4");
+            } else {
+                builder->AddSelectExpression("brief_statistics");
+            }
         } else if (attribute == "state") {
             builder->AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
             if (DoesArchiveContainAttribute("controller_state", archiveVersion)) {

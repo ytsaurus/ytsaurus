@@ -384,6 +384,8 @@ struct TConnectionDynamicConfig
 
     THashSet<std::string> BannedInSyncReplicaClusters;
 
+    bool RequestFullStatisticsForBriefStatisticsInListJobs;
+
     //! Enables strict access validation in operation info commands.
     bool StrictOperationInfoAccessValidation;
 

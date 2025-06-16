@@ -50,6 +50,8 @@
 #include <yt/yt/client/api/internal_client.h>
 #include <yt/yt/client/bundle_controller_client/bundle_controller_settings.h>
 
+#include <yt/yt/client/query_client/query_builder.h>
+
 #include <yt/yt/flow/lib/client/controller/controller_service_proxy.h>
 
 #include <yt/yt/client/ypath/rich.h>
@@ -1417,9 +1419,14 @@ private:
         TInstant deadline,
         const TListJobsOptions& options);
 
+    void AddSelectExpressions(
+        NQueryClient::TQueryBuilder* builder,
+        const THashSet<TString>& attributes,
+        int archiveVersion);
+
     // Retrieve:
     // 1) Filtered finished jobs (with limit).
-    // 2) All (non-filtered and without limit) in-progress jobs (if |includeInProgressJobs == true|).
+    // 2) All (non-filtered and without limit) in-progress jobs.
     TFuture<std::vector<TJob>> DoListJobsFromArchiveAsync(
         int archiveVersion,
         NScheduler::TOperationId operationId,
