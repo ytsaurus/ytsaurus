@@ -181,6 +181,8 @@ def get_dynamic_master_config():
             "cell_hydra_persistence_synchronizer": {
                 "synchronization_period": 100,
             },
+
+            "enable_smooth_tablet_movement": True,
         },
 
         "sequoia_manager": {},

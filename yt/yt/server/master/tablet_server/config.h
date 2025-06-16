@@ -329,6 +329,8 @@ struct TDynamicTabletManagerConfig
     // COMPAT(danilalexeev)
     bool SafeCheckSecondaryCellStorage;
 
+    bool EnableSmoothTabletMovement;
+
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 
     static void Register(TRegistrar registrar);
