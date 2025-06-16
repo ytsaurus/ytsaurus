@@ -254,6 +254,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("enable_smooth_tablet_movement", &TThis::EnableSmoothTabletMovement)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         config->StoreChunkReader->BanPeersPermanently = false;
