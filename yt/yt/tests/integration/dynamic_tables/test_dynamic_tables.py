@@ -262,6 +262,9 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
                 }
             }
         })
+        for node in ls("//sys/cluster_nodes"):
+            wait(
+                lambda: get(f"//sys/cluster_nodes/{node}/orchid/node_resource_manager/memory_limit_per_category/tablet_static") == 0)
 
         leader_address = get("//tmp/t/@tablets/0/cell_leader_address")
         set_node_decommissioned(leader_address, True)
