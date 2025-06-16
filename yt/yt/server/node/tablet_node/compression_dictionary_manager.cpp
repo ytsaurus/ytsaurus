@@ -689,6 +689,7 @@ private:
             chunkReadOptions,
             TNameTable::FromSchemaStable(*tabletSnapshot->PhysicalSchema),
             tabletSnapshot->ChunkFragmentReader,
+            /*suitableForCaching*/ true,
             Logger)
             .SubscribeUnique(BIND(
                 [=, cookie = std::move(cookie)] (TErrorOr<TRowDigestedDictionary>&& digestedDictionaryOrError) mutable
