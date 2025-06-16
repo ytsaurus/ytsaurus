@@ -62,11 +62,6 @@ PHOENIX_DEFINE_TYPE(TChunkPoolInputBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOutputOrderPtr TChunkPoolOutputBase::GetOutputOrder() const
-{
-    return nullptr;
-}
-
 i64 TChunkPoolOutputBase::GetLocality(NNodeTrackerClient::TNodeId /*nodeId*/) const
 {
     return 0;

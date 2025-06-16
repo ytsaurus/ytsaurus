@@ -11,8 +11,6 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
-#include <yt/yt/ytlib/chunk_pools/output_order.h>
-
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
@@ -60,7 +58,7 @@ PHOENIX_DEFINE_TYPE(TOrderedChunkPoolOptions);
 class TOrderedChunkPool
     : public TChunkPoolInputBase
     , public TChunkPoolOutputWithNewJobManagerBase
-    , public IPersistentChunkPool
+    , public IOrderedChunkPool
     , public TJobSplittingBase
     , public virtual NLogging::TLoggerOwner
 {
@@ -79,7 +77,6 @@ public:
         , MaxTotalSliceCount_(options.MaxTotalSliceCount)
         , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
-        , OutputOrder_(options.BuildOutputOrder ? New<TOutputOrder>() : nullptr)
         , UseNewSlicingImplementation_(options.UseNewSlicingImplementation)
     {
         Logger = options.Logger;
@@ -193,8 +190,7 @@ public:
                 JobManager_->Enlarge(
                     JobSizeAdjuster_->GetDataWeightPerJob(),
                     JobSizeAdjuster_->GetDataWeightPerJob(),
-                    JobSizeConstraints_,
-                    OutputOrder_);
+                    JobSizeConstraints_);
             }
         }
 
@@ -208,9 +204,46 @@ public:
         CheckCompleted();
     }
 
-    TOutputOrderPtr GetOutputOrder() const override
+    std::vector<TChunkTreeId> ArrangeOutputChunkTrees(
+        const std::vector<std::pair<TOutputCookie, TChunkTreeId>>& chunkTrees) const override
     {
-        return OutputOrder_;
+        auto cookieToPosition = JobManager_->GetCookieToPosition();
+
+        std::vector<TChunkTreeId> orderedTreeIds;
+        orderedTreeIds.resize(cookieToPosition.size());
+
+        for (const auto& [cookie, chunkTreeId] : chunkTrees) {
+            YT_ASSERT(chunkTreeId);
+            orderedTreeIds[cookieToPosition[cookie]] = chunkTreeId;
+        }
+
+        // NB: Chunk trees count may be smaller than valid cookies count
+        // because of RichYPath's max_row_count.
+        auto end = std::remove(
+            orderedTreeIds.begin(),
+            orderedTreeIds.end(),
+            TChunkTreeId());
+
+        return {orderedTreeIds.begin(), end};
+    }
+
+    std::vector<TOutputCookie> GetOutputCookiesInOrder() const override
+    {
+        std::vector<TOutputCookie> cookies;
+        auto cookieToPosition = JobManager_->GetCookieToPosition();
+
+        auto totalValidCookies = std::count_if(
+            cookieToPosition.begin(),
+            cookieToPosition.end(),
+            [] (const auto& position) { return position != -1; });
+
+        cookies.resize(totalValidCookies);
+        for (auto [cookie, position] : Enumerate(cookieToPosition)) {
+            if (position != -1) {
+                cookies[position] = cookie;
+            }
+        }
+        return cookies;
     }
 
 private:
@@ -235,8 +268,6 @@ private:
     bool ShouldSliceByRowIndices_ = false;
 
     bool EnablePeriodicYielder_;
-
-    TOutputOrderPtr OutputOrder_ = nullptr;
 
     // If the value is not set, it indicates that the row count until job split
     // cannot be currently estimated. In this scenario, a new slice may be
@@ -332,15 +363,11 @@ private:
 
                         // Add barrier.
                         CurrentJob()->SetIsBarrier(true);
-                        JobManager_->AddJob(std::move(CurrentJob()));
+                        auto cookie = JobManager_->AddJob(std::move(CurrentJob()));
 
                         auto inputChunk = dataSlice->GetSingleUnversionedChunk();
-                        ChunkTeleported_.Fire(inputChunk, /*tag*/ std::any{});
+                        ChunkTeleported_.Fire(inputChunk, /*tag*/ std::any{cookie});
                         ++chunksTeleported;
-
-                        if (OutputOrder_) {
-                            OutputOrder_->Push(TOutputOrder::TEntry(inputChunk));
-                        }
                     } else {
                         // This teleport chunk goes to /dev/null.
                         ++droppedTeleportChunkCount;
@@ -373,8 +400,7 @@ private:
             JobManager_->Enlarge(
                 GetDataWeightPerJob(),
                 JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
-                JobSizeConstraints_,
-                GetOutputOrder());
+                JobSizeConstraints_);
         }
 
         JobSizeConstraints_->UpdateInputDataWeight(JobManager_->DataWeightCounter()->GetTotal());
@@ -400,9 +426,6 @@ private:
         // job is already located between the teleport chunks.
 
         // Insert consequent jobs after the parent cookie.
-        if (OutputOrder_) {
-            OutputOrder_->SeekCookie(cookie);
-        }
         JobManager_->SeekOrder(cookie);
 
         std::vector<IChunkPoolOutput::TCookie> childCookies;
@@ -732,9 +755,6 @@ private:
                 CurrentJob()->Finalize();
 
                 auto cookie = JobManager_->AddJob(std::move(CurrentJob()));
-                if (OutputOrder_) {
-                    OutputOrder_->Push(cookie);
-                }
 
                 YT_ASSERT(!CurrentJob_);
 
@@ -799,7 +819,6 @@ void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(7, MaxTotalSliceCount_);
     PHOENIX_REGISTER_FIELD(8, ShouldSliceByRowIndices_);
     PHOENIX_REGISTER_FIELD(9, EnablePeriodicYielder_);
-    PHOENIX_REGISTER_FIELD(10, OutputOrder_);
     PHOENIX_REGISTER_FIELD(11, JobIndex_);
     PHOENIX_REGISTER_FIELD(12, BuiltJobCount_);
     PHOENIX_REGISTER_FIELD(13, SingleJob_);
@@ -818,7 +837,7 @@ PHOENIX_DEFINE_TYPE(TOrderedChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IPersistentChunkPoolPtr CreateOrderedChunkPool(
+IOrderedChunkPoolPtr CreateOrderedChunkPool(
     const TOrderedChunkPoolOptions& options,
     TInputStreamDirectory inputStreamDirectory)
 {

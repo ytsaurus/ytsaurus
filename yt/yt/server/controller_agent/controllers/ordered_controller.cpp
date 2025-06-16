@@ -142,6 +142,11 @@ protected:
             return ChunkPool_;
         }
 
+        IOrderedChunkPoolPtr GetOrderedChunkPool() const
+        {
+            return ChunkPool_;
+        }
+
         i64 GetTotalOutputRowCount() const
         {
             return TotalOutputRowCount_;
@@ -157,7 +162,7 @@ protected:
 
             TChunkStripeKey key;
             if (Controller_->OrderedOutputRequired_) {
-                key = TChunkStripeKey(TOutputOrder::TEntry(joblet->OutputCookie));
+                key = TChunkStripeKey(joblet->OutputCookie);
             }
 
             RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /*processEmptyStripes*/ true);
@@ -168,7 +173,7 @@ protected:
     private:
         TOrderedControllerBase* Controller_;
 
-        IPersistentChunkPoolPtr ChunkPool_;
+        IOrderedChunkPoolPtr ChunkPool_;
 
         i64 TotalOutputRowCount_ = 0;
 
@@ -244,7 +249,8 @@ protected:
             TTask::OnChunkTeleported(teleportChunk, tag);
 
             if (Controller_->OrderedOutputRequired_) {
-                Controller_->RegisterTeleportChunk(teleportChunk, /*key*/ TChunkStripeKey(TOutputOrder::TEntry(teleportChunk)), /*tableIndex*/ 0);
+                auto cookie = std::any_cast<int>(tag);
+                Controller_->RegisterTeleportChunk(teleportChunk, /*key*/ TChunkStripeKey(cookie), /*tableIndex*/ 0);
             } else {
                 Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ TChunkStripeKey(), /*tableIndex*/ 0);
             }
@@ -418,9 +424,23 @@ protected:
         }
     }
 
-    TOutputOrderPtr GetOutputOrder() const override
+    bool IsOrderedOutputRequired() const override
     {
-        return OrderedTask_->GetChunkPoolOutput()->GetOutputOrder();
+        // NB(coteeq): If output table is sorted, we will sort chunk trees
+        // by boundary keys, not by output order.
+        return true;
+    }
+
+    std::vector<TChunkTreeId> GetOutputChunkTreesInOrder(const TOutputTablePtr& table) const override
+    {
+        std::vector<std::pair<TOutputCookie, TChunkTreeId>> cookieAndTreeIdList;
+        cookieAndTreeIdList.reserve(table->OutputChunkTreeIds.size());
+        for (const auto& [key, treeId] : table->OutputChunkTreeIds) {
+            YT_VERIFY(key.IsOutputCookie());
+            cookieAndTreeIdList.emplace_back(key.AsOutputCookie(), treeId);
+        }
+
+        return OrderedTask_->GetOrderedChunkPool()->ArrangeOutputChunkTrees(cookieAndTreeIdList);
     }
 
     void CustomMaterialize() override
@@ -456,7 +476,6 @@ protected:
         chunkPoolOptions.EnablePeriodicYielder = true;
         chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
-        chunkPoolOptions.BuildOutputOrder = OrderedOutputRequired_;
         chunkPoolOptions.ShouldSliceByRowIndices = true;
         chunkPoolOptions.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInOrderedPool;
         chunkPoolOptions.Logger = Logger().WithTag("Name: Root");

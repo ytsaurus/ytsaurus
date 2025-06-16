@@ -2907,17 +2907,12 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     }
                 }
             }
-        } else if (auto outputOrder = GetOutputOrder()) {
+        } else if (IsOrderedOutputRequired()) {
             YT_LOG_DEBUG("Sorting output chunk tree ids according to a given output order (ChunkTreeCount: %v, Table: %v)",
                 table->OutputChunkTreeIds.size(),
                 path);
-            std::vector<std::pair<TOutputOrder::TEntry, TChunkTreeId>> chunkTreeIds;
-            for (const auto& [key, chunkTreeId] : table->OutputChunkTreeIds) {
-                chunkTreeIds.emplace_back(std::move(key.AsOutputOrderEntry()), chunkTreeId);
-            }
 
-            auto outputChunkTreeIds = outputOrder->ArrangeOutputChunkTrees(std::move(chunkTreeIds));
-            for (const auto& chunkTreeId : outputChunkTreeIds) {
+            for (const auto& chunkTreeId : GetOutputChunkTreesInOrder(table)) {
                 addChunkTree(chunkTreeId);
             }
         } else {
@@ -8490,9 +8485,15 @@ bool TOperationControllerBase::ShouldVerifySortedOutput() const
     return true;
 }
 
-TOutputOrderPtr TOperationControllerBase::GetOutputOrder() const
+
+bool TOperationControllerBase::IsOrderedOutputRequired() const
 {
-    return nullptr;
+    return false;
+}
+
+std::vector<TChunkTreeId> TOperationControllerBase::GetOutputChunkTreesInOrder(const TOutputTablePtr& /*table*/) const
+{
+    YT_UNIMPLEMENTED();
 }
 
 EChunkAvailabilityPolicy TOperationControllerBase::GetChunkAvailabilityPolicy() const

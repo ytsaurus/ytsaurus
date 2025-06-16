@@ -119,8 +119,6 @@ class TChunkPoolOutputBase
     : public virtual IPersistentChunkPoolOutput
 {
 public:
-    TOutputOrderPtr GetOutputOrder() const override;
-
     i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const override;
 };
 
@@ -294,4 +292,3 @@ DEFINE_REFCOUNTED_TYPE(IShuffleChunkPool)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkPools
-

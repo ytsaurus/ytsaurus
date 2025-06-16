@@ -22,7 +22,6 @@ struct TOrderedChunkPoolOptions
     i64 MinTeleportChunkSize = 0;
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints;
     bool EnablePeriodicYielder = false;
-    bool BuildOutputOrder = false;
     bool ShouldSliceByRowIndices = false;
     // COMPAT(apollo1321): remove in 25.2 release.
     bool UseNewSlicingImplementation = true;
@@ -34,7 +33,22 @@ struct TOrderedChunkPoolOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IPersistentChunkPoolPtr CreateOrderedChunkPool(
+
+struct IOrderedChunkPool
+    : public IPersistentChunkPool
+{
+    virtual std::vector<NChunkClient::TChunkTreeId> ArrangeOutputChunkTrees(
+        const std::vector<std::pair<TOutputCookie, NChunkClient::TChunkTreeId>>& chunkTrees) const = 0;
+
+    // For tests only.
+    virtual std::vector<TOutputCookie> GetOutputCookiesInOrder() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IOrderedChunkPool)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IOrderedChunkPoolPtr CreateOrderedChunkPool(
     const TOrderedChunkPoolOptions& options,
     TInputStreamDirectory inputStreamDirectory);
 
