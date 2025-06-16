@@ -423,7 +423,13 @@ protected:
 
     void CloseWriter(const IVersionedMultiChunkWriterPtr& writer)
     {
-        CloseFutures_.push_back(writer->Close());
+        auto closeFuture = writer->Close();
+        if (TabletSnapshot_->Settings.MountConfig->ValueDictionaryCompression->Enable) {
+            WaitFor(std::move(closeFuture))
+                .ThrowOnError();
+        } else {
+            CloseFutures_.push_back(std::move(closeFuture));
+        }
     }
 
     virtual ETabletBackgroundActivity GetActivityKind() const = 0;
