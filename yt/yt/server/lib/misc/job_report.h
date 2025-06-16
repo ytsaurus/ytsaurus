@@ -115,6 +115,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NScheduler::TAllocationId, AllocationId);
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, ControllerStartTime);
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, ControllerFinishTime);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, GangRank);
 
 protected:
     TJobReport() = default;
