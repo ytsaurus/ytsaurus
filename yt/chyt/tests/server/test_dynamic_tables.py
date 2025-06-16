@@ -15,7 +15,7 @@ import time
 
 
 class TestClickHouseDynamicTables(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
 
     def _get_config_patch(self):
         return {
