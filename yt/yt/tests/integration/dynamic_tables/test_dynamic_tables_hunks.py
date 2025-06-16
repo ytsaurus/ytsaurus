@@ -2,7 +2,7 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_commands import (
     authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows, trim_rows,
-    lookup_rows, delete_rows, remount_table, build_master_snapshots,
+    lookup_rows, delete_rows, remount_table, build_master_snapshots, get_tablet_leader_address,
     write_table, alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
@@ -3530,6 +3530,45 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         remount_table("//tmp/t")
 
         self._perform_forced_compaction("//tmp/t", "compaction")
+
+    @authors("akozhikhov")
+    def test_value_compression_partitioning(self):
+        sync_create_cells(1)
+        self._create_table()
+        self._setup_for_dictionary_compression("//tmp/t")
+        set("//tmp/t/@mount_config/value_dictionary_compression/elect_random_policy", True)
+        set("//tmp/t/@chunk_writer", {"block_size": 64, "tesing_delay_before_chunk_close": 1000})
+        set("//tmp/t/@compression_codec", "none")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "x" * 100} for i in range(50)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+        assert len(self._find_tablet_orchid(address, tablet_id)["partitions"]) == 1
+
+        def _get_eden_chunk_ids():
+            return [
+                chunk_id for chunk_id in get("//tmp/t/@chunk_ids")
+                if get("#{}/@eden".format(chunk_id)) and get("#{}/@chunk_type".format(chunk_id)) != "hunk"
+            ]
+
+        assert len(_get_eden_chunk_ids()) == 1
+
+        set("//tmp/t/@max_partition_data_size", 640)
+        set("//tmp/t/@desired_partition_data_size", 512)
+        set("//tmp/t/@min_partition_data_size", 256)
+        remount_table("//tmp/t")
+
+        wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 1)
+
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        assert len(_get_eden_chunk_ids()) == 0
 
 
 ################################################################################
