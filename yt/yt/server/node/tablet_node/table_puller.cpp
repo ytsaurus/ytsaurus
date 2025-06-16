@@ -303,7 +303,7 @@ private:
     TReplicationProgress LastReplicationProgressAdvance_;
     TInstant NextPermittedTimeForProgressBehindAlert_ = Now();
     TPerFiberClusterClientCache ReplicatorClientCache_;
-    TReplicaId LastPulledFromReplicaId_ = NullObjectId;
+    TReplicaId LastPulledFromReplicaId_;
 
     TFuture<void> FiberFuture_;
 
