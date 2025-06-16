@@ -7,6 +7,7 @@ RECURSE(
     tools
     dq_vanilla_job
     dq_vanilla_job.lite
+    udfs
 )
 
 RECURSE_FOR_TESTS(
