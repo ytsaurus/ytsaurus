@@ -13,6 +13,10 @@ namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::string RandomString(int length, TStringBuf charset);
+
+////////////////////////////////////////////////////////////////////////////////
+
 const NYson::TProtobufMessageType* GetMessageTypeByYPath(
     const NYson::TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
