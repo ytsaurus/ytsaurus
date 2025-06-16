@@ -33,12 +33,7 @@ target_link_libraries(contrib-libs-re2 PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  abseil-cpp-absl-base
-  abseil-cpp-absl-container
-  abseil-cpp-absl-hash
-  abseil-cpp-absl-log
-  abseil-cpp-absl-strings
-  abseil-cpp-absl-synchronization
+  contrib-restricted-abseil-cpp
   cpp-sanitizer-include
 )
 

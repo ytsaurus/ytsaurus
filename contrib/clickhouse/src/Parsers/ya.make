@@ -25,6 +25,7 @@ PEERDIR(
     contrib/libs/miniselect
     contrib/libs/re2
     contrib/libs/sparsehash
+    contrib/restricted/abseil-cpp
     contrib/restricted/boost/circular_buffer
     contrib/restricted/boost/container_hash
     contrib/restricted/boost/context
