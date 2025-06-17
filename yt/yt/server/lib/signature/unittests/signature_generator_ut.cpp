@@ -140,8 +140,8 @@ TEST_F(TSignatureGeneratorTest, RotationUnderLoad)
     auto newKeyPair = New<TKeyPair>(ValidKeyMeta());
 
     std::string data("MyImportantData");
-    std::atomic<bool> allStarted = {false};
-    std::atomic<size_t> finishedCount = {0};
+    std::atomic<bool> allStarted = false;
+    std::atomic<size_t> finishedCount = 0;
 
     auto signerTask = BIND([this, &data, &allStarted, &finishedCount] () {
         while (!allStarted.load());

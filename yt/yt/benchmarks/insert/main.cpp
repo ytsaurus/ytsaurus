@@ -544,7 +544,7 @@ private:
     TString FileName_;
     std::shared_ptr<TFileHandle> File_;
 
-    std::atomic<int> Inflight_ = {0};
+    std::atomic<int> Inflight_ = 0;
 
     TNameTablePtr NameTable_;
 

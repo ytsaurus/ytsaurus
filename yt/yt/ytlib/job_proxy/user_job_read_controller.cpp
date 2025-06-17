@@ -248,9 +248,9 @@ private:
     std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics_;
     std::vector<IProfilingSchemalessFormatWriterPtr> FormatWriters_;
     std::optional<TString> UdfDirectory_;
-    std::atomic<bool> ReaderInitialized_ = {false};
-    std::atomic<bool> WriterInitialized_ = {false};
-    std::atomic<bool> Interrupted_ = {false};
+    std::atomic<bool> ReaderInitialized_ = false;
+    std::atomic<bool> WriterInitialized_ = false;
+    std::atomic<bool> Interrupted_ = false;
 
     // Jobs have interruption timeout
     // known here as |Threshold_|.

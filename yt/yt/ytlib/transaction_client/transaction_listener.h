@@ -40,7 +40,7 @@ protected:
     TError GetAbortError() const;
 
 private:
-    std::atomic<bool> Aborted_ = {false};
+    std::atomic<bool> Aborted_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     std::vector<TTransactionId> IgnoredTransactionIds_;

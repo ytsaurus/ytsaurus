@@ -57,7 +57,7 @@ public:
     const NScheduler::TOperationOptionsPtr& GetOperationOptions() const override;
 
 private:
-    std::atomic<bool> Completing_ = {false};
+    std::atomic<bool> Completing_ = false;
 
     const NScheduler::TOperationId Id_;
     const NScheduler::EOperationType Type_;

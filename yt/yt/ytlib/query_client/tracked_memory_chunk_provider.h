@@ -38,8 +38,8 @@ private:
     const size_t Limit_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
 
-    std::atomic<size_t> Allocated_ = {0};
-    std::atomic<size_t> MaxAllocated_ = {0};
+    std::atomic<size_t> Allocated_ = 0;
+    std::atomic<size_t> MaxAllocated_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTrackedMemoryChunkProvider)

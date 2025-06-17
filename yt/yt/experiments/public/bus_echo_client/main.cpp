@@ -56,7 +56,7 @@ public:
 
 private:
     const int ExpectedCounter_ = 0;
-    std::atomic<int> Counter_ = {0};
+    std::atomic<int> Counter_ = 0;
 
     TPromise<void> Promise_ = NewPromise<void>();
 };
