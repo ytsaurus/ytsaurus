@@ -683,7 +683,7 @@ bool TStoreManagerBase::IsOverflowRotationNeeded() const
     return
         activeStore->GetRowCount() >= threshold * mountConfig->MaxDynamicStoreRowCount ||
         activeStore->GetValueCount() >= threshold * mountConfig->MaxDynamicStoreValueCount ||
-        activeStore->GetTimestampCount() >= threshold * mountConfig->MaxDynamicStoreTimestampCount ||
+        activeStore->GetTimestampCount() >= threshold * activeStore->ClampMaxDynamicStoreTimestampCount(mountConfig->MaxDynamicStoreTimestampCount) ||
         activeStore->GetPoolSize() >= threshold * mountConfig->MaxDynamicStorePoolSize;
 }
 
@@ -709,11 +709,14 @@ TError TStoreManagerBase::CheckOverflow() const
             << TErrorAttribute("value_count_limit", mountConfig->MaxDynamicStoreValueCount);
     }
 
-    if (activeStore->GetTimestampCount() >= mountConfig->MaxDynamicStoreTimestampCount) {
+    auto clampedMaxDynamicStoreTimestampCount = activeStore->ClampMaxDynamicStoreTimestampCount(mountConfig->MaxDynamicStoreTimestampCount);
+
+    if (activeStore->GetTimestampCount() >= clampedMaxDynamicStoreTimestampCount) {
         return TError("Dynamic store timestamp count limit reached")
             << TErrorAttribute("store_id", activeStore->GetId())
             << TErrorAttribute("timestamp_count", activeStore->GetTimestampCount())
-            << TErrorAttribute("timestamp_count_limit", mountConfig->MaxDynamicStoreTimestampCount);
+            << TErrorAttribute("timestamp_count_limit", clampedMaxDynamicStoreTimestampCount)
+            << TErrorAttribute("config_timestamp_count_limit", mountConfig->MaxDynamicStoreTimestampCount);
     }
 
     if (activeStore->GetPoolSize() >= mountConfig->MaxDynamicStorePoolSize) {
@@ -876,4 +879,3 @@ void TStoreManagerBase::ResetLastPeriodicRotationTime()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

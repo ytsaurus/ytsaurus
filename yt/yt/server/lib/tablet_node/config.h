@@ -162,7 +162,7 @@ struct TCustomTableMountConfig
 {
     i64 MaxDynamicStoreRowCount;
     i64 MaxDynamicStoreValueCount;
-    i64 MaxDynamicStoreTimestampCount;
+    TMaxDynamicStoreTimestampCount MaxDynamicStoreTimestampCount;
     i64 MaxDynamicStorePoolSize;
     i64 MaxDynamicStoreRowDataWeight;
 

@@ -897,7 +897,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(table->GetEnableDetailedProfiling());
             return true;
 
-
         case EInternedAttributeKey::SerializationType:
             if (!isDynamic) {
                 break;
@@ -906,7 +905,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             BuildYsonFluently(consumer)
                 .Value(table->GetSerializationType());
             return true;
-
 
         case EInternedAttributeKey::ReplicationCollocationTablePaths: {
             if (!isDynamic || !table->IsReplicated() || !trunkTable->GetReplicationCollocation()) {
@@ -1645,18 +1643,20 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
                 break;
             }
 
+            ValidateNoTransaction();
+
             auto serializationType = ConvertTo<ETabletTransactionSerializationType>(value);
 
             if (serializationType == ETabletTransactionSerializationType::PerRow &&
                 !table->IsSorted())
             {
-                THROW_ERROR_EXCEPTION("Serialization type %qlv is supported only for sorted dynamic tables",
+                THROW_ERROR_EXCEPTION("Serialization type %Qlv is supported only for sorted dynamic tables",
                     serializationType);
             }
 
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
-            lockedTable->ValidateAllTabletsUnmounted(Format("Cannot change sequencer type to %v",
+            lockedTable->ValidateAllTabletsUnmounted(Format("Cannot change serialization type to %Qlv",
                 serializationType));
             lockedTable->SetSerializationType(serializationType);
             return true;

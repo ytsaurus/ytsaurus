@@ -137,11 +137,12 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(1'000'000'000);
     registrar.Parameter("max_dynamic_store_timestamp_count", &TThis::MaxDynamicStoreTimestampCount)
-        .GreaterThan(0)
-        .Default(10'000'000)
+        .GreaterThan(TMaxDynamicStoreTimestampCount(0))
+        .Default(TMaxDynamicStoreTimestampCount(10'000'000))
         // NB: This limit is really important; please consult babenko@
         // before changing it.
-        .LessThanOrEqual(SoftRevisionsPerDynamicStoreLimit);
+        // NB: Additional clumps relevant to specific revision provider will be applied.
+        .LessThanOrEqual(TMaxDynamicStoreTimestampCount(SoftRevisionsPerDynamicStoreLimit));
     registrar.Parameter("max_dynamic_store_pool_size", &TThis::MaxDynamicStorePoolSize)
         .GreaterThan(0)
         .Default(1_GB);
