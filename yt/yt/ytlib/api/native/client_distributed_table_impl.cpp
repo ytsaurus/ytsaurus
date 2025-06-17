@@ -92,10 +92,9 @@ void EndTableUpload(
     const NApi::NNative::IClientPtr& client,
     const TRichYPath& path,
     TCellTag nativeCellTag,
-    TYPath objectIdPath,
+    TTableYPathProxy::TReqEndUploadPtr req,
     TTransactionId transactionId,
-    const TTableUploadOptions& tableUploadOptions,
-    NChunkClient::NProto::TDataStatistics dataStatistics);
+    const TTableUploadOptions& tableUploadOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -484,14 +483,15 @@ TFuture<void> TClient::FinishDistributedWriteSession(
             dataStatistics);
     }
 
+    auto endUpload = TTableYPathProxy::EndUpload(FromObjectId(patchInfo.ObjectId));
+    *endUpload->mutable_statistics() = std::move(dataStatistics);
     NYT::NTableClient::NDetail::EndTableUpload(
         MakeStrong(this),
         path,
         CellTagFromId(patchInfo.ObjectId),
-        FromObjectId(patchInfo.ObjectId),
+        endUpload,
         session.UploadTransactionId,
-        tableUploadOptions,
-        std::move(dataStatistics));
+        tableUploadOptions);
 
     return transaction->Commit().AsVoid();
 }
