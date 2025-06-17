@@ -5,7 +5,6 @@
 #include "sorted_dynamic_comparer.h"
 #include "store_detail.h"
 #include "transaction.h"
-#include "store_manager.h"
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
@@ -108,13 +107,15 @@ public:
         TLockMask lockMask,
         bool skipSharedWriteLocks);
     void PrepareRow(TTransaction* transaction, TSortedDynamicRow row);
-    void CommitRowPartsWithNoNeedForSerialization(
+    void CommitAndWriteRowPartsWithNoNeedForSerialization(
         TTransaction* transaction,
-        TSortedDynamicRow row,
+        TSortedDynamicRow dynamicRow,
         TLockMask lockMask,
+        TUnversionedRow row,
+        ESortedDynamicStoreCommand command,
         bool onAfterSnapshotLoaded);
 
-    void CommitLockGroup(
+    void CommitPerRowsSerializedLockGroup(
         TTransaction* transaction,
         TSortedDynamicRow row,
         NTableClient::ELockType lockType,
@@ -130,7 +131,7 @@ public:
     // The following functions are made public for unit-testing.
     TSortedDynamicRow FindRow(NTableClient::TUnversionedRow key);
     std::vector<TSortedDynamicRow> GetAllRows();
-    Y_FORCE_INLINE TTimestamp TimestampFromRevision(ui32 revision) const;
+    TTimestamp TimestampFromRevision(TSortedDynamicStoreRevision revision) const;
     TTimestamp GetLastWriteTimestamp(TSortedDynamicRow row, int lockIndex);
 
     TTimestamp GetLastExclusiveTimestamp(TSortedDynamicRow row, int lockIndex);
@@ -143,6 +144,7 @@ public:
 
     // IDynamicStore implementation.
     i64 GetTimestampCount() const override;
+    i64 ClampMaxDynamicStoreTimestampCount(TMaxDynamicStoreTimestampCount configLimit) const override;
 
     // ISortedStore implementation.
     TLegacyOwningKey GetMinKey() const override;
@@ -203,7 +205,7 @@ private:
     const std::unique_ptr<TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>> Rows_;
     std::unique_ptr<TLookupHashTable> LookupHashTable_;
 
-    ui32 FlushRevision_ = InvalidRevision;
+    TSortedDynamicStoreRevision FlushRevision_ = InvalidRevision;
 
     // Generic information:
     // Column's values are sorted by timestamp and each value annotated with revision.
@@ -228,7 +230,7 @@ private:
     // Registration:
     // Revisions registered in different mutations are always different for consistent read wrt snapshot creation and store rotation.
     // For coarsely serialized transactions revisions registered in CommitLockGroup and used during current __transaction commit__ mutation.
-    // For per-row serialized transaction revisions registered in CommitRowPartsWithNoNeedForSerialization and used as long as transaction parts are being committed.
+    // For per-row serialized transaction revisions registered in CommitAndWriteRowPartsWithNoNeedForSerialization and used as long as transaction parts are being committed.
     //
     // Persistence:
     // Revisions are store-specific and transient.
@@ -239,40 +241,24 @@ private:
     // Recalculated revisions could differ from original revisions as long as they allow to generate consistent snapshot/chunk in future.
     //
     // Per-row serialization specific:
-    // Transaction parts that are committed in different mutations have same revisions.
-    // To keep snapshot consistent for each column there is a special last write timestamp (see CurrentLastWriteTimestampIndex_) that is fixed at the moment of each AsyncSave start.
-    // Snapshot reader reads all values that have revision less that SnapshotRevision and timestamp less than per-column last write timestamp.
-    // Flush reader reads all values that only have revision less that FlushRevision.
-    // That means that migrated per-row serialized values will be written in two chunks.
-    static const size_t RevisionsPerChunk = 1ULL << 13;
-    static const size_t MaxRevisionChunks = HardRevisionsPerDynamicStoreLimit / RevisionsPerChunk + 1;
-    TChunkedVector<TTimestamp, RevisionsPerChunk> RevisionToTimestamp_;
-
-    // Unused as long as tablet serialization type is coarse.
-    std::map<
-        TTransaction*,
-        ui32,
-        std::less<TTransaction*>,
-        TChunkedMemoryPoolAllocator<std::pair<TTransaction* const, ui32>>> CommitRevisionPerTransaction_;
+    // For each part of transaction separate revision is generated at the moment of writing column.
+    // This allows transactions values to be only partly persisted in sorted dynamic store snapshots.
+    // And therefore when TTabletWriteManager::OnAfterSnapshotLoaded relocks and reserializes not finished transactions using write logs
+    // we should avoid writing values to edit lists second time.
+    // For this purpose onAfterSnapshotLoaded flag is propagated through write-related methods.
+    IRevisionProviderPtr RevisionProvider_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, RowBlockedLock_);
     TRowBlockedHandler RowBlockedHandler_;
 
     // Reused between ModifyRow calls.
-    std::vector<ui32> WriteRevisions_;
+    std::vector<TSortedDynamicStoreRevision> WriteRevisions_;
     i64 LatestRevisionMutationSequenceNumber_ = 0;
 
     i64 MaxDataWeight_ = 0;
     TSortedDynamicRow MaxDataWeightWitness_;
 
     bool MergeRowsOnFlushAllowed_ = true;
-
-    // For each column there is two last write timestamps: active and non-active. Active should be greater or equal than non-active.
-    // Active is used for writes. Non-active is used for read during snapshot save.
-    // Changing CurrentLastWriteTimestampIndex_ is enough to swap them.
-    // After swap active will be outdated and could stay outdated until the next snapshot.
-    // To avoid reads during AsyncSave also update active timestamp to become at least non-active.
-    int CurrentLastWriteTimestampIndex_ = 0;
 
     void OnSetPassive() override;
     void OnSetRemoved() override;
@@ -300,27 +286,26 @@ private:
         bool isDelete,
         TWriteContext* context);
 
-    void AddDeleteRevision(TSortedDynamicRow row, ui32 revision);
-    void AddWriteRevision(TLockDescriptor& lock, ui32 revision);
+    void AddDeleteRevision(TSortedDynamicRow row, TSortedDynamicStoreRevision revision);
+    void AddWriteRevision(TLockDescriptor& lock, TSortedDynamicStoreRevision revision);
 
-    void AddExclusiveLockRevision(TLockDescriptor& lock, ui32 revision);
-    void AddSharedWriteLockRevision(TLockDescriptor& lock, ui32 revision);
-    void AddReadLockRevision(TLockDescriptor& lock, ui32 revision);
+    void AddExclusiveLockRevision(TLockDescriptor& lock, TSortedDynamicStoreRevision revision);
+    void AddSharedWriteLockRevision(TLockDescriptor& lock, TSortedDynamicStoreRevision revision);
+    void AddReadLockRevision(TLockDescriptor& lock, TSortedDynamicStoreRevision revision);
 
     void SetKeys(TSortedDynamicRow dstRow, const TUnversionedValue* srcKeys);
     void SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow srcRow);
     void AddValue(TSortedDynamicRow row, int index, TDynamicValue value);
 
-    void WriteLockGroup(int lockIndex, TSortedDynamicRow dynamicRow, TUnversionedRow row, ui32 revision);
-    void WriteColumn(int columnIndex, TSortedDynamicRow dynamicRow, TUnversionedRow row, ui32 revision);
-    void WriteRow(TSortedDynamicRow dynamicRow, TUnversionedRow row, ui32 revision);
+    void WriteLockGroup(int lockIndex, TSortedDynamicRow dynamicRow, TUnversionedRow row, TSortedDynamicStoreRevision revision);
+    void WriteColumn(int columnIndex, TSortedDynamicRow dynamicRow, TUnversionedRow row, TSortedDynamicStoreRevision revision);
+    void WriteRow(TSortedDynamicRow dynamicRow, TUnversionedRow row, TSortedDynamicStoreRevision revision);
 
     void CommitLockGroup(
         TTransaction* transaction,
         TSortedDynamicRow row,
         NTableClient::ELockType lockType,
         TLockDescriptor* lock,
-        bool perRowSerialized,
         bool onAfterSnapshotLoaded);
 
     void DrainSerializationHeap(
@@ -331,26 +316,29 @@ private:
     struct TLoadScratchData
     {
         TTimestampToRevisionMap TimestampToRevision;
-        std::vector<std::vector<ui32>> WriteRevisions;
+        std::vector<std::vector<TSortedDynamicStoreRevision>> WriteRevisions;
         TTimestamp* LastExclusiveLockTimestamps;
         TTimestamp* LastSharedWriteLockTimestamps;
         TTimestamp* LastReadLockTimestamps;
     };
 
     void LoadRow(TVersionedRow row, TLoadScratchData* scratchData);
-    ui32 CaptureTimestamp(TTimestamp timestamp, TTimestampToRevisionMap* scratchData);
-    ui32 CaptureVersionedValue(TDynamicValue* dst, const TVersionedValue& src, TTimestampToRevisionMap* scratchData);
+    TSortedDynamicStoreRevision CaptureTimestamp(TTimestamp timestamp, TTimestampToRevisionMap* scratchData);
+    TSortedDynamicStoreRevision CaptureVersionedValue(
+        TDynamicValue* dst,
+        const TVersionedValue& src,
+        TTimestampToRevisionMap* scratchData);
 
     void CaptureUnversionedValue(TDynamicValue* dst, const TUnversionedValue& src);
     TDynamicValueData CaptureStringValue(TDynamicValueData src);
     TDynamicValueData CaptureStringValue(const TUnversionedValue& src);
 
     TTimestamp GetLastTimestamp(TRevisionList list) const;
-    TTimestamp GetLastTimestamp(TRevisionList list, ui32 revision) const;
+    TTimestamp GetLastTimestamp(TRevisionList list, TSortedDynamicStoreRevision revision) const;
 
-    ui32 GetLatestRevision() const;
-    ui32 GetSnapshotRevision() const;
-    ui32 RegisterRevision(TTimestamp timestamp);
+    TSortedDynamicStoreRevision GetLatestRevision() const;
+    TSortedDynamicStoreRevision GetSnapshotRevision() const;
+    TSortedDynamicStoreRevision RegisterRevision(TTimestamp timestamp);
 
     void OnDynamicMemoryUsageUpdated();
 
@@ -362,8 +350,3 @@ DEFINE_REFCOUNTED_TYPE(TSortedDynamicStore)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-
-#define SORTED_DYNAMIC_STORE_INL_H_
-#include "sorted_dynamic_store-inl.h"
-#undef SORTED_DYNAMIC_STORE_INL_H_
-

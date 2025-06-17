@@ -188,6 +188,7 @@ DEFINE_ENUM(EMasterReign,
     ((DocumentInSequoia)                                            (2950))  // kvk1920
     ((CheckReplicationProgressSchema)                               (2951))  // savrus
     ((EnableSmoothTabletMovementFlag)                               (2952))  // ifsmirnov
+    ((PerRowSequencerFixes)                                         (2953))  // ponasenko-rs
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

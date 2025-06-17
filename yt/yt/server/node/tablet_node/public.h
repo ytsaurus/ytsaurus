@@ -265,6 +265,8 @@ DECLARE_REFCOUNTED_STRUCT(TTabletNodeConfig)
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;
 
+DECLARE_REFCOUNTED_STRUCT(IRevisionProvider);
+
 struct ITabletContext;
 
 struct TWriteContext;

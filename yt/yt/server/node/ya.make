@@ -152,6 +152,7 @@ SRCS(
     tablet_node/relative_replication_throttler.cpp
     tablet_node/replicated_store_manager.cpp
     tablet_node/replication_log.cpp
+    tablet_node/revision_provider.cpp
     tablet_node/row_cache.cpp
     tablet_node/row_digest_fetcher.cpp
     tablet_node/security_manager.cpp

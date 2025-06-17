@@ -289,11 +289,15 @@ using TTabletStoreWriterOptionsPtr = NTableClient::TTableWriterOptionsPtr;
 using TTabletHunkWriterOptions = NChunkClient::TMultiChunkWriterOptions;
 using TTabletHunkWriterOptionsPtr = NChunkClient::TMultiChunkWriterOptionsPtr;
 
-//! This is the hard limit.
-//! Moreover, it is quite expensive to be graceful in preventing it from being exceeded.
-//! The soft limit, thus, is significantly smaller.
-constexpr i64 HardRevisionsPerDynamicStoreLimit = 1ULL << 26;
-constexpr i64 SoftRevisionsPerDynamicStoreLimit = 1ULL << 25;
+YT_DEFINE_STRONG_TYPEDEF(TSortedDynamicStoreRevision, ui32);
+
+// NB: Should be clumped using IDynamicStore::ClampMaxDynamicStoreTimestampCount,
+// otherwise hard limit could be breached.
+// TODO(ponasenko-rs): Make underlying access more restricted.
+YT_DEFINE_STRONG_TYPEDEF(TMaxDynamicStoreTimestampCount, i64);
+
+// NB: c.f. revision_provider.h for hard limits.
+constexpr i64 SoftRevisionsPerDynamicStoreLimit = 1ULL << 30;
 
 constexpr int DefaultMaxOverlappingStoreCount = 30;
 
