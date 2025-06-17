@@ -98,10 +98,10 @@ public:
 private:
     const TChunkFileReaderPtr Underlying_;
     const int Period_;
+    const bool FailMetaRequests_;
 
     int Counter_ = 0;
-    std::atomic<TInstant> LastFailureTime_ = {};
-    const bool FailMetaRequests_;
+    std::atomic<TInstant> LastFailureTime_;
 
     bool TryFail()
     {

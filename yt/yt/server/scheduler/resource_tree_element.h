@@ -70,7 +70,7 @@ private:
     bool Initialized_ = false;
 
     // NB: Any resource usage changes are forbidden after alive is set to false.
-    std::atomic<bool> Alive_ = {true};
+    std::atomic<bool> Alive_ = true;
 
     bool IncreaseLocalResourceUsagePrecommitWithCheck(
         const TJobResources& delta,

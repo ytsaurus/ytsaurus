@@ -2007,7 +2007,7 @@ protected:
         });
     }
 
-    std::atomic<bool> Stopped = {false};
+    std::atomic<bool> Stopped = false;
 
     TSortedDynamicRow WriteVersioned(const TUnversionedOwningRow& row)
     {

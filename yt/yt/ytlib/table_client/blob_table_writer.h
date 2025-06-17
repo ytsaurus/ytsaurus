@@ -73,7 +73,7 @@ private:
     const size_t PartSize_;
     int WrittenPartCount_ = 0;
     bool Finished_ = false;
-    std::atomic<bool> Failed_ = { false };
+    std::atomic<bool> Failed_ =  false ;
 
     // Table column ids.
     std::vector<int> BlobIdColumnIds_;

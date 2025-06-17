@@ -202,7 +202,7 @@ TEST_F(TBlackboxTest, NoTvmService)
 
 TEST_F(TBlackboxTest, RetriesErrors)
 {
-    std::atomic<int> counter = {0};
+    std::atomic<int> counter = 0;
     SetCallback([&] (TClientRequest* request) {
         switch (counter) {
             case 0:  request->Output() << HttpResponse(500, ""); break;

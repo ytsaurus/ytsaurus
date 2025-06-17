@@ -471,7 +471,7 @@ private:
         const i64 MaxIterationsWithoutAcceptableBundleHealth_;
 
         std::atomic<i64> IterationsWithoutAcceptableBundleHealth_ = 0;
-        std::atomic<TInstant> LastUpdateTime_ = {};
+        std::atomic<TInstant> LastUpdateTime_;
         NThreading::TAtomicObject<TFuture<std::string>> AsyncTabletCellBundleName_ = MakeFuture<std::string>(TError("<unknown>"));
 
         TFuture<void> CheckClusterState()

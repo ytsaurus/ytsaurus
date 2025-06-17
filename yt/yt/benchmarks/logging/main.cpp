@@ -12,7 +12,7 @@ NLogging::TLogger Logger("TestLogger");
 
 struct TLoggingBenchmark
 {
-    std::atomic<bool> Stopped = {false};
+    std::atomic<bool> Stopped = false;
     std::atomic<size_t> MessageCount = 0;
 
     void RunLogging()

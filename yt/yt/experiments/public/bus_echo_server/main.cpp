@@ -45,7 +45,7 @@ public:
     }
 
 private:
-    std::atomic<int> Counter_ = {0};
+    std::atomic<int> Counter_ = 0;
 };
 
 class TBusEchoServer
