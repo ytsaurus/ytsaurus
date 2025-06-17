@@ -59,6 +59,7 @@ protected:
         Options_.ShouldSliceByRowIndices = true;
         Options_.Logger = GetTestLogger();
         DataWeightPerJob_ = Inf64;
+        SamplingDataWeightPerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataWeight_ = Inf64;
         InputSliceRowCount_ = Inf64;
@@ -84,7 +85,8 @@ protected:
             InputSliceRowCount_,
             BatchRowCount_,
             /*foreignSliceDataWeight*/ 0,
-            SamplingRate_);
+            SamplingRate_,
+            SamplingDataWeightPerJob_);
     }
 
     TInputChunkPtr CreateChunk(
@@ -362,6 +364,8 @@ protected:
 
     i64 DataWeightPerJob_;
 
+    i64 SamplingDataWeightPerJob_;
+
     i32 MaxDataSlicesPerJob_;
 
     i64 MaxDataWeightPerJob_;
@@ -479,7 +483,6 @@ TEST_P(TOrderedChunkPoolTest, BatchRowCountBasic)
     Options_.MinTeleportChunkSize = 2_KB;
 
     // Nor this!
-    SamplingRate_ = 0.3;
     BatchRowCount_ = 42;
     DataWeightPerJob_ = 2_KB;
 
@@ -516,7 +519,6 @@ TEST_P(TOrderedChunkPoolTest, BatchRowCountDoesNotFailWithVersionedChunks)
     // This should have no effect!
     Options_.MinTeleportChunkSize = 2_KB;
     // Nor this!
-    SamplingRate_ = 0.3;
     BatchRowCount_ = 42;
     DataWeightPerJob_ = 2_KB;
 
@@ -751,6 +753,67 @@ TEST_P(TOrderedChunkPoolTest, UnsuccessfulSplitMarksJobUnsplittable)
     ChunkPool_->Finish();
 
     CheckUnsuccessfulSplitMarksJobUnsplittable(ChunkPool_);
+}
+
+TEST_P(TOrderedChunkPoolTest, EnlargementAfterSampling)
+{
+    // This test verifies that jobs are initially sliced by sampling data
+    // weight per job, some jobs are omitted, and the remaining jobs are
+    // enlarged to meet the target data weight per job.
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 5_KB;
+    SamplingDataWeightPerJob_ = 1_KB;
+    SamplingRate_ = 0.5;
+
+    InitJobConstraints();
+    CreateChunkPool();
+    std::map<TChunkId, int> chunkIdToIndex;
+    for (int i = 0; i < 100; ++i) {
+        auto chunk = CreateChunk(
+            0,
+            /*dataWeight*/ 1_KB,
+            /*rowCount*/ 1);
+
+        chunkIdToIndex[chunk->GetChunkId()] = i;
+        AddChunk(chunk);
+    }
+
+    ChunkPool_->Finish();
+    auto stripeLists = GetAllStripeLists();
+    CheckEverything(stripeLists);
+
+    for (const auto& stripeList : stripeLists) {
+        EXPECT_NEAR(stripeList->GetAggregateStatistics().DataWeight, 5_KB, 1_KB);
+    }
+
+    auto allCookies = ChunkPool_->GetOutputCookiesInOrder();
+
+    int chunkCountAfterSampling = 0;
+    int previousChunkIndex = -1;
+    int numberOfSmallHoles = 0;
+
+    for (const auto& cookie : allCookies) {
+        const auto& stripeList = ChunkPool_->GetStripeList(cookie);
+        for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& slice : stripe->DataSlices) {
+                ++chunkCountAfterSampling;
+                int currentChunkIndex = chunkIdToIndex[slice->GetSingleUnversionedChunk()->GetChunkId()];
+                ASSERT_LT(previousChunkIndex, currentChunkIndex);
+                if (currentChunkIndex != previousChunkIndex + 1) {
+                    if (currentChunkIndex - previousChunkIndex - 1 < 5) {
+                        ++numberOfSmallHoles;
+                    }
+                }
+                previousChunkIndex = currentChunkIndex;
+            }
+        }
+    }
+
+    EXPECT_NEAR(chunkCountAfterSampling, 50, 10);
+    EXPECT_GT(numberOfSmallHoles, 5);
 }
 
 INSTANTIATE_TEST_SUITE_P(BasicTests,
