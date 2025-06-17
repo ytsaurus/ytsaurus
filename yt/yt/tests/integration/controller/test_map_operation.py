@@ -22,6 +22,7 @@ from yt.test_helpers import assert_items_equal
 from yt.common import YtError
 
 from flaky import flaky
+from copy import deepcopy
 
 import pytest
 import random
@@ -2369,6 +2370,18 @@ print(json.dumps(input))
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMapCommandsWithOldSlicing(TestSchedulerMapCommands):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerMapCommands, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
+
+##################################################################
+
+
 class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
     ENABLE_MULTIDAEMON = False  # Use porto.
     USE_PORTO = True
@@ -2562,6 +2575,18 @@ class TestWriteBufferEstimation(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
+class TestWriteBufferEstimationWithOldSlicing(TestWriteBufferEstimation):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestWriteBufferEstimation, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
+
+##################################################################
+
+
 class TestJobSizeAdjuster(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2722,6 +2747,18 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
         op.track()
         assert op.get_state() == "completed"
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestJobSizeAdjusterWithOldSlicing(TestJobSizeAdjuster):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestJobSizeAdjuster, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
 
 
 ##################################################################
@@ -3027,6 +3064,18 @@ print('{hello=world}')
                 actual_content.append(new_row)
 
         assert actual_content == expected_content
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestInputOutputFormatsWithOldSlicing(TestInputOutputFormats):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestInputOutputFormats, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
 
 
 ##################################################################

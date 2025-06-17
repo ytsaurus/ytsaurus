@@ -1042,7 +1042,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("use_new_slicing_implementation_in_unordered_pool", &TThis::UseNewSlicingImplementationInUnorderedPool)
-        .Default(true);
+        .Default(false);
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
