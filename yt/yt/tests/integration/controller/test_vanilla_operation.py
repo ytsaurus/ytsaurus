@@ -2782,7 +2782,7 @@ class TestSidecarVanilla(YTEnvSetup):
         }
     }
 
-    def launch_operation(self, master_command, sidecar_command, sidecar_restart_policy = "FailOnError"):
+    def launch_operation(self, master_command, sidecar_command, sidecar_restart_policy="fail_on_error"):
         docker_image = self.Env.yt_config.default_docker_image
 
         # Prepare a sidecar bash file as it seems to be impossible to just concatenate several commands
@@ -2817,7 +2817,6 @@ class TestSidecarVanilla(YTEnvSetup):
         wait(lambda: len(get(op.get_path() + "/@progress/tasks")) == 1, ignore_exceptions=True)
         return op
 
-
     def ensure_operation_finish(self, op):
         op.track()
 
@@ -2834,7 +2833,6 @@ class TestSidecarVanilla(YTEnvSetup):
         assert tasks["master"]["job_counter"]["completed"]["total"] == 1
 
         assert get(op.get_path() + "/@progress/total_job_counter/completed/total") == 1
-
 
     @authors("pavel-bash")
     def test_general(self):
@@ -2862,7 +2860,6 @@ class TestSidecarVanilla(YTEnvSetup):
         events_on_fs().notify_event("finish")
 
         self.ensure_operation_finish(op)
-
 
     @authors("pavel-bash")
     def test_restart_always_after_success(self):
@@ -2901,7 +2898,6 @@ fi
         events_on_fs().notify_event("finish")
 
         self.ensure_operation_finish(op)
-
 
     @authors("pavel-bash")
     def test_restart_always_after_failure(self):
@@ -2942,7 +2938,6 @@ fi
 
         self.ensure_operation_finish(op)
 
-
     @authors("pavel-bash")
     def test_restart_on_failure_after_success(self):
         """
@@ -2965,7 +2960,7 @@ else
 fi
 """
 
-        op = self.launch_operation(master_command, sidecar_command, "OnFailure")
+        op = self.launch_operation(master_command, sidecar_command, "on_failure")
 
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
 
@@ -2980,7 +2975,6 @@ fi
         self.ensure_operation_finish(op)
 
         assert not events_on_fs().check_event("sidecar_second_job_started")
-
 
     @authors("pavel-bash")
     def test_restart_on_failure_after_failure(self):
@@ -3007,7 +3001,7 @@ else
 fi
 """
 
-        op = self.launch_operation(master_command, sidecar_command, "OnFailure")
+        op = self.launch_operation(master_command, sidecar_command, "on_failure")
 
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
 
@@ -3020,7 +3014,6 @@ fi
         events_on_fs().notify_event("finish")
 
         self.ensure_operation_finish(op)
-
 
     @authors("pavel-bash")
     def test_fail_on_error_after_success(self):
@@ -3044,7 +3037,7 @@ else
 fi
 """
 
-        op = self.launch_operation(master_command, sidecar_command, "FailOnError")
+        op = self.launch_operation(master_command, sidecar_command, "fail_on_error")
 
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
 
@@ -3059,7 +3052,6 @@ fi
         self.ensure_operation_finish(op)
 
         assert not events_on_fs().check_event("sidecar_second_job_started")
-
 
     @authors("pavel-bash")
     def test_fail_on_error_after_failure(self):
@@ -3084,7 +3076,7 @@ else
 fi
 """
 
-        op = self.launch_operation(master_command, sidecar_command, "FailOnError")
+        op = self.launch_operation(master_command, sidecar_command, "fail_on_error")
 
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
 

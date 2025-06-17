@@ -205,7 +205,8 @@ DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
-    TJobProxyInternalConfigPtr config);
+    TJobProxyInternalConfigPtr config,
+    NConcurrency::TActionQueuePtr actionQueue = New<NConcurrency::TActionQueue>("JobProxyEnvironment"));
 
 ////////////////////////////////////////////////////////////////////////////////
 

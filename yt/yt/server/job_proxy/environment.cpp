@@ -1147,10 +1147,12 @@ public:
     explicit TCriJobProxyEnvironment(
         TString slotPath,
         std::vector<TBindConfigPtr> binds,
-        TCriJobEnvironmentConfigPtr config)
+        TCriJobEnvironmentConfigPtr config,
+        NConcurrency::TActionQueuePtr actionQueue)
         : SlotPath_(std::move(slotPath))
         , Binds_(std::move(binds))
         , Config_(std::move(config))
+        , ActionQueue_(std::move(actionQueue))
         , Executor_(CreateCriExecutor(Config_->CriExecutor))
         , ImageCache_(NContainers::NCri::CreateCriImageCache(Config_->CriImageCache, Executor_))
     { }
@@ -1412,6 +1414,7 @@ private:
     const TString SlotPath_;
     const std::vector<TBindConfigPtr> Binds_;
     const TCriJobEnvironmentConfigPtr Config_;
+    const TActionQueuePtr ActionQueue_;
     const NContainers::NCri::ICriExecutorPtr Executor_;
     const NContainers::NCri::ICriImageCachePtr ImageCache_;
 
@@ -1419,8 +1422,6 @@ private:
     std::function<void(TError)> FailJobCallback_;
     THashMap<TString, TSidecarCriConfig> SidecarsConfigs_;
     THashMap<TString, std::pair<TProcessBasePtr, TFuture<void>>> SidecarsRunning_;
-
-    const TActionQueuePtr ActionQueue_ = New<TActionQueue>("JobProxyEnvironment");
 
     NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
 };
@@ -1431,7 +1432,8 @@ DEFINE_REFCOUNTED_TYPE(TCriJobProxyEnvironment)
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
-    TJobProxyInternalConfigPtr config)
+    TJobProxyInternalConfigPtr config,
+    NConcurrency::TActionQueuePtr actionQueue)
 {
     switch (config->JobEnvironment.GetCurrentType()) {
 #ifdef _linux_
@@ -1449,7 +1451,8 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
             return New<TCriJobProxyEnvironment>(
                 config->SlotPath,
                 config->Binds,
-                config->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>());
+                config->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>(),
+                std::move(actionQueue));
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",
