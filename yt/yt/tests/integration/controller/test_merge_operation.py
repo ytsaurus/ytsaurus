@@ -22,6 +22,7 @@ import pytest
 import string
 import random
 
+from copy import deepcopy
 from time import sleep
 from math import ceil
 import itertools
@@ -2826,6 +2827,18 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
 
 @pytest.mark.enabled_multidaemon
+class TestSchedulerMergeCommandsWithOldSlicing(TestSchedulerMergeCommands):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerMergeCommands, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
 class TestInferSchemaInMerge(TestSchedulerMergeCommands):
     ENABLE_MULTIDAEMON = True
 
@@ -3465,6 +3478,18 @@ class TestInferSchemaInMerge(TestSchedulerMergeCommands):
         ]
         assert expected == read_table("//tmp/table0")
 
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestInferSchemaInMergeWithOldSlicing(TestInferSchemaInMerge):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestInferSchemaInMerge, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
 ##################################################################
 
 
@@ -3528,6 +3553,18 @@ class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
         op.track()
         for chunk_id in get("//tmp/out/@chunk_ids"):
             assert 5 <= get("#" + chunk_id + "/@row_count") <= 15
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMergeCommandsSliceSizeWithOldSlicing(TestSchedulerMergeCommandsSliceSize):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerMergeCommandsSliceSize, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
 
 
 ##################################################################
@@ -4039,3 +4076,15 @@ class TestMergeJobSizeAdjuster(YTEnvSetup):
 
         flat_data = list(itertools.chain.from_iterable(data))
         assert flat_data == read_table("//tmp/out")
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestMergeJobSizeAdjusterWithOldSlicing(TestMergeJobSizeAdjuster):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestMergeJobSizeAdjuster, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
