@@ -1157,6 +1157,20 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @pytest.mark.parametrize("commit_ordering", ["weak", "strong"])
     @pytest.mark.parametrize("use_hunks", [False, True])
     def test_sync_replication_ordered(self, commit_ordering, use_hunks):
+        for cluster in self.get_cluster_names():
+            set(
+                "//sys/@config/tablet_manager/table_config_experiments/fix_strong_commit_ordering_read",
+                {
+                    "fraction": 1.0,
+                    "auto_apply": True,
+                    "patch": {
+                        "mount_config_template_patch": {
+                            "retry_read_on_ordered_store_rotation": True,
+                        },
+                    },
+                },
+                driver=get_driver(cluster=cluster))
+
         self._create_cells()
         self._create_replicated_table("//tmp/t", self.SIMPLE_SCHEMA_ORDERED)
 
