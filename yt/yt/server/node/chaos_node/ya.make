@@ -15,6 +15,7 @@ SRCS(
     coordinator_manager.cpp
     coordinator_service.cpp
     foreign_migrated_replication_card_remover.cpp
+    helpers.cpp
     migrated_replication_card_remover.cpp
     replication_card.cpp
     replication_card_batcher.cpp

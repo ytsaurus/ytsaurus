@@ -300,6 +300,7 @@ struct TConnectionDynamicConfig
     TDuration DefaultPullRowsTimeout;
     TDuration DefaultSyncAlienCellsTimeout;
     TDuration DefaultChaosNodeServiceTimeout;
+    TDuration DefaultChaosLeaseTimeout;
     TDuration DefaultChaosWatcherClientRequestTimeout;
     TDuration DefaultFetchTableRowsTimeout;
     TDuration DefaultRegisterTransactionActionsTimeout;

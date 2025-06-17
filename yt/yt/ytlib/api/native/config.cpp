@@ -342,6 +342,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("default_chaos_node_service_timeout", &TThis::DefaultChaosNodeServiceTimeout)
         .Default(TDuration::Seconds(15));
+    registrar.Parameter("default_chaos_lease_timeout", &TThis::DefaultChaosLeaseTimeout)
+        .Default(TDuration::Seconds(30));
     registrar.Parameter("default_chaos_watcher_client_request_timeout",
         &TThis::DefaultChaosWatcherClientRequestTimeout)
         .Default(TDuration::Minutes(30));

@@ -21,7 +21,7 @@ from yt_commands import (
     create_table_replica, sync_enable_table_replica, get_tablet_infos, get_table_mount_info, set_node_banned,
     suspend_chaos_cells, resume_chaos_cells, merge, add_maintenance, remove_maintenance,
     sync_freeze_table, lock, get_tablet_errors, create_tablet_cell_bundle, create_area, link,
-    execute_batch, make_batch_request)
+    execute_batch, make_batch_request, ping_chaos_lease)
 
 from yt_type_helpers import make_schema
 
@@ -4956,6 +4956,45 @@ class TestChaos(ChaosTestBase):
         assert lookup_rows("//tmp/t", [{"key": 0}]) == values
         wait(lambda: lookup_rows("//tmp/r", [{"key": 0}], driver=remote_driver0) == values)
 
+    @authors("gryzlov-ad")
+    def test_chaos_lease_pings(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        lease_id = create_chaos_lease(cell_id, attributes={"timeout": 10000})
+
+        first_ping_time = get(f"#{lease_id}/@last_ping_time")
+        ping_chaos_lease(lease_id)
+        last_ping_time = get(f"#{lease_id}/@last_ping_time")
+
+        assert first_ping_time < last_ping_time
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_expiration(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        lease_id = create_chaos_lease(cell_id, attributes={"timeout": 1000})
+
+        wait(lambda: not self._chaos_lease_exists(lease_id))
+
+    @authors("gryzlov-ad")
+    def test_chaos_lease_errors(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        invalid_cell_id = generate_chaos_cell_id()
+        while cell_id == invalid_cell_id:
+            invalid_cell_id = generate_chaos_cell_id()
+
+        with raises_yt_error("No cell with tag"):
+            create_chaos_lease(invalid_cell_id)
+
+        lease_id = create_chaos_lease(cell_id)
+
+        def corrupt_id(original_id):
+            return original_id[:-1] + "a" if original_id[-1] != "a" else original_id[:-1] + "b"
+
+        with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
+            ping_chaos_lease(corrupt_id(lease_id))
+
+        with raises_yt_error(yt_error_codes.ChaosLeaseNotKnown):
+            remove(f"#{corrupt_id(lease_id)}")
 
 ##################################################################
 

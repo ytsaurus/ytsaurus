@@ -65,6 +65,7 @@ target_sources(server-node-chaos_node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/coordinator_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/coordinator_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/foreign_migrated_replication_card_remover.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/migrated_replication_card_remover.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/replication_card.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/chaos_node/replication_card_batcher.cpp

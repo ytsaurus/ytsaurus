@@ -1,5 +1,6 @@
 #include "client_impl.h"
 #include "backup_session.h"
+#include "chaos_lease.h"
 #include "chaos_helpers.h"
 #include "config.h"
 #include "connection.h"
@@ -3764,6 +3765,45 @@ void TClient::DoAlterReplicationCard(
     } else {
         result.ThrowOnError();
     }
+}
+
+IPrerequisitePtr TClient::DoAttachChaosLease(
+    TChaosLeaseId chaosLeaseId,
+    const TChaosLeaseAttachOptions& options)
+{
+    auto channel = GetChaosChannelByCellTag(CellTagFromId(chaosLeaseId));
+    auto proxy = TChaosNodeServiceProxy(channel);
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+
+    auto req = proxy.GetChaosLease();
+    auto timeoutPath = Format("#%v/@timeout", chaosLeaseId);
+
+    auto timeoutNode = WaitFor(GetNode(timeoutPath, {}))
+        .ValueOrThrow();
+
+    auto timeoutValue = ConvertTo<i64>(timeoutNode);
+    auto timeout = TDuration::MilliSeconds(timeoutValue);
+
+    auto chaosLease = CreateChaosLease(
+        this,
+        std::move(channel),
+        chaosLeaseId,
+        timeout,
+        options.PingAncestors,
+        Logger);
+
+    if (options.Ping) {
+        WaitFor(chaosLease->Ping({}))
+            .ThrowOnError();
+    }
+
+    return chaosLease;
+}
+
+IPrerequisitePtr TClient::DoStartChaosLease(
+    const TChaosLeaseStartOptions& /*options*/)
+{
+    THROW_ERROR_EXCEPTION("Use CreateNode to start chaos leases.");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
