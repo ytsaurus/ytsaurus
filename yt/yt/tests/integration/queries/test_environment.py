@@ -211,3 +211,27 @@ class TestMigration(YTEnvSetup):
         run_migration(client, 13)
         assert not exists("//sys/query_tracker/finished_queries_results")
         assert exists("//sys/query_tracker/finished_query_results")
+
+    @authors("kirsiv40")
+    def test_assigned_query_attr_in_finished_queries_migration(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        remove("//sys/query_tracker", recursive=True, force=True)
+        client = query_tracker.query_tracker.env.create_native_client()
+
+        create_tables_required_version(client, 15)
+        assert exists("//sys/query_tracker/finished_queries")
+
+        insert_rows("//sys/query_tracker/finished_queries", [{"query_id": "test_query_id"}])
+        rows_before_migration = list(select_rows("* from [//sys/query_tracker/finished_queries]"))
+        assert len(rows_before_migration) == 1
+        assert len(rows_before_migration[0]) == 15
+        assert "assigned_tracker" not in rows_before_migration[0]
+
+        run_migration(client, 16)
+        assert exists("//sys/query_tracker/finished_queries")
+        rows_after_migration = list(select_rows("* from [//sys/query_tracker/finished_queries]"))
+        assert len(rows_after_migration) == 1
+        assert len(rows_after_migration[0]) == 16
+        assert "assigned_tracker" in rows_after_migration[0]

@@ -1207,6 +1207,43 @@ TRANSFORMS[15] = [
     ),
 ]
 
+FINISHED_QUERIES_V16 = TableInfo(
+    [
+        ("query_id", "string"),
+    ],
+    [
+        ("engine", "string"),
+        ("query", "string"),
+        ("files", "any"),
+        ("settings", "any"),
+        ("user", "string"),
+        ("access_control_objects", "any"),
+        ("start_time", "timestamp"),
+        ("state", "string"),
+        ("progress", "any"),
+        ("error", "any"),
+        ("result_count", "int64"),
+        ("finish_time", "timestamp"),
+        ("annotations", "any"),
+        ("secrets", "any"),
+        ("assigned_tracker", "string"),
+    ],
+    optimize_for="lookup",
+    attributes={
+        "tablet_cell_bundle": SYS_BUNDLE_NAME,
+        "min_data_ttl": 60000,
+        "merge_rows_on_flush": True,
+        "auto_compaction_period": 3600000,
+    },
+)
+
+TRANSFORMS[16] = [
+    Conversion(
+        "finished_queries",
+        table_info=FINISHED_QUERIES_V16,
+    ),
+]
+
 # NB(mpereskokova): don't forget to update min_required_state_version at yt/yt/server/query_tracker/config.cpp and state at yt/yt/ytlib/query_tracker_client/records/query.yaml
 
 MIGRATION = Migration(
