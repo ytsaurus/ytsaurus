@@ -2143,6 +2143,11 @@ class YTEnvSetup(object):
                 ),
                 yt_commands.make_batch_request(
                     "set",
+                    path="//sys/@config/tablet_manager/enable_smooth_tablet_movement",
+                    input=use_avenues,
+                ),
+                yt_commands.make_batch_request(
+                    "set",
                     path="//sys/@config/tablet_manager/replicated_table_tracker/use_new_replicated_table_tracker",
                     input=self.ENABLE_STANDALONE_REPLICATED_TABLE_TRACKER,
                 ),

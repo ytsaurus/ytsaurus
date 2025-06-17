@@ -882,6 +882,10 @@ public:
         ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
 
         if (kind == ETabletActionKind::SmoothMove) {
+            if (!GetDynamicConfig()->EnableSmoothTabletMovement) {
+                THROW_ERROR_EXCEPTION("Smooth tablet movement is disabled in config");
+            }
+
             if (tablets.size() != 1) {
                 THROW_ERROR_EXCEPTION("Only one tablet can be moved at a time");
             }

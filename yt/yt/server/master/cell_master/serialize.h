@@ -187,6 +187,7 @@ DEFINE_ENUM(EMasterReign,
     ((DedicatedChunkHostInRoleValidation)                           (2949))  // cherepashka
     ((DocumentInSequoia)                                            (2950))  // kvk1920
     ((CheckReplicationProgressSchema)                               (2951))  // savrus
+    ((EnableSmoothTabletMovementFlag)                               (2952))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
