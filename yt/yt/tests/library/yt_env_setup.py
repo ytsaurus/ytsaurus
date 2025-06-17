@@ -344,6 +344,11 @@ class YTEnvSetup(object):
     _DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "enable_table_column_renaming": True,
+            "operation_options": {
+                "spec_template": {
+                    "use_new_slicing_implementation_in_unordered_pool": True,
+                },
+            },
         },
     }
     DELTA_PROXY_CONFIG = {}
