@@ -19,4 +19,5 @@
     };
     DRIVER_BACKEND = native;
     NUM_RPC_PROXIES = 1;
+    NUM_TEST_PARTITIONS = 2;
 }
