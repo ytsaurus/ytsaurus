@@ -10057,6 +10057,23 @@ double TOperationControllerBase::GetCpuLimit(const TUserJobSpecPtr& userJobSpec)
     return std::max(userJobSpec->CpuLimit, Options_->MinCpuLimit);
 }
 
+std::optional<TString> TOperationControllerBase::NormalizeDockerImage(
+    NControllerAgent::NProto::TUserJobSpec* jobSpec,
+    const TString& dockerImage) const
+{
+    std::optional<TString> normalizedImage;
+
+    TDockerImageSpec dockerImageSpec(dockerImage, Config_->DockerRegistry);
+    if (!dockerImageSpec.IsInternal || Config_->DockerRegistry->ForwardInternalImagesToJobSpecs) {
+        normalizedImage = dockerImageSpec.GetDockerImage();
+    }
+    if (dockerImageSpec.IsInternal && Config_->DockerRegistry->UseYtTokenForInternalRegistry) {
+        GenerateDockerAuthFromToken(SecureVault_, AuthenticatedUser_, jobSpec);
+    }
+
+    return normalizedImage;
+}
+
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TUserJobSpecPtr& jobSpecConfig,
@@ -10250,23 +10267,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_start_queue_consumer_registration_manager(jobSpecConfig->StartQueueConsumerRegistrationManager);
 
-    const auto normalizeDockerImage = [this, jobSpec] (const TString& dockerImage) {
-        std::optional<TString> normalizedImage;
-
-        TDockerImageSpec dockerImageSpec(dockerImage, Config_->DockerRegistry);
-        if (!dockerImageSpec.IsInternal || Config_->DockerRegistry->ForwardInternalImagesToJobSpecs) {
-            normalizedImage = dockerImageSpec.GetDockerImage();
-        }
-        if (dockerImageSpec.IsInternal && Config_->DockerRegistry->UseYtTokenForInternalRegistry) {
-            GenerateDockerAuthFromToken(SecureVault_, AuthenticatedUser_, jobSpec);
-        }
-
-        return normalizedImage;
-    };
-
     // Pass normalized docker image reference into job spec.
     if (jobSpecConfig->DockerImage) {
-        auto normalizedImage = normalizeDockerImage(*jobSpecConfig->DockerImage);
+        auto normalizedImage = NormalizeDockerImage(jobSpec, *jobSpecConfig->DockerImage);
         if (normalizedImage) {
             jobSpec->set_docker_image(*normalizedImage);
         }
@@ -10275,7 +10278,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (jobSpecConfig->Sidecars) {
         auto* protoSidecars = jobSpec->mutable_sidecars();
         for (const auto& [sidecarName, sidecarSpec]: *jobSpecConfig->Sidecars) {
-            ToProto(&(*protoSidecars)[sidecarName], *sidecarSpec, normalizeDockerImage);
+            ToProto(
+                &(*protoSidecars)[sidecarName],
+                *sidecarSpec,
+                BIND(&TOperationControllerBase::NormalizeDockerImage, MakeStrong(this), jobSpec));
         }
     }
 }
