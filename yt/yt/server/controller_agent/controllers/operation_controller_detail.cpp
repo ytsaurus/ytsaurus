@@ -10250,8 +10250,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_start_queue_consumer_registration_manager(jobSpecConfig->StartQueueConsumerRegistrationManager);
 
-    const auto normalizeDockerImage = [this](const TString& dockerImage, auto* jobSpec)
-    {
+    const auto normalizeDockerImage = [this, jobSpec] (const TString& dockerImage) {
         std::optional<TString> normalizedImage;
 
         TDockerImageSpec dockerImageSpec(dockerImage, Config_->DockerRegistry);
@@ -10267,7 +10266,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     // Pass normalized docker image reference into job spec.
     if (jobSpecConfig->DockerImage) {
-        auto normalizedImage = normalizeDockerImage(*jobSpecConfig->DockerImage, jobSpec);
+        auto normalizedImage = normalizeDockerImage(*jobSpecConfig->DockerImage);
         if (normalizedImage) {
             jobSpec->set_docker_image(*normalizedImage);
         }
@@ -10276,28 +10275,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (jobSpecConfig->Sidecars) {
         auto* protoSidecars = jobSpec->mutable_sidecars();
         for (const auto& [sidecarName, sidecarSpec]: *jobSpecConfig->Sidecars) {
-            NControllerAgent::NProto::TSidecarJobSpec sidecar;
-
-            sidecar.set_command(sidecarSpec->Command);
-
-            if (sidecarSpec->CpuLimit) {
-                sidecar.set_cpu_limit(*sidecarSpec->CpuLimit);
-            }
-
-            if (sidecarSpec->MemoryLimit) {
-                sidecar.set_memory_limit(*sidecarSpec->MemoryLimit);
-            }
-
-            if (sidecarSpec->DockerImage) {
-                auto normalizedImage = normalizeDockerImage(*sidecarSpec->DockerImage, jobSpec);
-                if (normalizedImage) {
-                    sidecar.set_docker_image(*normalizedImage);
-                }
-            }
-
-            sidecar.set_restart_policy(ToProto(sidecarSpec->RestartPolicy));
-
-            (*protoSidecars)[sidecarName] = std::move(sidecar);
+            ToProto(&(*protoSidecars)[sidecarName], *sidecarSpec, normalizeDockerImage);
         }
     }
 }

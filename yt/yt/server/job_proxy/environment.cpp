@@ -1262,17 +1262,7 @@ public:
         for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
             // Prepare the sidecar job spec.
             auto sidecarSpec = New<TSidecarJobSpec>();
-            sidecarSpec->Command = sidecar.command();
-            if (sidecar.has_cpu_limit()) {
-                sidecarSpec->CpuLimit = sidecar.cpu_limit();
-            }
-            if (sidecar.has_memory_limit()) {
-                sidecarSpec->MemoryLimit = sidecar.memory_limit();
-            }
-            if (sidecar.has_docker_image()) {
-                sidecarSpec->DockerImage = sidecar.docker_image();
-            }
-            sidecarSpec->RestartPolicy = ConvertTo<ESidecarRestartPolicy>(sidecar.restart_policy());
+            FromProto(sidecarSpec.Get(), sidecar);
 
             // Prepare the sidecar container spec.
             auto containerSpec = New<NCri::TCriContainerSpec>();

@@ -833,6 +833,53 @@ void ToProto(
     }
 }
 
+
+void FromProto(
+    TSidecarJobSpec* sidecarJobSpec,
+    const NControllerAgent::NProto::TSidecarJobSpec& sidecarJobSpecProto)
+{
+    sidecarJobSpec->Command = sidecarJobSpecProto.command();
+
+    if (sidecarJobSpecProto.has_cpu_limit()) {
+        sidecarJobSpec->CpuLimit = sidecarJobSpecProto.cpu_limit();
+    }
+
+    if (sidecarJobSpecProto.has_memory_limit()) {
+        sidecarJobSpec->MemoryLimit = sidecarJobSpecProto.memory_limit();
+    }
+
+    if (sidecarJobSpecProto.has_docker_image()) {
+        sidecarJobSpec->DockerImage = sidecarJobSpecProto.docker_image();
+    }
+
+    sidecarJobSpec->RestartPolicy = ConvertTo<ESidecarRestartPolicy>(sidecarJobSpecProto.restart_policy());
+}
+
+void ToProto(
+    NControllerAgent::NProto::TSidecarJobSpec* sidecarJobSpecProto,
+    const TSidecarJobSpec& sidecarJobSpec,
+    std::function<std::optional<TString>(const TString&)> normalizeDockerImage)
+{
+    sidecarJobSpecProto->set_command(sidecarJobSpec.Command);
+
+    if (sidecarJobSpec.CpuLimit) {
+        sidecarJobSpecProto->set_cpu_limit(*sidecarJobSpec.CpuLimit);
+    }
+
+    if (sidecarJobSpec.MemoryLimit) {
+        sidecarJobSpecProto->set_memory_limit(*sidecarJobSpec.MemoryLimit);
+    }
+
+    if (sidecarJobSpec.DockerImage) {
+        auto normalizedImage = normalizeDockerImage(*sidecarJobSpec.DockerImage);
+        if (normalizedImage) {
+            sidecarJobSpecProto->set_docker_image(std::move(*normalizedImage));
+        }
+    }
+
+    sidecarJobSpecProto->set_restart_policy(ToProto(sidecarJobSpec.RestartPolicy));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
