@@ -151,6 +151,9 @@ DECLARE_REFCOUNTED_STRUCT(IJobProxyLogManager)
 
 DECLARE_REFCOUNTED_CLASS(IThrottlerManager)
 
+DECLARE_REFCOUNTED_STRUCT(TContainerEnvironmentBase)
+DECLARE_REFCOUNTED_STRUCT(TContainerEnvironmentCri)
+
 DEFINE_ENUM(ESlotType,
     //! With cpu_policy=normal
     ((Common)    (0))

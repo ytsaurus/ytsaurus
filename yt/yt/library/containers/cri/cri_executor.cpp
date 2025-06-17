@@ -329,10 +329,7 @@ public:
     {
         return ListPodSandbox(initFilter).Apply(BIND([=] (const TCriRuntimeApi::TRspListPodSandboxPtr& rsp) {
             for (const auto& pod : rsp->items()) {
-                auto descriptor = New<TCriPodDescriptor>();
-                descriptor->Name = pod.metadata().name();
-                descriptor->Id = pod.id();
-                callback(descriptor, pod);
+                callback(TCriPodDescriptor::Create(pod.metadata().name(), pod.id()), pod);
             }
         }));
     }
@@ -378,10 +375,7 @@ public:
         }
 
         return req->Invoke().Apply(BIND([name = podSpec->Name] (const TCriRuntimeApi::TRspRunPodSandboxPtr& rsp) -> TCriPodDescriptorPtr {
-            auto descriptor = New<TCriPodDescriptor>();
-            descriptor->Name = name;
-            descriptor->Id = rsp->pod_sandbox_id();
-            return descriptor;
+            return TCriPodDescriptor::Create(name, rsp->pod_sandbox_id());
         }));
     }
 
@@ -551,10 +545,8 @@ public:
             std::vector<TFuture<void>> futures;
             futures.reserve(pods->items_size());
             for (const auto& pod : pods->items()) {
-                auto podDescriptor = New<TCriPodDescriptor>();
-                podDescriptor->Name = pod.metadata().name();
-                podDescriptor->Id = pod.id();
-                futures.push_back(StopPodSandbox(podDescriptor));
+                auto podDescriptor = TCriPodDescriptor::Create(pod.metadata().name(), pod.id());
+                futures.push_back(StopPodSandbox(std::move(podDescriptor)));
             }
             WaitFor(AllSucceeded(std::move(futures)))
                 .ThrowOnError();
@@ -564,10 +556,8 @@ public:
             std::vector<TFuture<void>> futures;
             futures.reserve(pods->items_size());
             for (const auto& pod : pods->items()) {
-                auto podDescriptor = New<TCriPodDescriptor>();
-                podDescriptor->Name = pod.metadata().name();
-                podDescriptor->Id = pod.id();
-                futures.push_back(RemovePodSandbox(podDescriptor));
+                auto podDescriptor = TCriPodDescriptor::Create(pod.metadata().name(), pod.id());
+                futures.push_back(RemovePodSandbox(std::move(podDescriptor)));
             }
             WaitFor(AllSucceeded(std::move(futures)))
                 .ThrowOnError();

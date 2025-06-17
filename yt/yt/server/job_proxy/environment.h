@@ -196,7 +196,7 @@ struct IJobProxyEnvironment
         const NControllerAgent::NProto::TJobSpecExt& jobSpecExt,
         std::function<void(TError)> failJobCallback) = 0;
     virtual void StartSidecar(const std::string& name) = 0;
-    virtual void SidecarFinished(const std::string& sidecarName, const TErrorOr<void> &value) = 0;
+    virtual void OnSidecarFinished(const std::string& sidecarName, const TErrorOr<void> &value) = 0;
     virtual void KillSidecars() = 0;
 };
 

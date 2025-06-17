@@ -24,8 +24,6 @@ struct TContainerEnvironmentBase
 
 DEFINE_REFCOUNTED_TYPE(TContainerEnvironmentBase)
 
-DECLARE_REFCOUNTED_STRUCT(TContainerEnvironmentBase)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TContainerEnvironmentCri
@@ -43,8 +41,6 @@ struct TContainerEnvironmentCri
 };
 
 DEFINE_REFCOUNTED_TYPE(TContainerEnvironmentCri)
-
-DECLARE_REFCOUNTED_STRUCT(TContainerEnvironmentCri)
 
 ////////////////////////////////////////////////////////////////////////////////
 

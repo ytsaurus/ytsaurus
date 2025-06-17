@@ -121,6 +121,8 @@ struct TCriPodDescriptor
     TString Name;
     TString Id;
 
+    static TCriPodDescriptorPtr Create(TString name, TString id);
+
     REGISTER_YSON_STRUCT(TCriPodDescriptor);
 
     static void Register(TRegistrar registrar);
