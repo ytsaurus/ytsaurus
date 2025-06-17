@@ -2782,15 +2782,17 @@ class TestSidecarVanilla(YTEnvSetup):
         }
     }
 
-    def launch_operation(self, master_command, sidecar_command, sidecar_restart_policy="fail_on_error"):
-        docker_image = self.Env.yt_config.default_docker_image
-
+    def prepare_sidecar_cmd_file(self, sidecar_command):
         # Prepare a sidecar bash file as it seems to be impossible to just concatenate several commands
         # under "command" section of sidecar definition, so we invoke a bash file.
         sidecar_cmds_file = create_tmpdir("sidecar_tmp") + "/sidecar_cmds"
         with open(sidecar_cmds_file, "w") as sidecar_cmds_file_open:
             sidecar_cmds_file_open.write(sidecar_command)
+        return sidecar_cmds_file
 
+    def launch_operation(self, master_command, sidecar_command, sidecar_restart_policy="fail_on_error"):
+        docker_image = self.Env.yt_config.default_docker_image
+        sidecar_cmds_file = self.prepare_sidecar_cmd_file(sidecar_command)
         op = vanilla(
             track=False,
             spec={
@@ -2857,6 +2859,70 @@ class TestSidecarVanilla(YTEnvSetup):
 
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
         events_on_fs().wait_event("sidecar_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("finish")
+
+        self.ensure_operation_finish(op)
+
+    @authors("pavel-bash")
+    def test_multiple_sidecars(self):
+        """
+        Check that multiple sidecars can be started with the main job.
+        """
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+        sidecar1_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("sidecar1_job_started"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+        sidecar2_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("sidecar2_job_started"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+
+        docker_image = self.Env.yt_config.default_docker_image
+        sidecar1_cmds_file = self.prepare_sidecar_cmd_file(sidecar1_command)
+        sidecar2_cmds_file = self.prepare_sidecar_cmd_file(sidecar2_command)
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "master": {
+                        "job_count": 1,
+                        "command": master_command,
+                        "docker_image": docker_image,
+                        "files": [
+                            sidecar1_cmds_file,
+                            sidecar2_cmds_file,
+                        ],
+                        "sidecars": {
+                            "sidecar1": {
+                                "job_count": 1,
+                                "command": f"/bin/bash {sidecar1_cmds_file}",
+                                "docker_image": docker_image,
+                            },
+                            "sidecar2": {
+                                "job_count": 1,
+                                "command": f"/bin/bash {sidecar2_cmds_file}",
+                                "docker_image": docker_image,
+                            }
+                        },
+                    },
+                },
+            },
+        )
+        wait(lambda: len(get(op.get_path() + "/@progress/tasks")) == 1, ignore_exceptions=True)
+
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("sidecar1_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("sidecar2_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish")
 
         self.ensure_operation_finish(op)
@@ -3085,3 +3151,88 @@ fi
 
         op.wait_for_state("failed")
         assert not events_on_fs().check_event("sidecar_second_job_started")
+
+    @authors("pavel-bash")
+    def test_fail_on_error_after_failure(self):
+        """
+        Check the {RestartPolicy=OnFailure & sidecar-finished-with-failure} case; we expect that
+        the whole job will be failed because of this.
+        """
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+        sidecar_command = f"""
+#!/bin/bash
+if [ -f {events_on_fs()._get_event_filename("sidecar_first_job_started")} ]; then
+  {events_on_fs().notify_event_cmd("sidecar_second_job_started")}
+else
+  {events_on_fs().notify_event_cmd("sidecar_first_job_started")}
+  {events_on_fs().wait_event_cmd("finish_sidecar_first")}
+fi
+"""
+
+        op = self.launch_operation(master_command, sidecar_command, "fail_on_error")
+
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+
+        events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("finish_sidecar_first")
+
+        # Wait here a little bit to allow the sidecar to start (if it's going to)
+        time.sleep(5)
+
+        events_on_fs().notify_event("finish")
+
+        self.ensure_operation_finish(op)
+
+        assert not events_on_fs().check_event("sidecar_second_job_started")
+
+    @authors("pavel-bash")
+    def test_mounts(self):
+        """
+        Check that the mounts are indeed shared between the main job and all sidecars; we can check
+        it using the 'files' parameter, as internally it uses mounts to pass files to the containers.
+        """
+        shared_file = create_tmpdir("sidecar_tmp") + "/shared_file"
+        with open(shared_file, "w") as shared_file_open:
+            shared_file_open.write("Header\n")
+        shared_file_expected_content = """Header
+master_write
+sidecar_write
+"""
+
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                f"echo 'master_write' >> {shared_file}",
+                events_on_fs().notify_event_cmd("master_job_wrote_${YT_JOB_COOKIE}"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+        sidecar_command = f"""
+#!/bin/bash
+{events_on_fs().notify_event_cmd("sidecar_job_started")}
+{events_on_fs().wait_event_cmd("sidecar_proceed")}
+echo 'sidecar_write' >> {shared_file}
+{events_on_fs().notify_event_cmd("sidecar_job_wrote")}
+{events_on_fs().wait_event_cmd("finish")}
+"""
+
+        op = self.launch_operation(master_command, sidecar_command)
+
+        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("sidecar_job_started", timeout=datetime.timedelta(1000))
+
+        events_on_fs().wait_event("master_job_wrote_0", timeout=datetime.timedelta(1000))
+        events_on_fs().notify_event("sidecar_proceed")
+        events_on_fs().wait_event("sidecar_job_wrote", timeout=datetime.timedelta(1000))
+
+        events_on_fs().notify_event("finish")
+
+        self.ensure_operation_finish(op)
+
+        with open(shared_file, "r") as shared_file_open:
+            assert shared_file_open.read() == shared_file_expected_content
