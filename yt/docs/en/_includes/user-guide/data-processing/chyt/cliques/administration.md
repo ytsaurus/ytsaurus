@@ -1,3 +1,10 @@
+---
+noIndex: true
+
+content: noindex
+name: robots
+---
+
 # Administering a private clique
 
 This article describes how to administer your own clique and which manifestations of its vital activity can and should be monitored.
@@ -44,3 +51,4 @@ To change the ACL, use the `update_op_parameters` command (link?). To do this, y
    ```bash
    yt --proxy <cluster_name> update-op-parameters --operation <operation_id> '{acl = [{subjects=[robot-1; robot-2; robot-3]; action=allow; permissions=[read]};{subjects=[<subject>]; action=allow; permissions=[read;manage]}]}'
    ```
+
