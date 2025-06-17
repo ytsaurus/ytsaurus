@@ -1533,13 +1533,21 @@ Map-side стратегия JOIN может выполняться в шарди
 
 Задаёт максимальное количество элементов в inline списке, полученном в результате вычисления Folder. При большем размере будет использоваться временный файл.
 
-### `yt.UseNativeYtTypes`
+### `yt.UseNativeYtTypes` { #yt-usenativeyttypes}
 
 | Тип значения | По умолчанию | Статическая /<br/>динамическая |
 | --- | --- | --- |
-| Флаг | false | Статическая |
+| Флаг | true{% if audience == "internal" %}*{% endif %} | Статическая |
 
 Включает запись значений сложных типов в таблицы с использованием родной поддержки сложных типов в {{product-name}}.
+
+{% if audience == "internal" %}
+{% note info %}
+
+В Query Tracker прагма `yt.UseNativeYtTypes` включена по умолчанию, а на сервисе [{{yql.link}}]({{yql.link}}) её необходимо включить явно, вызвав команду `PRAGMA yt.UseNativeYtType("1")`.
+
+{% endnote %}
+{% endif %}
 
 ### `yt.PublishedMedia` / `yt.TemporaryMedia`
 
