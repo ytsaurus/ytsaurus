@@ -238,6 +238,11 @@ types:
         column_type: Any
         lock: client
 
+      - cpp_name: AssignedTracker
+        cpp_type: std::optional<std::string>
+        column_name: assigned_tracker
+        column_type: String
+
 
   - type_name: TFinishedQueryByStartTime
     fields:
