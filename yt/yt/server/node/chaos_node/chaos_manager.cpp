@@ -3,9 +3,10 @@
 #include "automaton.h"
 #include "bootstrap.h"
 #include "chaos_cell_synchronizer.h"
-#include "chaos_slot.h"
 #include "chaos_lease.h"
+#include "chaos_slot.h"
 #include "foreign_migrated_replication_card_remover.h"
+#include "helpers.h"
 #include "migrated_replication_card_remover.h"
 #include "replication_card.h"
 #include "replication_card_batcher.h"
@@ -19,8 +20,8 @@
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/helpers.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
@@ -43,11 +44,13 @@
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
-#include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NChaosNode {
 
@@ -115,6 +118,9 @@ public:
             BIND(&TChaosManager::PeriodicMigrateLeftovers, MakeWeak(this)),
             Config_->LeftoverMigrationPeriod))
         , ReplicationCardWatcher_(slot->GetReplicationCardsWatcher())
+        , ChaosLeaseTracker_(CreateTransactionLeaseTracker(
+            Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
+            Logger))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -184,6 +190,10 @@ public:
         return OrchidService_;
     }
 
+    virtual ITransactionLeaseTrackerPtr GetChaosLeaseTracker() const override
+    {
+        return ChaosLeaseTracker_;
+    }
 
     void GenerateReplicationCardId(const TCtxGenerateReplicationCardIdPtr& context) override
     {
@@ -438,12 +448,21 @@ public:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
+    void PingChaosLease(const TCtxPingChaosLeasePtr& context) override
+    {
+        auto chaosLeaseId = FromProto<TChaosLeaseId>(context->Request().chaos_lease_id());
+        bool pingAncestors = context->Request().ping_ancestors();
+
+        auto pingFuture = ChaosLeaseTracker_->PingTransaction(chaosLeaseId, pingAncestors);
+        context->Reply();
+    }
+
+
     TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) override
     {
         auto* chaosLease = FindChaosLease(chaosLeaseId);
         if (!chaosLease) {
-            THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such chaos lease")
-                << TErrorAttribute("chaos_lease_id", chaosLeaseId);
+            ThrowChaosLeaseNotKnown(chaosLeaseId);
         }
 
         return chaosLease;
@@ -541,6 +560,8 @@ private:
     const TPeriodicExecutorPtr LeftoversMigrationExecutor_;
     const IReplicationCardsWatcherPtr ReplicationCardWatcher_;
 
+    const ITransactionLeaseTrackerPtr ChaosLeaseTracker_;
+
     TEntityMap<TReplicationCard> ReplicationCardMap_;
     TEntityMap<TReplicationCardCollocation> CollocationMap_;
     TEntityMap<TChaosLease> ChaosLeaseMap_;
@@ -634,6 +655,18 @@ private:
         MigratedReplicationCardRemover_->Start();
         ForeignMigratedReplicationCardRemover_->Start();
         Slot_->GetReplicatedTableTracker()->EnableTracking();
+        ChaosLeaseTracker_->Start();
+
+        // Recreate chaos leases.
+        for (auto [chaosLeaseId, chaosLease] : ChaosLeaseMap_) {
+            ChaosLeaseTracker_->RegisterTransaction(
+                chaosLeaseId,
+                chaosLease->GetParentId(),
+                chaosLease->GetTimeout(),
+                std::nullopt,
+                BIND(&TChaosManager::OnLeaseExpired, MakeStrong(this))
+                    .Via(Slot_->GetAutomatonInvoker()));
+        }
     }
 
     void OnStopLeading() override
@@ -2686,25 +2719,48 @@ private:
 
     void HydraCreateChaosLease(
         const TCtxCreateChaosLeasePtr& context,
-        NChaosClient::NProto::TReqCreateChaosLease* /*request*/,
+        NChaosClient::NProto::TReqCreateChaosLease* request,
         NChaosClient::NProto::TRspCreateChaosLease* response)
     {
         auto chaosLeaseId = GenerateNewChaosLeaseId();
+        auto timeout = FromProto<TDuration>(request->timeout());
+        auto parentId = request->has_parent_id()
+            ? FromProto<TChaosLeaseId>(request->parent_id())
+            : TChaosLeaseId{};
+
+        ChaosLeaseTracker_->RegisterTransaction(
+            chaosLeaseId,
+            parentId,
+            timeout,
+            std::nullopt,
+            BIND(&TChaosManager::OnLeaseExpired, MakeStrong(this))
+                .Via(Slot_->GetAutomatonInvoker()));
 
         auto chaosLease = std::make_unique<TChaosLease>(chaosLeaseId);
+        chaosLease->SetParentId(parentId);
+        chaosLease->SetTimeout(timeout);
         auto* chaosLeasePtr = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLease));
-
-        ToProto(response->mutable_chaos_lease_id(), chaosLeaseId);
 
         YT_LOG_DEBUG("Created chaos lease (LeaseId: %v)",
             chaosLeaseId);
 
         GrantShortcuts(chaosLeasePtr, CoordinatorCellIds_);
 
+        ToProto(response->mutable_chaos_lease_id(), chaosLeaseId);
+
         if (context) {
             context->SetResponseInfo("ChaosLeaseId: %v",
                 chaosLeaseId);
         }
+    }
+
+    void OnLeaseExpired(TChaosLeaseId chaosLeaseId)
+    {
+        NChaosClient::NProto::TReqRemoveChaosLease request;
+        ToProto(request.mutable_chaos_lease_id(), chaosLeaseId);
+        auto mutation = CreateMutation(HydraManager_, request);
+
+        YT_UNUSED_FUTURE(mutation->Commit());
     }
 
     void HydraRemoveChaosLease(
@@ -2720,6 +2776,9 @@ private:
 
         // TODO(gryzlov-ad): Handle lease migration.
         ChaosLeaseMap_.Remove(chaosLeaseId);
+
+        ChaosLeaseTracker_->UnregisterTransaction(
+            chaosLeaseId);
 
         YT_LOG_DEBUG("Chaos lease removed (ChaosLeaseId: %v)",
             chaosLeaseId);

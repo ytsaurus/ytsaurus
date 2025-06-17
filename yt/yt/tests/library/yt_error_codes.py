@@ -61,6 +61,7 @@ InvalidEpoch = 3101
 ZombieEpoch = 3102
 InvalidRowSequenceNumbers = 3103
 QueueAgentRetriableError = 3104
+ChaosLeaseNotKnown = 3205
 
 
 class Scheduler(object):

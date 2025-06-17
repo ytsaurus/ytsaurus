@@ -2,6 +2,7 @@
 
 #include "chaos_manager.h"
 #include "chaos_slot.h"
+#include "chaos_lease.h"
 #include "private.h"
 #include "replication_card.h"
 #include "replication_card_collocation.h"
@@ -493,27 +494,14 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         auto* chaosLease = chaosManager->GetChaosLeaseOrThrow(chaosLeaseId);
+        response->set_timeout(ToProto(chaosLease->GetTimeout()));
 
-        auto* protoChaosLease = response->mutable_chaos_lease();
-        Y_UNUSED(chaosLease, protoChaosLease);
+        auto futureLastPingTime = chaosManager->GetChaosLeaseTracker()->GetLastPingTime(chaosLeaseId)
+            .Apply(BIND([=] (TInstant lastPingTime) {
+                response->set_last_ping_time(ToProto(lastPingTime));
+            }));
 
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, PingChaosLease)
-    {
-        // TODO(gryzlov-ad): Support pings for chaos leases.
-        auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
-
-        context->SetRequestInfo("ChaosLeaseId: %v",
-            chaosLeaseId);
-
-        const auto& chaosManager = Slot_->GetChaosManager();
-        auto* chaosLease = chaosManager->GetChaosLeaseOrThrow(chaosLeaseId);
-
-        Y_UNUSED(chaosLease);
-
-        context->Reply();
+        context->ReplyFrom(futureLastPingTime);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, RemoveChaosLease)
@@ -525,6 +513,20 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->RemoveChaosLease(std::move(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, PingChaosLease)
+    {
+        auto chaosLeaseId = FromProto<TChaosLeaseId>(context->Request().chaos_lease_id());
+        bool pingAncestors = context->Request().ping_ancestors();
+
+        context->SetRequestInfo("ChaosLeaseId: %v, PingAncestors: %v",
+            chaosLeaseId,
+            pingAncestors);
+
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->PingChaosLease(std::move(context));
     }
 };
 

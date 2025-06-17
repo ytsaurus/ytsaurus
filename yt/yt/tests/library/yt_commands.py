@@ -3853,3 +3853,8 @@ def finish_distributed_write_session(session: yson.YsonType, results: list[yson.
     kwargs["session"] = session
     kwargs["results"] = results
     execute_command("finish_distributed_write_session", kwargs)
+
+
+def ping_chaos_lease(chaos_lease_id, **kwargs):
+    kwargs["chaos_lease_id"] = chaos_lease_id
+    execute_command("ping_chaos_lease", kwargs)

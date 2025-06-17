@@ -717,6 +717,7 @@ public:
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterTable));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterTableReplica));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(AlterReplicationCard));
+        registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(PingChaosLease));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(BalanceTabletCells));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(CreateTableBackup));
         registerMethod(EMultiproxyMethodKind::Write, RPC_SERVICE_METHOD_DESC(RestoreTableBackup));
@@ -2745,6 +2746,25 @@ private:
             context,
             [=] {
                 return client->AlterReplicationCard(replicationCardId, options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PingChaosLease)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+        auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
+
+        auto options = TChaosLeaseAttachOptions{};
+        options.Ping = true;
+        options.PingAncestors = request->ping_ancestors();
+
+        context->SetRequestInfo("ChaosLeaseId: %v",
+            chaosLeaseId);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->AttachChaosLease(chaosLeaseId, options).AsVoid();
             });
     }
 

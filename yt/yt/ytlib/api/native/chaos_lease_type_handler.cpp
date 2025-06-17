@@ -1,7 +1,8 @@
 #include "chaos_lease_type_handler.h"
 
-#include "type_handler_detail.h"
 #include "client_impl.h"
+#include "config.h"
+#include "type_handler_detail.h"
 
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
@@ -51,6 +52,8 @@ private:
             .BeginAttributes()
                 .Item("id").Value(chaosLeaseId)
                 .Item("type").Value(EObjectType::ChaosLease)
+                .Item("timeout").Value(FromProto<TDuration>(rsp->timeout()))
+                .Item("last_ping_time").Value(FromProto<TInstant>(rsp->last_ping_time()))
             .EndAttributes()
             .Entity();
     }
@@ -61,6 +64,8 @@ private:
 
         // TOOD(gryzlov-ad): Use chaos bundle name. Unify different chaos type handlers with some base class
         auto chaosCellId = attributes->Get<TCellId>("chaos_cell_id");
+        auto parentId = attributes->FindAndRemove<TChaosLeaseId>("parent_id");
+        auto timeoutValue = attributes->FindAndRemove<i64>("timeout");
 
         auto channel = Client_->GetChaosChannelByCellId(chaosCellId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
@@ -68,6 +73,16 @@ private:
         proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
         auto req = proxy.CreateChaosLease();
+        ToProto(req->mutable_attributes(), *attributes);
+        if (parentId) {
+            ToProto(req->mutable_parent_id(), *parentId);
+        }
+
+        auto timeout = timeoutValue
+            ? TDuration::MilliSeconds(*timeoutValue)
+            : Client_->GetNativeConnection()->GetConfig()->DefaultChaosLeaseTimeout;
+        req->set_timeout(ToProto(timeout));
+
         Client_->SetMutationId(req, options);
 
         auto rsp = WaitFor(req->Invoke())

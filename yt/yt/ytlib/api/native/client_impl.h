@@ -744,6 +744,14 @@ public: \
         NObjectClient::TCellId coordinatorCellId,
         const TResumeCoordinatorOptions& options),
         (coordinatorCellId, options))
+    IMPLEMENT_METHOD(IPrerequisitePtr, StartChaosLease, (
+        const TChaosLeaseStartOptions& options = {}),
+        (options))
+    IMPLEMENT_METHOD(IPrerequisitePtr, AttachChaosLease, (
+        NChaosClient::TChaosLeaseId chaosLeaseId,
+        const TChaosLeaseAttachOptions& options = {}),
+        (chaosLeaseId, options))
+
     IMPLEMENT_METHOD(void, MigrateReplicationCards, (
         NObjectClient::TCellId chaosCellId,
         const TMigrateReplicationCardsOptions& options),
