@@ -455,7 +455,9 @@ void TChunkReplicator::OnEpochFinished()
     ChunkIdsPendingEndorsementRegistration_.clear();
 
     for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
-        MisscheduledJobs_[jobType] = 0;
+        for (auto reason : TEnumTraits<EMisscheduleReason>::GetDomainValues()) {
+            MisscheduledJobs_[jobType][reason] = 0;
+        }
     }
 
     ReplicatorEnabled_ = false;
@@ -1414,7 +1416,7 @@ void TChunkReplicator::UnrefChunkBeingPulled(
     }
 }
 
-bool TChunkReplicator::TryScheduleReplicationJob(
+EMisscheduleReason TChunkReplicator::TryScheduleReplicationJob(
     IJobSchedulingContext* context,
     TChunkPtrWithReplicaIndex chunkWithIndex,
     TDomesticMedium* targetMedium,
@@ -1433,7 +1435,7 @@ bool TChunkReplicator::TryScheduleReplicationJob(
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     auto* targetNode = nodeTracker->FindNode(targetNodeId);
     if (isPullReplicationJob && !targetNode) {
-        return false;
+        return EMisscheduleReason::NoPullTargetNode;
     }
 
     auto finallyGuard = Finally([&] {
@@ -1447,15 +1449,15 @@ bool TChunkReplicator::TryScheduleReplicationJob(
     });
 
     if (!IsObjectAlive(chunk)) {
-        return true;
+        return EMisscheduleReason::None;
     }
 
     if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
-        return true;
+        return EMisscheduleReason::None;
     }
 
     if (chunk->HasJobs()) {
-        return true;
+        return EMisscheduleReason::None;
     }
 
     int targetMediumIndex = targetMedium->GetIndex();
@@ -1468,11 +1470,11 @@ bool TChunkReplicator::TryScheduleReplicationJob(
     int temporarilyUnavailableReplicaCount = mediumStatistics.TemporarilyUnavailableReplicaCount[replicaIndex];
 
     if (Any(statistics.Status & ECrossMediumChunkStatus::Lost)) {
-        return true;
+        return EMisscheduleReason::None;
     }
 
     if (replicaCount > replicationFactor) {
-        return true;
+        return EMisscheduleReason::None;
     }
 
     int replicasNeeded;
@@ -1490,14 +1492,14 @@ bool TChunkReplicator::TryScheduleReplicationJob(
                 chunkId,
                 targetMediumIndex,
                 mediumStatistics.Status);
-            return true;
+            return EMisscheduleReason::None;
         }
     } else if (Any(mediumStatistics.Status & (EChunkStatus::UnsafelyPlaced | EChunkStatus::InconsistentlyPlaced))) {
         replicasNeeded = 1;
     } else if (Any(mediumStatistics.Status & (EChunkStatus::DataDecommissioned | EChunkStatus::ParityDecommissioned))) {
         replicasNeeded = 1;
     } else {
-        return true;
+        return EMisscheduleReason::None;
     }
 
     // TODO(babenko): journal replication currently does not support fan-out > 1
@@ -1519,7 +1521,9 @@ bool TChunkReplicator::TryScheduleReplicationJob(
         mediumStatistics.UnsafelyPlacedReplica);
 
     if (targetNodes.empty()) {
-        return false;
+        YT_LOG_TRACE("No target nodes were allocated while trying to replicate chunk (ChunkId: %v)",
+            chunk->GetId());
+        return EMisscheduleReason::NoTargetNodes;
     }
 
     TNodePtrWithReplicaAndMediumIndexList targetReplicas;
@@ -1530,7 +1534,9 @@ bool TChunkReplicator::TryScheduleReplicationJob(
     }
 
     if (targetReplicas.empty()) {
-        return false;
+        YT_LOG_TRACE("All target nodes allocated are dead while trying to replicate chunk (ChunkId: %v)",
+            chunk->GetId());
+        return EMisscheduleReason::NoTargetReplicas;
     }
 
     job = New<TReplicationJob>(
@@ -1555,10 +1561,18 @@ bool TChunkReplicator::TryScheduleReplicationJob(
         replicasNeeded = 1;
     }
 
-    return std::ssize(targetNodes) == replicasNeeded;
+    if (std::ssize(targetNodes) != replicasNeeded) {
+        YT_LOG_TRACE("Insufficient nodes allocated while trying to replicate chunk (ChunkId: %v, ReplicasNeeded: %v, NodesAllocated: %v)",
+            replicasNeeded,
+            std::ssize(targetNodes),
+            chunk->GetId());
+        return EMisscheduleReason::InsufficientTargetReplicas;
+    };
+
+    return EMisscheduleReason::None;
 }
 
-bool TChunkReplicator::TryScheduleRemovalJob(
+EMisscheduleReason TChunkReplicator::TryScheduleRemovalJob(
     IJobSchedulingContext* context,
     const TChunkIdWithIndexes& chunkIdWithIndexes,
     TChunkLocation* location)
@@ -1571,13 +1585,13 @@ bool TChunkReplicator::TryScheduleRemovalJob(
     // NB: Allow more than one job for dead chunks.
     if (IsObjectAlive(chunk)) {
         if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
-            return true;
+            return EMisscheduleReason::None;
         }
         if (chunk->HasJobs()) {
-            return true;
+            return EMisscheduleReason::None;
         }
         if (RemovalLockedChunkIds_.contains(chunkIdWithIndexes.Id)) {
-            return true;
+            return EMisscheduleReason::None;
         }
     }
 
@@ -1608,10 +1622,10 @@ bool TChunkReplicator::TryScheduleRemovalJob(
         context->GetNode()->GetDefaultAddress(),
         chunkIdWithIndexes);
 
-    return true;
+    return EMisscheduleReason::None;
 }
 
-bool TChunkReplicator::TryScheduleRepairJob(
+EMisscheduleReason TChunkReplicator::TryScheduleRepairJob(
     IJobSchedulingContext* context,
     EChunkRepairQueue repairQueue,
     TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
@@ -1623,15 +1637,15 @@ bool TChunkReplicator::TryScheduleRepairJob(
     YT_VERIFY(chunk->IsErasure());
 
     if (!IsObjectAlive(chunk)) {
-        return true;
+        return EMisscheduleReason::None;
     }
 
     if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
-        return true;
+        return EMisscheduleReason::None;
     }
 
     if (chunk->HasJobs()) {
-        return true;
+        return EMisscheduleReason::None;
     }
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -1643,7 +1657,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
             "(ChunkId: %v, MediumIndex: %v)",
             chunk->GetId(),
             mediumIndex);
-        return true;
+        return EMisscheduleReason::None;
     }
     if (medium->IsOffshore()) {
         YT_LOG_ALERT(
@@ -1653,7 +1667,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
             medium->GetIndex(),
             medium->GetName(),
             medium->GetType());
-        return true;
+        return EMisscheduleReason::None;
     }
 
     auto codecId = chunk->GetErasureCodec();
@@ -1671,7 +1685,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
     }
 
     if (erasedPartIndexes.empty()) {
-        return true;
+        return EMisscheduleReason::None;
     }
 
     if (!codec->CanRepair(erasedPartIndexes)) {
@@ -1692,7 +1706,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
             if (mediumStatistics.DecommissionedReplicaCount[erasedPartIndexes.back()] == 0) {
                 YT_LOG_ERROR("Erasure chunk has not enough replicas to repair (ChunkId: %v)",
                     chunk->GetId());
-                return false;
+                return EMisscheduleReason::None;
             }
             erasedPartIndexes.pop_back();
         } while (!codec->CanRepair(erasedPartIndexes));
@@ -1711,7 +1725,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
         ESessionType::Repair);
 
     if (targetNodes.empty()) {
-        return false;
+        return EMisscheduleReason::NoTargetNodes;
     }
 
     YT_VERIFY(std::ssize(targetNodes) == std::ssize(erasedPartIndexes));
@@ -1745,7 +1759,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
         MakeFormattableView(targetNodes, TNodePtrAddressFormatter()),
         erasedPartIndexes);
 
-    return true;
+    return EMisscheduleReason::None;
 }
 
 void TChunkReplicator::ScheduleJobs(EJobType jobType, IJobSchedulingContext* context)
@@ -1834,6 +1848,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             if (!IsObjectAlive(chunk) || !chunk->IsRefreshActual()) {
                 queue.Erase(chunkIt);
                 ++misscheduledPullReplicationJobs;
+                ++MisscheduledJobs_[EJobType::ReplicateChunk][EMisscheduleReason::RefreshNotActual];
                 continue;
             }
 
@@ -1855,6 +1870,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             auto it = queue.find(chunkIdWithIndex);
             if (it == queue.end()) {
                 ++misscheduledPullReplicationJobs;
+                ++MisscheduledJobs_[EJobType::ReplicateChunk][EMisscheduleReason::RefreshNotActual];
                 continue;
             }
 
@@ -1863,12 +1879,14 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             if (!IsObjectAlive(chunk) || !chunk->IsRefreshActual()) {
                 queue.Erase(it);
                 ++misscheduledPullReplicationJobs;
+                ++MisscheduledJobs_[EJobType::ReplicateChunk][EMisscheduleReason::RefreshNotActual];
                 continue;
             }
 
             if (!replicasOrError.IsOK()) {
                 queue.Erase(it);
                 ++misscheduledPullReplicationJobs;
+                ++MisscheduledJobs_[EJobType::ReplicateChunk][EMisscheduleReason::ErrorFetchingReplicas];
                 ScheduleChunkRefresh(chunk);
                 continue;
             }
@@ -1929,6 +1947,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                 // NB: Call below removes chunk from #queue.
                 RemoveFromChunkReplicationQueues(node, chunkIdWithIndex);
                 ++misscheduledPushReplicationJobsPerPriority[priority];
+                ++MisscheduledJobs_[EJobType::ReplicateChunk][EMisscheduleReason::RefreshNotActual];
                 continue;
             }
 
@@ -1958,6 +1977,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                 // NB: Call below removes chunk from #queue.
                 RemoveFromChunkReplicationQueues(node, chunkIdWithIndex);
                 ++misscheduledPushReplicationJobsPerPriority[priority];
+                ++MisscheduledJobs_[EJobType::ReplicateChunk][EMisscheduleReason::RefreshNotActual];
                 continue;
             }
 
@@ -1965,12 +1985,14 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                 // NB: Call below removes chunk from #queue.
                 RemoveFromChunkReplicationQueues(node, chunkIdWithIndex);
                 ++misscheduledPushReplicationJobsPerPriority[priority];
+                ++MisscheduledJobs_[EJobType::ReplicateChunk][EMisscheduleReason::RefreshNotActual];
                 continue;
             }
 
             if (!replicasOrError.IsOK()) {
                 RemoveFromChunkReplicationQueues(node, chunkIdWithIndex);
                 ++misscheduledPushReplicationJobsPerPriority[priority];
+                ++MisscheduledJobs_[EJobType::ReplicateChunk][EMisscheduleReason::ErrorFetchingReplicas];
                 ScheduleChunkRefresh(chunk.Get());
                 continue;
             }
@@ -1987,6 +2009,8 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                             chunk->GetId(),
                             mediumIndex);
                         ++misscheduledPushReplicationJobsPerPriority[priority];
+                        ++MisscheduledJobs_[EJobType::ReplicateChunk][EMisscheduleReason::MissingMedium];
+
                         // Something bad happened, let's try to forget it.
                         mediumIndexSet.reset(mediumIndex);
                         ScheduleChunkRefresh(chunk.Get());
@@ -2002,6 +2026,8 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                             medium->GetName(),
                             medium->GetType());
                         ++misscheduledPushReplicationJobsPerPriority[priority];
+                        ++MisscheduledJobs_[EJobType::ReplicateChunk][EMisscheduleReason::MissingMedium];
+
                         // Something bad happened, let's try to forget it.
                         mediumIndexSet.reset(mediumIndex);
                         ScheduleChunkRefresh(chunk.Get());
@@ -2011,15 +2037,17 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                     auto nodeId = node->GetTargetReplicationNodeId(chunkId, mediumIndex);
                     node->RemoveTargetReplicationNodeId(chunkId, mediumIndex);
 
-                    if (TryScheduleReplicationJob(
+                    auto misscheduleReason = TryScheduleReplicationJob(
                         context,
                         {chunk.Get(), chunkIdWithIndex.ReplicaIndex},
                         medium->AsDomestic(),
                         nodeId,
-                        replicas))
-                    {
+                        replicas);
+
+                    if (misscheduleReason == EMisscheduleReason::None) {
                         mediumIndexSet.reset(mediumIndex);
                     } else {
+                        ++MisscheduledJobs_[EJobType::ReplicateChunk][misscheduleReason];
                         ++misscheduledPushReplicationJobsPerPriority[priority];
                         if (nodeId != InvalidNodeId) {
                             mediumIndexSet.reset(mediumIndex);
@@ -2034,11 +2062,6 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                 queue.Erase(it);
             }
         }
-    }
-
-    MisscheduledJobs_[EJobType::ReplicateChunk] += misscheduledPullReplicationJobs;
-    for (const auto& [priority, count] : misscheduledPushReplicationJobsPerPriority) {
-        MisscheduledJobs_[EJobType::ReplicateChunk] += count;
     }
 }
 
@@ -2108,10 +2131,13 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
                     continue;
                 }
 
-                if (TryScheduleRemovalJob(context, replica, location)) {
+                auto misscheduleReason = TryScheduleRemovalJob(context, replica, location);
+                if (misscheduleReason == EMisscheduleReason::None) {
                     location->SetDestroyedReplicasIterator(replicaIterator, shardId);
                 } else {
                     ++misscheduledRemovalJobs;
+                    ++MisscheduledJobs_[EJobType::RemoveChunk][misscheduleReason];
+
                 }
             }
         }
@@ -2151,20 +2177,23 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
                 if (!ShouldProcessChunk(replica->Id) || (IsObjectAlive(chunk) && !chunk->IsRefreshActual())) {
                     queue.erase(replica);
                     ++misscheduledRemovalJobs;
+                    ++MisscheduledJobs_[EJobType::RemoveChunk][EMisscheduleReason::RefreshNotActual];
                 } else if (chunksBeingRemoved.contains(chunkIdWithIndexes)) {
                     YT_LOG_ALERT(
                         "Trying to schedule a removal job for a chunk that is already being removed (ChunkId: %v)",
                         chunkIdWithIndexes);
-                } else if (TryScheduleRemovalJob(context, chunkIdWithIndexes, location)) {
-                    queue.erase(replica);
                 } else {
-                    ++misscheduledRemovalJobs;
+                    auto misscheduleReason = TryScheduleRemovalJob(context, chunkIdWithIndexes, location);
+                    if (misscheduleReason == EMisscheduleReason::None) {
+                        queue.erase(replica);
+                    } else {
+                        ++misscheduledRemovalJobs;
+                        ++MisscheduledJobs_[EJobType::RemoveChunk][misscheduleReason];
+                    }
                 }
             }
         }
     }
-
-    MisscheduledJobs_[EJobType::RemoveChunk] += misscheduledRemovalJobs;
 }
 
 void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
@@ -2224,6 +2253,7 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
             if (!IsObjectAlive(chunk)) {
                 // Chunk should be removed from queues elsewhere.
                 ++misscheduledRepairJobs;
+                ++MisscheduledJobs_[EJobType::RepairChunk][EMisscheduleReason::RefreshNotActual];
                 continue;
             }
 
@@ -2243,6 +2273,7 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
         if (!IsObjectAlive(chunk)) {
             // Chunk should be removed from queues elsewhere.
             ++misscheduledRepairJobs;
+            ++MisscheduledJobs_[EJobType::RepairChunk][EMisscheduleReason::RefreshNotActual];
             continue;
         }
 
@@ -2254,6 +2285,7 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
             if (!IsObjectAlive(chunk)) {
                 // Chunk should be removed from queues elsewhere.
                 ++misscheduledRepairJobs;
+                ++MisscheduledJobs_[EJobType::RepairChunk][EMisscheduleReason::RefreshNotActual];
                 continue;
             }
 
@@ -2261,6 +2293,7 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
             if (chunkIt == TChunkRepairQueueIterator()) {
                 // If someone discarded iterator, they have probably removed chunk from queue as well, so do nothing.
                 ++misscheduledRepairJobs;
+                ++MisscheduledJobs_[EJobType::RepairChunk][EMisscheduleReason::RefreshNotActual];
                 continue;
             }
 
@@ -2275,17 +2308,26 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
             if (!chunk->IsRefreshActual()) {
                 removeFromQueue();
                 ++misscheduledRepairJobs;
+                ++MisscheduledJobs_[EJobType::RepairChunk][EMisscheduleReason::RefreshNotActual];
             } else if (!replicasOrError.IsOK()) {
                 ++misscheduledRepairJobs;
-            } else if (TryScheduleRepairJob(context, queue, chunkWithIndexes, replicasOrError.Value())) {
-                removeFromQueue();
+                ++MisscheduledJobs_[EJobType::RepairChunk][EMisscheduleReason::ErrorFetchingReplicas];
             } else {
-                ++misscheduledRepairJobs;
+
+                auto misscheduleReason = TryScheduleRepairJob(
+                    context,
+                    queue,
+                    chunkWithIndexes,
+                    replicasOrError.Value());
+                if (misscheduleReason == EMisscheduleReason::None) {
+                    removeFromQueue();
+                } else {
+                    ++misscheduledRepairJobs;
+                    ++MisscheduledJobs_[EJobType::RepairChunk][misscheduleReason];
+                }
             }
         }
     }
-
-    MisscheduledJobs_[EJobType::RepairChunk] += misscheduledRepairJobs;
 }
 
 void TChunkReplicator::RefreshChunk(
@@ -3021,7 +3063,14 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer, TSensorBuffer* crpBuff
             jobType <= NJobTrackerClient::LastMasterJobType)
         {
             TWithTagGuard tagGuard(buffer, "job_type", FormatEnum(jobType));
-            buffer->AddCounter("/misscheduled_jobs", MisscheduledJobs_[jobType]);
+            for (auto reason : TEnumTraits<EMisscheduleReason>::GetDomainValues()) {
+                if (reason == EMisscheduleReason::None) {
+                    continue;
+                }
+
+                TWithTagGuard tagGuard(buffer, "reason", FormatEnum(reason));
+                buffer->AddCounter("/misscheduled_jobs", MisscheduledJobs_[jobType][reason]);
+            }
         }
     }
 
