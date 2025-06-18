@@ -1887,7 +1887,7 @@ private:
                 ReplicationCardWatcher_->RegisterReplicationCard(
                     replicationCardId,
                     clientReplicationCard,
-                    replicationCard->GetCurrentTimestamp());
+                    NullTimestamp);
             }
 
             HandleReplicationCardStateTransition(replicationCard);
