@@ -192,6 +192,8 @@ public:
         const std::vector<NChunkPools::TOutputCookie>& cookies,
         EAbortReason abortReason);
 
+    i64 GetJobProxyMemoryIOSize(const TJobIOConfigPtr& jobIO, bool useEstimatedBufferSize) const;
+
 protected:
     std::vector<TVanillaTaskPtr> Tasks_;
     TVanillaOperationOptionsPtr Options_;
@@ -298,9 +300,16 @@ TExtendedJobResources TVanillaTask::GetMinNeededResourcesHeavy() const
     result.SetUserSlots(1);
     result.SetCpu(Spec_->CpuLimit);
     result.SetCpu(std::max(Spec_->CpuLimit, TaskHost_->GetOptions()->MinCpuLimit));
-    // NB: JobProxyMemory is the only memory that is related to IO. Footprint is accounted below.
-    result.SetJobProxyMemory(0);
-    result.SetJobProxyMemoryWithFixedWriteBufferSize(0);
+
+    auto jobProxyMemory = VanillaController_->GetJobProxyMemoryIOSize(
+        Spec_->JobIO,
+        /*useEstimatedBufferSize*/ true);
+    auto jobProxyMemoryWithFixedWriteBufferSize = VanillaController_->GetJobProxyMemoryIOSize(
+        Spec_->JobIO,
+        /*useEstimatedBufferSize*/ false);
+
+    result.SetJobProxyMemory(jobProxyMemory);
+    result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
     AddFootprintAndUserJobResources(result);
     return result;
 }
@@ -753,6 +762,11 @@ void TVanillaController::AbortJobsByCookies(
     }
 
     YT_VERIFY(cookies.empty());
+}
+
+i64 TVanillaController::GetJobProxyMemoryIOSize(const TJobIOConfigPtr& jobIO, bool useEstimatedBufferSize) const
+{
+    return GetFinalIOMemorySize(jobIO, useEstimatedBufferSize, TChunkStripeStatisticsVector());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

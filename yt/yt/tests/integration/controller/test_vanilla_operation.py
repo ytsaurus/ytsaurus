@@ -1,14 +1,14 @@
 from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
 
 from yt_commands import (
-    authors, execute_command, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
+    authors, execute_command, extract_statistic_v2, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     raises_yt_error, update_controller_agent_config, update_nodes_dynamic_config, update_scheduler_config,
     create, ls, exists, sorted_dicts, create_pool,
     get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
     interrupt_job, dump_job_context, run_sleeping_vanilla, get_allocation_id_from_job_id,
     patch_op_spec)
 
-from yt_helpers import profiler_factory, read_structured_log, write_log_barrier, JobCountProfiler
+from yt_helpers import profiler_factory, read_structured_log, skip_if_component_old, write_log_barrier, JobCountProfiler
 
 from yt import yson
 from yt.yson import to_yson_type
@@ -645,6 +645,41 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                     },
                 }
             )
+
+    @authors("coteeq")
+    def test_job_proxy_memory(self):
+        skip_if_component_old(self.Env, (25, 2), "controller-agent")
+        update_controller_agent_config("footprint_memory", 42 * 1024 ** 2)
+        create("table", "//tmp/out")
+
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "echo": {
+                        "job_count": 1,
+                        "command": "echo '{a=b}'",
+                        "output_table_paths": [
+                            "//tmp/out",
+                        ],
+                        "job_io": {
+                            "table_writer": {
+                                "max_buffer_size": 100 * 1024 ** 2
+                            }
+                        }
+                    }
+                },
+            }
+        )
+
+        statistics = get(op.get_path() + "/@progress/job_statistics_v2")
+
+        memory_reserve = extract_statistic_v2(
+            statistics,
+            key="job_proxy.memory_reserve",
+            job_type="echo",
+            summary_type="sum")
+
+        assert memory_reserve >= (100 + 42) * 1024 ** 2
 
 
 @pytest.mark.enabled_multidaemon
