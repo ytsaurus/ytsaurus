@@ -13,7 +13,7 @@ from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr, PlainMonitoringExpr
 from yt_dashboard_generator.backends.monitoring import MonitoringTextDashboardParameter
-from yt_dashboard_generator.sensor import MultiSensor
+from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 
 from textwrap import dedent
 
@@ -203,24 +203,60 @@ class ComputationCellGenerator:
                 },
                 description=description)
 
+        def add_messages_per_second_cell(row, title_prefix, metric_suffix):
+            description = (
+                "Partition messages rate ≤ 1000 messages/s is usually good enough. "
+                "Higher values are sometimes acceptable."
+            )
+            return row.cell(
+                f"{title_prefix} partition messages per second",
+                MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_*messages_per_second.{metric_suffix}"))
+                    .all("stream_id")
+                    .alias(stream_alias)
+                    .unit("UNIT_COUNTS_PER_SECOND"),
+                description=description)
+
+        def add_bytes_per_second_cell(row, title_prefix, metric_suffix):
+            description = (
+                "Partition bytes rate ≤ 2 MB/s is usually good enough. "
+                "Higher values are sometimes acceptable."
+            )
+            return row.cell(
+                f"{title_prefix} partition bytes per second",
+                MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_*bytes_per_second.{metric_suffix}"))
+                    .all("stream_id")
+                    .alias(stream_alias)
+                    .unit("UNIT_BYTES_SI_PER_SECOND"),
+                description=description)
+
+        def add_watermark_difference_cell(row, kind):
+            description = (
+                "Watermark is evaluated in all jobs of computation. "
+                "This metric is difference between maximum and minimum among them. "
+                "For source computation it is a measure of unevenness of reading this source "
+                "(one partition is read ahead of another)"
+            )
+            return row.cell(
+                f"Partition {kind} watermark difference (max - min)",
+                MonitoringExpr(FlowController(f"yt.flow.controller.computations.partition_{kind}_watermark_min_max_difference"))
+                    .all("stream_id")
+                    .alias(stream_alias)
+                    .unit("UNIT_SECONDS"),
+                description=description)
+
         return (Rowset()
             .stack(False)
             .value("computation_id", "{{computation_id}}" if self._has_computation_id_tag else "!-")
             .row()
                 .apply_func(lambda row: add_cpu_cell(row, "Max", "max"))
                 .apply_func(lambda row: add_cpu_cell(row, "Average", "avg"))
-                .cell(
-                    "Max partition messages per second",
-                    MonitoringExpr(FlowController("yt.flow.controller.computations.partition_input_messages_per_second.max"))
-                        .all("stream_id")
-                        .alias(stream_alias)
-                        .unit("UNIT_COUNTS_PER_SECOND"))
-                .cell(
-                    "Average partition messages per second",
-                    MonitoringExpr(FlowController("yt.flow.controller.computations.partition_input_messages_per_second.avg"))
-                        .all("stream_id")
-                        .alias(stream_alias)
-                        .unit("UNIT_COUNTS_PER_SECOND"))
+                .apply_func(lambda row: add_watermark_difference_cell(row, "system"))
+                .apply_func(lambda row: add_watermark_difference_cell(row, "event"))
+            .row()
+                .apply_func(lambda row: add_messages_per_second_cell(row, "Max", "max"))
+                .apply_func(lambda row: add_messages_per_second_cell(row, "Average", "avg"))
+                .apply_func(lambda row: add_bytes_per_second_cell(row, "Max", "max"))
+                .apply_func(lambda row: add_bytes_per_second_cell(row, "Average", "avg"))
         )
 
     def build_partition_store_operations_rowset(self):
