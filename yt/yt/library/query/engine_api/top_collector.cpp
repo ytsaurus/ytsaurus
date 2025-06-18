@@ -45,7 +45,7 @@ std::vector<const TPIValue*> TTopCollector::GetRows() const
 
 void TTopCollector::AccountGarbage(const TPIValue* row)
 {
-    row = ConvertPointerFromWasmToHost(row, RowSize_);
+    row = PtrFromVM(GetCurrentCompartment(), row, RowSize_);
     for (size_t index = 0; index < RowSize_; ++index) {
         auto& value = row[index];
         if (IsStringLikeType(EValueType(value.Type))) {
@@ -79,6 +79,8 @@ void TTopCollector::CollectGarbageAndAllocateNewContextIfNeeded()
     AllocatedMemorySize_ = 0;
     GarbageMemorySize_ = 0;
 
+    auto* compartment = GetCurrentCompartment();
+
     for (size_t contextId = 0; contextId < contextsToRows.size(); ++contextId) {
         i64 savedSize = context.GetSize();
 
@@ -87,10 +89,9 @@ void TTopCollector::CollectGarbageAndAllocateNewContextIfNeeded()
 
             for (size_t index = 0; index < RowSize_; ++index) {
                 CapturePIValue(
+                    compartment,
                     &context,
-                    &row[index],
-                    EAddressSpace::WebAssembly,
-                    EAddressSpace::WebAssembly);
+                    &row[index]);
             }
         }
 
@@ -126,16 +127,17 @@ TTopCollector::TRowAndBuffer TTopCollector::Capture(
     i64 savedSize = context.GetSize();
     i64 savedCapacity = context.GetCapacity();
 
+    auto* compartment = GetCurrentCompartment();
+
     for (size_t index = 0; index < RowSize_; ++index) {
         CopyPositionIndependent(
-            ConvertPointerFromWasmToHost(&destination[index]),
-            *ConvertPointerFromWasmToHost(&row[index]));
+            PtrFromVM(compartment, &destination[index]),
+            *PtrFromVM(compartment, &row[index]));
 
         CapturePIValue(
+            compartment,
             &context,
-            &destination[index],
-            EAddressSpace::WebAssembly,
-            EAddressSpace::WebAssembly);
+            &destination[index]);
     }
 
     AllocatedMemorySize_ += context.GetSize() - savedSize;

@@ -19,51 +19,18 @@ TMutablePIValueRange AllocatePIValueRange(TExpressionContext* context, int value
 }
 
 void CapturePIValue(
+    IWebAssemblyCompartment* compartment,
     TExpressionContext* context,
-    TPIValue* value,
-    NWebAssembly::EAddressSpace sourceAddressSpace,
-    NWebAssembly::EAddressSpace destinationAddressSpace)
+    TPIValue* value)
 {
-    auto* valueAtHost = ConvertPointer(value, sourceAddressSpace, EAddressSpace::Host);
+    auto* valueAtHost = PtrFromVM(compartment, value);
     if (IsStringLikeType(valueAtHost->Type)) {
-        auto* dataCopy = context->AllocateUnaligned(valueAtHost->Length, destinationAddressSpace);
-        valueAtHost = ConvertPointer(value, sourceAddressSpace, EAddressSpace::Host); // NB: Possible reallocation.
-        auto* dataCopyAtHost = ConvertPointer(dataCopy, destinationAddressSpace, EAddressSpace::Host, valueAtHost->Length);
+        auto* dataCopy = context->AllocateUnaligned(valueAtHost->Length, EAddressSpace::WebAssembly);
+        valueAtHost = PtrFromVM(compartment, value); // NB: Possible reallocation.
+        auto* dataCopyAtHost = PtrFromVM(compartment, dataCopy, valueAtHost->Length);
         ::memcpy(dataCopyAtHost, valueAtHost->AsStringBuf().data(), valueAtHost->Length);
         valueAtHost->SetStringPosition(dataCopyAtHost);
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TMutablePIValueRange CapturePIValueRange(
-    TExpressionContext* context,
-    TPIValueRange values,
-    EAddressSpace sourceAddressSpace,
-    EAddressSpace destinationAddressSpace,
-    bool captureValues)
-{
-    YT_ASSERT(destinationAddressSpace == EAddressSpace::WebAssembly);
-    YT_ASSERT(captureValues);
-
-    int length = std::ssize(values);
-
-    auto* captured = std::bit_cast<TPIValue*>(context->AllocateAligned(values.Size() * sizeof(TPIValue), destinationAddressSpace));
-
-    auto* valuesAtHost = ConvertPointer(values.Begin(), sourceAddressSpace, EAddressSpace::Host, values.Size());
-    auto* capturedAtHost = ConvertPointer(captured, destinationAddressSpace, EAddressSpace::Host, values.Size());
-
-    for (size_t index = 0; index < values.Size(); ++index) {
-        CopyPositionIndependent(&capturedAtHost[index], valuesAtHost[index]);
-    }
-
-    if (captureValues) {
-        for (int index = 0; index < length; ++index) {
-            CapturePIValue(context, &captured[index], EAddressSpace::WebAssembly, destinationAddressSpace);
-        }
-    }
-
-    return TMutableRange(captured, length);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,15 +158,15 @@ TSharedRange<TPIRowRange> CopyAndConvertToPI(
 ////////////////////////////////////////////////////////////////////////////////
 
 TMutableUnversionedRow CopyAndConvertFromPI(
+    IWebAssemblyCompartment* compartment,
     TExpressionContext* context,
     TPIValueRange values,
-    NWebAssembly::EAddressSpace sourceAddressSpace,
     bool captureValues)
 {
     auto* bytes = context->AllocateAligned(GetUnversionedRowByteSize(values.Size()), EAddressSpace::Host);
     auto capturedRow = TMutableUnversionedRow::Create(bytes, values.Size());
 
-    auto* valuesAtHost = ConvertPointer(values.Begin(), sourceAddressSpace, EAddressSpace::Host, values.Size());
+    auto* valuesAtHost = PtrFromVM(compartment, values.Begin(), values.Size());
 
     for (size_t index = 0; index < values.Size(); ++index) {
         MakeUnversionedFromPositionIndependent(&capturedRow[index], valuesAtHost[index]);
@@ -213,16 +180,16 @@ TMutableUnversionedRow CopyAndConvertFromPI(
 }
 
 std::vector<TUnversionedRow> CopyAndConvertFromPI(
+    IWebAssemblyCompartment* compartment,
     TExpressionContext* context,
     const std::vector<TPIValueRange>& rows,
-    EAddressSpace sourceAddressSpace,
     bool captureValues)
 {
     std::vector<TUnversionedRow> result;
     result.reserve(rows.size());
 
     for (auto& row : rows) {
-        result.push_back(CopyAndConvertFromPI(context, row, sourceAddressSpace, captureValues));
+        result.push_back(CopyAndConvertFromPI(compartment, context, row, captureValues));
     }
 
     return result;
@@ -239,8 +206,7 @@ TMutablePIValueRange CaptureUnversionedValueRange(TExpressionContext* context, T
     }
 
     auto* copyOffset = context->AllocateAligned(byteLength, EAddressSpace::WebAssembly);
-
-    auto* destination = ConvertPointerFromWasmToHost(std::bit_cast<char*>(copyOffset), byteLength);
+    auto* destination = PtrFromVM(GetCurrentCompartment(), std::bit_cast<char*>(copyOffset), byteLength);
     auto* copiedRangeAtHost = std::bit_cast<TPIValue*>(destination);
 
     ::memcpy(destination, range.Begin(), rangeByteLength);

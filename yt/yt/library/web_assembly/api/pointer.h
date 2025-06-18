@@ -16,18 +16,10 @@ DEFINE_ENUM(EAddressSpace,
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-Y_FORCE_INLINE T* ConvertPointerFromWasmToHost(T* data, size_t length = 1);
+Y_FORCE_INLINE T* PtrFromVM(IWebAssemblyCompartment* compartment, T* data, size_t length = 1);
 
 template <typename T>
-Y_FORCE_INLINE T* ConvertPointerFromWasmToHost(const T* data, size_t length = 1);
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename T>
-Y_FORCE_INLINE T* ConvertPointerFromHostToWasm(T* data, size_t length = 1);
-
-template <typename T>
-Y_FORCE_INLINE T* ConvertPointerFromHostToWasm(const T* data, size_t length = 1);
+Y_FORCE_INLINE T* PtrToVM(IWebAssemblyCompartment* compartment, T* data, size_t length = 1);
 
 ////////////////////////////////////////////////////////////////////////////////
 

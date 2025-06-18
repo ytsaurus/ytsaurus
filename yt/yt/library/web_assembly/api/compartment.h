@@ -50,7 +50,6 @@ std::unique_ptr<IWebAssemblyCompartment> CreateQueryLanguageImage();
 
 IWebAssemblyCompartment* GetCurrentCompartment();
 void SetCurrentCompartment(IWebAssemblyCompartment* compartment);
-bool HasCurrentCompartment();
 
 ////////////////////////////////////////////////////////////////////////////////
 
