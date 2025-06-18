@@ -278,7 +278,7 @@ TEST_F(TWebAssemblyTest, BadPointerDereference)
     i64 length = 5;
     auto byteLength = sizeof(i64) * length;
     uintptr_t offset = compartment->AllocateBytes(byteLength);
-    auto* array = ConvertPointerFromWasmToHost(std::bit_cast<i64*>(offset), length);
+    auto* array = PtrFromVM(compartment.get(), std::bit_cast<i64*>(offset), length);
 
     for (int i = 0; i < length; ++i) {
         array[i] = i;
@@ -323,7 +323,7 @@ TEST_F(TWebAssemblyTest, MemoryPoolAlignedAlloc)
         auto aligned = pool.AllocateAligned(16, 8);
         ASSERT_EQ(std::bit_cast<ui64>(aligned) % 8, 0ull);
 
-        auto* atHost = ConvertPointerFromWasmToHost(aligned);
+        auto* atHost = PtrFromVM(compartment.get(), aligned);
         ASSERT_EQ(std::bit_cast<ui64>(atHost) % 8, 0ull);
     }
 }
