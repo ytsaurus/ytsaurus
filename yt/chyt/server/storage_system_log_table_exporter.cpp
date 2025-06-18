@@ -468,31 +468,44 @@ public:
 
     void startup() override
     {
-        if (Config_->Enabled) {
-            auto [version, schema, mounted] = GetLatestTableInfo();
+        if (!Config_->Enabled) {
+            return;
+        }
 
-            if (version == -1 || schema != Schema_) {
-                ++version;
-                CreateVersionedTable(version);
-                MountVerionedTable(version);
+        int lastVersion;
+        while (true) {
+            auto [currentVersion, schema, mounted] = GetLatestTableInfo();
+
+            if (currentVersion == -1 || schema != Schema_) {
+                ++currentVersion;
+                CreateVersionedTable(currentVersion);
+                mounted = MountVersionedTable(currentVersion);
             } else if (!mounted) {
-                MountVerionedTable(version);
+                mounted = MountVersionedTable(currentVersion);
             }
 
-            auto handlerConfig = New<TArchiveHandlerConfig>();
-            handlerConfig->MaxInProgressDataSize = Config_->MaxInProgressDataSize;
-            handlerConfig->Path = GetVersionedTablePath(version);
+            if (!mounted) {
+                NConcurrency::TDelayedExecutor::WaitForDuration(Config_->StartupRetryBackoff);
+                continue;
+            }
 
-            ArchiveReporter_ = CreateArchiveReporter(
-                New<TArchiveVersionHolder>(),
-                Config_,
-                std::move(handlerConfig),
-                NameTable_,
-                getStorageID().getFullTableName(),
-                Client_,
-                Invoker_,
-                SystemLogTableExporterProfiler().WithTag("table_name", getStorageID().table_name));
+            lastVersion = currentVersion;
+            break;
         }
+
+        auto handlerConfig = New<TArchiveHandlerConfig>();
+        handlerConfig->MaxInProgressDataSize = Config_->MaxInProgressDataSize;
+        handlerConfig->Path = GetVersionedTablePath(lastVersion);
+
+        ArchiveReporter_ = CreateArchiveReporter(
+            New<TArchiveVersionHolder>(),
+            Config_,
+            std::move(handlerConfig),
+            NameTable_,
+            getStorageID().getFullTableName(),
+            Client_,
+            Invoker_,
+            SystemLogTableExporterProfiler().WithTag("table_name", getStorageID().table_name));
     }
 
     DB::Pipe read(
@@ -628,14 +641,21 @@ private:
         YT_LOG_DEBUG("Cypress table created and set up (Version: %v)", version);
     }
 
-    void MountVerionedTable(int version)
+    bool MountVersionedTable(int version)
     {
         YT_LOG_DEBUG("Mounting table (Version: %v)", version);
 
-        WaitFor(Client_->MountTable(GetVersionedTablePath(version)))
-            .ThrowOnError();
+        auto error = WaitFor(Client_->MountTable(GetVersionedTablePath(version)));
+
+        auto innerError = error.FindMatching(NTabletClient::EErrorCode::InvalidTabletState);
+        if (innerError && innerError->Attributes().Contains("current_mount_transaction_id")) {
+            YT_LOG_DEBUG("Mounting failed since table is locked by concurrent mount-unmount (Version: %v)", version);
+            return false;
+        }
+        error.ThrowOnError();
 
         YT_LOG_DEBUG("Table mounted (Version: %v)", version);
+        return true;
     }
 };
 
