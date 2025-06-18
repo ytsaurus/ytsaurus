@@ -80,15 +80,15 @@ Jobs with the `aborted` state contain information on the class of reasons that l
 * `account_limit_exceeded` — the job was interrupted after trying to to write data past the user account's limit. Such jobs are deemed `failed`, unless `suspend_operation_if_account_limit_exceeded` is enabled.
 * `unknown` — the job was interrupted for an unknown reason. This behavior occurs when the compute nodes and the scheduler running on the cluster have different versions and the cluster node reports to the scheduler a reason that is unknown to the latter.
 * reasons appended with `scheduling_` refer to cases where the scheduler has scheduled the job, but ended up canceling it before making a schedule for it to run on a cluster node. This type of job wastes the resources of the scheduler, but not of the cluster:
-   * `scheduling_timeout` — the scheduler was unable to schedule the job in the allotted time. May occur with big operations, where the input data numbers in the petabytes, or in cases of scheduler CPU overload.
-   * `scheduling_resource_overcommit` — after the job was scheduled, it turned out that the `resource_limits` of the operation or one of the parent pools were exceeded.
-   * `scheduling_operation_suspended` — after the job was scheduled by the controller, it turned out that the operation was suspended.
-   * `scheduling_job_spec_throttling` — after the job is scheduled, a specification is generated for it, which, among other things, contains meta-information on the job's input chunks. Where there are too many input chunks, a mechanism for limiting the creation of jobs in the particular operation is activated. Some of the operation's jobs may be interrupted in the process.
-   * `scheduling_intermediate_chunk_limit_exceeded` — the job was interrupted due to the intermediate chunk limit being exceeded. The limit determines how many such chunks an operation can create with automatic merging of output chunks enabled in `economy` and `manual` modes;
-   * `scheduling_other` — the job was interrupted by the scheduler for an unclassified reason.
+  * `scheduling_timeout` — the scheduler was unable to schedule the job in the allotted time. May occur with big operations, where the input data numbers in the petabytes, or in cases of scheduler CPU overload.
+  * `scheduling_resource_overcommit` — after the job was scheduled, it turned out that the `resource_limits` of the operation or one of the parent pools were exceeded.
+  * `scheduling_operation_suspended` — after the job was scheduled by the controller, it turned out that the operation was suspended.
+  * `scheduling_job_spec_throttling` — after the job is scheduled, a specification is generated for it, which, among other things, contains meta-information on the job's input chunks. Where there are too many input chunks, a mechanism for limiting the creation of jobs in the particular operation is activated. Some of the operation's jobs may be interrupted in the process.
+  * `scheduling_intermediate_chunk_limit_exceeded` — the job was interrupted due to the intermediate chunk limit being exceeded. The limit determines how many such chunks an operation can create with automatic merging of output chunks enabled in `economy` and `manual` modes;
+  * `scheduling_other` — the job was interrupted by the scheduler for an unclassified reason.
 
 #### Completed jobs { #completed_jobs }
-Sometimes, the scheduler decides to interrupt a job and stops inputting new data to the job as per the operation's guarantees, giving some time for the job to complete. If the job completes within the allotted time, it switches to the `completed` state — not `aborted` despite having been interrupted. Such `completed` jobs have the `interrupt_reason` attribute with a value other than `none`, specifying the reason for the scheduler interrupting the job.
+Sometimes, the scheduler decides to interrupt a job and stops inputting new data to the job as per the operation's guarantees, giving some time for the job to complete. If the job completes within the allotted time, it switches to the `completed` state — not `aborted` despite having been interrupted. Such `completed` jobs have the `interrupt_reason` attribute with a value other than `none`, specifying the reason for the scheduler interrupting the job.
 In cases like this, the values of the job interruption reason can be:
 
 * `none` — the job completed successfully, without interruption.
@@ -133,13 +133,21 @@ The scheduler periodically queries the master for the status of an operation's i
 
 These procedures are fully automated and do not require manual set-up.
 
+### Availability of erasure chunks {#chunk_erasure_strategy}
+
+To configure the operation behavior when erasure-coded chunks are unavailable, you can use the `chunk_availability_policy` option. This option regulates when a chunk is considered available:
+
+- `data_parts_available`: A chunk is considered available if all data parts are available. At the same time, parity parts may be lost. With this operation setup, you do not need to wait for data recovery before reading.
+- `repairable`: A chunk is considered available if there are enough parity parts to recover the data. At the same time, data parts may be lost. In this case, the operation waits for the data to be recovered from parity parts.
+- `all_parts_available`: A chunk is considered available if all of its parts (data parts and parity parts) are available.
+
 ## C++ and Python Wrapper
 
 Running operations via С~++ or Python Wrapper is associated with a number of priming works in addition to the calling of the corresponding driver command. Those include:
 * Uploading files to the [File cache](../../../../user-guide/storage/file-cache.md).
 
    **Note**: Automatic file upload to the cache always takes place outside of the user transaction, which may lead to conflicts on Cypress nodes if the file cache directory was not created in advance.
-* Creating output tables or clearing them using the `erase` command. When it comes to the system, all output tables should already be there at the start of the operation.
+* Сreating output tables or clearing them using the `erase` command. When it comes to the system, all output tables should already be there at the start of the operation.
 * Deleting files after the operation is completed.
 * Setting the `jobcount` and `memorylimit` parameters, if they are specified by the user.
 * Some parameters may have default values that are different from the system ones.
@@ -172,14 +180,9 @@ These transactions can be viewed via operation attributes:
 4. `async_scheduler_transaction_id` – transaction within which temporary data is written under an operation that always interrupts upon completion. For example, this is where intermediate data lives.
 5. `output_completion_transaction_id`, `debug_completion_transaction_id` – transactions serving a technical purpose, used upon successful completion of an operation to atomically commit the operation's result.
 
-## Using data from remote cluster
+## Using data from a remote cluster
 
-In any operation one can specify `cluster` attribute on any number of input table paths. This will signal to the scheduler that the path describes a table on a different cluster. The name of the cluster should be the same as one would use in a RemoteCopy operation.
-{% if audience == "internal" %}
-   For example, to read from Arnold cluster, one should use `<cluster=arnold>//path/to/table` or `arnold://path/to/table` in the operation spec (see also [RichYPath](../../../../user-guide/storage/ypath.md#rich_ypath)).
-{% else %}
-   For example, to read from cluster `my-cluster`, one should use `<cluster=my-cluster>//path/to/table` or `my-cluster://path/to/table` in the operation spec (see also [RichYPath](../../../../user-guide/storage/ypath.md#rich_ypath)).
- The cluster name (along with the cluster's connection parameters) must be registered in a `//sys/clusters` mapping by the administrator.
-{% endif %}
+For any operation, you can specify the `cluster` attribute on one or more input tables. This will initiate data reading from the specified cluster.
+The cluster name should be the same as one would use for RemoteCopy operations.
 
-User files (`/mapper/file_paths` and `/reducer/file_paths` parameters in the spec) cannot be read from a remote cluster. To use files from a remote cluster, they must be copied in advance via the RemoteCopy operation.
+Files delivered to each job (`/mapper/file_paths` or `/reducer/file_paths` section) can be read only from a local cluster. So if you need to use them from a remote cluster, transfer them in advance using the RemoteCopy operation.
