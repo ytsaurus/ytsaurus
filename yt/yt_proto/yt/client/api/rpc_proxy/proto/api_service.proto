@@ -2771,6 +2771,25 @@ message TRspWriteTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqImportTable
+{
+    required bytes path = 1; // RichYPath
+
+    optional bytes config = 2; // YSON-serialized TTableWriterConfig
+
+    optional bytes format = 3; // YSON-serialized TFormat
+
+    optional TTransactionalOptions transactional_options = 100;
+
+    repeated string s3_keys = 4;
+}
+
+message TRspImportTable
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqGetJobInput
 {
     required NYT.NProto.TGuid job_id = 1;

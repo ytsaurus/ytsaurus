@@ -22,8 +22,10 @@
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/multi_chunk_writer_base.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_meta_generator.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 #include <yt/yt/ytlib/chunk_client/medium_directory_synchronizer.h>
+#include <yt/yt/ytlib/chunk_client/s3_common.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -2514,6 +2516,243 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
         std::move(writeBlocksOptions));
     return writer->Open()
         .Apply(BIND([=] () -> IUnversionedWriterPtr { return writer; }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessTableImporter
+    : public IUnversionedImporter
+    , public TTransactionListener
+{
+public:
+    TSchemalessTableImporter(
+        TTableWriterConfigPtr config,
+        TTableWriterOptionsPtr options,
+        const TRichYPath& richPath,
+        TNameTablePtr nameTable,
+        NNative::IClientPtr client,
+        TString localHostName,
+        ITransactionPtr transaction,
+        IThroughputThrottlerPtr throttler,
+        IBlockCachePtr blockCache,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
+        : Config_(std::move(config))
+        , Options_(std::move(options))
+        , RichPath_(richPath)
+        , NameTable_(std::move(nameTable))
+        , LocalHostName_(std::move(localHostName))
+        , Client_(std::move(client))
+        , Transaction_(std::move(transaction))
+        , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
+        , Throttler_(std::move(throttler))
+        , BlockCache_(std::move(blockCache))
+        , WriteBlocksOptions_(std::move(writeBlocksOptions))
+        , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
+            richPath.GetPath(),
+            TransactionId_))
+    {
+        if (Transaction_) {
+            StartListenTransaction(Transaction_);
+        }
+    }
+
+    TFuture<void> Open()
+    {
+        return BIND(&TSchemalessTableImporter::DoOpen, MakeStrong(this))
+            .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
+            .Run();
+    }
+
+    void Import(std::string_view s3Key) override
+    {
+        if (IsAborted()) {
+            auto error = TError("Aborted");
+            YT_LOG_DEBUG(error);
+            THROW_ERROR error;
+        }
+
+        EChunkFormat chunkFormat;
+        if (s3Key.ends_with(".parquet")) {
+            chunkFormat = EChunkFormat::TableUnversionedArrowParquet;
+        } else {
+            auto error = TError("Unsupported file extension");
+            YT_LOG_DEBUG(error);
+            THROW_ERROR error;
+        }
+        auto sessionId = NChunkClient::CreateChunk(
+            Client_,
+            Uploader_->UserObject.ExternalCellTag,
+            Options_,
+            Uploader_->UploadTransaction->GetId(),
+            Uploader_->ChunkListId,
+            Logger);
+        const auto& mediumDirectory = Client_->GetNativeConnection()->GetMediumDirectory();
+        auto mediumDescriptor = mediumDirectory->FindByIndex(sessionId.MediumIndex);
+        YT_VERIFY(mediumDescriptor);
+        auto s3MediumDescriptor = mediumDescriptor->As<NYT::NChunkClient::TS3MediumDescriptor>();
+        YT_VERIFY(s3MediumDescriptor);
+        auto chunkMetaGenerator = CreateArrowChunkMetaGenerator(
+            chunkFormat, std::make_shared<TS3ArrowRandomAccessFile>(
+                s3MediumDescriptor->GetConfig()->Bucket, TString(s3Key), s3MediumDescriptor->GetClient()
+            )
+        );
+        chunkMetaGenerator->Generate();
+
+        auto replica = TChunkReplicaWithLocation(
+            OffshoreNodeId,
+            GenericChunkReplicaIndex,
+            sessionId.MediumIndex,
+            InvalidChunkLocationUuid);
+
+        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, Uploader_->UserObject.ExternalCellTag);
+        TChunkServiceProxy proxy(channel);
+
+        auto req = proxy.ConfirmChunk();
+        GenerateMutationId(req);
+        {
+            ToProto(req->mutable_chunk_id(), sessionId.ChunkId);
+            *req->mutable_chunk_info() = TChunkInfo();
+            *req->mutable_chunk_meta() = *chunkMetaGenerator->GetChunkMeta();
+
+            auto memoryUsageGuard = TMemoryUsageTrackerGuard::Acquire(
+                Options_->MemoryUsageTracker,
+                req->mutable_chunk_meta()->ByteSize());
+
+            FilterProtoExtensions(req->mutable_chunk_meta()->mutable_extensions(), GetMasterChunkMetaExtensionTagsFilter());
+            req->set_request_statistics(true);
+            ToProto(req->mutable_legacy_replicas()->Add(), replica);
+
+            req->set_location_uuids_supported(true);
+
+            auto* replicaInfo = req->add_replicas();
+            replicaInfo->set_replica(ToProto(TChunkReplicaWithMedium(replica)));
+            ToProto(replicaInfo->mutable_location_uuid(), replica.GetChunkLocationUuid());
+            replicaInfo->set_s3_key(s3Key);
+
+            if (Uploader_->ChunkSchemaId != NullTableSchemaId) {
+                ToProto(req->mutable_schema_id(), Uploader_->ChunkSchemaId);
+            }
+        }
+        auto* multicellSyncExt = req->Header().MutableExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+        multicellSyncExt->set_suppress_upstream_sync(true);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            NChunkClient::EErrorCode::MasterCommunicationFailed,
+            "Failed to confirm chunk %v",
+            sessionId.ChunkId);
+
+        // const auto& rsp = rspOrError.Value();
+        // DataStatistics_ = rsp->statistics();
+        // ConfirmationRevision_ = FromProto<NHydra::TRevision>(rsp->revision());
+    }
+
+    TFuture<void> Close() override
+    {
+        return BIND(&TSchemalessTableImporter::DoClose, MakeStrong(this))
+            .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
+            .Run();
+    }
+
+    const TNameTablePtr& GetNameTable() const override
+    {
+        return NameTable_;
+    }
+
+    const TTableSchemaPtr& GetSchema() const override
+    {
+        YT_VERIFY(Uploader_);
+        return Uploader_->GetSchema();
+    }
+
+private:
+    const TTableWriterConfigPtr Config_;
+    const TTableWriterOptionsPtr Options_;
+    const TRichYPath RichPath_;
+    const TNameTablePtr NameTable_;
+    const TString LocalHostName_;
+    const NNative::IClientPtr Client_;
+    const ITransactionPtr Transaction_;
+    const TTransactionId TransactionId_;
+    const IThroughputThrottlerPtr Throttler_;
+    const IBlockCachePtr BlockCache_;
+    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
+
+    const NLogging::TLogger Logger;
+
+    std::optional<TSchemalessTableUploader> Uploader_;
+
+    void DoOpen()
+    {
+        Uploader_.emplace(
+            Config_,
+            Options_,
+            RichPath_,
+            NameTable_,
+            Client_,
+            LocalHostName_,
+            Transaction_,
+            Throttler_,
+            BlockCache_,
+            WriteBlocksOptions_);
+        StartListenTransaction(Uploader_->UploadTransaction);
+
+        YT_LOG_DEBUG("Table opened");
+    }
+
+    void DoClose()
+    {
+        YT_VERIFY(Uploader_);
+        auto objectIdPath = FromObjectId(Uploader_->UserObject.ObjectId);
+
+        YT_LOG_DEBUG("Closing table");
+
+        StopListenTransaction(Uploader_->UploadTransaction);
+
+        Uploader_->Close(TTableYPathProxy::EndUpload(objectIdPath));
+
+        YT_LOG_DEBUG("Table closed");
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<IUnversionedImporterPtr> CreateSchemalessTableImporter(
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    const TRichYPath& richPath,
+    TNameTablePtr nameTable,
+    NNative::IClientPtr client,
+    TString localHostName,
+    ITransactionPtr transaction,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
+{
+    if (blockCache->GetSupportedBlockTypes() != EBlockType::None) {
+        // It is hard to support both reordering and uncompressed block caching
+        // since block becomes cached significantly before we know the final permutation.
+        // Supporting reordering for compressed block cache is not hard
+        // to implement, but is not done for now.
+        config->EnableBlockReordering = false;
+    }
+
+    auto writer = New<TSchemalessTableImporter>(
+        std::move(config),
+        std::move(options),
+        richPath,
+        std::move(nameTable),
+        std::move(client),
+        std::move(localHostName),
+        std::move(transaction),
+        std::move(throttler),
+        std::move(blockCache),
+        std::move(writeBlocksOptions));
+    return writer->Open()
+        .Apply(BIND([=] () -> IUnversionedImporterPtr { return writer; }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

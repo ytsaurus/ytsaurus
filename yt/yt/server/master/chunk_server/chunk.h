@@ -185,7 +185,8 @@ public:
     void RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, bool approved);
 
     void AddOffshoreReplica(
-        TMediumPtrWithReplicaInfo replica);
+        TMediumPtrWithReplicaInfo replica,
+        std::string_view s3Key);
 
     void ApproveReplica(TChunkLocationPtrWithReplicaInfo replica);
     int GetApprovedReplicaCount() const;

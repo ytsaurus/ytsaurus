@@ -405,6 +405,13 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     return new TFileWriter(realPath, RawClient_, ClientRetryPolicy_, GetTransactionPinger(), Context_, TransactionId_, options);
 }
 
+IFileImporterPtr TClientBase::CreateFileImporter(
+    const TRichYPath& /* path */,
+    const TFileWriterOptions& /* options */)
+{
+    return {};
+}
+
 TTableWriterPtr<::google::protobuf::Message> TClientBase::CreateTableWriter(
     const TRichYPath& path, const ::google::protobuf::Descriptor& descriptor, const TTableWriterOptions& options)
 {

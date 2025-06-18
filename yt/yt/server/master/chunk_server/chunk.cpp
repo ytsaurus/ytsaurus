@@ -319,12 +319,13 @@ void TChunk::AddReplica(
 }
 
 void TChunk::AddOffshoreReplica(
-    TMediumPtrWithReplicaInfo replica)
+    TMediumPtrWithReplicaInfo replica,
+    std::string_view s3Key)
 {
     YT_VERIFY(replica.GetPtr()->IsOffshore());
 
     auto* data = MutableOffshoreReplicasData();
-    data->StoredReplicas.push_back({replica, ""});
+    data->StoredReplicas.push_back({replica, std::string(s3Key)});
 }
 
 // void TChunk::ClearOffshoreReplicas()

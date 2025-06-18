@@ -79,6 +79,7 @@ void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation 
 
     value->set_replica(replica.Value_);
     ToProto(value->mutable_location_uuid(), replica.ChunkLocationUuid_);
+    value->set_s3_key(replica.S3Key_);
 }
 
 void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaInfo value)
@@ -87,6 +88,9 @@ void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaI
 
     replica->Value_ = value.replica();
     replica->ChunkLocationUuid_ = FromProto<TGuid>(value.location_uuid());
+    if (value.has_s3_key()) {
+        replica->S3Key_ = value.s3_key();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

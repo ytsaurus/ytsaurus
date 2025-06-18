@@ -785,7 +785,7 @@ public:
     void AddConfirmReplicas(
         TChunk* chunk,
         const TChunkReplicaWithLocationList& replicas,
-        const TChunkReplicaWithMediumList& offshoreReplicas)
+        const TChunkReplicaWithLocationList& offshoreReplicas)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -884,14 +884,14 @@ public:
                 chunk,
                 replica.GetReplicaIndex(),
                 EChunkReplicaState::Generic);
-            AddOffshoreChunkReplica(medium, std::move(replicaWithState));
+            AddOffshoreChunkReplica(medium, std::move(replicaWithState), replica.GetS3Key());
         }
     }
 
     void ConfirmChunk(
         TChunk* chunk,
         const TChunkReplicaWithLocationList& replicas,
-        const TChunkReplicaWithMediumList& offshoreReplicas,
+        const TChunkReplicaWithLocationList& offshoreReplicas,
         const TChunkInfo& chunkInfo,
         const TChunkMeta& chunkMeta,
         TMasterTableSchemaId schemaId)
@@ -4615,7 +4615,7 @@ private:
         }
 
         TChunkReplicaWithLocationList domesticReplicas;
-        TChunkReplicaWithMediumList offshoreReplicas;
+        TChunkReplicaWithLocationList offshoreReplicas;
 
         // TODO(achulkov2): [PForReview] Think about this properly, probably just move it down the line. What is the right way to distinguish those replicas?
         // By invalid chunk location uuid or by offshore node id?
@@ -5799,12 +5799,13 @@ private:
 
     void AddOffshoreChunkReplica(
         TMedium* medium,
-        TChunkPtrWithReplicaInfo replica)
+        TChunkPtrWithReplicaInfo replica,
+        std::string_view s3Key)
     {
         auto* chunk = replica.GetPtr();
         
         TMediumPtrWithReplicaInfo mediumWithReplicaInfo(medium, replica.GetReplicaIndex(), replica.GetReplicaState());
-        chunk->AddOffshoreReplica(mediumWithReplicaInfo);
+        chunk->AddOffshoreReplica(mediumWithReplicaInfo, s3Key);
 
         ScheduleChunkRefresh(chunk);
         // No seal scheduling necessary, since journal chunks cannot habe offshore replicas.

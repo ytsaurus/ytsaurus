@@ -90,12 +90,14 @@ public:
         TChunkLocationUuid locationUuid);
 
     TChunkLocationUuid GetChunkLocationUuid() const;
+    std::string_view GetS3Key() const;
 
     friend void ToProto(NProto::TConfirmChunkReplicaInfo* value, TChunkReplicaWithLocation replica);
     friend void FromProto(TChunkReplicaWithLocation* replica, NProto::TConfirmChunkReplicaInfo value);
 
 private:
     TChunkLocationUuid ChunkLocationUuid_;
+    std::string S3Key_;
 };
 
 void FormatValue(TStringBuilderBase* builder, TChunkReplicaWithLocation replica, TStringBuf spec);

@@ -114,6 +114,11 @@ Y_FORCE_INLINE TChunkLocationUuid TChunkReplicaWithLocation::GetChunkLocationUui
     return ChunkLocationUuid_;
 }
 
+Y_FORCE_INLINE std::string_view TChunkReplicaWithLocation::GetS3Key() const
+{
+    return S3Key_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE TChunkReplica::TChunkReplica()

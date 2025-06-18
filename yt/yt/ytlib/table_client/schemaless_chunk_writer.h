@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/table_client/key.h>
+#include <yt/yt/client/table_client/unversioned_importer.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -108,6 +109,20 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
+    TTableWriterConfigPtr config,
+    TTableWriterOptionsPtr options,
+    const NYPath::TRichYPath& richPath,
+    TNameTablePtr nameTable,
+    NApi::NNative::IClientPtr client,
+    TString localHostName,
+    NApi::ITransactionPtr transaction,
+    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
+    NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<IUnversionedImporterPtr> CreateSchemalessTableImporter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const NYPath::TRichYPath& richPath,
