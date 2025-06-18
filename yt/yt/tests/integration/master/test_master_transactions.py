@@ -499,6 +499,27 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists("//sys/transactions/" + tx_a)
         assert not exists("//sys/transactions/" + tx_b)
 
+    @authors("kvk1920")
+    def test_prerequisite_transaction_expiration(self):
+        tx_a = start_transaction(timeout=6000)
+        start_time = datetime.now()
+        tx_b = start_transaction()
+        commit_transaction(tx_b, prerequisite_transaction_ids=[tx_a])
+
+        # NB: if transaction commit is failed it's aborted. Mirrored
+        # transactions are aborted asynchronously.
+        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            wait(lambda: not exists(f"#{tx_b}"))
+        else:
+            gc_collect()
+            assert not exists(f"#{tx_b}")
+
+        assert exists(f"#{tx_a}")
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        sleep(7 - elapsed_time)
+        gc_collect()
+        assert not exists(f"#{tx_a}")
+
     @authors("shakurov")
     def test_prerequisite_tx_read_requests(self):
         good_tx = start_transaction()
