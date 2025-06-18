@@ -3357,11 +3357,14 @@ private:
         if (transaction->GetIsCypressTransaction()) {
             TFuture<TSharedRefArray> response;
             if (IsMirroringToSequoiaEnabled() &&
-                IsCypressTransactionMirroredToSequoia(transaction->GetId()))
+                IsCypressTransactionMirroredToSequoia(transactionId))
             {
-                response = AbortExpiredCypressTransactionInSequoia(
-                    Bootstrap_,
-                    transactionId);
+                response = RevokeTransactionLeases(transactionId)
+                    .Apply(BIND([bootstrap = Bootstrap_, transactionId] () {
+                        return AbortExpiredCypressTransactionInSequoia(
+                            bootstrap,
+                            transactionId);
+                    }));
             } else {
                 NProto::TReqAbortCypressTransaction request;
                 ToProto(request.mutable_transaction_id(), transactionId);
