@@ -43,6 +43,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, GetPersistentPrepareTimestamp());
     Save(context, CommitTimestamp_);
     Save(context, PrepareRevision_);
+    Save(context, SerializationStatus_);
     Save(context, PersistentAffectedTabletIds_);
     Save(context, CoarseSerializingTabletIds_);
     Save(context, PersistentPrepareSignature_);
@@ -70,6 +71,12 @@ void TTransaction::Load(TLoadContext& context)
     SetPersistentState(Load<ETransactionState>(context));
     Load(context, StartTimestamp_);
     Load(context, PrepareTimestamp_);
+
+    // COMPAT(ponasenko-rs)
+    if (context.GetVersion() >= ETabletReign::PersistSerializationStatus) {
+        Load(context, SerializationStatus_);
+    }
+
     Load(context, CommitTimestamp_);
     Load(context, PrepareRevision_);
 
@@ -234,4 +241,3 @@ TExternalizedTransaction::TExternalizedTransaction(TExternalizedTransactionId id
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-
