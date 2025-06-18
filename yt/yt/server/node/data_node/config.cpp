@@ -1012,8 +1012,8 @@ void TDataNodeConfig::Register(TRegistrar registrar)
             config->MasterConnector->JobHeartbeatPeriod = config->IncrementalHeartbeatPeriod;
         }
 
-        THROW_ERROR_EXCEPTION_IF(config->LeaseTransactionPingPeriod >= config->LeaseTransactionTimeout,
-            "Lease transaction ping period cannot be greater or equal to lease transaction timeout");
+        THROW_ERROR_EXCEPTION_UNLESS(config->LeaseTransactionPingPeriod < config->LeaseTransactionTimeout,
+            "Lease transaction ping period must be less than lease transaction timeout");
     });
 }
 
