@@ -68,6 +68,8 @@
   "library/go/x/xsync/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/x/xsync/go.sum",
   "ya":"devtools/ya/opensource/ya",
   "ya.conf":"devtools/ya/opensource/ya.conf",
+  "yt/admin/timbertruck/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/yt/admin/timbertruck/go.mod",
+  "yt/admin/timbertruck/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/admin/timbertruck/go.sum",
   "yt/chyt/controller/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/yt/chyt/controller/go.mod",
   "yt/chyt/controller/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/yt/chyt/controller/go.sum",
   "yt/docs/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/docs/README.md",
