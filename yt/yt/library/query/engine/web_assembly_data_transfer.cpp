@@ -21,7 +21,7 @@ TCopyGuard CopyIntoCompartment(TRange<TPIValue> range, IWebAssemblyCompartment* 
 
     uintptr_t copyOffset = compartment->AllocateBytes(byteLength);
 
-    auto* destination = ConvertPointerFromWasmToHost(std::bit_cast<char*>(copyOffset), byteLength);
+    auto* destination = PtrFromVM(compartment, std::bit_cast<char*>(copyOffset), byteLength);
     auto* copiedRangeAtHost = std::bit_cast<TPIValue*>(destination);
 
     ::memcpy(destination, range.Begin(), rangeByteLength);
@@ -59,7 +59,7 @@ TCopyGuard CopyOpaqueDataIntoCompartment(
 
     uintptr_t copyOffset = compartment->AllocateBytes(byteLength);
 
-    auto* destination = ConvertPointerFromWasmToHost(std::bit_cast<char*>(copyOffset), byteLength);
+    auto* destination = PtrFromVM(compartment, std::bit_cast<char*>(copyOffset), byteLength);
     auto* copiedRangeAtHost = std::bit_cast<size_t*>(destination);
 
     destination += rangeByteLength;
@@ -98,7 +98,7 @@ std::pair<TCopyGuard, std::vector<TPIValue*>> CopyRowRangeIntoCompartment(
     uintptr_t copyOffset = compartment->AllocateBytes(batchByteLength);
     uintptr_t rowOffset = copyOffset;
 
-    auto* startPointer = ConvertPointerFromWasmToHost(std::bit_cast<char*>(copyOffset), batchByteLength);
+    auto* startPointer = PtrFromVM(compartment, std::bit_cast<char*>(copyOffset), batchByteLength);
     auto* destinationRow = std::bit_cast<TPIValue*>(startPointer);
     auto* destinationString = startPointer + allRowsByteLength;
 
@@ -144,7 +144,7 @@ std::pair<TCopyGuard, std::vector<NQueryClient::TPIValue*>> CopyRowRangeIntoComp
 
     i64 totalByteLength = allRowsByteLength + allStringsByteLength;
     uintptr_t copyOffset = compartment->AllocateBytes(totalByteLength);
-    auto* startPointer = ConvertPointerFromWasmToHost(std::bit_cast<char*>(copyOffset), totalByteLength);
+    auto* startPointer = PtrFromVM(compartment, std::bit_cast<char*>(copyOffset), totalByteLength);
     auto* itemDestination = std::bit_cast<TPIValue*>(startPointer);
     uintptr_t currentRowOffset = copyOffset;
     auto* stringsDestination = startPointer + allRowsByteLength;

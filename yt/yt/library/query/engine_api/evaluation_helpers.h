@@ -27,7 +27,7 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr i64 RowsetProcessingBatchSize = 1024;
+constexpr i64 RowsetProcessingBatchSize = 256;
 constexpr i64 WriteRowsetSize = 64 * RowsetProcessingBatchSize;
 constexpr i64 MaxJoinBatchSize = 128 * RowsetProcessingBatchSize;
 
