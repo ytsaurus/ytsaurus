@@ -275,7 +275,7 @@ pc_max_info_rows_doc = """
 pc_large_repr_doc = """
 : 'truncate'/'info'
     For DataFrames exceeding max_rows/max_cols, the repr (and HTML repr) can
-    show a truncated table (the default from 0.13), or switch to the view from
+    show a truncated table, or switch to the view from
     df.info() (the behaviour in earlier versions of pandas).
 """
 
@@ -411,6 +411,8 @@ use_inf_as_na_doc = """
     True means treat None, NaN, INF, -INF as NA (old way),
     False means None and NaN are null, but INF, -INF are not NA
     (new way).
+
+    This option is deprecated in pandas 2.1.0 and will be removed in 3.0.
 """
 
 # We don't want to start importing everything at the global context level
@@ -426,6 +428,12 @@ def use_inf_as_na_cb(key) -> None:
 with cf.config_prefix("mode"):
     cf.register_option("use_inf_as_na", False, use_inf_as_na_doc, cb=use_inf_as_na_cb)
 
+cf.deprecate_option(
+    # GH#51684
+    "mode.use_inf_as_na",
+    "use_inf_as_na option is deprecated and will be removed in a future "
+    "version. Convert inf values to NaN before operating instead.",
+)
 
 data_manager_doc = """
 : string
@@ -484,7 +492,8 @@ with cf.config_prefix("mode"):
 
 string_storage_doc = """
 : string
-    The default storage for StringDtype.
+    The default storage for StringDtype. This option is ignored if
+    ``future.infer_string`` is set to True.
 """
 
 with cf.config_prefix("mode"):
@@ -492,7 +501,7 @@ with cf.config_prefix("mode"):
         "string_storage",
         "python",
         string_storage_doc,
-        validator=is_one_of_factory(["python", "pyarrow"]),
+        validator=is_one_of_factory(["python", "pyarrow", "pyarrow_numpy"]),
     )
 
 
@@ -711,13 +720,13 @@ styler_max_elements = """
 styler_max_rows = """
 : int, optional
     The maximum number of rows that will be rendered. May still be reduced to
-    satsify ``max_elements``, which takes precedence.
+    satisfy ``max_elements``, which takes precedence.
 """
 
 styler_max_columns = """
 : int, optional
     The maximum number of columns that will be rendered. May still be reduced to
-    satsify ``max_elements``, which takes precedence.
+    satisfy ``max_elements``, which takes precedence.
 """
 
 styler_precision = """
@@ -845,7 +854,7 @@ with cf.config_prefix("styler"):
         "format.escape",
         None,
         styler_escape,
-        validator=is_one_of_factory([None, "html", "latex"]),
+        validator=is_one_of_factory([None, "html", "latex", "latex-math"]),
     )
 
     cf.register_option(
@@ -880,4 +889,15 @@ with cf.config_prefix("styler"):
         None,
         styler_environment,
         validator=is_instance_factory([type(None), str]),
+    )
+
+
+with cf.config_prefix("future"):
+    cf.register_option(
+        "infer_string",
+        False,
+        "Whether to infer sequence of str objects as pyarrow string "
+        "dtype, which will be the default in pandas 3.0 "
+        "(at which point this option will be deprecated).",
+        validator=is_one_of_factory([True, False]),
     )

@@ -2,8 +2,15 @@
 from __future__ import annotations
 
 import ast
+from decimal import (
+    Decimal,
+    InvalidOperation,
+)
 from functools import partial
-from typing import Any
+from typing import (
+    TYPE_CHECKING,
+    Any,
+)
 
 import numpy as np
 
@@ -11,7 +18,6 @@ from pandas._libs.tslibs import (
     Timedelta,
     Timestamp,
 )
-from pandas._typing import npt
 from pandas.errors import UndefinedVariableError
 
 from pandas.core.dtypes.common import is_list_like
@@ -32,6 +38,9 @@ from pandas.io.formats.printing import (
     pprint_thing,
     pprint_thing_encoded,
 )
+
+if TYPE_CHECKING:
+    from pandas._typing import npt
 
 
 class PyTablesScope(_scope.Scope):
@@ -84,9 +93,9 @@ class Term(ops.Term):
 
 
 class Constant(Term):
-    def __init__(self, value, env: PyTablesScope, side=None, encoding=None) -> None:
+    def __init__(self, name, env: PyTablesScope, side=None, encoding=None) -> None:
         assert isinstance(env, PyTablesScope), type(env)
-        super().__init__(value, env, side=side, encoding=encoding)
+        super().__init__(name, env, side=side, encoding=encoding)
 
     def _resolve_name(self):
         return self._name
@@ -228,7 +237,14 @@ class BinOp(ops.BinOp):
                 result = metadata.searchsorted(v, side="left")
             return TermValue(result, result, "integer")
         elif kind == "integer":
-            v = int(float(v))
+            try:
+                v_dec = Decimal(v)
+            except InvalidOperation:
+                # GH 54186
+                # convert v to float to raise float's ValueError
+                float(v)
+            else:
+                v = int(v_dec.to_integral_exact(rounding="ROUND_HALF_EVEN"))
             return TermValue(v, v, kind)
         elif kind == "float":
             v = float(v)
@@ -563,8 +579,7 @@ class PyTablesExpr(expr.Expr):
                 if isinstance(w, PyTablesExpr):
                     local_dict = w.env.scope
                 else:
-                    w = _validate_where(w)
-                    where[idx] = w
+                    where[idx] = _validate_where(w)
             _where = " & ".join([f"({w})" for w in com.flatten(where)])
         else:
             # _validate_where ensures we otherwise have a string
