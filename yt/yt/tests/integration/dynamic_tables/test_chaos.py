@@ -2533,7 +2533,7 @@ class TestChaos(ChaosTestBase):
         })
 
         set("//tmp/catchup_queue-1/@mount_config/testing", {
-            "table_puller_replica_ban_iterations_count": 1000,
+            "table_puller_replica_ban_iteration_count": 1000,
         })
 
         remount_table("//tmp/catchup_queue-1")

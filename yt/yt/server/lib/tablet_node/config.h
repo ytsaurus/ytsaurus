@@ -143,7 +143,7 @@ struct TTestingTableMountConfig
 
     double SortedStoreManagerRowHashCheckProbability;
 
-    std::optional<size_t> TablePullerReplicaBanIterationsCount;
+    std::optional<int> TablePullerReplicaBanIterationCount;
 
     TDuration WriteResponseDelay;
 
