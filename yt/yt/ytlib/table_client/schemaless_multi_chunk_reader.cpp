@@ -1229,7 +1229,6 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         const TChunkReaderMemoryManagerHolderPtr& chunkReaderMemoryManagerHolder) -> IVersionedReaderPtr
     {
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
-        auto replicas = GetReplicasFromChunkSpec(chunkSpec);
 
         TLegacyReadLimit lowerLimit;
         TLegacyReadLimit upperLimit;

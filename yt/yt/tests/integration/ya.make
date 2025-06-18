@@ -13,6 +13,7 @@ PEERDIR(
     ${YT_TESTS_ROOT}/node
     ${YT_TESTS_ROOT}/proxies
     ${YT_TESTS_ROOT}/sequoia
+    ${YT_TESTS_ROOT}/s3
     ${YT_TESTS_ROOT}/queues
     ${YT_TESTS_ROOT}/scheduler
     ${YT_TESTS_ROOT}/scheduler_simulator

@@ -275,6 +275,11 @@ public:
             this,
             MediumDirectory_);
 
+        // Knowledge about media is required for reading and writing chunks to offshore media,
+        // and is also needed for chunk fragment readers. Note that starting the sync does not
+        // guarantee that it will happen immediately.
+        MediumDirectorySynchronizer_->Start();
+
         CellDirectory_ = NHiveClient::CreateCellDirectory(
             config->CellDirectory,
             ChannelFactory_,

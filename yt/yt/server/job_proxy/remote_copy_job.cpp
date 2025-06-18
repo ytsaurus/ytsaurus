@@ -203,6 +203,10 @@ public:
 
     void DoRun()
     {
+        // TODO(achulkov2): [PLater] In order to support remote copy with offshore replicas, we need to propagate medium
+        // descriptors through master fetch results. Not implemented yet, but quite reasonable.
+        CheckNoOffshoreReplicas();
+
         std::vector<TFuture<void>> chunkCopyResults;
         std::vector<TChunkId> outputChunkIds;
 
@@ -424,6 +428,9 @@ private:
             : EUnavailablePartPolicy::Crash;
 
         YT_VERIFY(!inputChunkSpec.use_proxying_data_node_service());
+
+        // Offshore replicas are not supported for erasure chunks.
+        VerifyNoOffshoreReplicas(inputReplicas);
 
         auto readers = CreateAllErasurePartReaders(
             ReaderConfig_,
@@ -852,6 +859,8 @@ private:
 
         YT_VERIFY(!inputChunkSpec.use_proxying_data_node_service());
 
+        // TODO(achulkov2): [PLater] I am not sure why this reader actually needs to be of IChunkReaderAllowingRepair type,
+        // but since we do not support offshore replicas in remote copy yet, let's leave it for now.
         auto reader = CreateReplicationReader(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
@@ -1154,6 +1163,20 @@ private:
             THROW_ERROR_EXCEPTION("Compression dictionaries are not supported for this type of jobs")
                 << TErrorAttribute("chunk_id", chunkId)
                 << TErrorAttribute("job_type", EJobType::RemoteCopy);
+        }
+    }
+
+    void CheckNoOffshoreReplicas()
+    {
+        for (const auto& descriptor : DataSliceDescriptors_) {
+            for (const auto& inputChunkSpec : descriptor.ChunkSpecs) {
+                auto replicasByType = GetReplicasByType(GetReplicasFromChunkSpec(inputChunkSpec));
+                if (!replicasByType.OffshoreReplicas.empty()) {
+                    THROW_ERROR_EXCEPTION("Offshore replicas are not supported for this job type")
+                        << TErrorAttribute("chunk_id", FromProto<TChunkId>(inputChunkSpec.chunk_id()))
+                        << TErrorAttribute("job_type", EJobType::RemoteCopy);
+                }
+            }
         }
     }
 };

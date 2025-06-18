@@ -151,7 +151,6 @@ DECLARE_REFCOUNTED_CLASS(TDynamicAllyReplicaManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicConsistentReplicaPlacementConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicSequoiaChunkReplicasConfig)
 DECLARE_REFCOUNTED_CLASS(TDomesticMediumConfig)
-DECLARE_REFCOUNTED_CLASS(TS3MediumConfig)
 
 //! Used as an expected upper bound in TCompactVector.
 constexpr int TypicalChunkParentCount = 2;

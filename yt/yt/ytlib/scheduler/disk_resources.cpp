@@ -89,15 +89,11 @@ TString ToString(
             [&mediumDirectory] (TStringBuilderBase* builder, const TDiskResources::TDiskLocationResources& locationResources)
             {
                 int mediumIndex = locationResources.MediumIndex;
-                auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
-                TStringBuf mediumName = mediumDescriptor
-                    ? mediumDescriptor->Name
-                    : TStringBuf("unknown");
                 builder->AppendFormat("{Usage: %v, Limit: %v, MediumIndex: %v, MediumName: %v}",
                     locationResources.Usage,
                     locationResources.Limit,
                     mediumIndex,
-                    mediumName);
+                    mediumDirectory->GetMediumName(mediumIndex));
             }),
         diskResources.DefaultMediumIndex);
 }
