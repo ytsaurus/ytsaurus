@@ -213,6 +213,9 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("orchid", &TThis::Orchid)
         .DefaultNew();
+
+    registrar.Parameter("use_query_pool", &TThis::UseQueryPool)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
