@@ -86,7 +86,7 @@ struct ITabletCellWriteManager
 
     virtual TFuture<void> Write(
         const TTabletSnapshotPtr& tabletSnapshot,
-        TWireWriteCommandBatchReader* reader,
+        TWireWriteCommandsBatchingReader* reader,
         const TTabletCellWriteParams& params) = 0;
 
     // Tablet locking stuff.

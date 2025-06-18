@@ -340,7 +340,7 @@ private:
         auto requestData = requestCodec->Decompress(request->Attachments()[0]);
 
         struct TWriteBufferTag { };
-        auto reader = TWireWriteCommandBatchReader(
+        auto reader = TWireWriteCommandsBatchingReader(
             requestData,
             CreateWireProtocolReader(requestData, New<TRowBuffer>(TWriteBufferTag())),
             // NB: Non-atomic yet mount revision should ensure correctness.

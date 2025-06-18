@@ -36,7 +36,7 @@ public:
     void LockHunkStores(TWriteContext* context) override;
 
     bool ExecuteWrites(
-        IWireWriteCommandReader* reader,
+        IWireWriteCommandsReader* reader,
         TWriteContext* context) override;
 
     void UpdateCommittedStoreRowCount() override;
