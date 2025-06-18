@@ -1268,6 +1268,28 @@ TEST(TableIo, OptimisticRetries)
     EXPECT_GE(abortedRequestCount, 10);
 }
 
+TEST(TableIO, NoFinishWithDisabledAutoFinish)
+{
+    TConfigSaverGuard configGuard;
+    TConfig::Get()->TableWriterVersion = ETableWriterVersion::V1;
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    auto tablePath = TRichYPath(workingDir + "/table");
+    auto writer = client->CreateTableWriter<TNode>(
+        tablePath,
+        TTableWriterOptions()
+            // We want the internal buffer be flushed before Abort.
+            .WriterOptions(TWriterOptions().RetryBlockSize(8))
+            .AutoFinish(false));
+    for (int i = 0; i < 100; ++i) {
+        writer->AddRow(TNode()("foo", "bar"));
+    }
+
+    // Wait for writer thread to complete IO and block on internal queue.
+    Sleep(TDuration::Seconds(5));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(BlobTableIo, Simple)
