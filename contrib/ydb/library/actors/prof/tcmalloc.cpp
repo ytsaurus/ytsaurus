@@ -19,7 +19,9 @@ static struct TInitTCMallocCallbacks {
 
     TInitTCMallocCallbacks() {
         tcmalloc::MallocExtension::SetSampleUserDataCallbacks(
-            CreateTag, CopyTag, DestroyTag);
+            CreateTag, CopyTag, DestroyTag, [](void* /*ptr*/) -> size_t {
+              return 0;
+            });
     }
 } InitTCMallocCallbacks;
 
