@@ -12,7 +12,7 @@ from yt_type_helpers import (
     make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type,
     struct_type, tuple_type, dict_type, variant_struct_type, tagged_type)
 
-from yt_helpers import skip_if_component_old, skip_if_old
+from yt_helpers import skip_if_component_old
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -2637,8 +2637,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @authors("achulkov2")
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
     def test_chunk_slice_statistics(self, merge_mode):
-        skip_if_old(self.Env, (24, 2), "use_chunk_slice_statistics is not supported in older versions")
-
         create("table", "//tmp/t", attributes={
             "optimize_for": "lookup",
             "schema": [
@@ -2679,8 +2677,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @authors("achulkov2")
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered", "sorted"])
     def test_chunk_slice_statistics_underestimation(self, merge_mode):
-        skip_if_old(self.Env, (24, 2), "use_chunk_slice_statistics is not supported in older versions")
-
         create("table", "//tmp/t", attributes={
             "optimize_for": "lookup",
             "schema": [
@@ -2722,8 +2718,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     # TODO(achulkov2): Add sorted mode to check once columns are supported by TChunkSliceFetcher.
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
     def test_chunk_slice_statistics_work_as_columnar_statistics(self, merge_mode):
-        skip_if_old(self.Env, (24, 2), "use_chunk_slice_statistics is not supported in older versions")
-
         create("table", "//tmp/t", attributes={
             "optimize_for": "scan",
             "schema": [
@@ -2768,8 +2762,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     def test_sorted_merge_with_input_query_throws_error(self):
         if "24_2" in getattr(self, "ARTIFACT_COMPONENTS", {}):
             pytest.skip()
-
-        skip_if_old(self.Env, (24, 2), "throwing error is not supported in older versions")
 
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")

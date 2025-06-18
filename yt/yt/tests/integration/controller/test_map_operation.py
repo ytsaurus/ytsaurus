@@ -1693,8 +1693,6 @@ print(json.dumps(input))
     @pytest.mark.parametrize("ordered", [False, True])
     @pytest.mark.ignore_in_opensource_ci
     def test_force_allow_job_interruption(self, job_count, ordered):
-        skip_if_old(self.Env, (24, 1), "Operations with explicit job count are not interruptible in old controller agents")
-
         input_table = "//tmp/in"
         output_table = "//tmp/out"
 
