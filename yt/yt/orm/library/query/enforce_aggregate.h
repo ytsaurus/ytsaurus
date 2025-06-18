@@ -6,8 +6,9 @@ namespace NYT::NOrm::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Checks if expression contains a column reference without aggregation function applied.
-bool HasUnaggregatedColumn(NQueryClient::NAst::TExpressionPtr expression);
+NQueryClient::NAst::TExpressionPtr EnforceAggregate(
+    TObjectsHolder* objectsHolder,
+    NQueryClient::NAst::TExpressionPtr expr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

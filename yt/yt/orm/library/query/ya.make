@@ -6,6 +6,7 @@ SRCS(
     computed_fields_filter.cpp
     continuation.cpp
     expression_evaluator.cpp
+    enforce_aggregate.cpp
     filter_introspection.cpp
     filter_matcher.cpp
     helpers.cpp
@@ -15,7 +16,6 @@ SRCS(
     query_rewriter.cpp
     split_filter.cpp
     type_inference.cpp
-    unaggregated_column_detector.cpp
 )
 
 PEERDIR(

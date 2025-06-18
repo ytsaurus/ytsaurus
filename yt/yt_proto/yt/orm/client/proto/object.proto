@@ -755,15 +755,15 @@ message TJoinOption
 
 enum EFilterPlace
 {
-    FILTER_PROHIBITED = 0;
-    FILTER_WHERE = 1;
-    FILTER_HAVING = 2;
-    FILTER_JOIN_PREDICATE = 3;
+    FILTER_WHERE = 0;
+    FILTER_HAVING = 1;
+    FILTER_JOIN_PREDICATE = 2;
 }
 
 message TJoinedColumnOption
 {
-    optional bool select_allowed = 1 [default = true];
+    reserved 1;
+    reserved "select_allowed";
     optional EFilterPlace filter_place = 2;
     // Field evaluation expression. Mutually exclusive with name and aggregation.
     optional string expression = 3;
