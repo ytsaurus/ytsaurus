@@ -271,7 +271,7 @@ protected:
                         const auto& dynamicValue = list[j];
                         TVersionedValue versionedValue;
                         static_cast<TUnversionedValue&>(versionedValue) = ToUnversionedValue(dynamicValue.Data, i);
-                        versionedValue.Timestamp = Store_->TimestampFromRevision(dynamicValue.Revision);
+                        versionedValue.Timestamp = Store_->TimestampFromRevision(TSortedDynamicStoreRevision(dynamicValue.Revision));
                         builder.AppendFormat(" %v#%v", i, versionedValue);
                     }
                 }

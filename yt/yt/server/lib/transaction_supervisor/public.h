@@ -77,7 +77,7 @@ DEFINE_ENUM(ETransactionState,
     // Transaction in Serialized state will not finish until all serializations are completed.
     // Finish of a coarse serialization will always trigger transition to Serialized.
     //
-    // NB: There is no real checks or events connected to this state.
+    // NB: There are no real checks or events connected to Serialized state.
     ((Serialized)                 (6))
     ((TransientAbortPrepared)     (4))
     ((Aborted)                    (5))

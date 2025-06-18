@@ -367,9 +367,26 @@ public:
             if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
                 YT_VERIFY(Tablet_->IsPhysicallySorted());
 
+                auto partCountBefore = transaction->GetPartsLeftToPerRowSerialize();
+
                 StartSerializingLockedRows(transaction, /*onAfterSnapshotLoaded=*/false);
 
-                transaction->PerRowSerializingTabletIds().insert(Tablet_->GetId());
+                auto partsAddedInTablet = transaction->GetPartsLeftToPerRowSerialize() - partCountBefore;
+                YT_ASSERT(partsAddedInTablet >= 0);
+
+                // COMPAT(ponasenko-rs)
+                if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
+                    reign >= ETabletReign::PerRowSequencerFixes)
+                {
+                    // All parts related to current tablet can be already serialized.
+                    if (partsAddedInTablet > 0) {
+                        transaction->PerRowSerializingTabletIds().insert(Tablet_->GetId());
+                    } else {
+                        OnTransactionFinished(transaction);
+                    }
+                } else {
+                    transaction->PerRowSerializingTabletIds().insert(Tablet_->GetId());
+                }
             } else {
                 transaction->CoarseSerializingTabletIds().insert(Tablet_->GetId());
             }
@@ -435,6 +452,7 @@ public:
         OnTransactionFinished(transaction);
     }
 
+    // TODO(ponasenko-rs): Remove notion of lockIndex from tablet write manager.
     void OnTransactionPartCommitted(
         TTransaction* transaction,
         const TSortedDynamicRowRef& rowRef,
@@ -447,7 +465,7 @@ public:
         const auto& batchIt = writeLog[writeLogIndex.CommandBatchIndex];
         const auto& command = batchIt.WriteCommands.Commands()[writeLogIndex.CommandIndexInBatch];
 
-        rowRef.StoreManager->CommitLockGroup(
+        rowRef.StoreManager->CommitPerRowsSerializedLockGroup(
             transaction,
             command,
             rowRef,
@@ -736,7 +754,7 @@ public:
             if (writeState->SomeRowsCommitted && Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
                 transaction->IncrementPartsLeftToPerRowSerialize();
 
-                // Lock groups that were already serialized before the snapshot saving were saved to the snapshot as part of TSortedDynamicStore.
+                // Lock groups that were already serialized before the snapshot saving were persisted to the snapshot as part of TSortedDynamicStore.
                 // StartSerializingLockedRows at this point is needed to recalculate prepare sets and serializing heaps.
                 // Some heaps will be drained during OnAfterSnapshotLoaded but its values already in edit lists so edit list modifications will be skipped.
                 StartSerializingLockedRows(transaction, /*onAfterSnapshotLoaded=*/true);

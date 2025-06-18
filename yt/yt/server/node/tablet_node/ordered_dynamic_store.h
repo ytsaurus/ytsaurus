@@ -50,6 +50,7 @@ public:
 
     // IDynamicStore implementation.
     i64 GetTimestampCount() const override;
+    i64 ClampMaxDynamicStoreTimestampCount(TMaxDynamicStoreTimestampCount configLimit) const override;
 
     // IOrderedStore implementation.
     NTableClient::ISchemafulUnversionedReaderPtr CreateReader(
