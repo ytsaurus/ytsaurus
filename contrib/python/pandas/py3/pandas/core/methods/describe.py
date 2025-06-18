@@ -11,10 +11,7 @@ from abc import (
 )
 from typing import (
     TYPE_CHECKING,
-    Any,
     Callable,
-    Hashable,
-    Sequence,
     cast,
 )
 
@@ -30,19 +27,25 @@ from pandas.util._validators import validate_percentile
 
 from pandas.core.dtypes.common import (
     is_bool_dtype,
-    is_complex_dtype,
-    is_extension_array_dtype,
     is_numeric_dtype,
 )
-from pandas.core.dtypes.dtypes import DatetimeTZDtype
+from pandas.core.dtypes.dtypes import (
+    ArrowDtype,
+    DatetimeTZDtype,
+    ExtensionDtype,
+)
 
-from pandas.core.arrays.arrow.dtype import ArrowDtype
 from pandas.core.arrays.floating import Float64Dtype
 from pandas.core.reshape.concat import concat
 
 from pandas.io.formats.format import format_percentiles
 
 if TYPE_CHECKING:
+    from collections.abc import (
+        Hashable,
+        Sequence,
+    )
+
     from pandas import (
         DataFrame,
         Series,
@@ -77,7 +80,7 @@ def describe_ndframe(
     -------
     Dataframe or series description.
     """
-    percentiles = refine_percentiles(percentiles)
+    percentiles = _refine_percentiles(percentiles)
 
     describer: NDFrameDescriberAbstract
     if obj.ndim == 1:
@@ -175,7 +178,7 @@ class DataFrameDescriber(NDFrameDescriberAbstract):
         d.columns = data.columns.copy()
         return d
 
-    def _select_data(self):
+    def _select_data(self) -> DataFrame:
         """Select columns to be described."""
         if (self.include is None) and (self.exclude is None):
             # when some numerics are found, keep only numerics
@@ -193,16 +196,18 @@ class DataFrameDescriber(NDFrameDescriberAbstract):
                 include=self.include,
                 exclude=self.exclude,
             )
-        return data
+        return data  # pyright: ignore[reportGeneralTypeIssues]
 
 
 def reorder_columns(ldesc: Sequence[Series]) -> list[Hashable]:
     """Set a convenient order for rows for display."""
     names: list[Hashable] = []
+    seen_names: set[Hashable] = set()
     ldesc_indexes = sorted((x.index for x in ldesc), key=len)
     for idxnames in ldesc_indexes:
         for name in idxnames:
-            if name not in names:
+            if name not in seen_names:
+                seen_names.add(name)
                 names.append(name)
     return names
 
@@ -229,7 +234,7 @@ def describe_numeric_1d(series: Series, percentiles: Sequence[float]) -> Series:
     )
     # GH#48340 - always return float on non-complex numeric data
     dtype: DtypeObj | None
-    if is_extension_array_dtype(series):
+    if isinstance(series.dtype, ExtensionDtype):
         if isinstance(series.dtype, ArrowDtype):
             if series.dtype.kind == "m":
                 # GH53001: describe timedeltas with object dtype
@@ -240,7 +245,8 @@ def describe_numeric_1d(series: Series, percentiles: Sequence[float]) -> Series:
                 dtype = ArrowDtype(pa.float64())
         else:
             dtype = Float64Dtype()
-    elif is_numeric_dtype(series) and not is_complex_dtype(series):
+    elif series.dtype.kind in "iufb":
+        # i.e. numeric but exclude complex dtype
         dtype = np.dtype("float")
     else:
         dtype = None
@@ -373,9 +379,9 @@ def select_describe_func(
         return describe_categorical_1d
 
 
-def refine_percentiles(
+def _refine_percentiles(
     percentiles: Sequence[float] | np.ndarray | None,
-) -> np.ndarray[Any, np.dtype[np.float64]]:
+) -> npt.NDArray[np.float64]:
     """
     Ensure that percentiles are unique and sorted.
 

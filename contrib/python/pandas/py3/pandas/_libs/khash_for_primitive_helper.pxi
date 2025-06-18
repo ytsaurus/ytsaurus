@@ -4,7 +4,7 @@ Template for wrapping khash-tables for each primitive `dtype`
 WARNING: DO NOT edit .pxi FILE directly, .pxi is generated from .pxi.in
 """
 
-cdef extern from "khash_python.h":
+cdef extern from "pandas/vendored/klib/khash_python.h":
     ctypedef struct kh_int64_t:
         khuint_t n_buckets, size, n_occupied, upper_bound
         uint32_t *flags
@@ -21,7 +21,7 @@ cdef extern from "khash_python.h":
 
     bint kh_exist_int64(kh_int64_t*, khiter_t) nogil
 
-cdef extern from "khash_python.h":
+cdef extern from "pandas/vendored/klib/khash_python.h":
     ctypedef struct kh_uint64_t:
         khuint_t n_buckets, size, n_occupied, upper_bound
         uint32_t *flags
@@ -38,7 +38,7 @@ cdef extern from "khash_python.h":
 
     bint kh_exist_uint64(kh_uint64_t*, khiter_t) nogil
 
-cdef extern from "khash_python.h":
+cdef extern from "pandas/vendored/klib/khash_python.h":
     ctypedef struct kh_float64_t:
         khuint_t n_buckets, size, n_occupied, upper_bound
         uint32_t *flags
@@ -55,7 +55,7 @@ cdef extern from "khash_python.h":
 
     bint kh_exist_float64(kh_float64_t*, khiter_t) nogil
 
-cdef extern from "khash_python.h":
+cdef extern from "pandas/vendored/klib/khash_python.h":
     ctypedef struct kh_int32_t:
         khuint_t n_buckets, size, n_occupied, upper_bound
         uint32_t *flags
@@ -72,7 +72,7 @@ cdef extern from "khash_python.h":
 
     bint kh_exist_int32(kh_int32_t*, khiter_t) nogil
 
-cdef extern from "khash_python.h":
+cdef extern from "pandas/vendored/klib/khash_python.h":
     ctypedef struct kh_uint32_t:
         khuint_t n_buckets, size, n_occupied, upper_bound
         uint32_t *flags
@@ -89,7 +89,7 @@ cdef extern from "khash_python.h":
 
     bint kh_exist_uint32(kh_uint32_t*, khiter_t) nogil
 
-cdef extern from "khash_python.h":
+cdef extern from "pandas/vendored/klib/khash_python.h":
     ctypedef struct kh_float32_t:
         khuint_t n_buckets, size, n_occupied, upper_bound
         uint32_t *flags
@@ -106,7 +106,7 @@ cdef extern from "khash_python.h":
 
     bint kh_exist_float32(kh_float32_t*, khiter_t) nogil
 
-cdef extern from "khash_python.h":
+cdef extern from "pandas/vendored/klib/khash_python.h":
     ctypedef struct kh_int16_t:
         khuint_t n_buckets, size, n_occupied, upper_bound
         uint32_t *flags
@@ -123,7 +123,7 @@ cdef extern from "khash_python.h":
 
     bint kh_exist_int16(kh_int16_t*, khiter_t) nogil
 
-cdef extern from "khash_python.h":
+cdef extern from "pandas/vendored/klib/khash_python.h":
     ctypedef struct kh_uint16_t:
         khuint_t n_buckets, size, n_occupied, upper_bound
         uint32_t *flags
@@ -140,7 +140,7 @@ cdef extern from "khash_python.h":
 
     bint kh_exist_uint16(kh_uint16_t*, khiter_t) nogil
 
-cdef extern from "khash_python.h":
+cdef extern from "pandas/vendored/klib/khash_python.h":
     ctypedef struct kh_int8_t:
         khuint_t n_buckets, size, n_occupied, upper_bound
         uint32_t *flags
@@ -157,7 +157,7 @@ cdef extern from "khash_python.h":
 
     bint kh_exist_int8(kh_int8_t*, khiter_t) nogil
 
-cdef extern from "khash_python.h":
+cdef extern from "pandas/vendored/klib/khash_python.h":
     ctypedef struct kh_uint8_t:
         khuint_t n_buckets, size, n_occupied, upper_bound
         uint32_t *flags
@@ -174,7 +174,7 @@ cdef extern from "khash_python.h":
 
     bint kh_exist_uint8(kh_uint8_t*, khiter_t) nogil
 
-cdef extern from "khash_python.h":
+cdef extern from "pandas/vendored/klib/khash_python.h":
     ctypedef struct kh_complex64_t:
         khuint_t n_buckets, size, n_occupied, upper_bound
         uint32_t *flags
@@ -191,7 +191,7 @@ cdef extern from "khash_python.h":
 
     bint kh_exist_complex64(kh_complex64_t*, khiter_t) nogil
 
-cdef extern from "khash_python.h":
+cdef extern from "pandas/vendored/klib/khash_python.h":
     ctypedef struct kh_complex128_t:
         khuint_t n_buckets, size, n_occupied, upper_bound
         uint32_t *flags
