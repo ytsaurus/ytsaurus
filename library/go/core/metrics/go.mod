@@ -1,6 +1,6 @@
 module go.ytsaurus.tech/library/go/core/metrics
 
-go 1.22.0
+go 1.23.8
 
 require (
 	github.com/OneOfOne/xxhash v1.2.8

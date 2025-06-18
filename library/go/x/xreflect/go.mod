@@ -1,6 +1,6 @@
 module go.ytsaurus.tech/library/go/x/xreflect
 
-go 1.22.0
+go 1.23.8
 
 require github.com/stretchr/testify v1.9.0
 
