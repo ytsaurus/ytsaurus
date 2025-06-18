@@ -450,8 +450,8 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         }
 
         //! NB: LeaseTransactionPingPeriod and LeaseTransactionTimeout should be ensured to be initialized by compat above.
-        THROW_ERROR_EXCEPTION_IF(*config->MasterConnector->LeaseTransactionPingPeriod >= *config->MasterConnector->LeaseTransactionTimeout,
-            "Lease transaction ping period cannot be greater or equal to lease transaction timeout");
+        THROW_ERROR_EXCEPTION_UNLESS(*config->MasterConnector->LeaseTransactionPingPeriod < *config->MasterConnector->LeaseTransactionTimeout,
+            "Lease transaction ping period must be less than lease transaction timeout");
     });
 }
 

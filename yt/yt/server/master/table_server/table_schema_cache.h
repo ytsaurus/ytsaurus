@@ -49,6 +49,7 @@ public:
     TYsonTableSchemaCache(const TWeakPtr<ITableManager>& weakTableManager, TYsonTableSchemaCacheConfigPtr config);
 
     void Reconfigure(const TYsonTableSchemaCacheConfigPtr& config);
+
 private:
     const TWeakPtr<ITableManager> WeakTableManager_;
     bool EnableTableSchemaCache_;
