@@ -9,8 +9,8 @@ namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString MangleSymbol(const TString& name);
-TString DemangleSymbol(const TString& name);
+std::string MangleSymbol(std::string name);
+std::string DemangleSymbol(std::string name);
 
 template <typename TSignature>
 class TFunctionTypeBuilder;
@@ -19,7 +19,7 @@ template <typename R, typename... Args>
 class TFunctionTypeBuilder<R(Args...)>
 {
 public:
-    static llvm::FunctionType *Get(llvm::LLVMContext &Context)
+    static llvm::FunctionType* Get(llvm::LLVMContext &Context)
     {
         llvm::Type *params[] = {
             TTypeBuilder<Args>::Get(Context)...
@@ -56,8 +56,8 @@ public:
             std::bind(&TFunctionTypeBuilder<TResult(TArgs...)>::Get, _1));
     }
 
-    uint64_t GetAddress(const TString& symbol) const;
-    TValueTypeBuilder GetTypeBuilder(const TString& symbol) const;
+    uint64_t GetAddress(const std::string& symbol) const;
+    TValueTypeBuilder GetTypeBuilder(const std::string& symbol) const;
 
 private:
     void RegisterRoutineImpl(

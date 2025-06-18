@@ -160,7 +160,7 @@ TString GetUdfDescriptorPath(const TYPath& registryPath, const std::string& func
 } // namespace
 
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
-    const std::vector<std::pair<TString, TString>>& functionNames,
+    const std::vector<std::pair<TYPath, std::string>>& functionNames,
     const NNative::IClientPtr& client)
 {
     using NObjectClient::TObjectYPathProxy;
@@ -282,7 +282,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 void AppendUdfDescriptors(
     const TTypeInferrerMapPtr& typeInferrers,
     const TExternalCGInfoPtr& cgInfo,
-    const std::vector<TString>& functionNames,
+    const std::vector<std::string>& functionNames,
     const std::vector<TExternalFunctionSpec>& externalFunctionSpecs)
 {
     YT_VERIFY(functionNames.size() == externalFunctionSpecs.size());
@@ -379,7 +379,7 @@ DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
 namespace {
 
 class TCypressFunctionRegistry
-    : public TAsyncExpiringCache<std::pair<TString, TString>, TExternalFunctionSpec>
+    : public TAsyncExpiringCache<std::pair<TYPath, std::string>, TExternalFunctionSpec>
     , public IFunctionRegistry
 {
 public:
@@ -395,10 +395,10 @@ public:
     { }
 
     TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(
-        const TString& udfRegistryPath,
-        const std::vector<TString>& names) override
+        const TYPath& udfRegistryPath,
+        const std::vector<std::string>& names) override
     {
-        std::vector<std::pair<TString, TString>> keys;
+        std::vector<std::pair<TYPath, std::string>> keys;
         for (const auto& name : names) {
             keys.emplace_back(udfRegistryPath, name);
         }
@@ -426,7 +426,7 @@ private:
     const IInvokerPtr Invoker_;
 
     TFuture<TExternalFunctionSpec> DoGet(
-        const std::pair<TString, TString>& key,
+        const std::pair<TYPath, std::string>& key,
         bool isPeriodicUpdate) noexcept override
     {
         return DoGetMany({key}, isPeriodicUpdate)
@@ -437,7 +437,7 @@ private:
     }
 
     TFuture<std::vector<TErrorOr<TExternalFunctionSpec>>> DoGetMany(
-        const std::vector<std::pair<TString, TString>>& keys,
+        const std::vector<std::pair<TYPath, std::string>>& keys,
         bool /*isPeriodicUpdate*/) noexcept override
     {
         if (auto client = Client_.Lock()) {

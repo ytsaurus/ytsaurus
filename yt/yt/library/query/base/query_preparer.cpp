@@ -51,18 +51,18 @@ namespace {
 
 void ExtractFunctionNames(
     const NAst::TNullableExpressionList& exprs,
-    std::vector<TString>* functions);
+    std::vector<std::string>* functions);
 
 void ExtractFunctionNames(
     const NAst::TWhenThenExpressionList& exprs,
-    std::vector<TString>* functions);
+    std::vector<std::string>* functions);
 
 void ExtractFunctionNames(
     const NAst::TExpressionPtr& expr,
-    std::vector<TString>* functions)
+    std::vector<std::string>* functions)
 {
     if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
-        functions->push_back(to_lower(functionExpr->FunctionName));
+        functions->push_back(to_lower(TString(functionExpr->FunctionName)));
         ExtractFunctionNames(functionExpr->Arguments, functions);
     } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
         ExtractFunctionNames(unaryExpr->Operand, functions);
@@ -98,7 +98,7 @@ void ExtractFunctionNames(
 
 void ExtractFunctionNames(
     const NAst::TNullableExpressionList& exprs,
-    std::vector<TString>* functions)
+    std::vector<std::string>* functions)
 {
     if (!exprs) {
         return;
@@ -113,7 +113,7 @@ void ExtractFunctionNames(
 
 void ExtractFunctionNames(
     const NAst::TWhenThenExpressionList& whenThenExpressions,
-    std::vector<TString>* functions)
+    std::vector<std::string>* functions)
 {
     CheckStackDepth();
 
@@ -123,11 +123,11 @@ void ExtractFunctionNames(
     }
 }
 
-std::vector<TString> ExtractFunctionNames(
+std::vector<std::string> ExtractFunctionNames(
     const NAst::TQuery& query,
     const NAst::TAliasMap& aliasMap)
 {
-    std::vector<TString> functions;
+    std::vector<std::string> functions;
 
     ExtractFunctionNames(query.WherePredicate, &functions);
     ExtractFunctionNames(query.HavingPredicate, &functions);
@@ -607,7 +607,7 @@ void EliminateRedundantProjections(const TQueryPtr& innerSubquery, const TTableS
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DefaultFetchFunctions(TRange<TString> /*names*/, const TTypeInferrerMapPtr& typeInferrers)
+void DefaultFetchFunctions(TRange<std::string> /*names*/, const TTypeInferrerMapPtr& typeInferrers)
 {
     MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 }

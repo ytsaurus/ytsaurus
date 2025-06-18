@@ -8,7 +8,7 @@ namespace NYT::NCodegen {
 ////////////////////////////////////////////////////////////////////////////////
 
 // MangleSymbol adds underscore for Darwin platform.
-TString MangleSymbol(const TString& name)
+std::string MangleSymbol(std::string name)
 {
 #ifdef _darwin_
     return "_" + name;
@@ -19,11 +19,11 @@ TString MangleSymbol(const TString& name)
 
 // DemangleSymbol strips the prefixed underscore on Darwin,
 // returns empty string in case of non-prefixed name.
-TString DemangleSymbol(const TString& name)
+std::string DemangleSymbol(std::string name)
 {
 #ifdef _darwin_
     if (name.empty() || name[0] != '_') {
-        return TString();
+        return std::string();
     } else {
         return name.substr(1);
     }
@@ -34,7 +34,7 @@ TString DemangleSymbol(const TString& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-uint64_t TRoutineRegistry::GetAddress(const TString& symbol) const
+uint64_t TRoutineRegistry::GetAddress(const std::string& symbol) const
 {
     auto it = SymbolToAddress_.find(symbol);
     if (it == SymbolToAddress_.end()) {
@@ -43,7 +43,7 @@ uint64_t TRoutineRegistry::GetAddress(const TString& symbol) const
     return it->second;
 }
 
-TRoutineRegistry::TValueTypeBuilder TRoutineRegistry::GetTypeBuilder(const TString& symbol) const
+TRoutineRegistry::TValueTypeBuilder TRoutineRegistry::GetTypeBuilder(const std::string& symbol) const
 {
     return GetOrCrash(SymbolToTypeBuilder_, MangleSymbol(symbol));
 }

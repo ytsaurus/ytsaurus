@@ -7705,10 +7705,10 @@ void TOperationControllerBase::ParseInputQuery(
     }
 
     auto externalCGInfo = New<TExternalCGInfo>();
-    auto fetchFunctions = [&] (TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers) {
+    auto fetchFunctions = [&] (TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
-        std::vector<TString> externalNames;
+        std::vector<std::string> externalNames;
         for (const auto& name : names) {
             auto found = typeInferrers->find(name);
             if (found == typeInferrers->end()) {
@@ -7725,7 +7725,7 @@ void TOperationControllerBase::ParseInputQuery(
                 << TErrorAttribute("external_names", externalNames);
         }
 
-        std::vector<std::pair<TString, TString>> keys;
+        std::vector<std::pair<TYPath, std::string>> keys;
         for (const auto& name : externalNames) {
             keys.emplace_back(*Config_->UdfRegistryPath, name);
         }

@@ -497,8 +497,7 @@ TConstExpressionPtr TExprBuilderV2::OnReference(const NAst::TReference& referenc
 
 TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* functionExpr)
 {
-    auto functionName = functionExpr->FunctionName;
-    functionName.to_lower();
+    auto functionName = to_lower(TString(functionExpr->FunctionName));
 
     if (functionName == "cast_operator") {
         THROW_ERROR_EXCEPTION_IF(functionExpr->Arguments.size() != 2,
@@ -509,7 +508,7 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
         auto* literalArgument = functionExpr->Arguments[1]->As<NAst::TLiteralExpression>();
 
         THROW_ERROR_EXCEPTION_UNLESS(literalArgument && std::holds_alternative<TString>(literalArgument->Value),
-            "Misuse of the %Qv function",
+            "Misuse of function %Qv",
             functionName);
 
         return New<TFunctionExpression>(

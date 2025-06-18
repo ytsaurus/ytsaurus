@@ -36,7 +36,7 @@ public:
 
     bool HasImplicitCast(TTypeId sourceType, TTypeId targetType);
 
-    void RegisterFunction(TString name, TFunctionSignatures signatures);
+    void RegisterFunction(std::string name, TFunctionSignatures signatures);
 
     void FillFunctionSignatures();
 
@@ -53,11 +53,12 @@ public:
 
     // Returns result types and argument types coercions.
     std::vector<TTypeId> InferFunctionType(TStringBuf name, TRange<TTypeId> argumentTypes);
+
 private:
     std::vector<std::pair<TString, TLogicalTypePtr>> TypeNames_;
     THashMap<TString, TTypeId> UniqueTypes_;
 
-    THashMap<TString, TFunctionSignatures> Functions_;
+    THashMap<std::string, TFunctionSignatures, THash<TStringBuf>, TEqualTo<>> Functions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

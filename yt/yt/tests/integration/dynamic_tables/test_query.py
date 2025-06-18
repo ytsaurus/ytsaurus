@@ -2625,7 +2625,7 @@ class TestQuery(DynamicTablesBase):
             select_rows("cast_operator(key, 'Int64') from [//tmp/table]")
         with raises_yt_error(yt_error_codes.SchemaViolation):
             select_rows("CAST(lvalue AS `Struct<x:String, y:List<Bool>>`) from [//tmp/table]", expression_builder_version=2)
-        with raises_yt_error("Misuse of the \"cast_operator\" function"):
+        with raises_yt_error("Misuse of function \"cast_operator\""):
             select_rows("cast_operator(1, 1) from [//tmp/table]", expression_builder_version=2)
         with raises_yt_error("Expected two arguments for \"cast_operator\" function"):
             select_rows("cast_operator(1) from [//tmp/table]", expression_builder_version=2)

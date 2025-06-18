@@ -4267,7 +4267,10 @@ void MakeCodegenWriteOp(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TSignature, typename TPISignature>
-TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr cgModule, const TString& entryFunctionName, EExecutionBackend executionBackend)
+TCallback<TSignature> BuildCGEntrypoint(
+    TCGModulePtr cgModule,
+    const std::string& entryFunctionName,
+    EExecutionBackend executionBackend)
 {
     if (executionBackend == EExecutionBackend::WebAssembly) {
         auto caller = New<TCGWebAssemblyCaller<TSignature, TPISignature>>(
