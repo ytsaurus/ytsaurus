@@ -112,7 +112,7 @@ void TTestingTableMountConfig::Register(TRegistrar registrar)
         .Default(0)
         .InRange(0, 1);
 
-    registrar.Parameter("table_puller_replica_ban_iterations_count", &TThis::TablePullerReplicaBanIterationsCount)
+    registrar.Parameter("table_puller_replica_ban_iteration_count", &TThis::TablePullerReplicaBanIterationCount)
         .GreaterThan(0)
         .Optional();
 
