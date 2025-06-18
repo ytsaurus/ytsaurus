@@ -1214,7 +1214,7 @@ private:
         auto masterChannel = CreateRetryingChannel(
             GetDynamicConfig()->FullHeartbeatSessionRetryingChannel,
             Bootstrap_->GetMasterChannel(cellTag),
-            BIND([&] (const TError& error) -> bool {
+            BIND([cellTag, Logger = this->Logger] (const TError& error) -> bool {
                 if (IsRetriableError(error) || error.FindMatching(HeartbeatRetriableErrors)) {
                     YT_LOG_DEBUG(
                         error,
