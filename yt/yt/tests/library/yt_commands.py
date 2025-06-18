@@ -1395,6 +1395,24 @@ def get_allocation_id_from_job_id(job_id):
 ##################################################################
 
 
+def are_job_resources_are_zero(resources):
+    EPSILON = 1e-6
+    if abs(resources["cpu"]) > EPSILON:
+        return False
+    if abs(resources["vcpu"]) > EPSILON:
+        return False
+    if resources["user_memory"] != 0:
+        return False
+    if resources["gpu"] != 0:
+        return False
+    if resources["user_slots"] != 0:
+        return False
+    return True
+
+
+##################################################################
+
+
 class Operation(object):
     def __init__(self, driver=None):
         self.id = None

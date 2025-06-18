@@ -619,13 +619,15 @@ public:
             releasingResources);
     }
 
-    bool TryReserveResources(const TLogger& Logger, const TJobResources& resources)
+    bool TryReserveResources(TNonNullPtr<TResourceHolder> resourceHolder, const TJobResources& resources)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TJobResources pendingResources;
         TJobResources acquiredResources;
         TJobResources releasingResources;
+
+        const auto& Logger = resourceHolder->GetLogger();
 
         auto resourceLimits = GetResourceLimits();
 
@@ -648,8 +650,13 @@ public:
                 return false;
             }
 
-            pendingResources =
-                ResourceUsages_[EResourcesState::Pending] -= resources;
+            if (resourceHolder->State_ == EResourcesState::Pending) {
+                pendingResources =
+                    ResourceUsages_[EResourcesState::Pending] -= resources;
+            } else {
+                pendingResources = ResourceUsages_[EResourcesState::Pending];
+            }
+
             acquiredResources =
                 acquiredUsage += resources;
 
@@ -753,7 +760,7 @@ public:
                 neededResources);
         };
 
-        if (!TryReserveResources(Logger, neededResources)) {
+        if (!TryReserveResources(resourceHolder, neededResources)) {
             return std::tuple(
                 false,
                 std::move(acquiredResources),
