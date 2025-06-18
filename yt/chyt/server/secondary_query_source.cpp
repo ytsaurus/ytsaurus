@@ -277,10 +277,11 @@ private:
         i64 readRows = 0;
         DB::Block resultBlock;
         while (CurrentReader_ && resultBlock.rows() == 0) {
+            YT_LOG_TRACE("Started reading loop iteration");
             auto batch = CurrentReader_->Read(options);
             if (!batch) {
                 if (!ReaderFactory_) {
-                    return {};
+                    break;
                 }
                 CurrentReader_ = ReaderFactory_->CreateReader();
                 continue;
