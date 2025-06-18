@@ -34,6 +34,15 @@ from io import BytesIO
 ##################################################################
 
 
+# Mostly used to avoid race conditions between compaction and non-transactional read.
+def read_table_under_transaction(path, **kwargs):
+    tx = start_transaction(timeout=60000)
+    lock(path, tx=tx, mode="snapshot")
+    return read_table(path, tx=tx, **kwargs)
+
+##################################################################
+
+
 @authors("ifsmirnov")
 @pytest.mark.enabled_multidaemon
 class TestBulkInsert(DynamicTablesBase):
@@ -326,7 +335,7 @@ class TestBulkInsert(DynamicTablesBase):
             op = map(in_="//tmp/t_input", out="<append=%true>//tmp/t_output", command=command)
             operations.append(op)
 
-        assert read_table("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
+        assert read_table_under_transaction("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
         assert_items_equal(
             select_rows("* from [//tmp/t_output]"),
             [{"key": i, "value": str(i)} for i in range(len(operations))],
@@ -356,7 +365,7 @@ class TestBulkInsert(DynamicTablesBase):
         for op in operations:
             op.wait_for_state("completed")
 
-        assert read_table("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
+        assert read_table_under_transaction("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
         assert_items_equal(
             select_rows("* from [//tmp/t_output]"),
             [{"key": i, "value": str(i)} for i in range(len(operations))],
@@ -408,7 +417,7 @@ class TestBulkInsert(DynamicTablesBase):
         for op in operations:
             op.wait_for_state("completed")
 
-        assert read_table("//tmp/t_output") == rows
+        assert read_table_under_transaction("//tmp/t_output") == rows
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
 
     def test_no_simultaneous_bulk_inserts_overwrite_mode(self):
