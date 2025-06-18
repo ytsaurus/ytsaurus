@@ -473,6 +473,9 @@ struct TJobProxyInternalConfig
 
     bool StartQueueConsumerRegistrationManager;
 
+    bool EnableSignatureGeneration;
+    bool EnableSignatureValidation;
+
     REGISTER_YSON_STRUCT(TJobProxyInternalConfig);
 
     static void Register(TRegistrar registrar);
