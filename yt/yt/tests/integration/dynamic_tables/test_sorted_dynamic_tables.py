@@ -1902,6 +1902,7 @@ class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
     ENABLE_RPC_PROXY = True
 
     @authors("gritukan")
+    @pytest.mark.timeout(120)
     def test_write_retries_stress(self):
         set("//sys/rpc_proxies/@config", {
             "cluster_connection": {
