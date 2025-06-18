@@ -2315,6 +2315,28 @@ class YTEnvSetup(object):
             for node, response in zip(exec_nodes, responses):
                 print("Node {}: {}".format(node, response), file=sys.stderr)
 
+        def check_resources_are_zero(resource_types):
+            requests = [
+                yt_commands.make_batch_request(
+                    "get",
+                    path="//sys/cluster_nodes/{0}/orchid/exec_node/job_resource_manager".format(node),
+                    return_only_value=True,
+                )
+                for node in exec_nodes
+            ]
+
+            responses = yt_commands.execute_batch(requests, driver=driver)
+            for node, response in zip(exec_nodes, responses):
+                response = yt_commands.get_batch_output(response)
+
+                def verify_resources_are_zero(type):
+                    assert yt_commands.are_job_resources_are_zero(response[type]), f"Node {node} has non-zero {type}: {response[type]}"
+
+                for type in resource_types:
+                    verify_resources_are_zero(type)
+
+        check_resources_are_zero(["pending_resources", "acquired_resources"])
+
     def spawn_additional_thread(self, target, name=None):
         assert \
             hasattr(self, "_additional_threads"), \
