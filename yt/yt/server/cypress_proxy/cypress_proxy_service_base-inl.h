@@ -21,7 +21,7 @@ template <class TRequestMessage, class TResponseMessage>
 void TCypressProxyServiceBase::InitContext(TCypressProxyServiceContext<TRequestMessage, TResponseMessage>* context)
 {
     if (!context->RequestHeader().HasExtension(NCypressClient::NProto::TTargetMasterPeerExt::target_master_peer_ext)) {
-        THROW_ERROR_EXCEPTION("Target master peer extension is missing");
+        return;
     }
 
     const auto& ext = context->RequestHeader().GetExtension(NCypressClient::NProto::TTargetMasterPeerExt::target_master_peer_ext);
@@ -47,8 +47,13 @@ NRpc::IChannelPtr TCypressProxyServiceBase::GetTargetMasterPeerChannelOrThrow(TC
     auto kind = context->GetTargetMasterChannelKind();
     auto cellTag = context->GetTargetMasterCellTag();
 
+    // Just a precautionary measure.
+    if (!kind || !cellTag) {
+        THROW_ERROR_EXCEPTION("Target master peer extension is missing");
+    }
+
     const auto& masterCellDirectory = Bootstrap_->GetNativeConnection()->GetMasterCellDirectory();
-    return masterCellDirectory->GetNakedMasterChannelOrThrow(kind, cellTag);
+    return masterCellDirectory->GetNakedMasterChannelOrThrow(*kind, *cellTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

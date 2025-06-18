@@ -18,8 +18,8 @@ class TCypressProxyServiceContext
 public:
     using NRpc::TTypedServiceContext<TRequestMessage, TResponseMessage>::TTypedServiceContext;
 
-    DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, TargetMasterCellTag);
-    DEFINE_BYVAL_RW_PROPERTY(NApi::EMasterChannelKind, TargetMasterChannelKind);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NObjectClient::TCellTag>, TargetMasterCellTag);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NApi::EMasterChannelKind>, TargetMasterChannelKind);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

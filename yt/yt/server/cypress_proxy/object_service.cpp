@@ -1032,23 +1032,40 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     auto cellTag = context->GetTargetMasterCellTag();
     auto masterChannelKind = context->GetTargetMasterChannelKind();
 
+    // COMPAT(h0pless)
+    if (!cellTag || !masterChannelKind) {
+        if (!request->has_cell_tag()) {
+            THROW_ERROR_EXCEPTION("Cell tag is not provided in request");
+        }
+
+        if (!request->has_master_channel_kind()) {
+            THROW_ERROR_EXCEPTION("Peer kind is not provided in request");
+        }
+
+        cellTag = FromProto<TCellTag>(request->cell_tag());
+        if (cellTag == PrimaryMasterCellTagSentinel) {
+            cellTag = Bootstrap_->GetNativeConnection()->GetPrimaryMasterCellTag();
+        }
+        masterChannelKind = FromProto<EMasterChannelKind>(request->master_channel_kind());
+    }
+
     context->SetRequestInfo("RequestCount: %v",
         request->part_counts_size());
 
-    if (masterChannelKind != EMasterChannelKind::Leader &&
-        masterChannelKind != EMasterChannelKind::Follower)
+    if (*masterChannelKind != EMasterChannelKind::Leader &&
+        *masterChannelKind != EMasterChannelKind::Follower)
     {
         THROW_ERROR_EXCEPTION("Expected %Qlv or %Qlv master channel kind, got %Qlv",
             EMasterChannelKind::Leader,
             EMasterChannelKind::Follower,
-            masterChannelKind);
+            *masterChannelKind);
     }
 
     auto session = New<TObjectService::TExecuteSession>(
         MakeStrong(this),
         context,
-        cellTag,
-        masterChannelKind);
+        *cellTag,
+        *masterChannelKind);
     session->Run();
 }
 

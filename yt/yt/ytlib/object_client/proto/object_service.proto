@@ -30,8 +30,8 @@ message TReqExecute
     optional bool suppress_upstream_sync = 2 [default = false];
     optional bool suppress_transaction_coordinator_sync = 7 [default = false];
 
-    // COMPAT(h0pless): Safe to use in 25.3.
-    reserved 9, 10;
+    optional uint32 cell_tag = 9;
+    optional int32 master_channel_kind = 10; // EMasterChannelKind
 }
 
 message TRspExecute
