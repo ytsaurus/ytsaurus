@@ -257,7 +257,7 @@ struct TTabletSnapshot
     int PreloadCompletedStoreCount = 0;
     int PreloadFailedStoreCount = 0;
 
-    int64_t OrderedDynamicStoreRotateEpoch = 0;
+    i64 OrderedDynamicStoreRotateEpoch = 0;
 
     NTransactionClient::ECommitOrdering CommitOrdering;
 
