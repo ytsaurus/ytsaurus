@@ -442,11 +442,11 @@ public:
             .Run(path);
     }
 
-    void FetchFunctions(TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers) override
+    void FetchFunctions(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers) override
     {
         MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 
-        std::vector<TString> externalNames;
+        std::vector<std::string> externalNames;
         for (const auto& name : names) {
             auto found = typeInferrers->find(name);
             if (found == typeInferrers->end()) {

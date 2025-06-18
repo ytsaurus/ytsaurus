@@ -83,9 +83,9 @@ public:
         TRange<EValueType> keyColumnTypes,
         TComparerBuilderOptions options = {});
 
-    void BuildDDComparer(TString& functionName);
-    void BuildDUComparer(TString& functionName);
-    void BuildUUComparer(TString& functionName);
+    void BuildDDComparer(TStringBuf functionName);
+    void BuildDUComparer(TStringBuf functionName);
+    void BuildUUComparer(TStringBuf functionName);
 
 private:
     class IValueBuilder;
@@ -357,12 +357,12 @@ TComparerBuilder::TComparerBuilder(
     , Context_(Module_->GetContext())
 { }
 
-void TComparerBuilder::BuildDDComparer(TString& functionName)
+void TComparerBuilder::BuildDDComparer(TStringBuf functionName)
 {
     Function_ = Function::Create(
         TTypeBuilder<TDDComparerSignature>::Get(Context_),
         Function::ExternalLinkage,
-        functionName.c_str(),
+        functionName.data(),
         Module_->GetModule());
     SetInsertPoint(CreateBB("entry"));
     auto args = Function_->arg_begin();
@@ -377,12 +377,12 @@ void TComparerBuilder::BuildDDComparer(TString& functionName)
     CreateRet(getInt32(0));
 }
 
-void TComparerBuilder::BuildDUComparer(TString& functionName)
+void TComparerBuilder::BuildDUComparer(TStringBuf functionName)
 {
     Function_ = Function::Create(
         TTypeBuilder<TDUComparerSignature>::Get(Context_),
         Function::ExternalLinkage,
-        functionName.c_str(),
+        functionName.data(),
         Module_->GetModule());
     SetInsertPoint(CreateBB("entry"));
     auto args = Function_->arg_begin();
@@ -398,12 +398,12 @@ void TComparerBuilder::BuildDUComparer(TString& functionName)
     CreateRet(lengthDifference);
 }
 
-void TComparerBuilder::BuildUUComparer(TString& functionName)
+void TComparerBuilder::BuildUUComparer(TStringBuf functionName)
 {
     Function_ = Function::Create(
         TTypeBuilder<TUUComparerSignature>::Get(Context_),
         Function::ExternalLinkage,
-        functionName.c_str(),
+        functionName.data(),
         Module_->GetModule());
     SetInsertPoint(CreateBB("entry"));
     auto args = Function_->arg_begin();

@@ -14,7 +14,7 @@ namespace NYT::NCodegen {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSignature>
-TCallback<TSignature> TCGModule::GetCompiledFunction(const TString& name)
+TCallback<TSignature> TCGModule::GetCompiledFunction(const std::string& name)
 {
     YT_VERIFY(GetBackend() == EExecutionBackend::Native);
 

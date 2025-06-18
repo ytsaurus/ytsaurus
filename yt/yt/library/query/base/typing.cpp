@@ -124,7 +124,7 @@ bool TTypingCtx::HasImplicitCast(TTypeId sourceType, TTypeId targetType)
         sourceType == uint64Type && targetType == doubleType;
 }
 
-void TTypingCtx::RegisterFunction(TString name, TFunctionSignatures signatures)
+void TTypingCtx::RegisterFunction(std::string name, TFunctionSignatures signatures)
 {
     auto [it, emplaced] = Functions_.emplace(name, TFunctionSignatures{});
     it->second.insert(it->second.end(), signatures.begin(), signatures.end());
