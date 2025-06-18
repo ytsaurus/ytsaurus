@@ -4706,7 +4706,11 @@ class TestChaos(ChaosTestBase):
 
         # Prevent trimmig errors due to replication lag
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
+        sync_flush_table("//tmp/q0")
+        sync_flush_table("//tmp/q1")
+        sync_flush_table("//tmp/q2")
 
+        # TODO(osidorkin) Uss safe trim row count
         trim_rows("//tmp/q0", 0, 1)
         trim_rows("//tmp/q1", 0, 1)
         trim_rows("//tmp/q2", 0, 1)
