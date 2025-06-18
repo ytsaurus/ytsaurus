@@ -9,7 +9,7 @@ items:
 - { name: DISTINCT,          href: distinct.md                                             }
 - { name: UNIQUE DISTINCT,   href: unique_distinct_hints.md                                }
 - { name: UNION,             href: union.md                                                }
-- { name: CONCAT,            href: concat.md,                                              }
+- { name: 'CONCAT / EACH / RANGE / LIKE / FILTER',  href: concat.md,                           }
 - { name: VIEW,              href: view.md,                                                }
 - { name: WITH,              href: with.md                                                 }
 - { name: WITHOUT,           href: without.md                                              }
