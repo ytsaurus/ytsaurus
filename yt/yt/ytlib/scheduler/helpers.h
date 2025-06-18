@@ -244,9 +244,7 @@ void FromProto(
 
 void ToProto(
     NControllerAgent::NProto::TSidecarJobSpec* sidecarJobSpecProto,
-    const TSidecarJobSpec& sidecarJobSpec,
-    std::function<std::optional<TString>(const TString&)> normalizeDockerImage =
-        [] (const TString& image) { return image; });
+    const TSidecarJobSpec& sidecarJobSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

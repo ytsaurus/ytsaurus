@@ -1535,8 +1535,7 @@ private:
     void BuildJobsYson(NYTree::TFluentMap fluent) const;
     void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
 
-    std::optional<TString> NormalizeDockerImage(
-        NControllerAgent::NProto::TUserJobSpec* jobSpec,
+    std::pair<std::optional<TString>, bool> NormalizeDockerImage(
         const TString& dockerImage) const;
 
     PHOENIX_DECLARE_FRIEND();

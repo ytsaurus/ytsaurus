@@ -857,8 +857,7 @@ void FromProto(
 
 void ToProto(
     NControllerAgent::NProto::TSidecarJobSpec* sidecarJobSpecProto,
-    const TSidecarJobSpec& sidecarJobSpec,
-    std::function<std::optional<TString>(const TString&)> normalizeDockerImage)
+    const TSidecarJobSpec& sidecarJobSpec)
 {
     sidecarJobSpecProto->set_command(sidecarJobSpec.Command);
 
@@ -871,10 +870,7 @@ void ToProto(
     }
 
     if (sidecarJobSpec.DockerImage) {
-        auto normalizedImage = normalizeDockerImage(*sidecarJobSpec.DockerImage);
-        if (normalizedImage) {
-            sidecarJobSpecProto->set_docker_image(std::move(*normalizedImage));
-        }
+        sidecarJobSpecProto->set_docker_image(*sidecarJobSpec.DockerImage);
     }
 
     sidecarJobSpecProto->set_restart_policy(ToProto(sidecarJobSpec.RestartPolicy));

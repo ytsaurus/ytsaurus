@@ -1043,7 +1043,11 @@ TJobResult TJobProxy::RunJob()
     CpuMonitor_->Start();
 
     environment->StartSidecars(this, GetJobSpecHelper()->GetJobSpecExt(), BIND([this] (TError error) {
-        GetJobOrThrow()->Fail(std::move(error));
+        try {
+            GetJobOrThrow()->Fail(std::move(error));
+        } catch (const std::exception& ex) {
+            YT_LOG_FATAL(ex, "Could not get the job to fail because of the failed sidecar (Error: %v)", error);
+        }
     }));
 
     return job->Run();

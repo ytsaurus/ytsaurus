@@ -1132,6 +1132,20 @@ DEFINE_REFCOUNTED_TYPE(TCriUserJobEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCriJobProxyConfig
+{
+    TCriJobProxyConfig() = default;
+    explicit TCriJobProxyConfig(TJobProxyInternalConfigPtr config)
+        : DockerImage(config->DockerImage)
+        , SlotPath(config->SlotPath)
+        , Binds(config->Binds)
+    { }
+
+    std::optional<TString> DockerImage;
+    TString SlotPath;
+    std::vector<TBindConfigPtr> Binds;
+};
+
 struct TSidecarCriConfig
 {
     TSidecarJobSpecPtr JobSpec;
@@ -1145,16 +1159,14 @@ class TCriJobProxyEnvironment
 {
 public:
     explicit TCriJobProxyEnvironment(
-        TString slotPath,
-        std::vector<TBindConfigPtr> binds,
-        TCriJobEnvironmentConfigPtr config,
+        TCriJobProxyConfig criJobProxyConfig,
+        TCriJobEnvironmentConfigPtr criJobEnvironmentConfig,
         NConcurrency::TActionQueuePtr actionQueue)
-        : SlotPath_(std::move(slotPath))
-        , Binds_(std::move(binds))
-        , Config_(std::move(config))
+        : CriJobProxyConfig_(std::move(criJobProxyConfig))
+        , CriJobEnvironmentConfig_(std::move(criJobEnvironmentConfig))
         , ActionQueue_(std::move(actionQueue))
-        , Executor_(CreateCriExecutor(Config_->CriExecutor))
-        , ImageCache_(NContainers::NCri::CreateCriImageCache(Config_->CriImageCache, Executor_))
+        , Executor_(CreateCriExecutor(CriJobEnvironmentConfig_->CriExecutor))
+        , ImageCache_(NContainers::NCri::CreateCriImageCache(CriJobEnvironmentConfig_->CriImageCache, Executor_))
     { }
 
     void SetCpuGuarantee(double /*value*/) override
@@ -1259,8 +1271,8 @@ public:
         Host_ = std::move(host);
         FailJobCallback_ = std::move(failJobCallback);
 
-        const auto& podDescriptor = Config_->PodDescriptor;
-        const auto& podSpec = Config_->PodSpec;
+        const auto& podDescriptor = CriJobEnvironmentConfig_->PodDescriptor;
+        const auto& podSpec = CriJobEnvironmentConfig_->PodSpec;
         for (const auto& [name, sidecar]: jobSpecExt.user_job_spec().sidecars()) {
             // Prepare the sidecar job spec.
             auto sidecarSpec = New<TSidecarJobSpec>();
@@ -1272,8 +1284,11 @@ public:
 
             containerSpec->Name = Format("sidecar-%v-%v-%v", podDescriptor->Name, podSpec->Name, name);
 
-            // If no Docker image is provided, use the one from the main job.
-            containerSpec->Image.Image = sidecarSpec->DockerImage.value_or(Config_->JobProxyImage);
+            // If no Docker image is provided, use the one from the main job; fallback to the
+            // job proxy image if none is available.
+            containerSpec->Image.Image = sidecarSpec->DockerImage.value_or(
+                CriJobProxyConfig_.DockerImage.value_or(
+                    CriJobEnvironmentConfig_->JobProxyImage));
 
             containerSpec->Resources->CpuLimit = sidecarSpec->CpuLimit;
             containerSpec->Resources->MemoryLimit = sidecarSpec->MemoryLimit;
@@ -1286,18 +1301,18 @@ public:
             containerSpec->CapabilitiesToAdd.push_back("SYS_PTRACE");
 
             containerSpec->BindMounts.push_back(NCri::TCriBindMount{
-                .ContainerPath = SlotPath_,
-                .HostPath = SlotPath_,
+                .ContainerPath = CriJobProxyConfig_.SlotPath,
+                .HostPath = CriJobProxyConfig_.SlotPath,
                 .ReadOnly = false,
             });
 
             containerSpec->BindMounts.push_back(NCri::TCriBindMount{
                 .ContainerPath = "/slot",
-                .HostPath = SlotPath_,
+                .HostPath = CriJobProxyConfig_.SlotPath,
                 .ReadOnly = false,
             });
 
-            for (const auto& bindMount: Config_->JobProxyBindMounts) {
+            for (const auto& bindMount: CriJobEnvironmentConfig_->JobProxyBindMounts) {
                 containerSpec->BindMounts.push_back(NCri::TCriBindMount{
                     .ContainerPath = bindMount->InternalPath,
                     .HostPath = bindMount->ExternalPath,
@@ -1305,7 +1320,7 @@ public:
                 });
             }
 
-            for (const auto& bind : Binds_) {
+            for (const auto& bind : CriJobProxyConfig_.Binds) {
                 containerSpec->BindMounts.push_back(NCri::TCriBindMount{
                     .ContainerPath = bind->InternalPath,
                     .HostPath = bind->ExternalPath,
@@ -1341,8 +1356,8 @@ public:
         auto process = Executor_->CreateProcess(
             sidecarConfig.Command,
             sidecarConfig.ContainerSpec,
-            Config_->PodDescriptor,
-            Config_->PodSpec
+            CriJobEnvironmentConfig_->PodDescriptor,
+            CriJobEnvironmentConfig_->PodSpec
         );
         process->AddArguments(sidecarConfig.Arguments);
         process->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
@@ -1411,9 +1426,8 @@ public:
     }
 
 private:
-    const TString SlotPath_;
-    const std::vector<TBindConfigPtr> Binds_;
-    const TCriJobEnvironmentConfigPtr Config_;
+    const TCriJobProxyConfig CriJobProxyConfig_;
+    const TCriJobEnvironmentConfigPtr CriJobEnvironmentConfig_;
     const TActionQueuePtr ActionQueue_;
     const NContainers::NCri::ICriExecutorPtr Executor_;
     const NContainers::NCri::ICriImageCachePtr ImageCache_;
@@ -1449,8 +1463,7 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
 
         case EJobEnvironmentType::Cri:
             return New<TCriJobProxyEnvironment>(
-                config->SlotPath,
-                config->Binds,
+                TCriJobProxyConfig(config),
                 config->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>(),
                 std::move(actionQueue));
 
