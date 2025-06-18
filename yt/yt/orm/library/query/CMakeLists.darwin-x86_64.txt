@@ -39,6 +39,7 @@ target_sources(orm-library-query PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/computed_fields_filter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/continuation.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/expression_evaluator.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/enforce_aggregate.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/filter_introspection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/filter_matcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/helpers.cpp
@@ -48,6 +49,5 @@ target_sources(orm-library-query PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/query_rewriter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/split_filter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/type_inference.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/library/query/unaggregated_column_detector.cpp
 )
 

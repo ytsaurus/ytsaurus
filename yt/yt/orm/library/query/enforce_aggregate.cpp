@@ -1,4 +1,4 @@
-#include "unaggregated_column_detector.h"
+#include "enforce_aggregate.h"
 
 #include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/ast.h>
@@ -12,45 +12,46 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnaggregatedColumnDetector
-    : public TAstVisitor<TUnaggregatedColumnDetector>
+class TUnaggregatedRewriter
+    : public TRewriter<TUnaggregatedRewriter>
 {
 public:
-    using TBase = TAstVisitor<TUnaggregatedColumnDetector>;
+    using TBase = TRewriter<TUnaggregatedRewriter>;
 
-    TUnaggregatedColumnDetector(const NQueryClient::TConstTypeInferrerMapPtr functions)
-        : Functions_(std::move(functions))
+    TUnaggregatedRewriter(
+        TObjectsHolder* objectsHolder,
+        const NQueryClient::TConstTypeInferrerMapPtr functions)
+        : TBase(objectsHolder)
+        , Functions_(std::move(functions))
     { }
 
-    void OnReference(TReferenceExpressionPtr /*referenceExpr*/)
+    TExpressionPtr OnReference(TReferenceExpressionPtr referenceExpr)
     {
         if (AggregationFunctionsDepth_ == 0) {
-            HasUnaggregatedColumn_ = true;
+            return Head->New<TFunctionExpression>(
+                NQueryClient::NullSourceLocation,
+                "first",
+                TExpressionList{referenceExpr});
         }
+        return referenceExpr;
     }
 
-    void OnFunction(TFunctionExpressionPtr functionExpr)
+    TExpressionPtr OnFunction(TFunctionExpressionPtr functionExpr)
     {
         bool isAggregated = Functions_->GetFunction(functionExpr->FunctionName)->IsAggregate();
         if (isAggregated) {
             AggregationFunctionsDepth_++;
         }
-        TBase::OnFunction(functionExpr);
+        auto result = TBase::OnFunction(functionExpr);
         if (isAggregated) {
             AggregationFunctionsDepth_--;
         }
-    }
-
-    bool HasUnaggregatedColumn(NQueryClient::NAst::TExpressionPtr expression)
-    {
-        Visit(expression);
-        return HasUnaggregatedColumn_;
+        return result;
     }
 
 private:
     const NQueryClient::TConstTypeInferrerMapPtr Functions_;
     int AggregationFunctionsDepth_ = 0;
-    bool HasUnaggregatedColumn_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,10 +60,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool HasUnaggregatedColumn(NQueryClient::NAst::TExpressionPtr expression)
+NQueryClient::NAst::TExpressionPtr EnforceAggregate(
+    TObjectsHolder* objectsHolder,
+    NQueryClient::NAst::TExpressionPtr expr)
 {
-    TUnaggregatedColumnDetector detector(NQueryClient::GetBuiltinTypeInferrers());
-    return detector.HasUnaggregatedColumn(expression);
+    return TUnaggregatedRewriter(objectsHolder, NQueryClient::GetBuiltinTypeInferrers()).Visit(expr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
