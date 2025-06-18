@@ -551,6 +551,9 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
 
         for _ in range(30):
+            # For debug purposes - the result is logged.
+            lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id} for tablet_id in tablet_ids])
+
             select_rows("* from [//tmp/t] where value = \"bbb\"")
 
         cpu_time_by_tablet_id = {tablet_id : 0.0 for tablet_id in tablet_ids}
