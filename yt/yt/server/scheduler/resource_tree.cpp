@@ -338,7 +338,7 @@ void TResourceTree::PerformPostponedActions()
     auto elementsToDetach = ElementsToDetachQueue_.DequeueAll();
     for (const auto& element : elementsToDetach) {
         YT_VERIFY(element->Parent_);
-        YT_LOG_DEBUG_UNLESS(
+        YT_LOG_FATAL_UNLESS(
             element->GetResourceUsageWithPrecommit() == TJobResources(),
             "Resource tree element has non-zero resources (Id: %v, ResourceUsage: %v, ResourceUsageWithPrecommit: %v, ResourceLimitsSpecified: %v)",
             element->GetId(),
@@ -346,7 +346,6 @@ void TResourceTree::PerformPostponedActions()
             FormatResources(element->GetResourceUsageWithPrecommit()),
             element->AreResourceLimitsSpecified());
 
-        YT_VERIFY(element->GetResourceUsageWithPrecommit() == TJobResources());
         element->Parent_ = nullptr;
         EraseOrCrash(AliveElements_, element);
     }
