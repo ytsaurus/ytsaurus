@@ -22,6 +22,9 @@ RECIPE_PIPE = Pipe(PIPE_FROM_RECIPE_TO_RUNNER, PIPE_FROM_RUNNER_TO_RECIPE)
 class YTEnvRunner(YTEnvSetup):
     # To avoid "Request is missing credentials" error.
     USE_NATIVE_AUTH = False
+    # There is no partitions in C++ integration tests so the only thing can be
+    # done is to increase time limit for class.
+    CLASS_TEST_LIMIT = 800
 
     @classmethod
     def modify_driver_logging_config(cls, config) -> None:
