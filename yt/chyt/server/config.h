@@ -604,6 +604,10 @@ struct TSystemLogTableExporterConfig
     //! Table attributes specified during creation of a new table.
     NYTree::IMapNodePtr CreateTableAttributes;
 
+    //! The exporter startup may fail due to concurrent dyntable mount operations
+    //! in clique instances and we need to retry such errors with backoff.
+    TDuration StartupRetryBackoff;
+
     REGISTER_YSON_STRUCT(TSystemLogTableExporterConfig);
 
     static void Register(TRegistrar registrar);
