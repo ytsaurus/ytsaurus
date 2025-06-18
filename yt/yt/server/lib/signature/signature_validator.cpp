@@ -69,6 +69,8 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature) cons
         [] (auto&& header_) { return std::pair{TOwnerId(header_.Issuer), TKeyId(header_.KeypairId)}; },
         header);
 
+    YT_LOG_DEBUG("Validating signature (SignatureId: %v)", signatureId);
+
     return KeyReader_->FindKey(keyIssuer, keyId).Apply(
         BIND([
                 keyIssuer = std::move(keyIssuer),

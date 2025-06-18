@@ -8,6 +8,7 @@
 #include "partition_sort_job.h"
 #include "remote_copy_job.h"
 #include "shallow_merge_job.h"
+#include "signature_proxy.h"
 #include "simple_sort_job.h"
 #include "sorted_merge_job.h"
 #include "user_job.h"
@@ -760,6 +761,11 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
 
     ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
 
+    auto signatureGenerator = Config_->EnableSignatureGeneration
+        ? New<TProxySignatureGenerator>(*SupervisorProxy_, JobId_)
+        : NSignature::CreateAlwaysThrowingSignatureGenerator();
+    connection->SetSignatureGenerator(std::move(signatureGenerator));
+
     auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     if (enableShuffleService) {
@@ -790,6 +796,10 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
         rootClient);
 
+    auto signatureValidator = Config_->EnableSignatureValidation
+        ? New<TProxySignatureValidator>(*SupervisorProxy_, JobId_)
+        : NSignature::CreateAlwaysThrowingSignatureValidator();
+
     auto apiService = CreateApiService(
         Config_->JobProxyApiServiceStatic,
         GetControlInvoker(),
@@ -801,8 +811,7 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool 
         New<TSampler>(),
         RpcProxyLogger(),
         TProfiler(),
-        CreateDummySignatureValidator());
-    // TODO(pavook) do signature generation and validation in job proxies.
+        std::move(signatureValidator));
     apiService->OnDynamicConfigChanged(Config_->JobProxyApiService);
 
     GetRpcServer()->RegisterService(std::move(apiService));

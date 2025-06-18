@@ -71,6 +71,7 @@ target_sources(yt-server-job_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/remote_copy_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/shallow_merge_job.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/signature_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/simple_sort_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/sorted_merge_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/stderr_writer.cpp

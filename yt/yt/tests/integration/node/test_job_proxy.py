@@ -520,3 +520,36 @@ class TestJobProxyProfiling(YTEnvSetup):
         op.abort()
 
         wait(lambda: profiler.get_all("resource_tracker/thread_count") == [])
+
+
+@pytest.mark.enabled_multidaemon
+class TestJobProxySignatures(YTEnvSetup):
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "signature_validation": {
+                "cypress_key_reader": dict(),
+                "validator": dict(),
+            },
+            "signature_generation": {
+                "cypress_key_writer": {
+                    "owner_id": "test-job-proxy",
+                },
+                "generator": dict(),
+                "key_rotator": {
+                    "key_rotation_interval": "1s",
+                }
+            },
+            "job_proxy": {
+                "job_proxy_authentication_manager": {
+                    "enable_authentication": True,
+                    "cypress_token_authenticator": {
+                        "secure": True,
+                    },
+                },
+            },
+        }
+    }
+
+    @authors("pavook")
+    def test_key_rotates(self):
+        wait(lambda: len(ls("//sys/public_keys/by_owner/test-job-proxy")) > 1)

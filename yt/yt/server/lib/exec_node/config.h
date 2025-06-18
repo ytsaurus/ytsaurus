@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/nbd/config.h>
 
+#include <yt/yt/server/lib/signature/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/library/dns_over_rpc/client/config.h>
@@ -795,6 +797,10 @@ struct TExecNodeConfig
     TJobProxyConfigPtr JobProxy;
 
     TJobProxyLogManagerConfigPtr JobProxyLogManager;
+
+    NSignature::TSignatureGenerationConfigPtr SignatureGeneration;
+
+    NSignature::TSignatureValidationConfigPtr SignatureValidation;
 
     REGISTER_YSON_STRUCT(TExecNodeConfig);
 

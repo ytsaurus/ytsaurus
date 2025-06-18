@@ -29,6 +29,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, ThrottleJob);
     DEFINE_RPC_PROXY_METHOD(NProto, PollThrottlingRequest);
     DEFINE_RPC_PROXY_METHOD(NProto, OnJobMemoryThrashing);
+    DEFINE_RPC_PROXY_METHOD(NProto, GenerateSignature);
+    DEFINE_RPC_PROXY_METHOD(NProto, ValidateSignature);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
