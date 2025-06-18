@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/profiling/solomon/config.h>
 
+#include <yt/yt/server/lib/signature/instance_config.h>
+
 #include <yt/yt/core/misc/config.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -852,6 +854,12 @@ void TExecNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager);
+
+    registrar.Parameter("signature_generation", &TThis::SignatureGeneration)
+        .Optional();
+
+    registrar.Parameter("signature_validation", &TThis::SignatureValidation)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

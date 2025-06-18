@@ -62,6 +62,7 @@ val prepareProto = tasks.register<Copy>("prepareProto") {
         include("yt/yt_proto/yt/client/query_client/proto/query_statistics.proto")
         include("yt/yt_proto/yt/client/scheduler/proto/spec_patch.proto")
         include("yt/yt_proto/yt/client/misc/proto/workload.proto")
+        include("yt/yt_proto/yt/client/misc/proto/signature.proto")
     }
     into(buildProtoDir)
 }
