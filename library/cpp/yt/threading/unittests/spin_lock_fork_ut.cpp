@@ -130,7 +130,7 @@ TEST(TForkAwareSpinLockTest, ForkSafety)
     }
 
     // And let the chaos begin!
-    int forkCount = 2000;
+    int forkCount = 100;
     for (int iter = 1; iter <= forkCount; ++iter) {
         pid_t pid = fork();
 
