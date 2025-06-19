@@ -4,6 +4,7 @@
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/skynet.h>
+#include <yt/yt/client/api/table_importer.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
@@ -314,6 +315,55 @@ void TWriteTableCommand::DoExecuteImpl(const ICommandContextPtr& context)
 }
 
 void TWriteTableCommand::DoExecute(ICommandContextPtr context)
+{
+    DoExecuteImpl(context);
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TImportTableCommand::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path);
+    registrar.Parameter("table_writer", &TThis::TableWriter)
+        .Default();
+    registrar.Parameter("max_row_buffer_size", &TThis::MaxRowBufferSize)
+        .Default(1_MB);
+    registrar.Parameter("s3_keys", &TThis::S3Keys)
+        .Default();
+}
+
+NApi::ITableImporterPtr TImportTableCommand::CreateTableImporter(
+    const ICommandContextPtr& context)
+{
+    PutMethodInfoInTraceContext("import_table");
+
+    return WaitFor(context->GetClient()->CreateTableImporter(
+        Path,
+        S3Keys,
+        Options))
+            .ValueOrThrow();
+}
+
+void TImportTableCommand::DoExecuteImpl(const ICommandContextPtr& context)
+{
+    auto transaction = AttachTransaction(context, false);
+
+    auto config = UpdateYsonStruct(
+        context->GetConfig()->TableWriter,
+        TableWriter);
+
+    // XXX(babenko): temporary workaround; this is how it actually works but not how it is intended to be.
+    Options.PingAncestors = true;
+    Options.Config = config;
+
+    auto apiImporter = CreateTableImporter(context);
+
+    WaitFor(apiImporter->Close())
+        .ThrowOnError();
+}
+
+void TImportTableCommand::DoExecute(ICommandContextPtr context)
 {
     DoExecuteImpl(context);
     ProduceEmptyOutput(context);

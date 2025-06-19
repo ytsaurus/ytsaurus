@@ -98,6 +98,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TImportTableCommand
+    : public TTypedCommand<NApi::TTableWriterOptions>
+{
+public:
+    REGISTER_YSON_STRUCT_LITE(TImportTableCommand);
+
+    static void Register(TRegistrar registrar);
+
+protected:
+    virtual NApi::ITableImporterPtr CreateTableImporter(
+        const ICommandContextPtr& context);
+
+    void DoExecuteImpl(const ICommandContextPtr& context);
+
+private:
+    NYPath::TRichYPath Path;
+    NYTree::INodePtr TableWriter;
+    i64 MaxRowBufferSize;
+    std::vector<std::string> S3Keys;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGetTableColumnarStatisticsCommand
     : public TTypedCommand<NApi::TGetColumnarStatisticsOptions>
 {
