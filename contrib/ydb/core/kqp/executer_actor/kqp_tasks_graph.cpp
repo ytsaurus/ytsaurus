@@ -499,11 +499,11 @@ void BuildKqpStageChannels(TKqpTasksGraph& tasksGraph, TStageInfo& stageInfo,
                 BuildUnionAllChannels(tasksGraph, stageInfo, inputIdx, inputStageInfo, outputIdx, enableSpilling, log);
                 break;
             case NKqpProto::TKqpPhyConnection::kHashShuffle: {
-                std::optional<EHashShuffleFuncType> hashKind;
+                ui32 hashKind = NHashKind::EUndefined;
                 auto forceSpilling = input.GetHashShuffle().GetUseSpilling();
                 switch (input.GetHashShuffle().GetHashKindCase()) {
                     case NKqpProto::TKqpPhyCnHashShuffle::kHashV1: {
-                        hashKind = EHashShuffleFuncType::HashV1;
+                        hashKind = NHashKind::EHashV1;
                         break;
                     }
                     case NKqpProto::TKqpPhyCnHashShuffle::kColumnShardHashV1: {
@@ -528,15 +528,13 @@ void BuildKqpStageChannels(TKqpTasksGraph& tasksGraph, TStageInfo& stageInfo,
                         );
 
                         inputStageInfo.Meta.HashParamsByOutput[outputIdx] = columnShardHashV1Params;
-                        hashKind = EHashShuffleFuncType::ColumnShardHashV1;
+                        hashKind = NHashKind::EColumnShardHashV1;
                         break;
                     }
                     default: {
                         Y_ENSURE(false, "undefined type of hash for shuffle");
                     }
                 }
-
-                Y_ENSURE(hashKind.has_value(), "HashKind wasn't set!");
                 BuildHashShuffleChannels(
                     tasksGraph,
                     stageInfo,
@@ -546,7 +544,7 @@ void BuildKqpStageChannels(TKqpTasksGraph& tasksGraph, TStageInfo& stageInfo,
                     input.GetHashShuffle().GetKeyColumns(),
                     enableSpilling,
                     log,
-                    hashKind.value(),
+                    hashKind,
                     forceSpilling
                 );
                 break;
@@ -1075,15 +1073,12 @@ void FillOutputDesc(
             }
             hashPartitionDesc.SetPartitionsCount(output.PartitionsCount);
 
-            Y_ENSURE(output.HashKind.has_value(), "HashKind wasn't set before the FillOutputDesc!");
-
-            switch (output.HashKind.value()) {
-                using enum EHashShuffleFuncType;
-                case HashV1: {
+            switch (output.HashKind) {
+                case NHashKind::EHashV1: {
                     hashPartitionDesc.MutableHashV1();
                     break;
                 }
-                case ColumnShardHashV1: {
+                case NHashKind::EColumnShardHashV1: {
                     auto& columnShardHashV1Params = stageInfo.Meta.GetColumnShardHashV1Params(outputIdx);
                     LOG_DEBUG_S(
                         *TlsActivationContext,

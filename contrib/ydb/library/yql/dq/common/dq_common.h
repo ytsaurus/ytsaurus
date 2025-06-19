@@ -99,11 +99,6 @@ enum class EEnabledSpillingNodes : ui64 {
     All         = ~0ULL     /* "All" */,
 };
 
-enum class EHashShuffleFuncType {
-    HashV1            = 0     /* "HashV1" */,
-    ColumnShardHashV1 = 1     /* "ColumnShardHashV1" */,
-};
-
 class TSpillingSettings {
 public:
     TSpillingSettings() = default;

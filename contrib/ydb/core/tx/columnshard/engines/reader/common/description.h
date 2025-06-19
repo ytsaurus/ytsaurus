@@ -32,7 +32,7 @@ public:
     // Table
     ui64 TxId = 0;
     std::optional<ui64> LockId;
-    NColumnShard::TUnifiedPathId PathId;
+    TInternalPathId PathId;
     TString TableName;
     bool ReadNothing = false;
     // Less[OrEqual], Greater[OrEqual] or both

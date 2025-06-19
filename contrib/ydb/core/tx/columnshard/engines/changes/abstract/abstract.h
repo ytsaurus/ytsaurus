@@ -10,7 +10,6 @@
 #include <contrib/ydb/core/tx/columnshard/data_locks/locks/composite.h>
 #include <contrib/ydb/core/tx/columnshard/data_locks/locks/list.h>
 #include <contrib/ydb/core/tx/columnshard/data_locks/manager/manager.h>
-#include <contrib/ydb/core/tx/columnshard/data_reader/contexts.h>
 #include <contrib/ydb/core/tx/columnshard/engines/changes/counters/changes.h>
 #include <contrib/ydb/core/tx/columnshard/engines/portions/portion_info.h>
 #include <contrib/ydb/core/tx/columnshard/engines/portions/write_with_blobs.h>
@@ -18,7 +17,6 @@
 #include <contrib/ydb/core/tx/columnshard/engines/storage/actualizer/common/address.h>
 #include <contrib/ydb/core/tx/columnshard/resource_subscriber/task.h>
 #include <contrib/ydb/core/tx/columnshard/splitter/settings.h>
-#include <contrib/ydb/core/tx/limiter/grouped_memory/usage/abstract.h>
 
 #include <contrib/libs/apache/arrow/cpp/src/arrow/scalar.h>
 #include <util/datetime/base.h>
@@ -255,7 +253,7 @@ private:
     TString AbortedReason;
     const TString TaskIdentifier = TGUID::CreateTimebased().AsGuidString();
     std::shared_ptr<const TAtomicCounter> ActivityFlag;
-    NCounters::TStateSignalsOperator<NChanges::EStage>::TGuard StateGuard;
+    std::shared_ptr<NChanges::TChangesCounters::TStageCountersGuard> Counters;
 
 protected:
     std::optional<TDataAccessorsResult> FetchedDataAccessors;
@@ -354,7 +352,7 @@ public:
     }
 
     TColumnEngineChanges(const std::shared_ptr<IStoragesManager>& storagesManager, const NBlobOperations::EConsumer consumerId)
-        : StateGuard(NChanges::TChangesCounters::GetStageCounters(consumerId))
+        : Counters(NChanges::TChangesCounters::GetStageCounters(consumerId))
         , BlobsAction(storagesManager, consumerId) {
     }
 
@@ -362,7 +360,7 @@ public:
     virtual ~TColumnEngineChanges();
 
     bool IsAborted() const {
-        return StateGuard.GetStage() == NChanges::EStage::Aborted;
+        return Counters->GetCurrentStage() == NChanges::EStage::Aborted;
     }
 
     void StartEmergency();
@@ -381,7 +379,7 @@ public:
     void Compile(TFinalizationContext& context) noexcept;
 
     NBlobOperations::NRead::TCompositeReadBlobs Blobs;
-    std::optional<NOlap::NDataFetcher::TCurrentContext> FetchingContext;
+    std::shared_ptr<NResourceBroker::NSubscribe::TResourcesGuard> ResourcesGuard;
 
     std::vector<std::shared_ptr<IBlobsReadingAction>> GetReadingActions() const {
         auto result = BlobsAction.GetReadingActions();

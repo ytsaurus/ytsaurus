@@ -96,12 +96,8 @@ public:
         return Record.GetRequest().GetTopicOperations();
     }
 
-    const ::NKikimrKqp::TKafkaApiOperationsRequest& GetKafkaApiOperations() const {
-        return Record.GetRequest().GetKafkaApiOperations();
-    }
-
     bool HasTopicOperations() const {
-        return Record.GetRequest().HasTopicOperations() || Record.GetRequest().HasKafkaApiOperations();
+        return Record.GetRequest().HasTopicOperations();
     }
 
     bool GetKeepSession() const {

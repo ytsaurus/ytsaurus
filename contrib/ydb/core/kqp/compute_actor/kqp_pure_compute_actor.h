@@ -8,12 +8,13 @@
 #include <contrib/ydb/core/kqp/rm_service/kqp_rm_service.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_compute.h>
 #include <contrib/ydb/core/kqp/runtime/kqp_scan_data.h>
-#include <contrib/ydb/core/kqp/runtime/scheduler/new/kqp_compute_actor.h>
+#include <contrib/ydb/core/kqp/runtime/kqp_compute_scheduler.h>
 #include <contrib/ydb/core/sys_view/scan.h>
 #include <contrib/ydb/library/yverify_stream/yverify_stream.h>
 
 
-namespace NKikimr::NKqp {
+namespace NKikimr {
+namespace NKqp {
 
 class TKqpComputeActor : public TSchedulableComputeActorBase<TKqpComputeActor> {
     using TBase = TSchedulableComputeActorBase<TKqpComputeActor>;
@@ -28,8 +29,7 @@ public:
         const TComputeRuntimeSettings& settings, const TComputeMemoryLimits& memoryLimits,
         NWilson::TTraceId traceId, TIntrusivePtr<NActors::TProtoArenaHolder> arena,
         const std::optional<TKqpFederatedQuerySetup>& federatedQuerySetup, const TGUCSettings::TPtr& GUCSettings,
-        TSchedulableOptions schedulableOptions,
-        NKikimrConfig::TTableServiceConfig::EBlockTrackingMode mode,
+        TComputeActorSchedulingOptions, NKikimrConfig::TTableServiceConfig::EBlockTrackingMode mode,
         TIntrusiveConstPtr<NACLib::TUserToken> userToken,
         const TString& database);
 
@@ -70,4 +70,5 @@ private:
     const TString Database;
 };
 
-} // namespace NKikimr::NKqp
+} // namespace NKqp
+} // namespace NKikimr

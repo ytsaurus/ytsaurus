@@ -244,9 +244,6 @@ public:
 
     bool IsEqualTo(const std::shared_ptr<IOptimizerPlannerConstructor>& item) const {
         AFL_VERIFY(!!item);
-        if (GetClassName() != item->GetClassName()) {
-            return false;
-        }
         TProto selfProto;
         TProto itemProto;
         SerializeToProto(selfProto);

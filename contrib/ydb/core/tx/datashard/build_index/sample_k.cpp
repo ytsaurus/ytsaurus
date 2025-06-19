@@ -114,7 +114,7 @@ public:
     }
 
     EScan Seek(TLead& lead, ui64 seq) final {
-        LOG_T("Seek " << seq << " " << Debug());
+        LOG_D("Seek " << seq << " " << Debug());
 
         lead = Lead;
 
@@ -122,7 +122,7 @@ public:
     }
 
     EScan Feed(TArrayRef<const TCell> key, const TRow& row) final {
-        // LOG_T("Feed " << Debug());
+        LOG_T("Feed " << Debug());
 
         ++ReadRows;
         ReadBytes += CountBytes(key, row);
@@ -140,7 +140,7 @@ public:
 
     EScan Exhausted() final
     {
-        LOG_T("Exhausted " << Debug());
+        LOG_D("Exhausted " << Debug());
 
         return EScan::Final;
     }

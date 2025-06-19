@@ -72,7 +72,8 @@ NKikimr::NEvWrite::IShardsSplitter::TYdbConclusionStatus TColumnShardShardsSplit
     const TString schemaString = NArrow::SerializeSchema(*batch->schema());
     for (auto&& [shardId, chunks] : split.GetResult()) {
         for (auto&& c : chunks) {
-            result.AddShardInfo(shardId, std::make_shared<TShardInfo>(schemaString, c.GetData(), c.GetRowsCount()));
+            result.AddShardInfo(shardId, std::make_shared<TShardInfo>(schemaString, c.GetData(), c.GetRowsCount(),
+                                             sharding->GetShardInfoVerified(shardId).GetShardingVersion()));
         }
     }
 

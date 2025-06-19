@@ -297,9 +297,6 @@ public:
             }
             alterData->SetDatabaseQuotas(settings.GetDatabaseQuotas());
         }
-        if (settings.HasSchemeLimits()) {
-            alterData->MergeSchemeLimits(settings.GetSchemeLimits());
-        }
 
         if (const auto& auditSettings = subDomainInfo->GetAuditSettings()) {
             alterData->SetAuditSettings(*auditSettings);

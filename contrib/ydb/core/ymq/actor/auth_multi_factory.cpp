@@ -263,7 +263,6 @@ void TBaseCloudAuthRequestProxy::ProcessAuthorizationResult(const TEvTicketParse
     }
 
     UserSID_ = result.Token->GetUserSID();
-    AuthType_ = result.Token->GetAuthType();
     UserSidCallback_(UserSID_);
     OnFinishedRequest();
 }
@@ -437,7 +436,6 @@ void TBaseCloudAuthRequestProxy::ProposeStaticCreds(TProto& req) {
     req.MutableAuth()->SetUserName(CloudId_);
     req.MutableAuth()->SetFolderId(FolderId_);
     req.MutableAuth()->SetUserSID(UserSID_);
-    req.MutableAuth()->SetAuthType(AuthType_);
 }
 
 void TBaseCloudAuthRequestProxy::Bootstrap() {
@@ -500,7 +498,7 @@ void TCloudAuthRequestProxy::ChangeCounters(std::function<void()> func) {
 
 void THttpProxyAuthRequestProxy::DoReply() {
     auto response = Error_.Empty()
-        ? MakeHolder<NHttpProxy::TEvYmqCloudAuthResponse>(CloudId_, FolderId_, UserSID_, AuthType_)
+        ? MakeHolder<NHttpProxy::TEvYmqCloudAuthResponse>(CloudId_, FolderId_, UserSID_)
         : MakeHolder<NHttpProxy::TEvYmqCloudAuthResponse>(Error_.GetRef());
 
     Send(Requester_, response.Release());

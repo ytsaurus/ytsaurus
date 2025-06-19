@@ -18,11 +18,10 @@ public:
     };
 
     enum class EKind: ui8 {
-        AsyncIndex = 0,
-        CdcDataChange = 1,
-        CdcHeartbeat = 2 ,
-        IncrementalRestore = 3,
-        CdcSchemaChange = 4,
+        AsyncIndex,
+        CdcDataChange,
+        CdcHeartbeat,
+        IncrementalRestore,
     };
 
 public:

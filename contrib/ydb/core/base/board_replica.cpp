@@ -2,7 +2,6 @@
 #include <contrib/ydb/core/node_whiteboard/node_whiteboard.h>
 #include <contrib/ydb/library/services/services.pb.h>
 #include <contrib/ydb/library/actors/core/interconnect.h>
-#include <contrib/ydb/core/blobstorage/nodewarden/node_warden_events.h>
 
 #include <util/generic/set.h>
 
@@ -40,8 +39,6 @@ class TBoardReplicaActor : public TActorBootstrapped<TBoardReplicaActor> {
         TString Path;
         TActorId Session = TActorId();
     };
-
-    TIntrusivePtr<TStateStorageInfo> Info;
 
     TVector<TEntry> Entries;
     TVector<ui32> AvailableEntries;
@@ -81,8 +78,6 @@ class TBoardReplicaActor : public TActorBootstrapped<TBoardReplicaActor> {
         auto &record = ev->Get()->Record;
         const TString &path = record.GetPath();
         const TActorId &owner = ev->Sender;
-
-        CheckConfigVersion(owner, ev->Get());
 
         if (!record.GetRegister()) {
             BLOG_ERROR("free floating entries not implemented yet");
@@ -240,17 +235,6 @@ class TBoardReplicaActor : public TActorBootstrapped<TBoardReplicaActor> {
         TActor::PassAway();
     }
 
-    void CheckConfigVersion(const TActorId &sender, const auto *msg) {
-        ui64 msgGeneration = msg->Record.GetClusterStateGeneration();
-        ui64 msgGuid = msg->Record.GetClusterStateGuid();
-        Y_ABORT_UNLESS(Info);
-        if (Info->ClusterStateGeneration < msgGeneration || (Info->ClusterStateGeneration == msgGeneration && Info->ClusterStateGuid != msgGuid)) {
-            BLOG_D("BoardReplica TEvNodeWardenNotifyConfigMismatch: Info->ClusterStateGeneration=" << Info->ClusterStateGeneration << " msgGeneration=" << msgGeneration <<" Info->ClusterStateGuid=" << Info->ClusterStateGuid << " msgGuid=" << msgGuid);
-            Send(MakeBlobStorageNodeWardenID(SelfId().NodeId()), 
-                new NStorage::TEvNodeWardenNotifyConfigMismatch(sender.NodeId(), msgGeneration, msgGuid));
-        }
-    }
-
     void Handle(TEvStateStorage::TEvReplicaBoardCleanup::TPtr &ev) {
         auto ownerIt = IndexOwner.find(ev->Sender);
         if (ownerIt == IndexOwner.end()) // do nothing, already removed?
@@ -269,9 +253,7 @@ class TBoardReplicaActor : public TActorBootstrapped<TBoardReplicaActor> {
     void Handle(TEvStateStorage::TEvReplicaBoardLookup::TPtr &ev) {
         auto &record = ev->Get()->Record;
         const auto &path = record.GetPath();
-        
-        CheckConfigVersion(ev->Sender, ev->Get());
-        
+
         ui32 flags = 0;
         if (record.GetSubscribe()) {
             auto& pathSubscribeData  = PathToSubscribers[path];
@@ -291,11 +273,13 @@ class TBoardReplicaActor : public TActorBootstrapped<TBoardReplicaActor> {
             flags = IEventHandle::FlagTrackDelivery;
         }
 
-        Y_ABORT_UNLESS(Info);
-        auto pathIt = IndexPath.find(path);
-        std::unique_ptr<TEvStateStorage::TEvReplicaBoardInfo> reply = std::make_unique<TEvStateStorage::TEvReplicaBoardInfo>(path, pathIt == IndexPath.end(), Info->ClusterStateGeneration, Info->ClusterStateGuid);
+        std::unique_ptr<TEvStateStorage::TEvReplicaBoardInfo> reply;
 
-        if (pathIt != IndexPath.end()) {
+        auto pathIt = IndexPath.find(path);
+        if (pathIt == IndexPath.end()) {
+            reply = std::make_unique<TEvStateStorage::TEvReplicaBoardInfo>(path, true);
+        } else {
+            reply = std::make_unique<TEvStateStorage::TEvReplicaBoardInfo>(path, false);
             auto *info = reply->Record.MutableInfo();
             info->Reserve(pathIt->second.size());
             for (ui32 entryIndex : pathIt->second) {
@@ -355,7 +339,7 @@ class TBoardReplicaActor : public TActorBootstrapped<TBoardReplicaActor> {
         }
     }
 
-    void SendUpdateToSubscribers(const TEntry& entry, bool dropped) {
+    void SendUpdateToSubscribers(const TEntry& entry, bool dropped ) {
         const auto& path = entry.PathIt->first;
 
         auto pathSubscribeDataIt = PathToSubscribers.find(path);
@@ -364,17 +348,19 @@ class TBoardReplicaActor : public TActorBootstrapped<TBoardReplicaActor> {
         }
 
         auto& pathSubscribeData = pathSubscribeDataIt->second;
-        Y_ABORT_UNLESS(Info);
+
+        NKikimrStateStorage::TEvReplicaBoardInfoUpdate record;
+        auto *info = record.MutableInfo();
+        ActorIdToProto(entry.Owner, info->MutableOwner());
+        if (dropped) {
+            info->SetDropped(true);
+        } else {
+            info->SetPayload(entry.Payload);
+        }
 
         for (const auto& subscriber : pathSubscribeData.Subscribers) {
-            auto reply = MakeHolder<TEvStateStorage::TEvReplicaBoardInfoUpdate>(path, Info->ClusterStateGeneration, Info->ClusterStateGuid);
-            auto *info = reply->Record.MutableInfo();
-            ActorIdToProto(entry.Owner, info->MutableOwner());
-            if (dropped) {
-                info->SetDropped(true);
-            } else {
-                info->SetPayload(entry.Payload);
-            }
+            auto reply = MakeHolder<TEvStateStorage::TEvReplicaBoardInfoUpdate>(path);
+            reply->Record = record;
             Send(subscriber.first, std::move(reply), 0, subscriber.second);
         }
     }
@@ -428,19 +414,12 @@ class TBoardReplicaActor : public TActorBootstrapped<TBoardReplicaActor> {
         Sessions.erase(sessionsIt);
     }
 
-    void Handle(TEvStateStorage::TEvUpdateGroupConfig::TPtr ev) {
-        Info = ev->Get()->BoardConfig;
-        Y_ABORT_UNLESS(!ev->Get()->GroupConfig);
-        Y_ABORT_UNLESS(!ev->Get()->SchemeBoardConfig);
-    }
-
 public:
     static constexpr NKikimrServices::TActivity::EType ActorActivityType() {
         return NKikimrServices::TActivity::BOARD_REPLICA_ACTOR;
     }
 
-    TBoardReplicaActor(const TIntrusivePtr<TStateStorageInfo> &info)
-        : Info(info)
+    TBoardReplicaActor()
     {}
 
     void Bootstrap() {
@@ -459,7 +438,6 @@ public:
             cFunc(TEvents::TEvPoison::EventType, PassAway);
             hFunc(TEvInterconnect::TEvNodeDisconnected, Handle);
             hFunc(TEvStateStorage::TEvReplicaBoardUnsubscribe, Handle);
-            hFunc(TEvStateStorage::TEvUpdateGroupConfig, Handle);
 
             IgnoreFunc(TEvInterconnect::TEvNodeConnected);
         default:
@@ -469,8 +447,8 @@ public:
     }
 };
 
-IActor* CreateStateStorageBoardReplica(const TIntrusivePtr<TStateStorageInfo> &info, ui32) {
-    return new TBoardReplicaActor(info);
+IActor* CreateStateStorageBoardReplica(const TIntrusivePtr<TStateStorageInfo> &, ui32) {
+    return new TBoardReplicaActor();
 }
 
 }

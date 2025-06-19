@@ -5,7 +5,6 @@
 #include "queue_schema.h"
 
 #include <contrib/ydb/public/lib/value/value.h>
-#include <contrib/ydb/core/ymq/base/helpers.h>
 
 #include <util/generic/set.h>
 
@@ -92,10 +91,6 @@ private:
                 const ui32 tablesFormat(queues[i]["TablesFormat"]);
 
                 Queues_.insert(name);
-                TString tagsJson = "";
-                if (QueueTags_.Defined()) {
-                    tagsJson = TagsToJson(*QueueTags_);
-                }
 
                 Register(
                     new TDeleteQueueSchemaActorV2(
@@ -104,12 +99,7 @@ private:
                         tablesFormat,
                         SelfId(),
                         RequestId_,
-                        UserCounters_,
-                        FolderId_,
-                        tagsJson,
-                        UserSID_,
-                        MaskedToken_,
-                        AuthType_
+                        UserCounters_
                     )
                 );
             }

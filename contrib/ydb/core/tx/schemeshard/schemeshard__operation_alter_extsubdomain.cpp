@@ -964,9 +964,6 @@ public:
         if (inputSettings.HasDatabaseQuotas()) {
             alter->SetDatabaseQuotas(inputSettings.GetDatabaseQuotas());
         }
-        if (inputSettings.HasSchemeLimits()) {
-            alter->MergeSchemeLimits(inputSettings.GetSchemeLimits());
-        }
 
         if (const auto& auditSettings = subdomainInfo->GetAuditSettings()) {
             alter->SetAuditSettings(*auditSettings);

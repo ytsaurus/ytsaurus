@@ -57,8 +57,4 @@ GENERATE_ENUM_SERIALIZATION(execution.h)
 
 YQL_LAST_ABI_VERSION()
 
-CFLAGS(
-    -Wno-unused-parameter
-)
-
 END()

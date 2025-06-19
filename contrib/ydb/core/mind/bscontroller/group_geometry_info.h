@@ -83,14 +83,12 @@ namespace NKikimr::NBsController {
         ui32 GetDomainLevelBegin() const { return DomainLevelBegin; }
         ui32 GetDomainLevelEnd() const { return DomainLevelEnd; }
 
-        void AllocateGroup(TGroupMapper &mapper, TGroupId groupId, TGroupMapper::TGroupDefinition &group,
-                TGroupMapper::TGroupConstraintsDefinition& constrainsts,
+        void AllocateGroup(TGroupMapper &mapper, TGroupId groupId, TGroupMapper::TGroupDefinition &group, TGroupMapper::TGroupConstraintsDefinition& constrainsts,
                 const THashMap<TVDiskIdShort, TPDiskId>& replacedDisks, TGroupMapper::TForbiddenPDisks forbid,
-                i64 requiredSpace, std::optional<TBridgePileId> bridgePileId) const {
+                i64 requiredSpace) const {
             TString error;
             for (const bool requireOperational : {true, false}) {
-                if (mapper.AllocateGroup(groupId.GetRawId(), group, constrainsts, replacedDisks, forbid, requiredSpace,
-                        requireOperational, bridgePileId, error)) {
+                if (mapper.AllocateGroup(groupId.GetRawId(), group, constrainsts, replacedDisks, forbid, requiredSpace, requireOperational, error)) {
                     return;
                 }
             }
@@ -98,10 +96,8 @@ namespace NKikimr::NBsController {
         }
 
         // returns pair of previous VDisk and PDisk id's
-        std::pair<TVDiskIdShort, TPDiskId> SanitizeGroup(TGroupMapper &mapper, TGroupId groupId,
-                TGroupMapper::TGroupDefinition &group, TGroupMapper::TGroupConstraintsDefinition&,
-                const THashMap<TVDiskIdShort, TPDiskId>& /*replacedDisks*/, TGroupMapper::TForbiddenPDisks forbid,
-                i64 requiredSpace, std::optional<TBridgePileId> bridgePileId) const {
+        std::pair<TVDiskIdShort, TPDiskId> SanitizeGroup(TGroupMapper &mapper, TGroupId groupId, TGroupMapper::TGroupDefinition &group, TGroupMapper::TGroupConstraintsDefinition&,
+                const THashMap<TVDiskIdShort, TPDiskId>& /*replacedDisks*/, TGroupMapper::TForbiddenPDisks forbid, i64 requiredSpace) const {
             TString error;
             auto misplacedVDisks = mapper.FindMisplacedVDisks(group);
             if (misplacedVDisks.Disks.size() == 0) {
@@ -111,7 +107,7 @@ namespace NKikimr::NBsController {
                     for (const auto& replacedDisk : misplacedVDisks.Disks) {
                         TPDiskId pdiskId = group[replacedDisk.FailRealm][replacedDisk.FailDomain][replacedDisk.VDisk];
                         if (mapper.TargetMisplacedVDisk(groupId, group, replacedDisk, forbid, requiredSpace,
-                                requireOperational, bridgePileId, error)) {
+                                requireOperational, error)) {
                             return {replacedDisk, pdiskId};
                         }
                     }

@@ -1,5 +1,4 @@
 #include "kqp_compute_actor.h"
-
 #include "kqp_scan_compute_actor.h"
 #include "kqp_scan_fetcher_actor.h"
 
@@ -137,7 +136,7 @@ TConclusionStatus TCPULimits::DeserializeFromProto(const NKikimrKqp::TEvStartKqp
     TVector<NActors::TExecutorThreadStats> threadsStats;
     TActivationContext::ActorSystem()->GetPoolStats(TActivationContext::AsActorContext().SelfID.PoolID(), poolStats, threadsStats);
     CPUGroupThreadsLimit = Max<ui64>(poolStats.MaxThreadCount, 1) * share;
-    CPUGroupName = config.GetPoolId();
+    CPUGroupName = config.GetSchedulerGroup();
     return TConclusionStatus::Success();
 }
 
@@ -152,10 +151,10 @@ using namespace NYql::NDqProto;
 IActor* CreateKqpScanComputeActor(const TActorId& executerId, ui64 txId,
     TDqTask* task, IDqAsyncIoFactory::TPtr asyncIoFactory,
     const NYql::NDq::TComputeRuntimeSettings& settings, const TComputeMemoryLimits& memoryLimits, NWilson::TTraceId traceId,
-    TIntrusivePtr<NActors::TProtoArenaHolder> arena, TSchedulableOptions schedulableOptions,
+    TIntrusivePtr<NActors::TProtoArenaHolder> arena, TComputeActorSchedulingOptions schedulingOptions,
     NKikimrConfig::TTableServiceConfig::EBlockTrackingMode mode)
 {
-    return new NScanPrivate::TKqpScanComputeActor(std::move(schedulableOptions), executerId, txId, task, std::move(asyncIoFactory),
+    return new NScanPrivate::TKqpScanComputeActor(std::move(schedulingOptions), executerId, txId, task, std::move(asyncIoFactory),
         settings, memoryLimits, std::move(traceId), std::move(arena), mode);
 }
 
@@ -167,4 +166,4 @@ IActor* CreateKqpScanFetcher(const NKikimrKqp::TKqpSnapshot& snapshot, std::vect
     return new NScanPrivate::TKqpScanFetcherActor(snapshot, settings, std::move(computeActors), txId, lockTxId, lockNodeId, lockMode, meta, shardsScanningPolicy, counters, std::move(traceId), cpuLimits);
 }
 
-} // namespace NKikimr::NKqp
+}

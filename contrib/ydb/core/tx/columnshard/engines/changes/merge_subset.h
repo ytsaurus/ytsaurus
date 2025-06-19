@@ -24,42 +24,32 @@ public:
 class ISubsetToMerge {
 private:
     virtual std::vector<TPortionToMerge> DoBuildPortionsToMerge(const TConstructionContext& context, const std::set<ui32>& seqDataColumnIds,
-        const std::shared_ptr<TFilteredSnapshotSchema>& resultFiltered, const THashSet<ui64>& usedPortionIds,
-        const bool useDeletionFilter) const = 0;
-
-protected:
-    const std::shared_ptr<TGranuleMeta> GranuleMeta;
-    std::shared_ptr<NArrow::TColumnFilter> BuildPortionFilter(const std::optional<NKikimr::NOlap::TGranuleShardingInfo>& shardingActual,
-        const std::shared_ptr<NArrow::TGeneralContainer>& batch, const TPortionInfo& pInfo, const THashSet<ui64>& portionsInUsage,
-        const bool useDeletionFilter) const;
+        const std::shared_ptr<TFilteredSnapshotSchema>& resultFiltered, const THashSet<ui64>& usedPortionIds) const = 0;
 
 public:
-    ISubsetToMerge(const std::shared_ptr<TGranuleMeta>& granule)
-        : GranuleMeta(granule) {
-        AFL_VERIFY(GranuleMeta);
-    }
     virtual ~ISubsetToMerge() = default;
     std::vector<TPortionToMerge> BuildPortionsToMerge(const TConstructionContext& context, const std::set<ui32>& seqDataColumnIds,
-        const std::shared_ptr<TFilteredSnapshotSchema>& resultFiltered, const THashSet<ui64>& usedPortionIds,
-        const bool useDeletionFilter) const {
-        return DoBuildPortionsToMerge(context, seqDataColumnIds, resultFiltered, usedPortionIds, useDeletionFilter);
+        const std::shared_ptr<TFilteredSnapshotSchema>& resultFiltered, const THashSet<ui64>& usedPortionIds) const {
+        return DoBuildPortionsToMerge(context, seqDataColumnIds, resultFiltered, usedPortionIds);
     }
     virtual ui64 GetColumnMaxChunkMemory() const = 0;
 };
 
 class TReadPortionToMerge: public ISubsetToMerge {
 private:
-    using TBase = ISubsetToMerge;
     TReadPortionInfoWithBlobs ReadPortion;
+    const std::shared_ptr<TGranuleMeta> GranuleMeta;
+
+    std::shared_ptr<NArrow::TColumnFilter> BuildPortionFilter(const std::optional<NKikimr::NOlap::TGranuleShardingInfo>& shardingActual,
+        const std::shared_ptr<NArrow::TGeneralContainer>& batch, const TPortionInfo& pInfo, const THashSet<ui64>& portionsInUsage) const;
 
     virtual std::vector<TPortionToMerge> DoBuildPortionsToMerge(const TConstructionContext& context, const std::set<ui32>& seqDataColumnIds,
-        const std::shared_ptr<TFilteredSnapshotSchema>& resultFiltered, const THashSet<ui64>& usedPortionIds,
-        const bool useDeletionFilter) const override;
+        const std::shared_ptr<TFilteredSnapshotSchema>& resultFiltered, const THashSet<ui64>& usedPortionIds) const override;
 
 public:
     TReadPortionToMerge(TReadPortionInfoWithBlobs&& rPortion, const std::shared_ptr<TGranuleMeta>& granuleMeta)
-        : TBase(granuleMeta)
-        , ReadPortion(std::move(rPortion)) {
+        : ReadPortion(std::move(rPortion))
+        , GranuleMeta(granuleMeta) {
     }
 
     virtual ui64 GetColumnMaxChunkMemory() const override {
@@ -73,17 +63,15 @@ public:
 
 class TWritePortionsToMerge: public ISubsetToMerge {
 private:
-    using TBase = ISubsetToMerge;
     std::vector<TWritePortionInfoWithBlobsResult> WritePortions;
 
     virtual std::vector<TPortionToMerge> DoBuildPortionsToMerge(const TConstructionContext& context, const std::set<ui32>& seqDataColumnIds,
-        const std::shared_ptr<TFilteredSnapshotSchema>& resultFiltered, const THashSet<ui64>& usedPortionIds,
-        const bool useDeletionFilter) const override;
+        const std::shared_ptr<TFilteredSnapshotSchema>& resultFiltered, const THashSet<ui64>& /*usedPortionIds*/) const override;
 
     virtual ui64 GetColumnMaxChunkMemory() const override;
 
 public:
-    TWritePortionsToMerge(std::vector<TWritePortionInfoWithBlobsResult>&& portions, const std::shared_ptr<TGranuleMeta>& granuleMeta);
+    TWritePortionsToMerge(std::vector<TWritePortionInfoWithBlobsResult>&& portions);
 };
 
 }   // namespace NKikimr::NOlap::NCompaction

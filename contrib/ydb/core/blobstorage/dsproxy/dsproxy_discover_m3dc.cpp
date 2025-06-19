@@ -502,8 +502,6 @@ public:
                 SendToQueue(std::move(query), 0);
                 ++RequestsInFlight;
             }
-        } else {
-            GetBlockFinished = true;
         }
 
         // initial kick for workers -- send messages to corresponding VDisks

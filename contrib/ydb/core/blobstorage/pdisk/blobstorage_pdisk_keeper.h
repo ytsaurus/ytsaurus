@@ -58,12 +58,8 @@ public:
     // Add/remove owner
     //
 
-    void AddOwner(TOwner owner, TVDiskID vdiskId, ui32 weight) {
-        ChunkTracker.AddOwner(owner, vdiskId, weight);
-    }
-
-    void SetOwnerWeight(TOwner owner, ui32 weight) {
-        ChunkTracker.SetOwnerWeight(owner, weight);
+    void AddOwner(TOwner owner, TVDiskID vdiskId) {
+        ChunkTracker.AddOwner(owner, vdiskId);
     }
 
     void RemoveOwner(TOwner owner) {
@@ -95,10 +91,6 @@ public:
 
     i64 GetLogChunkCount() const {
         return ChunkTracker.GetLogChunkCount();
-    }
-
-    ui32 GetNumActiveSlots() const {
-        return ChunkTracker.GetNumActiveSlots();
     }
 
     TChunkIdx PopOwnerFreeChunk(TOwner owner, TString &outErrorReason) {

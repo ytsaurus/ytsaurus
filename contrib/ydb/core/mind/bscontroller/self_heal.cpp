@@ -990,9 +990,7 @@ namespace NKikimr::NBsController {
     void TBlobStorageController::InitializeSelfHealState() {
         auto ev = MakeHolder<TEvControllerUpdateSelfHealInfo>();
         for (const auto& [groupId, group] : GroupMap) {
-            if (group->VDisksInGroup) {
-                ev->GroupsToUpdate.emplace(groupId, TEvControllerUpdateSelfHealInfo::TGroupContent());
-            }
+            ev->GroupsToUpdate.emplace(groupId, TEvControllerUpdateSelfHealInfo::TGroupContent());
         }
         FillInSelfHealGroups(*ev, nullptr);
         ev->GroupLayoutSanitizerEnabled = GroupLayoutSanitizerEnabled;
@@ -1042,7 +1040,7 @@ namespace NKikimr::NBsController {
     }
 
     void TBlobStorageController::PushStaticGroupsToSelfHeal() {
-        if (!SelfHealId || !StorageConfig || !StorageConfig->HasBlobStorageConfig() || !SelfManagementEnabled) {
+        if (!SelfHealId || !StorageConfigObtained || !StorageConfig->HasBlobStorageConfig() || !SelfManagementEnabled) {
             return;
         }
 
@@ -1052,9 +1050,6 @@ namespace NKikimr::NBsController {
             const auto& ss = bsConfig.GetServiceSet();
             const auto& smConfig = StorageConfig->GetSelfManagementConfig();
             for (const auto& group : ss.GetGroups()) {
-                if (!group.RingsSize()) {
-                    continue; // bridged group probably
-                }
                 auto& content = sh->GroupsToUpdate[TGroupId::FromProto(&group, &NKikimrBlobStorage::TGroupInfo::GetGroupID)];
                 const TBlobStorageGroupType gtype(static_cast<TBlobStorageGroupType::EErasureSpecies>(group.GetErasureSpecies()));
                 content = TEvControllerUpdateSelfHealInfo::TGroupContent{

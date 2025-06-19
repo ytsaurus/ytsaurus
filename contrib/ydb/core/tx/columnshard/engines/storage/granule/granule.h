@@ -119,7 +119,6 @@ class TGranuleMeta: TNonCopyable {
 private:
     TMonotonic ModificationLastTime = TMonotonic::Now();
     THashMap<ui64, std::shared_ptr<TPortionInfo>> Portions;
-    TAtomic LastInsertWriteId = 1;
     THashMap<TInsertWriteId, std::shared_ptr<TWrittenPortionInfo>> InsertedPortions;
     THashMap<TInsertWriteId, TPortionDataAccessor> InsertedAccessors;
     mutable std::optional<TGranuleAdditiveSummary> AdditiveSummaryCache;
@@ -166,10 +165,6 @@ private:
 public:
     std::vector<TCSMetadataRequest> CollectMetadataRequests() {
         return ActualizationIndex->CollectMetadataRequests(Portions);
-    }
-
-    TInsertWriteId BuildNextInsertWriteId() {
-        return (TInsertWriteId)AtomicIncrement(LastInsertWriteId);
     }
 
     const NStorageOptimizer::IOptimizerPlanner& GetOptimizerPlanner() const {

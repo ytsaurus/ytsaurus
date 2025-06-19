@@ -13,7 +13,7 @@ void TProcessCategory::DoQuant(const TMonotonic newStart) {
     }
 }
 
-std::optional<TWorkerTask> TProcessCategory::ExtractTaskWithPrediction(const std::shared_ptr<TWPCategorySignals>& counters, THashSet<TString>& scopeIds) {
+TWorkerTask TProcessCategory::ExtractTaskWithPrediction(const std::shared_ptr<TWPCategorySignals>& counters) {
     std::shared_ptr<TProcess> pMin;
     TDuration dMin;
     for (auto&& [_, p] : ProcessesWithTasks) {
@@ -26,16 +26,10 @@ std::optional<TWorkerTask> TProcessCategory::ExtractTaskWithPrediction(const std
             pMin = p;
         }
     }
-    if (!pMin) {
-        return std::nullopt;
-    }
     AFL_VERIFY(pMin);
     auto result = pMin->ExtractTaskWithPrediction(counters);
     if (pMin->GetTasksCount() == 0) {
         AFL_VERIFY(ProcessesWithTasks.erase(pMin->GetProcessId()));
-    } 
-    if (scopeIds.emplace(pMin->GetScope()->GetScopeId()).second) {
-        pMin->GetScope()->IncInFlight();
     }
     Counters->WaitingQueueSize->Set(WaitingTasksCount->Val());
     return result;
@@ -64,7 +58,7 @@ TProcessScope* TProcessCategory::MutableProcessScopeOptional(const TString& scop
 
 std::shared_ptr<TProcessScope> TProcessCategory::RegisterScope(const TString& scopeId, const TCPULimitsConfig& processCpuLimits) {
     TCPUGroup::TPtr cpuGroup = std::make_shared<TCPUGroup>(processCpuLimits.GetCPUGroupThreadsLimitDef(256));
-    auto info = Scopes.emplace(scopeId, std::make_shared<TProcessScope>(scopeId, std::move(cpuGroup), CPUUsage));
+    auto info = Scopes.emplace(scopeId, std::make_shared<TProcessScope>(scopeId, std::move(cpuGroup), std::move(CPUUsage)));
     AFL_VERIFY(info.second);
     return info.first->second;
 }
@@ -87,18 +81,6 @@ void TProcessCategory::UnregisterScope(const TString& name) {
     auto it = Scopes.find(name);
     AFL_VERIFY(it != Scopes.end());
     Scopes.erase(it);
-}
-
-void TProcessCategory::PutTaskResult(TWorkerTaskResult&& result, THashSet<TString>& scopeIds) {
-    const ui64 internalProcessId = result.GetProcessId();
-    auto it = Processes.find(internalProcessId);
-    if (scopeIds.emplace(result.GetScope()->GetScopeId()).second) {
-        result.GetScope()->DecInFlight();
-    }
-    if (it == Processes.end()) {
-        return;
-    }
-    it->second->PutTaskResult(std::move(result));
 }
 
 }   // namespace NKikimr::NConveyorComposite

@@ -161,7 +161,7 @@ private:
     }
 
     void Handle(TEvTxUserProxy::TEvUploadRowsResponse::TPtr& ev) {
-        LOG_D("Handle TEvUploadRowsResponse "
+        LOG_T("Handle TEvUploadRowsResponse "
               << Debug()
               << " Uploader: " << Uploader.ToString()
               << " ev->Sender: " << ev->Sender.ToString());
@@ -512,35 +512,30 @@ struct TSchemeShard::TIndexBuilder::TTxProgress: public TSchemeShard::TIndexBuil
 private:
     TMap<TTabletId, THolder<IEventBase>> ToTabletSend;
 
-    template <bool WithSnapshot = true, typename TRequest>
-    TTabletId CommonFillScanRequest(TRequest& request, TShardIdx shardIdx, TIndexBuildInfo& buildInfo) {
+    template <bool WithSnapshot = true, typename Record>
+    TTabletId CommonFillRecord(Record& record, TShardIdx shardIdx, TIndexBuildInfo& buildInfo) {
         TTabletId shardId = Self->ShardInfos.at(shardIdx).TabletID;
-        request.SetTabletId(ui64(shardId));
-
+        record.SetTabletId(ui64(shardId));
         if constexpr (WithSnapshot) {
             if (buildInfo.SnapshotTxId) {
                 Y_ENSURE(buildInfo.SnapshotStep);
-                request.SetSnapshotTxId(ui64(buildInfo.SnapshotTxId));
-                request.SetSnapshotStep(ui64(buildInfo.SnapshotStep));
+                record.SetSnapshotTxId(ui64(buildInfo.SnapshotTxId));
+                record.SetSnapshotStep(ui64(buildInfo.SnapshotStep));
             }
         }
 
         auto& shardStatus = buildInfo.Shards.at(shardIdx);
-        if constexpr (requires { request.MutableKeyRange(); }) {
+        if constexpr (requires { record.MutableKeyRange(); }) {
             if (shardStatus.LastKeyAck) {
                 TSerializedTableRange range = TSerializedTableRange(shardStatus.LastKeyAck, "", false, false);
-                range.Serialize(*request.MutableKeyRange());
+                range.Serialize(*record.MutableKeyRange());
             } else if (buildInfo.KMeans.Parent == 0) {
-                shardStatus.Range.Serialize(*request.MutableKeyRange());
+                shardStatus.Range.Serialize(*record.MutableKeyRange());
             }
         }
 
-        if constexpr (requires { request.MutableScanSettings(); }) {
-            request.MutableScanSettings()->CopyFrom(buildInfo.ScanSettings);
-        }
-
-        request.SetSeqNoGeneration(Self->Generation());
-        request.SetSeqNoRound(++shardStatus.SeqNoRound);
+        record.SetSeqNoGeneration(Self->Generation());
+        record.SetSeqNoRound(++shardStatus.SeqNoRound);
         return shardId;
     }
 
@@ -567,7 +562,7 @@ private:
 
         ev->Record.AddColumns(buildInfo.IndexColumns.back());
 
-        auto shardId = CommonFillScanRequest(ev->Record, shardIdx, buildInfo);
+        auto shardId = CommonFillRecord(ev->Record, shardIdx, buildInfo);
         ev->Record.SetSeed(ui64(shardId));
         LOG_N("TTxBuildProgress: TEvSampleKRequest: " << ev->Record.ShortDebugString());
 
@@ -607,7 +602,7 @@ private:
             buildInfo.DataColumns.begin(), buildInfo.DataColumns.end()
         };
 
-        auto shardId = CommonFillScanRequest(ev->Record, shardIdx, buildInfo);
+        auto shardId = CommonFillRecord(ev->Record, shardIdx, buildInfo);
         LOG_N("TTxBuildProgress: TEvReshuffleKMeansRequest: " << ToShortDebugString(ev->Record));
 
         ToTabletSend.emplace(shardId, std::move(ev));
@@ -655,7 +650,7 @@ private:
             buildInfo.DataColumns.begin(), buildInfo.DataColumns.end()
         };
 
-        auto shardId = CommonFillScanRequest(ev->Record, shardIdx, buildInfo);
+        auto shardId = CommonFillRecord(ev->Record, shardIdx, buildInfo);
         ev->Record.SetSeed(ui64(shardId));
         LOG_N("TTxBuildProgress: TEvLocalKMeansRequest: " << ev->Record.ShortDebugString());
 
@@ -700,7 +695,7 @@ private:
             ev->Record.AddSourcePrimaryKeyColumns(tableInfo.Columns.at(keyPos).Name);
         }
 
-        auto shardId = CommonFillScanRequest<false>(ev->Record, shardIdx, buildInfo);
+        auto shardId = CommonFillRecord<false>(ev->Record, shardIdx, buildInfo);
         ev->Record.SetSeed(ui64(shardId));
         LOG_N("TTxBuildProgress: TEvPrefixKMeansRequest: " << ev->Record.ShortDebugString());
 
@@ -749,7 +744,9 @@ private:
 
         ev->Record.SetTargetName(buildInfo.TargetName);
 
-        auto shardId = CommonFillScanRequest(ev->Record, shardIdx, buildInfo);
+        ev->Record.MutableScanSettings()->CopyFrom(buildInfo.ScanSettings);
+
+        auto shardId = CommonFillRecord(ev->Record, shardIdx, buildInfo);
 
         LOG_N("TTxBuildProgress: TEvBuildIndexCreateRequest: " << ev->Record.ShortDebugString());
 

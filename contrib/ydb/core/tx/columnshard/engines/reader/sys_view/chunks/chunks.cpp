@@ -1,14 +1,12 @@
 #include "chunks.h"
 
 #include <contrib/ydb/core/formats/arrow/switch/switch_type.h>
-#include <contrib/ydb/core/tx/columnshard/data_reader/contexts.h>
-#include <contrib/ydb/core/tx/columnshard/data_reader/fetcher.h>
 #include <contrib/ydb/core/tx/columnshard/engines/reader/abstract/read_context.h>
 
 namespace NKikimr::NOlap::NReader::NSysView::NChunks {
 
-void TStatsIterator::AppendStats(const std::vector<std::unique_ptr<arrow::ArrayBuilder>>& builders,
-    const NColumnShard::TSchemeShardLocalPathId schemshardLocalPathId, const TPortionDataAccessor& portionPtr) const {
+void TStatsIterator::AppendStats(
+    const std::vector<std::unique_ptr<arrow::ArrayBuilder>>& builders, const TPortionDataAccessor& portionPtr) const {
     const TPortionInfo& portion = portionPtr.GetPortionInfo();
     auto portionSchema = ReadMetadata->GetLoadSchemaVerified(portion);
     auto it = PortionType.find(portion.GetProduced());
@@ -37,7 +35,7 @@ void TStatsIterator::AppendStats(const std::vector<std::unique_ptr<arrow::ArrayB
         arrow::util::string_view lastColumnName;
         arrow::util::string_view lastTierName;
         for (auto&& r : records) {
-            NArrow::Append<arrow::UInt64Type>(*builders[0], schemshardLocalPathId.GetRawValue());
+            NArrow::Append<arrow::UInt64Type>(*builders[0], portion.GetPathId().GetRawValue());
             NArrow::Append<arrow::StringType>(*builders[1], prodView);
             NArrow::Append<arrow::UInt64Type>(*builders[2], ReadMetadata->GetTabletId());
             NArrow::Append<arrow::UInt64Type>(*builders[3], r->GetMeta().GetRecordsCount());
@@ -94,7 +92,7 @@ void TStatsIterator::AppendStats(const std::vector<std::unique_ptr<arrow::ArrayB
             std::reverse(indexes.begin(), indexes.end());
         }
         for (auto&& r : indexes) {
-            NArrow::Append<arrow::UInt64Type>(*builders[0], schemshardLocalPathId.GetRawValue());
+            NArrow::Append<arrow::UInt64Type>(*builders[0], portion.GetPathId().GetRawValue());
             NArrow::Append<arrow::StringType>(*builders[1], prodView);
             NArrow::Append<arrow::UInt64Type>(*builders[2], ReadMetadata->GetTabletId());
             NArrow::Append<arrow::UInt64Type>(*builders[3], r->GetRecordsCount());
@@ -145,7 +143,7 @@ bool TStatsIterator::AppendStats(const std::vector<std::unique_ptr<arrow::ArrayB
             break;
         }
         recordsCount += it->second.GetRecordsVerified().size() + it->second.GetIndexesVerified().size();
-        AppendStats(builders, granule.GetPathId().SchemeShardLocalPathId, it->second);
+        AppendStats(builders, it->second);
         granule.PopFrontPortion();
         FetchedAccessors.erase(it);
         if (recordsCount > 10000) {
@@ -171,87 +169,21 @@ ui32 TStatsIterator::PredictRecordsCount(const NAbstract::TGranuleMetaView& gran
     return recordsCount;
 }
 
-namespace {
-
-class TApplyResult: public IApplyAction {
-private:
-    using TBase = IDataTasksProcessor::ITask;
-    YDB_READONLY_DEF(std::vector<TPortionDataAccessor>, Accessors);
-
-public:
-    TApplyResult(const std::vector<TPortionDataAccessor>& accessors)
-        : Accessors(accessors) {
-    }
-
-    virtual bool DoApply(IDataReader& /*indexedDataRead*/) const override {
-        AFL_VERIFY(false);
-        return false;
-    }
-};
-
-class TFetchingExecutor: public NOlap::NDataFetcher::IFetchCallback {
-private:
-    const NActors::TActorId ParentActorId;
-    NColumnShard::TCounterGuard WaitingCountersGuard;
-    std::shared_ptr<const TAtomicCounter> AbortionFlag;
-
-    virtual bool IsAborted() const override {
-        return AbortionFlag->Val();
-    }
-
-    virtual TString GetClassName() const override {
-        return "SYS_VIEW";
-    }
-
-    virtual void DoOnFinished(NOlap::NDataFetcher::TCurrentContext&& context) override {
-        NActors::TActivationContext::AsActorContext().Send(
-            ParentActorId, new NColumnShard::TEvPrivate::TEvTaskProcessedResult(
-                               std::make_shared<TApplyResult>(context.ExtractPortionAccessors()), std::move(WaitingCountersGuard)));
-    }
-    virtual void DoOnError(const TString& errorMessage) override {
-        NActors::TActivationContext::AsActorContext().Send(
-            ParentActorId, new NColumnShard::TEvPrivate::TEvTaskProcessedResult(
-                               TConclusionStatus::Fail("cannot fetch accessors: " + errorMessage), std::move(WaitingCountersGuard)));
-    }
-
-public:
-    TFetchingExecutor(const std::shared_ptr<TReadContext>& context)
-        : ParentActorId(context->GetScanActorId())
-        , WaitingCountersGuard(context->GetCounters().GetFetcherAcessorsGuard())
-        , AbortionFlag(context->GetAbortionFlag())
-    {
-    }
-};
-
-}   // namespace
-
 TConclusionStatus TStatsIterator::Start() {
-    std::vector<TPortionInfo::TConstPtr> portions;
-    std::shared_ptr<TVersionedIndex> actualIndexInfo;
-    auto env = std::make_shared<NOlap::NDataFetcher::TEnvironment>(Context->GetDataAccessorsManager(), Context->GetStoragesManager());
+    ProcessGuard = NGroupedMemoryManager::TScanMemoryLimiterOperator::BuildProcessGuard(ReadMetadata->GetTxId(), {});
+    ScopeGuard = NGroupedMemoryManager::TScanMemoryLimiterOperator::BuildScopeGuard(ReadMetadata->GetTxId(), 1);
+    const ui32 columnsCount = ReadMetadata->GetKeyYqlSchema().size();
     for (auto&& i : IndexGranules) {
+        GroupGuards.emplace_back(NGroupedMemoryManager::TScanMemoryLimiterOperator::BuildGroupGuard(ReadMetadata->GetTxId(), 1));
         for (auto&& p : i.GetPortions()) {
-            portions.emplace_back(p);
-            if (portions.size() == 100) {
-                if (!actualIndexInfo) {
-                    actualIndexInfo = ReadMetadata->GetIndexVersionsPtr();
-                }
-                NOlap::NDataFetcher::TRequestInput rInput(
-                    std::move(portions), actualIndexInfo, NOlap::NBlobOperations::EConsumer::SYS_VIEW_SCAN, ::ToString(ReadMetadata->GetTxId()));
-                NOlap::NDataFetcher::TPortionsDataFetcher::StartAccessorPortionsFetching(
-                    std::move(rInput), std::make_shared<TFetchingExecutor>(Context), env, NConveyorComposite::ESpecialTaskCategory::Scan);
-                portions.clear();
-            }
+            std::shared_ptr<TDataAccessorsRequest> request = std::make_shared<TDataAccessorsRequest>("SYS_VIEW::CHUNKS");
+            request->AddPortion(p);
+            auto allocation = std::make_shared<TFetchingAccessorAllocation>(request, p->PredictMetadataMemorySize(columnsCount), Context);
+            request->RegisterSubscriber(allocation);
+
+            NGroupedMemoryManager::TScanMemoryLimiterOperator::SendToAllocation(
+                ProcessGuard->GetProcessId(), ScopeGuard->GetScopeId(), GroupGuards.back()->GetGroupId(), { allocation }, std::nullopt);
         }
-    }
-    if (portions.size()) {
-        if (!actualIndexInfo) {
-            actualIndexInfo = ReadMetadata->GetIndexVersionsPtr();
-        }
-        NOlap::NDataFetcher::TRequestInput rInput(
-            std::move(portions), actualIndexInfo, NOlap::NBlobOperations::EConsumer::SYS_VIEW_SCAN, ::ToString(ReadMetadata->GetTxId()));
-        NOlap::NDataFetcher::TPortionsDataFetcher::StartAccessorPortionsFetching(
-            std::move(rInput), std::make_shared<TFetchingExecutor>(Context), env, NConveyorComposite::ESpecialTaskCategory::Scan);
     }
     return TConclusionStatus::Success();
 }
@@ -272,16 +204,23 @@ bool TStatsIterator::IsReadyForBatch() const {
     return false;
 }
 
-void TStatsIterator::Apply(const std::shared_ptr<IApplyAction>& task) {
-    if (IndexGranules.empty()) {
-        return;
-    }
-    auto result = std::dynamic_pointer_cast<TApplyResult>(task);
-    AFL_VERIFY(result);
-    for (auto&& i : result->GetAccessors()) {
-        FetchedAccessors.emplace(i.GetPortionInfo().GetPortionId(), i);
-    }
-    
+TStatsIterator::TFetchingAccessorAllocation::TFetchingAccessorAllocation(
+    const std::shared_ptr<TDataAccessorsRequest>& request, const ui64 mem, const std::shared_ptr<NReader::TReadContext>& context)
+    : TBase(mem)
+    , AccessorsManager(context->GetDataAccessorsManager())
+    , Request(request)
+    , WaitingCountersGuard(context->GetCounters().GetFetcherAcessorsGuard())
+    , OwnerId(context->GetScanActorId())
+    , Context(context) {
+}
+
+void TStatsIterator::TFetchingAccessorAllocation::DoOnAllocationImpossible(const TString& errorMessage) {
+    Request = nullptr;
+    Context->AbortWithError("cannot allocate memory for take accessors info: " + errorMessage);
+}
+
+const std::shared_ptr<const TAtomicCounter>& TStatsIterator::TFetchingAccessorAllocation::DoGetAbortionFlag() const {
+    return Context->GetAbortionFlag();
 }
 
 }   // namespace NKikimr::NOlap::NReader::NSysView::NChunks

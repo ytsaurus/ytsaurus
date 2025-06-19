@@ -124,8 +124,6 @@ namespace NKikimr {
 
             bool PushStaticGroupsToSelfHeal = false;
 
-            TBridgeInfo::TPtr BridgeInfo;
-
         public:
             TConfigState(TBlobStorageController &controller, const THostRecordMap &hostRecords, TInstant timestamp,
                     TMonotonic mono)
@@ -153,7 +151,6 @@ namespace NKikimr {
                 , StaticPDisks(controller.StaticPDisks)
                 , SerialManagementStage(&controller.SerialManagementStage)
                 , StoragePoolStat(*controller.StoragePoolStat)
-                , BridgeInfo(controller.BridgeInfo)
             {
                 Y_ABORT_UNLESS(HostRecords);
             }
@@ -304,7 +301,6 @@ namespace NKikimr {
             void ExecuteStep(const NKikimrBlobStorage::TProposeStoragePools& cmd, TStatus& status);
             void ExecuteStep(const NKikimrBlobStorage::TReassignGroupDisk& cmd, TStatus& status);
             void ExecuteStep(const NKikimrBlobStorage::TMoveGroups& cmd, TStatus& status);
-            void ExecuteStep(const NKikimrBlobStorage::TChangeGroupSizeInUnits& cmd, TStatus& status);
             void ExecuteStep(const NKikimrBlobStorage::TQueryBaseConfig& cmd, TStatus& status);
             void ExecuteStep(const NKikimrBlobStorage::TReadSettings& cmd, TStatus& status);
             void ExecuteStep(const NKikimrBlobStorage::TDropDonorDisk& cmd, TStatus& status);
