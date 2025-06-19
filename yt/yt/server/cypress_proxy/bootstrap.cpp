@@ -52,6 +52,7 @@
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 
 #include <yt/yt/core/http/server.h>
 
@@ -98,6 +99,7 @@ public:
         : Config_(std::move(config))
         , ConfigNode_(std::move(configNode))
         , ServiceLocator_(std::move(serviceLocator))
+        , ThreadPool_(CreateFairShareThreadPool(TCypressProxyDynamicConfig::DefaultThreadPoolSize, "CypressProxy"))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
             AbortOnUnrecognizedOptions(Logger(), Config_);
@@ -178,6 +180,11 @@ public:
         return MasterConnector_;
     }
 
+    IInvokerPtr GetInvoker(const NConcurrency::TFairShareThreadPoolTag& tag) const override
+    {
+        return ThreadPool_->GetInvoker(tag);
+    }
+
     IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         TDistributedThrottlerConfigPtr config,
         IInvokerPtr invoker,
@@ -204,6 +211,8 @@ private:
     const TCypressProxyBootstrapConfigPtr Config_;
     const INodePtr ConfigNode_;
     const IServiceLocatorPtr ServiceLocator_;
+
+    const IFairShareThreadPoolPtr ThreadPool_;
 
     const TActionQueuePtr ControlQueue_ = New<TActionQueue>("Control");
 
@@ -327,7 +336,7 @@ private:
     {
         TSingletonManager::Reconfigure(newConfig);
 
-        ObjectService_->Reconfigure(newConfig->ObjectService);
+        ThreadPool_->SetThreadCount(newConfig->ThreadPoolSize);
         ResponseKeeper_->Reconfigure(newConfig->ResponseKeeper);
     }
 };

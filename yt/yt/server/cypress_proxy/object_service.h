@@ -13,8 +13,6 @@ namespace NYT::NCypressProxy {
 struct IObjectService
     : public virtual TRefCounted
 {
-    virtual void Reconfigure(const TObjectServiceDynamicConfigPtr& config) = 0;
-
     virtual NRpc::IServicePtr GetService() = 0;
 };
 
