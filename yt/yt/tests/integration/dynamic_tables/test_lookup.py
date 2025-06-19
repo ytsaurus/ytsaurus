@@ -1690,7 +1690,17 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
         node = get_tablet_leader_address(get("//tmp/t/@tablets/0/tablet_id"))
         sync_unmount_table("//tmp/t")
-        wait(lambda: get(f"//sys/cluster_nodes/{node}/@statistics/memory/lookup_rows_cache/used") == 0)
+
+        self._create_simple_table("//tmp/dummy", False)
+        sync_mount_table("//tmp/dummy")
+
+        def _check():
+            # Wake up some threads and trigger maintenance actions when they go to sleep.
+            insert_rows("//tmp/dummy", [{"key": 1}])
+            self._read("//tmp/dummy", [1])
+
+            return get(f"//sys/cluster_nodes/{node}/@statistics/memory/lookup_rows_cache/used") == 0
+        wait(_check)
 
     @authors("lukyan")
     @pytest.mark.parametrize("hunks", [False, True])
