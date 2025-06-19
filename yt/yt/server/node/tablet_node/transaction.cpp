@@ -72,13 +72,13 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, StartTimestamp_);
     Load(context, PrepareTimestamp_);
 
+    Load(context, CommitTimestamp_);
+    Load(context, PrepareRevision_);
+
     // COMPAT(ponasenko-rs)
     if (context.GetVersion() >= ETabletReign::PersistSerializationStatus) {
         Load(context, SerializationStatus_);
     }
-
-    Load(context, CommitTimestamp_);
-    Load(context, PrepareRevision_);
 
     Load(context, PersistentAffectedTabletIds_);
     Load(context, CoarseSerializingTabletIds_);
