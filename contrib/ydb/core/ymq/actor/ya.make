@@ -89,11 +89,13 @@ PEERDIR(
     contrib/ydb/library/http_proxy/authorization
     contrib/ydb/library/http_proxy/error
     contrib/ydb/library/mkql_proto/protos
+    contrib/ydb/library/security
     contrib/ydb/public/lib/scheme_types
     contrib/ydb/public/lib/value
     contrib/ydb/public/sdk/cpp/src/client/types/credentials
     yql/essentials/minikql
     contrib/ydb/public/lib/deprecated/client
+    contrib/ydb/core/ymq/actor/cloud_events
 )
 
 YQL_LAST_ABI_VERSION()
@@ -108,7 +110,10 @@ GENERATE_ENUM_SERIALIZATION(queue_schema.h)
 
 END()
 
+RECURSE(
+    cloud_events
+)
+
 RECURSE_FOR_TESTS(
-    ut
     yc_search_ut
 )
