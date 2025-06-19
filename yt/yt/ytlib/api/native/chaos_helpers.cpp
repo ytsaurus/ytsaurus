@@ -48,14 +48,16 @@ TReplicationCardPtr GetSyncReplicationCard(
         .FetchOptions = fetchOptions,
     };
 
+    auto coordinatorEra = InvalidReplicationEra;
+
     for (int retryCount = 0; retryCount < mountCacheConfig->OnErrorRetryCount; ++retryCount) {
         YT_LOG_DEBUG("Synchronizing replication card (ReplicationCardId: %v, Attempt: %v)",
             replicationCardId,
             retryCount);
 
         if (retryCount > 0) {
-            if (replicationCard) {
-                key.RefreshEra = replicationCard->Era;
+            if (replicationCard && coordinatorEra != InvalidReplicationEra) {
+                key.RefreshEra = coordinatorEra;
                 replicationCardCache->ForceRefresh(key, replicationCard);
             }
 
@@ -90,13 +92,15 @@ TReplicationCardPtr GetSyncReplicationCard(
         auto rspOrError = WaitFor(req->Invoke());
 
         if (!rspOrError.IsOK()) {
+            coordinatorEra = InvalidReplicationEra;
+
             YT_LOG_DEBUG(rspOrError, "Failed to get replication card from coordinator (ReplicationCardId: %v)",
                 replicationCardId);
             continue;
         }
 
         auto rsp = rspOrError.Value();
-        auto coordinatorEra = rsp->replication_era();
+        coordinatorEra = rsp->replication_era();
 
         YT_LOG_DEBUG("Got replication card era from coordinator (Era: %v)",
             coordinatorEra);
