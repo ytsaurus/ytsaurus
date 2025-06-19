@@ -1521,7 +1521,7 @@ def not_implemented_in_sequoia(func):
 
 
 class TestCrossCellCopy(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 3
 
     NUM_MASTERS = 3
     NUM_NODES = 3
