@@ -23,7 +23,7 @@ public:
         TSchedulerOperationElement* operationElement,
         TAllocationId allocationId,
         const TJobResources& resources,
-        bool ResetAllocationPreemptibleProgress);
+        bool resetAllocationPreemptibleProgress);
 
     TDiskQuota GetTotalDiskQuota() const;
 
