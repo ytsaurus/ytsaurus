@@ -2262,11 +2262,14 @@ class TestNetworkPriority(YTEnvSetup):
             "data_centers": [TestNetworkPriority.DATA_CENTER],
             "enable_detailed_logs": True,
             "module_share_to_network_priority": [{
-                "module_share": 0.4,
+                "module_share": 0.1,
                 "network_priority": 1,
             }, {
-                "module_share": 0.8,
+                "module_share": 0.4,
                 "network_priority": 2,
+            }, {
+                "module_share": 0.8,
+                "network_priority": 3,
             }]
         })
         set("//sys/pool_trees/default/@config/main_resource", "gpu")
@@ -2302,7 +2305,7 @@ class TestNetworkPriority(YTEnvSetup):
 
     @authors("renadeen")
     def test_network_priority(self):
-        # full module op, network priority is 2 from config
+        # full module op, network priority is 3 from config
         from_barriers = self.write_log_barriers_on_all_nodes()
         full_module_op = run_sleeping_vanilla(
             job_count=5,
@@ -2310,11 +2313,11 @@ class TestNetworkPriority(YTEnvSetup):
         )
         wait(lambda: len(full_module_op.get_running_jobs()) == 5)
 
-        self.assert_network_priority_of_all_jobs(full_module_op, from_barriers, 2)
+        self.assert_network_priority_of_all_jobs(full_module_op, from_barriers, 3)
 
         full_module_op.abort()
 
-        # one node op, network priority is 0 by default
+        # one node op, network priority is 1 from config
         from_barriers = self.write_log_barriers_on_all_nodes()
         one_node_op = run_sleeping_vanilla(
             job_count=1,
@@ -2322,10 +2325,10 @@ class TestNetworkPriority(YTEnvSetup):
         )
         wait(lambda: len(one_node_op.get_running_jobs()) == 1)
 
-        self.assert_network_priority_of_all_jobs(one_node_op, from_barriers, 0)
+        self.assert_network_priority_of_all_jobs(one_node_op, from_barriers, 1)
         one_node_op.abort()
 
-        # half module op, network priority is 1 from config
+        # half module op, network priority is 2 from config
         from_barriers = self.write_log_barriers_on_all_nodes()
         half_module_op = run_sleeping_vanilla(
             job_count=3,
@@ -2333,7 +2336,7 @@ class TestNetworkPriority(YTEnvSetup):
         )
         wait(lambda: len(half_module_op.get_running_jobs()) == 3)
 
-        self.assert_network_priority_of_all_jobs(half_module_op, from_barriers, 1)
+        self.assert_network_priority_of_all_jobs(half_module_op, from_barriers, 2)
         half_module_op.abort()
 
         # one gpu full module op, network priority is 0 as op is not from large segment
