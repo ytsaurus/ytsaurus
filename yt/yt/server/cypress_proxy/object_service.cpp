@@ -64,7 +64,7 @@ class TObjectService
     , public TCypressProxyServiceBase
 {
 public:
-    explicit TObjectService(IBootstrap* bootstrap, IThreadPoolPtr threadPool)
+    TObjectService(IBootstrap* bootstrap, IThreadPoolPtr threadPool)
         : TCypressProxyServiceBase(
             bootstrap,
             threadPool->GetInvoker(),

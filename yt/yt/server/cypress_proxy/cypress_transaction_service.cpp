@@ -31,7 +31,7 @@ class TCypressTransactionService
     : public TCypressProxyServiceBase
 {
 public:
-    explicit TCypressTransactionService(IBootstrap* bootstrap, IThreadPoolPtr threadPool)
+    TCypressTransactionService(IBootstrap* bootstrap, IThreadPoolPtr threadPool)
         : TCypressProxyServiceBase(
             bootstrap,
             threadPool->GetInvoker(),
@@ -133,7 +133,7 @@ IServicePtr CreateCypressTransactionService(IBootstrap* bootstrap)
 {
     return New<TCypressTransactionService>(
         bootstrap,
-        CreateThreadPool(/*threadCount*/ 1, "CypressTransactionService"));
+        CreateThreadPool(/*threadCount*/ 1, "CTxS"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
