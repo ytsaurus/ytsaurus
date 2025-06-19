@@ -2565,7 +2565,67 @@ public:
             .Run();
     }
 
-    void Import(std::string_view s3Key) override
+    TFuture<void> Import(std::string_view s3Key) override
+    {
+        return BIND(&TSchemalessTableImporter::DoImport, MakeStrong(this), std::string(s3Key))
+            .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
+            .Run();
+    }
+
+    TFuture<void> Close() override
+    {
+        return BIND(&TSchemalessTableImporter::DoClose, MakeStrong(this))
+            .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
+            .Run();
+    }
+
+    const TNameTablePtr& GetNameTable() const override
+    {
+        return NameTable_;
+    }
+
+    const TTableSchemaPtr& GetSchema() const override
+    {
+        YT_VERIFY(Uploader_);
+        return Uploader_->GetSchema();
+    }
+
+private:
+    const TTableWriterConfigPtr Config_;
+    const TTableWriterOptionsPtr Options_;
+    const TRichYPath RichPath_;
+    const TNameTablePtr NameTable_;
+    const TString LocalHostName_;
+    const NNative::IClientPtr Client_;
+    const ITransactionPtr Transaction_;
+    const TTransactionId TransactionId_;
+    const IThroughputThrottlerPtr Throttler_;
+    const IBlockCachePtr BlockCache_;
+    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
+
+    const NLogging::TLogger Logger;
+
+    std::optional<TSchemalessTableUploader> Uploader_;
+
+    void DoOpen()
+    {
+        Uploader_.emplace(
+            Config_,
+            Options_,
+            RichPath_,
+            NameTable_,
+            Client_,
+            LocalHostName_,
+            Transaction_,
+            Throttler_,
+            BlockCache_,
+            WriteBlocksOptions_);
+        StartListenTransaction(Uploader_->UploadTransaction);
+
+        YT_LOG_DEBUG("Table opened");
+    }
+
+    void DoImport(std::string s3Key)
     {
         if (IsAborted()) {
             auto error = TError("Aborted");
@@ -2648,59 +2708,6 @@ public:
         // const auto& rsp = rspOrError.Value();
         // DataStatistics_ = rsp->statistics();
         // ConfirmationRevision_ = FromProto<NHydra::TRevision>(rsp->revision());
-    }
-
-    TFuture<void> Close() override
-    {
-        return BIND(&TSchemalessTableImporter::DoClose, MakeStrong(this))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
-            .Run();
-    }
-
-    const TNameTablePtr& GetNameTable() const override
-    {
-        return NameTable_;
-    }
-
-    const TTableSchemaPtr& GetSchema() const override
-    {
-        YT_VERIFY(Uploader_);
-        return Uploader_->GetSchema();
-    }
-
-private:
-    const TTableWriterConfigPtr Config_;
-    const TTableWriterOptionsPtr Options_;
-    const TRichYPath RichPath_;
-    const TNameTablePtr NameTable_;
-    const TString LocalHostName_;
-    const NNative::IClientPtr Client_;
-    const ITransactionPtr Transaction_;
-    const TTransactionId TransactionId_;
-    const IThroughputThrottlerPtr Throttler_;
-    const IBlockCachePtr BlockCache_;
-    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
-
-    const NLogging::TLogger Logger;
-
-    std::optional<TSchemalessTableUploader> Uploader_;
-
-    void DoOpen()
-    {
-        Uploader_.emplace(
-            Config_,
-            Options_,
-            RichPath_,
-            NameTable_,
-            Client_,
-            LocalHostName_,
-            Transaction_,
-            Throttler_,
-            BlockCache_,
-            WriteBlocksOptions_);
-        StartListenTransaction(Uploader_->UploadTransaction);
-
-        YT_LOG_DEBUG("Table opened");
     }
 
     void DoClose()

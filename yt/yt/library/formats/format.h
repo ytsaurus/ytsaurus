@@ -4,6 +4,7 @@
 #include <yt/yt/client/formats/format.h>
 
 #include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/unversioned_importer.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
 #include <yt/yt/core/concurrency/public.h>

@@ -44,6 +44,7 @@
 #include <yt/yt/client/api/query_tracker_client.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/sticky_transaction_pool.h>
+#include <yt/yt/client/api/table_importer.h>
 #include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/table_writer.h>
 #include <yt/yt/client/api/transaction.h>
@@ -5975,6 +5976,49 @@ private:
             request,
             std::move(tableWriter),
             [] {});
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ImportTable)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        PutMethodInfoInTraceContext("write_table");
+
+        auto path = FromProto<TRichYPath>(request->path());
+        context->SetRequestInfo(
+            "Path: %v",
+            path);
+
+        NApi::TTableWriterOptions options;
+        TString tableWriterConfig("{}");
+        if (request->has_config()) {
+            tableWriterConfig = request->config();
+        }
+
+        options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(tableWriterConfig));
+
+        PatchTableWriterOptions(&options);
+
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+
+        std::vector<std::string> s3Keys;
+        for (auto& s3Key : request->s3_keys()) {
+            s3Keys.push_back(s3Key);
+        }
+        auto tableImporter = WaitFor(client->CreateTableImporter(path, s3Keys, options))
+            .ValueOrThrow();
+
+        NApi::NRpcProxy::NProto::TWriteTableMeta meta;
+        ToProto(meta.mutable_schema(), tableImporter->GetSchema());
+        auto metaRef = SerializeProtoToRef(meta);
+        auto outputStream = context->GetResponseAttachmentsStream();
+        WaitFor(outputStream->Write(metaRef))
+            .ThrowOnError();
+
+        WaitFor(tableImporter->Close())
+            .ThrowOnError();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetColumnarStatistics)

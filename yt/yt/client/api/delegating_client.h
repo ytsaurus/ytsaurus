@@ -87,6 +87,12 @@ public:
         const TTableWriterOptions& options),
         (path, options))
 
+    DELEGATE_METHOD(TFuture<ITableImporterPtr>, CreateTableImporter, (
+        const NYPath::TRichYPath& path,
+        std::vector<std::string> s3Keys,
+        const TTableWriterOptions& options),
+        (path, std::move(s3Keys), options))
+
     // Queues
     DELEGATE_METHOD(TFuture<NQueueClient::IQueueRowsetPtr>, PullQueue, (
         const NYPath::TRichYPath& queuePath,

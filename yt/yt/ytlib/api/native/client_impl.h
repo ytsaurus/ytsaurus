@@ -464,6 +464,10 @@ public: \
     TFuture<ITableWriterPtr> CreateTableWriter(
         const NYPath::TRichYPath& path,
         const NApi::TTableWriterOptions& options) override;
+    TFuture<ITableImporterPtr> CreateTableImporter(
+        const NYPath::TRichYPath& path,
+        std::vector<std::string> s3Keys,
+        const NApi::TTableWriterOptions& options) override;
 
     TFuture<TSkynetSharePartsLocationsPtr> LocateSkynetShare(
         const NYPath::TRichYPath& path,

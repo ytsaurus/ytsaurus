@@ -184,6 +184,11 @@ public:
         const NYPath::TRichYPath& path,
         const NApi::TTableWriterOptions& options) override;
 
+    TFuture<NApi::ITableImporterPtr> CreateTableImporter(
+        const NYPath::TRichYPath& path,
+        std::vector<std::string> s3Keys,
+        const NApi::TTableWriterOptions& options) override;
+
     // Distributed table client
     TFuture<TDistributedWriteSessionWithCookies> StartDistributedWriteSession(
         const NYPath::TRichYPath& path,

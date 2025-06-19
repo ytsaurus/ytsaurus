@@ -90,6 +90,40 @@ TFuture<ITableWriterPtr> TClient::CreateTableWriter(
     }));
 }
 
+TFuture<ITableImporterPtr> TClient::CreateTableImporter(
+    const NYPath::TRichYPath& path,
+    std::vector<std::string> s3Keys,
+    const TTableWriterOptions& options)
+{
+    auto nameTable = New<TNameTable>();
+    nameTable->SetEnableColumnNameValidation();
+
+    auto writerOptions = New<NTableClient::TTableWriterOptions>();
+    writerOptions->EnableValidationOptions(/*validateAnyIsValidYson*/ options.ValidateAnyIsValidYson);
+
+    NApi::ITransactionPtr transaction;
+    if (options.TransactionId) {
+        TTransactionAttachOptions transactionOptions;
+        transactionOptions.Ping = options.Ping;
+        transactionOptions.PingAncestors = options.PingAncestors;
+        transaction = AttachTransaction(options.TransactionId, transactionOptions);
+    }
+
+    auto asyncSchemalessImporter = CreateSchemalessTableImporter(
+        options.Config ? options.Config : New<TTableWriterConfig>(),
+        writerOptions,
+        path,
+        nameTable,
+        this,
+        /*localHostName*/ TString(), // Locality is not important during table upload.
+        transaction,
+        /*writeBlocksOptions*/ {});
+
+    return asyncSchemalessImporter.Apply(BIND([s3Keys = std::move(s3Keys)] (const IUnversionedImporterPtr& schemalessImporter) {
+        return CreateApiFromSchemalessImporterAdapter(std::move(schemalessImporter), s3Keys);
+    }));
+}
+
 std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
     const std::vector<TRichYPath>& paths,
     const TGetColumnarStatisticsOptions& options)

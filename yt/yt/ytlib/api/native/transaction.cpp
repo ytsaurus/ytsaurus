@@ -600,6 +600,12 @@ public:
         const TTableWriterOptions& options),
         (path, options))
 
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<ITableImporterPtr>, CreateTableImporter, (
+        const TRichYPath& path,
+        std::vector<std::string> s3Keys,
+        const TTableWriterOptions& options),
+        (path, std::move(s3Keys), options))
+
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TDistributedWriteSessionWithCookies>, StartDistributedWriteSession, (
         const NYPath::TRichYPath& path,
         const TDistributedWriteSessionStartOptions& options),

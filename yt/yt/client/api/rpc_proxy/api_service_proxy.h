@@ -147,8 +147,7 @@ public:
         .SetStreamingEnabled(true));
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, WriteTable,
         .SetStreamingEnabled(true));
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ImportTable,
-        .SetStreamingEnabled(true));
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ImportTable);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetColumnarStatistics);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PartitionTables);
 

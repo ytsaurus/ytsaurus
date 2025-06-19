@@ -709,6 +709,18 @@ TFuture<ITableWriterPtr> TTransaction::CreateTableWriter(
         PatchTransactionId(options));
 }
 
+TFuture<ITableImporterPtr> TTransaction::CreateTableImporter(
+    const TRichYPath& path,
+    std::vector<std::string> s3Keys,
+    const NApi::TTableWriterOptions& options)
+{
+    ValidateActive();
+    return Client_->CreateTableImporter(
+        path,
+        std::move(s3Keys),
+        PatchTransactionId(options));
+}
+
 TFuture<NYson::TYsonString> TTransaction::GetNode(
     const TYPath& path,
     const TGetNodeOptions& options)
