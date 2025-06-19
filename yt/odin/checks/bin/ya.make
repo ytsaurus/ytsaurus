@@ -33,7 +33,6 @@ RECURSE(
     queue_agent_controller_liveness
     queue_api
     quorum_health
-    quorum_health
     register_watcher
     scheduler
     scheduler_alerts
