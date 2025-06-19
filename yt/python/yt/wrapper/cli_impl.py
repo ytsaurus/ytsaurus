@@ -65,14 +65,15 @@ def _validate_authentication_command_permissions(user, client=None):
     authenticated user is not allowed to run authentication commands on user.
     """
     # Follows TClient::ValidateAuthenticationCommandPermissions from native client.
-    self_user = get_current_user(client=client)
-    if yt.check_permission(self_user, "administer", "//sys/users/" + user)["action"] == "allow":
+    current_user = get_current_user(client=client)
+    current_user_login = current_user["user"]
+    if yt.check_permission(current_user_login, "administer", "//sys/users/" + user)["action"] == "allow":
         logger.debug("Allowing user %s to run passwordless authentication command on %s by present "
-                     "administer permission", self_user, user)
+                     "administer permission", current_user_login, user)
         return "passwordless"
-    if self_user == user:
+    if current_user_login == user:
         logger.debug("Password authentication required for user %s to run authentication command on themselves",
-                     self_user)
+                     current_user_login)
         return "password"
     raise YtError('Action can be performed either by user "{}" themselves, or by a user having "administer" permission '
                   'on user \"{}\"'.format(user, user))
@@ -119,6 +120,7 @@ def _list_user_tokens_interactive(user, client=None):
     return yt.list_user_tokens(user, password=password, client=client)
 
 
-def _whoami(client=None):
-    """Invokes whoami command at YT API and returns login. Works only for HTTP backend."""
-    return get_current_user(clien=client)
+def _whoami(client=None) -> str:
+    """Invokes whoami command at YT API and returns login."""
+    current_user = get_current_user(client=client)
+    return current_user.get("user")
