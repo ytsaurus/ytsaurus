@@ -114,8 +114,6 @@ using namespace NYson;
 
 using NYT::ToProto;
 
-using TYPath = NYPath::TYPath;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = ObjectServerLogger;

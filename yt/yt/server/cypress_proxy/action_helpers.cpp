@@ -19,6 +19,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,7 +83,7 @@ TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
 
 TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
     const ISequoiaTransactionPtr& transaction,
-    const TAbsoluteYPath& path,
+    const TAbsolutePath& path,
     TRange<TTransactionId> cypressTransactionIds)
 {
     // NB: #cypressTransactionIds must contain at least 0-0-0-0 ("trunk")
@@ -100,7 +101,7 @@ TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
 }
 
 TNodeId CreateIntermediateMapNodes(
-    const TAbsoluteYPath& parentPath,
+    const TAbsolutePath& parentPath,
     TVersionedNodeId parentId,
     TRange<std::string> nodeKeys,
     const TSuppressableAccessTrackingOptions& options,
@@ -138,12 +139,12 @@ TNodeId CreateIntermediateMapNodes(
 
 TNodeId CopySubtree(
     const std::vector<TCypressNodeDescriptor>& sourceNodes,
-    const TAbsoluteYPath& sourceRootPath,
-    const TAbsoluteYPath& destinationRootPath,
+    const TAbsolutePath& sourceRootPath,
+    const TAbsolutePath& destinationRootPath,
     TNodeId destinationSubtreeParentId,
     TTransactionId cypressTransactionId,
     const TCopyOptions& options,
-    const THashMap<TNodeId, NSequoiaClient::TAbsoluteYPath>& subtreeLinks,
+    const THashMap<TNodeId, TYPath>& subtreeLinks,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const ISequoiaTransactionPtr& transaction)
 {
@@ -154,11 +155,11 @@ TNodeId CopySubtree(
     YT_VERIFY(!sourceNodes.empty());
     YT_VERIFY(sourceNodes.front().Path == sourceRootPath);
 
-    THashMap<TAbsoluteYPath, TNodeId> createdNodePathToId;
+    THashMap<TAbsolutePath, TNodeId> createdNodePathToId;
     createdNodePathToId.reserve(sourceNodes.size());
 
     for (const auto& sourceNode : sourceNodes) {
-        TAbsoluteYPath destinationPath(sourceNode.Path);
+        TAbsolutePath destinationPath(sourceNode.Path);
         destinationPath.UnsafeMutableUnderlying()->replace(
             0,
             sourceRootPath.Underlying().size(),
@@ -166,11 +167,11 @@ TNodeId CopySubtree(
 
         NRecords::TNodeIdToPath sourceRecord{
             .Key = {.NodeId = sourceNode.Id},
-            .Path = sourceNode.Path.Underlying(),
+            .Path = sourceNode.Path.ToRealPath().Underlying(),
         };
 
         if (IsLinkType(TypeFromId(sourceNode.Id))) {
-            sourceRecord.TargetPath = GetOrCrash(subtreeLinks, sourceNode.Id).Underlying();
+            sourceRecord.TargetPath = GetOrCrash(subtreeLinks, sourceNode.Id);
         }
 
         auto destinationParentId = sourceNode.Path == sourceRootPath
@@ -215,7 +216,7 @@ void RemoveSelectedSubtree(
         subtreeParentId ||
         TypeFromId(subtreeNodes.front().Id) == EObjectType::Scion);
 
-    THashMap<TAbsoluteYPath, TNodeId> pathToNodeId;
+    THashMap<TAbsolutePath, TNodeId> pathToNodeId;
     pathToNodeId.reserve(subtreeNodes.size());
     for (const auto& node : subtreeNodes) {
         pathToNodeId[node.Path] = node.Id;
@@ -245,7 +246,7 @@ void RemoveSelectedSubtree(
         return;
     }
 
-    TAbsoluteYPath subtreeRootPath(subtreeNodes.front().Path);
+    TAbsolutePath subtreeRootPath(subtreeNodes.front().Path);
     DetachChild(
         {subtreeParentId, cypressTransactionId},
         subtreeRootPath.GetBaseName(),

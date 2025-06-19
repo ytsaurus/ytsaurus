@@ -106,7 +106,7 @@ struct TMultisetAttributesSubrequest
 struct TCypressNodeDescriptor
 {
     NCypressClient::TNodeId Id;
-    NSequoiaClient::TAbsoluteYPath Path;
+    NSequoiaClient::TAbsolutePath Path;
 };
 
 struct TCypressChildDescriptor
@@ -133,7 +133,7 @@ struct TCypressChildDescriptor
  */
 struct TProgenitorTransactionCache
 {
-    THashMap<NSequoiaClient::TAbsoluteYPath, NCypressClient::TTransactionId> Path;
+    THashMap<NSequoiaClient::TAbsolutePath, NCypressClient::TTransactionId> Path;
     THashMap<NCypressClient::TNodeId, NCypressClient::TTransactionId> Node;
     // Key: (parent ID, child key).
     THashMap<std::pair<NCypressClient::TNodeId, std::string>, NCypressClient::TTransactionId> Child;
