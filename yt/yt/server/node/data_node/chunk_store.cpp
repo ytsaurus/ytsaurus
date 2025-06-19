@@ -999,6 +999,7 @@ void TChunkStore::OnProfiling()
         }
 
         auto& performanceCounters = location->GetPerformanceCounters();
+        performanceCounters.IOWeight.Update(location->GetIOWeight());
         performanceCounters.AvailableSpace.Update(location->GetAvailableSpace());
         performanceCounters.UsedSpace.Update(location->GetUsedSpace());
         performanceCounters.ChunkCount.Update(location->GetChunkCount());
