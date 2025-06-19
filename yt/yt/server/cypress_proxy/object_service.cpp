@@ -64,17 +64,16 @@ class TObjectService
     , public TCypressProxyServiceBase
 {
 public:
-    TObjectService(IBootstrap* bootstrap, IThreadPoolPtr threadPool)
+    explicit TObjectService(IBootstrap* bootstrap)
         : TCypressProxyServiceBase(
             bootstrap,
-            threadPool->GetInvoker(),
+            bootstrap->GetInvoker("ObjectService"),
             TObjectServiceProxy::GetDescriptor(),
             CypressProxyLogger(),
             TServiceOptions{
                 .Authenticator = bootstrap->GetNativeAuthenticator(),
             })
         , Connection_(bootstrap->GetNativeConnection())
-        , ThreadPool_(std::move(threadPool))
         , ThrottlerFactory_(bootstrap->CreateDistributedThrottlerFactory(
             GetDynamicConfig()->DistributedThrottler,
             bootstrap->GetControlInvoker(),
@@ -104,11 +103,6 @@ public:
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    void Reconfigure(const TObjectServiceDynamicConfigPtr& config) override
-    {
-        ThreadPool_->SetThreadCount(config->ThreadPoolSize);
-    }
-
     IServicePtr GetService() override
     {
         return MakeStrong(this);
@@ -128,8 +122,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 
     const NNative::IConnectionPtr Connection_;
-
-    const IThreadPoolPtr ThreadPool_;
 
     const IDistributedThrottlerFactoryPtr ThrottlerFactory_;
     const TPerUserAndWorkloadRequestQueueProviderPtr RequestQueueProvider_;
@@ -1073,9 +1065,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 
 IObjectServicePtr CreateObjectService(IBootstrap* bootstrap)
 {
-    return New<TObjectService>(
-        bootstrap,
-        CreateThreadPool(/*threadCount*/ 1, "ObjectService"));
+    return New<TObjectService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

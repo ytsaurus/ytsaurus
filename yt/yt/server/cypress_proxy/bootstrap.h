@@ -43,6 +43,8 @@ struct IBootstrap
 
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
 
+    virtual IInvokerPtr GetInvoker(const NConcurrency::TFairShareThreadPoolTag& tag) const = 0;
+
     virtual NDistributedThrottler::IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,
         IInvokerPtr invoker,
