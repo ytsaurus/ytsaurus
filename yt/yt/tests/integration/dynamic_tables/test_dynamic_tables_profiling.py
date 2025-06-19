@@ -20,6 +20,7 @@ import builtins
 
 import pytest
 
+from concurrent.futures import ThreadPoolExecutor
 import time
 
 ##################################################################
@@ -550,11 +551,9 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
         table_id = get("//tmp/t/@id")
         tablet_ids = [tablet["tablet_id"] for tablet in get("//tmp/t/@tablets")]
 
-        for _ in range(30):
-            # For debug purposes - the result is logged.
-            lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id} for tablet_id in tablet_ids])
-
-            select_rows("* from [//tmp/t] where value = \"bbb\"")
+        with ThreadPoolExecutor(max_workers=48) as executor:
+            for _ in range(480):
+                executor.submit(select_rows, "max(value) from [//tmp/t] where value = \"bbb\" group by 1")
 
         cpu_time_by_tablet_id = {tablet_id : 0.0 for tablet_id in tablet_ids}
 
