@@ -116,7 +116,7 @@ private:
             });
         }
 
-        THROW_ERROR_EXCEPTION("Missing attributes \"user_id\" and \"user\" on token cypress node");
+        THROW_ERROR_EXCEPTION("Missing attributes \"user_id\" and \"user\" on token Cypress node");
     }
 
     TAuthenticationResult OnCallUsernameResult(
