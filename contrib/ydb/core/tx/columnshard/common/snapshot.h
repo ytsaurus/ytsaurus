@@ -103,7 +103,7 @@ public:
     TString DebugString() const;
     NJson::TJsonValue DebugJson() const;
 
-    explicit operator size_t() const {
+    operator size_t() const {
         return CombineHashes(PlanStep, TxId);
     }
 };

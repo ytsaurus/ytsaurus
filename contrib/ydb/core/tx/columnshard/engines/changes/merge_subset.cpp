@@ -2,9 +2,8 @@
 
 namespace NKikimr::NOlap::NCompaction {
 
-std::shared_ptr<NArrow::TColumnFilter> ISubsetToMerge::BuildPortionFilter(const std::optional<TGranuleShardingInfo>& shardingActual,
-    const std::shared_ptr<NArrow::TGeneralContainer>& batch, const TPortionInfo& pInfo, const THashSet<ui64>& portionsInUsage,
-    const bool useDeletionFilter) const {
+std::shared_ptr<NArrow::TColumnFilter> TReadPortionToMerge::BuildPortionFilter(const std::optional<TGranuleShardingInfo>& shardingActual,
+    const std::shared_ptr<NArrow::TGeneralContainer>& batch, const TPortionInfo& pInfo, const THashSet<ui64>& portionsInUsage) const {
     std::shared_ptr<NArrow::TColumnFilter> filter;
     if (shardingActual && pInfo.NeedShardingFilter(*shardingActual)) {
         std::set<std::string> fieldNames;
@@ -16,7 +15,7 @@ std::shared_ptr<NArrow::TColumnFilter> ISubsetToMerge::BuildPortionFilter(const 
         filter = shardingActual->GetShardingInfo()->GetFilter(table);
     }
     NArrow::TColumnFilter filterDeleted = NArrow::TColumnFilter::BuildAllowFilter();
-    if (pInfo.GetMeta().GetDeletionsCount() && useDeletionFilter) {
+    if (pInfo.GetMeta().GetDeletionsCount()) {
         if (pInfo.GetPortionType() == EPortionType::Written) {
             AFL_VERIFY(pInfo.GetMeta().GetDeletionsCount() == pInfo.GetRecordsCount());
             filterDeleted = NArrow::TColumnFilter::BuildDenyFilter();
@@ -46,26 +45,23 @@ std::shared_ptr<NArrow::TColumnFilter> ISubsetToMerge::BuildPortionFilter(const 
 }
 
 std::vector<TPortionToMerge> TReadPortionToMerge::DoBuildPortionsToMerge(const TConstructionContext& context,
-    const std::set<ui32>& seqDataColumnIds, const std::shared_ptr<TFilteredSnapshotSchema>& resultFiltered, const THashSet<ui64>& usedPortionIds,
-    const bool useDeletionFilter) const {
+    const std::set<ui32>& seqDataColumnIds, const std::shared_ptr<TFilteredSnapshotSchema>& resultFiltered,
+    const THashSet<ui64>& usedPortionIds) const {
     auto blobsSchema = ReadPortion.GetPortionInfo().GetSchema(context.SchemaVersions);
     auto batch = ReadPortion.RestoreBatch(*blobsSchema, *resultFiltered, seqDataColumnIds, false).DetachResult();
     auto shardingActual = context.SchemaVersions.GetShardingInfoActual(GranuleMeta->GetPathId());
-    std::shared_ptr<NArrow::TColumnFilter> filter =
-        BuildPortionFilter(shardingActual, batch, ReadPortion.GetPortionInfo(), usedPortionIds, useDeletionFilter);
+    std::shared_ptr<NArrow::TColumnFilter> filter = BuildPortionFilter(shardingActual, batch, ReadPortion.GetPortionInfo(), usedPortionIds);
     return { TPortionToMerge(batch, filter) };
 }
 
 std::vector<TPortionToMerge> TWritePortionsToMerge::DoBuildPortionsToMerge(const TConstructionContext& context,
-    const std::set<ui32>& seqDataColumnIds, const std::shared_ptr<TFilteredSnapshotSchema>& resultFiltered, const THashSet<ui64>& usedPortionIds,
-    const bool useDeletionFilter) const {
+    const std::set<ui32>& seqDataColumnIds, const std::shared_ptr<TFilteredSnapshotSchema>& resultFiltered,
+    const THashSet<ui64>& /*usedPortionIds*/) const {
     std::vector<TPortionToMerge> result;
     for (auto&& i : WritePortions) {
         auto blobsSchema = i.GetPortionResult().GetPortionInfo().GetSchema(context.SchemaVersions);
         auto batch = i.RestoreBatch(*blobsSchema, *resultFiltered, seqDataColumnIds, false).DetachResult();
-        std::shared_ptr<NArrow::TColumnFilter> filter =
-            BuildPortionFilter(std::nullopt, batch, i.GetPortionResult().GetPortionInfo(), usedPortionIds, useDeletionFilter);
-        result.emplace_back(TPortionToMerge(batch, filter));
+        result.emplace_back(TPortionToMerge(batch, nullptr));
     }
     return result;
 }
@@ -80,10 +76,8 @@ ui64 TWritePortionsToMerge::GetColumnMaxChunkMemory() const {
     return result;
 }
 
-TWritePortionsToMerge::TWritePortionsToMerge(
-    std::vector<TWritePortionInfoWithBlobsResult>&& portions, const std::shared_ptr<TGranuleMeta>& granuleMeta)
-    : TBase(granuleMeta)
-    , WritePortions(std::move(portions)) {
+TWritePortionsToMerge::TWritePortionsToMerge(std::vector<TWritePortionInfoWithBlobsResult>&& portions)
+    : WritePortions(std::move(portions)) {
     ui32 idx = 0;
     for (auto&& i : WritePortions) {
         i.GetPortionConstructor().MutablePortionConstructor().SetPortionId(++idx);

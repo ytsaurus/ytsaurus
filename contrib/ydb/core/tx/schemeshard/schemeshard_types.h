@@ -2,11 +2,10 @@
 
 #include "schemeshard_identificators.h"
 
-#include <contrib/ydb/core/base/row_version.h>
 #include <contrib/ydb/core/base/tablet_types.h>
 #include <contrib/ydb/core/protos/flat_tx_scheme.pb.h>
-#include <contrib/ydb/core/protos/subdomains.pb.h>
 #include <contrib/ydb/core/tablet_flat/flat_cxx_database.h>
+#include <contrib/ydb/core/base/row_version.h>
 
 #include <util/generic/fwd.h>
 
@@ -56,9 +55,8 @@ struct TSchemeLimits {
     ui64 MaxExports = 10;
     ui64 MaxImports = 10;
 
-    static TSchemeLimits FromProto(const NKikimrSubDomains::TSchemeLimits& proto);
-    void MergeFromProto(const NKikimrSubDomains::TSchemeLimits& proto);
-    NKikimrSubDomains::TSchemeLimits AsProto() const;
+    static TSchemeLimits FromProto(const NKikimrScheme::TSchemeLimits& proto);
+    NKikimrScheme::TSchemeLimits AsProto() const;
 };
 
 using ETabletType = TTabletTypes;

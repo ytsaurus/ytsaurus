@@ -243,7 +243,6 @@ namespace NKikimr::NBsController {
                             MAP_TIMING(WipeVDisk, WIPE_VDISK)
                             MAP_TIMING(SanitizeGroup, SANITIZE_GROUP)
                             MAP_TIMING(CancelVirtualGroup, CANCEL_VIRTUAL_GROUP)
-                            MAP_TIMING(ChangeGroupSizeInUnits, CHANGE_GROUP_SIZE_IN_UNITS)
 
                             default:
                                 break;
@@ -341,7 +340,6 @@ namespace NKikimr::NBsController {
                     HANDLE_COMMAND(ReassignGroupDisk)
                     HANDLE_COMMAND(MergeBoxes)
                     HANDLE_COMMAND(MoveGroups)
-                    HANDLE_COMMAND(ChangeGroupSizeInUnits)
                     HANDLE_COMMAND(DropDonorDisk)
                     HANDLE_COMMAND(AddDriveSerial)
                     HANDLE_COMMAND(RemoveDriveSerial)

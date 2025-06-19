@@ -3,8 +3,6 @@
 #include "blobstorage_pdisk_defs.h"
 #include "blobstorage_pdisk_color_limits.h"
 
-#include <contrib/ydb/core/blobstorage/base/blobstorage_vdiskid.h>
-
 namespace NKikimr {
 namespace NPDisk {
 
@@ -36,7 +34,6 @@ class TQuotaRecord {
 
     TString Name;
     std::optional<TVDiskID> VDiskId;
-    ui32 Weight = 1;
 public:
     void SetName(const TString& name) {
         Name = name;
@@ -44,10 +41,6 @@ public:
 
     void SetVDiskId(const TVDiskID& v) {
         VDiskId = v;
-    }
-
-    void SetWeight(ui32 v) {
-        Weight = v;
     }
 
     i64 GetUsed() const {
@@ -60,10 +53,6 @@ public:
 
     i64 GetFree() const {
         return AtomicGet(Free);
-    }
-
-    ui32 GetWeight() const {
-        return Weight ? Weight : 1;
     }
 
     TString Print() const {
@@ -81,7 +70,6 @@ public:
         str << " HardLimit# " << HardLimit;
         str << " Free# " << Free;
         str << " Used# " << GetUsed();
-        str << " Weight# " << GetWeight();
         double occupancy;
         str << " CurrentColor# " << NKikimrBlobStorage::TPDiskSpaceColor::E_Name(EstimateSpaceColor(0, &occupancy)) << "\n";
         str << " Occupancy# " << occupancy << "\n";

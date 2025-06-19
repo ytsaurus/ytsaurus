@@ -22,8 +22,7 @@ enum class EDatabaseType {
     Iceberg,
     Redis,
     Prometheus,
-    MongoDB,
-    OpenSearch
+    MongoDB
 };
 
 std::set<TString> GetAllExternalDataSourceTypes();

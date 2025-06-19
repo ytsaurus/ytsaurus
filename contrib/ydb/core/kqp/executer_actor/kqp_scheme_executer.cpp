@@ -475,12 +475,6 @@ public:
                 break;
             }
 
-            case NKqpProto::TKqpSchemeOperation::kAlterDatabase: {
-                const auto& modifyScheme = schemeOp.GetAlterDatabase();
-                ev->Record.MutableTransaction()->MutableModifyScheme()->CopyFrom(modifyScheme);
-                break;
-            }
-
             default:
                 InternalError(TStringBuilder() << "Unexpected scheme operation: "
                     << (ui32) schemeOp.GetOperationCase());

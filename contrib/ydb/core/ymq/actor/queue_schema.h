@@ -8,12 +8,7 @@
 #include <contrib/ydb/public/lib/value/value.h>
 #include <contrib/ydb/core/ymq/base/queue_attributes.h>
 
-#include <contrib/ydb/core/ymq/actor/cloud_events/cloud_events.h>
-
 #include <util/generic/maybe.h>
-
-#include <ctime>
-#include <random>
 
 namespace NKikimr::NSQS {
 
@@ -31,10 +26,7 @@ public:
                                const bool enableQueueAttributesValidation,
                                TIntrusivePtr<TUserCounters> userCounters,
                                TIntrusivePtr<TSqsEvents::TQuoterResourcesForActions> quoterResources,
-                               const TString& tagsJson,
-                               const TString& userSid,
-                               const TString& maskedToken,
-                               const TString& authType);
+                               const TString& tagsJson);
 
     ~TCreateQueueSchemaActorV2();
 
@@ -110,8 +102,6 @@ public:
         AddQuoterResource,
         Commit
     };
-private:
-    static TString GenerateCommitQueueParamsQuery();
 
 private:
     const TQueuePath QueuePath_;
@@ -135,16 +125,12 @@ private:
     TString ExistingQueueResourceId_;
     TIntrusivePtr<TUserCounters> UserCounters_;
     TIntrusivePtr<TSqsEvents::TQuoterResourcesForActions> QuoterResources_;
-    const TString TagsJson_;
-    const TString UserSid_;
-    const TString MaskedToken_;
-    const TString AuthType_;
-
     ui64 RequiredShardsCount_ = 0;
     ui64 CreatedShardsCount_ = 0;
     TVector<TTable> RequiredTables_;
     ui64 CreatedTablesCount_ = 0;
     TQueueAttributes ValidatedAttributes_;
+    TString TagsJson_;
 
     ui64 LeaderTabletId_ = 0;
     TActorId CreateTableWithLeaderTabletActorId_;
@@ -165,12 +151,7 @@ public:
                               ui32 tablesFormat,
                               const TActorId& sender,
                               const TString& requestId,
-                              TIntrusivePtr<TUserCounters> userCounters,
-                              const TString& folderId,
-                              const TString& tagsJson,
-                              const TString& userSid,
-                              const TString& maskedToken,
-                              const TString& authType);
+                              TIntrusivePtr<TUserCounters> userCounters);
 
     TDeleteQueueSchemaActorV2(const TQueuePath& path,
                               bool isFifo,
@@ -180,12 +161,7 @@ public:
                               TIntrusivePtr<TUserCounters> userCounters,
                               const ui64 advisedQueueVersion,
                               const ui64 advisedShardCount,
-                              const bool advisedIsFifoFlag,
-                              const TString& folderId,
-                              const TString& tagsJson,
-                              const TString& userSid,
-                              const TString& maskedToken,
-                              const TString& authType);
+                              const bool advisedIsFifoFlag);
 
     void Bootstrap();
 
@@ -194,8 +170,6 @@ public:
     }
 
 private:
-    static TString GenerateEraseQueueRecordQuery();
-
     void PrepareCleanupPlan(const bool isFifo, const ui64 shardCount);
 
     void NextAction();
@@ -240,11 +214,6 @@ private:
     TIntrusivePtr<TUserCounters> UserCounters_;
     ui64 Version_ = 0;
     TActorId DeleteQuoterResourceActor_;
-    const TString TagsJson_;
-    const TString UserSid_;
-    const TString MaskedToken_;
-    const TString AuthType_;
-    const TString FolderId_;
 };
 
 } // namespace NKikimr::NSQS

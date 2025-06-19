@@ -150,7 +150,7 @@ public:
     public:
         TString DebugString() const;
 
-        TIterator(const bool reverse, const std::vector<ui32>& filter, const bool startValue, const ui64 startOffset)
+        TIterator(const bool reverse, const std::vector<ui32>& filter, const bool startValue)
             : FilterPointer(&filter)
             , CurrentValue(startValue)
             , FinishPosition(reverse ? -1 : FilterPointer->size())
@@ -163,12 +163,9 @@ public:
                 }
                 CurrentRemainVolume = (*FilterPointer)[Position];
             }
-            if (startOffset) {
-                Next(startOffset);
-            }
         }
 
-        TIterator(const bool reverse, const ui32 size, const bool startValue, const ui64 startOffset)
+        TIterator(const bool reverse, const ui32 size, const bool startValue)
             : CurrentValue(startValue)
             , FinishPosition(reverse ? -1 : 1)
             , DeltaPosition(reverse ? -1 : 1) {
@@ -179,9 +176,6 @@ public:
                     Position = 0;
                 }
                 CurrentRemainVolume = size;
-            }
-            if (startOffset) {
-                Next(startOffset);
             }
         }
 
@@ -200,8 +194,7 @@ public:
 
     TString DebugString() const;
 
-    TIterator GetBegin(const bool reverse, const ui32 expectedSize) const;
-    TIterator GetIterator(const bool reverse, const ui32 expectedSize, const ui64 startOffset) const;
+    TIterator GetIterator(const bool reverse, const ui32 expectedSize) const;
 
     bool CheckSlice(const ui32 offset, const ui32 count) const;
 

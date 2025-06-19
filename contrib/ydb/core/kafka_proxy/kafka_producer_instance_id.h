@@ -15,6 +15,4 @@ namespace NKafka {
         os << "{Id: " << obj.Id << ", Epoch: " << obj.Epoch;
         return os;
     }
-
-    static const TProducerInstanceId INVALID_PRODUCER_INSTANCE_ID = {-1, -1};
 } // namespace NKafka

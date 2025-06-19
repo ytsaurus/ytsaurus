@@ -486,8 +486,7 @@ namespace NKikimr::NStorage {
         };
 
         TString error;
-        if (!mapper.AllocateGroup(groupId.GetRawId(), groupDefinition, replacedDisks, forbid, requiredSpace, false, {},
-                error)) {
+        if (!mapper.AllocateGroup(groupId.GetRawId(), groupDefinition, replacedDisks, forbid, requiredSpace, false, error)) {
             throw TExConfigError() << "group allocation failed Error# " << error
                 << " groupDefinition# " << dumpGroupDefinition();
         }

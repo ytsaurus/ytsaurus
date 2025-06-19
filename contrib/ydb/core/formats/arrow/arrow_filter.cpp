@@ -518,19 +518,14 @@ TColumnFilter TColumnFilter::CombineSequentialAnd(const TColumnFilter& extFilter
     }
 }
 
-TColumnFilter::TIterator TColumnFilter::GetBegin(const bool reverse, const ui32 expectedSize) const {
-    return GetIterator(reverse, expectedSize, 0);
-}
-
-TColumnFilter::TIterator TColumnFilter::GetIterator(const bool reverse, const ui32 expectedSize, const ui64 startOffset) const {
-    AFL_VERIFY(expectedSize >= startOffset);
+TColumnFilter::TIterator TColumnFilter::GetIterator(const bool reverse, const ui32 expectedSize) const {
     if (IsTotalAllowFilter()) {
-        return TIterator(reverse, expectedSize, true, startOffset);
+        return TIterator(reverse, expectedSize, true);
     } else if (IsTotalDenyFilter()) {
-        return TIterator(reverse, expectedSize, false, startOffset);
+        return TIterator(reverse, expectedSize, false);
     } else {
         AFL_VERIFY(expectedSize == GetRecordsCountVerified())("expected", expectedSize)("count", GetRecordsCountVerified())("reverse", reverse);
-        return TIterator(reverse, Filter, GetStartValue(reverse), startOffset);
+        return TIterator(reverse, Filter, GetStartValue(reverse));
     }
 }
 

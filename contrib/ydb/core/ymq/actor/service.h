@@ -144,7 +144,6 @@ private:
     void NotifyLocalDeadLetterQueuesLeaders(const std::vector<TSqsEvents::TEvQueuesList::TQueueRecord>& sortedQueues) const;
 
     void MakeAndRegisterYcEventsProcessor();
-    void MakeAndRegisterCloudEventsProcessor();
 
 private:
     TString RootUrl_;
@@ -188,15 +187,6 @@ private:
         TDuration RescanInterval = TDuration::Minutes(1);
     };
     TYcSearchEventsConfig YcSearchEventsConfig;
-
-    struct TCloudEventsConfig {
-        TString Database = "";
-        TDuration RetryTimeout = TDuration::Seconds(10);
-        bool Enabled = false;
-        bool TenantMode = false;
-    };
-    TCloudEventsConfig CloudEventsConfig;
-
     THolder<TLocalLeaderManager> LocalLeaderManager;
 };
 

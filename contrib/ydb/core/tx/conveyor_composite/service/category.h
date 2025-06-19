@@ -45,7 +45,14 @@ public:
         }
     }
 
-    void PutTaskResult(TWorkerTaskResult&& result, THashSet<TString>& scopeIds);
+    void PutTaskResult(TWorkerTaskResult&& result) {
+        const ui64 internalProcessId = result.GetProcessId(); 
+        auto it = Processes.find(internalProcessId);
+        if (it == Processes.end()) {
+            return;
+        }
+        it->second->PutTaskResult(std::move(result));
+    }
 
     void RegisterProcess(const ui64 internalProcessId, std::shared_ptr<TProcessScope>&& scope) {
         scope->IncProcesses();
@@ -68,7 +75,7 @@ public:
 
     bool HasTasks() const;
     void DoQuant(const TMonotonic newStart);
-    std::optional<TWorkerTask> ExtractTaskWithPrediction(const std::shared_ptr<TWPCategorySignals>& counters, THashSet<TString>& scopeIds);
+    TWorkerTask ExtractTaskWithPrediction(const std::shared_ptr<TWPCategorySignals>& counters);
     TProcessScope& MutableProcessScope(const TString& scopeName);
     TProcessScope* MutableProcessScopeOptional(const TString& scopeName);
     std::shared_ptr<TProcessScope> GetProcessScopePtrVerified(const TString& scopeName) const;

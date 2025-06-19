@@ -84,6 +84,9 @@ namespace NActors {
         , DefSelfID(NodeId, "actorsystem")
         , AppData0(appData)
         , LoggerSettings0(loggerSettings)
+        , StartExecuted(false)
+        , StopExecuted(false)
+        , CleanupExecuted(false)
     {
         ServiceMap.Reset(new TServiceMap());
     }
@@ -92,14 +95,7 @@ namespace NActors {
         Cleanup();
     }
 
-	bool TActorSystem::IsStopped() {
-		if (!TlsActivationContext) {
-			return true;
-		}
-		return TlsActivationContext->ActorSystem()->StopExecuted || !TlsActivationContext->ActorSystem()->StartExecuted;
-	}
-
-	static void CheckEventMemory(IEventBase* ev) {
+    static void CheckEventMemory(IEventBase *ev) {
         if constexpr (!NSan::MSanIsOn()) {
             return;
         }

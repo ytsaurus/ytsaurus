@@ -169,9 +169,8 @@ void TPartition::ReplyOk(const TActorContext& ctx, const ui64 dst, NWilson::TSpa
 }
 
 void TPartition::ReplyGetClientOffsetOk(const TActorContext& ctx, const ui64 dst, const i64 offset,
-    const TInstant writeTimestamp, const TInstant createTimestamp, bool consumerHasAnyCommits,
-    const std::optional<TString>& committedMetadata) {
-    ctx.Send(Tablet, MakeReplyGetClientOffsetOk(dst, offset, writeTimestamp, createTimestamp, consumerHasAnyCommits, committedMetadata).Release());
+    const TInstant writeTimestamp, const TInstant createTimestamp, bool consumerHasAnyCommits) {
+    ctx.Send(Tablet, MakeReplyGetClientOffsetOk(dst, offset, writeTimestamp, createTimestamp, consumerHasAnyCommits).Release());
 }
 
 NKikimrClient::TKeyValueRequest::EStorageChannel GetChannel(ui32 i) {
@@ -771,9 +770,6 @@ void TPartition::Handle(TEvPQ::TEvPartitionStatus::TPtr& ev, const TActorContext
                 clientInfo->SetConsumer(userInfo.User);
                 clientInfo->set_errorcode(NPersQueue::NErrorCode::EErrorCode::OK);
                 clientInfo->SetCommitedOffset(userInfo.Offset);
-                if (userInfo.CommittedMetadata.has_value()) {
-                    clientInfo->SetCommittedMetadata(*userInfo.CommittedMetadata);
-                }
                 requiredConsumers.extract(userInfo.User);
             }
             continue;
@@ -2787,7 +2783,6 @@ void TPartition::OnProcessTxsAndUserActsWriteComplete(const TActorContext& ctx) 
             userInfo.Generation = actual->Generation;
             userInfo.Step = actual->Step;
             userInfo.Offset = actual->Offset;
-            userInfo.CommittedMetadata = actual->CommittedMetadata;
             if (userInfo.Offset <= (i64)CompactionBlobEncoder.StartOffset) {
                 userInfo.AnyCommits = false;
             }
@@ -3201,6 +3196,7 @@ void TPartition::CommitUserAct(TEvPQ::TEvSetClientInfo& act) {
 
     if (!act.SessionId.empty() && act.Type == TEvPQ::TEvSetClientInfo::ESCI_OFFSET && (i64)act.Offset <= userInfo.Offset) { //this is stale request, answer ok for it
         ScheduleReplyOk(act.Cookie);
+
         return;
     }
 
@@ -3270,7 +3266,6 @@ void TPartition::EmulatePostProcessUserAct(const TEvPQ::TEvSetClientInfo& act,
 {
     const TString& user = act.ClientId;
     ui64 offset = act.Offset;
-    const std::optional<TString>& committedMetadata = act.CommittedMetadata ? act.CommittedMetadata : userInfo.CommittedMetadata;
     const TString& session = act.SessionId;
     ui32 generation = act.Generation;
     ui32 step = act.Step;
@@ -3309,7 +3304,6 @@ void TPartition::EmulatePostProcessUserAct(const TEvPQ::TEvSetClientInfo& act,
     } else {
         if (createSession || dropSession) {
             offset = userInfo.Offset;
-
             auto *ui = UsersInfoStorage->GetIfExists(userInfo.User);
             auto ts = ui ? GetTime(*ui, userInfo.Offset) : std::make_pair<TInstant, TInstant>(TInstant::Zero(), TInstant::Zero());
 
@@ -3341,7 +3335,6 @@ void TPartition::EmulatePostProcessUserAct(const TEvPQ::TEvSetClientInfo& act,
         );
 
         userInfo.Offset = offset;
-        userInfo.CommittedMetadata = committedMetadata;
         if (userInfo.Offset <= (i64)BlobEncoder.StartOffset) {
             userInfo.AnyCommits = false;
         }
@@ -3365,15 +3358,14 @@ void TPartition::ScheduleReplyGetClientOffsetOk(const ui64 dst,
                                                 const i64 offset,
                                                 const TInstant writeTimestamp,
                                                 const TInstant createTimestamp,
-                                                bool consumerHasAnyCommits,
-                                                const std::optional<TString>& committedMetadata)
+                                                bool consumerHasAnyCommits)
 {
     Replies.emplace_back(Tablet,
                          MakeReplyGetClientOffsetOk(dst,
                                                     offset,
                                                     writeTimestamp,
                                                     createTimestamp,
-                                                    consumerHasAnyCommits, committedMetadata).Release());
+                                                    consumerHasAnyCommits).Release());
 
 }
 
@@ -3449,7 +3441,7 @@ void TPartition::AddCmdWrite(NKikimrClient::TKeyValueRequest& request,
                              ui64 offset, ui32 gen, ui32 step, const TString& session,
                              ui64 readOffsetRewindSum,
                              ui64 readRuleGeneration,
-                             bool anyCommits, const std::optional<TString>& committedMetadata)
+                             bool anyCommits)
 {
     TBuffer idata;
     {
@@ -3461,9 +3453,6 @@ void TPartition::AddCmdWrite(NKikimrClient::TKeyValueRequest& request,
         userData.SetOffsetRewindSum(readOffsetRewindSum);
         userData.SetReadRuleGeneration(readRuleGeneration);
         userData.SetAnyCommits(anyCommits);
-        if (committedMetadata.has_value()) {
-            userData.SetCommittedMetadata(*committedMetadata);
-        }
 
         TString out;
         Y_PROTOBUF_SUPPRESS_NODISCARD userData.SerializeToString(&out);
@@ -3525,7 +3514,7 @@ void TPartition::AddCmdWriteUserInfos(NKikimrClient::TKeyValueRequest& request)
                         userInfo->Session,
                         ui ? ui->ReadOffsetRewindSum : 0,
                         userInfo->ReadRuleGeneration,
-                        userInfo->AnyCommits, userInfo->CommittedMetadata);
+                        userInfo->AnyCommits);
         } else {
             AddCmdDeleteRange(request,
                               ikey, ikeyDeprecated);
@@ -3567,7 +3556,6 @@ TUserInfoBase& TPartition::GetOrCreatePendingUser(const TString& user,
             newPendingUserIt->second.Generation = userIt->Generation;
             newPendingUserIt->second.Step = userIt->Step;
             newPendingUserIt->second.Offset = userIt->Offset;
-            newPendingUserIt->second.CommittedMetadata = userIt->CommittedMetadata;
             newPendingUserIt->second.ReadRuleGeneration = userIt->ReadRuleGeneration;
             newPendingUserIt->second.Important = userIt->Important;
             newPendingUserIt->second.ReadFromTimestamp = userIt->ReadFromTimestamp;
@@ -3606,8 +3594,7 @@ THolder<TEvPQ::TEvProxyResponse> TPartition::MakeReplyGetClientOffsetOk(const ui
                                                                         const i64 offset,
                                                                         const TInstant writeTimestamp,
                                                                         const TInstant createTimestamp,
-                                                                        bool consumerHasAnyCommits,
-                                                                        const std::optional<TString>& committedMetadata)
+                                                                        bool consumerHasAnyCommits)
 {
     auto response = MakeHolder<TEvPQ::TEvProxyResponse>(dst);
     NKikimrClient::TResponse& resp = *response->Response;
@@ -3618,10 +3605,6 @@ THolder<TEvPQ::TEvProxyResponse> TPartition::MakeReplyGetClientOffsetOk(const ui
     auto user = resp.MutablePartitionResponse()->MutableCmdGetClientOffsetResult();
     if (offset > -1)
         user->SetOffset(offset);
-
-    if (committedMetadata.has_value()) {
-        user->SetCommittedMetadata(*committedMetadata);
-    }
     if (writeTimestamp)
         user->SetWriteTimestampMS(writeTimestamp.MilliSeconds());
     if (createTimestamp) {

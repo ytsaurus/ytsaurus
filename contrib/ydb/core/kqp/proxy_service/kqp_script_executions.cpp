@@ -2837,7 +2837,7 @@ private:
 
 class TScriptProgressActor : public TQueryBase {
 public:
-    TScriptProgressActor(const TString& database, const TString& executionId, const TString& queryPlan)
+    TScriptProgressActor(const TString& database, const TString& executionId, const TString& queryPlan, const TString&)
         : TQueryBase(__func__, executionId)
         , Database(database), ExecutionId(executionId), QueryPlan(queryPlan)
     {}
@@ -2848,10 +2848,9 @@ public:
             DECLARE $execution_id AS Text;
             DECLARE $database AS Text;
             DECLARE $plan AS JsonDocument;
-            DECLARE $execution_status AS Int32;
 
-            UPSERT INTO `.metadata/script_executions` (execution_id, database, plan, execution_status)
-            VALUES ($execution_id, $database, $plan, $execution_status);
+            UPSERT INTO `.metadata/script_executions` (execution_id, database, plan)
+            VALUES ($execution_id, $database, $plan);
         )";
 
         NYdb::TParamsBuilder params;
@@ -2864,9 +2863,6 @@ public:
                 .Build()
             .AddParam("$plan")
                 .JsonDocument(QueryPlan)
-                .Build()
-            .AddParam("$execution_status")
-                .Int32(Ydb::Query::EXEC_STATUS_RUNNING)
                 .Build();
 
         RunDataQuery(sql, &params);
@@ -2940,8 +2936,8 @@ NActors::IActor* CreateScriptFinalizationFinisherActor(const NActors::TActorId& 
     return new TQueryRetryActor<TScriptFinalizationFinisherActor, TEvScriptExecutionFinished, TString, TString, std::optional<Ydb::StatusIds::StatusCode>, NYql::TIssues>(finalizationActorId, executionId, database, operationStatus, operationIssues);
 }
 
-NActors::IActor* CreateScriptProgressActor(const TString& executionId, const TString& database, const TString& queryPlan) {
-    return new TScriptProgressActor(database, executionId, queryPlan);
+NActors::IActor* CreateScriptProgressActor(const TString& executionId, const TString& database, const TString& queryPlan, const TString& queryStats) {
+    return new TScriptProgressActor(database, executionId, queryPlan, queryStats);
 }
 
 namespace NPrivate {

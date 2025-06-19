@@ -10,20 +10,9 @@
 #include <contrib/ydb/library/actors/core/hfunc.h>
 #include <contrib/ydb/library/actors/core/interconnect.h>
 #include <library/cpp/random_provider/random_provider.h>
-#include <contrib/ydb/core/blobstorage/nodewarden/node_warden_events.h>
 
 #include <util/generic/algorithm.h>
 #include <util/generic/xrange.h>
-
-
-#if defined BLOG_D || defined BLOG_I || defined BLOG_ERROR || defined BLOG_TRACE
-#error log macro definition clash
-#endif
-
-#define BLOG_D(stream) LOG_DEBUG_S(*TlsActivationContext, NKikimrServices::STATESTORAGE, stream)
-#define BLOG_I(stream) LOG_INFO_S(*TlsActivationContext, NKikimrServices::STATESTORAGE, stream)
-#define BLOG_W(stream) LOG_WARN_S(*TlsActivationContext, NKikimrServices::STATESTORAGE, stream)
-#define BLOG_ERROR(stream) LOG_ERROR_S(*TlsActivationContext, NKikimrServices::STATESTORAGE, stream)
 
 namespace NKikimr {
 namespace NStateStorageGuardian {
@@ -92,19 +81,15 @@ class TBaseGuardian : public TActorBootstrapped<TDerived> {
 protected:
     const TActorId Replica;
     const TActorId Guard;
-    ui64 ClusterStateGeneration;
-    ui64 ClusterStateGuid;
 
     TInstant DowntimeFrom = TInstant::Max();
     ui64 LastCookie = 0;
     bool ReplicaMissingReported = false;
     TMonotonic LastReplicaMissing = TMonotonic::Max();
 
-    TBaseGuardian(TActorId replica, TActorId guard, ui64 clusterStateGeneration, ui64 clusterStateGuid)
+    TBaseGuardian(TActorId replica, TActorId guard)
         : Replica(replica)
         , Guard(guard)
-        , ClusterStateGeneration(clusterStateGeneration)
-        , ClusterStateGuid(clusterStateGuid)
     {}
 
     void Gone() {
@@ -169,22 +154,6 @@ protected:
 
         TDerived::Become(&TDerived::StateSleep, TDuration::MilliSeconds(250), new TEvents::TEvWakeup());
     }
-
-    void HandleConfigVersion(TEvStateStorage::TEvConfigVersionInfo::TPtr &ev) {
-        TEvStateStorage::TEvConfigVersionInfo *msg = ev->Get();
-        ClusterStateGeneration = msg->ClusterStateGeneration;
-        ClusterStateGuid = msg->ClusterStateGuid;
-    }
-
-    void CheckConfigVersion(const TActorId &selfId, const TActorId &sender, const auto *msg) {
-        ui64 msgGeneration = msg->Record.GetClusterStateGeneration();
-        ui64 msgGuid = msg->Record.GetClusterStateGuid();
-        if (ClusterStateGeneration < msgGeneration || (ClusterStateGeneration == msgGeneration && ClusterStateGuid != msgGuid)) {
-            BLOG_D("Guardian TEvNodeWardenNotifyConfigMismatch: ClusterStateGeneration=" << ClusterStateGeneration << " msgGeneration=" << msgGeneration <<" ClusterStateGuid=" << ClusterStateGuid << " msgGuid=" << msgGuid);
-            TDerived::Send(MakeBlobStorageNodeWardenID(selfId.NodeId()), 
-                new NStorage::TEvNodeWardenNotifyConfigMismatch(sender.NodeId(), msgGeneration, msgGuid));
-        }
-    }
 };
 
 class TReplicaGuardian : public TBaseGuardian<TReplicaGuardian> {
@@ -200,7 +169,7 @@ class TReplicaGuardian : public TBaseGuardian<TReplicaGuardian> {
 
     void MakeRequest() {
         ui64 cookie = ++LastCookie;
-        Send(Replica, new TEvStateStorage::TEvReplicaLookup(Info->TabletID, cookie, ClusterStateGeneration, ClusterStateGuid), IEventHandle::FlagTrackDelivery | IEventHandle::FlagSubscribeOnSession, cookie);
+        Send(Replica, new TEvStateStorage::TEvReplicaLookup(Info->TabletID, cookie), IEventHandle::FlagTrackDelivery | IEventHandle::FlagSubscribeOnSession, cookie);
         Become(&TThis::StateLookup);
     }
 
@@ -209,8 +178,6 @@ class TReplicaGuardian : public TBaseGuardian<TReplicaGuardian> {
         TAutoPtr<TEvStateStorage::TEvReplicaUpdate> req(new TEvStateStorage::TEvReplicaUpdate());
         req->Record.SetTabletID(Info->TabletID);
         req->Record.SetCookie(cookie);
-        req->Record.SetClusterStateGeneration(ClusterStateGeneration);
-        req->Record.SetClusterStateGuid(ClusterStateGuid);
         ActorIdToProto(Info->Leader, req->Record.MutableProposedLeader());
         ActorIdToProto(Info->TabletLeader, req->Record.MutableProposedLeaderTablet());
         req->Record.SetProposedGeneration(Info->Generation);
@@ -233,11 +200,10 @@ class TReplicaGuardian : public TBaseGuardian<TReplicaGuardian> {
             // Ignore outdated results
             return;
         }
-        
-        CheckConfigVersion(SelfId(), ev->Sender, ev->Get());
-        
+
         const auto status = record.GetStatus();
         Signature = record.GetSignature();
+
         DowntimeFrom = TInstant::Max();
         ReplicaMissing(false);
 
@@ -273,8 +239,8 @@ public:
         return NKikimrServices::TActivity::SS_REPLICA_GUARDIAN;
     }
 
-    TReplicaGuardian(TGuardedInfo *info, TActorId replica, TActorId guard, ui64 clusterStateGeneration, ui64 clusterStateGuid)
-        : TBaseGuardian(replica, guard, clusterStateGeneration, clusterStateGuid)
+    TReplicaGuardian(TGuardedInfo *info, TActorId replica, TActorId guard)
+        : TBaseGuardian(replica, guard)
         , Info(info)
         , Signature(0)
     {}
@@ -290,7 +256,6 @@ public:
             hFunc(TEvents::TEvUndelivered, TBaseGuardian::Handle);
             hFunc(TEvInterconnect::TEvNodeDisconnected, HandleThenSomeSleep);
             cFunc(TEvents::TEvPoisonPill::EventType, PassAway);
-            hFunc(TEvStateStorage::TEvConfigVersionInfo, HandleConfigVersion);
         }
     }
 
@@ -301,7 +266,6 @@ public:
             hFunc(TEvents::TEvUndelivered, TBaseGuardian::Handle);
             hFunc(TEvInterconnect::TEvNodeDisconnected, HandleThenRequestInfo);
             cFunc(TEvents::TEvPoisonPill::EventType, PassAway);
-            hFunc(TEvStateStorage::TEvConfigVersionInfo, HandleConfigVersion);
         }
     }
 
@@ -310,7 +274,6 @@ public:
             cFunc(TEvStateStorage::TEvReplicaShutdown::EventType, Gone);
             cFunc(TEvents::TEvWakeup::EventType, RequestInfo);
             cFunc(TEvents::TEvPoisonPill::EventType, PassAway);
-            hFunc(TEvStateStorage::TEvConfigVersionInfo, HandleConfigVersion);
         }
     }
 
@@ -321,7 +284,6 @@ public:
             hFunc(TEvents::TEvUndelivered, TBaseGuardian::Handle);
             hFunc(TEvInterconnect::TEvNodeDisconnected, HandleThenSomeSleep);
             cFunc(TEvents::TEvPoisonPill::EventType, PassAway);
-            hFunc(TEvStateStorage::TEvConfigVersionInfo, HandleConfigVersion);
         }
     }
 };
@@ -346,14 +308,14 @@ class TFollowerGuardian : public TBaseGuardian<TFollowerGuardian> {
         ui64 cookie = ++LastCookie;
         Send(
             Replica,
-            new TEvStateStorage::TEvReplicaRegFollower(Info->TabletID, Info->Follower, Info->Tablet, Info->IsCandidate, ClusterStateGeneration, ClusterStateGuid),
+            new TEvStateStorage::TEvReplicaRegFollower(Info->TabletID, Info->Follower, Info->Tablet, Info->IsCandidate),
             IEventHandle::FlagTrackDelivery | IEventHandle::FlagSubscribeOnSession,
             cookie);
         Become(&TThis::StateCalm);
     }
 
     void PassAway() override {
-        Send(Replica, new TEvStateStorage::TEvReplicaUnregFollower(Info->TabletID, Info->Follower, ClusterStateGeneration, ClusterStateGuid));
+        Send(Replica, new TEvStateStorage::TEvReplicaUnregFollower(Info->TabletID, Info->Follower));
         TBaseGuardian::PassAway();
     }
 
@@ -366,8 +328,8 @@ public:
         return NKikimrServices::TActivity::SS_REPLICA_GUARDIAN;
     }
 
-    TFollowerGuardian(TFollowerInfo *info, const TActorId replica, const TActorId guard, ui64 clusterStateGeneration, ui64 clusterStateGuid)
-        : TBaseGuardian(replica, guard, clusterStateGeneration, clusterStateGuid)
+    TFollowerGuardian(TFollowerInfo *info, const TActorId replica, const TActorId guard)
+        : TBaseGuardian(replica, guard)
         , Info(info)
     {}
 
@@ -383,7 +345,6 @@ public:
             cFunc(TEvTablet::TEvPing::EventType, Ping);
             cFunc(TEvents::TEvPoisonPill::EventType, PassAway);
             cFunc(TEvStateStorage::TEvReplicaShutdown::EventType, Gone);
-            hFunc(TEvStateStorage::TEvConfigVersionInfo, HandleConfigVersion);
         }
     }
 
@@ -395,7 +356,6 @@ public:
             cFunc(TEvents::TEvWakeup::EventType, UpdateInfo);
 
             cFunc(TEvStateStorage::TEvReplicaShutdown::EventType, Gone);
-            hFunc(TEvStateStorage::TEvConfigVersionInfo, HandleConfigVersion);
         }
     }
 };
@@ -429,8 +389,6 @@ class TTabletGuardian : public TActorBootstrapped<TTabletGuardian> {
 
     void Handle(TEvStateStorage::TEvResolveReplicasList::TPtr &ev) {
         const TVector<TActorId> &replicasList = ev->Get()->GetPlainReplicas();
-        ui64 clusterStateGeneration = ev->Get()->ClusterStateGeneration;
-        ui64 clusterStateGuid = ev->Get()->ClusterStateGuid;
         Y_ABORT_UNLESS(!replicasList.empty(), "must not happens, guardian must be created over active tablet");
 
         const ui32 replicaSz = replicasList.size();
@@ -444,16 +402,15 @@ class TTabletGuardian : public TActorBootstrapped<TTabletGuardian> {
             for (auto& p : ReplicaGuardians)
                 if (p.first == replica && p.second) {
                     updatedReplicaGuardians.emplace_back(p);
-                    Send(p.second, new TEvStateStorage::TEvConfigVersionInfo(clusterStateGeneration, clusterStateGuid));
                     p.second = TActorId();
                     found = true;
                     break;
                 }
             if (!found) {
                 if (Info)
-                    updatedReplicaGuardians.emplace_back(replica, RegisterWithSameMailbox(new TReplicaGuardian(Info.Get(), replica, SelfId(), clusterStateGeneration, clusterStateGuid)));
+                    updatedReplicaGuardians.emplace_back(replica, RegisterWithSameMailbox(new TReplicaGuardian(Info.Get(), replica, SelfId())));
                 else
-                    updatedReplicaGuardians.emplace_back(replica, RegisterWithSameMailbox(new TFollowerGuardian(FollowerInfo.Get(), replica, SelfId(), clusterStateGeneration, clusterStateGuid)));
+                    updatedReplicaGuardians.emplace_back(replica, RegisterWithSameMailbox(new TFollowerGuardian(FollowerInfo.Get(), replica, SelfId())));
             }
         }
         for (const auto &xpair : ReplicaGuardians) {

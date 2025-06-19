@@ -435,7 +435,7 @@ bool TKqpQueryState::PrepareNextStatementPart() {
     return true;
 }
 
-void TKqpQueryState::FillTopicOperations() {
+void TKqpQueryState::AddOffsetsToTransaction() {
     YQL_ENSURE(HasTopicOperations());
 
     const auto& operations = GetTopicOperationsFromRequest();
@@ -464,14 +464,6 @@ void TKqpQueryState::FillTopicOperations() {
                 }
             }
         }
-    }
-
-    const auto& kafkaOperations = GetKafkaApiOperationsFromRequest();
-    for (auto& partitionInTx : kafkaOperations.GetPartitionsInTxn()) {
-        TopicOperations.AddKafkaApiWriteOperation(partitionInTx.GetTopicPath(), partitionInTx.GetPartitionId(), {kafkaOperations.GetProducerId(), kafkaOperations.GetProducerEpoch()});
-    }
-    for (auto& offsetInTxn : kafkaOperations.GetOffsetsInTxn()) {
-        TopicOperations.AddKafkaApiReadOperation(offsetInTxn.GetTopicPath(), offsetInTxn.GetPartitionId(), offsetInTxn.GetConsumerName(), offsetInTxn.GetOffset());
     }
 }
 

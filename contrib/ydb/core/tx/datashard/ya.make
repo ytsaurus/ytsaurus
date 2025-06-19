@@ -251,6 +251,9 @@ PEERDIR(
     library/cpp/monlib/service/pages
     library/cpp/string_utils/base64
     library/cpp/string_utils/quote
+    library/cpp/dot_product
+    library/cpp/l1_distance
+    library/cpp/l2_distance
     contrib/ydb/core/actorlib_impl
     contrib/ydb/core/backup/common
     contrib/ydb/core/base
@@ -262,7 +265,6 @@ PEERDIR(
     contrib/ydb/core/kqp/runtime
     contrib/ydb/core/persqueue/writer
     contrib/ydb/core/protos
-    contrib/ydb/core/scheme
     contrib/ydb/core/tablet
     contrib/ydb/core/tablet_flat
     contrib/ydb/core/tx/long_tx_service/public

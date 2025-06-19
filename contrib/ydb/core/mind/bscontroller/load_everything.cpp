@@ -237,8 +237,6 @@ public:
                     group.NAME = groups.GetValue<T::NAME>(); \
                 }
 
-                OPTIONAL(BridgeGroupInfo)
-
                 OPTIONAL(VirtualGroupName)
                 OPTIONAL(VirtualGroupState)
                 OPTIONAL(HiveId)

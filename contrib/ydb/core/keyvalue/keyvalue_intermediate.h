@@ -70,7 +70,6 @@ struct TIntermediate {
         NKikimrProto::EReplyStatus Status;
         TStorageStatusFlags StatusFlags;
         TDuration Latency;
-        ui64 CreationUnixTime;
     };
     struct TDelete {
         TKeyRange Range;
@@ -78,7 +77,6 @@ struct TIntermediate {
     struct TRename {
         TString OldKey;
         TString NewKey;
-        ui64 CreationUnixTime;
     };
     struct TCopyRange {
         TKeyRange Range;

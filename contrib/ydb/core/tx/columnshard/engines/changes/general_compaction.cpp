@@ -69,19 +69,9 @@ TConclusionStatus TGeneralCompactColumnEngineChanges::DoConstructBlobs(TConstruc
             AFL_VERIFY(usedPortionIds.emplace(i.GetPortionInfo().GetPortionId()).second);
             currentToMerge.emplace_back(std::make_shared<TReadPortionToMerge>(std::move(i), GranuleMeta));
         }
-
-        const auto buildPortionsToMerge = [&](const std::vector<std::shared_ptr<ISubsetToMerge>>& toMerge, const bool useDeletion) {
-            std::vector<TPortionToMerge> result;
-            for (auto&& i : toMerge) {
-                auto mergePortions = i->BuildPortionsToMerge(context, seqDataColumnIds, resultFiltered, usedPortionIds, useDeletion);
-                result.insert(result.end(), mergePortions.begin(), mergePortions.end());
-            }
-            return result;
-        };
-
         auto shardingActual = context.SchemaVersions.GetShardingInfoActual(GranuleMeta->GetPathId());
         while (true) {
-            std::vector<std::shared_ptr<ISubsetToMerge>> toMerge;
+            std::vector<TPortionToMerge> toMerge;
             ui64 sumMemory = 0;
             ui64 totalSumMemory = 0;
             std::vector<std::shared_ptr<ISubsetToMerge>> appendedToMerge;
@@ -90,9 +80,9 @@ TConclusionStatus TGeneralCompactColumnEngineChanges::DoConstructBlobs(TConstruc
                 if (NYDBTest::TControllers::GetColumnShardController()->CheckPortionsToMergeOnCompaction(
                         sumMemory + i->GetColumnMaxChunkMemory(), subsetsCount) &&
                     subsetsCount > 1) {
-                    auto merged = BuildAppendedPortionsByChunks(context, buildPortionsToMerge(toMerge, false), resultFiltered, stats);
+                    auto merged = BuildAppendedPortionsByChunks(context, std::move(toMerge), resultFiltered, stats);
                     if (merged.size()) {
-                        appendedToMerge.emplace_back(std::make_shared<TWritePortionsToMerge>(std::move(merged), GranuleMeta));
+                        appendedToMerge.emplace_back(std::make_shared<TWritePortionsToMerge>(std::move(merged)));
                     }
                     toMerge.clear();
                     sumMemory = 0;
@@ -100,14 +90,15 @@ TConclusionStatus TGeneralCompactColumnEngineChanges::DoConstructBlobs(TConstruc
                 }
                 sumMemory += i->GetColumnMaxChunkMemory();
                 totalSumMemory += i->GetColumnMaxChunkMemory();
-                toMerge.emplace_back(i);
+                auto mergePortions = i->BuildPortionsToMerge(context, seqDataColumnIds, resultFiltered, usedPortionIds);
+                toMerge.insert(toMerge.end(), mergePortions.begin(), mergePortions.end());
                 ++subsetsCount;
             }
             if (toMerge.size()) {
-                auto merged = BuildAppendedPortionsByChunks(context, buildPortionsToMerge(toMerge, appendedToMerge.empty()), resultFiltered, stats);
+                auto merged = BuildAppendedPortionsByChunks(context, std::move(toMerge), resultFiltered, stats);
                 if (appendedToMerge.size()) {
                     if (merged.size()) {
-                        appendedToMerge.emplace_back(std::make_shared<TWritePortionsToMerge>(std::move(merged), GranuleMeta));
+                        appendedToMerge.emplace_back(std::make_shared<TWritePortionsToMerge>(std::move(merged)));
                     }
                 } else {
                     context.Counters.OnCompactionCorrectMemory(totalSumMemory);

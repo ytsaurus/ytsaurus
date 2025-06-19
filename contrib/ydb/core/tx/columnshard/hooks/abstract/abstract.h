@@ -3,7 +3,6 @@
 #include <contrib/ydb/core/tablet_flat/tablet_flat_executor.h>
 #include <contrib/ydb/core/tx/columnshard/common/limits.h>
 #include <contrib/ydb/core/tx/columnshard/common/snapshot.h>
-#include <contrib/ydb/core/tx/columnshard/common/path_id.h>
 #include <contrib/ydb/core/tx/columnshard/engines/writer/write_controller.h>
 #include <contrib/ydb/core/tx/columnshard/splitter/settings.h>
 #include <contrib/ydb/core/tx/tiering/tier/identifier.h>
@@ -65,6 +64,7 @@ public:
 class ICSController {
 public:
     enum class EBackground {
+        Indexation,
         Compaction,
         TTL,
         Cleanup,
@@ -356,12 +356,6 @@ public:
     virtual THashMap<TString, std::shared_ptr<NKikimr::NOlap::NDataLocks::ILock>> GetExternalDataLocks() const {
         return {};
     }
-
-    virtual void OnAddPathId(const ui64 /* tabletId */, const NColumnShard::TUnifiedPathId& /* pathId */) {
-    }
-    virtual void OnDeletePathId(const ui64 /* tabletId */, const NColumnShard::TUnifiedPathId& /* pathId */) {
-    }
-
 };
 
 class TControllers {

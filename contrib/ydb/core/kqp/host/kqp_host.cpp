@@ -1910,7 +1910,6 @@ private:
 
         solomonState->Types = TypesCtx.Get();
         solomonState->Gateway = FederatedQuerySetup->SolomonGateway;
-        solomonState->CredentialsFactory = FederatedQuerySetup->CredentialsFactory;
         solomonState->DqIntegration = NYql::CreateSolomonDqIntegration(solomonState);
         solomonState->Configuration->Init(FederatedQuerySetup->SolomonGatewayConfig, TypesCtx);
         solomonState->ExecutorPoolId = AppData()->UserPoolId;

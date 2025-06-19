@@ -94,7 +94,6 @@ struct TOwnerData {
     NMetrics::TDecayingAverageValue<ui64, NMetrics::DurationPerMinute, NMetrics::DurationPerSecond> ReadThroughput;
     NMetrics::TDecayingAverageValue<ui64, NMetrics::DurationPerMinute, NMetrics::DurationPerSecond> WriteThroughput;
     ui32 VDiskSlotId = 0;
-    ui32 GroupSizeInUnits = 0;
 
     TIntrusivePtr<TLogReaderBase> LogReader;
     TIntrusivePtr<TOwnerInflight> InFlight;
@@ -212,7 +211,6 @@ struct TOwnerData {
             str << " HasReadTheWholeLog";
         }
         str << " VDiskSlotId# " << VDiskSlotId;
-        str << " SizeInUnits# " << GroupSizeInUnits;
         if (InFlight) {
             str << " Inflight {";
             str << " ChunkWrites# " << InFlight->ChunkWrites.load();
@@ -246,7 +244,6 @@ struct TOwnerData {
         ReadThroughput = NMetrics::TDecayingAverageValue<ui64, NMetrics::DurationPerMinute, NMetrics::DurationPerSecond>();
         WriteThroughput = NMetrics::TDecayingAverageValue<ui64, NMetrics::DurationPerMinute, NMetrics::DurationPerSecond>();
         VDiskSlotId = 0;
-        GroupSizeInUnits = 0;
 
         if (!quarantine) {
             LogReader.Reset();

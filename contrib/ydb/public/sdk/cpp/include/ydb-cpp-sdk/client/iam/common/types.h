@@ -33,7 +33,6 @@ struct TIamEndpoint {
     TDuration RefreshPeriod = NIam::DEFAULT_REFRESH_PERIOD;
     TDuration RequestTimeout = NIam::DEFAULT_REQUEST_TIMEOUT;
     bool EnableSsl = NIam::DEFAULT_ENABLE_SSL;
-    std::string CaCerts = "";
 };
 
 struct TIamJwtFilename : TIamEndpoint { std::string JwtFilename; };

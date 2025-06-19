@@ -366,7 +366,7 @@ void THive::ProcessWaitQueue() {
 void THive::AddToBootQueue(TTabletInfo* tablet, TNodeId node) {
     tablet->UpdateWeight();
     tablet->BootState = BootStateBooting;
-    BootQueue.AddToBootQueue(*tablet, node);
+    BootQueue.EmplaceToBootQueue(*tablet, node);
     UpdateCounterBootQueueSize(BootQueue.BootQueue.size());
 }
 
@@ -687,7 +687,6 @@ void THive::BuildCurrentConfig() {
         SpreadNeighbours = false;
         ObjectDistributions.Disable();
     }
-    BootQueue.UpdateTabletBootQueuePriorities(CurrentConfig);
 }
 
 void THive::Cleanup() {
