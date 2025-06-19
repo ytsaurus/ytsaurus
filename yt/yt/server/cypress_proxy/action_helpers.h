@@ -44,7 +44,7 @@ TFuture<NSequoiaClient::ISequoiaTransactionPtr> StartCypressProxyTransaction(
 //! in #transactionIds.
 TFuture<std::vector<NSequoiaClient::NRecords::TPathToNodeId>> SelectSubtree(
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
-    const NSequoiaClient::TAbsoluteYPath& path,
+    const NSequoiaClient::TAbsolutePath& path,
     TRange<NCypressClient::TTransactionId> cypressTransactionIds);
 
 //! Creates chain of map-nodes under transaction #parentId.TransactionId.
@@ -53,7 +53,7 @@ TFuture<std::vector<NSequoiaClient::NRecords::TPathToNodeId>> SelectSubtree(
  *  NB: In case of empty #nodeKeys this function just returns #parentId.
  */
 NCypressClient::TNodeId CreateIntermediateMapNodes(
-    const NSequoiaClient::TAbsoluteYPath& parentPath,
+    const NSequoiaClient::TAbsolutePath& parentPath,
     NCypressClient::TVersionedNodeId parentId,
     TRange<std::string> nodeKeys,
     const NApi::TSuppressableAccessTrackingOptions& options,
@@ -67,12 +67,12 @@ NCypressClient::TNodeId CreateIntermediateMapNodes(
  */
 NCypressClient::TNodeId CopySubtree(
     const std::vector<TCypressNodeDescriptor>& sourceNodes,
-    const NSequoiaClient::TAbsoluteYPath& sourceRootPath,
-    const NSequoiaClient::TAbsoluteYPath& destinationRootPath,
+    const NSequoiaClient::TAbsolutePath& sourceRootPath,
+    const NSequoiaClient::TAbsolutePath& destinationRootPath,
     NCypressClient::TNodeId destinationSubtreeParentId,
     NCypressClient::TTransactionId cypressTransactionId,
     const TCopyOptions& options,
-    const THashMap<NCypressClient::TNodeId, NSequoiaClient::TAbsoluteYPath>& subtreeLinks,
+    const THashMap<NCypressClient::TNodeId, NYPath::TYPath>& subtreeLinks,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 

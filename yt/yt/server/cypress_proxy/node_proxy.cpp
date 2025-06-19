@@ -79,9 +79,6 @@ using namespace NYTree;
 using NYT::FromProto;
 using NYT::ToProto;
 
-using TYPath = NSequoiaClient::TYPath;
-using TYPathBuf = NSequoiaClient::TYPathBuf;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -111,7 +108,7 @@ IMPLEMENT_SUPPORTS_METHOD_RESOLVE(
     })
 
 void TSupportsExists::ExistsAttribute(
-    const NYPath::TYPath& /*path*/,
+    const TYPath& /*path*/,
     TReqExists* /*request*/,
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
@@ -132,7 +129,7 @@ void TSupportsExists::ExistsSelf(
 }
 
 void TSupportsExists::ExistsRecursive(
-    const NYPath::TYPath& /*path*/,
+    const TYPath& /*path*/,
     TReqExists* /*request*/,
     TRspExists* /*response*/,
     const TCtxExistsPtr& context)
@@ -177,7 +174,7 @@ public:
 
 protected:
     const TNodeId Id_;
-    const TAbsoluteYPath Path_;
+    const TAbsolutePath Path_;
     // Can be null only if |Id_| is a scion, Cypress link or snapshot branch.
     const TNodeId ParentId_;
     const TSequoiaResolveResult ResolveResult_;
@@ -478,7 +475,7 @@ protected:
     }
 
     void ExistsAttribute(
-        const NYPath::TYPath& /*path*/,
+        const TYPath& /*path*/,
         TReqExists* /*request*/,
         TRspExists* /*response*/,
         const TCtxExistsPtr& context) override
@@ -488,7 +485,7 @@ protected:
     }
 
     void GetAttribute(
-        const NYPath::TYPath& /*path*/,
+        const TYPath& /*path*/,
         TReqGet* /*request*/,
         TRspGet* /*response*/,
         const TCtxGetPtr& context) override
@@ -498,7 +495,7 @@ protected:
     }
 
     void SetAttribute(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqSet* request,
         TRspSet* /*response*/,
         const TCtxSetPtr& context) override
@@ -520,7 +517,7 @@ protected:
     }
 
     void RemoveAttribute(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqRemove* request,
         TRspRemove* /*response*/,
         const TCtxRemovePtr& context) override
@@ -537,7 +534,7 @@ protected:
     }
 
     void ListAttribute(
-        const NYPath::TYPath& /*path*/,
+        const TYPath& /*path*/,
         TReqList* request,
         TRspList* /*response*/,
         const TCtxListPtr& context) override
@@ -657,9 +654,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
         : CreateEphemeralAttributes();
 
     if (type == EObjectType::Link) {
+        auto targetPath = ValidateAndMakeYPath(
+            explicitAttributes->Get<TRawYPath>(EInternedAttributeKey::TargetPath.Unintern()));
         ValidateLinkNodeCreation(
             SequoiaSession_,
-            explicitAttributes->Get<TRawYPath>(EInternedAttributeKey::TargetPath.Unintern()),
+            targetPath,
             ResolveResult_);
         type = EObjectType::SequoiaLink;
     }
@@ -673,7 +672,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
             type);
     }
 
-    auto unresolvedSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
+    auto unresolvedSuffix = GetRequestTargetYPath(context->GetRequestHeader());
     auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
     if (unresolvedSuffixTokens.empty() && !force) {
         if (!ignoreExisting) {
@@ -719,10 +718,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)
     auto [targetParentNodeId, attachmentPointNodeId, targetKey] = ReplaceSubtreeWithMapNodeChain(
         unresolvedSuffixTokens,
         force);
+    auto targetNodePath = JoinNestedNodesToPath(Path_, unresolvedSuffixTokens);
 
     auto createdNodeId = SequoiaSession_->CreateNode(
         type,
-        Path_ + unresolvedSuffix,
+        targetNodePath,
         explicitAttributes.Get(),
         targetParentNodeId,
         /*options*/ {});
@@ -746,7 +746,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         THROW_ERROR_EXCEPTION("Invalid number of additional paths");
     }
 
-    auto originalSourcePath = TAbsoluteYPathBuf(ypathExt.additional_paths(0));
+    auto originalSourcePath = ValidateAndMakeYPath(TRawYPath(ypathExt.additional_paths(0)));
     auto options = FromProto<TCopyOptions>(*request);
 
     // These are handled on cypress proxy and are not needed on master.
@@ -790,7 +790,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         THROW_ERROR_EXCEPTION("Cannot specify \"ignore_existing\" for move operation");
     }
 
-    Visit(originalSourcePath.GetRootDesignator().first,
+    Visit(GetRootDesignator(originalSourcePath).first,
         [&] (TObjectId objectId) {
             if (auto type = TypeFromId(objectId); !IsVersionedType(type)) {
                 THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
@@ -802,7 +802,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
 
     auto sourceResolveResult = ResolvePath(
         SequoiaSession_,
-        originalSourcePath.ToRawYPath(),
+        originalSourcePath,
         context->GetService(),
         "Copy");
 
@@ -827,7 +827,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
     // NB: Rewriting in case there were links in the original source path.
     const auto& sourceRootPath = resolvedSource->Path;
     if (auto sourceUnresolvedSuffix = resolvedSource->UnresolvedSuffix;
-        !sourceUnresolvedSuffix.IsEmpty())
+        !sourceUnresolvedSuffix.empty())
     {
         auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(sourceUnresolvedSuffix);
         ThrowNoSuchChild(sourceRootPath, unresolvedSuffixTokens[0]);
@@ -843,7 +843,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
     }
 
     // Validate there are no duplicate or missing destination nodes.
-    auto unresolvedDestinationSuffix = TYPath(GetRequestTargetYPath(context->GetRequestHeader()));
+    auto unresolvedDestinationSuffix = GetRequestTargetYPath(context->GetRequestHeader());
     auto destinationSuffixDirectoryTokens = TokenizeUnresolvedSuffix(unresolvedDestinationSuffix);
     if (destinationSuffixDirectoryTokens.empty() && !force) {
         if (!ignoreExisting) {
@@ -883,8 +883,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
     // first and last elements of the destination subtree.
     if (options.Mode == ENodeCloneMode::Move &&
         (removedNodes.empty() ||
-         sourceRootPath < TAbsoluteYPath(removedNodes.front().Path) ||
-         TAbsoluteYPath(removedNodes.back().Path) < sourceRootPath))
+         sourceRootPath < removedNodes.front().Path ||
+         removedNodes.back().Path < sourceRootPath))
     {
         auto sourceParentId = resolvedSource->ParentId;
         // Since source is not a scion (because they cannot be copied) it has at
@@ -897,7 +897,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
             /*detachInLatePrepare*/ false);
     }
 
-    auto destinationRootPath = Path_ + unresolvedDestinationSuffix;
+    auto destinationRootPath = JoinNestedNodesToPath(Path_, destinationSuffixDirectoryTokens);
     auto destinationId = SequoiaSession_->CopySubtree(
         nodesToCopy,
         destinationRootPath,
@@ -1068,8 +1068,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
     auto recursive = request->recursive();
 
     auto inplace = request->inplace();
-    auto targetPath = TYPath(GetRequestTargetYPath(context->RequestHeader()));
-    auto replace = targetPath.IsEmpty();
+    auto targetPath = GetRequestTargetYPath(context->RequestHeader());
+    auto replace = targetPath.empty();
 
     context->SetRequestInfo(
         "Force: %v, IgnoreExisting: %v, LockExisting: %v, Replace: %v, "
@@ -1128,7 +1128,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopyDestination)
             parentNodeId = ParentId_;
             childNodeKey = Path_.GetBaseName();
         } else {
-            childNodeKey = targetPath.GetFirstSegment();
+            childNodeKey = targetPathDirectoryTokens[0];
         }
 
         // This lock ensures that both parent node and child node won't change before AssembleTreeCopy is called.
@@ -1322,7 +1322,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, AssembleTreeCopy)
         }
     }
 
-    auto destinationRootPath = Path_ + unresolvedDestinationSuffix;
+    auto destinationRootPath = PathJoin(
+        Path_,
+        TRelativePath::MakeCanonicalPathOrThrow(unresolvedDestinationSuffix));
     SequoiaSession_->AssembleTreeCopy(
         rootNodeId,
         destinationParentId,
@@ -1368,7 +1370,7 @@ private:
     }
 
     void SetRecursive(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqSet* request,
         TRspSet* /*response*/,
         const TCtxSetPtr& context) override
@@ -1381,7 +1383,7 @@ private:
     }
 
     void RemoveRecursive(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqRemove* request,
         TRspRemove* /*response*/,
         const TCtxRemovePtr& context) override
@@ -1396,7 +1398,7 @@ private:
     }
 
     void GetRecursive(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqGet* request,
         TRspGet* /*response*/,
         const TCtxGetPtr& context) override
@@ -1419,7 +1421,7 @@ private:
     // of Sequoia resolve tables so it's necessary to forward "exists" request
     // to master.
     void ExistsRecursive(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqExists* /*request*/,
         TRspExists* /*response*/,
         const TCtxExistsPtr& context) override
@@ -1462,7 +1464,7 @@ private:
     }
 
     void ListRecursive(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqList* request,
         TRspList* /*response*/,
         const TCtxListPtr& context) override
@@ -1510,7 +1512,7 @@ private:
     }
 
     void GetRecursive(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqGet* request,
         TRspGet* /*response*/,
         const TCtxGetPtr& context) override
@@ -1533,7 +1535,7 @@ private:
     // of Sequoia resolve tables so it's necessary to forward "exists" request
     // to master.
     void ExistsRecursive(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqExists* /*request*/,
         TRspExists* /*response*/,
         const TCtxExistsPtr& context) override
@@ -1561,7 +1563,7 @@ private:
     }
 
     void ListRecursive(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqList* request,
         TRspList* /*response*/,
         const TCtxListPtr& context) override
@@ -1606,10 +1608,10 @@ private:
         : public NYson::TForwardingYsonConsumer
     {
     public:
-        // NB: If #subtreePath is "//a/b/c" then #parentId is ID of "//a/b".
+        // NB: If #subtreePath is "//a/b/c" then #parentId is the ID of "//a/b".
         explicit TTreeBuilder(
             TSequoiaSession* session,
-            TAbsoluteYPath subtreePath,
+            TAbsolutePath subtreePath,
             TNodeId parentId,
             TSuppressableAccessTrackingOptions options)
             : UncaughtExceptions_(std::uncaught_exceptions())
@@ -1630,9 +1632,10 @@ private:
             }
         }
 
-        void OnMyKeyedItem(TStringBuf key) override
+        void OnMyKeyedItem(TYPathBuf key) override
         {
-            CurrentPath_.Append(ToStringLiteral(key));
+            CurrentPath_.Join(
+                TRelativePath::UnsafeMakeCanonicalPath(TYPath(TRelativePath::Separator) + key));
         }
 
         void OnMyBeginMap() override
@@ -1643,7 +1646,7 @@ private:
 
         void OnMyEndMap() override
         {
-            CurrentPath_ = CurrentPath_.GetDirPath();
+            CurrentPath_.RemoveLastSegment();
             CurrentAncestors_.pop();
         }
 
@@ -1702,7 +1705,7 @@ private:
         const TSuppressableAccessTrackingOptions AccessTrackingOptions_;
 
         std::stack<TNodeId, std::vector<TNodeId>> CurrentAncestors_;
-        TAbsoluteYPath CurrentPath_;
+        TAbsolutePath CurrentPath_;
         std::unique_ptr<TAttributeConsumer> AttributeConsumer_;
         IAttributeDictionaryPtr Attributes_;
 
@@ -1712,7 +1715,7 @@ private:
             auto nodeId = CreateNode(type);
             Session_->SetNode(nodeId, NYson::ConvertToYsonString(value), AccessTrackingOptions_);
 
-            CurrentPath_ = CurrentPath_.GetDirPath();
+            CurrentPath_.RemoveLastSegment();
         }
 
         TNodeId CreateNode(EObjectType type)
@@ -1735,7 +1738,7 @@ private:
     public:
         TMapNodeSetter(
             TSequoiaSession* session,
-            TAbsoluteYPath path,
+            TAbsolutePath path,
             TNodeId nodeId,
             TSuppressableAccessTrackingOptions options)
             : Session_(session)
@@ -1778,7 +1781,7 @@ private:
 
     private:
         TSequoiaSession* const Session_;
-        const TAbsoluteYPath Path_;
+        const TAbsolutePath Path_;
         const TNodeId Id_;
         const TSuppressableAccessTrackingOptions AccessTrackingOptions_;
 
@@ -1786,14 +1789,17 @@ private:
         std::unique_ptr<TAttributeConsumer> AttributeConsumer_;
         IAttributeDictionaryPtr Attributes_;
 
-        void OnMyKeyedItem(TStringBuf key) override
+        void OnMyKeyedItem(TYPathBuf key) override
         {
             YT_ASSERT(!SubtreeBuilderHolder_.has_value());
 
-            auto subtreeRootPath = YPathJoin(Path_, ToStringLiteral(key));
+            auto subtreeRootPath = PathJoin(
+                Path_,
+                TRelativePath::UnsafeMakeCanonicalPath(TYPath(TRelativePath::Separator) + key));
+
             auto& builder = SubtreeBuilderHolder_.emplace(
                 Session_,
-                subtreeRootPath,
+                std::move(subtreeRootPath),
                 Id_,
                 AccessTrackingOptions_);
             Forward(&builder, [this] {
@@ -1967,7 +1973,7 @@ private:
     }
 
     void GetRecursive(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqGet* request,
         TRspGet* /*response*/,
         const TCtxGetPtr& context) override
@@ -1992,7 +1998,7 @@ private:
     }
 
     void ListRecursive(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqList* request,
         TRspList* /*response*/,
         const TCtxListPtr& context) override
@@ -2016,7 +2022,7 @@ private:
     }
 
     void SetRecursive(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqSet* request,
         TRspSet* /*response*/,
         const TCtxSetPtr& context) override
@@ -2028,9 +2034,8 @@ private:
             recursive,
             request->force());
 
-        auto unresolvedSuffix = TYPath("/" + path);
-        auto destinationPath = Path_ + unresolvedSuffix;
-        auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix(unresolvedSuffix);
+        auto unresolvedSuffixTokens = TokenizeUnresolvedSuffix("/" + path);
+        auto destinationPath = JoinNestedNodesToPath(Path_, unresolvedSuffixTokens);
         auto targetName = unresolvedSuffixTokens.back();
         unresolvedSuffixTokens.pop_back();
 
@@ -2053,7 +2058,7 @@ private:
     }
 
     void RemoveRecursive(
-        const NYPath::TYPath& path,
+        const TYPath& path,
         TReqRemove* request,
         TRspRemove* /*response*/,
         const TCtxRemovePtr& context) override

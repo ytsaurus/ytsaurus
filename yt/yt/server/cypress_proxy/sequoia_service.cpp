@@ -217,10 +217,17 @@ public:
                 // path is correct, if this is not the case - prepare in 2PC
                 // will fail and the error will be propagated to the user.
                 case EObjectType::Rootstock:
-                    proxy = CreateRootstockProxy(
-                        Bootstrap_,
-                        session,
-                        TAbsoluteYPath(cypressResolveResult->Path));
+                    try {
+                        proxy = CreateRootstockProxy(
+                            Bootstrap_,
+                            session,
+                            TAbsolutePath::MakeCanonicalPathOrThrow(
+                                cypressResolveResult->Path));
+                    } catch (const std::exception& ex) {
+                        // TODO(danilalexeev): Implement the top-level #GuardedTryInvoke.
+                        context->Reply(ex);
+                        return EInvokeResult::Executed;
+                    }
                     break;
 
                 // Link may point into Sequoia we cannot check it's cyclicity in
@@ -230,10 +237,12 @@ public:
                 // (subtree copy?).
                 case EObjectType::Link:
                     try {
+                        auto targetPath = ValidateAndMakeYPath(
+                            reqCreate->ExplicitAttributes->Get<TRawYPath>(
+                                EInternedAttributeKey::TargetPath.Unintern()));
                         ValidateLinkNodeCreation(
                             session,
-                            reqCreate->ExplicitAttributes->Get<TRawYPath>(
-                                EInternedAttributeKey::TargetPath.Unintern()),
+                            targetPath,
                             resolveResult);
                         // Link should be created in master.
                         return EInvokeResult::ForwardToMaster;

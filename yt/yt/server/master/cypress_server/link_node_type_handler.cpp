@@ -259,6 +259,7 @@ private:
 
         const auto& cypressManager = GetBootstrap()->GetCypressManager();
         auto pathRootType = EPathRootType::Other;
+        // TODO(danilalexeev): YT-20675. Forbid the usage of '\0' in YPath.
         auto linkPath = cypressManager->GetNodePath(
             node->GetTrunkNode(), node->GetTransaction(), &pathRootType);
         if (pathRootType == EPathRootType::Other) [[unlikely]] {
@@ -279,7 +280,7 @@ private:
 
         const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
         queueManager->EnqueueWrite(NRecords::TPathToNodeId{
-            .Key = {.Path = MangleSequoiaPath(linkPath), .TransactionId = transactionId},
+            .Key = {.Path = MangleSequoiaPath(TRealPath(linkPath)), .TransactionId = transactionId},
             .NodeId = node->GetId(),
         });
         queueManager->EnqueueWrite(NRecords::TNodeIdToPath{
@@ -306,7 +307,7 @@ private:
 
         const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
         queueManager->EnqueueDelete(NRecords::TPathToNodeIdKey{
-            .Path = MangleSequoiaPath(path),
+            .Path = MangleSequoiaPath(TRealPath(path)),
             .TransactionId = transactionId,
         });
         queueManager->EnqueueDelete(NRecords::TNodeIdToPathKey{

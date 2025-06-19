@@ -153,8 +153,6 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
 
-using TYPath = NYPath::TYPath;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 constinit const auto Logger = CypressServerLogger;

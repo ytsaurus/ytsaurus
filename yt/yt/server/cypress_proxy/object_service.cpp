@@ -788,7 +788,7 @@ private:
 
         Visit(resolveResult,
             [&] (const TCypressResolveResult& cypressResolveResult) {
-                newPath = cypressResolveResult.Path.Underlying();
+                newPath = cypressResolveResult.Path;
             },
             [&] (const TMasterResolveResult& /*masterResolveResult*/) {
                 // NB: Path is currently unused in master requests.
@@ -796,7 +796,7 @@ private:
             [&] (const TSequoiaResolveResult& sequoiaResolveResult) {
                 subrequest->ResolvedNodeId = sequoiaResolveResult.Id;
 
-                newPath = sequoiaResolveResult.UnresolvedSuffix.Underlying();
+                newPath = sequoiaResolveResult.UnresolvedSuffix;
             });
 
         auto& header = *subrequest->RequestHeader;
@@ -829,7 +829,7 @@ private:
         // Replace "<unresolved-suffix>"" with "#<object-id>/<unresolved-suffix>".
         if (const auto* sequoiaResolveResult = std::get_if<TSequoiaResolveResult>(&resolveResult)) {
             ypathExt->set_target_path(
-                FromObjectId(sequoiaResolveResult->Id) + sequoiaResolveResult->UnresolvedSuffix.Underlying());
+                FromObjectId(sequoiaResolveResult->Id) + sequoiaResolveResult->UnresolvedSuffix);
         }
 
         subrequest->RequestMessage = SetRequestHeader(subrequest->RequestMessage, header);
@@ -848,7 +848,9 @@ private:
             subrequest->Target == ERequestTarget::Undetermined ||
             subrequest->Target == ERequestTarget::Sequoia);
 
-        auto originalTargetPath = TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader));
+        auto originalTargetPath = ValidateAndMakeYPath(
+            TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader))
+        );
         auto cypressTransactionId = GetTransactionId(*subrequest->RequestHeader);
         auto prerequisiteTransactionIds = ParsePrerequisiteTransactionIds(*subrequest->RequestHeader);
 
@@ -864,7 +866,7 @@ private:
             session = TSequoiaSession::Start(Owner_->Bootstrap_, cypressTransactionId, prerequisiteTransactionIds);
             resolveResult = ResolvePath(
                 session,
-                originalTargetPath,
+                std::move(originalTargetPath),
                 subrequest->RequestHeader->service(),
                 subrequest->RequestHeader->method());
         } catch (const std::exception& ex) {
