@@ -18,6 +18,7 @@
 
 #include <yt/yt/ytlib/api/native/chaos_helpers.h>
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
@@ -209,15 +210,6 @@ private:
                 .FetchOptions = MinimalFetchOptions,
             };
 
-            // Replication card can be null on start, so check it before getting the era.
-            if (ReplicationCard_ && newEra != InvalidReplicationEra && ReplicationCard_->Era < newEra) {
-                key.RefreshEra = newEra;
-                YT_LOG_DEBUG("Forcing cached replication card update (OldEra: %v, NewEra: %v)",
-                    ReplicationCard_->Era,
-                    newEra);
-                replicationCardCache->ForceRefresh(key, ReplicationCard_);
-            }
-
             TReplicationCardPtr replicationCard;
 
             auto snapshotEra = Tablet_->RuntimeData()->ReplicationEra.load();
@@ -237,26 +229,46 @@ private:
                     .ValueOrThrow();
 
                 auto maxEra = std::max(snapshotEra, watchedReplicationCard->Era);
+                if (newEra != InvalidReplicationEra) {
+                    maxEra = std::max(maxEra, newEra);
+                }
+
                 if (replicationCard->Era < maxEra) {
                     key.RefreshEra = maxEra;
                     YT_LOG_DEBUG(
                         "Forcing cached replication card update due to outdated copy obtained "
-                        "(FetchedEra: %v, SnapshotEra: %v, WatchedEra: %v)",
+                        "(FetchedEra: %v, SnapshotEra: %v, WatchedEra: %v, NewEra: %v)",
                         replicationCard->Era,
                         snapshotEra,
-                        watchedReplicationCard->Era);
+                        watchedReplicationCard->Era,
+                        newEra);
 
-                    replicationCardCache->ForceRefresh(key, replicationCard);
-                    replicationCard = WaitFor(replicationCardCache->GetReplicationCard(key))
-                        .ValueOrThrow();
+                    const auto& config = LocalClient_->GetNativeConnection()->GetStaticConfig();
+                    int retriesCount = config->TableMountCache->OnErrorRetryCount;
+                    for (int retryCount = 0; retryCount < retriesCount; ++retryCount) {
+                        replicationCardCache->ForceRefresh(key, replicationCard);
+                        auto replicationCardOrError = WaitFor(replicationCardCache->GetReplicationCard(key));
 
-                    if (replicationCard->Era < maxEra) {
-                        YT_LOG_ALERT(
+                        if (!replicationCardOrError.IsOK()) {
+                            YT_LOG_DEBUG(replicationCardOrError,
+                                "Failed to get replication card (Attempt: %v)",
+                                retryCount);
+                        }
+
+                        replicationCard = replicationCardOrError.Value();
+                        if (replicationCard->Era >= maxEra) {
+                            break;
+                        }
+
+                        // Some other thread might be updating cache to the previous era, so it can happen.
+                        YT_LOG_DEBUG(
                             "Replication card era is outdated after forced refresh "
-                            "(FetchedEra: %v, SnapshotEra: %v, WatchedEra: %v)",
+                            "(FetchedEra: %v, SnapshotEra: %v, WatchedEra: %v, NewEra: %v, Attempt: %v)",
                             replicationCard->Era,
                             snapshotEra,
-                            watchedReplicationCard->Era);
+                            watchedReplicationCard->Era,
+                            newEra,
+                            retryCount);
                     }
                 }
             }
