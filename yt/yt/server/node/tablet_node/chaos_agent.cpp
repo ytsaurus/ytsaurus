@@ -141,9 +141,11 @@ private:
     // Nullable.
     const IReplicationCardUpdatesBatcherPtr ReplicationCardUpdatesBatcher_;
 
-    TReplicationCardPtr ReplicationCard_;
-
     const NLogging::TLogger Logger;
+
+    TReplicationCardPtr ReplicationCard_;
+    bool ReplicationCardReconfigured_ = false;
+
 
     TFuture<void> FiberFuture_;
     TFuture<void> ProgressReporterFiberFuture_;
@@ -168,6 +170,10 @@ private:
     void UpdateReplicationCardAndReconfigure(TReplicationEra newEra = InvalidReplicationEra)
     {
         UpdateReplicationCard(newEra);
+
+        if (ReplicationCardReconfigured_) {
+            return;
+        }
 
         if (auto guard = TAsyncSemaphoreGuard::TryAcquire(ConfigurationLock_)) {
             try {
@@ -198,6 +204,11 @@ private:
                 },
             };
 
+            auto watchedKey = TReplicationCardCacheKey{
+                .CardId = ReplicationCardId_,
+                .FetchOptions = MinimalFetchOptions,
+            };
+
             // Replication card can be null on start, so check it before getting the era.
             if (ReplicationCard_ && newEra != InvalidReplicationEra && ReplicationCard_->Era < newEra) {
                 key.RefreshEra = newEra;
@@ -217,37 +228,50 @@ private:
                     LocalClient_->GetNativeConnection(),
                     ReplicationCardId_);
             } else {
+                auto futureWatchedReplicationCard = replicationCardCache->GetReplicationCard(watchedKey);
+
                 replicationCard = WaitFor(replicationCardCache->GetReplicationCard(key))
                     .ValueOrThrow();
 
-                if (replicationCard->Era < snapshotEra) {
-                    key.RefreshEra = snapshotEra;
+                auto watchedReplicationCard = WaitForFast(futureWatchedReplicationCard)
+                    .ValueOrThrow();
+
+                auto maxEra = std::max(snapshotEra, watchedReplicationCard->Era);
+                if (replicationCard->Era < maxEra) {
+                    key.RefreshEra = maxEra;
                     YT_LOG_DEBUG(
                         "Forcing cached replication card update due to outdated copy obtained "
-                        "(FetchedEra: %v, SnapshotEra: %v)",
+                        "(FetchedEra: %v, SnapshotEra: %v, WatchedEra: %v)",
                         replicationCard->Era,
-                        snapshotEra);
+                        snapshotEra,
+                        watchedReplicationCard->Era);
 
                     replicationCardCache->ForceRefresh(key, replicationCard);
                     replicationCard = WaitFor(replicationCardCache->GetReplicationCard(key))
                         .ValueOrThrow();
 
-                    if (replicationCard->Era < snapshotEra) {
+                    if (replicationCard->Era < maxEra) {
                         YT_LOG_ALERT(
                             "Replication card era is outdated after forced refresh "
-                            "(FetchedEra: %v, SnapshotEra: %v)",
+                            "(FetchedEra: %v, SnapshotEra: %v, WatchedEra: %v)",
                             replicationCard->Era,
-                            snapshotEra);
+                            snapshotEra,
+                            watchedReplicationCard->Era);
                     }
                 }
             }
 
-            ReplicationCard_ = std::move(replicationCard);
+            // Check if the replication card has changed during update, or we are looking at an old instance.
+            if (ReplicationCard_.Get() != replicationCard.Get()) {
+                ReplicationCard_ = std::move(replicationCard);
 
-            Tablet_->RuntimeData()->ReplicationCard.Store(ReplicationCard_);
+                Tablet_->RuntimeData()->ReplicationCard.Store(ReplicationCard_);
+                ReplicationCardReconfigured_ = false;
+            }
 
-            YT_LOG_DEBUG("Tablet replication card updated (ReplicationCard: %v)",
-                ToString(*ReplicationCard_, {{Tablet_->GetPivotKey(), Tablet_->GetNextPivotKey()}}));
+            YT_LOG_DEBUG("Tablet replication card updated (ReplicationCard: %v, ReplicationCardReconfigured: %v)",
+                ToString(*ReplicationCard_, {{Tablet_->GetPivotKey(), Tablet_->GetNextPivotKey()}}),
+                ReplicationCardReconfigured_);
         } catch (std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to update tablet replication card");
         }
@@ -293,6 +317,8 @@ private:
     void ReconfigureTabletWriteMode()
     {
         YT_VERIFY(ConfigurationLock_->GetFree() == 0);
+
+        ReplicationCardReconfigured_ = true;
 
         auto replicationCard = ReplicationCard_;
         if (!replicationCard) {
