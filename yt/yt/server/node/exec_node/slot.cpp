@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/misc/proc.h>
 
+#include <library/cpp/yt/assert/assert.h>
+
 #include <util/folder/dirut.h>
 
 #include <util/system/fs.h>
@@ -171,9 +173,7 @@ public:
                 if (auto criContainerEnv = DynamicPointerCast<TContainerEnvironmentCri>(containerEnv); containerEnv)
                 {
                     auto criJobEnv = config->JobEnvironment.TryGetConcrete<NJobProxy::TCriJobEnvironmentConfig>();
-                    if (!criJobEnv) {
-                        THROW_ERROR_EXCEPTION("CRI container environment is set but not the CRI job environment");
-                    }
+                    YT_VERIFY(criJobEnv);
 
                     criJobEnv->PodDescriptor = std::move(criContainerEnv->PodDescriptor);
                     criJobEnv->PodSpec = std::move(criContainerEnv->PodSpec);

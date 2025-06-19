@@ -2857,6 +2857,7 @@ class TestSidecarVanilla(YTEnvSetup):
 
         op = self.launch_operation(master_command, sidecar_command)
 
+        # Wait until both master job and sidecar job are started, then finish the test.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
         events_on_fs().wait_event("sidecar_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish")
@@ -2920,6 +2921,7 @@ class TestSidecarVanilla(YTEnvSetup):
         )
         wait(lambda: len(get(op.get_path() + "/@progress/tasks")) == 1, ignore_exceptions=True)
 
+        # Wait until master job and both sidecars are started, then finish the test.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
         events_on_fs().wait_event("sidecar1_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().wait_event("sidecar2_job_started", timeout=datetime.timedelta(1000))
@@ -2930,7 +2932,7 @@ class TestSidecarVanilla(YTEnvSetup):
     @authors("pavel-bash")
     def test_restart_always_after_success(self):
         """
-        Check the {RestartPolicy=Always & sidecar-finished-with-success} case; we expect that
+        Check the {restart_policy=always & sidecar-finished-with-success} case; we expect that
         the sidecar will be launched for the 2nd time, emitting the corresponding event.
         """
         master_command = " ; ".join(
@@ -2942,7 +2944,7 @@ class TestSidecarVanilla(YTEnvSetup):
         sidecar_command = f"""
 #!/bin/bash
 if [ -f {events_on_fs()._get_event_filename("sidecar_first_job_started")} ]; then
-  # It's the 2nd time the sidecar is launched
+  # It's the 2nd time the sidecar is launched.
   {events_on_fs().notify_event_cmd("sidecar_second_job_started")}
   {events_on_fs().wait_event_cmd("finish_sidecar_second")}
 else
@@ -2953,11 +2955,14 @@ fi
 
         op = self.launch_operation(master_command, sidecar_command, "always")
 
+        # Wait until master job is started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
 
+        # When the sidecar starts for the 1st time, finish its execution by sending the corresponding event.
         events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish_sidecar_first")
 
+        # When the sidecar starts for 2nd time, it will emit another event; finish the test after that.
         events_on_fs().wait_event("sidecar_second_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish_sidecar_second")
 
@@ -2968,7 +2973,7 @@ fi
     @authors("pavel-bash")
     def test_restart_always_after_failure(self):
         """
-        Check the {RestartPolicy=Always & sidecar-finished-with-failure} case; we expect that
+        Check the {restart_policy=always & sidecar-finished-with-failure} case; we expect that
         the sidecar will be launched for the 2nd time, emitting the corresponding event.
         """
         master_command = " ; ".join(
@@ -2980,7 +2985,7 @@ fi
         sidecar_command = f"""
 #!/bin/bash
 if [ -f {events_on_fs()._get_event_filename("sidecar_first_job_started")} ]; then
-  # It's the 2nd time the sidecar is launched
+  # It's the 2nd time the sidecar is launched.
   {events_on_fs().notify_event_cmd("sidecar_second_job_started")}
   {events_on_fs().wait_event_cmd("finish_sidecar_second")}
 else
@@ -2992,11 +2997,15 @@ fi
 
         op = self.launch_operation(master_command, sidecar_command, "always")
 
+        # Wait until master job is started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
 
+        # When the sidecar starts for the 1st time, it will finish the execution with error; we
+        # expect it to restart.
         events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish_sidecar_first")
 
+        # Check that the sidecar has started for the 2nd time and finish the test.
         events_on_fs().wait_event("sidecar_second_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish_sidecar_second")
 
@@ -3007,7 +3016,7 @@ fi
     @authors("pavel-bash")
     def test_restart_on_failure_after_success(self):
         """
-        Check the {RestartPolicy=OnFailure & sidecar-finished-with-success} case; the sidecar
+        Check the {restart_policy=on_failure & sidecar-finished-with-success} case; the sidecar
         must not be restarted.
         """
         master_command = " ; ".join(
@@ -3028,24 +3037,28 @@ fi
 
         op = self.launch_operation(master_command, sidecar_command, "on_failure")
 
+        # Wait until master job is started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
 
+        # Wait until the sidecar is started.
         events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish_sidecar_first")
 
-        # Wait here a little bit to allow the sidecar to start (if it's going to)
+        # Wait here a little bit; if the code is faulty, the sidecar is going to start for the 2nd time
+        # during this wait.
         time.sleep(5)
 
         events_on_fs().notify_event("finish")
 
         self.ensure_operation_finish(op)
 
+        # Check that the sidecar hasn't started for the 2nd time.
         assert not events_on_fs().check_event("sidecar_second_job_started")
 
     @authors("pavel-bash")
     def test_restart_on_failure_after_failure(self):
         """
-        Check the {RestartPolicy=OnFailure & sidecar-finished-with-failure} case; we expect that
+        Check the {restart_policy=on_failure & sidecar-finished-with-failure} case; we expect that
         the sidecar will be launched for the 2nd time, emitting the corresponding event.
         """
         master_command = " ; ".join(
@@ -3057,7 +3070,7 @@ fi
         sidecar_command = f"""
 #!/bin/bash
 if [ -f {events_on_fs()._get_event_filename("sidecar_first_job_started")} ]; then
-  # It's the 2nd time the sidecar is launched
+  # It's the 2nd time the sidecar is launched.
   {events_on_fs().notify_event_cmd("sidecar_second_job_started")}
   {events_on_fs().wait_event_cmd("finish_sidecar_second")}
 else
@@ -3069,11 +3082,15 @@ fi
 
         op = self.launch_operation(master_command, sidecar_command, "on_failure")
 
+        # Wait until master job is started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
 
+        # When the sidecar starts for the 1st time, it will finish the execution with error; we
+        # expect it to restart.
         events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish_sidecar_first")
 
+        # Check that the sidecar has started for the 2nd time and finish the test.
         events_on_fs().wait_event("sidecar_second_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish_sidecar_second")
 
@@ -3084,7 +3101,7 @@ fi
     @authors("pavel-bash")
     def test_fail_on_error_after_success(self):
         """
-        Check the {RestartPolicy=FailOnError & sidecar-finished-with-success} case; the sidecar
+        Check the {restart_policy=fail_on_error & sidecar-finished-with-success} case; the sidecar
         must not be restarted.
         """
         master_command = " ; ".join(
@@ -3105,24 +3122,28 @@ fi
 
         op = self.launch_operation(master_command, sidecar_command, "fail_on_error")
 
+        # Wait until master job is started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
 
+        # Wait until the sidecar is started.
         events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish_sidecar_first")
 
-        # Wait here a little bit to allow the sidecar to start (if it's going to)
+        # Wait here a little bit; if the code is faulty, the sidecar is going to start for the 2nd time
+        # during this wait.
         time.sleep(5)
 
         events_on_fs().notify_event("finish")
 
         self.ensure_operation_finish(op)
 
+        # Check that the sidecar hasn't started for the 2nd time.
         assert not events_on_fs().check_event("sidecar_second_job_started")
 
     @authors("pavel-bash")
     def test_fail_on_error_after_failure(self):
         """
-        Check the {RestartPolicy=OnFailure & sidecar-finished-with-failure} case; we expect that
+        Check the {restart_policy=fail_on_error & sidecar-finished-with-failure} case; we expect that
         the whole job will be failed because of this.
         """
         master_command = " ; ".join(
@@ -3144,50 +3165,15 @@ fi
 
         op = self.launch_operation(master_command, sidecar_command, "fail_on_error")
 
+        # Wait until master job is started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
 
+        # The sidecar's execution will finish with error.
         events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish_sidecar_first")
 
+        # Check that the whole operation has failed, and the sidecar hasn't restarted.
         op.wait_for_state("failed")
-        assert not events_on_fs().check_event("sidecar_second_job_started")
-
-    @authors("pavel-bash")
-    def test_fail_on_error_after_failure(self):
-        """
-        Check the {RestartPolicy=OnFailure & sidecar-finished-with-failure} case; we expect that
-        the whole job will be failed because of this.
-        """
-        master_command = " ; ".join(
-            [
-                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
-                events_on_fs().wait_event_cmd("finish"),
-            ]
-        )
-        sidecar_command = f"""
-#!/bin/bash
-if [ -f {events_on_fs()._get_event_filename("sidecar_first_job_started")} ]; then
-  {events_on_fs().notify_event_cmd("sidecar_second_job_started")}
-else
-  {events_on_fs().notify_event_cmd("sidecar_first_job_started")}
-  {events_on_fs().wait_event_cmd("finish_sidecar_first")}
-fi
-"""
-
-        op = self.launch_operation(master_command, sidecar_command, "fail_on_error")
-
-        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
-
-        events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
-        events_on_fs().notify_event("finish_sidecar_first")
-
-        # Wait here a little bit to allow the sidecar to start (if it's going to)
-        time.sleep(5)
-
-        events_on_fs().notify_event("finish")
-
-        self.ensure_operation_finish(op)
-
         assert not events_on_fs().check_event("sidecar_second_job_started")
 
     @authors("pavel-bash")
@@ -3223,10 +3209,14 @@ echo 'sidecar_write' >> {shared_file}
 
         op = self.launch_operation(master_command, sidecar_command)
 
+        # Wait until both master job and sidecar are started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
         events_on_fs().wait_event("sidecar_job_started", timeout=datetime.timedelta(1000))
 
+        # Wait until master job has written something into the file.
         events_on_fs().wait_event("master_job_wrote_0", timeout=datetime.timedelta(1000))
+
+        # Allow the sidecar to proceed and check that it also has written into the file.
         events_on_fs().notify_event("sidecar_proceed")
         events_on_fs().wait_event("sidecar_job_wrote", timeout=datetime.timedelta(1000))
 
@@ -3234,5 +3224,6 @@ echo 'sidecar_write' >> {shared_file}
 
         self.ensure_operation_finish(op)
 
+        # Check that we can see the results of both writes in this file.
         with open(shared_file, "r") as shared_file_open:
             assert shared_file_open.read() == shared_file_expected_content

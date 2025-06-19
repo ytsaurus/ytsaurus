@@ -10277,14 +10277,17 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (jobSpecConfig->Sidecars) {
         auto* protoSidecars = jobSpec->mutable_sidecars();
         for (const auto& [sidecarName, sidecarSpec]: *jobSpecConfig->Sidecars) {
-            ToProto(&(*protoSidecars)[sidecarName], *sidecarSpec);
+            auto& protoSidecar = (*protoSidecars)[sidecarName];
+            ToProto(&protoSidecar, *sidecarSpec);
 
             if (sidecarSpec->DockerImage) {
                 auto result = NormalizeDockerImage(*sidecarSpec->DockerImage);
                 if (result.first) {
-                    (*protoSidecars)[sidecarName].set_docker_image(*result.first);
+                    protoSidecar.set_docker_image(*result.first);
                 } else {
-                    (*protoSidecars)[sidecarName].clear_docker_image();
+                    // ToProto(..) sets the docker_image as-is, but we want either the normalized one,
+                    // or no image at all (same as with the main job), so we clear it in this case.
+                    protoSidecar.clear_docker_image();
                 }
                 needDockerAuth |= result.second;
             }

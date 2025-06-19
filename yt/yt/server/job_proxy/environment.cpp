@@ -1161,10 +1161,10 @@ public:
     explicit TCriJobProxyEnvironment(
         TCriJobProxyConfig criJobProxyConfig,
         TCriJobEnvironmentConfigPtr criJobEnvironmentConfig,
-        NConcurrency::TActionQueuePtr actionQueue)
+        IInvokerPtr invoker)
         : CriJobProxyConfig_(std::move(criJobProxyConfig))
         , CriJobEnvironmentConfig_(std::move(criJobEnvironmentConfig))
-        , ActionQueue_(std::move(actionQueue))
+        , Invoker_(std::move(invoker))
         , Executor_(CreateCriExecutor(CriJobEnvironmentConfig_->CriExecutor))
         , ImageCache_(NContainers::NCri::CreateCriImageCache(CriJobEnvironmentConfig_->CriImageCache, Executor_))
     { }
@@ -1365,7 +1365,7 @@ public:
         auto sidecarFuture = BIND([=] {
                 return process->Spawn();
             })
-            .AsyncVia(ActionQueue_->GetInvoker())
+            .AsyncVia(Invoker_)
             .Run();
         sidecarFuture.Subscribe(BIND(&TCriJobProxyEnvironment::OnSidecarFinished, MakeStrong(this), name));
         SidecarsRunning_[name] = {process, std::move(sidecarFuture)};
@@ -1428,7 +1428,7 @@ public:
 private:
     const TCriJobProxyConfig CriJobProxyConfig_;
     const TCriJobEnvironmentConfigPtr CriJobEnvironmentConfig_;
-    const TActionQueuePtr ActionQueue_;
+    const IInvokerPtr Invoker_;
     const NContainers::NCri::ICriExecutorPtr Executor_;
     const NContainers::NCri::ICriImageCachePtr ImageCache_;
 
@@ -1447,7 +1447,7 @@ DEFINE_REFCOUNTED_TYPE(TCriJobProxyEnvironment)
 
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     TJobProxyInternalConfigPtr config,
-    NConcurrency::TActionQueuePtr actionQueue)
+    IInvokerPtr invoker)
 {
     switch (config->JobEnvironment.GetCurrentType()) {
 #ifdef _linux_
@@ -1465,7 +1465,7 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
             return New<TCriJobProxyEnvironment>(
                 TCriJobProxyConfig(config),
                 config->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>(),
-                std::move(actionQueue));
+                std::move(invoker));
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",

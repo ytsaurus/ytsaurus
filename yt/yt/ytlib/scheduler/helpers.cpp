@@ -840,17 +840,11 @@ void FromProto(
 {
     sidecarJobSpec->Command = sidecarJobSpecProto.command();
 
-    if (sidecarJobSpecProto.has_cpu_limit()) {
-        sidecarJobSpec->CpuLimit = sidecarJobSpecProto.cpu_limit();
-    }
+    sidecarJobSpec->CpuLimit = YT_OPTIONAL_FROM_PROTO(sidecarJobSpecProto, cpu_limit);
 
-    if (sidecarJobSpecProto.has_memory_limit()) {
-        sidecarJobSpec->MemoryLimit = sidecarJobSpecProto.memory_limit();
-    }
+    sidecarJobSpec->MemoryLimit = YT_OPTIONAL_FROM_PROTO(sidecarJobSpecProto, memory_limit);
 
-    if (sidecarJobSpecProto.has_docker_image()) {
-        sidecarJobSpec->DockerImage = sidecarJobSpecProto.docker_image();
-    }
+    sidecarJobSpec->DockerImage = YT_OPTIONAL_FROM_PROTO(sidecarJobSpecProto, docker_image);
 
     sidecarJobSpec->RestartPolicy = ConvertTo<ESidecarRestartPolicy>(sidecarJobSpecProto.restart_policy());
 }
@@ -861,17 +855,11 @@ void ToProto(
 {
     sidecarJobSpecProto->set_command(sidecarJobSpec.Command);
 
-    if (sidecarJobSpec.CpuLimit) {
-        sidecarJobSpecProto->set_cpu_limit(*sidecarJobSpec.CpuLimit);
-    }
+    YT_OPTIONAL_SET_PROTO(sidecarJobSpecProto, cpu_limit, sidecarJobSpec.CpuLimit);
 
-    if (sidecarJobSpec.MemoryLimit) {
-        sidecarJobSpecProto->set_memory_limit(*sidecarJobSpec.MemoryLimit);
-    }
+    YT_OPTIONAL_SET_PROTO(sidecarJobSpecProto, memory_limit, sidecarJobSpec.MemoryLimit);
 
-    if (sidecarJobSpec.DockerImage) {
-        sidecarJobSpecProto->set_docker_image(*sidecarJobSpec.DockerImage);
-    }
+    YT_OPTIONAL_TO_PROTO(sidecarJobSpecProto, docker_image, sidecarJobSpec.DockerImage);
 
     sidecarJobSpecProto->set_restart_policy(ToProto(sidecarJobSpec.RestartPolicy));
 }

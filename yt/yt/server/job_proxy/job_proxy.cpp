@@ -190,6 +190,7 @@ TJobProxy::TJobProxy(
     , JobId_(jobId)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
+    , JobProxyEnvironmentThread_(New<TActionQueue>("JobProxyEnvironment"))
     , Logger(JobProxyLogger().WithTag("OperationId: %v, JobId: %v",
         OperationId_,
         JobId_))
@@ -845,7 +846,7 @@ TJobResult TJobProxy::RunJob()
 
         SolomonExporter_ = New<TSolomonExporter>(Config_->SolomonExporter);
 
-        environment = CreateJobProxyEnvironment(Config_);
+        environment = CreateJobProxyEnvironment(Config_, JobProxyEnvironmentThread_->GetInvoker());
         SetJobProxyEnvironment(environment);
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->LocalHostName, Config_->Rack, Config_->DataCenter);
@@ -1042,13 +1043,13 @@ TJobResult TJobProxy::RunJob()
     HeartbeatExecutor_->Start();
     CpuMonitor_->Start();
 
-    environment->StartSidecars(this, GetJobSpecHelper()->GetJobSpecExt(), BIND([this] (TError error) {
-        try {
-            GetJobOrThrow()->Fail(std::move(error));
-        } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Could not get the job to fail because of the failed sidecar (Error: %v)", error);
+    environment->StartSidecars(this, GetJobSpecHelper()->GetJobSpecExt(), [this] (TError sidecarError) {
+        auto job = FindJob();
+        if (!job) {
+            YT_LOG_FATAL("Tried to get the job, but it is unavailable (SidecarError: %v)", sidecarError);
         }
-    }));
+        job->Fail(std::move(sidecarError));
+    });
 
     return job->Run();
 }
