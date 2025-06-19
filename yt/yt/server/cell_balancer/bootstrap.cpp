@@ -18,22 +18,15 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
-#include <yt/yt/ytlib/orchid/orchid_service.h>
+#include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
-
-#include <yt/yt/library/program/build_attributes.h>
-#include <yt/yt/library/program/config.h>
-
-#include <yt/yt/library/coredumper/public.h>
-
-#include <yt/yt/library/fusion/service_locator.h>
-
-#include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -50,6 +43,15 @@
 #include <yt/yt/core/rpc/bus/server.h>
 
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <yt/yt/library/coredumper/public.h>
+
+#include <yt/yt/library/monitoring/http_integration.h>
+
+#include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/config.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
 
 namespace NYT::NCellBalancer {
 
@@ -185,6 +187,7 @@ private:
         connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
         Connection_ = NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
         Connection_->GetClusterDirectorySynchronizer()->Start();
+        Connection_->GetMasterCellDirectorySynchronizer()->Start();
 
         auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
         Client_ = Connection_->CreateNativeClient(clientOptions);
