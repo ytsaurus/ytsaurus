@@ -784,6 +784,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("always_abort_on_memory_reserve_overdraft", &TThis::AlwaysAbortOnMemoryReserveOverdraft)
         .Default(false);
 
+    registrar.Parameter("environment_variables", &TThis::EnvironmentVariables)
+        .Default();
+
     registrar.Parameter("forward_all_environment_variables", &TThis::ForwardAllEnvironmentVariables)
         .Default(false);
 }
