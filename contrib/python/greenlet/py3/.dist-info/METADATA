@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: greenlet
-Version: 3.2.2
+Version: 3.2.3
 Summary: Lightweight in-process concurrent programming
 Home-page: https://greenlet.readthedocs.io/
 Author: Alexey Borzenkov
