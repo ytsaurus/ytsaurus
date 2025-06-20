@@ -22,22 +22,23 @@ namespace {{namespace}} {
 {% for type in types %}
 struct {{type.type_name}};
 struct {{type.type_name}}Partial;
-{% if type.sorted is none or type.sorted %}
+{% if type.sorted -%}
 struct {{type.type_name}}Key;
-{% endif %}
+{% endif -%}
 struct {{type.type_name}}IdMapping;
 class {{type.type_name}}Descriptor;
 
 struct {{type.type_name}}IdMapping
 {
-    explicit {{type.type_name}}IdMapping(const NYT::NTableClient::TNameTablePtr& nameTable);
-
-{% for field in type.fields if not field.expression %}
-    const std::optional<int> {{field.cpp_name}};
-{%- endfor %}
-{% if type.sorted is not none and not type.sorted %}
+{% if not type.sorted -%}
+    const std::optional<int> TabletIndex;
     const std::optional<int> RowIndex;
-{% endif %}
+{% endif -%}
+{% for field in type.fields if field.expression is none -%}
+    const std::optional<int> {{field.cpp_name}};
+{% endfor -%}
+
+    explicit {{type.type_name}}IdMapping(const NYT::NTableClient::TNameTablePtr& nameTable);
 };
 
 class {{type.type_name}}Descriptor
@@ -46,34 +47,38 @@ class {{type.type_name}}Descriptor
 public:
     using TRecord = {{type.type_name}};
     using TRecordPartial = {{type.type_name}}Partial;
-    {% if type.sorted is none or type.sorted %}
+    {% if type.sorted -%}
     using TKey = {{type.type_name}}Key;
-    {% endif %}
+    {% endif -%}
     using TIdMapping = {{type.type_name}}IdMapping;
     static constexpr int FieldCount = {{type.fields | length}};
 {% if type.verbatim %}
 {{type.verbatim}}
-{% endif %}
+{% endif -%}
 {% if type.descriptor_verbatim %}
 {{type.descriptor_verbatim}}
-{% endif %}
+{% endif -%}
 
     static const {{type.type_name}}Descriptor* Get();
 
     const NTableClient::TTableSchemaPtr& GetSchema() const override;
     const NTableClient::TNameTablePtr& GetNameTable() const override;
     const {{type.type_name}}IdMapping& GetIdMapping() const;
+    const NTableClient::TTableSchemaPtr& GetPrimaryTableSchema() const;
 
 private:
     const NTableClient::TTableSchemaPtr Schema_;
     const NTableClient::TNameTablePtr NameTable_;
     const {{type.type_name}}IdMapping IdMapping_;
+    const NTableClient::TTableSchemaPtr PrimaryTableSchema_;
 
+private:
     DECLARE_LEAKY_SINGLETON_FRIEND()
 
     {{type.type_name}}Descriptor();
 };
 
+{% if type.sorted -%}
 struct {{type.type_name}}Key
 {
     using TRecordDescriptor = {{type.type_name}}Descriptor;
@@ -83,13 +88,14 @@ struct {{type.type_name}}Key
 {% if type.key_verbatim %}
 {{type.key_verbatim}}
 {% endif %}
-{%- for field in type.fields if field.sort_order and not field.expression %}
+{%- for field in type.fields if field.sort_order and field.expression is none %}
     {{field.cpp_type}} {{field.cpp_name}}{};
 {%- endfor %}
 
     NYT::NTableClient::TLegacyKey ToKey(const NYT::NTableClient::TRowBufferPtr& rowBuffer) const;
     static {{type.type_name}}Key FromKey(NYT::NTableClient::TLegacyKey key);
 };
+{%- endif %}
 
 struct {{type.type_name}}
 {
@@ -100,13 +106,15 @@ struct {{type.type_name}}
 {% if type.record_verbatim %}
 {{type.record_verbatim}}
 {% endif %}
+{% if type.sorted -%}
     {{type.type_name}}Key Key;
-{% for field in type.fields if not field.sort_order and not field.expression %}
+{%- else -%}
+    i64 TabletIndex = -1;
+    i64 RowIndex = -1;
+{%- endif %}
+{% for field in type.fields if not field.sort_order and field.expression is none %}
     {{field.cpp_type}} {{field.cpp_name}}{};
 {%- endfor %}
-{% if type.sorted is not none and not type.sorted %}
-    i64 RowIndex = -1;
-{% endif %}
     NYT::NTableClient::TUnversionedRow ToUnversionedRow(
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
         const {{type.type_name}}IdMapping& idMapping,
@@ -125,8 +133,13 @@ struct {{type.type_name}}Partial
 {% if type.record_verbatim %}
 {{type.record_verbatim}}
 {% endif %}
+{% if type.sorted -%}
     {{type.type_name}}Key Key;
-{% for field in type.fields if not field.sort_order and not field.expression %}
+{%- else -%}
+    i64 TabletIndex = -1;
+    i64 RowIndex = -1;
+{%- endif %}
+{% for field in type.fields if not field.sort_order and field.expression is none %}
     std::optional<{{field.cpp_type}}> {{field.cpp_name}}{};
 {%- endfor %}
 
