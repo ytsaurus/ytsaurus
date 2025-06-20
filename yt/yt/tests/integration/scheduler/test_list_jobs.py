@@ -1091,13 +1091,13 @@ class TestListJobs(TestListJobsCommon):
 
         abort_job(first_job_id)
 
-        job_orchid_addresses = [op.get_job_node_orchid_path(job_id) + f"/exec_node/job_controller/active_jobs/{job_id}" for job_id in job_ids]
+        job_orchid_addresses = {job_id: op.get_job_node_orchid_path(job_id) + f"/exec_node/job_controller/active_jobs/{job_id}" for job_id in job_ids}
 
         release_breakpoint(job_id=job_ids[0])
-        release_breakpoint(job_id=job_ids[1])
+        wait(lambda: not exists(job_orchid_addresses[job_ids[0]]))
 
-        for job_orchid_address in job_orchid_addresses:
-            wait(lambda: not exists(job_orchid_address))
+        release_breakpoint(job_id=job_ids[1])
+        wait(lambda: not exists(job_orchid_addresses[job_ids[1]]))
 
         new_job_ids = wait_breakpoint(job_count=2)
 
