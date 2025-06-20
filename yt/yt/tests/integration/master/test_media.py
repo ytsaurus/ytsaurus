@@ -37,6 +37,8 @@ class TestMedia(YTEnvSetup):
         "secret_access_key": "nope",
     }
 
+    NUM_TEST_PARTITIONS = 2
+
     @classmethod
     def setup_class(cls):
         super(TestMedia, cls).setup_class()
