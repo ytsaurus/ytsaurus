@@ -457,7 +457,7 @@ YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, [] (bool ok, int threadCount) {
 });
 
 #define EXPECT_ERROR_IS_OK(...) do { \
-        const auto& error = __VA_ARGS__; \
+        auto error = __VA_ARGS__; \
         if (!error.IsOK()) { \
             Cerr << "Error: " << ToString(error) << Endl; \
         } \
