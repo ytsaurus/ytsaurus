@@ -3,6 +3,7 @@
 #include "clickhouse_service_proxy.h"
 #include "config.h"
 #include "host.h"
+#include "helpers.h"
 #include "user_defined_sql_objects_storage.h"
 
 #include <yt/yt/core/rpc/message.h>
@@ -58,7 +59,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, InvalidateCachedObjectAttributes)
     {
-        auto paths = NYT::FromProto<std::vector<TString>>(request->table_paths());
+        auto paths = FromProto<std::vector<std::pair<TString, NHydra::TRevision>>>(request->table_paths());
 
         context->SetRequestInfo("Paths: %v", paths);
 

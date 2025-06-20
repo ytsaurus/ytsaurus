@@ -71,7 +71,7 @@ TFuture<std::vector<TErrorOr<TValue>>> TObjectAttributeCacheBase<TKey, TValue>::
         paths.push_back(GetPath(key));
     }
 
-    auto fetcher = New<NCypressClient::TBatchAttributeFetcher>(paths, GetAttributeNames(), client, Invoker_, Logger, *Config_->MasterReadOptions);
+    auto fetcher = New<NCypressClient::TBatchAttributeFetcher>(paths, GetRefreshRevisions(keys), GetAttributeNames(), client, Invoker_, Logger, *Config_->MasterReadOptions);
 
     return fetcher->Fetch().Apply(BIND([this, this_ = MakeStrong(this), fetcher = std::move(fetcher)] {
         std::vector<TErrorOr<TValue>> result;
@@ -115,6 +115,13 @@ template <class TKey, class TValue>
 const std::vector<std::string>& TObjectAttributeAsYsonStructCacheBase<TKey, TValue>::GetAttributeNames() const
 {
     return AttributeNames_;
+}
+
+template <class TKey, class TValue>
+    requires std::derived_from<typename TValue::TUnderlying, NYTree::TYsonStruct>
+std::vector<NHydra::TRevision> TObjectAttributeAsYsonStructCacheBase<TKey, TValue>::GetRefreshRevisions(const std::vector<TKey>& /*keys*/) const
+{
+    return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

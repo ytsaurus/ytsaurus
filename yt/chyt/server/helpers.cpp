@@ -39,7 +39,27 @@
 
 #include <util/string/escape.h>
 
-namespace NYT::NClickHouseServer {
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NClickHouseServer::NProto::TPathWithRevision* protoPath, const std::pair<TString, NHydra::TRevision>& path)
+{
+    protoPath->set_path(path.first);
+    protoPath->set_revision(path.second.Underlying());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(std::pair<TString, NHydra::TRevision>* path, const NClickHouseServer::NProto::TPathWithRevision& protoPath)
+{
+    path->first = FromProto<TString>(protoPath.path());
+    path->second = FromProto<NYT::NHydra::TRevision>(protoPath.revision());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NClickHouseServer {
 
 using namespace NApi;
 using namespace NChunkClient;
@@ -518,7 +538,20 @@ String BuildStorageName(const std::vector<TTablePtr>& tables)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NClickHouseServer
+NHydra::TRevision GetRefreshRevision(const NApi::NNative::IClientPtr& client, const NYPath::TYPath& path)
+{
+    auto revisionOrError = WaitFor(client->GetNode(path + "/@revision", {}));
+    if (!revisionOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Could not get refresh revision for path %v", path);
+    } else {
+        return ConvertTo<NHydra::TRevision>(revisionOrError.Value());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NClickHouseServer
+} // namespace NYT
 
 namespace DB {
 
