@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/stockpile/config.h>
 
+#include <util/system/env.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,6 +105,40 @@ void TBindConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("read_only", &TThis::ReadOnly)
         .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TEnvironmentVariableConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("name", &TThis::Name);
+    registrar.Parameter("environment_variable", &TThis::EnvironmentVariable)
+        .Default();
+    registrar.Parameter("file_name", &TThis::FileName)
+        .Default();
+    registrar.Parameter("value", &TThis::Value)
+        .Default();
+    registrar.Parameter("export", &TThis::Export)
+        .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!!config->EnvironmentVariable + !!config->FileName + !!config->Value != 1) {
+            THROW_ERROR_EXCEPTION("Must specify one of \"environment_variable\", \"file_name\", or \"value\"");
+        }
+    });
+}
+
+TString TEnvironmentVariableConfig::LoadValue() const
+{
+    if (EnvironmentVariable) {
+        return GetEnv(*EnvironmentVariable);
+    } else if (FileName) {
+        return TFileInput(*FileName).ReadAll();
+    } else if (Value) {
+        return *Value;
+    } else {
+        THROW_ERROR_EXCEPTION("Neither \"environment_variable\" nor \"file_name\" nor \"value\" is given");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -327,6 +363,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_stderr_and_core_live_preview", &TThis::EnableStderrAndCoreLivePreview)
         .Default(true);
+
+    registrar.Parameter("environment_variables", &TThis::EnvironmentVariables)
+        .Default();
 
     registrar.Parameter("forward_all_environment_variables", &TThis::ForwardAllEnvironmentVariables)
         .Default(false);
