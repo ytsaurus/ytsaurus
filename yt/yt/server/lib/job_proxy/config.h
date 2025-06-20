@@ -303,6 +303,9 @@ struct TCriJobEnvironmentConfig
     //! Do not bind mount jobproxy binary into container
     bool UseJobProxyFromImage;
 
+    NContainers::NCri::TCriPodDescriptorPtr PodDescriptor;
+    NContainers::NCri::TCriPodSpecPtr PodSpec;
+
     REGISTER_YSON_STRUCT(TCriJobEnvironmentConfig);
 
     static void Register(TRegistrar registrar);

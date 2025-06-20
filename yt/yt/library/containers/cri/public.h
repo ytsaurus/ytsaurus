@@ -15,6 +15,9 @@ DECLARE_REFCOUNTED_STRUCT(ICriExecutor)
 DECLARE_REFCOUNTED_STRUCT(TCriImageCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TCriImageCacheEntry)
 DECLARE_REFCOUNTED_STRUCT(ICriImageCache)
+DECLARE_REFCOUNTED_STRUCT(TCriPodDescriptor)
+DECLARE_REFCOUNTED_STRUCT(TCriContainerResources)
+DECLARE_REFCOUNTED_STRUCT(TCriPodSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
