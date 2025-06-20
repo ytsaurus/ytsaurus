@@ -8,6 +8,18 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.30**" %}
+
+**Release date:** 2025-06-16
+
+
+## Features
+  * Introduce `list_operation_events` command
+
+
+{% endcut %}
+
+
 {% cut "**0.13.29**" %}
 
 **Release date:** 2025-06-02
