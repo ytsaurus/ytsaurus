@@ -234,7 +234,7 @@ class TestTypes(TestQueriesYqlBase):
                 AsTagged(123, "tag") as `Tagged`,
                 Decimal("123456.789", 13, 3) as `Decimal`,
                 '[1, "text", 3.14]'j as `Json`,
-                Just('[7u; "str"; -3.14]'y) as `Yson`,
+                '[7u; "str"; -3.14]'y as `Yson`,
         """, [{"EmptyDict": None,
                "EmptyList": None,
                "Null": None,
