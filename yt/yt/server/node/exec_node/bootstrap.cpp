@@ -525,6 +525,7 @@ private:
 
         JobProxyConfigTemplate_->DoNotSetUserId = !SlotManager_->ShouldSetUserId();
         JobProxyConfigTemplate_->CheckUserJobMemoryLimit = GetConfig()->ExecNode->JobProxy->CheckUserJobMemoryLimit;
+        JobProxyConfigTemplate_->EnvironmentVariables = GetConfig()->ExecNode->JobProxy->EnvironmentVariables;
         JobProxyConfigTemplate_->ForwardAllEnvironmentVariables = GetConfig()->ExecNode->JobProxy->ForwardAllEnvironmentVariables;
 
         if (auto tvmService = NAuth::TNativeAuthenticationManager::Get()->GetTvmService()) {
