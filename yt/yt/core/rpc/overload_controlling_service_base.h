@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/rpc/service_detail.h>
 
-namespace NYT::NTabletNode {
+namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,7 +14,7 @@ class TOverloadControllingServiceBase
 {
 public:
     template <typename... TArgs>
-    TOverloadControllingServiceBase(NTabletNode::IBootstrap* bootstrap, TArgs&&... args);
+    explicit TOverloadControllingServiceBase(IOverloadControllerPtr controller, TArgs&&... args);
 
     using TRuntimeMethodInfoPtr = NRpc::TServiceBase::TRuntimeMethodInfoPtr;
     using TMethodDescriptor = NRpc::TServiceBase::TMethodDescriptor;
@@ -30,7 +30,7 @@ protected:
         NBus::IBusPtr replyBus) override;
 
 private:
-    NTabletNode::IBootstrap* const Bootstrap_;
+    IOverloadControllerPtr Controller_;
     THashSet<std::string> Methods_;
 
     void HandleLoadAdjusted();
@@ -38,7 +38,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletNode
+} // namespace NYT::NRpc
 
 #define OVERLOAD_CONTROLLING_SERVICE_BASE_INL_H_
 #include "overload_controlling_service_base-inl.h"

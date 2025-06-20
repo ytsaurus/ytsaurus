@@ -49,7 +49,7 @@ struct ICellar
     virtual void PopulateAlerts(std::vector<TError>* error) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(ICellar)
+DEFINE_REFCOUNTED_TYPE(ICellar);
 
 ICellarPtr CreateCellar(
     NCellarClient::ECellarType type,
@@ -59,4 +59,3 @@ ICellarPtr CreateCellar(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellarAgent
-

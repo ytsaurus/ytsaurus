@@ -13,7 +13,6 @@
 #include "in_memory_service.h"
 #include "lsm_interop.h"
 #include "master_connector.h"
-#include "overload_controller.h"
 #include "partition_balancer.h"
 #include "security_manager.h"
 #include "serialize.h"
@@ -66,6 +65,7 @@
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/overload_controller.h>
 
 namespace NYT::NTabletNode {
 
@@ -196,6 +196,8 @@ public:
             ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
         GetBundleDynamicConfigManager()
             ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
+
+        OverloadController_ = NRpc::CreateOverloadController(New<NRpc::TOverloadControllerConfig>(), TabletNodeProfiler());
 
         MasterConnector_ = CreateMasterConnector(this);
 
@@ -357,7 +359,6 @@ public:
 
     void InitializeOverloadController()
     {
-        OverloadController_ = New<TOverloadController>(New<TOverloadControllerConfig>());
         OverloadController_->TrackInvoker(BusXferThreadPoolName, NBus::TTcpDispatcher::Get()->GetXferPoller()->GetInvoker());
         OverloadController_->TrackInvoker(CompressionThreadPoolName, NRpc::TDispatcher::Get()->GetCompressionPoolInvoker());
         OverloadController_->TrackInvoker(LookupThreadPoolName, TabletLookupThreadPool_->GetInvoker());
@@ -645,7 +646,7 @@ private:
     ICompressionDictionaryBuilderPtr CompressionDictionaryBuilder_;
     IErrorManagerPtr ErrorManager_;
     ICompressionDictionaryManagerPtr CompressionDictionaryManager_;
-    TOverloadControllerPtr OverloadController_;
+    NRpc::IOverloadControllerPtr OverloadController_;
     IAlienClusterClientCachePtr ReplicatorClientCache_;
     IReplicationCardUpdatesBatcherPtr ReplicationCardUpdatesBatcher_;
 
@@ -725,7 +726,7 @@ private:
         }
     }
 
-    const TOverloadControllerPtr& GetOverloadController() const override
+    const NRpc::IOverloadControllerPtr& GetOverloadController() const override
     {
         return OverloadController_;
     }

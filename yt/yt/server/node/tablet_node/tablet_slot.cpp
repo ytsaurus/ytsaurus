@@ -9,7 +9,6 @@
 #include "master_connector.h"
 #include "mutation_forwarder.h"
 #include "mutation_forwarder_thunk.h"
-#include "overload_controller.h"
 #include "private.h"
 #include "security_manager.h"
 #include "serialize.h"
@@ -81,6 +80,7 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>
+#include <yt/yt/core/rpc/overload_controller.h>
 
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/helpers.h>

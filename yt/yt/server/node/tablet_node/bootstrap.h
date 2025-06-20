@@ -74,7 +74,7 @@ struct IBootstrap
     // TODO(gritukan): Remove it after node split.
     const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const override = 0;
 
-    virtual const TOverloadControllerPtr& GetOverloadController() const = 0;
+    virtual const NRpc::IOverloadControllerPtr& GetOverloadController() const = 0;
 
     virtual const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const = 0;
     virtual const IAlienClusterClientCachePtr& GetReplicatorClientCache() const = 0;
