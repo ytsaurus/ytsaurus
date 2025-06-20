@@ -5625,7 +5625,7 @@ private:
         chunk->AddOffshoreReplica(mediumWithReplicaInfo);
 
         ScheduleChunkRefresh(chunk);
-        // No seal scheduling necessary, since journal chunks cannot habe offshore replicas.
+        // No seal scheduling necessary, since journal chunks cannot have offshore replicas.
     }
 
     void ApproveChunkReplica(

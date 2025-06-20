@@ -1147,15 +1147,8 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
         YT_VERIFY(IsObjectAlive(medium));
 
-        // TODO(gritukan): Check replica presence here when
-        // chunk will store offshore replicas.
-        // For now, we just ignore such media.
-        if (medium->IsOffshore()) {
-            // continue;
-        }
-
         auto& mediumStatistics = results.PerMediumStatistics[mediumIndex];
-        auto mediumTransient = medium->IsDomestic() ? medium->AsDomestic()->GetTransient() : false;
+        auto mediumTransient = medium->IsDomestic() && medium->AsDomestic()->GetTransient();
 
         auto mediumReplicationPolicy = entry.Policy();
         auto mediumReplicaCount = replicaCount[mediumIndex];

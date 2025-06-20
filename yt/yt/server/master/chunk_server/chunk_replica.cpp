@@ -2,6 +2,7 @@
 #include "chunk.h"
 
 #include <yt/yt/server/master/chunk_server/medium_base.h>
+
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>

@@ -1,4 +1,5 @@
 #include "s3_medium.h"
+
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
@@ -28,7 +29,7 @@ std::string TS3Medium::GetCapitalizedObjectName() const
 
 std::string TS3Medium::GetMediumType() const
 {
-    return "offshore_s3";
+    return "s3";
 }
 
 void TS3Medium::FillMediumDescriptor(NChunkClient::NProto::TMediumDirectory::TMediumDescriptor* protoItem) const
