@@ -518,9 +518,13 @@ private:
         JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
         JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyJaeger);
 
-        JobProxyConfigTemplate_->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
+        if (const auto& clusterConnection = GetConfig()->ExecNode->JobProxy->ClusterConnection) {
+            JobProxyConfigTemplate_->OriginalClusterConnection = clusterConnection->Clone();
+        } else {
+            JobProxyConfigTemplate_->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
+        }
 
-        JobProxyConfigTemplate_->ClusterConnection = GetConfig()->ClusterConnection->Clone();
+        JobProxyConfigTemplate_->ClusterConnection = JobProxyConfigTemplate_->OriginalClusterConnection->Clone();
         JobProxyConfigTemplate_->ClusterConnection->Static->OverrideMasterAddresses({localAddress});
 
         JobProxyConfigTemplate_->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;

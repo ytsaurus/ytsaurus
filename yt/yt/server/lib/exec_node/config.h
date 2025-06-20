@@ -675,6 +675,8 @@ struct TJobProxyConfig
 
     NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
 
+    NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
+
     NBus::TBusClientConfigPtr SupervisorConnection;
 
     TDuration SupervisorRpcTimeout;
