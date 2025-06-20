@@ -16,6 +16,7 @@ from .os_helpers import (
     logger,
     replace,
     replace_symlink,
+    rm_rf,
 )
 
 
@@ -138,6 +139,9 @@ def prepare_python_modules(
             os.path.join(output_path, "{path}/{name}.so".format(path=os.path.basename(module_path), name=name)))
 
     cp_r_755(os.path.join(python_root, "yt"), output_path)
+    yt_data_path = os.path.join(python_root, "yt", "data")
+    if os.path.exists(yt_data_path):
+        rm_rf(yt_data_path)
 
     packages_dir = os.path.join(output_path, "yt", "packages")
 
