@@ -131,7 +131,14 @@ void RecalculateCpu(TNonNullPtr<NClusterNode::TJobResources> jobResources, doubl
 
 void InitAllocationProfiler(const NProfiling::TProfiler& profiler)
 {
-    AllocationProfiler.emplace(profiler);
+    static TSpinLock lock;
+    // This lock should protect initialization of AllocationProfiler in case of multidaemon.
+    // No need to acquire lock in code that uses AllocationProfiler, since there is a happens before relation between
+    // initialization of AllocationProfiler and usage of it.
+    auto guard = Guard(lock);
+    if (!AllocationProfiler) {
+        AllocationProfiler.emplace(profiler);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
