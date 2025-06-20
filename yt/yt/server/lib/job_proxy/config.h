@@ -20,7 +20,6 @@
 #include <yt/yt/library/containers/config.h>
 
 #include <yt/yt/library/containers/cri/config.h>
-#include <yt/yt/library/containers/cri/cri_executor.h>
 
 #include <yt/yt/library/tracing/jaeger/tracer.h>
 

@@ -351,7 +351,7 @@ message TUserJobSpec
 
     optional TNetworkProject network_project = 80;
 
-    map<string, TSidecarJobSpec> sidecars = 90;
+    map<string, TSidecarJobSpec> sidecars = 83;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -18,32 +18,6 @@ namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TContainerEnvironmentBase
-    : public virtual TRefCounted
-{ };
-
-DEFINE_REFCOUNTED_TYPE(TContainerEnvironmentBase)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TContainerEnvironmentCri
-    : public TContainerEnvironmentBase
-{
-    TContainerEnvironmentCri(
-        NContainers::NCri::TCriPodDescriptorPtr PodDescriptor,
-        NContainers::NCri::TCriPodSpecPtr PodSpec)
-        : PodDescriptor{std::move(PodDescriptor)}
-        , PodSpec{std::move(PodSpec)}
-    { }
-
-    NContainers::NCri::TCriPodDescriptorPtr PodDescriptor;
-    NContainers::NCri::TCriPodSpecPtr PodSpec;
-};
-
-DEFINE_REFCOUNTED_TYPE(TContainerEnvironmentCri)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct IJobEnvironment
     : public virtual TRefCounted
 {
@@ -76,7 +50,8 @@ struct IJobEnvironment
 
     virtual i64 GetMajorPageFaultCount() const = 0;
 
-    virtual TContainerEnvironmentBasePtr GetContainerEnvironment(int slotIndex) const = 0;
+    //! Set job environment implementation-specific fields of the config.
+    virtual void EnrichJobEnvironmentConfig(int slotIndex, NJobProxy::TJobEnvironmentConfig& jobEnvironment) const = 0;
 
     virtual TFuture<std::vector<TShellCommandOutput>> RunCommands(
         int slotIndex,

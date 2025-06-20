@@ -197,10 +197,8 @@ public:
         return 0;
     }
 
-    TContainerEnvironmentBasePtr GetContainerEnvironment(int /*slotIndex*/) const override
-    {
-        return {};
-    }
+    void EnrichJobEnvironmentConfig(int /*slotIndex*/, TJobEnvironmentConfig& /*jobEnvironment*/) const override
+    { }
 
     TFuture<std::vector<TShellCommandOutput>> RunCommands(
         int /*slotIndex*/,
@@ -975,10 +973,8 @@ private:
         return SelfInstance_->GetMajorPageFaultCount();
     }
 
-    TContainerEnvironmentBasePtr GetContainerEnvironment(int /*slotIndex*/) const override
-    {
-        return {};
-    }
+    void EnrichJobEnvironmentConfig(int /*slotIndex*/, TJobEnvironmentConfig& /*jobEnvironment*/) const override
+    { }
 
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
@@ -1012,9 +1008,13 @@ public:
         , ImageCache_(CreateCriImageCache(ConcreteConfig_->CriImageCache, Executor_))
     { }
 
-    TContainerEnvironmentBasePtr GetContainerEnvironment(int slotIndex) const override
+    void EnrichJobEnvironmentConfig(int slotIndex, TJobEnvironmentConfig& jobEnvironment) const override
     {
-        return New<TContainerEnvironmentCri>(PodDescriptors_[slotIndex], PodSpecs_[slotIndex]);
+        auto criJobEnv = jobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>();
+        YT_VERIFY(criJobEnv);
+
+        criJobEnv->PodDescriptor = PodDescriptors_[slotIndex];
+        criJobEnv->PodSpec = PodSpecs_[slotIndex];
     }
 
     void DoInit(int slotCount, double cpuLimit, double /*idleCpuFraction*/) override
@@ -1356,7 +1356,7 @@ private:
         // I suggest that we add a configuration parameter for the server to specify the name of the containerd
         // group, as it may be root, docker or anything else. By default it should be docker, and root should
         // never be specified for security reasons.
-        // TODO: decide this; currently, it's hardcoded to ID of docker group on the dev machine.
+        // TODO(pavel-bash): decide this; currently, it's hardcoded to ID of docker group on the dev machine.
         spec->Credentials.Groups = {998};
 
         spec->Resources->CpuLimit = config->ContainerCpuLimit;
