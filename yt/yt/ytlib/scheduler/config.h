@@ -1960,6 +1960,9 @@ struct TSortOperationSpecBase
     // Desired number of samples per partition.
     int SamplesPerPartition;
 
+    // This option is used for partition/partition_map and sorted_reduce/sorted_merge jobs.
+    bool ForceJobSizeAdjuster;
+
     REGISTER_YSON_STRUCT(TSortOperationSpecBase);
 
     static void Register(TRegistrar registrar);
