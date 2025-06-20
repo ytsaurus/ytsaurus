@@ -34,6 +34,7 @@
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
 #include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
+#include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
@@ -248,6 +249,8 @@ private:
 
     void DoInitialize()
     {
+        auto sequoiaTableDescriptorInitialization = ITableDescriptor::Initialize(NRpc::TDispatcher::Get()->GetHeavyInvoker());
+
         BusServer_ = NBus::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
@@ -311,6 +314,9 @@ private:
         ObjectService_ = CreateObjectService(this);
         RpcServer_->RegisterService(ObjectService_->GetService());
         RpcServer_->RegisterService(CreateCypressTransactionService(this));
+
+        WaitFor(sequoiaTableDescriptorInitialization)
+            .ThrowOnError();
     }
 
     void DoStart()

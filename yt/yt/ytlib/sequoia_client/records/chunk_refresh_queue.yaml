@@ -6,11 +6,6 @@ types:
     type_name: TChunkRefreshQueue
     sorted: false
     fields:
-      - cpp_name: TabletIndex
-        cpp_type: i32
-        column_name: $tablet_index
-        column_type: Int32
-
       - cpp_name: ChunkId
         cpp_type: NChunkClient::TChunkId
         column_name: chunk_id
