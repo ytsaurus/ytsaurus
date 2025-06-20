@@ -25,6 +25,8 @@
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
 
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/yt/ytlib/table_client/table_columnar_statistics_cache.h>
 
 #include <yt/yt/client/table_client/logical_type.h>
@@ -1070,8 +1072,13 @@ public:
                     // In this case we should only invalidate local cache to avoid quadratic number of rpc requests.
                     invalidateMode = std::min(invalidateMode, EInvalidateCacheMode::Local);
                 }
+                auto refreshRevision = NHydra::NullRevision;
+                if (queryContext->QueryKind == EQueryKind::InitialQuery && queryContext->CreatedTablePath.has_value()) {
+                    YT_VERIFY(*queryContext->CreatedTablePath == path);
+                    refreshRevision = GetRefreshRevision(queryContext->Client(), path);
+                }
 
-                InvalidateCache(queryContext, {path}, invalidateMode);
+                InvalidateCache(queryContext, {{path, refreshRevision}}, invalidateMode);
             }
         };
 
@@ -1221,7 +1228,12 @@ public:
         auto finalCallback = [context, path = table->GetPath()] {
             auto* queryContext = GetQueryContext(context);
             queryContext->CommitWriteTransaction();
-            InvalidateCache(queryContext, {path}, std::nullopt);
+            auto refreshRevision = NHydra::NullRevision;
+            if (queryContext->CreatedTablePath.has_value()) {
+                YT_VERIFY(*queryContext->CreatedTablePath == path);
+                refreshRevision = GetRefreshRevision(queryContext->Client(), path);
+            }
+            InvalidateCache(queryContext, {{path, refreshRevision}});
         };
 
         // Finally, build pipeline of all those pipes.
@@ -1251,7 +1263,8 @@ public:
         EraseTable(context);
 
         auto* queryContext = GetQueryContext(context);
-        InvalidateCache(queryContext, {table->GetPath()});
+        auto refreshRevision = GetRefreshRevision(queryContext->Client(), table->GetPath());
+        InvalidateCache(queryContext, {{table->GetPath(), refreshRevision}});
     }
 
     std::unordered_map<std::string, DB::ColumnSize> getColumnSizes() const override
@@ -1520,6 +1533,12 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     options.TransactionId = queryContext->WriteTransactionId;
     auto id = WaitFor(client->CreateNode(path.GetPath(), NObjectClient::EObjectType::Table, options))
         .ValueOrThrow();
+
+    if (!queryContext->WriteTransactionId) {
+        auto refreshRevision = GetRefreshRevision(queryContext->Client(), path.GetPath());
+        InvalidateCache(queryContext, {{path.GetPath(), refreshRevision}});
+    }
+
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
 
     // There may be obsolete entry about missing table in ObjectAttributeSnapshot.

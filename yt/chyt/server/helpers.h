@@ -4,6 +4,8 @@
 
 #include "format.h"
 
+#include <yt/chyt/server/protos/clickhouse_service.pb.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -20,7 +22,19 @@
 #include <Core/QueryProcessingStage.h>
 #include <Storages/ColumnsDescription.h>
 
-namespace NYT::NClickHouseServer {
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NClickHouseServer::NProto::TPathWithRevision* protoPath, const std::pair<TString, NHydra::TRevision>& path);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(std::pair<TString, NHydra::TRevision>* path, const NClickHouseServer::NProto::TPathWithRevision& protoPath);
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,7 +112,12 @@ String BuildStorageName(const std::vector<TTablePtr>& tables);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NClickHouseServer
+NHydra::TRevision GetRefreshRevision(const NApi::NNative::IClientPtr& client, const NYPath::TYPath& path);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NClickHouseServer
+} // namespace NYT
 
 namespace DB {
 

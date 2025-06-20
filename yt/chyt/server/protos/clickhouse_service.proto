@@ -16,9 +16,15 @@ message TRspProcessGossip
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TPathWithRevision
+{
+    required string path = 1;
+    required int64 revision = 2;
+}
+
 message TReqInvalidateCachedObjectAttributes
 {
-    repeated string table_paths = 1;
+    repeated TPathWithRevision table_paths = 1;
 }
 
 message TRspInvalidateCachedObjectAttributes
