@@ -5,7 +5,7 @@ from yt_commands import (
     create, create_domestic_medium, create_s3_medium, set, remove, exists,
     copy, move, get_singular_chunk_id, wait, get, concatenate,
     get_account_disk_space_limit, set_account_disk_space_limit,
-    write_table, read_table, sync_mount_table, insert_rows, sync_flush_table,
+    write_table, read_table, sync_mount_table, insert_rows, sync_flush_table, import_table,
     map, merge, select_rows, lookup_rows, print_debug, write_file, read_file)
 
 import time
@@ -762,6 +762,12 @@ class TestS3Medium(YTEnvSetup):
         # Much wow.
         assert read_table("//tmp/t[#28:#36]") == modified_data[28:36]
         # assert read_table("//tmp/t") == modified_data
+
+        buffer.seek(0)
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=buffer)
+        create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
+        import_table("//tmp/imported", s3_keys=["foo.parquet"])
+        assert read_table("//tmp/imported") == modified_data
 
     @authors("achulkov2")
     def test_sorted_parquet_v0(self):

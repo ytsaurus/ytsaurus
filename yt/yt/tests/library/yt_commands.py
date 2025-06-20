@@ -833,6 +833,15 @@ def write_table(path, value=None, is_raw=False, **kwargs):
     return execute_command("write_table", kwargs, input_stream=input_stream)
 
 
+def import_table(path, **kwargs):
+    attributes = {}
+    if "sorted_by" in kwargs:
+        attributes["sorted_by"] = flatten(kwargs["sorted_by"])
+        del kwargs["sorted_by"]
+    kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
+    return execute_command("import_table", kwargs)
+
+
 def locate_skynet_share(path, **kwargs):
     kwargs["path"] = path
 

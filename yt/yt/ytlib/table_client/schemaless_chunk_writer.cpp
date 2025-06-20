@@ -2606,6 +2606,9 @@ private:
     const NLogging::TLogger Logger;
 
     std::optional<TSchemalessTableUploader> Uploader_;
+    int ChunkCount_ = 0;
+    i64 DataSize_ = 0;
+    i64 RowCount_ = 0;
 
     void DoOpen()
     {
@@ -2659,6 +2662,9 @@ private:
             )
         );
         chunkMetaGenerator->Generate();
+        ChunkCount_++;
+        RowCount_ += dynamic_cast<ITableChunkMetaGenerator*>(&*chunkMetaGenerator)->GetRowCount();
+        DataSize_ += chunkMetaGenerator->GetUncompressedSize();
 
         auto replica = TChunkReplicaWithLocation(
             OffshoreNodeId,
@@ -2719,7 +2725,15 @@ private:
 
         StopListenTransaction(Uploader_->UploadTransaction);
 
-        Uploader_->Close(TTableYPathProxy::EndUpload(objectIdPath));
+        auto endUpload = TTableYPathProxy::EndUpload(objectIdPath);
+        TDataStatistics dataStatistics;
+        dataStatistics.set_chunk_count(ChunkCount_);
+        dataStatistics.set_row_count(RowCount_);
+        dataStatistics.set_compressed_data_size(DataSize_);
+        dataStatistics.set_uncompressed_data_size(DataSize_);
+        dataStatistics.set_data_weight(DataSize_);
+        *endUpload->mutable_statistics() = dataStatistics;
+        Uploader_->Close(endUpload);
 
         YT_LOG_DEBUG("Table closed");
     }

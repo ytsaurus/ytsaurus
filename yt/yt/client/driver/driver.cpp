@@ -185,7 +185,7 @@ public:
 
         REGISTER    (TWriteTableCommand,                   "write_table",                     Tabular,    Null,       true,  true , ApiVersion3);
         REGISTER    (TWriteTableCommand,                   "write_table",                     Tabular,    Structured, true,  true , ApiVersion4);
-        REGISTER    (TImportTableCommand,                  "import_table",                    Tabular,    Structured, true,  true , ApiVersion4);
+        REGISTER    (TImportTableCommand,                  "import_table",                    Null,       Structured, true,  true , ApiVersion4);
         REGISTER_ALL(TGetTableColumnarStatisticsCommand,   "get_table_columnar_statistics",   Null,       Structured, false, false);
         REGISTER_ALL(TReadTableCommand,                    "read_table",                      Null,       Tabular,    false, true );
         REGISTER_ALL(TReadBlobTableCommand,                "read_blob_table",                 Null,       Binary,     false, true );

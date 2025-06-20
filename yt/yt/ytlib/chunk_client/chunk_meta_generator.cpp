@@ -71,7 +71,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////
 
 class TChunkMetaGeneratorBase
-    : public IChunkMetaGenerator
+    : public ITableChunkMetaGenerator
 {
 public:
     void Generate() override
@@ -127,8 +127,6 @@ protected:
     virtual NTableClient::TNameTablePtr GetChunkNameTable() const = 0;
     virtual EChunkFormat GetChunkFormat() const = 0;
 
-    virtual i64 GetRowCount() const = 0;
-    virtual i64 GetUncompressedSize() const = 0;
     virtual i64 GetDataWeight() const = 0;
 
     virtual i64 GetMaxDataBlockSize() const = 0;
@@ -288,7 +286,7 @@ public:
 
     void Generate() override
     {
-        PARQUET_ASSIGN_OR_THROW(auto chunkFileSize, ChunkFile_->GetSize());
+        PARQUET_ASSIGN_OR_THROW(auto ChunkFileSize_, ChunkFile_->GetSize());
 
         auto meta = New<TRefCountedChunkMeta>();
 
@@ -297,7 +295,7 @@ public:
 
         i64 maxDataBlockSize = 4 << 20;
         NProto::TBlocksExt blocksExt;
-        while (auto remaining = chunkFileSize) {
+        while (auto remaining = ChunkFileSize_) {
             auto size = remaining < maxDataBlockSize ? remaining : maxDataBlockSize;
             remaining -= size;
             auto* block = blocksExt.add_blocks();
@@ -306,13 +304,18 @@ public:
 
         SetProtoExtension(meta->mutable_extensions(), blocksExt);
         NProto::TMiscExt miscExt;
-        miscExt.set_uncompressed_data_size(chunkFileSize);
-        miscExt.set_compressed_data_size(chunkFileSize);
+        miscExt.set_uncompressed_data_size(ChunkFileSize_);
+        miscExt.set_compressed_data_size(ChunkFileSize_);
         miscExt.set_max_data_block_size(maxDataBlockSize);
         miscExt.set_meta_size(meta->ByteSize());
         SetProtoExtension(meta->mutable_extensions(), miscExt);
 
         ChunkMeta_ = meta;
+    }
+
+    i64 GetUncompressedSize() const override
+    {
+        return ChunkFileSize_;
     }
 
     TRefCountedChunkMetaPtr GetChunkMeta() const override
@@ -325,6 +328,7 @@ protected:
 
 private:
     std::shared_ptr<arrow::io::RandomAccessFile> ChunkFile_;
+    i64 ChunkFileSize_ = -1;
 };
 
 class TJsonChunkMetaGenerator

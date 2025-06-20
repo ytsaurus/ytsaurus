@@ -168,9 +168,12 @@ void PopulateChunkSpecWithReplicas(
 
     ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
     ToProto(chunkSpec->mutable_replicas(), replicas);
-
+    for (size_t i = 0; i < replicas.size(); i++) {
+        chunkSpec->add_replicas_s3_keys("");
+    }
     for (const auto& replica : offshoreReplicas) {
         chunkSpec->add_replicas(ToProto(replica.MediumWithReplica));
+        chunkSpec->add_replicas_s3_keys(replica.S3Key);
     }
 }
 

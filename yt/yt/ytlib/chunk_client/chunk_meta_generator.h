@@ -16,12 +16,22 @@ struct IChunkMetaGenerator
     //! Must be called before calling any other methods.
     //! The only method allowed to make asynchronous calls.
     virtual void Generate() = 0;
-    
+
+    virtual i64 GetUncompressedSize() const = 0;
+
     //! Static accessors to the generated objects.
     virtual TRefCountedChunkMetaPtr GetChunkMeta() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkMetaGenerator)
+
+////////////////////////////////////////////////////////////////////////////
+
+struct ITableChunkMetaGenerator
+    : public virtual IChunkMetaGenerator
+{
+    virtual i64 GetRowCount() const = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////
 
