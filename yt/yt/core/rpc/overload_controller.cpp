@@ -3,6 +3,8 @@
 #include "config.h"
 #include "private.h"
 
+#include <yt/yt/library/profiling/percpu.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
@@ -13,11 +15,9 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/library/profiling/solomon/percpu.h>
-
 #include <library/cpp/yt/threading/spin_lock.h>
 
-namespace NYT::NTabletNode {
+namespace NYT::NRpc {
 
 using namespace NThreading;
 using namespace NConcurrency;
@@ -26,16 +26,14 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto Logger = TabletNodeLogger().WithTag("OverloadController");
-static const TString CpuThrottlingTrackerName = "CpuThrottling";
-static const TString LogDropTrackerName = "LogDrop";
-static const TString ControlGroupCpuName = "cpu";
+static auto Logger = RpcServerLogger().WithTag("OverloadController");
+static const std::string CpuThrottlingTrackerName = "CpuThrottling";
+static const std::string LogDropTrackerName = "LogDrop";
+static const std::string ControlGroupCpuName = "cpu";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TOverloadController::TState);
-
-////////////////////////////////////////////////////////////////////////////////
+DECLARE_REFCOUNTED_CLASS(TOverloadTracker)
 
 class TOverloadTracker
     : public TRefCounted
@@ -48,14 +46,14 @@ public:
 
     virtual bool CalculateIsOverloaded(const TOverloadTrackerConfig& config) = 0;
 
-    const TString& GetType() const
+    const std::string& GetType() const
     {
         return Type_;
     }
 
 protected:
-    const TString Type_;
-    const TString Id_;
+    const std::string Type_;
+    const std::string Id_;
 
     TCounter Overloaded_;
 };
@@ -197,7 +195,7 @@ public:
     TLogDropTracker(TStringBuf type, TStringBuf id, const TProfiler& profiler)
         : TOverloadTracker(type, id)
     {
-        auto taggedProfiler = profiler.WithTag("tracker", std::string(Id_));
+        auto taggedProfiler = profiler.WithTag("tracker", Id_);
 
         Overloaded_ = taggedProfiler.Counter("/overloaded");
         BacklogQueueFillFraction_ = profiler.Gauge("/backlog_queue_fill_fraction");
@@ -351,209 +349,254 @@ DEFINE_REFCOUNTED_TYPE(TCongestionController);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOverloadController::TOverloadController(TOverloadControllerConfigPtr config)
-    : ControlThread_(New<TActionQueue>("OverloadCtl"))
-    , Invoker_(ControlThread_->GetInvoker())
-    , Periodic_(New<TPeriodicExecutor>(
-        Invoker_,
-        BIND(&TOverloadController::Adjust, MakeWeak(this)),
-        config->LoadAdjustingPeriod))
-    , Profiler(TabletNodeProfiler().WithPrefix("/overload_controller"))
+class TOverloadController
+    : public IOverloadController
 {
-    State_.Config = std::move(config);
-    CreateGenericTracker<TContainerCpuThrottlingTracker>(CpuThrottlingTrackerName);
-    CreateGenericTracker<TLogDropTracker>(LogDropTrackerName);
-    UpdateStateSnapshot(State_, Guard(SpinLock_));
-}
+public:
+    DEFINE_SIGNAL_OVERRIDE(void(), LoadAdjusted);
 
-void TOverloadController::Start()
-{
-    Periodic_->Start();
-}
+    TOverloadController(TOverloadControllerConfigPtr config, NProfiling::TProfiler profiler)
+        : ControlThread_(New<TActionQueue>("OverloadCtl"))
+        , Invoker_(ControlThread_->GetInvoker())
+        , Periodic_(New<TPeriodicExecutor>(
+            Invoker_,
+            BIND(&TOverloadController::Adjust, MakeWeak(this)),
+            config->LoadAdjustingPeriod))
+        , Profiler_(std::move(profiler))
+    {
+        State_.Config = std::move(config);
+        CreateGenericTracker<TContainerCpuThrottlingTracker>(CpuThrottlingTrackerName);
+        CreateGenericTracker<TLogDropTracker>(LogDropTrackerName);
+        UpdateStateSnapshot(State_, Guard(SpinLock_));
+    }
 
-void TOverloadController::TrackInvoker(TStringBuf name, const IInvokerPtr& invoker)
-{
-    invoker->SubscribeWaitTimeObserved(CreateGenericWaitTimeObserver(name));
-}
+    void Start() override
+    {
+        Periodic_->Start();
+    }
 
-void TOverloadController::TrackFSHThreadPool(TStringBuf name, const NConcurrency::ITwoLevelFairShareThreadPoolPtr& threadPool)
-{
-    threadPool->SubscribeWaitTimeObserved(CreateGenericWaitTimeObserver(name));
-}
+    void TrackInvoker(
+        TStringBuf name,
+        const IInvokerPtr& invoker) override
+    {
+        invoker->SubscribeWaitTimeObserved(CreateGenericWaitTimeObserver(name));
+    }
 
-IInvoker::TWaitTimeObserver TOverloadController::CreateGenericWaitTimeObserver(TStringBuf trackerType, std::optional<TStringBuf> id)
-{
-    auto tracker = CreateGenericTracker<TMeanWaitTimeTracker>(std::move(trackerType), std::move(id));
+    void TrackFSHThreadPool(
+        TStringBuf name,
+        const NConcurrency::ITwoLevelFairShareThreadPoolPtr& threadPool) override
+    {
+        threadPool->SubscribeWaitTimeObserved(CreateGenericWaitTimeObserver(name));
+    }
 
-    return BIND([tracker] (TDuration waitTime) {
-        tracker->Record(waitTime);
-    });
-}
+    IInvoker::TWaitTimeObserver CreateGenericWaitTimeObserver(
+        TStringBuf trackerType,
+        std::optional<TStringBuf> id = {}) override
+    {
+        auto tracker = CreateGenericTracker<TMeanWaitTimeTracker>(std::move(trackerType), std::move(id));
 
-template <class TTracker>
-TIntrusivePtr<TTracker> TOverloadController::CreateGenericTracker(TStringBuf trackerType, std::optional<TStringBuf> id)
-{
-    YT_LOG_DEBUG("Creating overload tracker (TrackerType: %v, Id: %v)",
-        trackerType,
-        id);
+        return BIND([tracker] (TDuration waitTime) {
+            tracker->Record(waitTime);
+        });
+    }
 
-    auto trackerId = id.value_or(trackerType);
+    TCongestionState GetCongestionState(TStringBuf service, TStringBuf method) const override
+    {
+        auto snapshot = GetStateSnapshot();
+        if (!snapshot->Config->Enabled) {
+            return {};
+        }
 
-    auto profiler = Profiler.WithTag("tracker", std::string(trackerId));
+        const auto& controllers = snapshot->CongestionControllers;
+        if (auto it = controllers.find(std::pair(service, method)); it != controllers.end()) {
+            return it->second->GetCongestionState();
+        }
 
-    auto tracker = New<TTracker>(trackerType, trackerId, profiler);
-
-    auto guard = Guard(SpinLock_);
-
-    State_.Trackers[trackerId] = tracker;
-
-    UpdateStateSnapshot(State_, std::move(guard));
-
-    return tracker;
-}
-
-TCongestionState TOverloadController::GetCongestionState(TStringBuf service, TStringBuf method) const
-{
-    auto snapshot = GetStateSnapshot();
-    if (!snapshot->Config->Enabled) {
         return {};
     }
 
-    const auto& controllers = snapshot->CongestionControllers;
-    if (auto it = controllers.find(std::pair(service, method)); it != controllers.end()) {
-        return it->second->GetCongestionState();
+    void Reconfigure(TOverloadControllerConfigPtr config) override
+    {
+        Periodic_->SetPeriod(config->LoadAdjustingPeriod);
+
+        auto guard = Guard(SpinLock_);
+        State_.CongestionControllers = CreateCongestionControllers(config, Profiler_);
+        State_.Config = std::move(config);
+
+        UpdateStateSnapshot(State_, std::move(guard));
     }
 
-    return {};
-}
+private:
+    using TMethodIndex = std::pair<TString, TString>;
+    using TMethodsCongestionControllers = THashMap<TMethodIndex, TCongestionControllerPtr>;
 
-TOverloadController::TMethodsCongestionControllers TOverloadController::CreateCongestionControllers(
-    const TOverloadControllerConfigPtr& config,
-    NProfiling::TProfiler profiler)
-{
-    TMethodsCongestionControllers controllers;
+    struct TState final
+    {
+        static constexpr bool EnableHazard = true;
 
-    THashMap<TMethodIndex, TServiceMethodConfigPtr> configIndex;
-    for (const auto& methodConfig : config->Methods) {
-        configIndex[std::pair(methodConfig->Service, methodConfig->Method)] = methodConfig;
-    }
-
-    auto getConfig = [&configIndex] (TStringBuf service, TStringBuf method) {
-        auto it = configIndex.find(std::pair(service, method));
-        if (it != configIndex.end()) {
-            return it->second;
-        }
-
-        auto defaultConfig = New<TServiceMethodConfig>();
-        defaultConfig->Service = service;
-        defaultConfig->Method = method;
-        return defaultConfig;
+        TOverloadControllerConfigPtr Config;
+        TMethodsCongestionControllers CongestionControllers;
+        THashMap<TString, TOverloadTrackerPtr> Trackers;
     };
 
-    for (const auto& [trackerType, tracker] : config->Trackers) {
-        for (const auto& method : tracker->MethodsToThrottle) {
-            auto& controller = controllers[std::pair(method->Service, method->Method)];
+    using TSpinLockGuard = TGuard<NThreading::TSpinLock>;
 
-            if (!controller) {
-                auto methodConfig = getConfig(method->Service, method->Method);
-                auto controllerProfiler = profiler
-                    .WithTag("yt_service", method->Service)
-                    .WithTag("method", method->Method);
+    const NConcurrency::TActionQueuePtr ControlThread_;
+    const IInvokerPtr Invoker_;
+    const NConcurrency::TPeriodicExecutorPtr Periodic_;
+    const NProfiling::TProfiler Profiler_;
 
-                controller = New<TCongestionController>(std::move(methodConfig), config, std::move(controllerProfiler));
+    TAtomicPtr<TState, /*EnableAcquireHazard*/ true> StateSnapshot_;
+
+    NThreading::TSpinLock SpinLock_;
+    TState State_;
+
+    void Adjust()
+    {
+        DoAdjust(GetStateSnapshot());
+        LoadAdjusted_.Fire();
+    }
+
+    void DoAdjust(const THazardPtr<TState>& state)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
+        auto now = NProfiling::GetCpuInstant();
+
+        using TOverloadedTrackers = THashSet<std::string>;
+        THashMap<TMethodIndex, TOverloadedTrackers> methodOverloaded;
+
+        const auto& config = state->Config;
+
+        for (const auto& [_, trackerConfig] : config->Trackers) {
+            for (const auto& method : trackerConfig->MethodsToThrottle) {
+                methodOverloaded[std::pair(method.Service, method.Method)] = {};
+            }
+        }
+
+        for (const auto& [trackerId, tracker] : state->Trackers) {
+            auto trackerIt = config->Trackers.find(tracker->GetType());
+            if (trackerIt == config->Trackers.end()) {
+                continue;
             }
 
-            controller->AddTrackerType(trackerType);
+            const auto& trackerConfig = trackerIt->second;
+
+            auto trackerOverloaded = tracker->CalculateIsOverloaded(trackerConfig);
+
+            if (!trackerOverloaded) {
+                continue;
+            }
+
+            for (const auto& method : trackerIt->second->MethodsToThrottle) {
+                auto& overloadedTrackers = methodOverloaded[std::pair(method.Service, method.Method)];
+                overloadedTrackers.insert(tracker->GetType());
+            }
+        }
+
+        for (const auto& [method, overloadedTrackers] : methodOverloaded) {
+            auto it = state->CongestionControllers.find(method);
+            if (it == state->CongestionControllers.end()) {
+                YT_LOG_WARNING("Cannot find congestion controller for method (Service: %v, Method: %v)",
+                    method.first,
+                    method.second);
+
+                continue;
+            }
+
+            it->second->Adjust(overloadedTrackers, now);
         }
     }
 
-    return controllers;
-}
+    THazardPtr<TOverloadController::TState> GetStateSnapshot() const
+    {
+        YT_VERIFY(StateSnapshot_);
 
-void TOverloadController::Reconfigure(TOverloadControllerConfigPtr config)
-{
-    Periodic_->SetPeriod(config->LoadAdjustingPeriod);
-
-    auto guard = Guard(SpinLock_);
-    State_.CongestionControllers = CreateCongestionControllers(config, Profiler);
-    State_.Config = std::move(config);
-
-    UpdateStateSnapshot(State_, std::move(guard));
-}
-
-void TOverloadController::Adjust()
-{
-    DoAdjust(GetStateSnapshot());
-    LoadAdjusted_.Fire();
-}
-
-void TOverloadController::DoAdjust(const THazardPtr<TState>& state)
-{
-    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
-
-    auto now = NProfiling::GetCpuInstant();
-
-    using TOverloadedTrackers = THashSet<std::string>;
-    THashMap<TMethodIndex, TOverloadedTrackers> methodOverloaded;
-
-    const auto& config = state->Config;
-
-    for (const auto& [_, trackerConfig] : config->Trackers) {
-        for (const auto& method : trackerConfig->MethodsToThrottle) {
-            methodOverloaded[std::pair(method->Service, method->Method)] = {};
-        }
+        return StateSnapshot_.AcquireHazard();
     }
 
-    for (const auto& [trackerId, tracker] : state->Trackers) {
-        auto trackerIt = config->Trackers.find(tracker->GetType());
-        if (trackerIt == config->Trackers.end()) {
-            continue;
-        }
+    void UpdateStateSnapshot(const TState& state, TSpinLockGuard guard)
+    {
+        auto snapshot = New<TState>(state);
+        guard.Release();
 
-        const auto& trackerConfig = trackerIt->second;
-
-        auto trackerOverloaded = tracker->CalculateIsOverloaded(trackerConfig);
-
-        if (!trackerOverloaded) {
-            continue;
-        }
-
-        for (const auto& method : trackerIt->second->MethodsToThrottle) {
-            auto& overloadedTrackers = methodOverloaded[std::pair(method->Service, method->Method)];
-            overloadedTrackers.insert(tracker->GetType());
-        }
+        StateSnapshot_.Store(std::move(snapshot));
+        ReclaimHazardPointers();
     }
 
-    for (const auto& [method, overloadedTrackers] : methodOverloaded) {
-        auto it = state->CongestionControllers.find(method);
-        if (it == state->CongestionControllers.end()) {
-            YT_LOG_WARNING("Cannot find congestion controller for method (Service: %v, Method: %v)",
-                method.first,
-                method.second);
+    template <class TTracker>
+    TIntrusivePtr<TTracker> CreateGenericTracker(TStringBuf trackerType, std::optional<TStringBuf> id = {})
+    {
+        YT_LOG_DEBUG("Creating overload tracker (TrackerType: %v, Id: %v)",
+            trackerType,
+            id);
 
-            continue;
+        auto trackerId = id.value_or(trackerType);
+
+        auto profiler = Profiler_.WithTag("tracker", std::string(trackerId));
+
+        auto tracker = New<TTracker>(trackerType, trackerId, profiler);
+
+        auto guard = Guard(SpinLock_);
+
+        State_.Trackers[trackerId] = tracker;
+
+        UpdateStateSnapshot(State_, std::move(guard));
+
+        return tracker;
+    }
+
+    static TMethodsCongestionControllers CreateCongestionControllers(
+        const TOverloadControllerConfigPtr& config,
+        NProfiling::TProfiler profiler)
+    {
+        TMethodsCongestionControllers controllers;
+
+        THashMap<TMethodIndex, TServiceMethodConfigPtr> configIndex;
+        for (const auto& methodConfig : config->Methods) {
+            configIndex[std::pair(methodConfig->Service, methodConfig->Method)] = methodConfig;
         }
 
-        it->second->Adjust(overloadedTrackers, now);
+        auto getConfig = [&configIndex] (TStringBuf service, TStringBuf method) {
+            auto it = configIndex.find(std::pair(service, method));
+            if (it != configIndex.end()) {
+                return it->second;
+            }
+
+            auto defaultConfig = New<TServiceMethodConfig>();
+            defaultConfig->Service = service;
+            defaultConfig->Method = method;
+            return defaultConfig;
+        };
+
+        for (const auto& [trackerType, tracker] : config->Trackers) {
+            for (const auto& method : tracker->MethodsToThrottle) {
+                auto& controller = controllers[std::pair(method.Service, method.Method)];
+
+                if (!controller) {
+                    auto methodConfig = getConfig(method.Service, method.Method);
+                    auto controllerProfiler = profiler
+                        .WithTag("yt_service", method.Service)
+                        .WithTag("method", method.Method);
+
+                    controller = New<TCongestionController>(
+                        std::move(methodConfig),
+                        config, std::move(controllerProfiler));
+                }
+
+                controller->AddTrackerType(trackerType);
+            }
+        }
+
+        return controllers;
     }
-}
+};
 
-THazardPtr<TOverloadController::TState> TOverloadController::GetStateSnapshot() const
+IOverloadControllerPtr CreateOverloadController(TOverloadControllerConfigPtr config, NProfiling::TProfiler profiler)
 {
-    YT_VERIFY(StateSnapshot_);
-
-    return StateSnapshot_.AcquireHazard();
-}
-
-void TOverloadController::UpdateStateSnapshot(const TState& state, TSpinLockGuard guard)
-{
-    auto snapshot = New<TState>(state);
-    guard.Release();
-
-    StateSnapshot_.Store(std::move(snapshot));
-    ReclaimHazardPointers();
+    return New<TOverloadController>(std::move(config), std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletNode
+} // namespace NYT::NRpc

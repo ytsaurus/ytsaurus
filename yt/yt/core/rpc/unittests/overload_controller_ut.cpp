@@ -1,12 +1,12 @@
-#include <yt/yt/server/node/tablet_node/overload_controller.h>
-#include <yt/yt/server/node/tablet_node/config.h>
+#include <yt/yt/core/rpc/config.h>
+#include <yt/yt/core/rpc/overload_controller.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
-namespace NYT::NTabletNode {
+namespace NYT::NRpc {
 namespace {
 
 using namespace NConcurrency;
@@ -71,9 +71,9 @@ TOverloadControllerConfigPtr CreateConfig(const THashMap<TString, TMethodInfoLis
 
         for (const auto& methodInfo : methods) {
             {
-                auto serviceMethod = New<TServiceMethod>();
-                serviceMethod->Service = methodInfo.Service;
-                serviceMethod->Method = methodInfo.Method;
+                TServiceMethod serviceMethod;
+                serviceMethod.Service = methodInfo.Service;
+                serviceMethod.Method = methodInfo.Method;
                 trackerMeanWaitTimeConfig->MethodsToThrottle.push_back(std::move(serviceMethod));
             }
             {
@@ -96,7 +96,7 @@ TOverloadControllerConfigPtr CreateConfig(const THashMap<TString, TMethodInfoLis
 
 TEST(TOverloadControllerTest, TestOverloadsRequests)
 {
-    auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
+    auto controller = CreateOverloadController(New<TOverloadControllerConfig>());
     auto mockInvoker = New<TMockInvoker>();
     auto mockInvoker2 = New<TMockInvoker>();
 
@@ -142,7 +142,7 @@ TEST(TOverloadControllerTest, TestOverloadsRequests)
 
 TEST(TOverloadControllerTest, TestNoOverloads)
 {
-    auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
+    auto controller = CreateOverloadController(New<TOverloadControllerConfig>());
     auto mockInvoker = New<TMockInvoker>();
 
     controller->TrackInvoker("Mock", mockInvoker);
@@ -170,7 +170,7 @@ TEST(TOverloadControllerTest, TestNoOverloads)
 
 TEST(TOverloadControllerTest, TestTwoInvokersSameMethod)
 {
-    auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
+    auto controller = CreateOverloadController(New<TOverloadControllerConfig>());
     auto mockInvoker1 = New<TMockInvoker>();
     auto mockInvoker2 = New<TMockInvoker>();
 
@@ -216,7 +216,7 @@ TEST(TOverloadControllerTest, TestTwoInvokersSameMethod)
 
 TEST(TOverloadControllerTest, TestCongestionWindow)
 {
-    auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
+    auto controller = CreateOverloadController(New<TOverloadControllerConfig>());
     auto mockInvoker = New<TMockInvoker>();
     auto mockInvoker2 = New<TMockInvoker>();
 
@@ -271,7 +271,7 @@ TEST(TOverloadControllerTest, TestCongestionWindow)
 
 TEST(TOverloadControllerTest, TestCongestionWindowTwoTrackers)
 {
-    auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
+    auto controller = CreateOverloadController(New<TOverloadControllerConfig>());
     auto mockInvoker1 = New<TMockInvoker>();
     auto mockInvoker2 = New<TMockInvoker>();
 
@@ -310,7 +310,7 @@ TEST(TOverloadControllerTest, TestCongestionWindowTwoTrackers)
 
 TEST(TOverloadControllerTest, TestCongestionWindowTwoInstancies)
 {
-    auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
+    auto controller = CreateOverloadController(New<TOverloadControllerConfig>());
     auto observer1 = controller->CreateGenericWaitTimeObserver("Mock", "Mock.1");
     auto observer2 = controller->CreateGenericWaitTimeObserver("Mock", "Mock.2");
 
@@ -428,4 +428,4 @@ TEST(TOverloadControllerTest, WaitTimeObserver)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NTabletNode
+} // namespace NYT::NRpc

@@ -59,13 +59,12 @@ target_sources(library-profiling-solomon PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/cube.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/exporter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/percpu.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/producer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/remote.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor_set.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/sensor.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/profiling/solomon/tag_registry.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/profiling/solomon/sensor_dump.pb.h
 )

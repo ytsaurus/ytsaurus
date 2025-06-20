@@ -5,7 +5,6 @@
 #include "error_reporting_service_base.h"
 #include "hunk_store.h"
 #include "hunk_tablet_manager.h"
-#include "overload_controlling_service_base.h"
 #include "private.h"
 #include "security_manager.h"
 #include "slot_manager.h"
@@ -44,6 +43,8 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
+#include <yt/yt/core/rpc/overload_controlling_service_base.h>
+
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/actions/current_invoker.h>
@@ -78,7 +79,9 @@ public:
         IBootstrap* bootstrap)
         : TErrorReportingServiceBase(
             bootstrap,
-            bootstrap,
+            // TOverloadControllingServiceBase:
+            bootstrap->GetOverloadController(),
+            // THydraServiceBase:
             slot->GetHydraManager(),
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write),
             TTabletServiceProxy::GetDescriptor(),

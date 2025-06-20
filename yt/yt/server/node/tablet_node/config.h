@@ -459,110 +459,6 @@ DEFINE_REFCOUNTED_TYPE(TBackupManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TServiceMethod
-    : public NYTree::TYsonStruct
-{
-    TString Service;
-    TString Method;
-
-    REGISTER_YSON_STRUCT(TServiceMethod);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TServiceMethod)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TServiceMethodConfig
-    : public NYTree::TYsonStruct
-{
-    TString Service;
-    TString Method;
-
-    int MaxWindow;
-    double WaitingTimeoutFraction;
-
-    REGISTER_YSON_STRUCT(TServiceMethodConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TServiceMethodConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TOverloadTrackerConfigBase
-    : public NYTree::TYsonStruct
-{
-    std::vector<TServiceMethodPtr> MethodsToThrottle;
-
-    REGISTER_YSON_STRUCT(TOverloadTrackerConfigBase);
-
-    static void Register(TRegistrar registrar);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TOverloadTrackerMeanWaitTimeConfig
-    : public TOverloadTrackerConfigBase
-{
-    TDuration MeanWaitTimeThreshold;
-
-    REGISTER_YSON_STRUCT(TOverloadTrackerMeanWaitTimeConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TOverloadTrackerMeanWaitTimeConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TOverloadTrackerBacklogQueueFillFractionConfig
-    : public TOverloadTrackerConfigBase
-{
-    double BacklogQueueFillFractionThreshold;
-
-    REGISTER_YSON_STRUCT(TOverloadTrackerBacklogQueueFillFractionConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TOverloadTrackerBacklogQueueFillFractionConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EOverloadTrackerConfigType,
-    (Base)
-    (MeanWaitTime)
-    (BacklogQueueFillFraction)
-);
-
-DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM_WITH_DEFAULT(OverloadTrackerConfig, EOverloadTrackerConfigType, MeanWaitTime,
-    ((Base)                     (TOverloadTrackerConfigBase))
-    ((MeanWaitTime)             (TOverloadTrackerMeanWaitTimeConfig))
-    ((BacklogQueueFillFraction) (TOverloadTrackerBacklogQueueFillFractionConfig))
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TOverloadControllerConfig
-    : public NYTree::TYsonStruct
-{
-    bool Enabled;
-    THashMap<TString, TOverloadTrackerConfig> Trackers;
-    std::vector<TServiceMethodConfigPtr> Methods;
-    TDuration LoadAdjustingPeriod;
-
-    REGISTER_YSON_STRUCT(TOverloadControllerConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TOverloadControllerConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TStatisticsReporterConfig
     : public NYTree::TYsonStruct
 {
@@ -716,7 +612,7 @@ struct TTabletNodeDynamicConfig
     TBackupManagerDynamicConfigPtr BackupManager;
     TSmoothMovementTrackerDynamicConfigPtr SmoothMovementTracker;
 
-    TOverloadControllerConfigPtr OverloadController;
+    NRpc::TOverloadControllerConfigPtr OverloadController;
 
     TStatisticsReporterConfigPtr StatisticsReporter;
 

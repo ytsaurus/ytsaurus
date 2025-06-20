@@ -4,39 +4,31 @@
 #include "overload_controlling_service_base.h"
 #endif
 
-
-#include "bootstrap.h"
 #include "overload_controller.h"
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
-namespace NYT::NTabletNode {
+namespace NYT::NRpc {
 
-using namespace NRpc;
 using namespace NConcurrency;
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<TDuration> GetTimeout(const std::unique_ptr<NRpc::NProto::TRequestHeader>& header);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TBaseService>
 template <typename... TArgs>
 TOverloadControllingServiceBase<TBaseService>::TOverloadControllingServiceBase(
-    NTabletNode::IBootstrap* bootstrap,
+    IOverloadControllerPtr controller,
     TArgs&&... args)
     : TBaseService(std::forward<TArgs>(args)...)
-    , Bootstrap_(bootstrap)
-{ }
+    , Controller_(std::move(controller))
+{
+    YT_VERIFY(Controller_);
+}
 
 template <class TBaseService>
 void TOverloadControllingServiceBase<TBaseService>::SubscribeLoadAdjusted()
 {
-    const auto& controller = Bootstrap_->GetOverloadController();
-    YT_VERIFY(controller);
-
-    controller->SubscribeLoadAdjusted(BIND(
+    Controller_->SubscribeLoadAdjusted(BIND(
         &TOverloadControllingServiceBase::HandleLoadAdjusted,
         MakeWeak(this)));
 }
@@ -52,14 +44,13 @@ auto TOverloadControllingServiceBase<TBaseService>::RegisterMethod(
 template <class TBaseService>
 void TOverloadControllingServiceBase<TBaseService>::HandleLoadAdjusted()
 {
-    const auto& controller = Bootstrap_->GetOverloadController();
     const auto& serviceName = TBaseService::GetServiceId().ServiceName;
 
     for (const auto& method : Methods_) {
         auto* runtimeInfo = TBaseService::FindMethodInfo(method);
         YT_VERIFY(runtimeInfo);
 
-        auto congestionState = controller->GetCongestionState(serviceName, method);
+        auto congestionState = Controller_->GetCongestionState(serviceName, method);
         runtimeInfo->ConcurrencyLimit.SetDynamicLimit(congestionState.CurrentWindow);
         runtimeInfo->WaitingTimeoutFraction.store(
             congestionState.WaitingTimeoutFraction,
@@ -71,8 +62,7 @@ template <class TBaseService>
 std::optional<TError> TOverloadControllingServiceBase<TBaseService>::GetThrottledError(
     const NRpc::NProto::TRequestHeader& requestHeader)
 {
-    const auto& controller = Bootstrap_->GetOverloadController();
-    auto congestionState = controller->GetCongestionState(requestHeader.service(), requestHeader.method());
+    auto congestionState = Controller_->GetCongestionState(requestHeader.service(), requestHeader.method());
     const auto& overloadedTrackers = congestionState.OverloadedTrackers;
 
     if (!overloadedTrackers.empty()) {
@@ -89,8 +79,7 @@ void TOverloadControllingServiceBase<TBaseService>::HandleRequest(
     TSharedRefArray message,
     NBus::IBusPtr replyBus)
 {
-    const auto& controller = Bootstrap_->GetOverloadController();
-    auto congestionState = controller->GetCongestionState(
+    auto congestionState = Controller_->GetCongestionState(
         header->service(),
         header->method());
 
@@ -104,4 +93,4 @@ void TOverloadControllingServiceBase<TBaseService>::HandleRequest(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletNode
+} // namespace NYT::NRpc
