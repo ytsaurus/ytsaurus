@@ -271,6 +271,14 @@ private:
                             retryCount);
                     }
                 }
+
+                if (replicationCard->Era < snapshotEra) {
+                    YT_LOG_DEBUG(
+                        "Replication card era is outdated after retries, skipping update (FetchedEra: %v, SnapshotEra: %v)",
+                        replicationCard->Era,
+                        snapshotEra);
+                    return;
+                }
             }
 
             // Check if the replication card has changed during update, or we are looking at an old instance.
