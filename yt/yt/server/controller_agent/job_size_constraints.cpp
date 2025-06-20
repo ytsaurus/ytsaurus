@@ -865,7 +865,14 @@ public:
 
     bool CanAdjustDataWeightPerJob() const override
     {
-        return !Spec_->DataWeightPerPartitionJob && !Spec_->PartitionJobCount;
+        if (Spec_->PartitionJobCount) {
+            return false;
+        }
+        if (Spec_->DataWeightPerPartitionJob) {
+            return Spec_->ForceJobSizeAdjuster;
+        }
+
+        return true;
     }
 
     bool IsExplicitJobCount() const override
@@ -1053,7 +1060,7 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     i64 dataWeightPerJob = std::max(minDataWeightPerJob, spec->DataWeightPerSortedJob.value_or(spec->DataWeightPerShuffleJob));
 
     return CreateExplicitJobSizeConstraints(
-        /*canAdjustDataSizePerJob*/ true,
+        /*canAdjustDataSizePerJob*/ spec->ForceJobSizeAdjuster,
         /*isExplicitJobCount*/ false,
         /*jobCount*/ 0,
         /*dataWeightPerJob*/ dataWeightPerJob,

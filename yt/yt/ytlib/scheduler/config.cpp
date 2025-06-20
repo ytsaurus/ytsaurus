@@ -1872,6 +1872,9 @@ void TSortOperationSpecBase::Register(TRegistrar registrar)
         .Default(1000)
         .GreaterThan(1);
 
+    registrar.Parameter("force_job_size_adjuster", &TThis::ForceJobSizeAdjuster)
+        .Default(false);
+
     registrar.Postprocessor([] (TSortOperationSpecBase* spec) {
         NTableClient::ValidateSortColumns(spec->SortBy);
 

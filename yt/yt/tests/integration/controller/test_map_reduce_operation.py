@@ -1237,9 +1237,11 @@ print("x={0}\ty={1}".format(x, y))
                 "mapper": {"format": "dsv"},
                 "reducer": {"format": "dsv"},
                 "resource_limits": {"user_slots": 1},
-                "data_size_per_map_job": 1,
+                # Explicit map_job_count disables job_size_adjuster for map jobs.
+                "map_job_count": 15,
                 "data_size_per_sort_job": 36000,
                 "partition_count": 1,
+                "force_job_size_adjuster": True,
                 "job_testing_options": {
                     "fake_prepare_duration": 10000,
                 },
