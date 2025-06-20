@@ -5,19 +5,9 @@ A *private clique* is a clique that can be accessed only by certain users or uni
 ## Start conditions { #conditions }
 To start a private clique, you need a dedicated compute pool with CPU guarantees (`strong_guarantee_resources`). If there is not any, you need to:
 
-- Ask colleagues whether it is possible to find a [compute pool](../../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md) with available resources.
+- Ask your cluster administrator to check for a [compute pool](../../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md) with available resources.
 - Order new resources for the future.
 - Start a clique without guarantees (not recommended).
-
-{% if audience == "internal" %}
-{% note warning "Attention!" %}
-
-We do not recommend starting a private click in the **Research** pool (in particular, this will happen if you do not specify the pool when starting a clique).
-
-There are no CPU guarantees in this pool. That's why the jobs of the operation in which the clique is running can be [preempted](../../../../../user-guide/data-processing/chyt/cliques/resources.md) sporadically. When preempted, all running queries are aborted.
-
-
-{% endnote %}{% endif %}
 
 ## How to start { #how-start }
 
@@ -91,3 +81,4 @@ $ yt clickhouse execute --proxy <cluster_name> --alias chyt_example_clique 'sele
 ```
 
 If the clique is unavailable for more than 10 minutes, try to identify the problem by following the `operation_url` from the `status` command in the operation's web interface.{% if audience == "public" %} If you don't manage to work it out on your own, write to the [{{product-name}} chat](https://t.me/ytsaurus_ru).{% endif %}
+
