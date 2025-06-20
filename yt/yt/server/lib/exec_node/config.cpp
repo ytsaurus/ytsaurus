@@ -768,6 +768,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("core_watcher", &TThis::CoreWatcher)
         .DefaultNew();
 
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
+        .Default();
+
     registrar.Parameter("supervisor_connection", &TThis::SupervisorConnection)
         .Default();
 
