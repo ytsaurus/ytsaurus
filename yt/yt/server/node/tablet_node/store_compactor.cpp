@@ -108,8 +108,8 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t MaxRowsPerRead = 65536;
-static const size_t MaxRowsPerWrite = 65536;
+static const size_t MaxRowsPerRead = 8 * 1024;
+static const size_t MaxRowsPerWrite = 8 * 1024;
 
 static const std::string CompactionPoolName = "$StoreCompact";
 static const std::string PartitionPoolName = "$StorePartition";
@@ -690,6 +690,8 @@ public:
         TCompactionTask* task)
     {
         return DoRun([&] {
+            TPeriodicYielder yielder;
+
             int currentPartitionIndex = 0;
             TLegacyOwningKey currentPivotKey;
             TLegacyOwningKey nextPivotKey;
@@ -742,6 +744,8 @@ public:
                 if (!currentWriter->Write(outputRows)) {
                     WaitFor(currentWriter->GetReadyEvent())
                         .ThrowOnError();
+                } else {
+                    yielder.Checkpoint(Logger);
                 }
 
                 outputRows.clear();
@@ -783,8 +787,6 @@ public:
             IVersionedRowBatchPtr inputBatch;
             TSharedRange<TVersionedRow> inputRows;
             int currentRowIndex = 0;
-
-            TPeriodicYielder yielder;
 
             auto peekInputRow = [&] {
                 if (currentRowIndex >= std::ssize(inputRows)) {
@@ -907,9 +909,14 @@ public:
             while (auto batch = ReadRowBatch(reader, readOptions)) {
                 rowCount += batch->GetRowCount();
                 auto rows = batch->MaterializeRows();
+
+                yielder.Checkpoint(Logger);
+
                 if (!writer->Write(rows)) {
                     WaitFor(writer->GetReadyEvent())
                         .ThrowOnError();
+                } else {
+                    yielder.Checkpoint(Logger);
                 }
 
                 {
@@ -919,8 +926,6 @@ public:
                     task->Info->RuntimeData.ProcessedWriterStatistics =
                         TBackgroundActivityTaskInfoBase::TWriterStatistics(writer->GetDataStatistics());
                 }
-
-                yielder.Checkpoint(Logger);
             }
 
             CloseWriter(writer);
