@@ -271,12 +271,29 @@ struct TCacheLocationConfig
     //! Controls incoming location bandwidth used by cache.
     NConcurrency::TThroughputThrottlerConfigPtr InThrottler;
 
+    TCacheLocationConfigPtr ApplyDynamic(const TCacheLocationDynamicConfigPtr& dynamicConfig) const;
+    void ApplyDynamicInplace(const TCacheLocationDynamicConfig& dynamicConfig);
+
     REGISTER_YSON_STRUCT(TCacheLocationConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheLocationConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCacheLocationDynamicConfig
+    : public TChunkLocationDynamicConfig
+{
+    NConcurrency::TThroughputThrottlerConfigPtr InThrottler;
+
+    REGISTER_YSON_STRUCT(TCacheLocationDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCacheLocationDynamicConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1127,6 +1144,7 @@ struct TDataNodeDynamicConfig
     TLocationHealthCheckerDynamicConfigPtr LocationHealthChecker;
 
     THashMap<std::string, TStoreLocationDynamicConfigPtr> StoreLocationConfigPerMedium;
+    TCacheLocationDynamicConfigPtr CacheLocation;
 
     std::optional<i64> NetOutThrottlingLimit;
 

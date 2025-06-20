@@ -344,21 +344,7 @@ public:
         WaitFor(AllSucceeded(std::move(futures)))
             .ThrowOnError();
 
-        if (!Locations_.empty()) {
-            const auto& mediumName = Locations_.front()->GetMediumName();
-            for (const auto& location : Locations_) {
-                if (location->GetMediumName() != mediumName) {
-                    THROW_ERROR_EXCEPTION(
-                        "Locations %v and %v are configured with distinct media (%Qv != %Qv), "
-                        "but multiple cache media on one host are not supported yet",
-                        Locations_.front()->GetId(),
-                        location->GetId(),
-                        mediumName,
-                        location->GetMediumName());
-
-                }
-            }
-        }
+        ValidateLocations();
 
         YT_LOG_INFO(
             "Chunk cache initialized (ChunkCount: %v)",
@@ -502,6 +488,7 @@ private:
     IBootstrap* const Bootstrap_;
 
     TAtomicIntrusivePtr<TArtifactCacheReaderConfig> ArtifactCacheReaderConfig_;
+    TCacheLocationDynamicConfigPtr CacheLocationConfig_;
 
     //! Describes a registered but not yet validated chunk.
     struct TRegisteredChunkDescriptor
@@ -513,6 +500,24 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisteredChunkMapLock_);
     THashMap<TArtifactKey, TRegisteredChunkDescriptor> RegisteredChunkMap_;
 
+    void ValidateLocations() const
+    {
+        if (!Locations_.empty()) {
+            const auto& mediumName = Locations_.front()->GetMediumName();
+            for (const auto& location : Locations_) {
+                if (location->GetMediumName() != mediumName) {
+                    THROW_ERROR_EXCEPTION(
+                        "Locations %v and %v are configured with distinct media (%Qv != %Qv), "
+                        "but multiple cache media on one host are not supported yet",
+                        Locations_.front()->GetId(),
+                        location->GetId(),
+                        mediumName,
+                        location->GetMediumName());
+
+                }
+            }
+        }
+    }
 
     void InitializeLocation(const TCacheLocationPtr& location)
     {
@@ -531,6 +536,37 @@ private:
         }
 
         location->Start();
+    }
+
+    void ReconfigureLocations(const NDataNode::TCacheLocationDynamicConfigPtr& config)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        CacheLocationConfig_ = config;
+
+        for (const auto& location : Locations_) {
+            ReconfigureLocation(location);
+        }
+
+        ValidateLocations();
+    }
+
+    void ReconfigureLocation(const TCacheLocationPtr& location)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        auto cacheLocation = DynamicPointerCast<TCacheLocation>(location);
+        if (!cacheLocation) {
+            return;
+        }
+
+        if (!CacheLocationConfig_) {
+            return;
+        }
+
+        const auto& staticLocationConfig = cacheLocation->GetStaticConfig();
+        auto locationConfig = staticLocationConfig->ApplyDynamic(CacheLocationConfig_);
+        cacheLocation->Reconfigure(locationConfig);
     }
 
     void RunBackgroundValidation()
@@ -1556,6 +1592,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ArtifactCacheReaderConfig_.Store(newNodeConfig->DataNode->ArtifactCacheReader);
+
+        ReconfigureLocations(newNodeConfig->DataNode->CacheLocation);
     }
 };
 

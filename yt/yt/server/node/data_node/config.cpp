@@ -247,8 +247,8 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreLocationConfigPtr TStoreLocationConfig::ApplyDynamic
-    (const TStoreLocationDynamicConfigPtr& dynamicConfig) const
+TStoreLocationConfigPtr TStoreLocationConfig::ApplyDynamic(
+    const TStoreLocationDynamicConfigPtr& dynamicConfig) const
 {
     auto config = CloneYsonStruct(MakeStrong(this));
     config->ApplyDynamicInplace(*dynamicConfig);
@@ -338,6 +338,23 @@ void TStoreLocationDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCacheLocationConfigPtr TCacheLocationConfig::ApplyDynamic(
+    const TCacheLocationDynamicConfigPtr& dynamicConfig) const
+{
+    auto config = CloneYsonStruct(MakeStrong(this));
+    config->ApplyDynamicInplace(*dynamicConfig);
+    config->Postprocess();
+    return config;
+}
+
+void TCacheLocationConfig::ApplyDynamicInplace(
+    const TCacheLocationDynamicConfig& dynamicConfig)
+{
+    TChunkLocationConfig::ApplyDynamicInplace(dynamicConfig);
+
+    UpdateYsonStructField(InThrottler, dynamicConfig.InThrottler);
+}
+
 void TCacheLocationConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("in_throttler", &TThis::InThrottler)
@@ -345,6 +362,14 @@ void TCacheLocationConfig::Register(TRegistrar registrar)
 
     registrar.BaseClassParameter("medium_name", &TThis::MediumName)
         .Default(NChunkClient::DefaultCacheMediumName);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCacheLocationDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("in_throttler", &TThis::InThrottler)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1140,6 +1165,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("store_location_config_per_medium", &TThis::StoreLocationConfigPerMedium)
         .Default();
+
+    registrar.Parameter("cache_location", &TThis::CacheLocation)
+        .DefaultNew();
 
     registrar.Parameter("net_out_throttling_limit", &TThis::NetOutThrottlingLimit)
         .Default();
