@@ -757,6 +757,12 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("core_watcher", &TThis::CoreWatcher)
         .DefaultNew();
 
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
+        .Default();
+
+    registrar.Parameter("supervisor_connection", &TThis::SupervisorConnection)
+        .Default();
+
     registrar.Parameter("supervisor_rpc_timeout", &TThis::SupervisorRpcTimeout)
         .Default(TDuration::Seconds(30));
 
@@ -777,6 +783,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("always_abort_on_memory_reserve_overdraft", &TThis::AlwaysAbortOnMemoryReserveOverdraft)
         .Default(false);
+
+    registrar.Parameter("environment_variables", &TThis::EnvironmentVariables)
+        .Default();
 
     registrar.Parameter("forward_all_environment_variables", &TThis::ForwardAllEnvironmentVariables)
         .Default(false);

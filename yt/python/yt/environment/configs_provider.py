@@ -1056,6 +1056,8 @@ def _build_node_configs(multidaemon_config_output,
                 _get_node_job_environment_config(yt_config, index, logs_dir)
             )
 
+        set_at(config, "exec_node/job_proxy/supervisor_connection", _build_native_bus_config(yt_config))
+
         if yt_config.jobs_environment_type == "cri":
             # Forward variables set in docker image into user job environment.
             set_at(config, "exec_node/job_proxy/forward_all_environment_variables", True)
