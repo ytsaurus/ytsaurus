@@ -15,6 +15,7 @@
 #include <yt/yt/library/clickhouse_discovery/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
@@ -400,12 +401,13 @@ class TChytEngine
     : public IQueryEngine
 {
 public:
-    TChytEngine(IClientPtr stateClient, TYPath stateRoot)
+    TChytEngine(NNative::IClientPtr stateClient, TYPath stateRoot)
         : StateClient_(std::move(stateClient))
         , StateRoot_(std::move(stateRoot))
         , ControlQueue_(New<TActionQueue>("MockEngineControl"))
-        , ClusterDirectory_(DynamicPointerCast<NNative::IConnection>(StateClient_->GetConnection())->GetClusterDirectory())
-        , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>())))
+        , ClusterDirectory_(StateClient_->GetNativeConnection()->GetClusterDirectory())
+        , ChannelFactory_(CreateCachingChannelFactory(CreateTcpBusChannelFactory(
+            StateClient_->GetNativeConnection()->GetConfig()->BusClient)))
     { }
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
@@ -419,7 +421,7 @@ public:
     }
 
 private:
-    const IClientPtr StateClient_;
+    const NNative::IClientPtr StateClient_;
     const TYPath StateRoot_;
     const TActionQueuePtr ControlQueue_;
     TChytEngineConfigPtr ChytConfig_;
@@ -429,7 +431,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IQueryEnginePtr CreateChytEngine(const IClientPtr& stateClient, const TYPath& stateRoot)
+IQueryEnginePtr CreateChytEngine(const NNative::IClientPtr& stateClient, const TYPath& stateRoot)
 {
     return New<TChytEngine>(stateClient, stateRoot);
 }
