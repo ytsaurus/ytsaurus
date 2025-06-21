@@ -7,18 +7,19 @@ CONCLUSION_FAILURE = 'failure'
 
 def send_notify(args, wf_state):
     message = '\n'.join((
-        f'Workflow *{args.workflow}* {wf_state}: {args.git_server_url}/{args.repo}/actions/runs/{args.current_job_id}',
+        wf_state,
+        f'Workflow *{args.workflow}*: {args.git_server_url}/{args.repo}/actions/runs/{args.current_job_id}',
         f'Git {args.ref_type}: *{args.ref}*.',
         f'Commit: ```{args.commit_message}```',
     ))
 
-    print(message)
-
     url = 'https://api.telegram.org/bot{}/sendMessage'.format(args.tg_token)
     data = {'chat_id': args.tg_chat_id, 'text': message, 'parse_mode': 'Markdown'}
     response = requests.post(url, data=data)
-    print(response.json())
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except requests.HTTPError:
+        print(response.json())
 
 
 def main():
@@ -107,8 +108,8 @@ def main():
         prev_conclusion = last['conclusion']
         print(prev_conclusion)
         state_to_alert = {
-            (CONCLUSION_SUCCESS, CONCLUSION_FAILURE): "❌ failed",
-            (CONCLUSION_FAILURE, CONCLUSION_SUCCESS): "✅ fixed",
+            (CONCLUSION_SUCCESS, CONCLUSION_FAILURE): "failed ❌",
+            (CONCLUSION_FAILURE, CONCLUSION_SUCCESS): "fixed ✅",
         }
 
         wf_state = state_to_alert.get((prev_conclusion, args.current_job_conclusion))
