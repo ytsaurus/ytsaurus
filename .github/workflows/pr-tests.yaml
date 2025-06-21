@@ -173,6 +173,8 @@ jobs:
       - name: Run tests
         id: run-tests
         run: |
+          source ~/venv_for_github_actions/bin/activate
+
           python3 ../ytsaurus/ytsaurus/.github/scripts/run_tests.py \
                   --yt-root ../ytsaurus/ytsaurus \
                   --ya-test-flags "${{ steps.vars.outputs.TEST_FLAGS }} --pytest-args=\"-m 'not ignore_in_opensource_ci and enabled_multidaemon' -vv\"" \
