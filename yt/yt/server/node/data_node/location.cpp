@@ -139,6 +139,7 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
         });
     }
 
+    IOWeight = profiler.Gauge("/io_weight");
     UsedSpace = profiler.Gauge("/used_space");
     AvailableSpace = profiler.Gauge("/available_space");
     ChunkCount = profiler.Gauge("/chunk_count");

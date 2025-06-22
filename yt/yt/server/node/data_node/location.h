@@ -110,6 +110,7 @@ struct TLocationPerformanceCounters
 
     TEnumIndexedArray<ESessionType, std::atomic<int>> SessionCount;
 
+    NProfiling::TGauge IOWeight;
     NProfiling::TGauge UsedSpace;
     NProfiling::TGauge AvailableSpace;
     NProfiling::TGauge ChunkCount;
