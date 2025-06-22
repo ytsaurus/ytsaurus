@@ -239,18 +239,22 @@ template <class TOwner>
     TVersionedBuiltinAttribute<T> TOwner::*member,
     const TOwner* node)
 {
-    for (auto* currentNode = node; currentNode; currentNode = currentNode->GetOriginator()->template As<TOwner>()) {
+    auto* currentNode = node;
+    for (;;) {
         const auto& attribute = currentNode->*member;
+        if (!attribute.IsNull()) {
+            if (attribute.IsTombstoned()) {
+                return std::nullopt;
+            }
 
-        if (attribute.IsNull()) {
-            continue;
+            return attribute.Unbox();
         }
 
-        if (attribute.IsTombstoned()) {
-            return std::nullopt;
+        auto* originator = currentNode->GetOriginator();
+        if (!originator) {
+            break;
         }
-
-        return attribute.Unbox();
+        currentNode = originator->template As<TOwner>();
     }
 
     return std::nullopt;

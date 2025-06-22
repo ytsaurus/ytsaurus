@@ -160,13 +160,18 @@ void TCompositeCypressNode::Load(NCellMaster::TLoadContext& context)
 
 bool TCompositeCypressNode::HasInheritableAttributes() const
 {
-    for (auto* node = this; node; node = node->GetOriginator()->As<TCompositeCypressNode>()) {
+    auto* node = this;
+    for (;;) {
         if (node->Attributes_) {
             YT_ASSERT(!node->Attributes_->AreEmpty());
             return true;
         }
+        auto* originator = node->GetOriginator();
+        if (!originator) {
+            break;
+        }
+        node = originator->As<TCompositeCypressNode>();
     }
-
     return false;
 }
 
