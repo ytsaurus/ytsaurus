@@ -1830,6 +1830,8 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
         return false;
     }
 
+    const auto& operationState = TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationState(element);
+
     SchedulingContext_->StartAllocation(
         element->GetTreeId(),
         element->GetOperationId(),
@@ -1838,7 +1840,8 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
         startDescriptor,
         element->Spec()->PreemptionMode,
         schedulingIndex,
-        GetStageType());
+        GetStageType(),
+        operationState->NetworkPriority);
 
     UpdateOperationResourceUsage(element);
 
@@ -4027,6 +4030,7 @@ void TFairShareTreeAllocationScheduler::ApplyOperationSchedulingSegmentsChanges(
         operationState->SchedulingSegmentModule = changedOperationState->SchedulingSegmentModule;
         operationState->FailingToScheduleAtModuleSince = changedOperationState->FailingToScheduleAtModuleSince;
         operationState->FailingToAssignToModuleSince = changedOperationState->FailingToAssignToModuleSince;
+        operationState->NetworkPriority = changedOperationState->NetworkPriority;
     }
 }
 

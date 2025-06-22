@@ -97,6 +97,8 @@ public:
     //! Deadline for running allocation.
     DEFINE_BYVAL_RW_PROPERTY(NProfiling::TCpuInstant, RunningAllocationUpdateDeadline, 0);
 
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<TNetworkPriority>, NetworkPriority);
+
     //! Logger for this allocation.
     DEFINE_BYREF_RO_PROPERTY(NLogging::TLogger, Logger);
 
@@ -115,6 +117,7 @@ public:
         TString treeId,
         int schedulingIndex,
         std::optional<EAllocationSchedulingStage> schedulingStage = std::nullopt,
+        std::optional<TNetworkPriority> networkPriority = std::nullopt,
         NNodeTrackerClient::TNodeId revivalNodeId = NNodeTrackerClient::InvalidNodeId,
         std::string revivalNodeAddress = {});
 

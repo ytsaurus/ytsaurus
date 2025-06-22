@@ -446,6 +446,9 @@ struct TGpuManagerDynamicConfig
     //! This option is specific to nvidia-container-runtime.
     TString DefaultNvidiaDriverCapabilities;
 
+    bool EnableNetworkServiceLevel;
+    TDuration ApplyNetworkServiceLevelTimeout;
+
     REGISTER_YSON_STRUCT(TGpuManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);

@@ -538,6 +538,11 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("default_nvidia_driver_capabilities", &TThis::DefaultNvidiaDriverCapabilities)
         .Default();
+
+    registrar.Parameter("enable_network_service_level", &TThis::EnableNetworkServiceLevel)
+        .Default(false);
+    registrar.Parameter("apply_network_service_level_timeout", &TThis::ApplyNetworkServiceLevelTimeout)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

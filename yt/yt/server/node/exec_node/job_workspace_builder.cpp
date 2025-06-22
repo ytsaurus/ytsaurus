@@ -1,4 +1,5 @@
 #include "job_workspace_builder.h"
+#include "allocation.h"
 #include "slot.h"
 
 #include "job_gpu_checker.h"
@@ -87,6 +88,8 @@ constexpr const char* TJobWorkspaceBuilder::GetStepName()
         return "DoPrepareSandboxDirectories";
     } else if (Step == &TJobWorkspaceBuilder::DoRunSetupCommand) {
         return "DoRunSetupCommand";
+    } else if (Step == &TJobWorkspaceBuilder::DoRunCustomPreparations) {
+        return "DoRunCustomPreparations";
     } else if (Step == &TJobWorkspaceBuilder::DoRunGpuCheckCommand) {
         return "DoRunGpuCheckCommand";
     }
@@ -240,6 +243,7 @@ TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareGpuCheckVolume>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoPrepareSandboxDirectories>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunSetupCommand>())
+        .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunCustomPreparations>())
         .Apply(MakeStep<&TJobWorkspaceBuilder::DoRunGpuCheckCommand>())
         .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& result) -> TJobWorkspaceBuildingResult {
             YT_LOG_INFO(result, "Job workspace building finished");
@@ -359,13 +363,25 @@ private:
         return VoidFuture;
     }
 
+    TFuture<void> DoRunCustomPreparations() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG("There are no custom preparations in simple workspace");
+
+        ValidateJobPhase(EJobPhase::RunningSetupCommands);
+        SetJobPhase(EJobPhase::RunningCustomPreparations);
+
+        return VoidFuture;
+    }
+
     TFuture<void> DoRunGpuCheckCommand() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG("GPU check is not supported in simple workspace");
 
-        ValidateJobPhase(EJobPhase::RunningSetupCommands);
+        ValidateJobPhase(EJobPhase::RunningCustomPreparations);
         // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
 
         return VoidFuture;
@@ -396,14 +412,18 @@ public:
     TPortoJobWorkspaceBuilder(
         IInvokerPtr invoker,
         TJobWorkspaceBuildingContext context,
-        IJobDirectoryManagerPtr directoryManager)
+        IJobDirectoryManagerPtr directoryManager,
+        TGpuManagerPtr gpuManager)
         : TJobWorkspaceBuilder(
             std::move(invoker),
             std::move(context),
             std::move(directoryManager))
+        , GpuManager_(std::move(gpuManager))
     { }
 
 private:
+    const TGpuManagerPtr GpuManager_;
+
     TFuture<void> DoPrepareRootVolume() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -580,7 +600,7 @@ private:
             return VoidFuture;
         }
 
-        const auto &slot = Context_.Slot;
+        const auto& slot = Context_.Slot;
 
         const auto& commands = Context_.SetupCommands;
         ResultHolder_.SetupCommandCount = commands.size();
@@ -605,11 +625,33 @@ private:
             .AsVoid();
     }
 
+    TFuture<void> DoRunCustomPreparations() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG("Running custom preparations");
+
+        ValidateJobPhase(EJobPhase::RunningSetupCommands);
+        SetJobPhase(EJobPhase::RunningCustomPreparations);
+
+        if (!Context_.NeedGpu) {
+            return VoidFuture;
+        }
+
+        auto networkPriority = Context_.Job->GetAllocation()->GetNetworkPriority();
+
+        return BIND([this, this_ = MakeStrong(this), networkPriority] {
+            GpuManager_->ApplyNetworkPriority(networkPriority);
+        })
+            .AsyncVia(Invoker_)
+            .Run();
+    }
+
     TFuture<void> DoRunGpuCheckCommand() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        ValidateJobPhase(EJobPhase::RunningSetupCommands);
+        ValidateJobPhase(EJobPhase::RunningCustomPreparations);
 
         if (Context_.GpuCheckOptions) {
             SetJobPhase(EJobPhase::RunningGpuCheckCommand);
@@ -672,12 +714,14 @@ private:
 TJobWorkspaceBuilderPtr CreatePortoJobWorkspaceBuilder(
     IInvokerPtr invoker,
     TJobWorkspaceBuildingContext context,
-    IJobDirectoryManagerPtr directoryManager)
+    IJobDirectoryManagerPtr directoryManager,
+    TGpuManagerPtr gpuManager)
 {
     return New<TPortoJobWorkspaceBuilder>(
         std::move(invoker),
         std::move(context),
-        std::move(directoryManager));
+        std::move(directoryManager),
+        std::move(gpuManager));
 }
 
 #endif
@@ -825,13 +869,25 @@ private:
             .AsVoid();
     }
 
+    TFuture<void> DoRunCustomPreparations() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG("There are no custom preparations in CRI workspace");
+
+        ValidateJobPhase(EJobPhase::RunningSetupCommands);
+        SetJobPhase(EJobPhase::RunningCustomPreparations);
+
+        return VoidFuture;
+    }
+
     TFuture<void> DoRunGpuCheckCommand() override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG_IF(Context_.GpuCheckOptions, "GPU check is not supported in CRI workspace");
 
-        ValidateJobPhase(EJobPhase::RunningSetupCommands);
+        ValidateJobPhase(EJobPhase::RunningCustomPreparations);
         // NB: we intentionally not set running_gpu_check_command phase, since this phase is empty.
 
         return VoidFuture;

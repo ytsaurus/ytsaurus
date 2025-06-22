@@ -87,6 +87,19 @@ void Serialize(const TGpuInfo& gpuInfo, NYson::IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TRdmaDeviceInfo& rdmaDevice, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("name").Value(rdmaDevice.Name)
+            .Item("device_id").Value(rdmaDevice.DeviceId)
+            .Item("rx_byte_rate").Value(rdmaDevice.RxByteRate)
+            .Item("tx_byte_rate").Value(rdmaDevice.TxByteRate)
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 IGpuInfoProviderPtr CreateGpuInfoProvider(TGpuInfoSourceConfigPtr config)
 {
     switch (config->Type) {

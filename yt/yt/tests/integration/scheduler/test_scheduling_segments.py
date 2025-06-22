@@ -14,14 +14,15 @@ from yt_commands import (
     create_data_center, create_rack, make_batch_request,
     execute_batch, get_batch_error,
     vanilla, run_test_vanilla, run_sleeping_vanilla, update_scheduler_config, abort_job,
-    update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option)
+    update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option,
+    print_debug)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path,
     scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path,
     scheduler_orchid_path, scheduler_orchid_node_path, scheduler_new_orchid_pool_tree_path)
 
-from yt_helpers import profiler_factory, read_structured_log, wait_and_get_controller_incarnation
+from yt_helpers import profiler_factory, read_structured_log, wait_and_get_controller_incarnation, write_log_barrier
 
 from yt.test_helpers import are_almost_equal
 
@@ -51,7 +52,11 @@ def get_first_job_node(op):
     return job["address"]
 
 
+def get_persistent_node_segment_states_path(tree="default"):
+    return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/node_states".format(tree)
+
 ##################################################################
+
 
 @pytest.mark.skipif(
     is_asan_build() or is_debug_build(),
@@ -118,12 +123,9 @@ class TestSchedulingSegments(YTEnvSetup):
     def _get_fair_share_ratio(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op, tree) + "/fair_share_ratio", default=0.0)
 
-    def _get_persistent_node_segment_states_path(self, tree="default"):
-        return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/node_states".format(tree)
-
     # NB(eshcherbin): This method always returns NO nodes for the default segment.
     def _get_nodes_for_segment_in_tree(self, segment, tree="default"):
-        node_states = get(self._get_persistent_node_segment_states_path(tree), default={})
+        node_states = get(get_persistent_node_segment_states_path(tree), default={})
         return [node_state["address"] for _, node_state in node_states.items() if node_state["segment"] == segment]
 
     def setup_method(self, method):
@@ -159,7 +161,7 @@ class TestSchedulingSegments(YTEnvSetup):
         # NB(eshcherbin): This is done to reset node segments.
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             requests = [
-                make_batch_request("set", path=self._get_persistent_node_segment_states_path(), input={}),
+                make_batch_request("set", path=get_persistent_node_segment_states_path(), input={}),
             ]
             for node in ls("//sys/cluster_nodes"):
                 requests.append(make_batch_request(
@@ -1119,9 +1121,6 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             ibc = get(scheduler_orchid_node_path(node) + "/infiniband_cluster")
             set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "infiniband_cluster_tag:{}".format(ibc))
 
-    def _get_persistent_node_segment_states_path(self, tree="default"):
-        return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/node_states".format(tree)
-
     def _get_persistent_operation_segment_states_path(self, tree="default"):
         return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/operation_states".format(tree)
 
@@ -1158,7 +1157,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
         # NB(eshcherbin): This is done to reset node segments.
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            requests = [make_batch_request("set", path=self._get_persistent_node_segment_states_path(), input={})]
+            requests = [make_batch_request("set", path=get_persistent_node_segment_states_path(), input={})]
             for node in ls("//sys/cluster_nodes"):
                 requests.append(make_batch_request(
                     "set",
@@ -1967,9 +1966,6 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
         assert alert["attributes"]["alert_type"] == "manage_scheduling_segments"
         assert message in alert["inner_errors"][0]["inner_errors"][0]["message"]
 
-    def _get_persistent_node_segment_states_path(self, tree="default"):
-        return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/node_states".format(tree)
-
     def setup_method(self, method):
         super(TestInfinibandClusterTagValidation, self).setup_method(method)
 
@@ -1993,7 +1989,7 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
 
         # NB(eshcherbin): This is done to reset node segments.
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            requests = [make_batch_request("set", path=self._get_persistent_node_segment_states_path(), input={})]
+            requests = [make_batch_request("set", path=get_persistent_node_segment_states_path(), input={})]
             for node in ls("//sys/cluster_nodes"):
                 requests.append(make_batch_request(
                     "set",
@@ -2106,9 +2102,6 @@ class TestRunningJobStatistics(YTEnvSetup):
     def _get_usage_ratio(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op, tree) + "/dominant_usage_share", default=0.0)
 
-    def _get_persistent_node_segment_states_path(self, tree="default"):
-        return "//sys/scheduler/strategy_state/tree_states/{}/allocation_scheduler_state/scheduling_segments_state/node_states".format(tree)
-
     # TODO(eshcherbin): Do something with copy-paste in this long setup method.
     def setup_method(self, method):
         super(TestRunningJobStatistics, self).setup_method(method)
@@ -2140,7 +2133,7 @@ class TestRunningJobStatistics(YTEnvSetup):
 
         # NB(eshcherbin): This is done to reset node segments.
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            requests = [make_batch_request("set", path=self._get_persistent_node_segment_states_path(), input={})]
+            requests = [make_batch_request("set", path=get_persistent_node_segment_states_path(), input={})]
             for node in ls("//sys/cluster_nodes"):
                 requests.append(make_batch_request(
                     "set",
@@ -2189,3 +2182,210 @@ class TestRunningJobStatistics(YTEnvSetup):
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(bad_op.id), 0.25))
         assert get(scheduler_orchid_node_path(good_node) + "/scheduling_segment") == "large_gpu"
+
+
+##################################################################
+
+
+class TestNetworkPriority(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_MASTERS = 1
+    NUM_NODES = 5
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+        }
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "controller_agent_connector": {
+                    "heartbeat_executor": {
+                        "period": 500,
+                    },
+                },
+                "gpu_manager": {
+                    "enable_network_service_level": True,
+                },
+            },
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "gpu_manager": {
+                "testing": {
+                    "test_resource": True,
+                    "test_gpu_count": 8
+                },
+            },
+            "job_proxy": {
+                "job_proxy_heartbeat_period": 100,
+            },
+        },
+        "job_resource_manager": {
+            "resource_limits": {
+                "cpu": 10,
+                "user_slots": 10,
+            },
+        },
+        "slot_manager": {
+            "job_environment": {
+                "type": "porto",
+            },
+        },
+    }
+
+    USE_PORTO = True
+
+    SCHEDULING_SEGMENTS = [
+        "default",
+        "large_gpu",
+    ]
+
+    DATA_CENTER = "SAS"
+    RACK = "SAS1"
+
+    def setup_method(self, method):
+        super(TestNetworkPriority, self).setup_method(method)
+
+        set("//sys/pool_trees/default/@config/scheduling_segments", {
+            "mode": "large_gpu",
+            "initialization_timeout": 10000,
+            "manage_period": 100,
+            "unsatisfied_segments_rebalancing_timeout": 1000,
+            "data_centers": [TestNetworkPriority.DATA_CENTER],
+            "enable_detailed_logs": True,
+            "module_share_to_network_priority": [{
+                "module_share": 0.1,
+                "network_priority": 1,
+            }, {
+                "module_share": 0.4,
+                "network_priority": 2,
+            }, {
+                "module_share": 0.8,
+                "network_priority": 3,
+            }]
+        })
+        set("//sys/pool_trees/default/@config/main_resource", "gpu")
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
+        update_pool_tree_config("default", {
+            "preemptive_scheduling_backoff": 0,
+            "fair_share_starvation_timeout": 100,
+            "fair_share_starvation_tolerance": 0.95,
+            "non_preemptible_resource_usage_threshold": {"user_slots": 0},
+        })
+
+        # NB(eshcherbin): This is done to reset node segments.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            requests = [
+                make_batch_request("set", path=get_persistent_node_segment_states_path(), input={}),
+            ]
+            for node in ls("//sys/cluster_nodes"):
+                requests.append(make_batch_request(
+                    "set",
+                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
+                    input={},
+                ))
+            for response in execute_batch(requests):
+                assert not get_batch_error(response)
+
+        create_data_center(TestNetworkPriority.DATA_CENTER)
+        create_rack(TestNetworkPriority.RACK)
+        set("//sys/racks/{}/@data_center".format(TestNetworkPriority.RACK), TestNetworkPriority.DATA_CENTER)
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/{}/@rack".format(node), TestNetworkPriority.RACK)
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestNetworkPriority.DATA_CENTER)
+
+    @authors("renadeen")
+    def test_network_priority(self):
+        # full module op, network priority is 3 from config
+        from_barriers = self.write_log_barriers_on_all_nodes()
+        full_module_op = run_sleeping_vanilla(
+            job_count=5,
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: len(full_module_op.get_running_jobs()) == 5)
+
+        self.assert_network_priority_of_all_jobs(full_module_op, from_barriers, 3)
+
+        full_module_op.abort()
+
+        # one node op, network priority is 1 from config
+        from_barriers = self.write_log_barriers_on_all_nodes()
+        one_node_op = run_sleeping_vanilla(
+            job_count=1,
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: len(one_node_op.get_running_jobs()) == 1)
+
+        self.assert_network_priority_of_all_jobs(one_node_op, from_barriers, 1)
+        one_node_op.abort()
+
+        # half module op, network priority is 2 from config
+        from_barriers = self.write_log_barriers_on_all_nodes()
+        half_module_op = run_sleeping_vanilla(
+            job_count=3,
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: len(half_module_op.get_running_jobs()) == 3)
+
+        self.assert_network_priority_of_all_jobs(half_module_op, from_barriers, 2)
+        half_module_op.abort()
+
+        # one gpu full module op, network priority is 0 as op is not from large segment
+        from_barriers = self.write_log_barriers_on_all_nodes()
+        four_gpu_full_module_op = run_sleeping_vanilla(
+            job_count=10,
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
+        )
+        wait(lambda: len(four_gpu_full_module_op.get_running_jobs()) == 10)
+
+        self.assert_network_priority_of_all_jobs(four_gpu_full_module_op, from_barriers, 0)
+        four_gpu_full_module_op.abort()
+
+    def write_log_barriers_on_all_nodes(self):
+        barriers = []
+        for i in range(TestNetworkPriority.NUM_NODES):
+            barriers.append(write_log_barrier(self.get_node_address(i)))
+        return barriers
+
+    def assert_network_priority_of_all_jobs(self, op, from_barriers, expected_network_priority):
+        address_to_node_index = self.get_address_to_node_index()
+        jobs = op.get_running_jobs().values()
+        node_indices = builtins.set([address_to_node_index[job["address"]] for job in jobs])
+        wait(lambda: self.check_network_priority_on_nodes(node_indices, from_barriers, expected_network_priority))
+
+    def check_network_priority_on_nodes(self, node_indices, from_barriers, expected_network_priority):
+        for node_index in node_indices:
+            log = read_structured_log(
+                self.get_structured_log_path(node_index),
+                from_barrier=from_barriers[node_index],
+                row_filter=lambda row: "event_type" in row and row["event_type"] == "apply_network_priority_in_test",
+            )
+            if len(log) == 0:
+                print_debug("log of node {} is empty".format(node_index))
+                return False
+
+            assert len(log) == 1, "log has more than one row: {}".format(log)
+            assert log[0]["network_priority"] == expected_network_priority, "wrong network priority in log: {}, node_index: {}".format(log, node_index)
+            return True
+
+    def get_address_to_node_index(self):
+        result = {}
+        for i in range(TestNetworkPriority.NUM_NODES):
+            result[self.get_node_address(i)] = i
+
+        return result
+
+    def get_structured_log_path(self, node_id):
+        return "{}/logs/node-{}.json.log".format(self.path_to_run, node_id)
+
+    def get_node_address(self, node_id):
+        return "localhost:" + str(self.Env.configs["node"][node_id]["rpc_port"])

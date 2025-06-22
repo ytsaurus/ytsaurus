@@ -34,6 +34,7 @@ struct TAllocationAttributes
     int PortCount = 0;
     bool EnableMultipleJobs = false;
     bool AllocateJobProxyRpcServerPort = false;
+    TNetworkPriority NetworkPriority = 0;
 };
 
 void ToProto(

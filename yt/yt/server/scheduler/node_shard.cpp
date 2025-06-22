@@ -2145,6 +2145,9 @@ void TNodeShard::ProcessScheduledAndPreemptedAllocations(
         auto* startInfo = response->add_allocations_to_start();
         ToProto(startInfo->mutable_allocation_id(), allocation->GetId());
         ToProto(startInfo->mutable_operation_id(), allocation->GetOperationId());
+
+        YT_OPTIONAL_SET_PROTO(startInfo, network_priority, allocation->GetNetworkPriority());
+
         *startInfo->mutable_resource_limits() = ToNodeResources(allocation->ResourceUsage());
 
         ToProto(startInfo->mutable_allocation_attributes(), allocation->AllocationAttributes());

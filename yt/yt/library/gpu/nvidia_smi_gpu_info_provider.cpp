@@ -152,6 +152,11 @@ class TNvidiaSmiGpuInfoProvider
         // NB(omgronny): RDMA info is not supported in this build.
         return {};
     }
+
+    void ApplyNetworkServiceLevel(const std::vector<TString>& /*deviceIds*/, TNetworkPriority /*serviceLevel*/, TDuration /*timeout*/) override
+    {
+        // NB(renadeen): not supported for nvidia-smi.
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

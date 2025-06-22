@@ -32,6 +32,7 @@ using namespace NControllerAgent::NProto;
 using namespace NNodeTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NProfiling;
+using namespace NGpu;
 
 using TJobStartInfo = TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo;
 
@@ -159,6 +160,7 @@ TAllocation::TAllocation(
     TOperationId operationId,
     const NClusterNode::TJobResources& resourceDemand,
     NScheduler::TAllocationAttributes attributes,
+    std::optional<TNetworkPriority> networkPriority,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap)
     : TResourceOwner(
@@ -179,6 +181,7 @@ TAllocation::TAllocation(
     , InitialResourceDemand_(resourceDemand)
     , Attributes_(std::move(attributes))
     , ControllerAgentInfo_(std::move(agentDescriptor))
+    , NetworkPriority_(networkPriority)
     , ControllerAgentConnector_(
         Bootstrap_->GetControllerAgentConnectorPool()->GetControllerAgentConnector(ControllerAgentInfo_.GetDescriptor()))
 {
@@ -239,6 +242,13 @@ i64 TAllocation::GetRequestedMemory() const noexcept
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return RequestedMemory_;
+}
+
+std::optional<TNetworkPriority> TAllocation::GetNetworkPriority() const noexcept
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return NetworkPriority_;
 }
 
 void TAllocation::Start()
@@ -866,6 +876,7 @@ TAllocationPtr CreateAllocation(
     TOperationId operationId,
     const NClusterNode::TJobResources& resourceDemand,
     NScheduler::TAllocationAttributes attributes,
+    std::optional<TNetworkPriority> networkPriority,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap)
 {
@@ -875,6 +886,7 @@ TAllocationPtr CreateAllocation(
         operationId,
         resourceDemand,
         std::move(attributes),
+        networkPriority,
         std::move(agentDescriptor),
         bootstrap);
 }

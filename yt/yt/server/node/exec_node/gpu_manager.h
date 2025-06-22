@@ -125,12 +125,16 @@ public:
         const TGpuManagerDynamicConfigPtr& oldConfig,
         const TGpuManagerDynamicConfigPtr& newConfig);
 
+    void ApplyNetworkPriority(std::optional<NGpu::TNetworkPriority> networkPriority);
+
     bool ShouldTestResource() const;
     bool ShouldTestExtraGpuCheckCommandFailure() const;
     bool ShouldTestLayers() const;
     bool ShouldTestSetupCommands() const;
 
 private:
+    static inline const NGpu::TNetworkPriority DefaultNetworkPriority = 0;
+
     IBootstrap* const Bootstrap_;
     const TGpuManagerConfigPtr StaticConfig_;
     TAtomicIntrusivePtr<TGpuManagerDynamicConfig> DynamicConfig_;
@@ -169,6 +173,7 @@ private:
     std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
     TString DriverVersionString_;
     TAtomicIntrusivePtr<NGpu::IGpuInfoProvider> GpuInfoProvider_;
+    NGpu::TNetworkPriority CurrentNetworkPriority_ = DefaultNetworkPriority;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

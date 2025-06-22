@@ -184,6 +184,8 @@ private:
         NYTree::TFluentMap fluent) const;
 
     void BuildPersistentState(TUpdateSchedulingSegmentsContext* context) const;
+
+    std::optional<TNetworkPriority> GetNetworkPriority(double operationDemand, double moduleCapacity) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
