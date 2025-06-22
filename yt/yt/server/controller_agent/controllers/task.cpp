@@ -1464,6 +1464,12 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
     return result;
 }
 
+void TTask::OnOperationRevived(THashMap<TJobId, EAbortReason>* jobsToAbort) {
+    for (auto jobManager : JobManagers_) {
+        jobManager->OnOperationRevived(jobsToAbort);
+    }
+}
+
 void TTask::ReinstallJob(std::function<void()> releaseOutputCookie)
 {
     releaseOutputCookie();
