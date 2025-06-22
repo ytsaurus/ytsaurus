@@ -11768,28 +11768,20 @@ void TOperationControllerBase::OnOperationReady()
 void TOperationControllerBase::OnOperationRevived()
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
-    std::unordered_map<TUserJobSpec*, std::unordered_map<int, std::vector<TJobletPtr>>> tasksCookiesJoblets;
+    THashMap<TJobId, EAbortReason> jobsToAbort;
+    for (auto& task : Tasks_) {
+        task->OnOperationRevived(&jobsToAbort);
+    }
     for (auto& [allocationId, allocation] : AllocationMap_) {
         if (const auto& joblet = allocation.Joblet) {
-            if (auto userJobSpec = joblet->Task->GetUserJobSpec()) {
-                if (userJobSpec->CookieGroupSize > 1) {
-                    tasksCookiesJoblets[&*userJobSpec][joblet->OutputCookie].push_back(joblet);
-                }
-            }
-        }
-    }
-    auto abortReason = EAbortReason::CookieGroupIncarnationChanged;
-    for (auto& [userJobSpec, cookiesJoblets] : tasksCookiesJoblets) {
-        for (auto& [cookie, joblets] : cookiesJoblets) {
-            if (joblets.size() < static_cast<std::size_t>(userJobSpec->CookieGroupSize)) {
-                for (auto joblet : joblets) {
-                    auto jobId = joblet->JobId;
-                    Host_->AbortJob(jobId, abortReason, /*requestNewJob*/ true);
-
-                    if ([[maybe_unused]] auto operationFinished = !OnJobAborted(joblet, std::make_unique<TAbortedJobSummary>(jobId, abortReason))) {
-                        YT_LOG_DEBUG("Operation finished during restarting jobs (JobId: %v)", jobId);
-                        return;
-                    }
+            auto found = jobsToAbort.find(joblet->JobId);
+            if (found != jobsToAbort.end()) {
+                auto abortReason = found->second;
+                auto jobId = joblet->JobId;
+                Host_->AbortJob(jobId, abortReason, /*requestNewJob*/ true);
+                if ([[maybe_unused]] auto operationFinished = !OnJobAborted(joblet, std::make_unique<TAbortedJobSummary>(jobId, abortReason))) {
+                    YT_LOG_DEBUG("Operation finished during restarting jobs (JobId: %v)", jobId);
+                    return;
                 }
             }
         }
