@@ -94,6 +94,22 @@ void TDistributedJobManager::OnJobScheduled(const TJobletPtr& joblet)
     }
 }
 
+void TDistributedJobManager::OnOperationRevived(THashMap<TJobId, EAbortReason>* jobsToAbort)
+{
+    for (auto& [cookie, replicas] : CookieToReplicas_) {
+        if (replicas.Pending) {
+            TryEmplaceOrCrash(*jobsToAbort, replicas.MainJobId, EAbortReason::CookieGroupIncarnationChanged);
+            for (auto& secondary : replicas.Secondaries) {
+                if (secondary.JobId) {
+                    TryEmplaceOrCrash(*jobsToAbort, secondary.JobId, EAbortReason::CookieGroupIncarnationChanged);
+                } else {
+                    secondary.ProgressCounterGuard.SetCategory(EProgressCategory::None);
+                }
+            }
+        }
+    }
+}
+
 bool TDistributedJobManager::OnJobCompleted(const TJobletPtr& joblet)
 {
     if (!IsRelevant()) {
@@ -141,6 +157,18 @@ bool TDistributedJobManager::IsRelevant() const
     return GetCookieGroupSize() > 1;
 }
 
+void TDistributedJobManager::AbortCookie(TReplicas& replicas, EAbortReason abortReason)
+{
+    Task_->GetTaskHost()->AsyncAbortJob(replicas.MainJobId, abortReason);
+    for (auto& secondary : replicas.Secondaries) {
+        if (secondary.JobId) {
+            Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, abortReason);
+        } else {
+            secondary.ProgressCounterGuard.SetCategory(EProgressCategory::None);
+        }
+    }
+}
+
 bool TDistributedJobManager::OnUnsuccessfulJobFinish(
     const TJobletPtr& joblet,
     EAbortReason abortReason)
@@ -153,14 +181,7 @@ bool TDistributedJobManager::OnUnsuccessfulJobFinish(
     auto replicasIt = CookieToReplicas_.find(joblet->OutputCookie);
     if (replicasIt != CookieToReplicas_.end()) {
         auto& replicas = replicasIt->second;
-        Task_->GetTaskHost()->AsyncAbortJob(replicas.MainJobId, abortReason);
-        for (auto& secondary : replicas.Secondaries) {
-            if (secondary.JobId) {
-                Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, abortReason);
-            } else {
-                secondary.ProgressCounterGuard.SetCategory(EProgressCategory::None);
-            }
-        }
+        AbortCookie(replicas, abortReason);
         if (replicas.Pending) {
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
         }
