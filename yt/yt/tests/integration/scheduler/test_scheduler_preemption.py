@@ -1434,13 +1434,13 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
             wait(lambda: self._get_node_group_tag(i % 2) in get(scheduler_orchid_node_path(node) + "/tags"))
 
     def _get_starvation_status(self, op):
-        return op.get_runtime_progress("scheduling_info_per_pool_tree/default/starvation_status")
+        return get(scheduler_orchid_operation_path(op.id, "default") + "/starvation_status")
 
     def _get_fair_share_ratio(self, op):
-        return op.get_runtime_progress("scheduling_info_per_pool_tree/default/fair_share_ratio", 0.0)
+        return get(scheduler_orchid_operation_path(op.id, "default") + "/detailed_dominant_fair_share/total", default=0.0)
 
     def _get_usage_ratio(self, op):
-        return op.get_runtime_progress("scheduling_info_per_pool_tree/default/usage_ratio", 0.0)
+        return get(scheduler_orchid_operation_path(op.id, "default") + "/usage_ratio", default=0.0)
 
     def _get_node_group_tag(self, group_index):
         return "group{}".format(group_index)
