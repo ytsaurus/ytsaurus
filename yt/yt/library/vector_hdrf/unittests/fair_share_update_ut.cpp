@@ -252,6 +252,7 @@ public:
 
     void PreUpdate(const TJobResources& totalResourceLimits) override
     {
+        ResourceUsage_ = {};
         ResourceDemand_ = {};
 
         for (const auto& child : Children_) {
