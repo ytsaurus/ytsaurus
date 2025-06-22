@@ -50,10 +50,10 @@ public:
         const NApi::NNative::IClientPtr& client);
     //! Invalidate object attribute entries in local cache.
     void InvalidateCachedObjectAttributes(
-        const std::vector<NYPath::TYPath>& paths);
+        const std::vector<std::pair<NYPath::TYPath, NHydra::TRevision>>& paths);
     //! Invalidate object attribute entries on the whole clique via rpc requests.
     void InvalidateCachedObjectAttributesGlobally(
-        const std::vector<NYPath::TYPath>& paths,
+        const std::vector<std::pair<NYPath::TYPath, NHydra::TRevision>>& paths,
         EInvalidateCacheMode mode,
         TDuration timeout);
 

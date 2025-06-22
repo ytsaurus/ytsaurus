@@ -10,6 +10,8 @@ void TObjectAttributeCacheConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("master_read_options", &TThis::MasterReadOptions)
         .DefaultNew();
+    registrar.Parameter("user_name", &TThis::UserName)
+        .Default(NRpc::RootUserName);
 
     // COMPAT(dakovalkov)
     registrar.Parameter("read_from", &TThis::ReadFrom_)
@@ -20,6 +22,9 @@ void TObjectAttributeCacheConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("master_cache_cache_sticky_group_size", &TThis::MasterCacheStickyGroupSize_)
         .Optional();
+
+    registrar.Parameter("refresh_revision_storage_size", &TThis::RefreshRevisionStorageSize)
+        .Default(100000);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->ReadFrom_) {

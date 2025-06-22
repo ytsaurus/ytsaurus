@@ -294,7 +294,7 @@ NLogging::TLogger GetLogger(DB::ContextPtr context);
 
 void InvalidateCache(
     TQueryContext* queryContext,
-    std::vector<NYPath::TYPath> paths,
+    std::vector<std::pair<NYPath::TYPath, NHydra::TRevision>> paths,
     std::optional<EInvalidateCacheMode> invalidateMode = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////

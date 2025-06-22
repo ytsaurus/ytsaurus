@@ -28,11 +28,16 @@ using namespace NLogging;
 // TODO(max42): make configurable.
 static constexpr int MaxUnusedNodeCount = 5000;
 
+// TODO(achulkov2): It would be nifty to extract these names from interned attribute names into some non-server space.
+// Builtin attributes are used as extensively all over the client/ytlib space.
+static constexpr auto TypeAttributeName = "type";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TBatchAttributeFetcher::TBatchAttributeFetcher(
     const std::vector<TYPath>& paths,
-    const std::vector<TString>& attributeNames,
+    const std::vector<NHydra::TRevision>& refreshRevisions,
+    const std::vector<std::string>& attributeNames,
     const NApi::NNative::IClientPtr& client,
     const IInvokerPtr& invoker,
     const TLogger& logger,
@@ -43,13 +48,22 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
     , MasterReadOptions_(options)
     , Logger(logger)
 {
-    YT_VERIFY(std::find(AttributeNames_.begin(), AttributeNames_.end(), "type") != AttributeNames_.end());
+    YT_VERIFY(refreshRevisions.empty() || refreshRevisions.size() == paths.size());
+    // We need the "type" attribute to distinguish links from regular nodes. If it is not requested, we fetch it, but
+    // later remove it from the externally visible result.
+    if (std::find(AttributeNames_.begin(), AttributeNames_.end(), TypeAttributeName) == AttributeNames_.end()) {
+        AddedTypeAttribute_ = true;
+        AttributeNames_.push_back(TypeAttributeName);
+    }
 
     int invalidPathCount = 0;
 
     for (const auto& [index, path] : Enumerate(paths)) {
         auto& entry = Entries_.emplace_back();
         entry.Index = index;
+        if (!refreshRevisions.empty()) {
+            entry.RefreshRevision = refreshRevisions[index];
+        }
         if (IsPathPointingToAttributes(path)) {
             entry.Error = TError("Requested path should not point to attributes (i.e. contain @)");
             ++invalidPathCount;
@@ -93,6 +107,7 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
         endIndex = beginIndex + 1;
         while (endIndex != Entries_.size() &&
             Entries_[endIndex].DirName == Entries_[beginIndex].DirName &&
+            Entries_[endIndex].RefreshRevision == Entries_[beginIndex].RefreshRevision &&
             Entries_[endIndex].Error.IsOK())
         {
             ++endIndex;
@@ -107,6 +122,7 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
             auto& listEntry = ListEntries_.emplace_back();
             listEntry.RequestedEntryCount = endIndex - beginIndex;
             listEntry.DirName = Entries_[beginIndex].DirName;
+            listEntry.RefreshRevision = Entries_[beginIndex].RefreshRevision;
             // Link entries and batch entry together.
             for (auto index = beginIndex; index != endIndex; ++index) {
                 auto& entry = Entries_[index];
@@ -133,9 +149,9 @@ void TBatchAttributeFetcher::SetupBatchRequest(const TObjectServiceProxy::TReqEx
     SetBalancingHeader(batchReq, Client_->GetNativeConnection(), MasterReadOptions_);
 }
 
-void TBatchAttributeFetcher::SetupYPathRequest(const TYPathRequestPtr& req)
+void TBatchAttributeFetcher::SetupYPathRequest(const TYPathRequestPtr& req, NHydra::TRevision refreshRevision)
 {
-    SetCachingHeader(req, Client_->GetNativeConnection(), MasterReadOptions_);
+    SetCachingHeader(req, Client_->GetNativeConnection(), MasterReadOptions_, refreshRevision);
 }
 
 void TBatchAttributeFetcher::FetchBatchCounts()
@@ -202,7 +218,7 @@ void TBatchAttributeFetcher::FetchAttributes()
         if (listEntry.FetchAsBatch) {
             auto req = TYPathProxy::List(listEntry.DirName);
             ToProto(req->mutable_attributes()->mutable_keys(), AttributeNames_);
-            SetupYPathRequest(req);
+            SetupYPathRequest(req, listEntry.RefreshRevision);
             ++listCount;
             listEntryCount += listEntry.BaseNameToEntry.size();
             req->Tag() = &listEntry;
@@ -214,7 +230,7 @@ void TBatchAttributeFetcher::FetchAttributes()
         if (!entry.FetchAsBatch && entry.Error.IsOK()) {
             auto req = TYPathProxy::Get(entry.DirName + "/" + entry.BaseName + "/@");
             ToProto(req->mutable_attributes()->mutable_keys(), AttributeNames_);
-            SetupYPathRequest(req);
+            SetupYPathRequest(req, entry.RefreshRevision);
             req->Tag() = &entry;
             ++getCount;
             batchReq->AddRequest(req, "get");
@@ -288,7 +304,7 @@ void TBatchAttributeFetcher::FetchSymlinks()
     for (auto& entry : Entries_) {
         if (entry.Error.IsOK()) {
             YT_VERIFY(entry.Attributes);
-            if (entry.Attributes->Get<EObjectType>("type") == EObjectType::Link) {
+            if (entry.Attributes->Get<EObjectType>(TypeAttributeName) == EObjectType::Link) {
                 auto req = TYPathProxy::Get(entry.DirName + "/" + entry.BaseName + "/@");
                 SetupYPathRequest(req);
                 ToProto(req->mutable_attributes()->mutable_keys(), AttributeNames_);
@@ -330,6 +346,10 @@ void TBatchAttributeFetcher::FillResult()
             Attributes_[entry.Index] = std::move(entry.Error);
         } else {
             YT_VERIFY(entry.Attributes);
+            // We are modifying internal state here, but we don't care anymore.
+            if (AddedTypeAttribute_) {
+                entry.Attributes->Remove(TypeAttributeName);
+            }
             Attributes_[entry.Index] = std::move(entry.Attributes);
         }
     }

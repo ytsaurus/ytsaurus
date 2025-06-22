@@ -28,7 +28,8 @@ public:
 public:
     TBatchAttributeFetcher(
         const std::vector<NYPath::TYPath>& paths,
-        const std::vector<TString>& attributeNames,
+        const std::vector<NHydra::TRevision>& refreshRevisions,
+        const std::vector<std::string>& attributeNames,
         const NApi::NNative::IClientPtr& client,
         const IInvokerPtr& invoker,
         const NLogging::TLogger& logger,
@@ -43,7 +44,9 @@ private:
         TString BaseName;
         bool FetchAsBatch = false;
         TError Error;
+        NCypressClient::EObjectType Type;
         NYTree::IAttributeDictionaryPtr Attributes;
+        NHydra::TRevision RefreshRevision = NHydra::NullRevision;
         //! Index in original path order.
         int Index;
     };
@@ -57,6 +60,7 @@ private:
         //! Total number of nodes in this directory.
         int DirNodeCount = 0;
         NYPath::TYPath DirName;
+        NHydra::TRevision RefreshRevision = NHydra::NullRevision;
         THashMap<TString, TEntry*> BaseNameToEntry;
         //! If set to false, directory is too heavy to be fetched as a List request.
         bool FetchAsBatch = true;
@@ -64,7 +68,9 @@ private:
 
     std::vector<TListEntry> ListEntries_;
 
-    std::vector<TString> AttributeNames_;
+    std::vector<std::string> AttributeNames_;
+    //! Used to track if we added the "type" attribute to the list of requested attributes manually.
+    bool AddedTypeAttribute_ = false;
     NApi::NNative::IClientPtr Client_;
     IInvokerPtr Invoker_;
     NApi::TMasterReadOptions MasterReadOptions_;
@@ -76,7 +82,7 @@ private:
     std::vector<int> DeduplicationReferenceTableIndices_;
 
     void SetupBatchRequest(const NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr& batchReq);
-    void SetupYPathRequest(const NYTree::TYPathRequestPtr& req);
+    void SetupYPathRequest(const NYTree::TYPathRequestPtr& req, NHydra::TRevision refreshRevision = NHydra::NullRevision);
 
     void FetchBatchCounts();
     void FetchAttributes();
