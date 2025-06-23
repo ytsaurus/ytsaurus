@@ -352,6 +352,6 @@ class TestQueriesChyt(ClickHouseTestBase):
 
             table_path = root_dir + "/query_log/0"
             wait(lambda: exists(table_path))
-            wait(lambda: len([r for r in read_table(table_path) if match(r)]) > 0)
+            wait(lambda: len([r for r in read_table(table_path) if match(r)]) >= 4)
             rows = [r for r in read_table(table_path) if match(r)]
             assert len(rows) == 4
