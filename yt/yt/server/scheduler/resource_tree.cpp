@@ -190,7 +190,8 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TResourceTreeEleme
 
     auto* current = element->Parent_.Get();
     while (current) {
-        YT_ASSERT(increaseLocalResourceUsage(current, delta));
+        bool success = increaseLocalResourceUsage(current, delta);
+        YT_ASSERT(success);
         current = current->Parent_.Get();
     }
 }
@@ -237,7 +238,8 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
 
     auto* current = element->Parent_.Get();
     while (current) {
-        YT_ASSERT(increaseLocalResourceUsagePrecommit(current, delta));
+        bool success = increaseLocalResourceUsagePrecommit(current, delta);
+        YT_ASSERT(success);
         current = current->Parent_.Get();
     }
 }
@@ -322,7 +324,8 @@ void TResourceTree::CommitHierarchicalResourceUsage(
 
     auto* current = element->Parent_.Get();
     while (current) {
-        YT_ASSERT(commitLocalResourceUsage(current, resourceUsageDelta, precommittedResources));
+        bool success = commitLocalResourceUsage(current, resourceUsageDelta, precommittedResources);
+        YT_ASSERT(success);
         current = current->Parent_.Get();
     }
 }
