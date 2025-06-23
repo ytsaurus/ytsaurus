@@ -11,8 +11,6 @@ items:
   - name: User-defined functions (UDF)
     include: { mode: link, path: udf/toc_i.yaml }
   - name: Differences from other systems
-    items:
-      - name: SQL ANSI
-        href: differences_from/ansi.md
+    include: {mode: link, path: differences_from/toc_i.yaml}
   - name: Changelog
     include: { mode: link, path: changelog/toc_i.yaml }
