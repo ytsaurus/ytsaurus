@@ -36,6 +36,21 @@ DEFINE_REFCOUNTED_TYPE(TDynamicCellarNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCellManagerConfig
+    : public NYTree::TYsonStruct
+{
+    // COMPAT(danilalexeev)
+    bool CreateVirtualCellMapsByDefault;
+
+    REGISTER_YSON_STRUCT(TCellManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicCellManagerConfig
     : public NYTree::TYsonStruct
 {

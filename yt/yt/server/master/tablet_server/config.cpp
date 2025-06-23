@@ -109,6 +109,8 @@ void TDynamicTabletNodeTrackerConfig::Register(TRegistrar registrar)
 
 void TDynamicCellHydraPersistenceSynchronizerConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("migrate_to_virtual_cell_maps", &TThis::MigrateToVirtualCellMaps)
+        .Default(false);
     registrar.Parameter("synchronization_period", &TThis::SynchronizationPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("max_cells_to_register_in_cypress_per_iteration", &TThis::MaxCellsToRegisterInCypressPerIteration)
