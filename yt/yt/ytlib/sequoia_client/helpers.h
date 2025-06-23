@@ -37,6 +37,7 @@ inline constexpr TErrorCode RetriableSequoiaErrorCodes[] = {
     NTabletClient::EErrorCode::BlockedRowWaitTimeout,
     NTabletClient::EErrorCode::NoSuchTablet,
     NTabletClient::EErrorCode::ChunkIsNotPreloaded,
+    NTabletClient::EErrorCode::TabletNotMounted,
 };
 
 bool IsRetriableSequoiaError(const TError& error);

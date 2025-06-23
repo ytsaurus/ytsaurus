@@ -86,6 +86,13 @@ bool IsRetriableSequoiaError(const TError& error)
         return false;
     }
 
+    if (error.FindMatching(EErrorCode::TransactionActionFailedOnMasterCell)) {
+        return false;
+    }
+
+    // TODO(shakurov): don't treat dynamic table error as retriable if error is
+    // not related to ground cluster.
+
     if (error.FindMatching([] (const TError& error) {
             return std::ranges::find(RetriableSequoiaErrorCodes, error.GetCode()) != std::end(RetriableSequoiaErrorCodes);
         }))
@@ -93,9 +100,9 @@ bool IsRetriableSequoiaError(const TError& error)
         return true;
     }
 
-    return
-        error.FindMatching(NTransactionClient::EErrorCode::ParticipantFailedToPrepare) &&
-        !error.FindMatching(EErrorCode::TransactionActionFailedOnMasterCell);
+    return error
+        .FindMatching(NTransactionClient::EErrorCode::ParticipantFailedToPrepare)
+        .has_value();
 }
 
 bool IsRetriableSequoiaReplicasError(
