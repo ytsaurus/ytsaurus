@@ -102,7 +102,7 @@ Regardless of the installation method, the required system components will be de
   {% note warning "Resource requirements" %}
 
   To successfully deploy {{product-name}} on a Kubernetes cluster, the host machine must have:
-  - At least 4 CPU cores.
+  - At least four CPU cores.
   - At least 8 GB of RAM.
   - At least 30 GB of disk space.
 
@@ -604,9 +604,10 @@ For more information about using the web interface, watch the [introductory webi
 
 {% endcut %}
 
+
 ## Troubleshooting
 
-If you're having trouble getting something to work, don't hesitate to ask your questions in our {% if lang == "ru" %}[community Telegram chat](https://t.me/ytsaurus_ru){% else %}[community Telegram chat](https://t.me/ytsaurus){% endif %}. We'll do our best to help you.
+If you're having trouble getting something to work, don't hesitate to ask your questions in our [community Telegram chat]({{community-tg}}). We'll do our best to help you.
 
 To share your suggestions or comments on the documentation, [create an issue](https://github.com/ytsaurus/ytsaurus/issues) in the project's GitHub repository. Your feedback is always welcome; it helps us make the documentation more informative.
 
