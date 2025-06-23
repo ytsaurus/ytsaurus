@@ -1,13 +1,7 @@
 #pragma once
 
-#include "raw_pipeline.h"  // ::NRoren::NPrivate::TTransformNode
-
 #include <functional>
 
-namespace NRoren::NPrivate
-{
-
-////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_ROREN_TAG(TagName, TObjectType, TValueType) \
     void Set ## TagName(TObjectType& object, TValueType value); \
@@ -41,6 +35,11 @@ namespace NRoren::NPrivate
         } \
         return {}; \
     }
+
+namespace NRoren::NPrivate
+{
+
+////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
 

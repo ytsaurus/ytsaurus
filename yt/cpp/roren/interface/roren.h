@@ -27,6 +27,7 @@
 #include "key_value.h"
 #include "transforms.h"
 
+#include "private/tags.h"
 #include "private/raw_pipeline.h"
 #include "private/attributes.h"
 
@@ -81,6 +82,18 @@ public:
     {
         auto guard = RawPipeline_->StartTransformGuard(transform.GetName());
         return transform.ApplyTo(*this);
+    }
+
+    TPCollection<T> SetKeyColumns(NYT::NTableClient::TKeyColumns keyColumns)
+    {
+        NRoren::NPrivate::SetKeyColumns(*RawDataNode_, std::move(keyColumns));
+        return *this;
+    }
+
+    TPCollection<T> SetEventTimestampColumn(TString name)
+    {
+        NRoren::NPrivate::SetEventTimestampColumn(*RawDataNode_, std::move(name));
+        return *this;
     }
 
 private:
