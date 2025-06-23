@@ -189,6 +189,7 @@ DEFINE_ENUM(EMasterReign,
     ((CheckReplicationProgressSchema)                               (2951))  // savrus
     ((EnableSmoothTabletMovementFlag)                               (2952))  // ifsmirnov
     ((PerRowSequencerFixes)                                         (2953))  // ponasenko-rs
+    ((AutomaticCellMapMigration_25_2)                               (2954))  // danilalexeev
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
