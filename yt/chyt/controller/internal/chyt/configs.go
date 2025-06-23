@@ -420,6 +420,9 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 	if c.config.AddressResolver != nil {
 		ytServerClickHouseConfig["address_resolver"] = c.config.AddressResolver
 	}
+	if c.config.BusServer != nil {
+		ytServerClickHouseConfig["bus_server"] = c.config.BusServer
+	}
 	ytServerClickHouseConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "config.yson", ytServerClickHouseConfig)
 	if err != nil {
 		return err
