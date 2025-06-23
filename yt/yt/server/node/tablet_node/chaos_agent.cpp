@@ -243,6 +243,8 @@ private:
                             YT_LOG_DEBUG(replicationCardOrError,
                                 "Failed to get replication card (Attempt: %v)",
                                 retryCount);
+
+                            continue;
                         }
 
                         replicationCard = replicationCardOrError.Value();
