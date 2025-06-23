@@ -18,7 +18,7 @@ using namespace NYT::NYTProf;
 int main(int argc, char* argv[])
 {
     NBacktrace::SetAbslStackUnwinder();
-    tcmalloc::MallocExtension::SetProfileSamplingRate(2_MB);
+    tcmalloc::MallocExtension::SetProfileSamplingInterval(2_MB);
 
     try {
         if (argc != 2 && argc != 3) {

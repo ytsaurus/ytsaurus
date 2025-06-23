@@ -27,7 +27,7 @@ public:
         std::vector<TAllocationTagKey> tagKeys,
         IInvokerPtr invoker,
         std::optional<TDuration> updatePeriod,
-        std::optional<i64> samplingRate,
+        std::optional<i64> samplingInterval,
         NProfiling::TProfiler profiler)
         : Profiler_(std::move(profiler))
         , TagKeys_(std::move(tagKeys))
@@ -36,8 +36,8 @@ public:
             BIND(&TAllocationTagProfiler::UpdateGauges, MakeWeak(this)),
             updatePeriod))
     {
-        if (samplingRate) {
-            tcmalloc::MallocExtension::SetProfileSamplingRate(*samplingRate);
+        if (samplingInterval) {
+            tcmalloc::MallocExtension::SetProfileSamplingInterval(*samplingInterval);
         }
 
         UpdateExecutor_->Start();
