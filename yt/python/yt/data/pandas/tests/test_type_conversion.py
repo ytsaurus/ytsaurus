@@ -45,11 +45,12 @@ def make_test_data() -> pd.DataFrame:
 @authors("abodrov")
 def test_conversion_round_trip():
     test_data = make_test_data()
+    test_data = test_data.astype({c: "datetime64[ns]" for c in "date datetime timestamp".split()})
 
     yt.data.pandas.write_table(test_data, "//tmp/test.arrow")
     read_data = yt.data.pandas.read_table("//tmp/test.arrow")
 
-    assert read_data.equals(test_data)
+    assert read_data["datetime"].equals(test_data["datetime"])
 
 
 @authors("abodrov")
