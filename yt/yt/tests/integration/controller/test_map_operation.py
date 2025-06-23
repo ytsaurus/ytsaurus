@@ -1657,7 +1657,7 @@ print(json.dumps(input))
             track=False,
             in_=input_table,
             out=output,
-            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+            command=with_breakpoint("""read row; echo $row; read row; echo $row; BREAKPOINT; cat"""),
             spec={
                 "mapper": {"format": "json"},
                 "job_count": 1,
