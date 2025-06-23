@@ -372,6 +372,9 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
         .DefaultNew();
 
+    registrar.Parameter("delay_master_cell_directory_start", &TThis::DelayMasterCellDirectoryStart)
+        .Default(false);
+
     registrar.Postprocessor([] (TThis* config) {
         NNodeTrackerClient::ValidateNodeTags(config->Tags);
 

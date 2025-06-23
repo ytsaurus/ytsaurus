@@ -413,6 +413,9 @@ struct TClusterNodeBootstrapConfig
 
     THeapProfilerConfigPtr HeapProfiler;
 
+    //! Only for testing purposes.
+    bool DelayMasterCellDirectoryStart;
+
     NHttp::TServerConfigPtr CreateSkynetHttpServerConfig();
 
     REGISTER_YSON_STRUCT(TClusterNodeBootstrapConfig);

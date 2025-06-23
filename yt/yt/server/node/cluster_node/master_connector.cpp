@@ -510,7 +510,13 @@ private:
             return;
         }
 
-        MasterConnected_.Fire(GetNodeId());
+        if (Bootstrap_->GetConfig()->DelayMasterCellDirectoryStart) {
+            auto syncResultOrError = WaitFor(Bootstrap_->GetConnection()->GetMasterCellDirectorySynchronizer()->NextSync());
+            YT_LOG_WARNING_UNLESS(
+                syncResultOrError.IsOK(),
+                syncResultOrError,
+                "Failed to sync master cell directory");
+        }
         RegisteredAtPrimary_.store(true);
 
         YT_LOG_INFO("Successfully registered at primary master (NodeId: %v, KnownMasterCellTags: %v)",
@@ -518,6 +524,7 @@ private:
             GetMasterCellTags());
 
         StartNodeHeartbeats();
+        MasterConnected_.Fire(GetNodeId());
     }
 
     void InitMedia()

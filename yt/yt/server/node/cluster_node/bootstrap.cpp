@@ -1237,7 +1237,9 @@ private:
 
         Connection_->GetClusterDirectorySynchronizer()->Start();
 
-        Connection_->GetMasterCellDirectorySynchronizer()->Start();
+        if (!Config_->DelayMasterCellDirectoryStart) {
+            Connection_->GetMasterCellDirectorySynchronizer()->Start();
+        }
 
         if (Config_->ExposeConfigInOrchid) {
             SetNodeByYPath(
