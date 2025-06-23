@@ -243,7 +243,6 @@ def get_scheduler_config():
                     "filter": ".*",
                     "priority": -117,
                     "config": {
-                        "enable_fast_child_function_summation_in_fifo_pools": True,
                     },
                 },
             },

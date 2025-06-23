@@ -1771,7 +1771,6 @@ private:
                             .MainResource = config->MainResource,
                             .IntegralPoolCapacitySaturationPeriod = config->IntegralGuarantees->PoolCapacitySaturationPeriod,
                             .IntegralSmoothPeriod = config->IntegralGuarantees->SmoothPeriod,
-                            .EnableFastChildFunctionSummationInFifoPools = config->EnableFastChildFunctionSummationInFifoPools,
                         },
                         fairShareUpdateResult.ResourceLimits,
                         now,

@@ -366,9 +366,6 @@ struct TFairShareUpdateOptions
 
     TDuration IntegralPoolCapacitySaturationPeriod;
     TDuration IntegralSmoothPeriod;
-
-    // COMPAT(eshcherbin): Remove when well tested.
-    bool EnableFastChildFunctionSummationInFifoPools = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
