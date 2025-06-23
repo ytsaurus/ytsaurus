@@ -7,7 +7,7 @@ pragma yt.UseIntermediateStreams;
 pragma yt.EnableFuseMapToMapReduce = 'true';
 pragma config.flags(
     "OptimizerFlags",
-    "EmitPruneKeys",
+    -- "EmitPruneKeys",
     "FilterPushdownEnableMultiusage",
     "EarlyExpandSkipNull",
     "PushdownComplexFiltersOverAggregate",
