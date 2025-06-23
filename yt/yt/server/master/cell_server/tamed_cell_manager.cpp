@@ -338,6 +338,10 @@ public:
             securityManager->ValidatePermission(account, EPermission::Use);
         }
 
+        auto snapshotAcl = ConvertToYsonString(newOptions->SnapshotAcl, EYsonFormat::Binary).ToString();
+        auto changelogAcl = ConvertToYsonString(newOptions->ChangelogAcl, EYsonFormat::Binary).ToString();
+        auto rootUser = securityManager->GetRootUser();
+
         ValidateTabletCellOptions(newOptions);
         cellBundle->SetOptions(std::move(newOptions));
         ReconfigureCellBundle(cellBundle);
@@ -345,6 +349,43 @@ public:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         for (auto* cell : GetValuesSortedByKey(cellBundle->Cells())) {
             if (multicellManager->IsPrimaryMaster()) {
+                if (auto node = FindLegacyCellNode(cell->GetId())) {
+                    TAuthenticatedUserGuard userGuard(securityManager, rootUser);
+
+                    auto executeAclChange = [&] (const auto& node) {
+                        auto cellNode = node->AsMap();
+                        try {
+                            if (cellNode->FindChild("snapshots")) {
+                                auto req = TCypressYPathProxy::Set("/snapshots/@acl");
+                                req->set_value(snapshotAcl);
+                                SyncExecuteVerb(cellNode, req);
+                            }
+                            if (cellNode->FindChild("changelogs")) {
+                                auto req = TCypressYPathProxy::Set("/changelogs/@acl");
+                                req->set_value(changelogAcl);
+                                SyncExecuteVerb(cellNode, req);
+                            }
+                        } catch (const std::exception& ex) {
+                            YT_LOG_ALERT(ex,
+                                "Caught exception while changing ACL (CellarType: %v, Bundle: %v, CellId: %v)",
+                                cellBundle->GetCellarType(),
+                                cellBundle->GetName(),
+                                cell->GetId());
+                        }
+                    };
+
+                    if (cell->IsIndependent()) {
+                        for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
+                            if (cell->IsAlienPeer(peerId)) {
+                                continue;
+                            }
+                            executeAclChange(node->FindChild(ToString(peerId)));
+                        }
+                    } else {
+                        executeAclChange(node);
+                    }
+                }
+
                 RestartAllPrerequisiteTransactions(cell);
             }
 
@@ -509,6 +550,42 @@ public:
             cellId,
             /*allowResurrection*/ cell->GetCellarType() == ECellarType::Chaos);
 
+        auto cellMapNodeProxy = FindLegacyCellMapNode(cellId);
+        if (!cellMapNodeProxy) {
+            CellCreated_.Fire(cell);
+            return cell;
+        }
+        auto cellNodePath = "/" + ToString(cellId);
+        auto cellNodeCypressPrefix = GetCellarTypeCypressPathPrefix(GetCellarTypeFromCellId(cellId));
+
+        try {
+            // NB: Users typically are not allowed to create these types.
+            auto* rootUser = securityManager->GetRootUser();
+            TAuthenticatedUserGuard userGuard(securityManager, rootUser);
+
+            // Create Cypress node.
+            {
+                auto req = TCypressYPathProxy::Create(cellNodePath);
+                req->set_type(ToProto(EObjectType::TabletCellNode));
+
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("opaque", true);
+                ToProto(req->mutable_node_attributes(), *attributes);
+
+                SyncExecuteVerb(cellMapNodeProxy, req);
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(
+                ex,
+                "Error registering cell in Cypress (CellId: %v)",
+                cell->GetId());
+
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->UnrefObject(cell);
+            THROW_ERROR_EXCEPTION("Error registering cell in Cypress")
+                << ex;
+        }
+
         CellCreated_.Fire(cell);
 
         return cell;
@@ -561,6 +638,16 @@ public:
             } else if (auto transaction = cell->GetPrerequisiteTransaction()) {
                 TransactionToCellMap_.erase(transaction);
                 cell->SetPrerequisiteTransaction(nullptr);
+            }
+        }
+
+        if (auto cellNodeProxy = FindLegacyCellNode(cellId)) {
+            try {
+                // NB: Subtree transactions were already aborted above.
+                cellNodeProxy->GetParent()->RemoveChild(cellNodeProxy);
+            } catch (const std::exception& ex) {
+                YT_LOG_ALERT(ex, "Error unregistering cell from Cypress (CellId: %v)",
+                    cellId);
             }
         }
 
@@ -2439,6 +2526,41 @@ private:
         RemoveFromAddressToCellMap(descriptor, cell);
 
         cell->RevokePeer(peerId, reason);
+    }
+
+    // COMPAT(danilalexeev)
+    IMapNodePtr FindLegacyCellMapNode(TTamedCellId cellId)
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        try {
+            auto cellMapNode = cypressManager->ResolvePathToNodeProxy(
+                GetCellarTypeCypressPathPrefix(GetCellarTypeFromCellId(cellId)));
+            return cellMapNode->GetType() == ENodeType::Map
+                ? cellMapNode->AsMap()
+                : nullptr;
+        } catch (const TErrorException& ex) {
+            if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
+                YT_LOG_DEBUG(ex,
+                    "Cell Cypress map node is missing (CellId: %v)",
+                    cellId);
+                return nullptr;
+            }
+            throw;
+        }
+        Y_UNREACHABLE();
+    }
+
+    // COMPAT(danilalexeev)
+    IMapNodePtr FindLegacyCellNode(TTamedCellId cellId)
+    {
+        auto cellMapNodeProxy = FindLegacyCellMapNode(cellId);
+        if (!cellMapNodeProxy) {
+            return nullptr;
+        }
+        if (auto child = cellMapNodeProxy->FindChild(ToString(cellId))) {
+            return child->AsMap();
+        }
+        return nullptr;
     }
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
