@@ -1,4 +1,6 @@
 items:
+  - name: Пользовательские агрегатные функции в YQL
+    href: udaf.md
   - name: Доступ к JSON
     href: accessing-json.md
   - name: Модификация JSON

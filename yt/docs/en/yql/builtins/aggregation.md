@@ -815,4 +815,4 @@ FROM my_table;
 
 ## UDAF
 
-If the above aggregate functions were not enough for some reason, YQL has a mechanism for describing custom aggregate functions. Details will be provided later. <!--Подробнее [см. в отдельной статье](../recipes/udaf.md).-->
+If the above aggregate functions were not enough for some reason, YQL has a mechanism for describing custom aggregate functions. Details will be provided later.
