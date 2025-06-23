@@ -109,8 +109,11 @@ public:
     TQueryAnalysisResult Analyze() const;
 
     bool HasJoinWithTwoTables() const;
+    bool HasRightOrFullJoin() const;
     bool HasGlobalJoin() const;
     bool HasInOperator() const;
+
+    bool IsJoinedByKeyColumns() const;
 
 private:
     const TStorageContext* StorageContext_;
@@ -119,6 +122,7 @@ private:
     std::vector<DB::QueryTreeNodePtr> TableExpressions_;
     std::vector<DB::TableExpressionData*> TableExpressionDataPtrs_;
     int YtTableCount_ = 0;
+    int SecondaryQueryOperandCount_ = 0;
     std::vector<IStorageDistributorPtr> Storages_;
     //! If the query contains any kind of join.
     bool Join_ = false;
