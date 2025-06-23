@@ -337,6 +337,12 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 
     DELTA_NODE_CONFIG = {
         "exec_node_is_not_data_node": True,
+        "delay_master_cell_directory_start": True,
+        # NB: In real clusters this flag is disabled.
+        "data_node": {
+            "sync_directories_on_connect": False,
+        },
+        "sync_directories_on_connect": False,
     }
 
     @classmethod
@@ -420,14 +426,14 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 ##################################################################
 
 
-class TestMasterCellDynamicPropagationDuringRegistration(MasterCellAdditionBase):
+class TestMasterCellDynamicPropagationDuringMultiflavorNodeRegistration(MasterCellAdditionBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
     NUM_SECONDARY_MASTER_CELLS = 3
-    NUM_NODES = 1
+    NUM_NODES = 4
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
@@ -457,52 +463,30 @@ class TestMasterCellDynamicPropagationDuringRegistration(MasterCellAdditionBase)
         self.Env.start_nodes()
 
 
-##################################################################
-
-
-class TestDynamicMasterCellPropagationForExecNodes(MasterCellAdditionBase):
+class TestMasterCellDynamicPropagationDuringDataNodeRegistration(TestMasterCellDynamicPropagationDuringMultiflavorNodeRegistration):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_SECONDARY_MASTER_CELLS = 3
-    NUM_NODES = 1
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager" : {
-            "cell_descriptors" : {
-                "13": {"roles": []},
-            }
-        }
-    }
-
     DELTA_NODE_CONFIG = {
         "exec_node_is_not_data_node": True,
+        "delay_master_cell_directory_start": True,
+        # NB: In real clusters this flag is disabled.
+        "data_node": {
+            "sync_directories_on_connect": False,
+        },
+        "sync_directories_on_connect": False,
     }
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
-        config["flavors"] = ["exec"]
+        config["flavors"] = ["data"]
+
         cls._collect_cell_ids_and_maybe_stash_last_cell(
             config["cluster_connection"],
             cluster_index,
             cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
-    @authors("cherepashka")
-    def test_master_reliability_states_for_exec_nodes(self):
-        def check_reliability_status(node, dynamically_discovered_master=None):
-            reliabilities = get(f"//sys/cluster_nodes/{node}/@master_cells_reliabilities")
-            for master in reliabilities.keys():
-                if dynamically_discovered_master is not None and master == dynamically_discovered_master:
-                    if reliabilities[master] != "dynamically_discovered":
-                        return False
-                elif reliabilities[master] != "statically_known":
-                    return False
-            return True
 
-        nodes = ls("//sys/cluster_nodes")
-
-        self._enable_last_cell(downtime=False)
-
-        for node in nodes:
-            wait(lambda:  check_reliability_status(node, "13"))
+##################################################################
