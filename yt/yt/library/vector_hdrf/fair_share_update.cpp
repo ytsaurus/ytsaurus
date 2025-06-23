@@ -706,9 +706,6 @@ void TCompositeElement::PrepareFairShareByFitFactorFifo(TFairShareUpdateContext*
 
     double rightFunctionBound = GetChildCount();
     std::vector<TVectorPiecewiseLinearFunction> childrenFunctions;
-    if (!context->Options.EnableFastChildFunctionSummationInFifoPools) {
-        FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Constant(0.0, rightFunctionBound, TResourceVector::Zero());
-    }
 
     double currentRightBound = 0.0;
     for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
@@ -722,19 +719,13 @@ void TCompositeElement::PrepareFairShareByFitFactorFifo(TFairShareUpdateContext*
         auto childFunction = childFSBS
             .Shift(/*deltaArgument*/ currentRightBound)
             .Extend(/*newLeftBound*/ 0.0, /*newRightBound*/ rightFunctionBound);
-        if (context->Options.EnableFastChildFunctionSummationInFifoPools) {
-            childrenFunctions.push_back(std::move(childFunction));
-        } else {
-            *FairShareByFitFactor_ += childFunction;
-        }
+        childrenFunctions.push_back(std::move(childFunction));
         currentRightBound += 1.0;
     }
 
     YT_VERIFY(currentRightBound == rightFunctionBound);
 
-    if (context->Options.EnableFastChildFunctionSummationInFifoPools) {
-        FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
-    }
+    FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
 }
 
 void TCompositeElement::PrepareFairShareByFitFactorNormal(TFairShareUpdateContext* context)

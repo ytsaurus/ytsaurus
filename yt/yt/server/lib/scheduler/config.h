@@ -480,8 +480,6 @@ struct TFairShareStrategyTreeConfig
 
     bool EnableGuaranteePriorityScheduling;
 
-    bool EnableFastChildFunctionSummationInFifoPools;
-
     TJobResourcesConfigPtr MinJobResourceLimits;
     TJobResourcesConfigPtr MaxJobResourceLimits;
 

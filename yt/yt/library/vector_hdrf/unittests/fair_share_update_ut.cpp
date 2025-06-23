@@ -547,7 +547,6 @@ protected:
                 .MainResource = testOptions.MainResource,
                 .IntegralPoolCapacitySaturationPeriod = TDuration::Days(1),
                 .IntegralSmoothPeriod = TDuration::Minutes(1),
-                .EnableFastChildFunctionSummationInFifoPools = true,
             },
             totalResourceLimits,
             testOptions.Now,
