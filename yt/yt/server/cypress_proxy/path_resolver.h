@@ -24,7 +24,7 @@ struct TSequoiaResolveResult
 };
 
 struct TMasterResolveResult
-{};
+{ };
 
 struct TCypressResolveResult
 {
