@@ -119,7 +119,6 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
-      publish-ytsaurus: true
       publish-chyt: ${{ github.ref_name == 'main' }}
       publish-strawberry: ${{ github.ref_name == 'main' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
@@ -139,7 +138,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      build-query-tracker: ${{ github.ref_name == 'stable/25.2' }}
+      build-query-tracker: true
       build-python: true
       update-remote-cache: true
     secrets:
@@ -157,6 +156,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       publish-query-tracker: ${{ github.ref_name == 'main' }}
+      publish-ytsaurus: true
       publish-local: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
