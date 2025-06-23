@@ -758,18 +758,17 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     }
 
     if (matchedKeyPrefixSize == 0) {
-        // Prevent error when sored pool is not required.
-        if (!needSortedPool) {
-            return;
-        }
+        YT_LOG_DEBUG(
+            "As a result of the inferring sorted join key columns, the key turned out to be empty "
+            "(MatchedLeftKeyNames: %Qv, LeftKeyPositionMap: %Qv, RightKeyPositionMap: %Qv, "
+            "UnmatchedKeyPairs: %Qv, JoinKeySize: %Qv)",
+            matchedLeftKeyNames,
+            leftKeyPositionMap,
+            rightKeyPositionMap,
+            unmatchedKeyPairs,
+            joinKeySize);
 
-        const char* errorPrefix = (TwoYTTableJoin_ ? "Invalid sorted JOIN" : "Invalid RIGHT or FULL JOIN");
-        THROW_ERROR_EXCEPTION("%v: key is empty", errorPrefix)
-            << TErrorAttribute("matched_left_key_columns", matchedLeftKeyNames)
-            << TErrorAttribute("left_key_position_map", leftKeyPositionMap)
-            << TErrorAttribute("right_key_position_map", rightKeyPositionMap)
-            << TErrorAttribute("unmatched_key_pairs", unmatchedKeyPairs)
-            << TErrorAttribute("join_key_size", joinKeySize);
+        return;
     }
 
     KeyColumnCount_ = matchedKeyPrefixSize;
@@ -931,6 +930,7 @@ void TQueryAnalyzer::ParseQuery()
             Storages_.pop_back();
         }
     }
+    SecondaryQueryOperandCount_ = YtTableCount_;
 
     YT_LOG_DEBUG(
         "Extracted table expressions from query (Query: %v, TableExpressionCount: %v, YtTableCount: %v, "
@@ -1188,7 +1188,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 
     TQueryAnalysisResult result;
 
-    for (const auto& [index, storage] : Enumerate(Storages_)) {
+    for (int index = 0; index < SecondaryQueryOperandCount_; ++index) {
+        const auto& storage = Storages_[index];
         if (!storage) {
             continue;
         }
@@ -1290,11 +1291,11 @@ std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder
     }
 
     std::vector<TSubquerySpec> tableSpecs;
-    tableSpecs.reserve(YtTableCount_);
+    tableSpecs.reserve(SecondaryQueryOperandCount_);
 
     DB::IQueryTreeNode::ReplacementMap replacementMap;
 
-    for (int index = 0; index < YtTableCount_; ++index) {
+    for (int index = 0; index < SecondaryQueryOperandCount_; ++index) {
         YT_VERIFY(TableExpressions_[index]);
         const auto& tableExpressionNode = TableExpressions_[index];
 
@@ -1365,6 +1366,11 @@ bool TQueryAnalyzer::HasJoinWithTwoTables() const
     return TwoYTTableJoin_;
 }
 
+bool TQueryAnalyzer::HasRightOrFullJoin() const
+{
+    return RightOrFullJoin_;
+}
+
 bool TQueryAnalyzer::HasGlobalJoin() const
 {
     return GlobalJoin_;
@@ -1373,6 +1379,15 @@ bool TQueryAnalyzer::HasGlobalJoin() const
 bool TQueryAnalyzer::HasInOperator() const
 {
     return HasInOperator_;
+}
+
+bool TQueryAnalyzer::IsJoinedByKeyColumns() const
+{
+    if (!Prepared_) {
+        THROW_ERROR_EXCEPTION("Query analyzer is not prepared but IsJoinedByKeyColumns method is already called; "
+            "this is a bug; please, file an issue in CHYT queue");
+    }
+    return JoinedByKeyColumns_;
 }
 
 void TQueryAnalyzer::Prepare()
@@ -1388,6 +1403,11 @@ void TQueryAnalyzer::Prepare()
 
     if (needSortedPool || filterJoinedTableBySortedKey) {
         InferSortedJoinKeyColumns(needSortedPool);
+    }
+    // If we couldn't get a common key prefix to join two YT tables,
+    // we will distribute the query across the first one.
+    if (TwoYTTableJoin_ && !JoinedByKeyColumns_) {
+        SecondaryQueryOperandCount_ = 1;
     }
     if (settings->Execution->OptimizeQueryProcessingStage) {
         OptimizeQueryProcessingStage();

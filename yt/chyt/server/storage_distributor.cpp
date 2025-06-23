@@ -921,6 +921,14 @@ public:
             }
         }
 
+        analyzer.Prepare();
+
+        // Distributed right or full join can only be performed using the functionality of the filtering joined subquery,
+        // which is based on joining by key columns.
+        if (analyzer.HasRightOrFullJoin() && !analyzer.IsJoinedByKeyColumns()) {
+            return DB::QueryProcessingStage::FetchColumns;
+        }
+
         // Handle some CH-native options.
         // We do not really need them, but it's not difficult to mimic the original behaviour.
         if (chSettings.distributed_group_by_no_merge) {
@@ -935,8 +943,6 @@ public:
                 return DB::QueryProcessingStage::Complete;
             }
         }
-
-        analyzer.Prepare();
 
         auto nodes = GetNodesToDistribute(queryContext, DistributionSeed_, isDistributedJoin);
         // If there is only one node, then its result is final, since
