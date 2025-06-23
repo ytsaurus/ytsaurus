@@ -129,7 +129,7 @@ class TestJobControllerOrchid(YTEnvSetup):
             track=False,
             in_=input_table,
             out=output_table,
-            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+            command=with_breakpoint("""read row; echo $row; read row; echo $row;BREAKPOINT; cat"""),
             spec={
                 "job_count": 1,
                 "mapper": {"format": "json"},
