@@ -13,3 +13,6 @@ items:
     items:
      - name: Briefly about C++ UDF
        href: cpp_about_udf.md
+     - name: Type-aware UDFs
+       href: cpp_type_aware_udf.md
+
