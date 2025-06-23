@@ -2222,9 +2222,9 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
     };
 
     std::vector<std::pair<TCypressNode*, TConstInheritedAttributeDictionaryPtr>> traverseQueue;
-    traverseQueue.push_back({
+    traverseQueue.emplace_back(
         node,
-        New<TInheritedAttributeDictionary>(Bootstrap_, std::move(dstInheritedAttributes))});
+        New<TInheritedAttributeDictionary>(Bootstrap_, std::move(dstInheritedAttributes)));
 
     while (!traverseQueue.empty()) {
         auto [currentNode, inheritedAttributes] = traverseQueue.back();
@@ -2274,7 +2274,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
 
         for (const auto& [key, trunkChild] : keyToChildMap) {
             auto* child = cypressManager->GetVersionedNode(trunkChild, node->GetTransaction());
-            traverseQueue.push_back({child, childInheritedAttributes});
+            traverseQueue.emplace_back(child, childInheritedAttributes);
         }
     }
 

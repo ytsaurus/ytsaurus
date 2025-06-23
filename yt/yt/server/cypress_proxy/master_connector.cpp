@@ -84,7 +84,7 @@ public:
         return MasterReign_.Load();
     }
 
-    int MaxCopiableSubtreeSize() const override
+    int GetMaxCopiableSubtreeSize() const override
     {
         return MaxCopiableSubtreeSize_.Load();
     }

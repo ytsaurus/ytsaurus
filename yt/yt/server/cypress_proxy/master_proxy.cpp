@@ -46,11 +46,7 @@ class TMasterProxy
     : public TNodeProxyBase
 {
 public:
-    TMasterProxy(
-        IBootstrap* bootstrap,
-        TSequoiaSessionPtr session)
-        : TNodeProxyBase(bootstrap, std::move(session))
-    { }
+    using TNodeProxyBase::TNodeProxyBase;
 
 protected:
     DECLARE_YPATH_SERVICE_METHOD(NObjectClient::NProto, MaterializeCopyPrerequisites);

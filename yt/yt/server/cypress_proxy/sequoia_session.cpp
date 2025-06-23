@@ -1250,10 +1250,11 @@ void TSequoiaSession::AssembleTreeCopy(
     TCypressChildDescriptor rootNodeInfo = {
         .ParentId = rootParentId,
         .ChildId = rootNodeId,
-        .ChildKey = rootPath.GetBaseName()};
+        .ChildKey = rootPath.GetBaseName(),
+    };
 
     std::vector<std::pair<TCypressChildDescriptor, int>> traverseQueue;
-    traverseQueue.push_back({rootNodeInfo, 0});
+    traverseQueue.emplace_back(rootNodeInfo, 0);
 
     TSuppressableAccessTrackingOptions accessTrackingOptions = {
         .SuppressAccessTracking = true,
