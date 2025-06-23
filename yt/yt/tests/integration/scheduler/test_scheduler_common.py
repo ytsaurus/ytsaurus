@@ -195,9 +195,12 @@ class TestSchedulerCommon(YTEnvSetup):
             track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='python3 -c "import os; os.read(0, 1);"',
+            command=with_breakpoint('BREAKPOINT; python3 -c "import os; os.read(0, 1);"'),
             spec={"mapper": {"input_format": "dsv", "check_input_fully_consumed": True}, "max_failed_job_count": 2},
         )
+        for job_id in wait_breakpoint():
+            get_job_fail_context(None, job_id)
+        release_breakpoint()
 
         # If all jobs failed then operation is also failed
         with pytest.raises(YtError):
@@ -206,6 +209,8 @@ class TestSchedulerCommon(YTEnvSetup):
         for job_id in op.list_jobs():
             fail_context = get_job_fail_context(op.id, job_id)
             assert len(fail_context) > 0
+            with pytest.raises(YtError, match="Allocation .* not found"):
+                get_job_fail_context(None, job_id)
 
     @authors("ignat")
     def test_dump_job_context(self):

@@ -6,7 +6,7 @@ from yt_commands import (
     set, remove, exists, create_tmpdir, create_user, make_ace, insert_rows, select_rows, lookup_rows,
     read_table, write_table, map, reduce, map_reduce,
     sort, list_jobs, get_job_input,
-    get_job_stderr, get_job_stderr_paged, get_job_spec, get_job_input_paths,
+    get_job, get_job_stderr, get_job_stderr_paged, get_job_spec, get_job_input_paths,
     clean_operations, sync_create_cells, update_op_parameters, raises_yt_error,
     gc_collect, run_test_vanilla, wait_no_assert)
 
@@ -645,10 +645,13 @@ class TestGetJobStderr(YTEnvSetup):
         job_id = wait_breakpoint()[0]
 
         wait(lambda: retry(lambda: get_job_stderr(op.id, job_id)) == b"STDERR-OUTPUT\n")
+        assert get_job_stderr(None, job_id) == b"STDERR-OUTPUT\n"
         release_breakpoint()
         op.track()
         res = get_job_stderr(op.id, job_id)
         assert res == b"STDERR-OUTPUT\n"
+        with pytest.raises(YtError, match="Allocation .* not found"):
+            get_job_stderr(None, job_id)
 
         clean_operations()
 

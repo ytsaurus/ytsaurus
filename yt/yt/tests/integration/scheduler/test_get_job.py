@@ -18,7 +18,7 @@ from yt_operations_archive_helpers import (
 
 import yt.environment.init_operations_archive as init_operations_archive
 
-from yt.common import date_string_to_datetime, uuid_to_parts, parts_to_uuid, update, date_string_to_timestamp_mcs
+from yt.common import date_string_to_datetime, uuid_to_parts, parts_to_uuid, update, date_string_to_timestamp_mcs, YtError
 
 from flaky import flaky
 
@@ -164,6 +164,7 @@ class _TestGetJobCommon(_TestGetJobBase):
 
         self._check_get_job(op.id, job_id, before_start_time, state="running", has_spec=None,
                             pool="my_pool", pool_tree="default")
+        assert get_job(None, job_id)["operation_id"] == op.id
 
         @wait_no_assert
         def correct_stderr_size():
@@ -175,6 +176,8 @@ class _TestGetJobCommon(_TestGetJobBase):
 
         self._check_get_job(op.id, job_id, before_start_time, state="failed", has_spec=True,
                             pool="my_pool", pool_tree="default")
+        with pytest.raises(YtError, match="Allocation .* not found"):
+            assert get_job(None, job_id)
 
         job_info = retry(lambda: get_job(op.id, job_id))
         assert job_info["fail_context_size"] > 0
