@@ -2471,9 +2471,11 @@ private:
                 std::memory_order::relaxed);
         }
 
-        YT_LOG_DEBUG("Fetched blocks from block cache (Count: %v, Blocks: %v)",
-            fetchedBlockIndexes.size(),
-            MakeCompactIntervalView(fetchedBlockIndexes));
+        if (fetchedBlockIndexes.size() > 0) {
+            YT_LOG_DEBUG("Fetched blocks from block cache (Count: %v, Blocks: %v)",
+                fetchedBlockIndexes.size(),
+                MakeCompactIntervalView(fetchedBlockIndexes));
+        }
     }
 
     void OnSessionSucceeded()
