@@ -1,10 +1,10 @@
-### Type-aware UDF-функции
+### Type-aware UDFs
 
-Type awareness реализована с помощью аргумента `TType* userType` методов `DeclareSignature(...)` и `buildReturnSignature(...)`. Этот аргумент позволяет посмотреть, с какими аргументами была вызвана UDF-функция из YQL, и построить нужную сигнатуру. Пользовательский тип можно распарсить с помощью `ITypeInfoHelper::TPtr`, который принимает в конструкторе `builder.TypeInfoHelper()` , из которого в свою очередь конструируются TypeInspector'ы: `TTupleTypeInspector`, `TCallableTypeInspector`, `TOptionalTypeInspector` и др.
+Type awareness is implemented using the `TType* userType` argument of the `DeclareSignature(...)` and `buildReturnSignature(...)` methods. You can use this argument to see with which arguments a UDF function was called from YQL and build the desired signature. A user-defined type can be parsed using the `ITypeInfoHelper::TPtr` object, which is returned by the `builder.TypeInfoHelper()` method and which can be used to create TypeInspectors, such as `TTupleTypeInspector`, `TCallableTypeInspector`, `TOptionalTypeInspector`, and others.
 
 {% note warning %}
 
-Для того чтобы движок YQL передавал на вход `DeclareSignature()` не пустой userType, класс вашей UDF должен содержать определение подтипа:
+For the YQL engine to pass a non-empty userType to `DeclareSignature()` as input, the class of your UDF must contain a subtype definition:
 
 ```
 typedef bool TTypeAwareMarker;
@@ -12,8 +12,8 @@ typedef bool TTypeAwareMarker;
 
 {% endnote %}
 
-С помощью таких функций можно:
-* Поддержать опциональные или дефолтные аргументы:
+Using such functions, you can:
+* Support optional or default arguments:
 
   `SomeTypeAwareUdfFunc(Double, Double) -> Bool`
 
@@ -49,7 +49,7 @@ typedef bool TTypeAwareMarker;
   }
   ```
 
-* Поддержать перегрузку:
+* Support overloading:
 
   `SomeTypeAwareUdfFunc(List<Int>) -> String`
 
@@ -74,7 +74,7 @@ typedef bool TTypeAwareMarker;
   }
   ```
 
-* Поддержать изменение типа ответа по возвращаемому типу пользовательского колбэка:
+* Support changing the response type depending on the type returned by the custom callback:
 
   `SomeTypeAwareUdfFunc(Callable<...>->Int)->List<Int>`
 
