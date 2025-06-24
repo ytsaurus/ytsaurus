@@ -223,6 +223,15 @@ def not_implemented_in_sequoia(func):
     return decorator.decorate(func, wrapper)
 
 
+def not_implemented_for_mirrored_tx(func):
+    def wrapper(func, self, *args, **kwargs):
+        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            pytest.skip("Not implemented for mirrored transactions")
+        return func(self, *args, **kwargs)
+
+    return decorator.decorate(func, wrapper)
+
+
 def cannot_be_implemented_in_sequoia(reason):
     def wrapper_factory(func):
         def wrapper(func, self, *args, **kwargs):
