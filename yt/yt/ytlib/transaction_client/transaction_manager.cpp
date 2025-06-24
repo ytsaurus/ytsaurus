@@ -1164,7 +1164,7 @@ private:
         }
 
         auto connection = connectionOrError.Value();
-        auto channel = connection->GetMasterChannelOrThrow(
+        auto channel = connection->GetCypressChannelOrThrow(
             EMasterChannelKind::Leader,
             CoordinatorMasterCellTag_);
 
@@ -1439,7 +1439,10 @@ private:
         }
 
         auto connection = connectionOrError.Value();
-        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
+        auto channel = connection->GetCypressChannelOrThrow(
+            EMasterChannelKind::Leader,
+            CoordinatorMasterCellTag_);
+
         auto config = Owner_->Config_.Acquire();
 
         if (options.EnableRetries) {
@@ -1666,7 +1669,10 @@ private:
         }
 
         auto connection = connectionOrError.Value();
-        auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
+        auto channel = connection->GetCypressChannelOrThrow(
+            EMasterChannelKind::Leader,
+            CoordinatorMasterCellTag_);
+
         channel = CreateRetryingChannel(
             Owner_->Config_.Acquire(),
             std::move(channel),
