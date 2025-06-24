@@ -5306,7 +5306,7 @@ private:
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
             auto mountRevision = FromProto<NHydra::TRevision>(tabletInfo.mount_revision());
 
-            auto* tabletBase = FindTablet(tabletId)->As<TTablet>();
+            auto* tabletBase = FindTablet(tabletId);
             if (!IsObjectAlive(tabletBase)) {
                 continue;
             }
@@ -5793,11 +5793,12 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         YT_VERIFY(TypeFromId(tabletId) == EObjectType::Tablet);
-        auto* tablet = FindTablet(tabletId)->As<TTablet>();
-        if (!IsObjectAlive(tablet)) {
+        auto* tabletBase = FindTablet(tabletId);
+        if (!IsObjectAlive(tabletBase)) {
             return;
         }
 
+        auto* tablet = tabletBase->As<TTablet>();
         auto senderId = GetHiveMutationSenderId();
         auto* servant = FindServantForStateTransition(
             tablet,
@@ -5825,10 +5826,10 @@ private:
         }
 
         TabletChunkManager_->SetTabletEdenStoreIds(
-            tablet->As<TTablet>(),
+            tablet,
             FromProto<std::vector<TStoreId>>(response->mount_hint().eden_store_ids()));
 
-        DiscardDynamicStores(tablet->As<TTablet>());
+        DiscardDynamicStores(tablet);
 
         YT_LOG_DEBUG("Tablet frozen (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
@@ -5944,7 +5945,7 @@ private:
         auto targetMountRevision = FromProto<NHydra::TRevision>(request->target_mount_revision());
 
         auto* tablet = FindTablet(tabletId);
-        if (!tablet) {
+        if (!IsObjectAlive(tablet)) {
             return;
         }
 
@@ -7256,7 +7257,7 @@ private:
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cell = cellManager->FindCell(id);
-        if (cell && cell->GetType() != EObjectType::TabletCell) {
+        if (!IsObjectAlive(cell) || cell->GetType() != EObjectType::TabletCell) {
             return nullptr;
         }
         return cell->As<TTabletCell>();
