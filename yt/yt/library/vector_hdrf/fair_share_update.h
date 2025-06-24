@@ -400,6 +400,7 @@ struct TFairShareUpdateContext
     NProfiling::TCpuDuration PointwiseMinTotalTime = {};
     NProfiling::TCpuDuration ComposeTotalTime = {};
     NProfiling::TCpuDuration CompressFunctionTotalTime = {};
+    NProfiling::TCpuDuration ComputeAndSetFairShareTotalTime = {};
 
     std::vector<TPool*> RelaxedPools;
     std::vector<TPool*> BurstPools;
