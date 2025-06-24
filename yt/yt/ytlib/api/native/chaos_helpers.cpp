@@ -129,7 +129,7 @@ TReplicationCardPtr GetSyncReplicationCard(
 
         auto coordinator = NDetail::GetCoordinatorCellId(
             replicationCard,
-            tableInfo->ReplicationCardId,
+            replicationCardId,
             replicationCardCache,
             connection->GetDownedCellTracker(),
             Logger);
