@@ -4705,6 +4705,23 @@ TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedDuringWriteThreadPool
     }
 }
 
+TEST_P(TNodeTagsFilterManager, TestSpareNodesAreNotAssignedWithOptionOff)
+{
+    auto input = GenerateInputContext(3, 5);
+    auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+    bundleInfo->EnableTabletCellManagement = false;
+    GenerateTabletCellsForBundle(input, "bigd", 15);
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 1, {.SlotCount = 5});
+
+    input.Config->EnableSpareNodeAssignment = false;
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
+}
+
 TEST_P(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
 {
     auto input = GenerateInputContext(0, 5);
