@@ -197,9 +197,7 @@ protected:
 
     EChunkFormat GetChunkFormat() const override
     {
-        // TODO(achulkov2): Remove this test hack after proper formats are supported.
-        return EChunkFormat::TableUnversionedSchemalessHorizontal;
-        // return ChunkFormat_;
+        return ChunkFormat_;
     }
 
     i64 GetUnderlyingFileSize() const

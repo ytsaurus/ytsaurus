@@ -2575,6 +2575,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     auto sortOrders = GetSortOrders(sortColumns);
 
     switch (chunkMeta->GetChunkFormat()) {
+        case EChunkFormat::TableUnversionedArrowParquet:
         case EChunkFormat::TableUnversionedSchemalessHorizontal:
             return New<THorizontalSchemalessRangeChunkReader>(
                 columnEvaluatorCache,
