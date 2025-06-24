@@ -315,6 +315,7 @@ class TestQueryTrackerBan(YTEnvSetup):
             "execution_start_time": 0,
             "state": "pending",
             "settings": {},
+            "annotations": {},
         }])
 
         acquisition_iterations = get(f"//sys/query_tracker/instances/{address}/orchid/query_tracker/acquisition_iterations")

@@ -1189,3 +1189,36 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlBase):
             select * from primary.`//tmp/t1`
             limit 4
         """, [{"a": 45, "b": "bar", "c": -3.0}, {"a": 46, "b": "abc", "c": -4.0}, {"a": 47, "b": "def", "c": -5.0}, {"a": 42, "b": "foo", "c": 2.0}])
+
+
+class TestAssignedEngine(TestQueriesYqlBase):
+    NUM_YQL_AGENTS = 2
+
+    @authors("kirsiv40")
+    def test_assigned_engine(self, query_tracker, yql_agent):
+        yqla_instances = get("//sys/yql_agent/instances")
+
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
+        query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+
+        wait(lambda: query.get_state() == "running")
+
+        query_running_info = query.get()
+        assert "annotations" in query_running_info
+        assert "assigned_engine" in query_running_info["annotations"]
+
+        set("//sys/pools/small/@resource_limits/user_slots", 1)
+        query.track()
+
+        query_finished_info = query.get()
+        assert "annotations" in query_finished_info
+        assert "assigned_engine" in query_finished_info["annotations"]
+
+        assert query_running_info["annotations"]["assigned_engine"] == query_finished_info["annotations"]["assigned_engine"]
+        assert query_finished_info["annotations"]["assigned_engine"] in yqla_instances

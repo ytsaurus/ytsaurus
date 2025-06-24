@@ -74,12 +74,15 @@ protected:
     std::optional<TInstant> LastStateChange_;
     THashMap<EQueryState, TDuration> StateTimes_;
 
+    std::optional<std::string> AssignedEngine_;
+
     void StartProgressWriter();
     void StopProgressWriter();
 
     void OnProgress(TYsonString progress);
 
     void OnQueryStarted();
+    void OnQueryStarted(std::optional<std::string> assignedEngine);
     void OnQueryThrottled();
     void OnQueryFailed(const TError& error);
     void OnQueryCompleted(const std::vector<TErrorOr<TRowset>>& rowsetOrErrors);
@@ -87,6 +90,8 @@ protected:
 
     void TryWriteProgress();
     bool TryWriteQueryState(EQueryState state, EQueryState previousState, const TError& error, const std::vector<TErrorOr<TWireRowset>>& wireRowsetOrErrors);
+
+    TYsonString SetYsonAttr(TYsonString to, TString key, TYsonString value);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
