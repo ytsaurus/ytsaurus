@@ -381,8 +381,9 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 
         self._enable_last_cell(downtime=False)
 
-        # Make sure nodes have discovered the new cell.
+        # Make sure nodes have discovered the new cell and the last master cell receive all heartbetas.
         wait(lambda: self._nodes_synchronized_with_masters(nodes))
+        self._wait_for_nodes_state("online", aggregate_state=False)
 
         # Nodes should not reregister.
         for node in ls("//sys/cluster_nodes"):
@@ -394,8 +395,6 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         # Make the new master cell "reliable" for other master cells.
         set("//sys/@config/multicell_manager/testing/discovered_masters_cell_tags", [13])
         set("//sys/@config/multicell_manager/cell_descriptors", {"13": {"roles": ["cypress_node_host", "chunk_host"]}})
-
-        self._wait_for_nodes_state("online")
 
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
         write_table("//tmp/t", [{"a" : "b"}])
