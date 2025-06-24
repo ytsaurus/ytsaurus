@@ -1509,7 +1509,13 @@ void TFairShareUpdateExecutor::Run()
     UpdateRelaxedPoolIntegralShares();
 
     RootElement_->PrepareFairShareFunctions(Context_);
-    RootElement_->ComputeAndSetFairShare(/*suggestion*/ 1.0, EFairShareType::Regular, Context_);
+
+    {
+        TWallTimer timer;
+        RootElement_->ComputeAndSetFairShare(/*suggestion*/ 1.0, EFairShareType::Regular, Context_);
+        Context_->ComputeAndSetFairShareTotalTime = timer.GetElapsedCpuTime();
+    }
+
     RootElement_->TruncateFairShareInFifoPools(EFairShareType::Regular);
 
     RootElement_->ComputePromisedGuaranteeFairShare(Context_);
@@ -1528,7 +1534,8 @@ void TFairShareUpdateExecutor::Run()
         "PrepareMaxFitFactorBySuggestion/TotalTime: %v, "
         "PrepareMaxFitFactorBySuggestion/PointwiseMin/TotalTime: %v, "
         "Compose/TotalTime: %v., "
-        "CompressFunction/TotalTime: %v)",
+        "CompressFunction/TotalTime: %v, "
+        "ComputeAndSetFairShare/TotalTime: %v)",
         CpuDurationToDuration(totalDuration).MicroSeconds(),
         CpuDurationToDuration(Context_->PrepareFairShareByFitFactorTotalTime).MicroSeconds(),
         CpuDurationToDuration(Context_->PrepareFairShareByFitFactorOperationsTotalTime).MicroSeconds(),
@@ -1537,7 +1544,8 @@ void TFairShareUpdateExecutor::Run()
         CpuDurationToDuration(Context_->PrepareMaxFitFactorBySuggestionTotalTime).MicroSeconds(),
         CpuDurationToDuration(Context_->PointwiseMinTotalTime).MicroSeconds(),
         CpuDurationToDuration(Context_->ComposeTotalTime).MicroSeconds(),
-        CpuDurationToDuration(Context_->CompressFunctionTotalTime).MicroSeconds());
+        CpuDurationToDuration(Context_->CompressFunctionTotalTime).MicroSeconds(),
+        CpuDurationToDuration(Context_->ComputeAndSetFairShareTotalTime).MicroSeconds());
 }
 
 void TFairShareUpdateExecutor::UpdateBurstPoolIntegralShares()
