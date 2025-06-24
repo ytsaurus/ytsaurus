@@ -1,3 +1,4 @@
+from yt.common import YtError
 from yt_env_setup import (
     YTEnvSetup,
     Restarter,
@@ -96,6 +97,17 @@ class MasterCellAdditionBase(YTEnvSetup):
             wait(lambda:  check_reliability_status(node, "13"))
 
         super(MasterCellAdditionBase, self).teardown_method(method)
+
+    @classmethod
+    def do_with_retries(self, action):
+        try:
+            action()
+        except YtError as error:
+            if error.contains_text("Unknown master cell tag"):
+                return False
+            else:
+                raise
+        return True
 
     @classmethod
     def modify_master_config(cls, multidaemon_config, config, tag, peer_index, cluster_index):
@@ -204,7 +216,8 @@ class MasterCellAdditionBase(YTEnvSetup):
         for tx in ls("//sys/transactions", attributes=["title"]):
             title = tx.attributes.get("title", "")
             if "World initialization" in title:
-                abort_transaction(str(tx))
+                # Proxy need time to discover new master cell, if it already started world initializer transaction.
+                wait(lambda: cls.do_with_retries(lambda: abort_transaction(str(tx))))
 
     @classmethod
     def _build_readonly_snapshot(cls):
@@ -402,7 +415,8 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000,
+            "update_period": 500,
+            "init_retry_period": 500,
         },
     }
 
