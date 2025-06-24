@@ -221,8 +221,8 @@ class MasterCellAdditionBase(YTEnvSetup):
         return drivers
 
     @classmethod
-    def _wait_for_nodes_state(cls, expected_state):
-        def check():
+    def _wait_for_nodes_state(cls, expected_state, aggregate_state):
+        def check_multicell_states():
             nodes = ls("//sys/cluster_nodes", attributes=["multicell_states"])
             return all(
                 all(
@@ -232,8 +232,15 @@ class MasterCellAdditionBase(YTEnvSetup):
                 for node in nodes
             )
 
+        def check_aggregated():
+            nodes = ls("//sys/cluster_nodes", attributes=["state"])
+            return all(
+                node.attributes["state"] == expected_state
+                for node in nodes
+            )
+
         wait(
-            check,
+            check_aggregated if aggregate_state else check_multicell_states,
             ignore_exceptions=True,
             error_message=f"Nodes were not {expected_state} for 30 seconds",
             timeout=30)
@@ -291,6 +298,7 @@ class MasterCellAdditionBase(YTEnvSetup):
 
         cls.Env.synchronize()
         cls._abort_world_initializer_transactions()
+        cls._wait_for_nodes_state("online", aggregate_state=True)
 
         def _move_files(directory):
             files = os.listdir(directory)
@@ -336,7 +344,7 @@ class MasterCellAdditionBase(YTEnvSetup):
 
         cls._abort_world_initializer_transactions()
         if wait_for_nodes:
-            cls._wait_for_nodes_state("online")
+            cls._wait_for_nodes_state("online", aggregate_state=False)
 
         cls.PATCHED_CONFIGS = []
         cls.STASHED_CELL_CONFIGS = []
