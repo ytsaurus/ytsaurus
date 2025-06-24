@@ -550,7 +550,7 @@ const ITamedCellManagerPtr& TBootstrap::GetTamedCellManager() const
     return TamedCellManager_;
 }
 
-const TTabletManagerPtr& TBootstrap::GetTabletManager() const
+const ITabletManagerPtr& TBootstrap::GetTabletManager() const
 {
     return TabletManager_;
 }
@@ -937,7 +937,7 @@ void TBootstrap::DoInitialize()
 
     TableManager_ = CreateTableManager(this);
 
-    TabletManager_ = New<TTabletManager>(this);
+    TabletManager_ = CreateTabletManager(this);
 
     BackupManager_ = CreateBackupManager(this);
 

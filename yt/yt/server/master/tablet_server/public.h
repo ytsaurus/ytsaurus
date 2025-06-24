@@ -69,7 +69,7 @@ using NTabletClient::ETabletBackupState;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TTabletManager)
+DECLARE_REFCOUNTED_STRUCT(ITabletManager)
 DECLARE_REFCOUNTED_CLASS(TTabletService)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancer)
 DECLARE_REFCOUNTED_CLASS(TTabletCellDecommissioner)
