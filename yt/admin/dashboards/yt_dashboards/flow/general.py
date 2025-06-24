@@ -11,10 +11,10 @@ from .common import (
     build_versions,
     build_resource_usage,
     add_common_dashboard_parameters,
-    add_partitions_by_current_job_status_cell,
 )
 
 from .computation import ComputationCellGenerator
+from .controller import add_partitions_by_current_job_status_cell, add_controller_failed_iterations_cell
 
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
@@ -37,10 +37,10 @@ def build_flow_status():
 
     recovery_by_reason_description = dedent("""\
         **Expect to see zero on this panel if pipeline is stably working.**
-        ---
+
         **Recovering** — current job is preloading data or its status is unknown.
         **Warming up** — current job is working ≤ 5 minutes.
-        ---
+
         **after Failed** — previous job failed.
         **after LostWorker** — previous job worker is gone (release/reallocation/OOM/crash/...).
         **after ExpiredLease** — job lease is expired or aborted (problems with YT / manual lease aborting / ...).
@@ -48,7 +48,7 @@ def build_flow_status():
         **after Unknown** — partition is newly created or last job finish reason is unknown.
         **after Stopped** — pipeline is pausing / stopping.
         **after PartitionStateChanged** — partition changed its status (to completing or interrupting).
-    """).replace("\n", "\n\n")
+    """)
 
     return (Rowset()
         .stack(False)
@@ -79,7 +79,7 @@ def build_flow_status():
                     "Warming up after Unknown": "#9999ff",
                 })
             .cell("Registered workers count", FlowController("yt.flow.controller.worker_count").unit("UNIT_COUNT"))
-            .cell("", EmptyCell())
+            .apply_func(add_controller_failed_iterations_cell)
     ).owner
 
 
