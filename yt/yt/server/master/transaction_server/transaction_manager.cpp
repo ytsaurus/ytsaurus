@@ -2575,7 +2575,6 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager);
-        securityManager->ValidatePermission(transaction, EPermission::Write);
 
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 
