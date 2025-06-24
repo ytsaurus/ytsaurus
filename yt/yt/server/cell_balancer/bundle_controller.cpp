@@ -211,6 +211,8 @@ private:
     THashMap<std::string, TBundleAlertCounters> BundleAlerts_;
     ICellDowntimeTrackerPtr CellDowntimeTracker_;
 
+    // Bundles on which last iteration has failed and which should be skipped
+    // on the next iteration.
     THashSet<std::string> BundleJail_;
 
     void ScanBundles(bool dryRun, bool ignoreGlobalDisabledSwitch)
@@ -220,7 +222,7 @@ private:
         if (!dryRun && !IsLeader() && !ignoreGlobalDisabledSwitch) {
             ClearState();
 
-            YT_LOG_DEBUG("Bundle Controller is not leading");
+            YT_LOG_DEBUG("Bundle controller is not leading");
             return;
         }
 
@@ -250,9 +252,9 @@ private:
 
             for (const auto& bundle : BundleJail_) {
                 RegisterAlert({
-                    .Id = "bundle_moved_to_jail",
+                    .Id = "bundle_iteration_failed",
                     .BundleName = bundle,
-                    .Description = "Bundle moved to jail",
+                    .Description = "Last bundle iteration failed",
                 });
             }
 
@@ -1107,7 +1109,7 @@ private:
     {
         TTransactionStartOptions transactionOptions;
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", "Bundle Controller bundles scan");
+        attributes->Set("title", "Bundle controller bundles scan");
         transactionOptions.Attributes = std::move(attributes);
         transactionOptions.Timeout = Config_->BundleScanTransactionTimeout;
 
@@ -1169,7 +1171,7 @@ private:
 
         inputState.SysConfig = GetSystemConfig(transaction);
 
-        YT_LOG_DEBUG("Bundle Controller input state loaded "
+        YT_LOG_DEBUG("Bundle controller input state loaded "
             "(ZoneCount: %v, BundleCount: %v, BundleStateCount: %v, TabletNodeCount: %v, TabletCellCount: %v, "
             "NodeAllocationRequestCount: %v, NodeDeallocationRequestCount: %v, RpcProxyCount: %v, SystemAccounts: %v)",
             inputState.Zones.size(),
