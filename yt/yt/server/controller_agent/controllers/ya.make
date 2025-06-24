@@ -13,8 +13,10 @@ SRCS(
     competitive_job_manager.cpp
     data_balancer.cpp
     data_flow_graph.cpp
+    distributed_job_manager.cpp
     experiment_job_manager.cpp
     extended_job_resources.cpp
+    extra_job_manager.cpp
     job_info.cpp
     job_helpers.cpp
     job_memory.cpp
@@ -23,8 +25,6 @@ SRCS(
     input_transaction_manager.cpp
     input_manager.cpp
     live_preview.cpp
-    distributed_job_manager.cpp
-    extra_job_manager.cpp
     operation_controller_detail.cpp
     ordered_controller.cpp
     probing_job_manager.cpp
