@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/rpc/config.h>
 
+#include <yt/yt/library/s3/public.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,6 +194,16 @@ void TReplicationReaderConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TS3ReaderConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TPhysicalChunkReaderConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TBlockFetcherConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("window_size", &TThis::WindowSize)
@@ -324,6 +336,17 @@ int TReplicationWriterConfig::GetDirectUploadNodeCount()
     }
 
     return std::max(static_cast<int>(std::sqrt(replicationFactor)), 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TS3WriterConfig::Register(TRegistrar registrar) {
+    registrar.Parameter("upload_part_size", &TThis::UploadPartSize)
+        .GreaterThanOrEqual(NS3::MinMultiPartUploadPartSize)
+        .Default(64_MB);
+    registrar.Parameter("upload_window_size", &TThis::UploadWindowSize)
+        .GreaterThan(0)
+        .Default(128_MB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

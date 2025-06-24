@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/security_server/acl.h>
 
+#include <yt/ytlib/chunk_client/proto/medium_directory.pb.h>
+
 #include <yt/yt/core/misc/property.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
@@ -33,8 +35,13 @@ public:
     virtual bool IsDomestic() const = 0;
     bool IsOffshore() const;
 
+    //! Should return type of the medium (domestic, S3, etc) in camel case.
+    virtual std::string GetMediumType() const = 0;
+
     TDomesticMedium* AsDomestic();
     const TDomesticMedium* AsDomestic() const;
+
+    virtual void FillMediumDescriptor(NChunkClient::NProto::TMediumDirectory::TMediumDescriptor* protoItem) const;
 
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);

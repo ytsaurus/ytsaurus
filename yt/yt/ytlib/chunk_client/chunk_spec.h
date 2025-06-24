@@ -24,10 +24,6 @@ bool IsUnavailable(
     const TChunkReplicaWithMediumList& replicas,
     NErasure::ECodec codecId,
     EChunkAvailabilityPolicy policy);
-bool IsUnavailable(
-    const TChunkReplicaList& replicas,
-    NErasure::ECodec codecId,
-    EChunkAvailabilityPolicy policy);
 
 i64 GetCumulativeRowCount(
     const std::vector<NProto::TChunkSpec>& chunkSpecs);

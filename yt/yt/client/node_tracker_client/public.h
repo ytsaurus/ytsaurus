@@ -27,6 +27,8 @@ class TNodeDirectory;
 
 } // namespace NProto
 
+////////////////////////////////////////////////////////////////////////////////
+
 YT_DEFINE_ERROR_ENUM(
     ((NoSuchNode)        (1600))
     ((InvalidState)      (1601))
@@ -41,9 +43,22 @@ DEFINE_ENUM(EAddressType,
     ((MonitoringHttp) (2))
 );
 
+////////////////////////////////////////////////////////////////////////////////
+
 YT_DEFINE_STRONG_TYPEDEF(TNodeId, ui32);
-constexpr TNodeId InvalidNodeId = TNodeId(0);
+// Node ids of physical nodes are in the range [1, MaxRealNodeId].
+constexpr TNodeId MaxRealNodeId = TNodeId((1 << 24) - 128 - 1); // Leave some room for sentinels.
 constexpr TNodeId MaxNodeId = TNodeId((1 << 24) - 1); // TNodeId must fit into 24 bits (see TChunkReplica)
+
+// Sentinels.
+constexpr TNodeId InvalidNodeId = TNodeId(0);
+constexpr TNodeId OffshoreNodeId = TNodeId((1 << 24) - 1);
+
+//! Validates that the node id is in the range [0 = InvalidNodeId, MaxNodeId].
+//! Used for sanity checks when communicating with physical cluster nodes.
+void ValidateFeasibleRealNodeId(TNodeId nodeId);
+
+////////////////////////////////////////////////////////////////////////////////
 
 using THostId = NObjectClient::TObjectId;
 using TRackId = NObjectClient::TObjectId;

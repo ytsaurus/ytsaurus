@@ -335,6 +335,7 @@ class TestOperations(object):
             .begin_task("foo")\
                 .command(foo)\
                 .job_count(1)\
+                .copy_files
             .end_task() # noqa
 
         op = yt.run_operation(vanilla_spec)
