@@ -12,7 +12,7 @@ from .common import build_versions, add_common_dashboard_parameters
 from yt_dashboard_generator.dashboard import Dashboard, Rowset
 from yt_dashboard_generator.specific_tags.tags import TemplateTag
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr, PlainMonitoringExpr
-from yt_dashboard_generator.backends.monitoring import MonitoringTextDashboardParameter
+from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter
 from yt_dashboard_generator.sensor import MultiSensor, EmptyCell
 
 from textwrap import dedent
@@ -301,14 +301,7 @@ def build_epoch_timings():
             .apply_func(GENERATOR.add_epoch_parts_time_cell)
             .apply_func(GENERATOR.add_epoch_duration_max_time_cell)
             .apply_func(GENERATOR.add_epoch_count_total_cell)
-            .cell(
-                "Computation list (copy id from here)",
-                MonitoringExpr(FlowController("yt.flow.controller.partition_count"))
-                    .aggr("state")
-                    .all("computation_id")
-                    .query_transformation("sign({query})")
-                    .stack(True)
-                    .unit("UNIT_COUNT"))
+            .cell("", EmptyCell())
     )
 
 
@@ -323,7 +316,7 @@ def build_flow_computation():
 
     d.set_title("[YT Flow] Pipeline computation")
     add_common_dashboard_parameters(d)
-    d.add_parameter("computation_id", "Computation (only for some graphs)", MonitoringTextDashboardParameter(default_value="-"))
+    d.add_parameter("computation_id", "Computation (only for some graphs)", MonitoringLabelDashboardParameter("", "computation_id", "-"))
 
     return (d
         .value("project", TemplateTag("project"))

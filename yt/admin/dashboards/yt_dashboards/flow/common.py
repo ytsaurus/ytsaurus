@@ -7,7 +7,11 @@
 
 from ..common.sensors import FlowController, FlowWorker
 
-from yt_dashboard_generator.backends.monitoring import MonitoringTextDashboardParameter
+from yt_dashboard_generator.backends.monitoring import (
+    MonitoringProjectDashboardParameter,
+    MonitoringLabelDashboardParameter,
+    MonitoringTextDashboardParameter,
+)
 from yt_dashboard_generator.backends.monitoring.sensors import MonitoringExpr
 from yt_dashboard_generator.dashboard import Rowset
 from yt_dashboard_generator.sensor import EmptyCell, MultiSensor, Text
@@ -208,7 +212,11 @@ def build_text_row(text: str):
 
 
 def add_common_dashboard_parameters(dashboard):
-    dashboard.add_parameter("project", "Pipeline project", MonitoringTextDashboardParameter())
-    dashboard.add_parameter("cluster", "Cluster", MonitoringTextDashboardParameter())
+    dashboard.add_parameter("project", "Pipeline project", MonitoringProjectDashboardParameter())
+    dashboard.add_parameter(
+        "cluster",
+        "Cluster",
+        MonitoringLabelDashboardParameter("", "cluster", "-", selectors='{sensor="yt.build.version"}'),
+    )
     dashboard.add_parameter("proxy", "YT proxy", MonitoringTextDashboardParameter(default_value="-"))
     dashboard.add_parameter("pipeline_path", "Pipeline path", MonitoringTextDashboardParameter(default_value="-"))
