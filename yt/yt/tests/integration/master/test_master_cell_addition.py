@@ -127,7 +127,8 @@ class TestMasterCellsMultipleAdditions(MasterCellAdditionBase):
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000,
+            "update_period": 500,
+            "init_retry_period": 500,
         },
     }
 
@@ -320,7 +321,8 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000,
+            "update_period": 500,
+            "init_retry_period": 500,
         },
     }
 
@@ -397,7 +399,7 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         set("//sys/@config/multicell_manager/cell_descriptors", {"13": {"roles": ["cypress_node_host", "chunk_host"]}})
 
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
-        write_table("//tmp/t", [{"a" : "b"}])
+        wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"a" : "b"}])))
         assert read_table("//tmp/t") == [{"a" : "b"}]
 
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 13})
@@ -437,7 +439,8 @@ class TestMasterCellDynamicPropagationDuringMultiflavorNodeRegistration(MasterCe
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000,
+            "update_period": 500,
+            "init_retry_period": 500,
         },
     }
 
