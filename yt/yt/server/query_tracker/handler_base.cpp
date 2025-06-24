@@ -196,6 +196,7 @@ std::pair<ITransactionPtr, TActiveQuery> TQueryHandlerBase::StartIncarnationTran
         *idMapping.Incarnation,
         *idMapping.StartTime,
         *idMapping.State,
+        *idMapping.Annotations,
     };
     options.KeepMissingRows = true;
     TActiveQueryKey key{.QueryId = QueryId_};
@@ -269,6 +270,12 @@ void TQueryHandlerBase::OnQueryStarted()
         }
         TDelayedExecutor::WaitForDuration(Config_->QueryStateWriteBackoff);
     }
+}
+
+void TQueryHandlerBase::OnQueryStarted(std::optional<std::string> assignedEngine)
+{
+    AssignedEngine_ = assignedEngine;
+    OnQueryStarted();
 }
 
 void TQueryHandlerBase::OnQueryThrottled()
@@ -401,6 +408,10 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
             if (state == EQueryState::Running) {
                 newRecord.ExecutionStartTime = now;
             }
+            if (AssignedEngine_.has_value()) {
+                newRecord.Annotations = SetYsonAttr(record.Annotations, "assigned_engine", ConvertToYsonString(AssignedEngine_.value()));
+                AssignedEngine_.reset();
+            }
 
             std::vector newRows = {
                 newRecord.ToUnversionedRow(rowBuffer, TActiveQueryDescriptor::Get()->GetIdMapping()),
@@ -466,6 +477,14 @@ bool TQueryHandlerBase::TryWriteQueryState(EQueryState state, EQueryState previo
         YT_LOG_ERROR(ex, "Failed to write query state, backing off");
         return false;
     }
+}
+
+TYsonString TQueryHandlerBase::SetYsonAttr(TYsonString to, TString key, TYsonString value)
+{
+    auto map = ConvertToNode(to)->AsMap();
+    map->RemoveChild(key);
+    map->AddChild(key, ConvertToNode(value));
+    return ConvertToYsonString(map);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -216,7 +216,7 @@ private:
             StartProgressWriter();
         }
 
-        OnQueryStarted();
+        OnQueryStarted(yqlServiceChannel->GetEndpointDescription());
     }
 
     void GetProgress()
