@@ -842,10 +842,6 @@ class YTEnvSetup(object):
             if ("master" in components or "cypress_proxy" in components) and version in ("23_2", "24_1", "24_2", "25_1"):
                 return False
 
-            # COMPAT(h0pless): Disabling all Cypress proxies in compat tests. Remove this after trunk_vs_25_2 binaries are updated.
-            if len(cls.ARTIFACT_COMPONENTS.items()) != 0:
-                return False
-
         return True
 
     @classmethod
