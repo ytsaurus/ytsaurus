@@ -1766,8 +1766,14 @@ public:
 
         const auto& request = context->Request();
         auto mutationId = context->GetMutationId();
-
         auto transactionId = FromProto<TTransactionId>(request.transaction_id());
+
+        if (!(IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) &&
+            TryReplyFromResponseKeeper(context.Get()))
+        {
+            return;
+        }
+
         auto* transaction = GetTransactionOrThrow(transactionId);
 
         YT_VERIFY(transaction->GetIsCypressTransaction());
@@ -1835,13 +1841,8 @@ public:
             return false;
         }
 
-        auto mutationId = context->GetMutationId();
-        if (mutationId) {
-            const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-            if (auto result = responseKeeper->FindRequest(mutationId, context->IsRetry())) {
-                context->ReplyFrom(std::move(result));
-                return true;
-            }
+        if (TryReplyFromResponseKeeper(context.Get())) {
+            return true;
         }
 
         auto participantCellIds = FromProto<std::vector<TCellId>>(request.participant_cell_ids());
@@ -1880,7 +1881,7 @@ public:
             responseFuture = DoCommitTransaction(
                 transactionId,
                 prerequisiteTransactionIds,
-                mutationId,
+                context->GetMutationId(),
                 context->IsRetry(),
                 /*prepareError*/ {});
         } else {
@@ -1890,7 +1891,7 @@ public:
                     MakeStrong(this),
                     transactionId,
                     prerequisiteTransactionIds,
-                    mutationId,
+                    context->GetMutationId(),
                     context->IsRetry())
                     .AsyncVia(EpochAutomatonInvoker_));
         }
@@ -1974,6 +1975,12 @@ public:
         auto force = rpcRequest.force();
         auto authenticationIdentity = context->GetAuthenticationIdentity();
 
+        if (!(IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) &&
+            TryReplyFromResponseKeeper(context.Get()))
+        {
+            return;
+        }
+
         if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
             context->ReplyFrom(
                 RevokeTransactionLeases(transactionId)
@@ -1993,6 +2000,7 @@ public:
             NRpc::GetCurrentAuthenticationIdentity());
 
         auto mutation = CreateMutation(HydraManager_, request);
+        mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
         context->ReplyFrom(DoAbortTransaction(
             std::move(mutation),
             transaction,
@@ -2014,13 +2022,8 @@ public:
             return false;
         }
 
-        auto mutationId = context->GetMutationId();
-        if (mutationId) {
-            const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
-            if (auto result = responseKeeper->FindRequest(mutationId, context->IsRetry())) {
-                context->ReplyFrom(std::move(result));
-                return true;
-            }
+        if (TryReplyFromResponseKeeper(context.Get())) {
+            return true;
         }
 
         NProto::TReqAbortCypressTransaction req;
@@ -2029,7 +2032,7 @@ public:
         WriteAuthenticationIdentityToProto(&req, NRpc::GetCurrentAuthenticationIdentity());
 
         auto mutation = CreateMutation(HydraManager_, req);
-        mutation->SetMutationId(mutationId, context->IsRetry());
+        mutation->SetMutationId(context->GetMutationId(), context->IsRetry());
         mutation->SetCurrentTraceContext();
 
         context->ReplyFrom(DoAbortTransaction(
@@ -3673,6 +3676,19 @@ private:
                 commit ? "Commit" : "Abort")
                 << TErrorAttribute("transaction_id", transactionId);
         }
+    }
+
+    bool TryReplyFromResponseKeeper(NRpc::TServiceContextWrapper* context)
+    {
+        if (auto mutationId = context->GetMutationId()) {
+            const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+            if (auto result = responseKeeper->FindRequest(mutationId, context->IsRetry())) {
+                context->ReplyFrom(std::move(result));
+                return true;
+            }
+        }
+
+        return false;
     }
 };
 

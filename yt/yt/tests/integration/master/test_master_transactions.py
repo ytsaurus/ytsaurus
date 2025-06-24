@@ -1,13 +1,13 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove, exists, create_user,
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, read_table)
+    raises_yt_error, read_table, generate_uuid)
 
-from yt_sequoia_helpers import select_cypress_transaction_replicas
+from yt_sequoia_helpers import select_cypress_transaction_replicas, not_implemented_for_mirrored_tx
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import datetime_to_string, YtError
@@ -639,6 +639,21 @@ class TestMasterTransactions(YTEnvSetup):
             get("#a-b-c-d")
         with pytest.raises(YtError):
             get("#a-b-c-d/@")
+
+    @authors("kvk1920")
+    # Cypress and Sequoia use different response keepers.
+    # TODO(kvk1920): use Sequoia RK for mirrored transactions.
+    @not_implemented_for_mirrored_tx
+    # RPC driver doesn't support setting request's mutation ID.
+    @skip_if_rpc_driver_backend
+    def test_response_keeper(self):
+        tx = start_transaction()
+        mutation_id = generate_uuid()
+        rsp1 = commit_transaction(tx, mutation_id=mutation_id)
+        with raises_yt_error("Duplicate request is not marked"):
+            commit_transaction(tx, mutation_id=mutation_id)
+        rsp2 = commit_transaction(tx, mutation_id=mutation_id, retry=True)
+        assert rsp1 == rsp2
 
 
 @pytest.mark.enabled_multidaemon
