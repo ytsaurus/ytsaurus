@@ -197,6 +197,8 @@ private:
     THashMap<TGlobalGroupTag, TInstant> GroupPreviousIterationStartTime_;
     mutable THashMap<TGlobalGroupTag, THashMap<EBalancingMode, TEventTimer>> IterationProfilingTimers_;
 
+    NProfiling::TCounter CancelledIterationDueToUnhealthyState_;
+    THashMap<std::string, NProfiling::TCounter> CancelledBundleIterationDueToUnhealthyState_;
     NProfiling::TCounter PickPivotFailures_;
     THashMap<TGlobalGroupTag, TTableParameterizedMetricTrackerPtr> GroupToParameterizedMetricTracker_;
 
@@ -273,6 +275,7 @@ private:
         TGlobalGroupTag groupTag);
 
     TTableParameterizedMetricTrackerPtr GetParameterizedMetricTracker(const TGlobalGroupTag& groupTag);
+    void UpdateCancelledBundleIterationCounter(const std::string& bundleName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -300,6 +303,7 @@ TTabletBalancer::TTabletBalancer(
         Config_->ParameterizedTimeoutOnStart,
         Config_->ParameterizedTimeout)
     , IterationIndex_(0)
+    , CancelledIterationDueToUnhealthyState_(TabletBalancerProfiler().WithSparse().Counter("/iteration_cancellations"))
     , PickPivotFailures_(TabletBalancerProfiler().WithSparse().Counter("/pick_pivot_failures"))
 {
     ActionManager_ = CreateActionManager(
@@ -393,6 +397,7 @@ void TTabletBalancer::BalancerIteration()
 
     if (!AreBundlesHealthy(dynamicConfig->ClustersForBundleHealthCheck, dynamicConfig->MaxUnhealthyBundlesOnReplicaCluster)) {
         YT_LOG_INFO("Skipping balancer iteration because many unhealthy bundles have been found");
+        CancelledIterationDueToUnhealthyState_.Increment(1);
         ++IterationIndex_;
         return;
     }
@@ -495,6 +500,7 @@ void TTabletBalancer::BalancerIteration()
                 "name is unhealthy on a replica cluster (BundleName: %v)",
                 bundleName);
             ActionManager_->CancelPendingActions(bundleName);
+            UpdateCancelledBundleIterationCounter(bundleName);
             continue;
         }
 
@@ -1514,6 +1520,24 @@ TEventTimer& TTabletBalancer::GetProfilingTimer(const TGlobalGroupTag& groupTag,
         .WithTag("group", groupTag.second)
         .WithTag("type", ToString(type))
         .Timer("/group_iteration_time"))->second;
+}
+
+void TTabletBalancer::UpdateCancelledBundleIterationCounter(const std::string& bundleName)
+{
+    auto it = CancelledBundleIterationDueToUnhealthyState_.find(bundleName);
+    if (it != CancelledBundleIterationDueToUnhealthyState_.end()) {
+        it->second.Increment(1);
+        return;
+    }
+
+    auto newCounter = EmplaceOrCrash(
+        CancelledBundleIterationDueToUnhealthyState_,
+        bundleName,
+        TabletBalancerProfiler()
+            .WithSparse()
+            .WithTag("bundle", bundleName)
+            .Counter("/bundle_iteration_cancellations"));
+    newCounter->second.Increment(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
