@@ -51,7 +51,6 @@ public:
         // TODO(nadya02): Set the correct timeout here.
         proxy.SetDefaultTimeout(Options_.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
-
         const auto& path = GetRequestTargetYPath(context->RequestHeader());
         const auto& method = context->GetMethod();
 
