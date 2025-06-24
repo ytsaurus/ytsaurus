@@ -2348,6 +2348,7 @@ class TestEphemeralPools(YTEnvSetup):
         op = run_sleeping_vanilla(spec={"pool": "inexistent"})
         wait(lambda: exists(scheduler_orchid_pool_path("inexistent")))
 
+        op.wait_for_state("running")
         update_op_parameters(op.id, parameters={
             "scheduling_options_per_pool_tree": {
                 "default": {"pool": "ephemeral_hub"}
