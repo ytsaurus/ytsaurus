@@ -709,7 +709,8 @@ class MasterCellAdditionChaosMultiClusterBaseChecks(MasterCellAdditionBase):
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000,
+            "update_period": 500,
+            "init_retry_period": 500,
         },
     }
 
