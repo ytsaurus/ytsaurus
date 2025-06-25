@@ -35,10 +35,9 @@ jobs:
                   --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
                   --workflow "${{github.workflow}}" \
                   --ref "${{github.ref_name}}" \
-                  --ref-type "${{github.ref_type}}" \
                   --tg-token "${{ secrets.TELEGRAM_TOKEN }}" \
                   --tg-chat-id ${{ secrets.TELEGRAM_CHAT_ID }} \
                   --current-job-conclusion ${{ inputs.current_job_conclusion }} \
                   --current-job-id ${{github.run_id}} \
                   --commit-message "${{ github.event.head_commit.message }}" \
-                  --git-server-url "${{ github.server_url }}"
+                  --git-server-url "${{ github.github_api_url }}"

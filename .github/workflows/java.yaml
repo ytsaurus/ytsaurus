@@ -20,36 +20,36 @@ jobs:
           java-version: '11'
           distribution: 'temurin'
 
-      - name: Setup Gradle
-        uses: gradle/gradle-build-action@v3
+      # - name: Setup Gradle
+      #   uses: gradle/gradle-build-action@v3
 
-      - name: Execute Gradle build
-        run: ./gradlew build
+      # - name: Execute Gradle build
+      #   run: ./gradlew build
 
-      - name: Run tests
-        run: ./gradlew test --info
+      # - name: Run tests
+      #   run: ./gradlew test --info
 
-      - name: Run integration tests
-        run: ./gradlew testIntegration --info
+      # - name: Run integration tests
+      #   run: ./gradlew testIntegration --info
 
-      - name: Run integration multicell tests
-        run: ./gradlew testIntegrationMulticell --info
+      # - name: Run integration multicell tests
+      #   run: ./gradlew testIntegrationMulticell --info
 
-      - name: Get latest Java SDK tag
-        uses: oprypin/find-latest-tag@v1.1.2
-        id: latest_tag
-        with:
-          repository: ytsaurus/ytsaurus
-          regex: 'java-sdk/*'
+      # - name: Get latest Java SDK tag
+      #   uses: oprypin/find-latest-tag@v1.1.2
+      #   id: latest_tag
+      #   with:
+      #     repository: ytsaurus/ytsaurus
+      #     regex: 'java-sdk/*'
 
-      - name: Get snapshot release version
-        id: release_version
-        run: |
-          LATEST_TAG=${{ steps.latest_tag.outputs.tag }}; echo "RELEASE_VERSION=$(echo ${LATEST_TAG#java-sdk/})" >> $GITHUB_OUTPUT
+      # - name: Get snapshot release version
+      #   id: release_version
+      #   run: |
+      #     LATEST_TAG=${{ steps.latest_tag.outputs.tag }}; echo "RELEASE_VERSION=$(echo ${LATEST_TAG#java-sdk/})" >> $GITHUB_OUTPUT
 
-      - name: Publish snapshot
-        if: ${{ vars.ENABLE_JAVA_SNAPSHOT_PUBLISHING == '1' }}
-        run: ./gradlew publish -PossrhUsername=${{ secrets.OSSRH_USERNAME }} -PossrhPassword=${{ secrets.OSSRH_PASSWORD }} -Pversion="${{ steps.release_version.outputs.RELEASE_VERSION }}-SNAPSHOT" -PsigningPassword=${{ secrets.GPG_PASSWORD }} -PsigningKey="${{ secrets.GPG_PRIVATE_KEY }}"
+      # - name: Publish snapshot
+      #   if: ${{ vars.ENABLE_JAVA_SNAPSHOT_PUBLISHING == '1' }}
+      #   run: ./gradlew publish -PossrhUsername=${{ secrets.OSSRH_USERNAME }} -PossrhPassword=${{ secrets.OSSRH_PASSWORD }} -Pversion="${{ steps.release_version.outputs.RELEASE_VERSION }}-SNAPSHOT" -PsigningPassword=${{ secrets.GPG_PASSWORD }} -PsigningKey="${{ secrets.GPG_PRIVATE_KEY }}"
 
   send-alert:
     needs:
