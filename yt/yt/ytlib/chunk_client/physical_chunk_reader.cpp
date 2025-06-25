@@ -49,7 +49,13 @@ IChunkReaderPtr CreatePhysicalChunkReader(
                     break;
                 }
             }
-            return CreateS3Reader(s3MediumDescriptor, config, chunkId, s3Key);
+            return CreateS3Reader(
+                s3MediumDescriptor, config, chunkId,
+                chunkSpec.has_chunk_meta()
+                    ? NYT::FromProto<EChunkFormat>(chunkSpec.chunk_meta().format())
+                    : EChunkFormat::TableUnversionedArrowParquet,
+                s3Key
+            );
         }
 
         THROW_ERROR_EXCEPTION("The medium %Qv is not supported for reading data", mediumDescriptor->GetName())

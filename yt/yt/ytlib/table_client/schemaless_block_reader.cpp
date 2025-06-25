@@ -550,7 +550,7 @@ TArrowHorizontalBlockReader::TArrowHorizontalBlockReader(
         Block_,
         DataBlockMeta_,
         ChunkMeta_,
-        EChunkFormat::TableUnversionedArrowParquet);
+        ChunkMeta_->GetChunkFormat());
 
     arrow::TableBatchReader batchReader(*table);
 

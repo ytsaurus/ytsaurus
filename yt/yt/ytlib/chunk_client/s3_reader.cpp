@@ -40,11 +40,13 @@ public:
         TS3MediumDescriptorPtr mediumDescriptor,
         TS3ReaderConfigPtr config,
         TChunkId chunkId,
+        EChunkFormat chunkFormat,
         std::string_view objectKey)
         : MediumDescriptor_(std::move(mediumDescriptor))
         , Client_(MediumDescriptor_->GetClient())
         , Config_(std::move(config))
         , ChunkId_(std::move(chunkId))
+        , ChunkFormat_(chunkFormat)
         , ChunkPlacement_(MediumDescriptor_->GetChunkPlacement(ChunkId_, objectKey))
         , ChunkMetaPlacement_(MediumDescriptor_->GetChunkMetaPlacement(ChunkId_, objectKey))
         // TODO(achulkov2): [PDuringReview] Format S3 paths in such a way that they can be passed to S3 clients (e.g. with bucket).
@@ -101,6 +103,7 @@ private:
     const NS3::IClientPtr Client_;
     const TS3ReaderConfigPtr Config_;
     const TChunkId ChunkId_;
+    const EChunkFormat ChunkFormat_;
     const TS3MediumDescriptor::TS3ObjectPlacement ChunkPlacement_;
     const TS3MediumDescriptor::TS3ObjectPlacement ChunkMetaPlacement_;
     const TChunkLayoutReaderPtr ChunkLayoutReader_;
@@ -191,7 +194,9 @@ private:
     {
         // TODO(achulkov2): Here we somehow need to know whether to read meta from meta file or generate it from chunk file.
 
-        return GenerateMetaFromChunkFile(EChunkFormat::TableUnversionedArrowParquet);
+        return ChunkFormat_ == EChunkFormat::TableUnversionedSchemalessHorizontal
+            ? FetchMetaFromMetaFile()
+            : GenerateMetaFromChunkFile(ChunkFormat_);
     }
 
     TRefCountedChunkMetaPtr CacheChunkMeta(const TRefCountedChunkMetaPtr& chunkMeta)
@@ -240,6 +245,7 @@ IChunkReaderPtr CreateS3Reader(
     TS3MediumDescriptorPtr mediumDescriptor,
     TS3ReaderConfigPtr config,
     TChunkId chunkId,
+    EChunkFormat chunkFormat,
     std::string_view objectKey)
 {
     YT_VERIFY(IsRegularChunkId(chunkId));
@@ -253,6 +259,7 @@ IChunkReaderPtr CreateS3Reader(
         std::move(mediumDescriptor),
         std::move(config),
         std::move(chunkId),
+        chunkFormat,
         objectKey);
 }
 

@@ -12,6 +12,7 @@ IChunkReaderPtr CreateS3Reader(
     TS3MediumDescriptorPtr mediumDescriptor,
     TS3ReaderConfigPtr config,
     TChunkId chunkId,
+    EChunkFormat chunkFormat,
     std::string_view objectKey);
 
 IChunkReaderPtr TryCreateS3ReaderThrottlingAdapter(

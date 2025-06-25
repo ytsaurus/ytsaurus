@@ -740,10 +740,13 @@ class TestS3Medium(YTEnvSetup):
         modified_data = [{"num": i - 1, "str": f"{i + 1}"} for i in range(row_count)]
 
         write_table("//tmp/t", data)
+        map(
+            command="cat",
+            in_="//tmp/t",
+            out="//tmp/out",
+            spec={"max_failed_job_count": 1})
 
-        chunk_id = get_singular_chunk_id("//tmp/t")
         bucket = self.S3_MEDIA[0]["bucket"]
-        chunk_path = self.get_chunk_path(chunk_id)
 
         columns = {
             key: [row[key] for row in modified_data]
@@ -755,20 +758,6 @@ class TestS3Medium(YTEnvSetup):
         # TODO(achulkov2): Test with row groups of different sizes.
         buffer = BytesIO()
         pq.write_table(table, buffer, row_group_size=row_count // row_group_count)
-
-        # Overwrite chunk data in S3 with parquet file.
-        buffer.seek(0)
-        self.S3_CLIENT.put_object(Bucket=bucket, Key=chunk_path, Body=buffer)
-
-        # Much wow.
-        assert read_table("//tmp/t[#28:#36]") == modified_data[28:36]
-        # assert read_table("//tmp/t") == modified_data
-        map(
-            command="cat",
-            in_="//tmp/t",
-            out="//tmp/out",
-            spec={"max_failed_job_count": 1})
-
         buffer.seek(0)
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=buffer)
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})

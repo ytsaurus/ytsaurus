@@ -626,7 +626,7 @@ void THorizontalSchemalessChunkReaderBase::InitBlockReader()
     // TODO(achulkov2): This is a hack, dispatch properly by chunk format here, once proper chunk formats are used.
     auto replicasByType = GetReplicasByType(GetReplicasFromChunkSpec(ChunkSpec_));
 
-    if (!replicasByType.DomesticReplicas.empty()) {
+    if (!replicasByType.DomesticReplicas.empty() || ChunkMeta_->GetChunkFormat() == EChunkFormat::TableUnversionedSchemalessHorizontal) {
         YT_LOG_DEBUG("Initializing regular horizontal block reader (BlockIndex: %v, ChunkFormat: %lv)", blockIndex, ChunkMeta_->GetChunkFormat());
         BlockReader_.reset(new THorizontalBlockReader(
             CurrentBlock_.Get().ValueOrThrow().Data,
