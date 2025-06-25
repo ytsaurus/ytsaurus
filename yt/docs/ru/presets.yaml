@@ -15,6 +15,7 @@ public:
     yt-docs-root: https://ytsaurus.tech/docs/ru
     cluster-ui: https://<host-root>/<cluster-name>
     community-tg: https://t.me/ytsaurus_ru
+    python-lib-qt: SystemPython3_8
 
     yql:
         udf-cpp-dir: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs

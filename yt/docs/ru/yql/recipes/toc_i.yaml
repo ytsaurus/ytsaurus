@@ -3,6 +3,8 @@ items:
     href: udaf.md
   - name: Метапрограммирование
     href: metaprogramming.md
+  - name: Кодогенерация
+    href: codegen.md
   - name: Доступ к JSON
     href: accessing-json.md
   - name: Модификация JSON

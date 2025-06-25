@@ -10,7 +10,7 @@ items:
     include: { mode: link, path: builtins/toc_i.yaml }
   - name: Пользовательские функции (UDF)
     include: { mode: link, path: udf/toc_i.yaml }
-  - name: Инструкции
+  - name: Рецепты
     include: { mode: link, path: recipes/toc_i.yaml }
   - name: Отличия от других систем
     include: { mode: link, path: differences_from/toc_i.yaml }
