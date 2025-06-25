@@ -280,7 +280,7 @@ private:
     TExpressionPtr Having_ = nullptr;
     THashMap<TString, TExpressionPtr> JoinPredicates_;
 
-    TExpressionPtr FilterExpression_;
+    TExpressionPtr FilterExpression_ = nullptr;
 
     TFilterType GetExpressionFilterTypeHint(
         TExpressionPtr expression,
