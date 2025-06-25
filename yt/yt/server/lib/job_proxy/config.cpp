@@ -107,6 +107,20 @@ void TBindConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TContainerGpuConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("nvidia_driver_capabilities", &TThis::NvidiaDriverCapabilities)
+        .Default();
+
+    registrar.Parameter("nvidia_visible_devices", &TThis::NvidiaVisibleDevices)
+        .Default();
+
+    registrar.Parameter("infiniband_devices", &TThis::InfinibandDevices)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobTraceEventProcessorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("reporter", &TThis::Reporter)
@@ -211,6 +225,8 @@ void TCriJobEnvironmentConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("pod_spec", &TThis::PodSpec)
         .DefaultNew();
+    registrar.Parameter("gpu_config", &TThis::GpuConfig)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

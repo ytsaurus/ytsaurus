@@ -1335,6 +1335,8 @@ struct TSidecarJobSpec
     std::optional<double> CpuLimit;
     std::optional<i64> MemoryLimit;
 
+    //! If this field is unset, the system will try to use the DockerImage of
+    //! the main job.
     std::optional<TString> DockerImage;
 
     //! +-------------------+---------------------+---------------------+

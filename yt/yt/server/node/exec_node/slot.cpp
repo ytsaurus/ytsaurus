@@ -166,7 +166,7 @@ public:
                 }
 
                 // Enrich the configuration with the environment-specific parameters.
-                JobEnvironment_->EnrichJobEnvironmentConfig(SlotIndex_, config->JobEnvironment);
+                JobEnvironment_->EnrichJobEnvironmentConfig(SlotIndex_, config);
 
                 YT_LOG_DEBUG("Start making job proxy config (JobId: %v)", jobId);
 

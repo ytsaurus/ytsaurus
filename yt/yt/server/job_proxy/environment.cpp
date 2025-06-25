@@ -1331,6 +1331,32 @@ public:
             containerSpec->Credentials.Uid = ::getuid();
             containerSpec->Credentials.Gid = ::getgid();
 
+            // More or less the same logic as in spawning of the job proxy, but it may change
+            // pretty drastically when we get to the actual resource management implementation step.
+            if (CriJobEnvironmentConfig_->GpuConfig) {
+                auto gpuContainerConfig = *CriJobEnvironmentConfig_->GpuConfig;
+                containerSpec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = gpuContainerConfig->NvidiaDriverCapabilities;
+                containerSpec->Environment["NVIDIA_VISIBLE_DEVICES"] = gpuContainerConfig->NvidiaVisibleDevices;
+
+                for (const auto& devicePath : gpuContainerConfig->InfinibandDevices) {
+                    containerSpec->BindDevices.push_back(NCri::TCriBindDevice{
+                        .ContainerPath = devicePath,
+                        .HostPath = devicePath,
+                        .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
+                    });
+                }
+
+                if (!gpuContainerConfig->InfinibandDevices.empty()) {
+                    YT_LOG_DEBUG(
+                        "Binding InfiniBand devices to sidecar container (Devices: %v)",
+                        gpuContainerConfig->InfinibandDevices);
+
+                    // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
+                    // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
+                    containerSpec->CapabilitiesToAdd.push_back("IPC_LOCK");
+                }
+            }
+
             std::vector<TString> commandSplit;
             StringSplitter(sidecarSpec->Command).Split(' ').Collect(&commandSplit);
             auto command = commandSplit[0];

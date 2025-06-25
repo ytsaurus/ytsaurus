@@ -197,7 +197,7 @@ public:
         return 0;
     }
 
-    void EnrichJobEnvironmentConfig(int /*slotIndex*/, TJobEnvironmentConfig& /*jobEnvironment*/) const override
+    void EnrichJobEnvironmentConfig(int /*slotIndex*/, NJobProxy::TJobProxyInternalConfigPtr& /*jobProxyConfig*/) const override
     { }
 
     TFuture<std::vector<TShellCommandOutput>> RunCommands(
@@ -973,7 +973,7 @@ private:
         return SelfInstance_->GetMajorPageFaultCount();
     }
 
-    void EnrichJobEnvironmentConfig(int /*slotIndex*/, TJobEnvironmentConfig& /*jobEnvironment*/) const override
+    void EnrichJobEnvironmentConfig(int /*slotIndex*/, NJobProxy::TJobProxyInternalConfigPtr& /*jobProxyConfig*/) const override
     { }
 
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
@@ -1008,13 +1008,14 @@ public:
         , ImageCache_(CreateCriImageCache(ConcreteConfig_->CriImageCache, Executor_))
     { }
 
-    void EnrichJobEnvironmentConfig(int slotIndex, TJobEnvironmentConfig& jobEnvironment) const override
+    void EnrichJobEnvironmentConfig(int slotIndex, NJobProxy::TJobProxyInternalConfigPtr& jobProxyConfig) const override
     {
-        auto criJobEnv = jobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>();
+        auto criJobEnv = jobProxyConfig->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>();
         YT_VERIFY(criJobEnv);
 
         criJobEnv->PodDescriptor = PodDescriptors_[slotIndex];
         criJobEnv->PodSpec = PodSpecs_[slotIndex];
+        criJobEnv->GpuConfig = GetContainerGpuConfig(jobProxyConfig);
     }
 
     void DoInit(int slotCount, double cpuLimit, double /*idleCpuFraction*/) override
@@ -1218,6 +1219,23 @@ private:
 
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("CriMounter");
 
+    std::optional<TContainerGpuConfigPtr> GetContainerGpuConfig(const NJobProxy::TJobProxyInternalConfigPtr& jobProxyConfig) const
+    {
+        if (!Bootstrap_->GetGpuManager()->HasGpuDevices()) {
+            return std::nullopt;
+        }
+
+        auto config = New<TContainerGpuConfig>();
+        config->NvidiaDriverCapabilities = Bootstrap_
+            ->GetDynamicConfig()
+            ->ExecNode
+            ->GpuManager
+            ->DefaultNvidiaDriverCapabilities;
+        config->NvidiaVisibleDevices = JoinSeq(",", jobProxyConfig->GpuIndexes);
+        config->InfinibandDevices = ListInfinibandDevices();
+        return config;
+    }
+
     TProcessBasePtr CreateJobProxyProcess(
         const TJobProxyInternalConfigPtr& config,
         int slotIndex,
@@ -1261,18 +1279,12 @@ private:
 
         // NB: If nvidia container runtime is used, empty list of devices
         // should be set explicitly to avoid binding all devices to job container.
-        if (Bootstrap_->GetGpuManager()->HasGpuDevices()) {
-            auto nvidiaDriverCapabilities = Bootstrap_
-                ->GetDynamicConfig()
-                ->ExecNode
-                ->GpuManager
-                ->DefaultNvidiaDriverCapabilities;
-            spec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = nvidiaDriverCapabilities;
-            spec->Environment["NVIDIA_VISIBLE_DEVICES"] = JoinSeq(",", config->GpuIndexes);
+        if (auto gpuContainerConfigOpt = GetContainerGpuConfig(config)) {
+            auto gpuContainerConfig = *gpuContainerConfigOpt;
+            spec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = gpuContainerConfig->NvidiaDriverCapabilities;
+            spec->Environment["NVIDIA_VISIBLE_DEVICES"] = gpuContainerConfig->NvidiaVisibleDevices;
 
-            // If there are InfiniBand devices in the system, bind them to the container.
-            auto infinibandDevices = ListInfinibandDevices();
-            for (const auto& devicePath : infinibandDevices) {
+            for (const auto& devicePath : gpuContainerConfig->InfinibandDevices) {
                 spec->BindDevices.push_back(NCri::TCriBindDevice{
                     .ContainerPath = devicePath,
                     .HostPath = devicePath,
@@ -1280,14 +1292,13 @@ private:
                 });
             }
 
-            YT_LOG_DEBUG_UNLESS(
-                infinibandDevices.empty(),
-                "Binding InfiniBand devices to job container (Devices: %v)",
-                infinibandDevices);
+            if (!gpuContainerConfig->InfinibandDevices.empty()) {
+                YT_LOG_DEBUG(
+                    "Binding InfiniBand devices to job container (Devices: %v)",
+                    gpuContainerConfig->InfinibandDevices);
 
-            // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
-            // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
-            if (!infinibandDevices.empty()) {
+                // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
+                // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
                 spec->CapabilitiesToAdd.push_back("IPC_LOCK");
             }
         }

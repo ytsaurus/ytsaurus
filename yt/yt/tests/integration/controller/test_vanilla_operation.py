@@ -2865,6 +2865,39 @@ class TestSidecarVanilla(YTEnvSetup):
         self.ensure_operation_finish(op)
 
     @authors("pavel-bash")
+    def test_fail_no_command(self):
+        """
+        Command parameter for the sidecars is mandatory, so the operation must fail if it's empty.
+        """
+        master_command = " ; ".join(
+            [
+                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().wait_event_cmd("finish"),
+            ]
+        )
+
+        docker_image = self.Env.yt_config.default_docker_image
+        with pytest.raises(YtError):
+            op = vanilla(
+                track=False,
+                spec={
+                    "tasks": {
+                        "master": {
+                            "job_count": 1,
+                            "command": master_command,
+                            "docker_image": docker_image,
+                            "sidecars": {
+                                "sidecar1": {
+                                    "job_count": 1,
+                                    "docker_image": docker_image,
+                                }
+                            }
+                        },
+                    },
+                },
+            )
+
+    @authors("pavel-bash")
     def test_multiple_sidecars(self):
         """
         Check that multiple sidecars can be started with the main job.

@@ -1138,8 +1138,7 @@ void TTaskOutputStreamConfig::Register(TRegistrar registrar)
 
 void TSidecarJobSpec::Register(TRegistrar registrar)
 {
-    registrar.Parameter("command", &TThis::Command)
-        .Default();
+    registrar.Parameter("command", &TThis::Command);
 
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)
         .Optional()
@@ -1154,8 +1153,6 @@ void TSidecarJobSpec::Register(TRegistrar registrar)
 
     registrar.Parameter("restart_policy", &TThis::RestartPolicy)
         .Default(ESidecarRestartPolicy::FailOnError);
-
-    // TODO: add a postprocessor to verify that either DockerImage or Command is specified?
 }
 
 ////////////////////////////////////////////////////////////////////////////////
