@@ -932,7 +932,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     AddJobTypeToJoblet(joblet);
 
-    joblet->JobInterruptible = IsJobInterruptible();
+    joblet->JobInterruptible = IsJobInterruptible() && !(userJobSpec && userJobSpec->CookieGroupSize > 1);
     joblet->Restarted = restarted;
     joblet->NodeDescriptor = context.GetNodeDescriptor();
 
