@@ -53,39 +53,57 @@ public:
                 TDuration::Seconds(5),
                 TDuration::Seconds(10),
             }))
+            , SettlementSucceededCounters_{
+                Profiler_
+                    .WithTag("is_job_first", "false")
+                    .Counter("/settlement_requests_succeeded"),
+                Profiler_
+                    .WithTag("is_job_first", "true")
+                    .Counter("/settlement_requests_succeeded")
+            }
     { }
 
     void OnAllocationFinished(int jobCount, EAllocationFinishReason finishReason)
     {
+        bool isSingleJobAllocation = jobCount == 1;
+
         AllocationJobCounts_.Add(jobCount);
 
-        auto* finishReasonCounter = FinishReasonCounters_.Find(finishReason);
+        auto* finishReasonCounter = FinishReasonCounters_[isSingleJobAllocation].Find(finishReason);
         if (!finishReasonCounter) {
             bool inserted;
-            std::tie(finishReasonCounter, inserted) = FinishReasonCounters_.FindOrEmplace(
+            std::tie(finishReasonCounter, inserted) = FinishReasonCounters_[isSingleJobAllocation].FindOrEmplace(
                 finishReason,
-                Profiler_.Counter(FormatEnum(finishReason)));
+                Profiler_
+                    .WithTag("reason", FormatEnum(finishReason))
+                    .WithTag("is_single_job_allocation", std::string(FormatBool(isSingleJobAllocation)))
+                    .Counter("/finished"));
         }
 
         YT_VERIFY(finishReasonCounter);
         finishReasonCounter->Increment();
     }
 
-    void OnSettleJobFinished(TDuration duration, std::optional<EScheduleFailReason> failReason)
+    void OnSettleJobFinished(TDuration duration, std::optional<EScheduleFailReason> failReason, bool isJobFirst)
     {
         SettleJobDuration_.Record(duration);
 
         if (failReason) {
-            auto* failReasonCounter = ScheduleFailReasonCounters_.Find(*failReason);
+            auto* failReasonCounter = ScheduleFailReasonCounters_[isJobFirst].Find(*failReason);
             if (!failReasonCounter) {
                 bool inserted;
-                std::tie(failReasonCounter, inserted) = ScheduleFailReasonCounters_.FindOrEmplace(
+                std::tie(failReasonCounter, inserted) = ScheduleFailReasonCounters_[isJobFirst].FindOrEmplace(
                     *failReason,
-                    Profiler_.Counter(FormatEnum(*failReason)));
+                    Profiler_
+                        .WithTag("fail_reason", FormatEnum(*failReason))
+                        .WithTag("is_job_first", std::string(FormatBool(isJobFirst)))
+                        .Counter("/settlement_requests_failed"));
             }
 
             YT_VERIFY(failReasonCounter);
             failReasonCounter->Increment();
+        } else {
+            SettlementSucceededCounters_[isJobFirst].Increment();
         }
     }
 
@@ -95,9 +113,11 @@ private:
     TRateHistogram AllocationJobCounts_;
     TEventTimer SettleJobDuration_;
 
-    TSyncMap<EScheduleFailReason, TCounter> ScheduleFailReasonCounters_;
+    std::array<TSyncMap<EScheduleFailReason, TCounter>, 2> ScheduleFailReasonCounters_{};
 
-    TSyncMap<EAllocationFinishReason, TCounter> FinishReasonCounters_;
+    std::array<TCounter, 2> SettlementSucceededCounters_{};
+
+    std::array<TSyncMap<EAllocationFinishReason, TCounter>, 2> FinishReasonCounters_{};
 };
 
 std::optional<TAllocationProfiler> AllocationProfiler;
@@ -260,7 +280,7 @@ void TAllocation::Start()
     // NB(eshcherbin): Do not propagate scheduler heartbeat's trace context to SettleJob.
     NTracing::TNullTraceContextGuard guard;
 
-    SettleJob();
+    SettleJob(/*isJobFirst*/ true);
 }
 
 void TAllocation::Cleanup()
@@ -443,7 +463,7 @@ const TAllocationConfigPtr& TAllocation::GetConfig() const noexcept
     return Bootstrap_->GetJobController()->GetDynamicConfig()->Allocation;
 }
 
-void TAllocation::SettleJob()
+void TAllocation::SettleJob(bool isJobFirst)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -459,12 +479,13 @@ void TAllocation::SettleJob()
     TWallTimer timer;
 
     controllerAgentConnector->SettleJob(OperationId_, Id_, LastJobId_)
-        .SubscribeUnique(BIND(&TAllocation::OnSettledJobReceived, MakeStrong(this), TWallTimer())
+        .SubscribeUnique(BIND(&TAllocation::OnSettledJobReceived, MakeStrong(this), TWallTimer(), isJobFirst)
             .Via(Bootstrap_->GetJobInvoker()));
 }
 
 void TAllocation::OnSettledJobReceived(
     const TWallTimer& timer,
+    bool isJobFirst,
     TErrorOr<TJobStartInfo>&& jobInfoOrError)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -473,13 +494,14 @@ void TAllocation::OnSettledJobReceived(
 
     if (!jobInfoOrError.IsOK()) {
         auto maybeFailReason = FindAttributeRecursive<EScheduleFailReason>(jobInfoOrError, "fail_reason");
-        AllocationProfiler->OnSettleJobFinished(timer.GetElapsedTime(), maybeFailReason);
+        AllocationProfiler->OnSettleJobFinished(timer.GetElapsedTime(), maybeFailReason, isJobFirst);
 
         if (maybeFailReason) {
             YT_LOG_INFO(
                 jobInfoOrError,
-                "Job was not settled in allocation; completing allocation (ScheduleJobFailReason: %v)",
-                *maybeFailReason);
+                "Job was not settled in allocation; completing allocation (ScheduleJobFailReason: %v, IsJobFirst: %v)",
+                *maybeFailReason,
+                isJobFirst);
 
             Complete(EAllocationFinishReason::NoNewJobSettled);
             return;
@@ -497,14 +519,17 @@ void TAllocation::OnSettledJobReceived(
         return;
     }
 
-    AllocationProfiler->OnSettleJobFinished(timer.GetElapsedTime(), std::nullopt);
+    AllocationProfiler->OnSettleJobFinished(timer.GetElapsedTime(), std::nullopt, isJobFirst);
 
     auto& jobInfo = jobInfoOrError.Value();
 
     if (State_ == EAllocationState::Finished) {
         // Job will be aborted by controller agent in this case.
 
-        YT_LOG_INFO("Received settled job for aborted allocation; ignore it (JobId: %v)", jobInfo.JobId);
+        YT_LOG_INFO(
+            "Received settled job for aborted allocation; ignore it (JobId: %v, IsJobFirst: %v)",
+            jobInfo.JobId,
+            isJobFirst);
         return;
     }
 
@@ -832,7 +857,7 @@ void TAllocation::OnJobFinished(TJobPtr job)
                     jobId);
 
                 EvictJob();
-                SettleJob();
+                SettleJob(/*isJobFirst*/ false);
             })
                 .Via(Bootstrap_->GetJobInvoker()));
     } else {
