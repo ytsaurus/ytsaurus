@@ -185,6 +185,8 @@ private:
 
     i64 HeartbeatEpoch_ = 0;
 
+    NChunkClient::TMultiChunkReaderHostPtr MultiChunkReaderHost_;
+
     NYTree::IYPathServicePtr CreateOrchidService();
     void InitializeOrchid();
 
@@ -211,6 +213,8 @@ private:
         const NControllerAgent::NProto::TJobResult& result,
         TInstant startTime,
         TInstant finishTime);
+
+    void InitializeChunkReaderHost();
 
     TStatistics GetEnrichedStatistics() const;
 
@@ -248,7 +252,7 @@ private:
 
     void OnJobMemoryThrashing() override;
 
-    NChunkClient::TMultiChunkReaderHostPtr GetChunkReaderHost() const override;
+    const NChunkClient::TMultiChunkReaderHostPtr& GetChunkReaderHost() const override;
 
     NChunkClient::IBlockCachePtr GetReaderBlockCache() const override;
     NChunkClient::IBlockCachePtr GetWriterBlockCache() const override;

@@ -51,87 +51,67 @@ void TChunkReaderStatistics::RecordPass()
     PassCount.fetch_add(1, std::memory_order::relaxed);
 }
 
+#define ITERATE_CHUNK_READER_STATISTICS_INTEGER_FIELDS(XX) \
+    XX(DataBytesReadFromDisk, data_bytes_read_from_disk) \
+    XX(DataIORequests, data_blocks_read_from_disk) \
+    XX(DataBlocksReadFromDisk, data_io_requests) \
+    XX(DataBytesTransmitted, data_bytes_transmitted) \
+    XX(DataBytesReadFromCache, data_bytes_read_from_cache) \
+    XX(WastedDataBytesReadFromDisk, wasted_data_bytes_read_from_disk) \
+    XX(WastedDataBlocksReadFromDisk, wasted_data_blocks_read_from_disk) \
+    XX(MetaBytesTransmitted, meta_bytes_transmitted) \
+    XX(MetaBytesReadFromDisk, meta_bytes_read_from_disk) \
+    XX(MetaIORequests, meta_io_requests) \
+    XX(OmittedSuspiciousNodeCount, omitted_suspicious_node_count) \
+    XX(P2PActivationCount, p2p_activation_count) \
+    XX(RemoteCpuTime, remote_cpu_time) \
+    XX(DataWaitTime, data_wait_time) \
+    XX(MetaWaitTime, meta_wait_time) \
+    XX(MetaReadFromDiskTime, meta_read_from_disk_time) \
+    XX(PickPeerWaitTime, pick_peer_wait_time) \
+    XX(SessionCount, session_count) \
+    XX(RetryCount, retry_count) \
+    XX(PassCount, pass_count) \
+    XX(BlockCount, block_count) \
+    XX(PrefetchedBlockCount, prefetched_block_count)
+
+
+void TChunkReaderStatistics::AddFrom(const TChunkReaderStatisticsPtr& from)
+{
+    #define XX(fieldName, _protoName) \
+        fieldName.fetch_add(from->fieldName.load(std::memory_order::relaxed), std::memory_order::relaxed);
+    ITERATE_CHUNK_READER_STATISTICS_INTEGER_FIELDS(XX)
+    #undef XX
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const TChunkReaderStatisticsPtr& chunkReaderStatistics)
 {
-    protoChunkReaderStatistics->set_data_bytes_read_from_disk(chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_data_blocks_read_from_disk(chunkReaderStatistics->DataBlocksReadFromDisk.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_data_io_requests(chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_data_bytes_transmitted(chunkReaderStatistics->DataBytesTransmitted.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_data_bytes_read_from_cache(chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_wasted_data_bytes_read_from_disk(chunkReaderStatistics->WastedDataBytesReadFromDisk.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_wasted_data_blocks_read_from_disk(chunkReaderStatistics->WastedDataBlocksReadFromDisk.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_meta_bytes_transmitted(chunkReaderStatistics->MetaBytesTransmitted.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_meta_bytes_read_from_disk(chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_meta_io_requests(chunkReaderStatistics->MetaIORequests.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_omitted_suspicious_node_count(chunkReaderStatistics->OmittedSuspiciousNodeCount.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_p2p_activation_count(chunkReaderStatistics->P2PActivationCount.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_remote_cpu_time(chunkReaderStatistics->RemoteCpuTime.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_data_wait_time(chunkReaderStatistics->DataWaitTime.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_meta_wait_time(chunkReaderStatistics->MetaWaitTime.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_meta_read_from_disk_time(chunkReaderStatistics->MetaReadFromDiskTime.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_pick_peer_wait_time(chunkReaderStatistics->PickPeerWaitTime.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_session_count(chunkReaderStatistics->SessionCount.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_retry_count(chunkReaderStatistics->RetryCount.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_pass_count(chunkReaderStatistics->PassCount.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_block_count(chunkReaderStatistics->BlockCount.load(std::memory_order::relaxed));
-    protoChunkReaderStatistics->set_prefetched_block_count(chunkReaderStatistics->PrefetchedBlockCount.load(std::memory_order::relaxed));
+    #define XX(fieldName, protoName) \
+        protoChunkReaderStatistics->set_ ## protoName(chunkReaderStatistics->fieldName.load(std::memory_order::relaxed));
+    ITERATE_CHUNK_READER_STATISTICS_INTEGER_FIELDS(XX)
+    #undef XX
 }
 
 void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
 {
     auto& chunkReaderStatistics = *chunkReaderStatisticsPtr;
     chunkReaderStatistics = New<TChunkReaderStatistics>();
-    chunkReaderStatistics->DataBytesReadFromDisk.store(protoChunkReaderStatistics.data_bytes_read_from_disk(), std::memory_order::relaxed);
-    chunkReaderStatistics->DataIORequests.store(protoChunkReaderStatistics.data_io_requests(), std::memory_order::relaxed);
-    chunkReaderStatistics->DataBlocksReadFromDisk.store(protoChunkReaderStatistics.data_blocks_read_from_disk(), std::memory_order::relaxed);
-    chunkReaderStatistics->DataBytesTransmitted.store(protoChunkReaderStatistics.data_bytes_transmitted(), std::memory_order::relaxed);
-    chunkReaderStatistics->DataBytesReadFromCache.store(protoChunkReaderStatistics.data_bytes_read_from_cache(), std::memory_order::relaxed);
-    chunkReaderStatistics->WastedDataBytesReadFromDisk.store(protoChunkReaderStatistics.wasted_data_bytes_read_from_disk(), std::memory_order::relaxed);
-    chunkReaderStatistics->WastedDataBlocksReadFromDisk.store(protoChunkReaderStatistics.wasted_data_blocks_read_from_disk(), std::memory_order::relaxed);
-    chunkReaderStatistics->MetaBytesTransmitted.store(protoChunkReaderStatistics.meta_bytes_transmitted(), std::memory_order::relaxed);
-    chunkReaderStatistics->MetaBytesReadFromDisk.store(protoChunkReaderStatistics.meta_bytes_read_from_disk(), std::memory_order::relaxed);
-    chunkReaderStatistics->MetaIORequests.store(protoChunkReaderStatistics.meta_io_requests(), std::memory_order::relaxed);
-    chunkReaderStatistics->OmittedSuspiciousNodeCount.store(protoChunkReaderStatistics.omitted_suspicious_node_count(), std::memory_order::relaxed);
-    chunkReaderStatistics->P2PActivationCount.store(protoChunkReaderStatistics.p2p_activation_count(), std::memory_order::relaxed);
-    chunkReaderStatistics->RemoteCpuTime.store(protoChunkReaderStatistics.remote_cpu_time(), std::memory_order::relaxed);
-    chunkReaderStatistics->DataWaitTime.store(protoChunkReaderStatistics.data_wait_time(), std::memory_order::relaxed);
-    chunkReaderStatistics->MetaWaitTime.store(protoChunkReaderStatistics.meta_wait_time(), std::memory_order::relaxed);
-    chunkReaderStatistics->MetaReadFromDiskTime.store(protoChunkReaderStatistics.meta_read_from_disk_time(), std::memory_order::relaxed);
-    chunkReaderStatistics->PickPeerWaitTime.store(protoChunkReaderStatistics.pick_peer_wait_time(), std::memory_order::relaxed);
-    chunkReaderStatistics->SessionCount.store(protoChunkReaderStatistics.session_count(), std::memory_order::relaxed);
-    chunkReaderStatistics->RetryCount.store(protoChunkReaderStatistics.retry_count(), std::memory_order::relaxed);
-    chunkReaderStatistics->PassCount.store(protoChunkReaderStatistics.pass_count(), std::memory_order::relaxed);
-    chunkReaderStatistics->BlockCount.store(protoChunkReaderStatistics.block_count(), std::memory_order::relaxed);
-    chunkReaderStatistics->PrefetchedBlockCount.store(protoChunkReaderStatistics.prefetched_block_count(), std::memory_order::relaxed);
+    #define XX(fieldName, protoName) \
+        chunkReaderStatistics->fieldName.store(protoChunkReaderStatistics.protoName(), std::memory_order::relaxed);
+    ITERATE_CHUNK_READER_STATISTICS_INTEGER_FIELDS(XX)
+    #undef XX
+
 }
 
 void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
 {
     const auto& chunkReaderStatistics = *chunkReaderStatisticsPtr;
-    chunkReaderStatistics->DataBytesReadFromDisk.fetch_add(protoChunkReaderStatistics.data_bytes_read_from_disk(), std::memory_order::relaxed);
-    chunkReaderStatistics->DataIORequests.fetch_add(protoChunkReaderStatistics.data_io_requests(), std::memory_order::relaxed);
-    chunkReaderStatistics->DataBlocksReadFromDisk.fetch_add(protoChunkReaderStatistics.data_blocks_read_from_disk(), std::memory_order::relaxed);
-    chunkReaderStatistics->DataBytesTransmitted.fetch_add(protoChunkReaderStatistics.data_bytes_transmitted(), std::memory_order::relaxed);
-    chunkReaderStatistics->DataBytesReadFromCache.fetch_add(protoChunkReaderStatistics.data_bytes_read_from_cache(), std::memory_order::relaxed);
-    chunkReaderStatistics->WastedDataBytesReadFromDisk.fetch_add(protoChunkReaderStatistics.wasted_data_bytes_read_from_disk(), std::memory_order::relaxed);
-    chunkReaderStatistics->WastedDataBlocksReadFromDisk.fetch_add(protoChunkReaderStatistics.wasted_data_blocks_read_from_disk(), std::memory_order::relaxed);
-    chunkReaderStatistics->MetaBytesTransmitted.fetch_add(protoChunkReaderStatistics.meta_bytes_transmitted(), std::memory_order::relaxed);
-    chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(protoChunkReaderStatistics.meta_bytes_read_from_disk(), std::memory_order::relaxed);
-    chunkReaderStatistics->MetaIORequests.fetch_add(protoChunkReaderStatistics.meta_io_requests(), std::memory_order::relaxed);
-    chunkReaderStatistics->OmittedSuspiciousNodeCount.fetch_add(protoChunkReaderStatistics.omitted_suspicious_node_count(), std::memory_order::relaxed);
-    chunkReaderStatistics->P2PActivationCount.fetch_add(protoChunkReaderStatistics.p2p_activation_count(), std::memory_order::relaxed);
-    chunkReaderStatistics->RemoteCpuTime.fetch_add(protoChunkReaderStatistics.remote_cpu_time(), std::memory_order::relaxed);
-    chunkReaderStatistics->DataWaitTime.fetch_add(protoChunkReaderStatistics.data_wait_time(), std::memory_order::relaxed);
-    chunkReaderStatistics->MetaWaitTime.fetch_add(protoChunkReaderStatistics.meta_wait_time(), std::memory_order::relaxed);
-    chunkReaderStatistics->MetaReadFromDiskTime.fetch_add(protoChunkReaderStatistics.meta_read_from_disk_time(), std::memory_order::relaxed);
-    chunkReaderStatistics->PickPeerWaitTime.fetch_add(protoChunkReaderStatistics.pick_peer_wait_time(), std::memory_order::relaxed);
-    chunkReaderStatistics->SessionCount.fetch_add(protoChunkReaderStatistics.session_count(), std::memory_order::relaxed);
-    chunkReaderStatistics->RetryCount.fetch_add(protoChunkReaderStatistics.retry_count(), std::memory_order::relaxed);
-    chunkReaderStatistics->PassCount.fetch_add(protoChunkReaderStatistics.pass_count(), std::memory_order::relaxed);
-    chunkReaderStatistics->BlockCount.fetch_add(protoChunkReaderStatistics.block_count(), std::memory_order::relaxed);
-    chunkReaderStatistics->PrefetchedBlockCount.fetch_add(protoChunkReaderStatistics.prefetched_block_count(), std::memory_order::relaxed);
+    #define XX(fieldName, protoName) \
+        chunkReaderStatistics->fieldName.fetch_add(protoChunkReaderStatistics.protoName(), std::memory_order::relaxed);
+    ITERATE_CHUNK_READER_STATISTICS_INTEGER_FIELDS(XX)
+    #undef XX
 }
 
 void DumpChunkReaderStatistics(

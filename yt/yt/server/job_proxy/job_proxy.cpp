@@ -1018,6 +1018,14 @@ TJobResult TJobProxy::RunJob()
             job = CreateBuiltinJob();
         }
 
+        if (GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters_size() > 0) {
+            // NB(coteeq): Do not sync cluster directory if data is local only.
+            auto connection = GetClient()->GetNativeConnection();
+            WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
+                .ThrowOnError();
+        }
+
+        InitializeChunkReaderHost();
         SetJob(job);
         job->Initialize();
 
@@ -1137,6 +1145,68 @@ void TJobProxy::ReportResult(
     YT_LOG_INFO("Job result reported");
 }
 
+void TJobProxy::InitializeChunkReaderHost()
+{
+    auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
+        auto thisLocked = weakThis.Lock();
+        if (!thisLocked) {
+            return IThroughputThrottlerPtr();
+        }
+
+        if (JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()) {
+            return GetInBandwidthThrottler(clusterName);
+        }
+
+        return GetInBandwidthThrottler(LocalClusterName);
+    });
+
+    std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList {
+        {
+            .Name = LocalClusterName,
+            .Client = Client_,
+            .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
+        },
+    };
+    for (const auto& [clusterName, protoRemoteCluster] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
+        auto remoteConnection = Client_
+            ->GetNativeConnection()
+            ->GetClusterDirectory()
+            ->GetConnectionOrThrow(clusterName);
+
+        if (!protoRemoteCluster.networks().empty()) {
+            auto connectionConfig = remoteConnection
+                ->GetCompoundConfig()
+                ->Clone();
+            connectionConfig->Static->Networks = FromProto<NNodeTrackerClient::TNetworkPreferenceList>(
+                protoRemoteCluster.networks());
+            remoteConnection = CreateNativeConnection(std::move(connectionConfig));
+        }
+
+        remoteConnection->GetNodeDirectory()->MergeFrom(protoRemoteCluster.node_directory());
+
+        clusterContextList.emplace_back(
+            TMultiChunkReaderHost::TClusterContext{
+                .Name = TClusterName(clusterName),
+                .Client = remoteConnection->CreateNativeClient(Client_->GetOptions()),
+                .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
+            });
+    }
+
+    MultiChunkReaderHost_ = CreateMultiChunkReaderHost(
+        New<TChunkReaderHost>(
+            Client_,
+            LocalDescriptor_,
+            ReaderBlockCache_,
+            /*chunkMetaCache*/ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
+            bandwidthThrottlerFactory(LocalClusterName),
+            GetOutRpsThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            GetTrafficMeter()),
+        std::move(bandwidthThrottlerFactory),
+        clusterContextList);
+}
+
 TStatistics TJobProxy::GetEnrichedStatistics() const
 {
     TStatistics statistics;
@@ -1158,7 +1228,19 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
             DumpCodecStatistics(extendedStatistics.OutputStatistics[index].CodecStatistics, "/codec/cpu/encode"_SP / ypathIndex, &statistics);
         }
 
-        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.ChunkReaderStatistics);
+        auto totalChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        for (const auto& [clusterName, chunkReaderStatistics] : MultiChunkReaderHost_->GetChunkReaderStatistics()) {
+            if (Config_->EnablePerClusterChunkReaderStatistics) {
+                DumpChunkReaderStatistics(
+                    &statistics,
+                    "/chunk_reader_statistics"_SP / TStatisticPathLiteral(ToStringViaBuilder(clusterName)),
+                    chunkReaderStatistics);
+            }
+            totalChunkReaderStatistics->AddFrom(chunkReaderStatistics);
+        }
+
+        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics"_SP, totalChunkReaderStatistics);
         DumpTimingStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.TimingStatistics);
 
         for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.ChunkWriterStatistics.size()); ++index) {
@@ -1595,64 +1677,9 @@ NApi::NNative::IClientPtr TJobProxy::GetClient() const
     return Client_;
 }
 
-TMultiChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
+const TMultiChunkReaderHostPtr& TJobProxy::GetChunkReaderHost() const
 {
-    auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
-        auto thisLocked = weakThis.Lock();
-        if (!thisLocked) {
-            return IThroughputThrottlerPtr();
-        }
-
-        if (JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()) {
-            return GetInBandwidthThrottler(clusterName);
-        }
-
-        return GetInBandwidthThrottler(LocalClusterName);
-    });
-
-    std::vector<TMultiChunkReaderHost::TClusterOptions> clusterOptionsList {
-        {
-            .Name = LocalClusterName,
-            .Client = Client_,
-        },
-    };
-    for (const auto& [clusterName, protoRemoteCluster] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
-        auto remoteConnection = Client_
-            ->GetNativeConnection()
-            ->GetClusterDirectory()
-            ->GetConnectionOrThrow(clusterName);
-
-        if (!protoRemoteCluster.networks().empty()) {
-            auto connectionConfig = remoteConnection
-                ->GetCompoundConfig()
-                ->Clone();
-            connectionConfig->Static->Networks = FromProto<NNodeTrackerClient::TNetworkPreferenceList>(
-                protoRemoteCluster.networks());
-            remoteConnection = CreateNativeConnection(std::move(connectionConfig));
-        }
-
-        remoteConnection->GetNodeDirectory()->MergeFrom(protoRemoteCluster.node_directory());
-
-        clusterOptionsList.emplace_back(
-            TMultiChunkReaderHost::TClusterOptions{
-                .Name = TClusterName(clusterName),
-                .Client = remoteConnection->CreateNativeClient(Client_->GetOptions()),
-            });
-    }
-
-    return CreateMultiChunkReaderHost(
-        New<TChunkReaderHost>(
-            Client_,
-            LocalDescriptor_,
-            ReaderBlockCache_,
-            /*chunkMetaCache*/ nullptr,
-            /*nodeStatusDirectory*/ nullptr,
-            bandwidthThrottlerFactory(LocalClusterName),
-            GetOutRpsThrottler(),
-            /*mediumThrottler*/ GetUnlimitedThrottler(),
-            GetTrafficMeter()),
-        std::move(bandwidthThrottlerFactory),
-        clusterOptionsList);
+    return MultiChunkReaderHost_;
 }
 
 IBlockCachePtr TJobProxy::GetReaderBlockCache() const

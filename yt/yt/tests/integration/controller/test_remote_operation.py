@@ -11,6 +11,7 @@ from yt_commands import (
     copy,
     create,
     create_user,
+    extract_statistic_v2,
     get,
     get_job,
     exists,
@@ -22,6 +23,7 @@ from yt_commands import (
     set,
     start_transaction,
     update_controller_agent_config,
+    update_nodes_dynamic_config,
     wait_breakpoint,
     with_breakpoint,
     write_table,
@@ -734,6 +736,66 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
 
         assert sorted_dicts(read_table("//tmp/t2")) == sorted_dicts(data)
         assert not get("//tmp/t2/@sorted")
+
+    @authors("coteeq")
+    @pytest.mark.parametrize("operation_type", ["map", "merge", "map_reduce"])
+    def test_per_cluster_chunk_reader_statistics(self, operation_type):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        write_table("//tmp/t1", [{"a": "b"}], driver=self.remote_driver)
+        create("table", "//tmp/t1_local")
+        write_table("//tmp/t1_local", [{"a": "b"}])
+
+        create("table", "//tmp/t2")
+
+        mapper_spec = {
+            "mapper": {
+                "input_format": "json",
+                "output_format": "json",
+                "enable_input_table_index": False,
+            },
+        }
+
+        run_operation = {
+            "map": partial(map, command="cat", spec=mapper_spec),
+            "merge": partial(merge, spec={"force_transform": True}),
+            "map_reduce": partial(map_reduce, mapper_command="cat", spec=mapper_spec, reducer_command="cat", reduce_by=["a"]),
+        }[operation_type]
+
+        job_type = {
+            "map": "map",
+            "merge": "unordered_merge",
+            "map_reduce": "partition_map(0)",
+        }[operation_type]
+
+        def run_and_get_statistics():
+            op = run_operation(
+                in_=[
+                    self.to_remote_path("//tmp/t1"),
+                    "//tmp/t1_local",
+                ],
+                out="//tmp/t2",
+            )
+
+            return get(op.get_path() + "/@progress/job_statistics_v2")
+
+        statistics = run_and_get_statistics()
+        assert extract_statistic_v2(statistics, "chunk_reader_statistics.remote_0.block_count", job_type=job_type) is None
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_proxy": {
+                        "enable_per_cluster_chunk_reader_statistics": True,
+                    }
+                },
+            },
+        })
+
+        statistics = run_and_get_statistics()
+
+        assert extract_statistic_v2(statistics, "chunk_reader_statistics.block_count", job_type=job_type) == 2
+        assert extract_statistic_v2(statistics, "chunk_reader_statistics.remote_0.block_count", job_type=job_type) == 1
+        assert extract_statistic_v2(statistics, "chunk_reader_statistics.<local>.block_count", job_type=job_type) == 1
 
 
 @pytest.mark.enabled_multidaemon

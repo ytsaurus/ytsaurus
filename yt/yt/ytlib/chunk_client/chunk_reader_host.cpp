@@ -1,4 +1,5 @@
 #include "chunk_reader_host.h"
+#include "chunk_reader_options.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -64,14 +65,14 @@ namespace {
 
 THashMap<TClusterName, TChunkReaderHostPtr> CreateHostsMap(
     const TChunkReaderHostPtr& baseHost,
-    std::vector<TMultiChunkReaderHost::TClusterOptions> clusterOptionsList)
+    const std::vector<TMultiChunkReaderHost::TClusterContext>& clusterContextList)
 {
     THashMap<TClusterName, TChunkReaderHostPtr> hosts;
-    for (auto& clusterOptions : clusterOptionsList) {
+    for (auto& clusterOptions : clusterContextList) {
         hosts.emplace(
-            std::move(clusterOptions.Name),
+            clusterOptions.Name,
             New<TChunkReaderHost>(
-                std::move(clusterOptions.Client),
+                clusterOptions.Client,
                 baseHost->LocalDescriptor,
                 baseHost->BlockCache,
                 baseHost->ChunkMetaCache,
@@ -84,6 +85,18 @@ THashMap<TClusterName, TChunkReaderHostPtr> CreateHostsMap(
     return hosts;
 }
 
+THashMap<TClusterName, TChunkReaderStatisticsPtr> CreateChunkReaderStatistics(
+    const std::vector<TMultiChunkReaderHost::TClusterContext>& clusterContextList)
+{
+    THashMap<TClusterName, TChunkReaderStatisticsPtr> chunkReaderStatistics;
+    for (auto& clusterOptions : clusterContextList) {
+        chunkReaderStatistics.emplace(
+            clusterOptions.Name,
+            clusterOptions.ChunkReaderStatistics);
+    }
+    return chunkReaderStatistics;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,10 +104,11 @@ THashMap<TClusterName, TChunkReaderHostPtr> CreateHostsMap(
 TMultiChunkReaderHost::TMultiChunkReaderHost(
     TChunkReaderHostPtr baseHost,
     TBandwidthThrottlerFactory bandwidthThrottlerFactory,
-    std::vector<TClusterOptions> clusterOptionsList)
+    std::vector<TClusterContext> clusterContextList)
     : BaseHost_(std::move(baseHost))
     , BandwidthThrottlerFactory_(std::move(bandwidthThrottlerFactory))
-    , Hosts_(CreateHostsMap(BaseHost_, std::move(clusterOptionsList)))
+    , Hosts_(CreateHostsMap(BaseHost_, clusterContextList))
+    , ChunkReaderStatisticsMap_(CreateChunkReaderStatistics(clusterContextList))
 { }
 
 TChunkReaderHostPtr TMultiChunkReaderHost::CreateHostForCluster(
@@ -121,28 +135,47 @@ TChunkReaderHostPtr TMultiChunkReaderHost::CreateHostForCluster(
         host->TrafficMeter);
 }
 
+TClientChunkReadOptions TMultiChunkReaderHost::AdjustClientChunkReadOptions(
+    const NScheduler::TClusterName& clusterName,
+    const TClientChunkReadOptions& options) const
+{
+    if (const auto& chunkReaderStatistics = GetOrCrash(ChunkReaderStatisticsMap_, clusterName);
+        chunkReaderStatistics)
+    {
+        auto resultOptions = options;
+        resultOptions.ChunkReaderStatistics = chunkReaderStatistics;
+        return resultOptions;
+    }
+    return options;
+}
+
 TTrafficMeterPtr TMultiChunkReaderHost::GetTrafficMeter() const
 {
     return BaseHost_->TrafficMeter;
 }
 
+const THashMap<NScheduler::TClusterName, TChunkReaderStatisticsPtr>& TMultiChunkReaderHost::GetChunkReaderStatistics() const
+{
+    return ChunkReaderStatisticsMap_;
+}
+
 TMultiChunkReaderHostPtr CreateMultiChunkReaderHost(
     TChunkReaderHostPtr baseHost,
     TMultiChunkReaderHost::TBandwidthThrottlerFactory bandwidthThrottlerFactory,
-    std::vector<TMultiChunkReaderHost::TClusterOptions> clusterOptionsList)
+    std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList)
 {
-    YT_VERIFY(AnyOf(clusterOptionsList, [] (const auto& clusterOptions) { return IsLocal(clusterOptions.Name); }));
+    YT_VERIFY(AnyOf(clusterContextList, [] (const auto& clusterOptions) { return IsLocal(clusterOptions.Name); }));
     return New<TMultiChunkReaderHost>(
         std::move(baseHost),
         std::move(bandwidthThrottlerFactory),
-        std::move(clusterOptionsList));
+        std::move(clusterContextList));
 }
 
 TMultiChunkReaderHostPtr CreateSingleSourceMultiChunkReaderHost(
     TChunkReaderHostPtr baseHost)
 {
-    std::vector<TMultiChunkReaderHost::TClusterOptions> clusterOptionsList = {
-        TMultiChunkReaderHost::TClusterOptions{
+    std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList = {
+        TMultiChunkReaderHost::TClusterContext{
             .Name = LocalClusterName,
             .Client = baseHost->Client,
         },
@@ -151,7 +184,7 @@ TMultiChunkReaderHostPtr CreateSingleSourceMultiChunkReaderHost(
     return CreateMultiChunkReaderHost(
         std::move(baseHost),
         /*bandwidthThrottlerFactory*/ {},
-        std::move(clusterOptionsList));
+        std::move(clusterContextList));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

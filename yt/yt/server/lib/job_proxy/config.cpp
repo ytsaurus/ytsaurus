@@ -403,6 +403,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_signature_validation", &TThis::EnableSignatureValidation)
         .Default(false);
 
+    registrar.Parameter("enable_per_cluster_chunk_reader_statistics", &TThis::EnablePerClusterChunkReaderStatistics)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->SolomonExporter->EnableSelfProfiling = false;
         config->SolomonExporter->WindowSize = 1;
@@ -476,6 +479,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_proxy_api_service", &TThis::JobProxyApiService)
         .DefaultNew();
+
+    registrar.Parameter("enable_per_cluster_chunk_reader_statistics", &TThis::EnablePerClusterChunkReaderStatistics)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

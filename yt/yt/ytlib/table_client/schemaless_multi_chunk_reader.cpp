@@ -164,6 +164,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
         auto perClusterChunkReaderHost = chunkReaderHost->CreateHostForCluster(dataSource.GetClusterName());
+        auto perClusterChunkReadOptions = chunkReaderHost->AdjustClientChunkReadOptions(dataSource.GetClusterName(), chunkReadOptions);
 
         auto performanceCounters = New<TTabletPerformanceCounters>();
 
@@ -191,7 +192,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 chunkFragmentReader,
                 std::move(dictionaryCompressionFactory),
                 dataSource.Schema(),
-                chunkReadOptions,
+                perClusterChunkReadOptions,
                 performanceCounters);
         };
 
@@ -217,7 +218,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         return MakeFuture<ISchemalessChunkReaderPtr>(ex);
                     }
 
-                    auto asyncChunkMeta = DownloadChunkMeta(remoteReader, chunkReadOptions, partitionTag);
+                    auto asyncChunkMeta = DownloadChunkMeta(remoteReader, perClusterChunkReadOptions, partitionTag);
 
                     return asyncChunkMeta.Apply(BIND([=] (const TColumnarChunkMetaPtr& chunkMeta) {
                         TReadRange readRange;
@@ -232,7 +233,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             FromProto(&readRange.UpperLimit(), chunkSpec.upper_limit(), /*isUpper*/ true, keyColumnCount);
                         }
 
-                        if (chunkReadOptions.GranuleFilter && chunkMeta->ColumnarStatisticsExt()) {
+                        if (perClusterChunkReadOptions.GranuleFilter && chunkMeta->ColumnarStatisticsExt()) {
                             TColumnarStatistics allColumnStatistics;
                             FromProto(
                                 &allColumnStatistics,
@@ -240,7 +241,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 chunkMeta->LargeColumnarStatisticsExt() ? &*chunkMeta->LargeColumnarStatisticsExt() : nullptr,
                                 chunkMeta->Misc().row_count());
 
-                            if (chunkReadOptions.GranuleFilter->CanSkip(allColumnStatistics, chunkMeta->ChunkNameTable())) {
+                            if (perClusterChunkReadOptions.GranuleFilter->CanSkip(allColumnStatistics, chunkMeta->ChunkNameTable())) {
                                 readRange = TReadRange::MakeEmpty();
                             }
                         }
@@ -268,7 +269,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 options,
                                 remoteReader,
                                 nameTable,
-                                chunkReadOptions,
+                                perClusterChunkReadOptions,
                                 sortColumns,
                                 dataSource.OmittedInaccessibleColumns(),
                                 columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
@@ -289,7 +290,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 options,
                                 remoteReader,
                                 nameTable,
-                                chunkReadOptions,
+                                perClusterChunkReadOptions,
                                 sortColumns,
                                 dataSource.OmittedInaccessibleColumns(),
                                 columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
@@ -323,7 +324,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             options,
                             nameTable,
                             perClusterChunkReaderHost,
-                            chunkReadOptions,
+                            perClusterChunkReadOptions,
                             columnsToRead,
                             multiReaderMemoryManager->CreateChunkReaderMemoryManager(
                                 DefaultRemoteDynamicStoreReaderMemoryEstimate),
@@ -356,7 +357,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         dataSourceDirectory,
                         dataSliceDescriptor,
                         nameTable,
-                        chunkReadOptions,
+                        perClusterChunkReadOptions,
                         columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter));
                 });
 
