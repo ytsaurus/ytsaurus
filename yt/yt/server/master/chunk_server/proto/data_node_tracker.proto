@@ -4,7 +4,7 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 
 message TReqRemoveDanglingChunkLocations
 {
-    repeated NYT.NProto.TGuid chunk_location_uuids = 1;
+    repeated NYT.NProto.TGuid chunk_location_ids = 1;
 }
 
 message TReqRemapChunkLocationIds
