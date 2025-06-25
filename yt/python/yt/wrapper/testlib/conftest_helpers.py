@@ -224,6 +224,18 @@ def test_environment_with_authentication(request):
         request,
         request.param,
         delta_proxy_config={"auth": {"enable_authentication": True, "cypress_token_authenticator": {"secure": False}}},
+        delta_node_config={
+            "exec_node": {
+                "job_proxy": {
+                    "job_proxy_authentication_manager": {
+                        "enable_authentication": True,
+                        "cypress_token_authenticator": {
+                            "secure": False,
+                        },
+                    },
+                },
+            },
+        },
         env_options={
             "create_admin_user": True,
             "enable_auth": True,
