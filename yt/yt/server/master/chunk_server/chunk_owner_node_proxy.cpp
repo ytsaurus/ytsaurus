@@ -1647,7 +1647,7 @@ TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     const auto& tableManager = Bootstrap_->GetTableManager();
     if (node->IsNative()) {
         if (schema) {
-            return tableManager->GetOrCreateNativeMasterTableSchema(*schema, schemaHolder);
+            return tableManager->GetOrCreateNativeMasterTableSchema(schema, schemaHolder);
         }
 
         if (schemaId) {
@@ -1660,7 +1660,7 @@ TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     YT_VERIFY(schemaId);
 
     if (schema) {
-        return tableManager->CreateImportedTemporaryMasterTableSchema(*schema, schemaHolder, schemaId);
+        return tableManager->CreateImportedTemporaryMasterTableSchema(schema, schemaHolder, schemaId);
     }
 
     return tableManager->GetMasterTableSchema(schemaId);

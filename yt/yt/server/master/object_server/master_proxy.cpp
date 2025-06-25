@@ -502,10 +502,11 @@ private:
         const auto& tableManager = Bootstrap_->GetTableManager();
         for (auto entry : request->schema_descriptors()) {
             auto oldSchemaId = FromProto<TMasterTableSchemaId>(entry.schema_id());
-            // Out of love for paranoia.
-            YT_VERIFY(oldSchemaId);
+            THROW_ERROR_EXCEPTION_UNLESS(
+                oldSchemaId,
+                "Schema id for schema descriptor entries must be non-null");
 
-            auto schema = FromProto<TCompactTableSchema>(entry.schema());
+            auto schema = New<TCompactTableSchema>(entry.schema());
 
             // NB: Schema lifetime is managed by cross-cell copy transaction.
             auto masterTableSchema = tableManager->GetOrCreateNativeMasterTableSchema(schema, transaction);
@@ -767,7 +768,7 @@ private:
             request->schema(),
             request->transaction_id());
 
-        auto schema = FromProto<TCompactTableSchema>(request->schema());
+        auto schema = New<TCompactTableSchema>(request->schema());
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& transactionManager = Bootstrap_->GetTransactionManager();

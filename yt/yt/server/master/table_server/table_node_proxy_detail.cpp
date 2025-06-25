@@ -2334,7 +2334,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             const auto& tableManager)
         {
             if (table->IsNative()) {
-                return tableManager->GetOrCreateNativeMasterTableSchema(*schema, table);
+                return tableManager->GetOrCreateNativeMasterTableSchema(schema, table);
             }
 
             YT_VERIFY(!options.Schema);

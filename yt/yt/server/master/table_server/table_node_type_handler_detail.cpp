@@ -164,7 +164,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto schemaMode = combinedAttributes->GetAndRemove<ETableSchemaMode>("schema_mode", ETableSchemaMode::Weak);
 
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
-    const auto* effectiveTableSchema = tableManager->ProcessSchemaFromAttributes(
+    auto effectiveTableSchema = tableManager->ProcessSchemaFromAttributes(
         tableSchema,
         schemaId,
         dynamic,
@@ -243,7 +243,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
         if (node->IsNative()) {
             if (effectiveTableSchema) {
-                tableManager->GetOrCreateNativeMasterTableSchema(*effectiveTableSchema, node);
+                tableManager->GetOrCreateNativeMasterTableSchema(effectiveTableSchema, node);
             } else {
                 auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
                 tableManager->SetTableSchema(node, emptySchema);

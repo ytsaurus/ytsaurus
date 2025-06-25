@@ -54,25 +54,21 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
 
-    TCompactTableSchema tableSchema;
     if (context.GetVersion() >= EMasterReign::MasterCompactTableSchema) {
-        Load(context, tableSchema);
+        CompactTableSchema_ = New<TCompactTableSchema>();
+        Load(context, *CompactTableSchema_);
     } else {
-        tableSchema = TCompactTableSchema(Load<TTableSchema>(context));
+        CompactTableSchema_ = New<TCompactTableSchema>(Load<TTableSchema>(context));
     }
 
     if (IsObjectAlive(this)) {
-        const auto& tableManager = context.GetBootstrap()->GetTableManager();
-
         if (IsNative()) {
-            SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, std::move(tableSchema)));
+            const auto& tableManager = context.GetBootstrap()->GetTableManager();
+            SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, CompactTableSchema_));
         } else {
             // Imported schemas require no registration because reverse
             // index for imported schemas is not necessary.
-            CompactTableSchema_ = New<TCompactTableSchema>(std::move(tableSchema));
         }
-    } else {
-        CompactTableSchema_ = New<TCompactTableSchema>(std::move(tableSchema));
     }
 
     Load(context, CellTagToExportCount_);

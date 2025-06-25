@@ -376,7 +376,7 @@ public:
         return schema;
     }
 
-    TMasterTableSchema* FindNativeMasterTableSchema(const TCompactTableSchema& tableSchema) const override
+    TMasterTableSchema* FindNativeMasterTableSchema(const TCompactTableSchemaPtr& tableSchema) const override
     {
         auto it = NativeTableSchemaToObjectMap_.find(tableSchema);
         return it != NativeTableSchemaToObjectMap_.end()
@@ -386,7 +386,7 @@ public:
 
     // COMPAT(h0pless): AddChunkSchemas
     TMasterTableSchema* CreateImportedMasterTableSchema(
-        const TCompactTableSchema& tableSchema,
+        const TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId hintId) override
     {
         // NB: An existing schema can be recreated without resurrection.
@@ -401,7 +401,7 @@ public:
     }
 
     TMasterTableSchema* CreateImportedTemporaryMasterTableSchema(
-        const TCompactTableSchema& tableSchema,
+        const TCompactTableSchemaPtr& tableSchema,
         TTransaction* schemaHolder,
         TMasterTableSchemaId hintId) override
     {
@@ -412,7 +412,7 @@ public:
             schema = DoCreateMasterTableSchema(tableSchema, hintId, /*isNative*/ false);
         } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
-            YT_VERIFY(*schema->CompactTableSchema_ == tableSchema);
+            YT_VERIFY(*schema->CompactTableSchema_ == *tableSchema);
         }
 
         if (!schemaHolder->StagedObjects().contains(schema)) {
@@ -425,7 +425,7 @@ public:
     }
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchema& schema,
+        const TCompactTableSchemaPtr& schema,
         TSchemafulNode* schemaHolder) override
     {
         auto* masterTableSchema = FindNativeMasterTableSchema(schema);
@@ -440,7 +440,7 @@ public:
     }
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchema& schema,
+        const TCompactTableSchemaPtr& schema,
         TTransaction* schemaHolder) override
     {
         YT_VERIFY(IsObjectAlive(schemaHolder));
@@ -460,7 +460,7 @@ public:
     }
 
     TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchema& schema,
+        const TCompactTableSchemaPtr& schema,
         TChunk* schemaHolder) override
     {
         // NB: A newly created chunk in operation can have zero reference count.
@@ -487,10 +487,10 @@ public:
             return MakeFuture<TYsonString>(TError("Master schema is null"));
         }
 
-        return YsonTableSchemaCache_->Get(*masterSchema->AsCompactTableSchema());
+        return YsonTableSchemaCache_->Get(masterSchema->AsCompactTableSchema());
     }
 
-    TFuture<TTableSchemaPtr> GetHeavyTableSchemaAsync(const TCompactTableSchema& compactTableSchema) override
+    TFuture<TTableSchemaPtr> GetHeavyTableSchemaAsync(const TCompactTableSchemaPtr& compactTableSchema) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_VERIFY(TableSchemaCache_);
@@ -498,7 +498,7 @@ public:
         return TableSchemaCache_->Get(compactTableSchema);
     }
 
-    TTableSchemaPtr GetHeavyTableSchemaSync(const TCompactTableSchema& compactTableSchema) override
+    TTableSchemaPtr GetHeavyTableSchemaSync(const TCompactTableSchemaPtr& compactTableSchema) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_VERIFY(TableSchemaCache_);
@@ -524,17 +524,6 @@ public:
             .ValueOrThrow();
     }
 
-    TTableSchemaPtr GetHeavyTableSchemaSync(const TCompactTableSchemaPtr& compactTableSchema) override
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        if (!compactTableSchema) {
-            return nullptr;
-        }
-
-        return GetHeavyTableSchemaSync(*compactTableSchema);
-    }
-
     TTableSchemaPtr GetHeavyTableSchemaSync(const TMasterTableSchema* masterSchema) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -543,11 +532,11 @@ public:
             return nullptr;
         }
 
-        return GetHeavyTableSchemaSync(*masterSchema->AsCompactTableSchema());
+        return GetHeavyTableSchemaSync(masterSchema->AsCompactTableSchema());
     }
 
     TMasterTableSchema* CreateMasterTableSchema(
-        const TCompactTableSchema& tableSchema,
+        const TCompactTableSchemaPtr& tableSchema,
         bool isNative,
         TMasterTableSchemaId hintId = NObjectClient::NullObjectId)
     {
@@ -556,30 +545,28 @@ public:
             schema = DoCreateMasterTableSchema(tableSchema, hintId, isNative);
         } else if (!IsObjectAlive(schema)) {
             ResurrectMasterTableSchema(schema);
-            YT_VERIFY(*schema->CompactTableSchema_ == tableSchema);
+            YT_VERIFY(*schema->CompactTableSchema_ == *tableSchema);
         } else {
             // Just a sanity check.
-            YT_VERIFY(*schema->CompactTableSchema_ == tableSchema);
+            YT_VERIFY(*schema->CompactTableSchema_ == *tableSchema);
         }
 
         return schema;
     }
 
     TMasterTableSchema* DoCreateMasterTableSchema(
-        const TCompactTableSchema& tableSchema,
+        const TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId hintId,
         bool isNative)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::MasterTableSchema, hintId);
 
-        auto sharedTableSchema = New<TCompactTableSchema>(tableSchema);
-
         TMasterTableSchema* schema;
         if (isNative) {
             auto it = EmplaceOrCrash(
                 NativeTableSchemaToObjectMap_,
-                std::move(sharedTableSchema),
+                tableSchema,
                 nullptr);
 
             auto schemaHolder = TPoolAllocator::New<TMasterTableSchema>(id, it);
@@ -589,7 +576,7 @@ public:
         } else {
             auto schemaHolder = TPoolAllocator::New<TMasterTableSchema>(
                 id,
-                std::move(sharedTableSchema));
+                tableSchema);
             schema = MasterTableSchemaMap_.Insert(id, std::move(schemaHolder));
         }
 
@@ -648,13 +635,13 @@ public:
 
     TMasterTableSchema::TNativeTableSchemaToObjectMapIterator RegisterNativeSchema(
         TMasterTableSchema* schema,
-        TCompactTableSchema tableSchema) override
+        const TCompactTableSchemaPtr& tableSchema) override
     {
         YT_VERIFY(IsObjectAlive(schema));
-        auto sharedTableSchema = New<TCompactTableSchema>(std::move(tableSchema));
+
         return EmplaceOrCrash(
             NativeTableSchemaToObjectMap_,
-            std::move(sharedTableSchema),
+            tableSchema,
             schema);
     }
 
@@ -736,7 +723,7 @@ public:
         }
 
         if (schema && schemaById && schemaById->IsNative()) {
-            auto* schemaByYson = FindNativeMasterTableSchema(*schema);
+            auto* schemaByYson = FindNativeMasterTableSchema(schema);
             if (IsObjectAlive(schemaByYson)) {
                 if (schemaById != schemaByYson) {
                     THROW_ERROR_EXCEPTION("Both \"schema\" and \"schema_id\" specified and they refer to different schemas");
@@ -749,7 +736,7 @@ public:
         }
     }
 
-    const TCompactTableSchema* ProcessSchemaFromAttributes(
+    TCompactTableSchemaPtr ProcessSchemaFromAttributes(
         TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId schemaId,
         bool dynamic,
@@ -767,7 +754,7 @@ public:
             tableSchema,
             schemaId);
 
-        const TCompactTableSchema* effectiveTableSchema = nullptr;
+        TCompactTableSchemaPtr effectiveTableSchema;
         auto* schemaById = FindMasterTableSchema(schemaId);
         if (schemaById) {
             effectiveTableSchema = schemaById->AsCompactTableSchema(/*crashOnZombie*/ false).Get();
@@ -788,7 +775,7 @@ public:
                     nodeId,
                     GetHeavyTableSchemaSync(tableSchema));
             }
-            auto heavySchema = GetHeavyTableSchemaSync(*effectiveTableSchema);
+            auto heavySchema = GetHeavyTableSchemaSync(effectiveTableSchema);
             tableSchema =  New<TCompactTableSchema>(heavySchema->ToUniqueKeys());
             effectiveTableSchema = tableSchema.Get();
         }
@@ -798,7 +785,7 @@ public:
         }
 
         const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig();
-        auto deserializedEffectiveTableSchema = GetHeavyTableSchemaSync(*effectiveTableSchema);
+        auto deserializedEffectiveTableSchema = GetHeavyTableSchemaSync(effectiveTableSchema);
         ValidateTableSchemaUpdateInternal(TTableSchema(), *deserializedEffectiveTableSchema, GetSchemaUpdateEnabledFeatures(dynamicConfig), dynamic, true);
 
         if (!dynamicConfig->EnableDescendingSortOrder || (dynamic && !dynamicConfig->EnableDescendingSortOrderDynamic)) {
@@ -1425,7 +1412,7 @@ private:
 
     friend class TMasterTableSchemaTypeHandler;
 
-    static const TCompactTableSchema EmptyTableSchema;
+    static const TCompactTableSchemaPtr EmptyTableSchema;
 
     TYsonTableSchemaCachePtr YsonTableSchemaCache_;
     TTableSchemaCachePtr TableSchemaCache_;
@@ -1756,7 +1743,7 @@ private:
 
     void HydraImportMasterTableSchema(NProto::TReqImportMasterTableSchema* request)
     {
-        auto schema = FromProto<TCompactTableSchema>(request->schema());
+        auto schema = New<TCompactTableSchema>(request->schema());
         auto schemaId = FromProto<TMasterTableSchemaId>(request->schema_id());
         CreateImportedMasterTableSchema(schema, schemaId);
     }
@@ -2169,25 +2156,6 @@ private:
             });
         }
     }
-
-    // COMPAT(h0pless): AddChunkSchemas
-    TMasterTableSchema* CreateImportedMasterTableSchema(
-        const TCompactTableSchema& tableSchema,
-        TSchemafulNode* schemaHolder,
-        TMasterTableSchemaId hintId) override
-    {
-        auto* schema = FindMasterTableSchema(hintId);
-        if (!schema) {
-            schema = DoCreateMasterTableSchema(tableSchema, hintId, /*isNative*/ false);
-        } else if (!IsObjectAlive(schema)) {
-            ResurrectMasterTableSchema(schema);
-            YT_VERIFY(*schema->CompactTableSchema_ == tableSchema);
-        }
-        SetTableSchema(schemaHolder, schema);
-        YT_VERIFY(IsObjectAlive(schema));
-
-        return schema;
-    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TTableManager, MasterTableSchema, TMasterTableSchema, MasterTableSchemaMap_);
@@ -2196,7 +2164,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTableManager, SecondaryIndex, TSecondaryIndex, Seco
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TCompactTableSchema TTableManager::EmptyTableSchema;
+const TCompactTableSchemaPtr TTableManager::EmptyTableSchema = New<TCompactTableSchema>();
 
 ////////////////////////////////////////////////////////////////////////////////
 
