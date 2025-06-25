@@ -220,6 +220,9 @@ DEFINE_ENUM(EObjectType,
     ((ListNode)                                     (304))
     ((BooleanNode)                                  (305))
 
+    // Alias to MapNode
+    ((Directory)                                    (308))
+
     // Dynamic nodes
     ((File)                                         (400))
     ((Table)                                        (401))

@@ -1338,6 +1338,13 @@ class TestCypress(YTEnvSetup):
     def test_create(self):
         create("map_node", "//tmp/some_node")
 
+    @authors("pavel-bash")
+    @not_implemented_in_sequoia
+    def test_directory_alias(self):
+        # Directory should be an alias to map_node.
+        create("directory", "//tmp/some_node")
+        assert get("//tmp/some_node/@type") == "map_node"
+
     @authors("babenko")
     def test_create_recursive_fail(self):
         create("map_node", "//tmp/some_node")

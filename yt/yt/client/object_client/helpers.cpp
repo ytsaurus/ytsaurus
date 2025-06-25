@@ -38,6 +38,7 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::DoubleNode ||
         type == EObjectType::BooleanNode ||
         type == EObjectType::MapNode ||
+        type == EObjectType::Directory ||
         type == EObjectType::ListNode ||
         type == EObjectType::File ||
         type == EObjectType::Table ||
