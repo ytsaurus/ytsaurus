@@ -731,6 +731,7 @@ class TestS3Medium(YTEnvSetup):
     @authors("achulkov2")
     def test_parquet_v0(self):
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
+        create("table", "//tmp/out", attributes={"primary_medium": self.get_s3_medium_name()})
 
         row_count = 5000
         row_group_count = 250
@@ -762,12 +763,23 @@ class TestS3Medium(YTEnvSetup):
         # Much wow.
         assert read_table("//tmp/t[#28:#36]") == modified_data[28:36]
         # assert read_table("//tmp/t") == modified_data
+        map(
+            command="cat",
+            in_="//tmp/t",
+            out="//tmp/out",
+            spec={"max_failed_job_count": 1})
 
         buffer.seek(0)
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=buffer)
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
         import_table("//tmp/imported", s3_keys=["foo.parquet"])
         assert read_table("//tmp/imported") == modified_data
+
+        map(
+            command="cat",
+            in_="//tmp/imported",
+            out="//tmp/out",
+            spec={"max_failed_job_count": 1})
 
     @authors("achulkov2")
     def test_sorted_parquet_v0(self):

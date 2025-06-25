@@ -168,6 +168,20 @@ void TInputChunkBase::CheckOffsets()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TInputChunk::TReplicaOffshority::Save(TSaveContext& context) const
+{
+    using NYT::Save;
+
+    Save(context, S3Key);
+}
+
+void TInputChunk::TReplicaOffshority::Load(TLoadContext& context)
+{
+    using NYT::Load;
+
+    Load(context, S3Key);
+}
+
 TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int> keyColumnCount)
     : TInputChunkBase(chunkSpec)
     , LowerLimit_(chunkSpec.has_lower_limit()
@@ -189,8 +203,13 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec, std::optional<int>
         ? std::make_unique<NTableClient::NProto::THunkChunkRefsExt>(
             GetProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkSpec.chunk_meta().extensions()))
         : nullptr)
-    // , OffshoreReplicas_(FromProto<TChunkReplicaWithMediumList>(chunkSpec.offshore_replicas()))
 {
+    YT_VERIFY(static_cast<size_t>(chunkSpec.replicas_s3_keys_size()) <= ReplicasOffshority_.size());
+    int i = 0;
+    for (auto& s3Key : chunkSpec.replicas_s3_keys()) {
+        ReplicasOffshority_[i].S3Key = s3Key;
+        i++;
+    }
     // Cerr << Format("KEK Created chunk (ChunkId: %v, OffshoreReplicaCount: %v)", ChunkId_, std::ssize(OffshoreReplicas_)) << Endl;
 
     if (IsSortedDynamicStore()) {
@@ -244,9 +263,9 @@ void TInputChunk::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(8, HunkChunkRefsExt_,
         .SinceVersion(static_cast<int>(ESnapshotVersion::RemoteCopyDynamicTableWithHunks))
         .template Serializer<TUniquePtrSerializer<>>());
-    // PHOENIX_REGISTER_FIELD(9, OffshoreReplicas_,
-    //     .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::OffshoreReplicas)));
-        // .template Serializer<TUniquePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(9, ReplicasOffshority_,
+        .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::OffshoreReplicas))
+        .template Serializer<TArraySerializer<>>());
 }
 
 size_t TInputChunk::SpaceUsed() const
@@ -381,6 +400,9 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk)
     auto replicas = inputChunk->GetReplicaList();
     ToProto(chunkSpec->mutable_legacy_replicas(), TChunkReplicaWithMedium::ToChunkReplicas(replicas));
     ToProto(chunkSpec->mutable_replicas(), replicas);
+    for (auto& offshority : inputChunk->ReplicasOffshority_) {
+        chunkSpec->add_replicas_s3_keys(offshority.S3Key);
+    }
 
     if (inputChunk->TableIndex_ >= 0) {
         chunkSpec->set_table_index(inputChunk->TableIndex_);

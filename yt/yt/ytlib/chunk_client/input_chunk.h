@@ -128,6 +128,17 @@ public:
     //! NB: This factor overrides the value of the column selectivity factor.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<double>, BlockSelectivityFactor);
 
+    struct TReplicaOffshority
+    {
+        std::string S3Key;
+
+        void Save(TSaveContext& context) const;
+        void Load(TLoadContext& context);
+    };
+
+    using TReplicasOffshority = std::array<TReplicaOffshority, MaxInputChunkReplicaCount>;
+    DEFINE_BYREF_RO_PROPERTY(TReplicasOffshority, ReplicasOffshority);
+
 public:
     TInputChunk() = default;
     TInputChunk(TInputChunk&& other) = default;
