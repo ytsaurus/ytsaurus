@@ -115,6 +115,7 @@ void ValidateLinkNodeCreation(
         auto resolveResult = ResolvePath(
             session,
             std::move(pathToResolve),
+            /*pathIsAdditional*/ false,
             /*service*/ {},
             /*method*/ {},
             &history);

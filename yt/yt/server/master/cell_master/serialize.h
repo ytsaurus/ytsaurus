@@ -192,6 +192,7 @@ DEFINE_ENUM(EMasterReign,
     ((AutomaticCellMapMigration_25_2)                               (2954))  // danilalexeev
     ((FixUseAsWithNullObjects)                                      (2955))  // cherepashka
     ((MakeCompactTableSchemaRefCounted)                             (2956))  // cherepashka
+    ((CrossCellCopyFinalFixes)                                      (2957))  // shakurov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
