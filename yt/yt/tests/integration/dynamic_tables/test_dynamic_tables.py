@@ -11,7 +11,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy,
-    move, remove,
+    move, remove, link,
     exists, create_account, create_user, make_ace, make_batch_request,
     create_tablet_cell_bundle, remove_tablet_cell_bundle,
     create_area, remove_area, create_tablet_cell, remove_tablet_cell,
@@ -3452,6 +3452,34 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert mount_time < new_mount_time
         assert new_mount_revision == get("//tmp/t/@tablets/0/mount_revision")
         assert new_mount_time >= get("//tmp/t/@tablets/0/mount_time")
+
+    @authors("ifsmirnov")
+    def test_link_to_tablet(self):
+        cell_id = sync_create_cells(1)[0]
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        leader_address = get(f"#{cell_id}/@peers/0/address")
+
+        # YT-25500.
+        if self.ENABLE_TMP_PORTAL:
+            return
+
+        link(f"#{tablet_id}", "//tmp/tablet")
+        assert get("//tmp/tablet/orchid/state") == "mounted"
+
+        if self.NUM_SECONDARY_MASTER_CELLS == 1:
+            link(f"//sys/tablets/{tablet_id}", "//tmp/tablet", force=True)
+            assert get("//tmp/tablet/orchid/state") == "mounted"
+
+        link(f"#{tablet_id}/orchid", "//tmp/tablet_orchid")
+        assert get("//tmp/tablet_orchid/state") == "mounted"
+
+        link(f"#{cell_id}/orchid/tablets/{tablet_id}", "//tmp/tablet_orchid", force=True)
+        assert get("//tmp/tablet_orchid/state") == "mounted"
+
+        link(f"//sys/cluster_nodes/{leader_address}/orchid/tablet_cells/{cell_id}/tablets/{tablet_id}", "//tmp/tablet", force=True)
+        assert get("//tmp/tablet/state") == "mounted"
 
 
 ##################################################################
