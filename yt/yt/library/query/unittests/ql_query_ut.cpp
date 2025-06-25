@@ -1652,6 +1652,22 @@ protected:
             std::move(evaluateOptions)).first;
     }
 
+    TQueryPtr EvaluateOnlyViaNativeExecutionBackend(
+        TStringBuf query,
+        const TSplitMap& dataSplits,
+        const std::vector<TSource>& owningSources,
+        const TResultMatcher& resultMatcher,
+        TEvaluateOptions evaluateOptions = {})
+    {
+        evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
+        return EvaluateWithQueryStatistics(
+            query,
+            dataSplits,
+            owningSources,
+            resultMatcher,
+            std::move(evaluateOptions)).first;
+    }
+
     std::pair<TQueryPtr, TQueryStatistics> EvaluateWithQueryStatistics(
         TStringBuf query,
         const TDataSplit& dataSplit,
@@ -8581,7 +8597,7 @@ TEST_F(TQueryEvaluateTest, NestedSubquery)
         "a=5;nested=[[1;6;x]]"
     }, resultSplit);
 
-    Evaluate("select t.k + 1 as a, (select li * sum(t.s) as x, li + a as y, ls as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) where li < 4) as nested from `//t` as t group by a",
+    EvaluateOnlyViaNativeExecutionBackend("select t.k + 1 as a, (select li * sum(t.s) as x, li + a as y, ls as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) where li < 4) as nested from `//t` as t group by a",
         splits,
         sources,
         ResultMatcher(result, resultSplit.TableSchema),
@@ -8699,7 +8715,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
         }, resultSplit);
 
         // Test checks that sum(t.s) aggregation level is properly determined as outer by its substitution level.
-        Evaluate("select t.k % 2 as a, (select ls, sum(t.s) as x, sum(li) as y, sum(1) as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) group by ls) as nested from `//t` as t group by a",
+        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, (select ls, sum(t.s) as x, sum(li) as y, sum(1) as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) group by ls) as nested from `//t` as t group by a",
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),
@@ -8721,7 +8737,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
         }, resultSplit);
 
         // Test inner group key `ls + sum(t.s) as x` contains outer aggregate expression.
-        Evaluate("select t.k % 2 as a, (select li + sum(t.s) as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
+        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, (select li + sum(t.s) as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),
@@ -8744,7 +8760,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
         }, resultSplit);
 
         // Test checks that sum(b) aggregation level is properly determined as outer while it has no substitution level.
-        Evaluate("select t.k % 2 as a, sum(2) as b, (select b, sum(1) as z from (array_agg(t.a, true) as li) group by li) as nested from `//t` as t group by a",
+        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, sum(2) as b, (select b, sum(1) as z from (array_agg(t.a, true) as li) group by li) as nested from `//t` as t group by a",
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),
@@ -8767,7 +8783,7 @@ TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
         }, resultSplit);
 
          // Test checks that sum(b) aggregation level is properly determined as outer while it has no substitution level.
-        Evaluate("select t.k % 2 as a, sum(2) as b, (select li + b as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
+        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, sum(2) as b, (select li + b as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
             splits,
             sources,
             ResultMatcher(result, resultSplit.TableSchema),

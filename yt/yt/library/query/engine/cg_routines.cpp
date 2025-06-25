@@ -2611,7 +2611,7 @@ void CastToV3TypeWithValidation(TPIValue* result, TPIValue* value, TLogicalTypeP
     auto* valueAtHost = PtrFromVM(compartment, value);
     auto* resultAtHost = PtrFromVM(compartment, result);
 
-    CopyPositionIndependent(resultAtHost, *value);
+    CopyPositionIndependent(resultAtHost, *valueAtHost);
 
     if (valueAtHost->Type == EValueType::Null) {
         THROW_ERROR_EXCEPTION_UNLESS((*type)->IsNullable(),
@@ -2624,7 +2624,7 @@ void CastToV3TypeWithValidation(TPIValue* result, TPIValue* value, TLogicalTypeP
 
     resultAtHost->Type = GetWireType(*type);
 
-    auto ysonView = TStringBuf(GetStringPosition(*value), valueAtHost->Length);
+    auto ysonView = TStringBuf(GetStringPosition(*valueAtHost), valueAtHost->Length);
     ValidateComplexLogicalType(ysonView, *type);
 }
 
@@ -2982,19 +2982,8 @@ void AnyToYsonString(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern "C" void NumericToString(
-    TExpressionContext* context,
-    TValue* result,
-    TValue* value)
+TString NumericToStringImpl(TValue* valueAtHost)
 {
-    auto* compartment = GetCurrentCompartment();
-    auto* valueAtHost = PtrFromVM(compartment, value);
-
-    if (valueAtHost->Type == EValueType::Null) {
-        PtrFromVM(compartment, result)->Type = EValueType::Null;
-        return;
-    }
-
     auto resultYson = TString();
     auto output = TStringOutput(resultYson);
     auto writer = TYsonWriter(&output, EYsonFormat::Text);
@@ -3013,6 +3002,25 @@ extern "C" void NumericToString(
             YT_ABORT();
     }
 
+    return resultYson;
+}
+
+extern "C" void NumericToString(
+    TExpressionContext* context,
+    TValue* result,
+    TValue* value)
+{
+    auto* compartment = GetCurrentCompartment();
+    auto* resultAtHost = PtrFromVM(compartment, result);
+    auto* valueAtHost = PtrFromVM(compartment, value);
+
+    if (valueAtHost->Type == EValueType::Null) {
+        resultAtHost->Type = EValueType::Null;
+        return;
+    }
+
+    auto resultYson = NumericToStringImpl(valueAtHost);
+
     NDetail::CopyString(context, result, resultYson);
 }
 
@@ -3021,13 +3029,17 @@ extern "C" void NumericToStringPI(
     TPIValue* positionIndependentResult,
     TPIValue* positionIndependentValue)
 {
-    TValue value;
-    MakeUnversionedFromPositionIndependent(&value, *PtrFromVM(GetCurrentCompartment(), positionIndependentValue));
+    auto* compartment = GetCurrentCompartment();
+    auto valueAtHost = TValue{};
+    MakeUnversionedFromPositionIndependent(&valueAtHost, *PtrFromVM(compartment, positionIndependentValue));
 
-    TValue result;
-    NumericToString(context, &result, &value);
+    if (valueAtHost.Type == EValueType::Null) {
+        PtrFromVM(compartment, positionIndependentResult)->Type = EValueType::Null;
+        return;
+    }
 
-    MakePositionIndependentFromUnversioned(positionIndependentResult, result);
+    auto resultYson = NumericToStringImpl(&valueAtHost);
+    NDetail::CopyString(context, positionIndependentResult, resultYson);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3064,13 +3076,30 @@ DEFINE_CONVERT_STRING(Uint64)
 DEFINE_CONVERT_STRING(Double)
 
 #define DEFINE_CONVERT_STRING_PI(TYPE) \
-    extern "C" void StringTo ## TYPE ## PI(TExpressionContext* context, TPIValue* pIResult, TPIValue* pIValue) \
+    extern "C" void StringTo ## TYPE ## PI(TExpressionContext* /*context*/, TPIValue* pIResult, TPIValue* pIValue) \
     { \
-        TValue value; \
-        MakeUnversionedFromPositionIndependent(&value, *PtrFromVM(GetCurrentCompartment(), pIValue)); \
-        TValue result; \
-        StringTo ## TYPE(context, &result, &value); \
-        MakePositionIndependentFromUnversioned(pIResult, result); \
+        auto* compartment = GetCurrentCompartment(); \
+        auto* resultAtHost = PtrFromVM(compartment, pIResult); \
+        auto* valueAtHost = PtrFromVM(compartment, pIValue); \
+        if (valueAtHost->Type == EValueType::Null) { \
+            MakePositionIndependentNullValue(resultAtHost); \
+            return; \
+        } \
+        NYson::TToken token; \
+        NYson::TStatelessLexer lexer; \
+        auto valueString = valueAtHost->AsStringBuf(); \
+        lexer.ParseToken(valueString, &token); \
+        if (token.GetType() == NYson::ETokenType::Int64) { \
+            MakePositionIndependent ## TYPE ## Value(resultAtHost, token.GetInt64Value()); \
+        } else if (token.GetType() == NYson::ETokenType::Uint64) { \
+            MakePositionIndependent ## TYPE ## Value(resultAtHost, token.GetUint64Value()); \
+        } else if (token.GetType() == NYson::ETokenType::Double) { \
+            MakePositionIndependent ## TYPE ## Value(resultAtHost, token.GetDoubleValue()); \
+        } else { \
+            THROW_ERROR_EXCEPTION("Cannot convert value %Qv of type %Qlv to \"string\"", \
+                valueString, \
+                EValueType::TYPE); \
+        } \
     }
 
 DEFINE_CONVERT_STRING_PI(Int64)
