@@ -11,6 +11,7 @@ import pytest
 from flaky import flaky
 
 from yt_helpers import profiler_factory
+from yt.common import YtError
 
 ##################################################################
 
@@ -187,17 +188,31 @@ class TestMasterCellsSync(YTEnvSetup):
         custom_area_id = create_area("custom", cell_bundle_id=custom_bundle_id, node_tag_filter="custom")
         default_area_id = get("//sys/tablet_cell_bundles/custom/@areas/default/id")
 
-        self._check_true_for_secondary(lambda driver: get("//sys/tablet_cell_bundles/custom/@areas/default/node_tag_filter", driver=driver) == "default")
-        self._check_true_for_secondary(lambda driver: get("//sys/tablet_cell_bundles/custom/@areas/custom/node_tag_filter", driver=driver) == "custom")
-        self._check_true_for_secondary(lambda driver: get("#{0}/@cell_bundle_id".format(default_area_id), driver=driver) == custom_bundle_id)
-        self._check_true_for_secondary(lambda driver: get("#{0}/@cell_bundle_id".format(custom_area_id), driver=driver) == custom_bundle_id)
-        self._check_true_for_secondary(lambda driver: str(default_area_id) in get("//sys/areas", driver=driver))
-        self._check_true_for_secondary(lambda driver: str(custom_area_id) in get("//sys/areas", driver=driver))
+        def _check1(driver):
+            try:
+                assert get("//sys/tablet_cell_bundles/custom/@areas/default/node_tag_filter", driver=driver) == "default"
+                assert get("//sys/tablet_cell_bundles/custom/@areas/custom/node_tag_filter", driver=driver) == "custom"
+                assert get("#{0}/@cell_bundle_id".format(default_area_id), driver=driver) == custom_bundle_id
+                assert get("#{0}/@cell_bundle_id".format(custom_area_id), driver=driver) == custom_bundle_id
+                assert str(default_area_id) in get("//sys/areas", driver=driver)
+                assert str(custom_area_id) in get("//sys/areas", driver=driver)
+                return True
+            except (AssertionError, YtError):
+                return False
+
+        self._check_true_for_secondary(_check1)
 
         remove_tablet_cell_bundle("custom")
 
-        self._check_true_for_secondary(lambda driver: str(default_area_id) not in get("//sys/areas", driver=driver))
-        self._check_true_for_secondary(lambda driver: str(custom_area_id) not in get("//sys/areas", driver=driver))
+        def _check2(driver):
+            try:
+                assert str(default_area_id) not in get("//sys/areas", driver=driver)
+                assert str(custom_area_id) not in get("//sys/areas", driver=driver)
+                return True
+            except (AssertionError, YtError):
+                return False
+
+        self._check_true_for_secondary(_check2)
 
     @authors("savrus")
     @flaky(max_runs=5)
