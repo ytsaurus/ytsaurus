@@ -611,6 +611,10 @@ func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
 		w.MapKeyString("with_interruption_info")
 		w.Any(o.WithInterruptionInfo)
 	}
+	if o.TaskName != nil {
+		w.MapKeyString("task_name")
+		w.Any(o.TaskName)
+	}
 	if o.Attributes != nil {
 		w.MapKeyString("attributes")
 		w.Any(o.Attributes)
