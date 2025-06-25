@@ -104,7 +104,7 @@ private:
 
         const auto& tableManager = this->GetBootstrap()->GetTableManager();
         // NB: Chaos replicated table is always native.
-        auto* effectiveTableSchema = tableManager->ProcessSchemaFromAttributes(
+        auto effectiveTableSchema = tableManager->ProcessSchemaFromAttributes(
             tableSchema,
             schemaId,
             /*dynamic*/ true,
@@ -120,7 +120,7 @@ private:
             chaosManager->SetChaosCellBundle(node, chaosCellBundle);
 
             if (effectiveTableSchema) {
-                tableManager->GetOrCreateNativeMasterTableSchema(*effectiveTableSchema, node);
+                tableManager->GetOrCreateNativeMasterTableSchema(effectiveTableSchema, node);
             } else {
                 auto* emptyTableSchema = tableManager->GetEmptyMasterTableSchema();
                 tableManager->SetTableSchema(node, emptyTableSchema);

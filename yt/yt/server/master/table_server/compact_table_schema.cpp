@@ -51,6 +51,11 @@ TCompactTableSchema::TCompactTableSchema(const NTableClient::TTableSchemaPtr& sc
     : TCompactTableSchema(*schema)
 { }
 
+bool TCompactTableSchema::operator==(const TCompactTableSchema& other) const
+{
+    return TableSchema_ == other.TableSchema_;
+}
+
 const std::string& TCompactTableSchema::AsWireProto() const
 {
     return TableSchema_;
@@ -175,11 +180,6 @@ void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactT
     } else {
         protoSchema->Clear();
     }
-}
-
-void FromProto(TCompactTableSchema* schema, const NTableClient::NProto::TTableSchemaExt& protoSchema)
-{
-    *schema = TCompactTableSchema(protoSchema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -49,7 +49,7 @@ public:
     //! Looks up a table schema. Returns an existing schema object or nullptr if no such schema exists.
     //! This is the means of schema deduplication.
     virtual TMasterTableSchema* FindNativeMasterTableSchema(
-        const TCompactTableSchema& tableSchema) const = 0;
+        const TCompactTableSchemaPtr& tableSchema) const = 0;
 
     //! Creates an imported schema with the specified id.
     /*!
@@ -58,7 +58,7 @@ public:
      *  NB: This is the means of schema deduplication.
      */
     virtual TMasterTableSchema* CreateImportedMasterTableSchema(
-        const TCompactTableSchema& tableSchema,
+        const TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId hintId) = 0;
 
     //! Creates a foreign schema with the specified id.
@@ -69,14 +69,8 @@ public:
      *  NB: This is the means of schema deduplication.
      */
     virtual TMasterTableSchema* CreateImportedTemporaryMasterTableSchema(
-        const TCompactTableSchema& tableSchema,
+        const TCompactTableSchemaPtr& tableSchema,
         NTransactionServer::TTransaction* schemaHolder,
-        TMasterTableSchemaId hintId) = 0;
-
-    // COMPAT(h0pless): RefactorSchemaExport
-    virtual TMasterTableSchema* CreateImportedMasterTableSchema(
-        const TCompactTableSchema& tableSchema,
-        TSchemafulNode* schemaHolder,
         TMasterTableSchemaId hintId) = 0;
 
     // TODO(cherepashka): make `schema` argument rvalue in functions below (YT-22285).
@@ -88,27 +82,25 @@ public:
      *  NB: This is the means of schema deduplication.
      */
     virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchema& schema,
+        const TCompactTableSchemaPtr& schema,
         TSchemafulNode* schemaHolder) = 0;
 
     //! Same as above but associates resulting schema with a transaction instead
     //! of a schemaful node.
     virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchema& schema,
+        const TCompactTableSchemaPtr& schema,
         NTransactionServer::TTransaction* schemaHolder) = 0;
 
     //! Same as above but associates resulting schema with a chunk instead
     //! of a transaction.
     virtual TMasterTableSchema* GetOrCreateNativeMasterTableSchema(
-        const TCompactTableSchema& schema,
+        const TCompactTableSchemaPtr& schema,
         NChunkServer::TChunk* schemaHolder) = 0;
 
     virtual TFuture<NYson::TYsonString> GetYsonTableSchemaAsync(const TMasterTableSchema* masterSchema) = 0;
 
     // Triggers deserialization of TCompactTableSchema.
-    virtual TFuture<NTableClient::TTableSchemaPtr> GetHeavyTableSchemaAsync(const TCompactTableSchema& compactTableSchema) = 0;
-    // Whenever possible, prefer the async method.
-    virtual NTableClient::TTableSchemaPtr GetHeavyTableSchemaSync(const TCompactTableSchema& compactTableSchema) = 0;
+    virtual TFuture<NTableClient::TTableSchemaPtr> GetHeavyTableSchemaAsync(const TCompactTableSchemaPtr& compactTableSchema) = 0;
     // Whenever possible, prefer the async method.
     virtual NTableClient::TTableSchemaPtr GetHeavyTableSchemaSync(const TCompactTableSchemaPtr& compactTableSchema) = 0;
     // Whenever possible, prefer the async method.
@@ -117,7 +109,7 @@ public:
     // For loading from snapshot.
     virtual TMasterTableSchema::TNativeTableSchemaToObjectMapIterator RegisterNativeSchema(
         TMasterTableSchema* schema,
-        TCompactTableSchema tableSchema) = 0;
+        const TCompactTableSchemaPtr& tableSchema) = 0;
 
     virtual TMasterTableSchema* GetEmptyMasterTableSchema() const = 0;
 
@@ -153,7 +145,7 @@ public:
         TMasterTableSchemaId schemaId,
         bool isChunkSchema = false) = 0;
 
-    virtual const TCompactTableSchema* ProcessSchemaFromAttributes(
+    virtual TCompactTableSchemaPtr ProcessSchemaFromAttributes(
         TCompactTableSchemaPtr& tableSchema,
         TMasterTableSchemaId schemaId,
         bool dynamic,
