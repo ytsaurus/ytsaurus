@@ -1347,7 +1347,7 @@ class YTEnvSetup(object):
     def _has_bundle_controller_transaction(self):
         for tx in yt_commands.ls("//sys/transactions", attributes=["title"]):
             title = tx.attributes.get("title", "")
-            if "Bundle Controller bundles scan" in title:
+            if "Bundle controller bundles scan" in title:
                 return True
         return False
 
@@ -1589,8 +1589,7 @@ class YTEnvSetup(object):
             yt_commands.create("map_node", "//sys/bundle_controller/controller/zones", recursive=True, force=True)
             yt_commands.create("map_node", "//sys/bundle_controller/controller/bundles_state", recursive=True, force=True)
 
-            while not self._has_bundle_controller_transaction():
-                sleep(0.1)
+            wait(self._has_bundle_controller_transaction)
 
     def teardown_method(self, method, wait_for_nodes=True):
         self._maybe_cleanup_additional_threads()
@@ -1707,8 +1706,7 @@ class YTEnvSetup(object):
         )
 
         if self.ENABLE_BUNDLE_CONTROLLER:
-            while self._has_bundle_controller_transaction():
-                sleep(0.1)
+            wait(self._has_bundle_controller_transaction)
 
         yt_commands.gc_collect(driver=driver)
         yt_commands.clear_metadata_caches(driver=driver)
