@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "tablet_chunk_manager.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -18,6 +17,8 @@
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
 #include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
+
+#include <yt/yt/server/lib/tablet_node/public.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 #include <yt/yt/ytlib/table_client/proto/table_ypath.pb.h>
