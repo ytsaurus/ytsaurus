@@ -16,21 +16,25 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TCompactTableSchema& schema, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TCompactTableSchemaPtr& schema, TStringBuf spec)
 {
-    FormatValue(builder, schema.AsWireProto(), spec);
+    if (schema) {
+        FormatValue(builder, schema->AsWireProto(), spec);
+    } else {
+        builder->AppendString(TStringBuf("<null>"));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableSchemaCache::TTableSchemaCache(TAsyncExpiringCacheConfigPtr config)
-    : TAsyncExpiringCache<TCompactTableSchema, TTableSchemaPtr>(
+    : TAsyncExpiringCache<TCompactTableSchemaPtr, TTableSchemaPtr>(
         std::move(config),
         TableServerLogger().WithTag("Cache: TableSchema"),
         TableServerProfiler().WithPrefix("/table_schema_cache"))
 { }
 
-TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchemaAndCache(const TCompactTableSchema& compactTableSchema)
+TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchemaAndCache(const TCompactTableSchemaPtr& compactTableSchema)
 {
     auto schemaOrError = ConvertToHeavyTableSchema(compactTableSchema);
     Set(compactTableSchema, schemaOrError);
@@ -38,7 +42,7 @@ TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchemaAndCache(c
 }
 
 TFuture<TTableSchemaPtr> TTableSchemaCache::DoGet(
-    const TCompactTableSchema& schema,
+    const TCompactTableSchemaPtr& schema,
     bool /*isPeriodicUpdate*/) noexcept
 {
     // NB: since DoGet and ConvertToHeavyTableSchemaAndCache are called in a
@@ -54,11 +58,15 @@ TFuture<TTableSchemaPtr> TTableSchemaCache::DoGet(
         .Run();
 }
 
-TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchema(const TCompactTableSchema& compactTableSchema)
+TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchema(const TCompactTableSchemaPtr& compactTableSchema)
 {
+    if (!compactTableSchema) {
+        return TErrorOr<TTableSchemaPtr>(nullptr);
+    }
+
     try {
         NTableClient::NProto::TTableSchemaExt protoSchema;
-        if (!protoSchema.ParseFromString(compactTableSchema.AsWireProto())) {
+        if (!protoSchema.ParseFromString(compactTableSchema->AsWireProto())) {
             return TError(NCellServer::EErrorCode::CompactSchemaParseError,
                 "Failed to parse table schema from wire proto");
         }
@@ -76,7 +84,7 @@ TErrorOr<TTableSchemaPtr> TTableSchemaCache::ConvertToHeavyTableSchema(const TCo
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonTableSchemaCache::TYsonTableSchemaCache(const TWeakPtr<ITableManager>& weakTableManager, TYsonTableSchemaCacheConfigPtr config)
-    : TAsyncExpiringCache<TCompactTableSchema, TYsonString>(
+    : TAsyncExpiringCache<TCompactTableSchemaPtr, TYsonString>(
         config,
         TableServerLogger().WithTag("Cache: YsonTableSchema"),
         TableServerProfiler().WithPrefix("/yson_table_schema_cache"))
@@ -92,7 +100,7 @@ void TYsonTableSchemaCache::Reconfigure(const TYsonTableSchemaCacheConfigPtr& co
 }
 
 TFuture<TYsonString> TYsonTableSchemaCache::DoGet(
-    const TCompactTableSchema& schema,
+    const TCompactTableSchemaPtr& schema,
     bool /*isPeriodicUpdate*/) noexcept
 {
     if (auto tableManager = WeakTableManager_.Lock(); EnableTableSchemaCache_ && tableManager) {
