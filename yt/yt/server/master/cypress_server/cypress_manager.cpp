@@ -1619,6 +1619,11 @@ public:
             path,
             transaction,
             IObjectManager::TResolvePathOptions{});
+        return CastObjectToCypressNodeOrThrow(object, path);
+    }
+
+    TCypressNode* CastObjectToCypressNodeOrThrow(TObject* object, const TYPath& path)
+    {
         if (!IsVersionedType(object->GetType())) {
             THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
                 path,
@@ -1631,6 +1636,18 @@ public:
     {
         auto* trunkNode = ResolvePathToTrunkNode(path, transaction);
         return GetNodeProxy(trunkNode, transaction);
+    }
+
+    ICypressNodeProxyPtr TryResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction) override
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* object = objectManager->ResolvePathToObject(
+            path,
+            transaction,
+            IObjectManager::TResolvePathOptions{});
+        return object
+            ? GetNodeProxy(CastObjectToCypressNodeOrThrow(object, path), transaction)
+            : nullptr;
     }
 
     TCypressNode* FindNode(

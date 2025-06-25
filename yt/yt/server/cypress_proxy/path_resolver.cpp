@@ -1,6 +1,7 @@
 #include "path_resolver.h"
 
 #include "helpers.h"
+#include "private.h"
 #include "sequoia_session.h"
 
 #include <yt/yt/client/cypress_client/public.h>
@@ -26,6 +27,10 @@ using TYPathBuf = NSequoiaClient::TYPathBuf;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,7 +111,7 @@ bool StartsWithAmpersand(TYPathBuf pathSuffix)
     return tokenizer.GetType() == ETokenType::Ampersand;
 }
 
-bool ShouldFollowLink(TYPathBuf unresolvedSuffix, TStringBuf method)
+bool ShouldFollowLink(TYPathBuf unresolvedSuffix, bool pathIsAdditional, TStringBuf method)
 {
     TTokenizer tokenizer(unresolvedSuffix.Underlying());
     tokenizer.Advance();
@@ -124,6 +129,14 @@ bool ShouldFollowLink(TYPathBuf unresolvedSuffix, TStringBuf method)
     // NB: When link is last component of request's path we try to avoid
     // actions leading to data loss. E.g., it's better to remove link instead
     // of table pointed by link.
+
+    YT_LOG_ALERT_IF(pathIsAdditional && method != "Copy",
+        "Attempting to resolve path as additional for an unexpected method (Method: %v)",
+        method);
+
+    if (method == "Copy" && pathIsAdditional) {
+        return true;
+    }
 
     static const TStringBuf MethodsWithoutRedirection[] = {
         "Remove",
@@ -165,8 +178,9 @@ using TResolveIterationResult = std::variant<
 
 TResolveIterationResult ResolveByPath(
     const TSequoiaSessionPtr& session,
+    TStringBuf method,
     TAbsoluteYPath path,
-    TStringBuf method)
+    bool pathIsAdditional)
 {
     auto prefixesToResolve = CollectPathPrefixes(path);
     auto nodeIds = session->FindNodeIds(prefixesToResolve.Prefixes());
@@ -200,7 +214,7 @@ TResolveIterationResult ResolveByPath(
 
         auto nodeType = TypeFromId(nodeId);
         if ((nodeType == EObjectType::Scion && StartsWithAmpersand(suffix)) ||
-            (nodeType == EObjectType::Link && !ShouldFollowLink(suffix, method)))
+            (nodeType == EObjectType::Link && !ShouldFollowLink(suffix, pathIsAdditional, method)))
         {
             return TForwardToMaster{std::move(path)};
         }
@@ -210,7 +224,7 @@ TResolveIterationResult ResolveByPath(
         resolvedPath = prefix;
         unresolvedSuffix = suffix;
 
-        if (IsLinkType(nodeType) && ShouldFollowLink(suffix, method)) {
+        if (IsLinkType(nodeType) && ShouldFollowLink(suffix, pathIsAdditional, method)) {
             // Failure here means that Sequoia resolve tables are inconsistent.
             auto targetPath = session->GetLinkTargetPath(nodeId);
             targetPath += *unresolvedSuffix;
@@ -235,8 +249,9 @@ TResolveIterationResult ResolveByPath(
 
 TResolveIterationResult ResolveByObjectId(
     const TSequoiaSessionPtr& session,
-    TAbsoluteYPathBuf path,
     TStringBuf method,
+    TAbsoluteYPathBuf path,
+    bool pathIsAdditional,
     TObjectId rootDesignator,
     TYPathBuf pathSuffix)
 {
@@ -252,7 +267,7 @@ TResolveIterationResult ResolveByObjectId(
         // |pathSuffix|) in the next step. But in case of ampersand absence we
         // can do path rewriting here. Note that we don't need to distinguish
         // regular and snapshot nodes here.
-        if (IsLinkType(TypeFromId(rootDesignator)) && ShouldFollowLink(pathSuffix, method)) {
+        if (IsLinkType(TypeFromId(rootDesignator)) && ShouldFollowLink(pathSuffix, pathIsAdditional, method)) {
             auto targetPath = session->GetLinkTargetPath(rootDesignator);
             targetPath += pathSuffix;
 
@@ -278,7 +293,7 @@ TResolveIterationResult ResolveByObjectId(
 
         auto rewrittenPath = std::move(resolvedNode->Path);
         rewrittenPath += pathSuffix;
-        return ResolveByPath(session, std::move(rewrittenPath), method);
+        return ResolveByPath(session, method, std::move(rewrittenPath), pathIsAdditional);
     }
 
     // NB: of course, we could respond just after resolve in Sequoia tables.
@@ -303,16 +318,17 @@ TResolveIterationResult ResolveByObjectId(
 //! Returns raw path if it should be resolved by master.
 TResolveIterationResult RunResolveIteration(
     const TSequoiaSessionPtr& session,
+    TStringBuf method,
     TAbsoluteYPath path,
-    TStringBuf method)
+    bool pathIsAdditional)
 {
     auto [rootDesignator, pathSuffix] = path.GetRootDesignator();
     return Visit(rootDesignator,
         [&] (TObjectId id) {
-            return ResolveByObjectId(session, path, method, id, pathSuffix);
+            return ResolveByObjectId(session, method, path, pathIsAdditional, id, pathSuffix);
         },
         [&] (TSlashRootDesignatorTag /*tag*/) {
-            return ResolveByPath(session, path, method);
+            return ResolveByPath(session, method, path, pathIsAdditional);
         });
 }
 
@@ -330,6 +346,7 @@ bool TSequoiaResolveResult::IsSnapshot() const noexcept
 TResolveResult ResolvePath(
     const TSequoiaSessionPtr& session,
     TRawYPath rawPath,
+    bool pathIsAdditional,
     TStringBuf service,
     TStringBuf method,
     std::vector<TSequoiaResolveIterationResult>* history)
@@ -357,7 +374,7 @@ TResolveResult ResolvePath(
     for (int resolutionDepth = 0; ; ++resolutionDepth) {
         ValidateYPathResolutionDepth(path.Underlying(), resolutionDepth);
 
-        auto iterationResult = RunResolveIteration(session, std::move(path), method);
+        auto iterationResult = RunResolveIteration(session, method, std::move(path), pathIsAdditional);
         static_assert(std::variant_size<decltype(iterationResult)>() == 3);
 
         if (auto* forwardToMaster = std::get_if<TForwardToMaster>(&iterationResult)) {

@@ -1856,7 +1856,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     if (ypathExt.additional_paths_size() != 1) {
         THROW_ERROR_EXCEPTION("Invalid number of additional paths");
     }
-    const auto& originalSourcePath = ypathExt.additional_paths(0);
+    const auto& sourcePath = ypathExt.additional_paths(0);
 
     auto ignoreExisting = request->ignore_existing();
     auto lockExisting = request->lock_existing();
@@ -1871,11 +1871,19 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     }
 
     context->SetIncrementalRequestInfo("SourcePath: %v, Mode: %v",
-        originalSourcePath,
+        sourcePath,
         mode);
 
     const auto& cypressManager = Bootstrap_->GetCypressManager();
-    auto sourceProxy = cypressManager->ResolvePathToNodeProxy(originalSourcePath, Transaction_);
+    auto sourceProxy = cypressManager->TryResolvePathToNodeProxy(sourcePath, Transaction_);
+    if (!sourceProxy) {
+        THROW_ERROR_EXCEPTION(
+            NObjectClient::EErrorCode::CrossCellAdditionalPath,
+            "Additional path %v turned out to be cross-cell relative to target path %v that resolves to cell %v",
+            ypathExt.original_additional_paths(0),
+            ypathExt.original_target_path(),
+            Bootstrap_->GetMulticellManager()->GetCellTag());
+    }
 
     auto* trunkSourceNode = sourceProxy->GetTrunkNode();
 
@@ -1899,7 +1907,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     }
 
     // The path may be invalidated by removal below; save it.
-    auto sourcePath = YT_EVALUATE_FOR_ACCESS_LOG(sourceProxy->GetPath());
+    auto loggedSourcePath = YT_EVALUATE_FOR_ACCESS_LOG(sourceProxy->GetPath());
 
     TNodeId clonedTrunkNodeId;
     CopyCore(
@@ -1921,7 +1929,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     YT_LOG_ACCESS(
         context,
         sourceProxy->GetId(),
-        sourcePath,
+        loggedSourcePath,
         Transaction_,
         {{"destination_id", ToString(clonedTrunkNodeId)},
          {"destination_path", GetPath()}},

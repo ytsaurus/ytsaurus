@@ -864,6 +864,7 @@ private:
             resolveResult = ResolvePath(
                 session,
                 originalTargetPath,
+                /*pathIsAdditional*/ false,
                 subrequest->RequestHeader->service(),
                 subrequest->RequestHeader->method());
         } catch (const std::exception& ex) {

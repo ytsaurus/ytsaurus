@@ -416,15 +416,6 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/p/@key") == "p"
         assert get("//tmp/p/@parent_id") == get("//tmp/@id")
 
-    @authors("babenko")
-    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
-    @pytest.mark.skipif("True", reason="YT-11197")
-    def test_cross_cell_links_forbidden(self, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
-        with pytest.raises(YtError):
-            link("//tmp", "//tmp/p/l")
-
     @authors("shakurov")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_intra_cell_cross_shard_links(self, purge_resolve_cache):
@@ -657,7 +648,8 @@ class TestPortals(YTEnvSetup):
     @authors("koloshmet")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     @pytest.mark.parametrize("target_on_primary", [False, True])
-    def test_cross_cell_links_resolve(self, purge_resolve_cache, target_on_primary):
+    @pytest.mark.parametrize("object_id_target_path", [False, True])
+    def test_cross_cell_links_resolve(self, purge_resolve_cache, target_on_primary, object_id_target_path):
         set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
 
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
@@ -665,6 +657,9 @@ class TestPortals(YTEnvSetup):
         create("table", "//tmp/p/d/p")
 
         target = "//tmp" if target_on_primary else "//tmp/p/d"
+        if object_id_target_path:
+            target_id = get(f"{target}/@id")
+            target = f"#{target_id}"
         link(target, "//tmp/p/l")
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p/l&")
 
@@ -1111,44 +1106,29 @@ class TestPortals(YTEnvSetup):
 
     @authors("shakurov")
     @pytest.mark.parametrize("remove_source", [False, True])
-    def test_cross_shard_copy_link1(self, remove_source):
+    @pytest.mark.parametrize("source_link_beyond_portal", [False, True])
+    @pytest.mark.parametrize("source_link_target_beyond_portal", [False, True])
+    @pytest.mark.parametrize("destination_beyond_portal", [False, True])
+    def test_cross_shard_copy_link(self, remove_source, source_link_beyond_portal, source_link_target_beyond_portal, destination_beyond_portal):
+        set("//sys/@config/enable_intra_cell_cross_shard_links", True)
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        create("table", "//tmp/p/t", attributes={"external_cell_tag": 12})
-        link("//tmp/p/t", "//tmp/l1")
-        link("//tmp/p/t", "//tmp/p/l2")
+
+        source_link_target = "//tmp/p/t" if source_link_target_beyond_portal else "//tmp/t"
+        create("table", source_link_target, attributes={"external_cell_tag": 12})
+        source_link = "//tmp/p/l" if source_link_beyond_portal else "//tmp/l"
+        link(source_link_target, source_link)
 
         copier = move if remove_source else copy
 
-        with raises_yt_error("//tmp/l1 is not a local object"):
-            copier("//tmp/l1", "//tmp/l1_copy")
+        destination = "//tmp/p/l_copy" if destination_beyond_portal else "//tmp/l_copy"
 
-        copier("//tmp/p/l2", "//tmp/l2_copy")
+        copier(source_link, destination)
 
-        get("//tmp/l2_copy&/@type") == "table"
-        assert exists("//tmp/p/t&") == (not remove_source)
-        assert get("//tmp/p/l2&/@target_path") == "//tmp/p/t"
-        assert get("//tmp/p/l2&/@broken") == remove_source
-
-    @authors("shakurov")
-    @pytest.mark.parametrize("remove_source", [False, True])
-    def test_cross_shard_copy_link2(self, remove_source):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        create("table", "//tmp/t", attributes={"external_cell_tag": 12})
-        link("//tmp/t", "//tmp/l1")
-        link("//tmp/t", "//tmp/p/l2")
-
-        copier = move if remove_source else copy
-
-        copier("//tmp/l1", "//tmp/p/l1_copy")
-
-        assert get("//tmp/p/l1_copy&/@type") == "table"
-
-        assert exists("//tmp/t&") == (not remove_source)
-        assert get("//tmp/l1&/@target_path") == "//tmp/t"
-        assert get("//tmp/l1&/@broken") == remove_source
-
-        with raises_yt_error("Cross-cell links are not supported"):
-            copier("//tmp/p/l2", "//tmp/p/l2_copy")
+        get(f"{destination}&/@type") == "table"
+        assert exists(f"{source_link_target}&") == (not remove_source)
+        assert get(f"{source_link}&/@target_path") == source_link_target
+        assert get(f"{source_link}&/@broken") == remove_source
 
     @authors("shakurov")
     def test_link_to_portal_not_broken(self):
@@ -2421,9 +2401,7 @@ class TestCrossCellCopy(YTEnvSetup):
         self.validate_subtree_attribute_consistency(src_path, f"{underlying_dst_path}/subtree")
 
     @authors("h0pless")
-    # TODO(h0pless): Add True to this parameter. Currently it's broken due to a faulty
-    # symlink resolve.
-    @pytest.mark.parametrize("link_beyond_entrance", [False])
+    @pytest.mark.parametrize("link_beyond_entrance", [True, False])
     def test_source_symlink(self, link_beyond_entrance):
         set("//sys/@config/cypress_manager/enable_cross_cell_links", link_beyond_entrance)
         underlying_src_path = f"{self.SRC}/subtree"

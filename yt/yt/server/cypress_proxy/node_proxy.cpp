@@ -802,6 +802,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
     auto sourceResolveResult = ResolvePath(
         SequoiaSession_,
         originalSourcePath.ToRawYPath(),
+        /*pathIsAdditional*/ true,
         context->GetService(),
         "Copy");
 

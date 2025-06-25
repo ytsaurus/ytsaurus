@@ -269,6 +269,11 @@ public:
         TTransaction* transaction,
         const TResolvePathOptions& options) override;
 
+    TObject* ResolvePathToObject(
+        const TYPath& path,
+        TTransaction* transaction,
+        const TResolvePathOptions& options) override;
+
     TObjectId ResolvePathToObjectId(
         const NYPath::TYPath& path,
         const std::string& method,
@@ -532,7 +537,7 @@ public:
                         [] (const TPathResolver::TRemoteObjectRedirectPayload& payload) {
                             return std::make_optional(payload.ObjectId);
                         },
-                        [] (...) -> std::optional<TObjectId> {
+                        [] (const auto&) -> std::optional<TObjectId> {
                             return std::nullopt;
                         });
 
@@ -1773,10 +1778,44 @@ TObject* TObjectManager::ResolvePathToLocalObject(const TYPath& path, TTransacti
     return payload->Object;
 }
 
+TObject* TObjectManager::ResolvePathToObject(
+    const TYPath& path,
+    TTransaction* transaction,
+    const TResolvePathOptions& options)
+{
+    static const std::string NullService;
+    static const std::string NullMethod;
+    TPathResolver resolver(
+        Bootstrap_,
+        NullService,
+        NullMethod,
+        path,
+        transaction);
+
+    auto result = resolver.Resolve(TPathResolverOptions{
+        .EnablePartialResolve = options.EnablePartialResolve,
+    });
+
+    return Visit(
+        result.Payload,
+        [] (const TPathResolver::TLocalObjectPayload& payload) {
+            return payload.Object;
+        },
+        [] (const TPathResolver::TRemoteObjectRedirectPayload&) -> TObject* {
+            return nullptr;
+        },
+        [] (const TPathResolver::TSequoiaRedirectPayload&) -> TObject* {
+            return nullptr;
+        },
+        [&] (const TPathResolver::TMissingObjectPayload&) -> TObject* {
+            THROW_ERROR_EXCEPTION("Failed to resolve path %v, object is missing", path);
+        });
+}
+
 TObjectId TObjectManager::ResolvePathToObjectId(
-    const NYPath::TYPath& path,
+    const TYPath& path,
     const std::string& method,
-    NTransactionServer::TTransaction* transaction,
+    TTransaction* transaction,
     const TResolvePathOptions& options)
 {
     static const std::string NullService;
@@ -1790,22 +1829,18 @@ TObjectId TObjectManager::ResolvePathToObjectId(
     auto result = resolver.Resolve(TPathResolverOptions{
         .EnablePartialResolve = options.EnablePartialResolve,
     });
-    auto optionalObjectId = Visit(
+
+    return Visit(
         result.Payload,
         [] (const TPathResolver::TLocalObjectPayload& payload) {
-            return std::make_optional(payload.Object->GetId());
+            return payload.Object->GetId();
         },
         [] (const TPathResolver::TRemoteObjectRedirectPayload& payload) {
-            return std::make_optional(payload.ObjectId);
+            return payload.ObjectId;
         },
-        [] (...) -> std::optional<TObjectId> {
-            return std::nullopt;
+        [&] (const auto&) -> TObjectId {
+            THROW_ERROR_EXCEPTION("Failed to resolve path %v, object is either missing or lies in Sequoia", path);
         });
-
-    if (optionalObjectId) {
-        return *optionalObjectId;
-    }
-    THROW_ERROR_EXCEPTION("Failed to resolve path %v, object is either missing or lies in Sequoia", path);
 }
 
 auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectId>& objectIds)
