@@ -105,7 +105,7 @@ bool TColumnarChunkReaderBase::IsFetchingCompleted() const
 
 std::vector<TChunkId> TColumnarChunkReaderBase::GetFailedChunkIds() const
 {
-    if (ReadyEvent().IsSet() && !ReadyEvent().Get().IsOK()) {
+    if (auto readyEvent = ReadyEvent(); readyEvent.IsSet() && !readyEvent.Get().IsOK()) {
         return { UnderlyingReader_->GetChunkId() };
     } else {
         return std::vector<TChunkId>();

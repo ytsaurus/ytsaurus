@@ -263,8 +263,7 @@ protected:
         std::vector<TRow> rows;
         rows.reserve(options.MaxRowsPerRead);
 
-        auto readyEvent = ReadyEvent();
-        if (!readyEvent.IsSet() || !readyEvent.Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyRowBatch<TRow>();
         }
 
@@ -745,8 +744,7 @@ public:
 
     IRowBatchPtr DoRead(const TRowBatchReadOptions& options)
     {
-        auto readyEvent = ReadyEvent();
-        if (!readyEvent.IsSet() || !readyEvent.Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyRowBatch<TRow>();
         }
 
