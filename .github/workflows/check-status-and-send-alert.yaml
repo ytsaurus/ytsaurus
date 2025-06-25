@@ -27,6 +27,10 @@ jobs:
           sparse-checkout-cone-mode: false
           sparse-checkout: '.github/scripts/send_notifications.py'
 
+      - name: Prepare Python
+        run: |
+          pip install PyGithub==2.6.1
+
       - name: Send telegram status report
         id: send-telegram-status-report
         run: |
