@@ -216,6 +216,8 @@ void TClickHouseConfig::Register(TRegistrar registrar)
             map["use_hedged_requests"] = NYTree::ConvertToNode(0);
             map["distributed_product_mode"] = NYTree::ConvertToNode("allow");
             map["calculate_text_stack_trace"] = NYTree::ConvertToNode(false);
+            map["query_cache_system_table_handling"] = NYTree::ConvertToNode("ignore");
+            map["query_cache_nondeterministic_function_handling"] = NYTree::ConvertToNode("ignore");
             return map;
         });
 
