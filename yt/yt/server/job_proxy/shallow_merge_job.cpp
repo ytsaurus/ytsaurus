@@ -170,7 +170,6 @@ public:
     TStatistics GetStatistics() const override
     {
         return {
-            .ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics,
             .ChunkWriterStatistics = {WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics},
             .TotalInputStatistics = {
                 .DataStatistics = InputDataStatistics_.Load(),
