@@ -26,6 +26,7 @@
 #ifdef _linux_
 #include <yt/yt/library/containers/porto_executor.h>
 #include <yt/yt/library/containers/instance.h>
+#include <grp.h>
 #endif
 
 #include <yt/yt/ytlib/job_proxy/private.h>
@@ -1362,13 +1363,18 @@ private:
             .ReadOnly = false,
         });
 
-        // We need to specify the group which owns (or has access to) the /run/containerd/containerd.socket,
-        // so that the job proxy can spawn sidecars. However, it's impossible to check the owner without sudo.
-        // I suggest that we add a configuration parameter for the server to specify the name of the containerd
-        // group, as it may be root, docker or anything else. By default it should be docker, and root should
-        // never be specified for security reasons.
-        // TODO(pavel-bash): decide this; currently, it's hardcoded to ID of docker group on the dev machine.
-        spec->Credentials.Groups = {998};
+#ifdef _linux_
+        // Required for job_proxy to be able to actually access the containerd socket.
+        const auto* containerGroup =
+            getgrnam(Bootstrap_->GetConfig()->ExecNode->ContainerUserGroupName.c_str());
+        if (containerGroup != nullptr) {
+            spec->Credentials.Groups = {containerGroup->gr_gid};
+        } else {
+            YT_LOG_ERROR(
+                "Cannot find user group by the specified name, sidecars may not work in job_proxy (ContainerUserGroupName: %v)",
+                Bootstrap_->GetConfig()->ExecNode->ContainerUserGroupName);
+        }
+#endif
 
         spec->Resources->CpuLimit = config->ContainerCpuLimit;
         spec->Resources->MemoryLimit = config->SlotContainerMemoryLimit;
