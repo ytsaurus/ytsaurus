@@ -13,9 +13,9 @@ namespace {
 
 TString BuildMetric(const TString& requestType, const TString& duration)
 {
-    static const std::vector<TString> sources{"dynamic", "static_chunk"};
+    static const std::vector<TString> sources{"dynamic", "static_chunk", "static_hunk_chunk"};
 
-    if (requestType == "lookup_cpu") {
+    if (requestType == "lookup_cpu" || requestType == "select_cpu") {
         return Format("double([/performance_counters/%v_time_%v_rate])", requestType, duration);
     }
 
@@ -33,7 +33,7 @@ TString BuildMetric(const TString& requestType, const TString& duration)
 THashMap<TString, TString> BuildMetricAliases()
 {
     static const std::vector<TString> durations{"10m", "1h"};
-    static const std::vector<TString> requestTypes{"write", "read", "lookup", "lookup_cpu"};
+    static const std::vector<TString> requestTypes{"write", "read", "lookup", "lookup_cpu", "select_cpu"};
 
     THashMap<TString, TString> aliases;
     for (const auto& duration : durations) {
