@@ -624,6 +624,7 @@ type ListJobsOptions struct {
 	WithFailContext          *bool          `http:"with_fail_context,omitnil"`
 	WithMonitoringDescriptor *bool          `http:"with_monitoring_descriptor,omitnil"`
 	WithInterruptionInfo     *bool          `http:"with_interruption_info,omitnil"`
+	TaskName                 *string        `http:"task_name,omitnil"`
 	Attributes               []string       `http:"attributes,omitnil"`
 	SortField                *JobSortField  `http:"sort_field,omitnil"`
 	SortOrder                *JobSortOrder  `http:"sort_order,omitnil"`
@@ -641,6 +642,7 @@ type JobStatus struct {
 	Type            string             `yson:"type"`
 	State           string             `yson:"state"`
 	Address         string             `yson:"address"`
+	TaskName        string             `yson:"task_name"`
 	StartTime       yson.Time          `yson:"start_time"`
 	FinishTime      yson.Time          `yson:"finish_time,omitempty"`
 	FailContextSize int                `yson:"fail_context_size,omitempty"`
