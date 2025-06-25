@@ -947,7 +947,7 @@ void TBootstrap::DoInitialize()
 
     CypressProxyTracker_ = CreateCypressProxyTracker(this, ChannelFactory_);
 
-    ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
+    ReplicatedTableTracker_ = CreateMasterReplicatedTableTracker(Config_->ReplicatedTableTracker, this);
 
     SchedulerPoolManager_ = CreateSchedulerPoolManager(this);
 

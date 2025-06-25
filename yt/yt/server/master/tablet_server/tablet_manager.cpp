@@ -191,10 +191,10 @@ class TTabletManager
 public:
     explicit TTabletManager(NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::TabletManager)
-        , TabletService_(New<TTabletService>(Bootstrap_))
-        , TabletBalancer_(New<TTabletBalancer>(Bootstrap_))
-        , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Bootstrap_))
-        , TabletActionManager_(New<TTabletActionManager>(Bootstrap_))
+        , TabletService_(CreateTabletService(Bootstrap_))
+        , TabletBalancer_(CreateTabletBalancer(Bootstrap_))
+        , TabletCellDecommissioner_(CreateTabletCellDecommissioner(Bootstrap_))
+        , TabletActionManager_(CreateTabletActionManager(Bootstrap_))
         , TabletChunkManager_(CreateTabletChunkManager(Bootstrap_))
         , TabletMap_(TEntityMapTypeTraits<TTabletBase>(Bootstrap_))
     {
@@ -2868,10 +2868,10 @@ private:
         TBootstrap* const Bootstrap_;
     };
 
-    const TTabletServicePtr TabletService_;
-    const TTabletBalancerPtr TabletBalancer_;
-    const TTabletCellDecommissionerPtr TabletCellDecommissioner_;
-    const TTabletActionManagerPtr TabletActionManager_;
+    const ITabletServicePtr TabletService_;
+    const ITabletBalancerPtr TabletBalancer_;
+    const ITabletCellDecommissionerPtr TabletCellDecommissioner_;
+    const ITabletActionManagerPtr TabletActionManager_;
     const ITabletChunkManagerPtr TabletChunkManager_;
 
     TEntityMap<TTabletBase, TEntityMapTypeTraits<TTabletBase>> TabletMap_;
