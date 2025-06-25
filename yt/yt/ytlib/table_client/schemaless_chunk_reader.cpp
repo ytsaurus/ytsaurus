@@ -1808,7 +1808,7 @@ public:
         Pool_.Clear();
         MemoryGuard_.SetSize(Pool_.GetCapacity());
 
-        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 
@@ -2360,7 +2360,7 @@ public:
         Pool_.Clear();
         MemoryGuard_.SetSize(Pool_.GetCapacity());
 
-        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 

@@ -1154,7 +1154,7 @@ public:
 
         RowBuilder_.Clear();
 
-        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyVersionedRowBatch();
         }
 
@@ -1485,7 +1485,7 @@ public:
 
         RowBuilder_.Clear();
 
-        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyVersionedRowBatch();
         }
 

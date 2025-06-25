@@ -16,6 +16,8 @@ namespace {
 using namespace NConcurrency;
 using namespace NTableClient;
 
+using namespace ::testing;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMultiReaderManagerType,
@@ -89,8 +91,8 @@ ISchemalessChunkReaderPtr CreateReaderWithError(int filledRowCount)
 } // namespace
 
 class TMultiReaderManagerTest
-    : public ::testing::Test
-    , public ::testing::WithParamInterface<EMultiReaderManagerType>
+    : public Test
+    , public WithParamInterface<EMultiReaderManagerType>
 { };
 
 TEST_P(TMultiReaderManagerTest, DataWithEmptyRows)
@@ -167,10 +169,36 @@ TEST_P(TMultiReaderManagerTest, Interrupt)
     EXPECT_EQ(5, remainingRowCount);
 }
 
+class TMultiReaderManagerWaitStressTest
+    : public Test
+    , public WithParamInterface<std::tuple<int, EMultiReaderManagerType>>
+{ };
+
+TEST_P(TMultiReaderManagerWaitStressTest, WaitTime)
+{
+    auto readers = CreateMockReaders(/*readerCount*/ 100, /*filledRowCount*/ 5, /*delayStep*/ TDuration::MicroSeconds(10));
+    auto multiReader = CreateMultiReader(readers, std::get<1>(GetParam()));
+
+    NProfiling::TWallTimer timer;
+
+    while (true) {
+        if (!ReadRowBatch(multiReader)) {
+            break;
+        }
+    }
+
+    EXPECT_LE(multiReader->GetTimingStatistics().WaitTime, timer.GetElapsedTime());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TMultiReaderManagerWaitStressTest,
+    TMultiReaderManagerWaitStressTest,
+    Combine(Range(0, 100), Values(EMultiReaderManagerType::Parallel, EMultiReaderManagerType::Sequential)));
+
 INSTANTIATE_TEST_SUITE_P(
     TMultiReaderManagerTest,
     TMultiReaderManagerTest,
-    ::testing::Values(EMultiReaderManagerType::Parallel, EMultiReaderManagerType::Sequential)
+    Values(EMultiReaderManagerType::Parallel, EMultiReaderManagerType::Sequential)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
