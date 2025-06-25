@@ -312,10 +312,13 @@ class TestMasterCellsSync(YTEnvSetup):
                 connected_secondary_masters = _get_connected_secondary_masters_addresses(node, last_cell["cell_id"])
                 if connected_secondary_masters is None:
                     return False
-                if host_should_be_removed and removed_host in connected_secondary_masters:
-                    return False
-                elif not host_should_be_removed and removed_host not in connected_secondary_masters:
-                    return False
+                # Peers are no longer actually removed upon synchronization as it prevents us
+                # from migrating master cells between hosts without downtime.
+                if host_should_be_removed:
+                    assert removed_host in connected_secondary_masters
+                    return True
+                else:
+                    return removed_host in connected_secondary_masters
             return True
 
         # Wait for all nodes to receive new master cells configuration.
