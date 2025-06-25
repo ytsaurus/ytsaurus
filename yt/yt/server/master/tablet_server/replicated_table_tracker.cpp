@@ -271,11 +271,12 @@ DEFINE_REFCOUNTED_TYPE(TClusterStateCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatedTableTracker::TImpl
-    : public TMasterAutomatonPart
+class TMasterReplicatedTableTracker
+    : public IMasterReplicatedTableTracker
+    , public TMasterAutomatonPart
 {
 public:
-    TImpl(TReplicatedTableTrackerConfigPtr config, TBootstrap* bootstrap)
+    TMasterReplicatedTableTracker(TReplicatedTableTrackerConfigPtr config, TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ReplicatedTableTracker)
         , Config_(std::move(config))
         , ConnectionThread_(New<TActionQueue>("RTTConnection"))
@@ -289,10 +290,10 @@ public:
         YT_ASSERT_INVOKER_THREAD_AFFINITY(CheckerThreadPool_->GetInvoker(), CheckerThread);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SubscribeNodeCreated(BIND_NO_PROPAGATE(&TImpl::OnNodeCreated, MakeStrong(this)));
+        cypressManager->SubscribeNodeCreated(BIND_NO_PROPAGATE(&TMasterReplicatedTableTracker::OnNodeCreated, MakeStrong(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterReplicatedTableTracker::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 private:
@@ -1095,12 +1096,12 @@ private:
 
         UpdaterExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker),
-            BIND(&TImpl::UpdateIteration, MakeWeak(this)));
+            BIND(&TMasterReplicatedTableTracker::UpdateIteration, MakeWeak(this)));
         UpdaterExecutor_->Start();
 
         CheckerExecutor_ = New<TPeriodicExecutor>(
             CheckerThreadPool_->GetInvoker(),
-            BIND(&TImpl::CheckIteration, MakeWeak(this)));
+            BIND(&TMasterReplicatedTableTracker::CheckIteration, MakeWeak(this)));
         CheckerExecutor_->Start();
     }
 
@@ -1313,13 +1314,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicatedTableTracker::TReplicatedTableTracker(
-    TReplicatedTableTrackerConfigPtr config,
+IMasterReplicatedTableTrackerPtr CreateMasterReplicatedTableTracker(
+    NTabletServer::TReplicatedTableTrackerConfigPtr config,
     TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
-{ }
-
-TReplicatedTableTracker::~TReplicatedTableTracker() = default;
+{
+    return New<TMasterReplicatedTableTracker>(std::move(config), bootstrap);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

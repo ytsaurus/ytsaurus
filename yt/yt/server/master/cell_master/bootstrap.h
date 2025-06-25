@@ -253,7 +253,7 @@ protected:
     NTabletServer::ITabletManagerPtr TabletManager_;
     NTabletServer::IBackupManagerPtr BackupManager_;
     NSchedulerPoolServer::ISchedulerPoolManagerPtr SchedulerPoolManager_;
-    NTabletServer::TReplicatedTableTrackerPtr ReplicatedTableTracker_;
+    NTabletServer::IMasterReplicatedTableTrackerPtr ReplicatedTableTracker_;
     NConcurrency::TActionQueuePtr ReplicatedTableTrackerActionQueue_;
     NTabletServer::IReplicatedTableTrackerStateProviderPtr ReplicatedTableTrackerStateProvider_;
     NChaosServer::IChaosManagerPtr ChaosManager_;

@@ -3,34 +3,28 @@
 #include "public.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
-#include <yt/yt/server/master/table_server/public.h>
-
-#include <yt/yt/core/actions/future.h>
 
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletBalancer
+struct ITabletBalancer
     : public TRefCounted
 {
 public:
-    explicit TTabletBalancer(NCellMaster::TBootstrap* bootstrap);
-    ~TTabletBalancer();
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
 
-    void Start();
-    void Stop();
+    virtual void Reconfigure(TTabletBalancerMasterConfigPtr config) = 0;
 
-    void Reconfigure(TTabletBalancerMasterConfigPtr config);
-
-    void OnTabletHeartbeat(TTablet* tablet);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual void OnTabletHeartbeat(TTablet* tablet) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletBalancer)
+DEFINE_REFCOUNTED_TYPE(ITabletBalancer)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITabletBalancerPtr CreateTabletBalancer(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

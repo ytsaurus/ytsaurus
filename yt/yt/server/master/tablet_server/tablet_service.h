@@ -8,22 +8,17 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletService
-    : public TRefCounted
+struct ITabletService
+    : public virtual TRefCounted
 {
-public:
-    explicit TTabletService(NCellMaster::TBootstrap* bootstrap);
-
-    ~TTabletService();
-
-    void Initialize();
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual void Initialize() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletService)
+DEFINE_REFCOUNTED_TYPE(ITabletService)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITabletServicePtr CreateTabletService(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
