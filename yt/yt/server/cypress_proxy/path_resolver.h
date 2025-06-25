@@ -38,6 +38,7 @@ struct TCypressResolveResult
 TResolveResult ResolvePath(
     const TSequoiaSessionPtr& session,
     NYPath::TYPath path,
+    bool pathIsAdditional,
     TStringBuf service,
     TStringBuf method,
     std::vector<TSequoiaResolveIterationResult>* history = nullptr);

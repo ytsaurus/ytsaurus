@@ -147,6 +147,14 @@ public:
         const NYPath::TYPath& path,
         NTransactionServer::TTransaction* transaction = nullptr) = 0;
 
+    //! Resolves a path.
+    //! If the path resolves to a local node, returns a proxy for it.
+    //! If the path leads to another cell (including Sequoia), returns null.
+    //! Throws if the path leads to a missing object.
+    virtual ICypressNodeProxyPtr TryResolvePathToNodeProxy(
+        const NYPath::TYPath& path,
+        NTransactionServer::TTransaction* transaction = nullptr) = 0;
+
     //! Similar to |FindNode| provided by |DECLARE_ENTITY_MAP_ACCESSORS| but
     //! specially optimized for the case of null transaction.
     virtual TCypressNode* FindNode(
