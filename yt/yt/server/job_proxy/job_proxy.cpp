@@ -616,7 +616,9 @@ void TJobProxy::DoRun()
         YT_LOG_INFO("CPU monitor stopped");
     }
 
-    FindJobProxyEnvironment()->KillSidecars();
+    if (GetJobSpecHelper()->HasSidecars()) {
+        FindJobProxyEnvironment()->KillSidecars();
+    }
 
     {
         auto error = WaitFor(RpcServer_->Stop()
@@ -1043,13 +1045,15 @@ TJobResult TJobProxy::RunJob()
     HeartbeatExecutor_->Start();
     CpuMonitor_->Start();
 
-    environment->StartSidecars(this, GetJobSpecHelper()->GetJobSpecExt(), [this] (TError sidecarError) {
-        auto job = FindJob();
-        if (!job) {
-            YT_LOG_FATAL("Tried to get the job, but it is unavailable (SidecarError: %v)", sidecarError);
-        }
-        job->Fail(std::move(sidecarError));
-    });
+    if (GetJobSpecHelper()->HasSidecars()) {
+        environment->StartSidecars(this, GetJobSpecHelper()->GetJobSpecExt(), [this] (TError sidecarError) {
+            auto job = FindJob();
+            if (!job) {
+                YT_LOG_FATAL("Tried to get the job, but it is unavailable (SidecarError: %v)", sidecarError);
+            }
+            job->Fail(std::move(sidecarError));
+        });
+    }
 
     return job->Run();
 }
