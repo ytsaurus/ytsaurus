@@ -245,6 +245,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraDeallocateServant, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraReportSmoothMovementProgress, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraReportSmoothMovementAborted, Unretained(this)));
+        // COMPAT(ifsmirnov): 25.2 masters may send this mutation via hive so drop it after 25.3.
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraMaterializeExtraMountConfigKeys, Unretained(this)));
 
         const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
@@ -2816,27 +2817,6 @@ public:
         });
     }
 
-    void UpdateExtraMountConfigKeys(std::vector<std::string> keys) override
-    {
-        for (auto&& key : keys) {
-            auto [it, inserted] = MountConfigKeysFromNodes_.insert(std::move(key));
-            if (inserted) {
-                YT_LOG_DEBUG(
-                    "Registered new mount config key (Key: %v)",
-                    *it);
-            }
-        }
-    }
-
-    void MaterizlizeExtraMountConfigKeys(TCellTag cellTag) const override
-    {
-        NProto::TReqMaterializeExtraMountConfigKeys request;
-        ToProto(request.mutable_table_mount_config_keys(), MountConfigKeysFromNodes_);
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToMaster(request, cellTag);
-    }
-
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Tablet, TTabletBase);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(TabletAction, TTabletAction);
@@ -2884,35 +2864,10 @@ private:
 
     TTimeCounter TabletNodeHeartbeatCounter_ = TabletServerProfiler().TimeCounter("/tablet_node_heartbeat");
 
-    // Mount config keys received from nodes. Persisted.
-    THashSet<std::string> MountConfigKeysFromNodes_;
-    // Mount config keys known to the binary (by the moment of most recent reign change). Persisted.
-    THashSet<std::string> LocalMountConfigKeys_;
-
     INodePtr BuildOrchidYson() const
     {
-        std::vector<std::string> extraMountConfigKeys;
-        for (const auto& key : MountConfigKeysFromNodes_) {
-            if (!LocalMountConfigKeys_.contains(key)) {
-                extraMountConfigKeys.push_back(key);
-            }
-        }
-
-        // NB: Orchid node is materialized explicitly because |opaque| is not applied
-        // if BuildYsonFluently(consumer) is used, and we want to save some screen space.
         return BuildYsonNodeFluently()
             .BeginMap()
-                .Item("extra_mount_config_keys").Value(extraMountConfigKeys)
-                .Item("local_mount_config_keys")
-                    .BeginAttributes()
-                        .Item("opaque").Value(true)
-                    .EndAttributes()
-                    .Value(LocalMountConfigKeys_)
-                .Item("mount_config_keys_from_nodes")
-                    .BeginAttributes()
-                        .Item("opaque").Value(true)
-                    .EndAttributes()
-                    .Value(MountConfigKeysFromNodes_)
                 .Item("non_avenue_tablet_count").Value(NonAvenueTabletCount_)
             .EndMap();
     }
@@ -2927,9 +2882,6 @@ private:
     TTabletCellBundle* SequoiaTabletCellBundle_ = nullptr;
 
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
-
-    // Not a compat, actually.
-    bool FillMountConfigKeys_ = false;
 
     //! Hash parts of the avenue ids generated in current mutation.
     THashSet<ui32> GeneratedAvenueIdEntropies_;
@@ -4893,9 +4845,6 @@ private:
         TabletMap_.SaveValues(context);
         TableReplicaMap_.SaveValues(context);
         TabletActionMap_.SaveValues(context);
-
-        Save(context, MountConfigKeysFromNodes_);
-        Save(context, LocalMountConfigKeys_);
     }
 
 
@@ -4916,11 +4865,13 @@ private:
         TableReplicaMap_.LoadValues(context);
         TabletActionMap_.LoadValues(context);
 
-        Load(context, MountConfigKeysFromNodes_);
-        Load(context, LocalMountConfigKeys_);
-
-        // Update mount config keys whenever the reign changes.
-        FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(NCellMaster::GetCurrentReign());
+        // COMPAT(ifsmirnov)
+        if (context.GetVersion() < EMasterReign::DropOldMountConfigKeyLists) {
+            // MountConfigKeysFromNodes_
+            Load<THashSet<std::string>>(context);
+            // LocalMountConfigKeys_
+            Load<THashSet<std::string>>(context);
+        }
 
         ForbidAvenuesDuringMigration_ = context.GetVersion() < EMasterReign::NoAvenuesDuringMigrationTo24_2;
 
@@ -4981,7 +4932,6 @@ private:
 
         RecomputeAggregateTabletStatistics_ = false;
         RecomputeHunkResourceUsage_ = false;
-        FillMountConfigKeys_ = false;
         ForbidAvenuesDuringMigration_ = false;
         InternalizeBundleResourceQuotaAttribute_ = false;
     }
@@ -5012,11 +4962,6 @@ private:
                     tablet->GetNodeEndpointId(),
                     tablet->Servant().GetCell()->GetId());
             }
-        }
-
-        if (FillMountConfigKeys_) {
-            auto mountConfig = New<NTabletNode::TTableMountConfig>();
-            LocalMountConfigKeys_ = mountConfig->GetRegisteredKeys();
         }
 
         NonAvenueTabletCount_ = 0;
@@ -5152,9 +5097,6 @@ private:
     void SetZeroState() override
     {
         InitBuiltins();
-
-        auto mountConfig = New<NTabletNode::TTableMountConfig>();
-        LocalMountConfigKeys_ = mountConfig->GetRegisteredKeys();
     }
 
     template <class T>
@@ -6107,12 +6049,9 @@ private:
         }
     }
 
-    void HydraMaterializeExtraMountConfigKeys(NProto::TReqMaterializeExtraMountConfigKeys* request)
+    void HydraMaterializeExtraMountConfigKeys(NProto::TReqMaterializeExtraMountConfigKeys* /*request*/)
     {
         YT_VERIFY(Bootstrap_->IsSecondaryMaster());
-
-        auto tableMountConfigKeys = FromProto<std::vector<std::string>>(request->table_mount_config_keys());
-        UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
     }
 
     void HydraUpdateTableReplicaStatistics(NProto::TReqUpdateTableReplicaStatistics* request)
