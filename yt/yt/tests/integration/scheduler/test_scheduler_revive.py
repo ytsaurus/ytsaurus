@@ -1170,7 +1170,7 @@ class TestSchedulerReviveForMapMirroredTx(TestSchedulerReviveForMap):
 @authors("kvk1920")
 class TestSchedulerReviveForMapSysOperationsRootstock(TestSchedulerReviveForMapMirroredTx):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_TEST_PARTITIONS = 12
+    NUM_TEST_PARTITIONS = 13
     ENABLE_TMP_PORTAL = True
     ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
     NUM_SECONDARY_MASTER_CELLS = 4
