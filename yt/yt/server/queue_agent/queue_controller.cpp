@@ -618,7 +618,12 @@ private:
             QueueExports_ = TQueueExportsMappingOrError();
             return;
         }
-        if (auto staticExportConfigError = CheckStaticExportConfig(*staticExportConfig, nextQueueSnapshot->Row.ObjectType); !staticExportConfigError.IsOK()) {
+
+        auto staticExportConfigError = CheckStaticExportConfig(
+            *staticExportConfig,
+            nextQueueSnapshot->Row.ObjectType,
+            queueExporterConfig.Implementation);
+        if (!staticExportConfigError.IsOK()) {
             QueueExports_ = staticExportConfigError;
             QueueExportsAlertCollector_->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportMisconfiguration,
@@ -669,7 +674,10 @@ private:
         }
     }
 
-    TError CheckStaticExportConfig(const THashMap<TString, TQueueStaticExportConfigPtr>& configs, std::optional<EObjectType> objectType) const
+    TError CheckStaticExportConfig(
+        const THashMap<TString, TQueueStaticExportConfigPtr>& configs,
+        std::optional<EObjectType> objectType,
+        EQueueExporterImplementation queueExporterImplementation) const
     {
         if (!objectType) {
             return TError("Cannot check \"static_export_config\", because object type is not known");
@@ -681,6 +689,11 @@ private:
         THashSet<TYPath> directories;
         THashSet<TYPath> duplicateDirectories;
         for (const auto& [_, config] : configs) {
+            if (queueExporterImplementation == EQueueExporterImplementation::Old && !config->ExportPeriod) {
+                YT_LOG_DEBUG("Old queue exporter implementation is being constructed with no export period set");
+                return TError("Queue exporter configuration requires an \"export_period\" parameter");
+            }
+
             if (auto [_, inserted] = directories.insert(config->ExportDirectory); !inserted) {
                 YT_LOG_DEBUG("There are duplicate export directories in queue static export config (Value: %v)", config->ExportDirectory);
                 duplicateDirectories.insert(config->ExportDirectory);
