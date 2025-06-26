@@ -7,7 +7,7 @@ from yt_commands import (
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
     raises_yt_error, read_table, generate_uuid)
 
-from yt_sequoia_helpers import select_cypress_transaction_replicas, not_implemented_for_mirrored_tx
+from yt_sequoia_helpers import select_cypress_transaction_replicas
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import datetime_to_string, YtError
@@ -641,9 +641,6 @@ class TestMasterTransactions(YTEnvSetup):
             get("#a-b-c-d/@")
 
     @authors("kvk1920")
-    # Cypress and Sequoia use different response keepers.
-    # TODO(kvk1920): use Sequoia RK for mirrored transactions.
-    @not_implemented_for_mirrored_tx
     # RPC driver doesn't support setting request's mutation ID.
     @skip_if_rpc_driver_backend
     def test_response_keeper(self):

@@ -1,6 +1,7 @@
 #include "cypress_transaction.h"
 
 #include "protobuf_helpers.h"
+#include "response_keeper.h"
 
 #include <yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h>
 
@@ -942,7 +943,7 @@ protected:
         });
     }
 
-    virtual TFuture<TResult> ApplyAndCommitSequoiaTransaction() = 0;
+    virtual TFuture<TResult> ApplySequoiaTransaction() = 0;
 
 private:
     const TStringBuf Description_;
@@ -974,7 +975,7 @@ private:
 
         SequoiaTransaction_ = std::move(sequoiaTransaction);
 
-        return ApplyAndCommitSequoiaTransaction()
+        return ApplySequoiaTransaction()
             .Apply(BIND(&TSequoiaMutation::ProcessResult, MakeStrong(this))
                 .AsyncVia(Invoker_));
     }
@@ -1052,7 +1053,7 @@ public:
     { }
 
 protected:
-    TFuture<TTransactionId> ApplyAndCommitSequoiaTransaction() override
+    TFuture<TTransactionId> ApplySequoiaTransaction() override
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_VERIFY(SequoiaTransaction_);
@@ -1485,29 +1486,34 @@ private:
  *  and dependent transaction has to be aborted. On transaction coordinator it's
  *  handled in commit/abort mutation, but we still need to clean Sequoia tables
  *  and replicate abort mutations to all participants.
- *  1. Fetch target transaction (and validate it);
- *  2. Fetch all descendant and dependent transactions (transitively);
- *  3. Find all subtrees' roots (target tx + all dependent txs);
- *  4. For each transaction to finish:
- *     4.1. Execute abort tx action on transaction coordinator;
- *     4.2. Execute abort tx action on every participant;
- *     4.3. Remove all replicas from "transaction_replicas" table;
- *     4.4. Remove (prerequisite_transaction_id, transaction_id) from
+ *  1. If mutation ID isn't null check "response_keeper" Sequoia table. If
+ *     request is already executed then abort Sequoia transaction and reply;
+ *  2. Fetch target transaction (and validate it);
+ *  3. Fetch all descendant and dependent transactions (transitively);
+ *  4. Find all subtrees' roots (target tx + all dependent txs);
+ *  5. For each transaction to finish:
+ *     5.1. Execute abort tx action on transaction coordinator;
+ *     5.2. Execute abort tx action on every participant;
+ *     5.3. Remove all replicas from "transaction_replicas" table;
+ *     5.4. Remove (prerequisite_transaction_id, transaction_id) from
  *          "dependent_transactions" table;
- *     4.5. Remove (ancestor_id, transaction_id) for every its ancestor from
+ *     5.5. Remove (ancestor_id, transaction_id) for every its ancestor from
  *          "transaction_descendants" table;
- *     4.6. Remove transaction from "transactions" table;
- *     4.7. Merge/remove branches in resolve tables:
+ *     5.6. Remove transaction from "transactions" table;
+ *     5.7. Merge/remove branches in resolve tables:
  *           - node_id_to_path
  *           - path_to_node_id
  *           - child_node
+ *   6. Keep response in "response_keeper" Sequoia table if needed.
  */
 class TFinishCypressTransaction
-    : public TSequoiaMutation<void, ESequoiaTransactionType::CypressTransactionMirroring>
+    : public TSequoiaMutation<TSharedRefArray, ESequoiaTransactionType::CypressTransactionMirroring>
 {
 protected:
     const TTransactionId TransactionId_;
     const TAuthenticationIdentity AuthenticationIdentity_;
+    // NB: this field muast by set by derived classes during construction.
+    TSharedRefArray Response_;
 
     TFinishCypressTransaction(
         ISequoiaClientPtr sequoiaClient,
@@ -1515,6 +1521,8 @@ protected:
         TStringBuf description,
         TTransactionId transactionId,
         TAuthenticationIdentity authenticationIdentity,
+        TMutationId mutationId,
+        bool retry,
         IInvokerPtr invoker,
         TLogger logger,
         std::string title)
@@ -1527,21 +1535,38 @@ protected:
             std::move(logger))
         , TransactionId_(transactionId)
         , AuthenticationIdentity_(std::move(authenticationIdentity))
+        , MutationId_(mutationId)
+        , Retry_(retry)
     { }
 
-    TFuture<void> ApplyAndCommitSequoiaTransaction() final
+    TFuture<TSharedRefArray> ApplySequoiaTransaction() final
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-        return FetchTargetTransaction()
-            .ApplyUnique(BIND(
-                &TFinishCypressTransaction::ValidateAndFinishTargetTransaction,
-                MakeStrong(this))
-                    .AsyncVia(Invoker_))
-            .Apply(BIND(
-                &TFinishCypressTransaction::CommitSequoiaTransaction,
-                MakeStrong(this))
-                    .AsyncVia(Invoker_));
+        return FindKeptResponseInSequoiaAndLog(SequoiaTransaction_, MutationId_, Retry_, Logger)
+            .Apply(BIND([this_ = MakeStrong(this), this] (const std::optional<TSharedRefArray>& keptResponse) -> TFuture<void> {
+                if (keptResponse.has_value()) {
+                    // NB: Sequoia transaction is no-op here.
+                    Response_ = *keptResponse;
+                    return VoidFuture;
+                }
+
+                return FetchTargetTransaction()
+                    .ApplyUnique(BIND(
+                        &TFinishCypressTransaction::ValidateAndFinishTargetTransaction,
+                        MakeStrong(this))
+                            .AsyncVia(Invoker_))
+                    .Apply(BIND(
+                        &TFinishCypressTransaction::MaybeKeepResponse,
+                        MakeStrong(this)))
+                    .Apply(BIND(
+                        &TFinishCypressTransaction::CommitSequoiaTransaction,
+                        MakeStrong(this))
+                            .AsyncVia(Invoker_));
+            }))
+            .Apply(BIND([this_ = MakeStrong(this), this] () {
+                return std::move(Response_);
+            }));
     }
 
     // Returns |false| if transaction shouldn't be processed (e.g. force abort
@@ -1574,6 +1599,14 @@ protected:
         const THashMap<TTransactionId, NRecords::TTransaction>& transactions) = 0;
 
 private:
+    const TMutationId MutationId_;
+    const bool Retry_;
+
+    void MaybeKeepResponse()
+    {
+        KeepResponseInSequoiaAndLog(SequoiaTransaction_, MutationId_, Response_, Logger);
+    }
+
     TFuture<void> DoFinishTransactions(TDependentTransactionCollector::TResult&& transactionInfos)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
@@ -1720,6 +1753,8 @@ public:
         TTransactionId transactionId,
         bool force,
         NRpc::TAuthenticationIdentity authenticationIdentity,
+        TMutationId mutationId,
+        bool retry,
         IInvokerPtr invoker,
         TLogger logger)
         : TFinishCypressTransaction(
@@ -1728,12 +1763,16 @@ public:
             "abort",
             transactionId,
             std::move(authenticationIdentity),
+            mutationId,
+            retry,
             std::move(invoker),
             std::move(logger),
             Format("Sequoia transaction: abort Cypress transaction %v",
                 transactionId))
         , Force_(force)
-    { }
+    {
+        InitializeResponse();
+    }
 
     TAbortCypressTransaction(
         ISequoiaClientPtr sequoiaClient,
@@ -1747,14 +1786,23 @@ public:
             "abort expired",
             transactionId,
             GetRootAuthenticationIdentity(),
+            /*mutationId*/ NullMutationId,
+            /*retry*/ false,
             std::move(invoker),
             std::move(logger),
             Format("Sequoia transaction: abort expired Cypress transaction %v",
                 transactionId))
         , Force_(false)
-    { }
+    {
+        InitializeResponse();
+    }
 
 protected:
+    void InitializeResponse()
+    {
+        Response_ = CreateResponseMessage(NCypressTransactionClient::NProto::TRspAbortTransaction{});
+    }
+
     TCypressTransactionChangesProcessorPtr CreateTransactionChangesProcessor(
         const THashMap<TTransactionId, NRecords::TTransaction>& transactions) override
     {
@@ -1807,8 +1855,11 @@ public:
         TCellId cypressTransactionCoordinatorCellId,
         TTransactionId transactionId,
         std::vector<TTransactionId> prerequisiteTransactionIds,
+        TCellTag primaryCellTag,
         TTimestamp commitTimestamp,
         NRpc::TAuthenticationIdentity authenticationIdentity,
+        TMutationId mutationId,
+        bool retry,
         IInvokerPtr invoker,
         TLogger logger)
         : TFinishCypressTransaction(
@@ -1817,12 +1868,17 @@ public:
             "commit",
             transactionId,
             std::move(authenticationIdentity),
+            mutationId,
+            retry,
             std::move(invoker),
             std::move(logger),
             Format("Sequoia transaction: commit Cypress transaction %v", transactionId))
+        , PrimaryCellTag_(primaryCellTag)
         , CommitTimestamp_(commitTimestamp)
         , PrerequisiteTransactionIds_(std::move(prerequisiteTransactionIds))
-    { }
+    {
+        InitializeResponse();
+    }
 
 protected:
     TCypressTransactionChangesProcessorPtr CreateTransactionChangesProcessor(
@@ -1861,8 +1917,18 @@ protected:
     }
 
 private:
+    const TCellTag PrimaryCellTag_;
     const TTimestamp CommitTimestamp_;
     const std::vector<TTransactionId> PrerequisiteTransactionIds_;
+
+    void InitializeResponse()
+    {
+        NCypressTransactionClient::NProto::TRspCommitTransaction rsp;
+        NHiveClient::TTimestampMap timestampMap;
+        timestampMap.Timestamps.emplace_back(PrimaryCellTag_, CommitTimestamp_);
+        ToProto(rsp.mutable_commit_timestamps(), timestampMap);
+        Response_ = NRpc::CreateResponseMessage(rsp);
+    }
 
     void CommitTransactionOnParticipants(TRange<NRecords::TTransactionReplica> replicas)
     {
@@ -1921,7 +1987,7 @@ protected:
         YT_ASSERT_THREAD_AFFINITY_ANY();
     }
 
-    TFuture<void> ApplyAndCommitSequoiaTransaction() override
+    TFuture<void> ApplySequoiaTransaction() override
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
@@ -2020,12 +2086,14 @@ TFuture<TTransactionId> StartCypressTransaction(
         ->Apply();
 }
 
-TFuture<void> AbortCypressTransaction(
+TFuture<TSharedRefArray> AbortCypressTransaction(
     ISequoiaClientPtr sequoiaClient,
     TCellId cypressTransactionCoordinatorCellId,
     TTransactionId transactionId,
     bool force,
     TAuthenticationIdentity authenticationIdentity,
+    TMutationId mutationId,
+    bool retry,
     IInvokerPtr invoker,
     TLogger logger)
 {
@@ -2035,12 +2103,14 @@ TFuture<void> AbortCypressTransaction(
         transactionId,
         force,
         std::move(authenticationIdentity),
+        mutationId,
+        retry,
         std::move(invoker),
         std::move(logger))
         ->Apply();
 }
 
-TFuture<void> AbortExpiredCypressTransaction(
+TFuture<TSharedRefArray> AbortExpiredCypressTransaction(
     ISequoiaClientPtr sequoiaClient,
     TCellId cypressTransactionCoordinatorCellId,
     TTransactionId transactionId,
@@ -2056,13 +2126,16 @@ TFuture<void> AbortExpiredCypressTransaction(
         ->Apply();
 }
 
-TFuture<void> CommitCypressTransaction(
+TFuture<TSharedRefArray> CommitCypressTransaction(
     ISequoiaClientPtr sequoiaClient,
     TCellId cypressTransactionCoordinatorCellId,
     TTransactionId transactionId,
     std::vector<NTransactionClient::TTransactionId> prerequisiteTransactionIds,
+    TCellTag primaryCellTag,
     TTimestamp commitTimestamp,
     TAuthenticationIdentity authenticationIdentity,
+    TMutationId mutationId,
+    bool retry,
     IInvokerPtr invoker,
     TLogger logger)
 {
@@ -2071,11 +2144,38 @@ TFuture<void> CommitCypressTransaction(
         cypressTransactionCoordinatorCellId,
         transactionId,
         std::move(prerequisiteTransactionIds),
+        primaryCellTag,
         commitTimestamp,
         std::move(authenticationIdentity),
+        mutationId,
+        retry,
         std::move(invoker),
         std::move(logger))
         ->Apply();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TSharedRefArray> FinishNonAliveCypressTransaction(
+    ISequoiaClientPtr sequoiaClient,
+    TTransactionId transactionId,
+    TMutationId mutationId,
+    bool retry,
+    TLogger logger)
+{
+    return FindKeptResponseInSequoiaAndLog(
+        sequoiaClient,
+        SyncLastCommittedTimestamp,
+        mutationId,
+        retry,
+        logger)
+        .ApplyUnique(BIND([transactionId] (std::optional<TSharedRefArray>&& response) {
+            if (!response.has_value() || !*response) {
+                return CreateErrorResponseMessage(CreateNoSuchTransactionError(transactionId));
+            }
+
+            return std::move(*response);
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
