@@ -477,11 +477,15 @@ public:
                     }
                 }).detach();
 
+#ifdef NDEBUG
+                // NB: When compiled with assertions enabled, tcmalloc runs heavy background
+                // sanity checks which may cause a severe performance degradation.
                 std::thread([] {
                     ::TThread::SetCurrentThreadName("TCMallocBack");
                     tcmalloc::MallocExtension::ProcessBackgroundActions();
                     YT_ABORT();
                 }).detach();
+#endif
             });
         }
     }
