@@ -4857,6 +4857,8 @@ class TestChaos(ChaosTestBase):
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
 
+        wait(lambda: get(f"{path}/@replicas/{replica_ids[0]}/replication_lag_timestamp") > 1)
+
         hint = "\"{require_sync_replica=%false;}\""
         assert select_rows(f"T.value AS v from [{path}] AS T with hint {hint}") == [{"v": 0}]
 
