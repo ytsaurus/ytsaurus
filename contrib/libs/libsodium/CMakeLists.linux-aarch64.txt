@@ -52,7 +52,7 @@ target_compile_options(contrib-libs-libsodium PRIVATE
   -DHAVE_UNISTD_H=1
   -DHAVE_WCHAR_H=1
   -DHAVE_WEAK_SYMBOLS=1
-  -DLT_OBJDIR=".libs/"
+  [=[-DLT_OBJDIR=".libs/"]=]
   -DNATIVE_LITTLE_ENDIAN=1
   -DTLS=_Thread_local
   -D_ALL_SOURCE=1
