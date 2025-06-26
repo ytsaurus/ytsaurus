@@ -1089,13 +1089,17 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
         options.Limit,
         options.Attributes);
 
-    auto attributes = options.Attributes;
+    TAttributeFilter attributes;
+    auto keys = attributes.Keys();
 
-    attributes.ValidateKeysOnly();
+    options.Attributes.ValidateKeysOnly();
 
-    if (!attributes.AdmitsKeySlow("start_time")) {
-        YT_VERIFY(attributes);
-        attributes.AddKey("start_time");
+    if (!options.Attributes.AdmitsKeySlow("start_time")) {
+        YT_VERIFY(options.Attributes);
+        keys.push_back("start_time");
+    }
+    if (options.Attributes) {
+        attributes = TAttributeFilter(std::move(keys));
     }
 
     auto userSubjects = GetUserSubjects(user, StateClient_);

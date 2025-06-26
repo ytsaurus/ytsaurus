@@ -328,13 +328,14 @@ TListUserTokensResult TClient::DoListUserTokens(
     TListNodeOptions listOptions;
     static_cast<TTimeoutOptions&>(listOptions) = options;
 
-    listOptions.Attributes = TAttributeFilter({"user", "user_id"});
+    std::vector<IAttributeDictionary::TKey> keys = {"user", "user_id"};
     if (options.WithMetadata) {
-        listOptions.Attributes.AddKey("description");
-        listOptions.Attributes.AddKey("token_prefix");
-        listOptions.Attributes.AddKey("creation_time");
-        listOptions.Attributes.AddKey("effective_expiration");
+        keys.push_back("description");
+        keys.push_back("token_prefix");
+        keys.push_back("creation_time");
+        keys.push_back("effective_expiration");
     }
+    listOptions.Attributes = TAttributeFilter(std::move(keys));
 
     auto rootClient = CreateRootClient();
     auto rspOrError = WaitFor(rootClient->ListNode("//sys/cypress_tokens", listOptions));
