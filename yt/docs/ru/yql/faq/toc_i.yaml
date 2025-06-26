@@ -5,3 +5,5 @@
     href: performance.md
   - name: Временные данные
     href: temp.md
+  - name: Запросы
+    href: queries.md
