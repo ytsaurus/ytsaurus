@@ -1572,6 +1572,7 @@ private:
             newChaosResidencyCacheConfig->EnableClientMode,
             newConfig->ChaosResidencyCache->EnableClientMode);
         Connection_->GetChaosResidencyCache()->Reconfigure(std::move(newChaosResidencyCacheConfig));
+        Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(newConfig->MasterCellDirectorySynchronizer);
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)
