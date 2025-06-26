@@ -1,13 +1,16 @@
+from yt_env_setup import YTEnvSetup, update_inplace
+from yt.common import YtError
+from yt.environment.helpers import assert_items_equal
+from yt.environment.default_config import get_dynamic_node_config
+
 from yt_commands import (
-    authors, create_dynamic_table, insert_rows, map_reduce, sync_create_cells,
+    authors, create_dynamic_table, get_cell_tag, get_driver, insert_rows, map_reduce, sync_create_cells,
     raises_yt_error, read_table, select_rows, sync_mount_table, wait, get, set, ls, create,
     start_transaction, write_table)
 
-from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
-
 from yt_master_cell_addition_base import MasterCellAdditionBase, MasterCellAdditionBaseChecks, MasterCellAdditionChaosMultiClusterBaseChecks
 
+import time
 import pytest
 import builtins
 
@@ -490,6 +493,146 @@ class TestMasterCellDynamicPropagationDuringDataNodeRegistration(TestMasterCellD
             config["cluster_connection"],
             cluster_index,
             cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+
+
+##################################################################
+
+
+class TestMasterCellsPeersListChange(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are components restarts.
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_NODES = 1
+    DEFER_NODE_START = True
+
+    REMOVED_PEER = None
+
+    def setup_class(cls):
+        super(TestMasterCellsPeersListChange, cls).setup_class()
+
+        for cluster_index, env in enumerate([cls.Env] + cls.remote_envs):
+            if cls.get_param("NUM_NODES", cluster_index) != 0:
+                env.start_nodes()
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        if cluster_index != 0:
+            return
+        if cls.REMOVED_PEER is None:
+            cls.REMOVED_PEER = config["cluster_connection"]["secondary_masters"][-1]["peers"][-1]["address"][::]
+        assert cls.REMOVED_PEER == config["cluster_connection"]["secondary_masters"][-1]["peers"][-1]["address"]
+        assert cls.REMOVED_PEER == config["cluster_connection"]["secondary_masters"][-1]["addresses"][-1]
+        del config["cluster_connection"]["secondary_masters"][-1]["peers"][-1]
+        del config["cluster_connection"]["secondary_masters"][-1]["addresses"][-1]
+
+    def _get_connected_secondary_masters_addresses(slef, node, cell_id):
+        connected_secondary_masters = get(f"//sys/cluster_nodes/{node}/orchid/connected_secondary_masters", driver=get_driver(0))
+        connected_secondary_masters = {int(cell_tag) : connection_config for cell_tag, connection_config in connected_secondary_masters.items()}
+        cell_tag = get_cell_tag(cell_id)
+        if cell_tag not in connected_secondary_masters.keys():
+            return None
+        return connected_secondary_masters[cell_tag]["addresses"]
+
+    @authors("cherepashka")
+    @pytest.mark.parametrize("increase_sync_period", [True, False])
+    def test_master_cell_peers_addition_on_node(self, increase_sync_period):
+        def _check_for_all_nodes_have_same_host_status(host_should_be_removed=True):
+            for node in nodes:
+                connected_secondary_masters = self._get_connected_secondary_masters_addresses(node, last_cell["cell_id"])
+                if connected_secondary_masters is None:
+                    return False
+                if host_should_be_removed and self.REMOVED_PEER in connected_secondary_masters:
+                    return False
+                elif not host_should_be_removed and self.REMOVED_PEER not in connected_secondary_masters:
+                    return False
+            return True
+
+        nodes = ls("//sys/cluster_nodes")
+        secondary_masters = get("//sys/@cluster_connection/secondary_masters")
+        last_cell = secondary_masters[-1]
+        assert self.REMOVED_PEER == last_cell["peers"][-1]["address"]
+
+        # Remove last peer on master testing override.
+        secondary_masters[-1]["addresses"] = secondary_masters[-1]["addresses"][:-1]
+        secondary_masters[-1]["peers"] = secondary_masters[-1]["peers"][:-1]
+        set("//sys/@config/multicell_manager/testing/master_cell_directory_override", {
+            "secondary_masters" :  secondary_masters
+        }, driver=get_driver(0))
+
+        # Restart nodes so masters will be able to "remove" last address.
+        self.Env.kill_nodes()
+        self.Env.start_nodes()
+
+        # Wait for all nodes to receive new master cells configuration.
+        wait(lambda: _check_for_all_nodes_have_same_host_status(host_should_be_removed=True))
+
+        if increase_sync_period:
+            # Increase synchronization period for discovery of new peers.
+            current_config = get_dynamic_node_config()["%true"]
+            old_patch = {
+                "master_cell_directory_synchronizer": current_config["master_cell_directory_synchronizer"].copy(),
+            }
+            patch = {
+                "master_cell_directory_synchronizer": {
+                    "sync_period": 360000,
+                    "retry_period": 360000,
+                }
+            }
+            update_inplace(current_config, patch)
+            config = {
+                "%true": current_config,
+            }
+            set("//sys/cluster_nodes/@config", config)
+            # Wait for running synchronization to finish.
+            time.sleep(2)
+
+        # Return last peer.
+        secondary_masters[-1]["addresses"].append(self.REMOVED_PEER)
+        secondary_masters[-1]["peers"].append(self.REMOVED_PEER)
+        set("//sys/@config/multicell_manager/testing/master_cell_directory_override", {
+            "secondary_masters" :  secondary_masters
+        }, driver=get_driver(0))
+
+        if increase_sync_period:
+            time.sleep(2)
+            # Synchronization didn't happen yet, host was not added yet.
+            assert _check_for_all_nodes_have_same_host_status(host_should_be_removed=True)
+
+            update_inplace(current_config, old_patch)
+            config = {
+                "%true": current_config,
+            }
+            set("//sys/cluster_nodes/@config", config)
+
+        # Wait for all nodes to receive new master cells configuration.
+        wait(lambda: _check_for_all_nodes_have_same_host_status(host_should_be_removed=False))
+
+    @authors("cherepashka")
+    def test_no_master_cell_peers_removals_on_node(self):
+        nodes = ls("//sys/cluster_nodes")
+        secondary_masters = get("//sys/@cluster_connection/secondary_masters")
+        last_cell = secondary_masters[-1]
+        assert self.REMOVED_PEER == last_cell["peers"][-1]["address"]
+
+        def _check_for_all_nodes_have_same_hosts():
+            for node in nodes:
+                connected_secondary_masters = self._get_connected_secondary_masters_addresses(node, last_cell["cell_id"])
+                if connected_secondary_masters is None or self.REMOVED_PEER not in connected_secondary_masters:
+                    return False
+            return True
+
+        # Nodes received atual configuration via master cell directory synchronizer.
+        assert _check_for_all_nodes_have_same_hosts()
+
+        # Remove last peer on master testing override.
+        secondary_masters[-1]["addresses"] = secondary_masters[-1]["addresses"][:-1]
+        secondary_masters[-1]["peers"] = secondary_masters[-1]["peers"][:-1]
+        set("//sys/@config/multicell_manager/testing/master_cell_directory_override", {
+            "secondary_masters" :  secondary_masters
+        }, driver=get_driver(0))
+
+        # Wait for synchronization.
+        time.sleep(2)
+        assert _check_for_all_nodes_have_same_hosts()
 
 
 ##################################################################

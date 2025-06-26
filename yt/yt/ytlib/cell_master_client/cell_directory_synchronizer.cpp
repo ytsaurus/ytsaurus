@@ -36,7 +36,7 @@ public:
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TCellDirectorySynchronizer::OnSync, MakeWeak(this)),
-            Config_->SyncPeriod))
+            Config_.Acquire()->SyncPeriod))
     { }
 
     void Start() override
@@ -71,10 +71,14 @@ public:
         return RecentSyncPromise_.ToFuture();
     }
 
-    DEFINE_SIGNAL(void(const TError&), Synchronized);
+    void Reconfigure(const TCellDirectorySynchronizerConfigPtr& newConfig) override
+    {
+        SyncExecutor_->SetPeriod(newConfig->SyncPeriod);
+        Config_.Store(newConfig);
+    }
 
 private:
-    const TCellDirectorySynchronizerConfigPtr Config_;
+    TAtomicIntrusivePtr<TCellDirectorySynchronizerConfig> Config_;
     const ICellDirectoryPtr Directory_;
 
     const TPeriodicExecutorPtr SyncExecutor_;
@@ -108,6 +112,8 @@ private:
 
     void DoSync()
     {
+        auto config = Config_.Acquire();
+
         // TODO(cherepashka) remove after testing.
         TTraceContextGuard traceContextGuard(GetOrCreateTraceContext("MasterCellDirectory"));
         try {
@@ -126,8 +132,8 @@ private:
             req->set_populate_cell_directory(true);
 
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-            cachingHeaderExt->set_expire_after_successful_update_time(ToProto(Config_->ExpireAfterSuccessfulUpdateTime));
-            cachingHeaderExt->set_expire_after_failed_update_time(ToProto(Config_->ExpireAfterFailedUpdateTime));
+            cachingHeaderExt->set_expire_after_successful_update_time(ToProto(config->ExpireAfterSuccessfulUpdateTime));
+            cachingHeaderExt->set_expire_after_failed_update_time(ToProto(config->ExpireAfterFailedUpdateTime));
 
             batchReq->AddRequest(req);
 
@@ -155,16 +161,18 @@ private:
 
     void OnSync()
     {
+        auto config = Config_.Acquire();
+
         TError error;
-        auto period = Config_->SyncPeriod;
+        auto period = config->SyncPeriod;
         try {
             NTracing::TNullTraceContextGuard nullTraceContext;
             DoSync();
         } catch (const std::exception& ex) {
             error = ex;
             YT_LOG_WARNING(error);
-            if (Config_->RetryPeriod) {
-                period = Config_->RetryPeriod;
+            if (config->RetryPeriod) {
+                period = config->RetryPeriod;
             }
         }
 
