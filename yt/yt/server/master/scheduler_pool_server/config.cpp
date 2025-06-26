@@ -12,9 +12,9 @@ void TDynamicSchedulerPoolManagerConfig::Register(TRegistrar registrar)
         .Default(1000);
 
     registrar.Parameter("pool_name_regex_for_users", &TThis::PoolNameRegexForUsers)
-        .Default("[-_a-z0-9]+");
+        .Default("[-_\\.a-z0-9]+");
     registrar.Parameter("pool_name_regex_for_administrators", &TThis::PoolNameRegexForAdministrators)
-        .Default("[-_a-z0-9:A-Z]+");
+        .Default("[-_\\.a-z0-9:A-Z]+");
 
     registrar.Postprocessor([] (TThis* config) {
         re2::RE2 dummy1(config->PoolNameRegexForUsers);
