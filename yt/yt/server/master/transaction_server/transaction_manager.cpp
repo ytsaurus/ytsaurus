@@ -1446,6 +1446,9 @@ public:
         std::vector<TFuture<void>> asyncResults;
         asyncResults.reserve(cellIdsToSyncWith.size() + 3);
 
+        // TODO(kvk1920): optimize.
+        // For mirrored transactions it's enough to lock some rows in
+        // "transactions" Sequoia table. Replication isn't necessary here.
         if (!prerequisiteTransactionIds.empty()) {
             const auto& hiveManager = Bootstrap_->GetHiveManager();
             const auto& leaseManager = Bootstrap_->GetLeaseManager();
@@ -1777,15 +1780,31 @@ public:
             return;
         }
 
+        // NB: the main Sequoia tx which handles Cypress tx commit uses Sequoia
+        // RK too. The reason of this early check is to not reply with "no such
+        // tx" error when tx was just committed and commit-tx response is kept
+        // in Sequoia RK.
+        if (IsMirroringToSequoiaEnabled() &&
+            IsCypressTransactionMirroredToSequoia(transactionId) &&
+            !IsObjectAlive(FindTransaction(transactionId)))
+        {
+            // NB: FinishNonAliveCypressTransactionInSequoia() requires tx to be
+            // not alive from master point of view.
+            context->ReplyFrom(FinishNonAliveCypressTransactionInSequoia(
+                Bootstrap_,
+                transactionId,
+                context->GetMutationId(),
+                context->IsRetry()));
+            return;
+        }
+
+        // TODO(kvk1920): avoid looking up |transactionId| twice.
         auto* transaction = GetTransactionOrThrow(transactionId);
 
         YT_VERIFY(transaction->GetIsCypressTransaction());
 
         ThrowIfDynamicTablesNotLocked(transaction, request.dynamic_tables_locked());
 
-        // TODO(kvk1920): optimize.
-        // For mirrored transactions it's enough to lock some rows in
-        // "transactions" Sequoia table. Replication isn't necessary here.
         std::vector<TTransactionId> prerequisiteTransactionIds;
         if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
             auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
@@ -1954,7 +1973,9 @@ public:
                 transactionId,
                 std::move(prerequisiteTransactionIds),
                 commitTimestamp,
-                NRpc::GetCurrentAuthenticationIdentity());
+                NRpc::GetCurrentAuthenticationIdentity(),
+                mutationId,
+                isRetry);
         }
 
         auto request = BuildCommitCypressTransactionRequest(
@@ -1987,8 +2008,14 @@ public:
         if (IsMirroringToSequoiaEnabled() && IsCypressTransactionMirroredToSequoia(transactionId)) {
             context->ReplyFrom(
                 RevokeTransactionLeases(transactionId)
-                .Apply(BIND([transactionId, force, authenticationIdentity, this, this_ = MakeStrong(this)] {
-                    return AbortCypressTransactionInSequoia(Bootstrap_, transactionId, force, authenticationIdentity);
+                .Apply(BIND([context, transactionId, force, authenticationIdentity, this, this_ = MakeStrong(this)] {
+                    return AbortCypressTransactionInSequoia(
+                        Bootstrap_,
+                        transactionId,
+                        force,
+                        authenticationIdentity,
+                        context->GetMutationId(),
+                        context->IsRetry());
                 })));
             return;
         }
