@@ -365,7 +365,7 @@ i64 TNodeMemoryTracker::GetTotalLimit() const
 
 i64 TNodeMemoryTracker::GetTotalUsed() const
 {
-    return TotalUsed_.load();
+    return TotalUsed_.load() - Categories_[EMemoryCategory::AllocFragmentation].Used.load();
 }
 
 i64 TNodeMemoryTracker::GetTotalFree() const
