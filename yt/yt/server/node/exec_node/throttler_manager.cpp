@@ -95,6 +95,8 @@ private:
 
     void TryUpdateClusterThrottlersConfig();
     //! Lock_ has to be taken prior to calling this method.
+    void UpdateClusterLimits(const THashMap<std::string, TClusterLimitsConfigPtr>& clusterLimits);
+    //! Lock_ has to be taken prior to calling this method.
     void UpdateDistributedThrottlers();
     //! Lock_ has to be taken prior to calling this method.
     IThroughputThrottlerPtr GetLocalThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType) const;
@@ -282,6 +284,8 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
                     Authenticator_,
                     Profiler_.WithPrefix("/distributed_throttler"));
             }
+
+            UpdateClusterLimits(ClusterThrottlersConfig_->ClusterLimits);
         } else {
             DistributedThrottlersHolder_.clear();
 
@@ -293,6 +297,33 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
     }
 
     ClusterThrottlersConfigInitializedPromise_.TrySet();
+}
+
+void TThrottlerManager::UpdateClusterLimits(const THashMap<std::string, TClusterLimitsConfigPtr>& clusterLimits)
+{
+    YT_VERIFY(ClusterThrottlersConfig_);
+
+    THashMap<TThrottlerId, std::optional<double>> throttlerIdToTotalLimit;
+    for (const auto& [clusterName, throttlerConfig] : clusterLimits) {
+        if (!throttlerConfig) {
+            continue;
+        }
+
+        EThrottlerTrafficType trafficType{};
+        if (throttlerConfig->Bandwidth) {
+            trafficType = EThrottlerTrafficType::Bandwidth;
+        } else if (throttlerConfig->Rps) {
+            trafficType = EThrottlerTrafficType::Rps;
+        } else {
+            YT_LOG_WARNING("Unexpected traffic type in cluster limits config (ClusterName: %v)",
+                clusterName);
+            continue;
+        }
+
+        auto throttlerId = ToThrottlerId(trafficType, TClusterName(clusterName));
+        EmplaceOrCrash(throttlerIdToTotalLimit, throttlerId, throttlerConfig->Bandwidth->Limit);
+    }
+    DistributedThrottlerFactory_->UpdateTotalLimits(std::move(throttlerIdToTotalLimit));
 }
 
 IThroughputThrottlerPtr TThrottlerManager::GetLocalThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType) const
