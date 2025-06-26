@@ -324,6 +324,8 @@ StrictJoinKeyTypes является [scoped](#pragmascope) настройкой.
 
 Управление поведением Yson UDF по умолчанию, подробнее см. в [документации](../udf/list/yson.md) и в частности [Yson::Options](../udf/list/yson.md#ysonoptions).
 
+Yson-прагма влияет на все идущие следом выражения вплоть до конца модуля, в котором она встречается.
+
 ### `yson.AutoConvert`
 
 | Тип значения | По умолчанию |

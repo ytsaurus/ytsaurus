@@ -324,6 +324,8 @@ Use this option with care: the computational complexity of the query grows expon
 
 Management of Yson UDF default behavior. To learn more, see the [documentation](../udf/list/yson.md), in particular, [Yson::Options](../udf/list/yson.md#ysonoptions).
 
+The Yson pragma affects all subsequent expressions up to the end of the module in which it occurs.
+
 ### `yson.AutoConvert`
 
 | Value type | By default |
