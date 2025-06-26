@@ -1,4 +1,4 @@
-GTEST(unittester-federated-client)
+GTEST(unittester-queue-agent)
 
 SRCS(
     queue_export_ut.cpp
