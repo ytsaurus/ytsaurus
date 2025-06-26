@@ -23,9 +23,11 @@ ARG PYTHON_BUILD_BASE="copy-ytsaurus-python-binaries"
 # base-server or base-server-crio
 ARG SERVER_IMAGE_BASE="base-server"
 
+ARG DOCKER_MIRROR=""
+
 ##########################################################################################
 
-FROM ubuntu:focal AS ubuntu-base
+FROM ${DOCKER_MIRROR}ubuntu:focal AS ubuntu-base
 
 ARG APT_MIRROR="http://archive.ubuntu.com/"
 
@@ -40,7 +42,7 @@ RUN apt-get update \
 
 ##########################################################################################
 
-FROM golang:1.22.12 AS pprof-builder
+FROM ${DOCKER_MIRROR}golang:1.22.12 AS pprof-builder
 ENV CGO_ENABLED=0
 ENV GOBIN=/
 RUN go install github.com/google/pprof@v0.0.0-20200417002340-c6e0a841f49a

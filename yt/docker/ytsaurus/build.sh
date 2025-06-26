@@ -10,6 +10,7 @@ output_path="."
 image_cr=""
 component="ytsaurus"
 apt_mirror="http://archive.ubuntu.com/"
+docker_mirror=""
 
 print_usage() {
     cat << EOF
@@ -22,6 +23,7 @@ Usage: $script_name [-h|--help]
                     [--image-tag some-tag (default: $image_tag)]
                     [--image-cr some-cr/ (default: '$image_cr')]
                     [--apt-mirror http://some.apt.mirror/ (default: '$apt_mirror')]
+                    [--docker-mirror some.docker.mirror/ (default: '$docker_mirror')]
 EOF
     exit 1
 }
@@ -60,6 +62,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --apt-mirror)
         apt_mirror="$2"
+        shift 2
+        ;;
+        --docker-mirror)
+        docker_mirror="$2"
         shift 2
         ;;
         -h|--help)
@@ -189,4 +195,4 @@ else
 fi
 
 cd ${output_path}
-docker build --target ${component} --build-arg APT_MIRROR=${apt_mirror} -t ${image_cr}ytsaurus/${component}:${image_tag} .
+docker build --target ${component} --build-arg APT_MIRROR=${apt_mirror} --build-arg DOCKER_MIRROR=${docker_mirror} -t ${image_cr}ytsaurus/${component}:${image_tag} .

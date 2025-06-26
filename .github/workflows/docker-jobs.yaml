@@ -93,7 +93,7 @@ jobs:
           output_path=../docker-${{ inputs.component }}-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          ./ytsaurus/yt/docker/ytsaurus/build.sh --component ytsaurus --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }}
+          ./ytsaurus/yt/docker/ytsaurus/build.sh --component ytsaurus --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --docker-mirror cr.yandex/mirror/io/docker/library/
 
           if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
             docker push ghcr.io/ytsaurus/ytsaurus:${{ steps.vars.outputs.IMAGE_TAG }}
@@ -107,7 +107,7 @@ jobs:
           output_path=../docker-query-tracker-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          ./ytsaurus/yt/docker/ytsaurus/build.sh --component query-tracker --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }}
+          ./ytsaurus/yt/docker/ytsaurus/build.sh --component query-tracker --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --docker-mirror cr.yandex/mirror/io/docker/library/
 
           if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
             docker push ghcr.io/ytsaurus/query-tracker:${{ steps.vars.outputs.IMAGE_TAG }}
@@ -121,7 +121,7 @@ jobs:
           output_path=../docker-chyt-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          ./ytsaurus/yt/docker/ytsaurus/build.sh --component chyt --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }}
+          ./ytsaurus/yt/docker/ytsaurus/build.sh --component chyt --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --docker-mirror cr.yandex/mirror/io/docker/library/
 
           if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
             docker push ghcr.io/ytsaurus/chyt:${{ steps.vars.outputs.IMAGE_TAG }}
@@ -135,7 +135,7 @@ jobs:
           output_path=../docker-strawberry-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          ./ytsaurus/yt/docker/ytsaurus/build.sh --component strawberry --ytsaurus-source-path $(pwd)/ytsaurus --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }}
+          ./ytsaurus/yt/docker/ytsaurus/build.sh --component strawberry --ytsaurus-source-path $(pwd)/ytsaurus --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --docker-mirror cr.yandex/mirror/io/docker/library/
 
           if ! [[ ${{ steps.vars.outputs.IMAGE_TAG }} =~ "dev" ]]; then
             docker push ghcr.io/ytsaurus/strawberry:${{ steps.vars.outputs.IMAGE_TAG }}
@@ -149,7 +149,7 @@ jobs:
           output_path=../docker-local-${{ inputs.cpp-build-system }}-${{ matrix.build-type }}
           mkdir -p $output_path
 
-          ./ytsaurus/yt/docker/ytsaurus/build.sh --component local --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }}
+          ./ytsaurus/yt/docker/ytsaurus/build.sh --component local --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ${{ steps.vars.outputs.YTSAURUS_BUILD_PATH }} --yql-build-path ${{ steps.vars.outputs.YQL_BUILD_PATH }} --output-path $output_path --image-tag ${{ steps.vars.outputs.IMAGE_TAG }} --image-cr ghcr.io/ --apt-mirror ${{ vars.APT_MIRROR }} --docker-mirror cr.yandex/mirror/io/docker/library/
 
           docker push ghcr.io/ytsaurus/local:${{ steps.vars.outputs.IMAGE_TAG }}
           docker tag ghcr.io/ytsaurus/local:${{ steps.vars.outputs.IMAGE_TAG }} ghcr.io/ytsaurus/local-nightly:${{ steps.vars.outputs.NIGHTLY_IMAGE_TAG }}
