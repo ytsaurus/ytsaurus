@@ -43,7 +43,6 @@
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker.h>
-#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
@@ -1368,10 +1367,6 @@ private:
             dataNodeTracker->ProcessRegisterNode(node, request, response);
         }
 
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto tableMountConfigKeys = FromProto<std::vector<std::string>>(request->table_mount_config_keys());
-        tabletManager->UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
-
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
         UpdateNodeCounters(node, -1);
@@ -2389,8 +2384,6 @@ private:
 
         request.set_host_name(node->GetHost()->GetName());
 
-        request.mutable_table_mount_config_keys()->CopyFrom(originalRequest->table_mount_config_keys());
-
         request.set_exec_node_is_not_data_node(originalRequest->exec_node_is_not_data_node());
 
         request.set_chunk_locations_supported(originalRequest->chunk_locations_supported());
@@ -2452,8 +2445,6 @@ private:
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         auto replicateValues = [&] (const auto& objectMap) {
             for (auto* object : GetValuesSortedByKey(objectMap)) {
                 objectManager->ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
@@ -2483,7 +2474,6 @@ private:
         }
 
         replicateValues(NodeMap_);
-        tabletManager->MaterizlizeExtraMountConfigKeys(cellTag);
     }
 
     void ReplicateNode(const TNode* node, TCellTag cellTag)

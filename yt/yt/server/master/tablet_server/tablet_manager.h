@@ -174,9 +174,6 @@ struct ITabletManager
 
     virtual NNodeTrackerServer::TNode* FindTabletLeaderNode(const TTabletBase* tablet) const = 0;
 
-    virtual void UpdateExtraMountConfigKeys(std::vector<std::string> keys) = 0;
-    virtual void MaterizlizeExtraMountConfigKeys(NObjectClient::TCellTag cellTag) const = 0;
-
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Tablet, TTabletBase);
     virtual TTabletBase* GetTabletOrThrow(TTabletId id) = 0;
 
