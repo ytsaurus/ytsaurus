@@ -78,6 +78,11 @@ void TTransaction::Load(TLoadContext& context)
     // COMPAT(ponasenko-rs)
     if (context.GetVersion() >= ETabletReign::PersistSerializationStatus) {
         Load(context, SerializationStatus_);
+    } else {
+        // Compatibility break with enabled per-row sequencer however such tables do not exist.
+        if (GetPersistentState() == ETransactionState::Committed) {
+             SerializationStatus_ |= ESerializationStatus::PerRowFinished;
+        }
     }
 
     Load(context, PersistentAffectedTabletIds_);
