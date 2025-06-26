@@ -41,6 +41,7 @@ const (
 	RoleRPCProxy          ClusterRole = "rpc_proxy"
 	RoleScheduler         ClusterRole = "scheduler"
 	RoleControllerAgent   ClusterRole = "controller_agent"
+	RoleQueueAgent        ClusterRole = "queue_agent"
 )
 
 // PhysicalHost is a string to hold physical host address.
@@ -586,6 +587,41 @@ func (a *ControllerAgent) GetCypressPath() ypath.Path {
 
 func (a *ControllerAgent) GetRole() ClusterRole {
 	return RoleControllerAgent
+}
+
+// QueueAgent contains a state of a single queue agent.
+type QueueAgent struct {
+	Addr *Addr `yson:",value"`
+
+	ID           yt.NodeID  `yson:"id,attr"`
+	Path         ypath.Path `yson:"path,attr"`
+	*Annotations `yson:"annotations,attr"`
+
+	Banned     YTBool `yson:"banned_queue_agent_instance,attr"`
+	BanMessage string `yson:"ban_message,attr"`
+
+	InMaintenance      YTBool `yson:"maintenance,attr"`
+	MaintenanceMessage string `yson:"maintenance_message,attr"`
+}
+
+func (a *QueueAgent) GetAddr() *Addr {
+	return a.Addr
+}
+
+func (a *QueueAgent) GetCypressPath() ypath.Path {
+	if a.Path == "" && a.Addr == nil {
+		return ""
+	}
+
+	if a.Path != "" {
+		return a.Path
+	}
+
+	return QueueAgentsPath.Child(a.Addr.String())
+}
+
+func (a *QueueAgent) GetRole() ClusterRole {
+	return RoleQueueAgent
 }
 
 type Annotations struct {
