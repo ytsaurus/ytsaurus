@@ -16,8 +16,8 @@ struct TChunkReaderStatistics
     : public TRefCounted
 {
     std::atomic<i64> DataBytesReadFromDisk = 0;
-    std::atomic<i64> DataIORequests = 0;
     std::atomic<i64> DataBlocksReadFromDisk = 0;
+    std::atomic<i64> DataIORequests = 0;
     std::atomic<i64> DataBytesTransmitted = 0;
     std::atomic<i64> DataBytesReadFromCache = 0;
     std::atomic<i64> WastedDataBytesReadFromDisk = 0;
@@ -41,8 +41,8 @@ struct TChunkReaderStatistics
     std::atomic<NProfiling::TValue> PickPeerWaitTime = 0;
 
     std::atomic<i64> SessionCount = 0;
-    std::atomic<i64> PassCount = 0;
     std::atomic<i64> RetryCount = 0;
+    std::atomic<i64> PassCount = 0;
 
     std::atomic<i64> BlockCount = 0;
     std::atomic<i64> PrefetchedBlockCount = 0;
@@ -104,8 +104,8 @@ public:
 
 private:
     NProfiling::TCounter DataBytesReadFromDisk_;
-    NProfiling::TCounter DataIORequests_;
     NProfiling::TCounter DataBlocksReadFromDisk_;
+    NProfiling::TCounter DataIORequests_;
     NProfiling::TCounter DataBytesTransmitted_;
     NProfiling::TCounter DataBytesReadFromCache_;
     NProfiling::TCounter WastedDataBytesReadFromDisk_;
