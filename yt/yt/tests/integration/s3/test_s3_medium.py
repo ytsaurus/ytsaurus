@@ -16,6 +16,7 @@ import logging
 
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
+import pandas
 import pyarrow as pa
 import pyarrow.parquet as pq
 from io import BytesIO
@@ -732,6 +733,19 @@ class TestS3Medium(YTEnvSetup):
     def test_parquet_v0(self):
         create("table", "//tmp/t", attributes={"primary_medium": self.get_s3_medium_name()})
         create("table", "//tmp/out", attributes={"primary_medium": self.get_s3_medium_name()})
+        create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
+        bucket = self.S3_MEDIA[0]["bucket"]
+
+        buffer = BytesIO()
+        pq.write_table(pa.Table.from_pandas(pandas.DataFrame({
+            "x": [1, 2],
+            "y": [[[{"foo": 1}, {"foo": 3}]], [[{"foo": 1}], []]]
+        })), buffer)
+        buffer.seek(0)
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=buffer)
+
+        import_table("//tmp/imported", s3_keys=["foo.parquet"])
+        assert read_table("//tmp/imported") == [{'x': 1, 'y': [[[1], [3]]]}, {'x': 2, 'y': [[[1]], []]}]
 
         row_count = 5000
         row_group_count = 250
@@ -746,7 +760,6 @@ class TestS3Medium(YTEnvSetup):
             out="//tmp/out",
             spec={"max_failed_job_count": 1})
 
-        bucket = self.S3_MEDIA[0]["bucket"]
 
         # TODO(achulkov2): Test with compression.
         # TODO(achulkov2): Test with row groups of different sizes.
@@ -765,8 +778,6 @@ class TestS3Medium(YTEnvSetup):
         }), buffer, row_group_size=row_count // row_group_count, compression="gzip")
         buffer.seek(0)
         self.S3_CLIENT.put_object(Bucket=bucket, Key="bar.parquet", Body=buffer)
-
-        create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
 
         import_table("//tmp/imported", s3_keys=["foo.parquet", "bar.parquet"])
         rows = read_table("//tmp/imported")
