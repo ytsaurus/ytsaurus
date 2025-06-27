@@ -165,6 +165,22 @@ DEFINE_REFCOUNTED_TYPE(TBindConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TContainerGpuConfig
+    : public NYTree::TYsonStruct
+{
+    TString NvidiaDriverCapabilities;
+    TString NvidiaVisibleDevices;
+    std::vector<TString> InfinibandDevices;
+
+    REGISTER_YSON_STRUCT(TContainerGpuConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TContainerGpuConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TJobTraceEventProcessorConfig
     : public NYTree::TYsonStruct
 {
@@ -302,6 +318,10 @@ struct TCriJobEnvironmentConfig
 
     //! Do not bind mount jobproxy binary into container
     bool UseJobProxyFromImage;
+
+    NContainers::NCri::TCriPodDescriptorPtr PodDescriptor;
+    NContainers::NCri::TCriPodSpecPtr PodSpec;
+    std::optional<TContainerGpuConfigPtr> GpuConfig;
 
     REGISTER_YSON_STRUCT(TCriJobEnvironmentConfig);
 

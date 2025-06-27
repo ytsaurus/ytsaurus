@@ -26,6 +26,7 @@
 #ifdef _linux_
 #include <yt/yt/library/containers/porto_executor.h>
 #include <yt/yt/library/containers/instance.h>
+#include <grp.h>
 #endif
 
 #include <yt/yt/ytlib/job_proxy/private.h>
@@ -196,6 +197,9 @@ public:
     {
         return 0;
     }
+
+    void EnrichJobEnvironmentConfig(int /*slotIndex*/, NJobProxy::TJobProxyInternalConfigPtr& /*jobProxyConfig*/) const override
+    { }
 
     TFuture<std::vector<TShellCommandOutput>> RunCommands(
         int /*slotIndex*/,
@@ -970,6 +974,9 @@ private:
         return SelfInstance_->GetMajorPageFaultCount();
     }
 
+    void EnrichJobEnvironmentConfig(int /*slotIndex*/, NJobProxy::TJobProxyInternalConfigPtr& /*jobProxyConfig*/) const override
+    { }
+
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
         IInvokerPtr invoker,
         TJobWorkspaceBuildingContext context,
@@ -1001,6 +1008,16 @@ public:
         , Executor_(CreateCriExecutor(ConcreteConfig_->CriExecutor))
         , ImageCache_(CreateCriImageCache(ConcreteConfig_->CriImageCache, Executor_))
     { }
+
+    void EnrichJobEnvironmentConfig(int slotIndex, NJobProxy::TJobProxyInternalConfigPtr& jobProxyConfig) const override
+    {
+        auto criJobEnv = jobProxyConfig->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>();
+        YT_VERIFY(criJobEnv);
+
+        criJobEnv->PodDescriptor = PodDescriptors_[slotIndex];
+        criJobEnv->PodSpec = PodSpecs_[slotIndex];
+        criJobEnv->GpuConfig = GetContainerGpuConfig(jobProxyConfig);
+    }
 
     void DoInit(int slotCount, double cpuLimit, double /*idleCpuFraction*/) override
     {
@@ -1040,13 +1057,13 @@ public:
 
         auto podSpec = New<NCri::TCriPodSpec>();
         podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
-        podSpec->Resources.CpuLimit = CpuLimit_;
+        podSpec->Resources->CpuLimit = CpuLimit_;
         PodSpecs_[slotIndex] = podSpec;
         SlotCpusetCpus_[slotIndex] = EmptyCpuSet;
 
         auto slotInitFuture = Executor_->RunPodSandbox(podSpec);
         slotInitFuture
-            .Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptor>& result){
+            .Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptorPtr>& result){
                 YT_ASSERT_THREAD_AFFINITY(JobThread);
 
                 if (result.IsOK()) {
@@ -1129,6 +1146,7 @@ public:
         YT_VERIFY(slotType == ESlotType::Common);
 
         auto spec = New<NCri::TCriContainerSpec>();
+        spec->Resources = New<NCri::TCriContainerResources>();
 
         // Run setup using default docker image for job workspace.
         spec->Image.Image = ConcreteConfig_->JobProxyImage;
@@ -1152,7 +1170,7 @@ public:
 
         const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
         if (cpusetCpu != EmptyCpuSet) {
-            spec->Resources.CpusetCpus = cpusetCpu;
+            spec->Resources->CpusetCpus = cpusetCpu;
         }
 
         std::vector<TFuture<void>> results;
@@ -1195,12 +1213,29 @@ private:
     const ICriExecutorPtr Executor_;
     const ICriImageCachePtr ImageCache_;
 
-    std::vector<TCriPodDescriptor> PodDescriptors_;
+    std::vector<TCriPodDescriptorPtr> PodDescriptors_;
     std::vector<TCriPodSpecPtr> PodSpecs_;
     std::vector<TString> SlotCpusetCpus_;
     double CpuLimit_ = 0;
 
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("CriMounter");
+
+    std::optional<TContainerGpuConfigPtr> GetContainerGpuConfig(const NJobProxy::TJobProxyInternalConfigPtr& jobProxyConfig) const
+    {
+        if (!Bootstrap_->GetGpuManager()->HasGpuDevices()) {
+            return std::nullopt;
+        }
+
+        auto config = New<TContainerGpuConfig>();
+        config->NvidiaDriverCapabilities = Bootstrap_
+            ->GetDynamicConfig()
+            ->ExecNode
+            ->GpuManager
+            ->DefaultNvidiaDriverCapabilities;
+        config->NvidiaVisibleDevices = JoinSeq(",", jobProxyConfig->GpuIndexes);
+        config->InfinibandDevices = ListInfinibandDevices();
+        return config;
+    }
 
     TProcessBasePtr CreateJobProxyProcess(
         const TJobProxyInternalConfigPtr& config,
@@ -1213,6 +1248,7 @@ private:
         YT_VERIFY(slotType == ESlotType::Common);
 
         auto spec = New<NCri::TCriContainerSpec>();
+        spec->Resources = New<NCri::TCriContainerResources>();
 
         spec->Name = "job-proxy";
 
@@ -1244,18 +1280,12 @@ private:
 
         // NB: If nvidia container runtime is used, empty list of devices
         // should be set explicitly to avoid binding all devices to job container.
-        if (Bootstrap_->GetGpuManager()->HasGpuDevices()) {
-            auto nvidiaDriverCapabilities = Bootstrap_
-                ->GetDynamicConfig()
-                ->ExecNode
-                ->GpuManager
-                ->DefaultNvidiaDriverCapabilities;
-            spec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = nvidiaDriverCapabilities;
-            spec->Environment["NVIDIA_VISIBLE_DEVICES"] = JoinSeq(",", config->GpuIndexes);
+        if (auto gpuContainerConfigOpt = GetContainerGpuConfig(config)) {
+            auto gpuContainerConfig = *gpuContainerConfigOpt;
+            spec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = gpuContainerConfig->NvidiaDriverCapabilities;
+            spec->Environment["NVIDIA_VISIBLE_DEVICES"] = gpuContainerConfig->NvidiaVisibleDevices;
 
-            // If there are InfiniBand devices in the system, bind them to the container.
-            auto infinibandDevices = ListInfinibandDevices();
-            for (const auto& devicePath : infinibandDevices) {
+            for (const auto& devicePath : gpuContainerConfig->InfinibandDevices) {
                 spec->BindDevices.push_back(NCri::TCriBindDevice{
                     .ContainerPath = devicePath,
                     .HostPath = devicePath,
@@ -1263,14 +1293,13 @@ private:
                 });
             }
 
-            YT_LOG_DEBUG_UNLESS(
-                infinibandDevices.empty(),
-                "Binding InfiniBand devices to job container (Devices: %v)",
-                infinibandDevices);
+            if (!gpuContainerConfig->InfinibandDevices.empty()) {
+                YT_LOG_DEBUG(
+                    "Binding InfiniBand devices to job container (Devices: %v)",
+                    gpuContainerConfig->InfinibandDevices);
 
-            // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
-            // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
-            if (!infinibandDevices.empty()) {
+                // Code using InfiniBand devices usually requires CAP_IPC_LOCK.
+                // See https://catalog.ngc.nvidia.com/orgs/hpc/containers/preflightcheck.
                 spec->CapabilitiesToAdd.push_back("IPC_LOCK");
             }
         }
@@ -1327,12 +1356,32 @@ private:
             });
         }
 
-        spec->Resources.CpuLimit = config->ContainerCpuLimit;
-        spec->Resources.MemoryLimit = config->SlotContainerMemoryLimit;
+        // Required for job_proxy to be able to work with the containerd socket.
+        spec->BindMounts.push_back(NCri::TCriBindMount{
+            .ContainerPath = "/run/containerd/",
+            .HostPath = "/run/containerd/",
+            .ReadOnly = false,
+        });
+
+#ifdef _linux_
+        // Required for job_proxy to be able to actually access the containerd socket.
+        const auto* containerGroup =
+            getgrnam(Bootstrap_->GetConfig()->ExecNode->ContainerUserGroupName.c_str());
+        if (containerGroup != nullptr) {
+            spec->Credentials.Groups = {containerGroup->gr_gid};
+        } else {
+            YT_LOG_ERROR(
+                "Cannot find user group by the specified name, sidecars may not work in job_proxy (ContainerUserGroupName: %v)",
+                Bootstrap_->GetConfig()->ExecNode->ContainerUserGroupName);
+        }
+#endif
+
+        spec->Resources->CpuLimit = config->ContainerCpuLimit;
+        spec->Resources->MemoryLimit = config->SlotContainerMemoryLimit;
 
         const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
         if (cpusetCpu != EmptyCpuSet) {
-            spec->Resources.CpusetCpus = cpusetCpu;
+            spec->Resources->CpusetCpus = cpusetCpu;
         }
 
         // Allow strace in job shell.

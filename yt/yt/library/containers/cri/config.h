@@ -115,4 +115,58 @@ DEFINE_REFCOUNTED_TYPE(TCriImageCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCriPodDescriptor
+    : public NYTree::TYsonStruct
+{
+    TString Name;
+    TString Id;
+
+    static TCriPodDescriptorPtr Create(TString name, TString id);
+
+    REGISTER_YSON_STRUCT(TCriPodDescriptor);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCriPodDescriptor)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCriContainerResources
+    : public NYTree::TYsonStruct
+{
+    std::optional<double> CpuLimit;
+    std::optional<double> CpuRequest;
+    std::optional<i64> MemoryLimit;
+    std::optional<i64> MemoryRequest;
+
+    //! At OOM kill all tasks at once.
+    std::optional<bool> MemoryOomGroup;
+
+    std::optional<TString> CpusetCpus;
+
+    REGISTER_YSON_STRUCT(TCriContainerResources);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCriContainerResources)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCriPodSpec
+    : public NYTree::TYsonStruct
+{
+    TString Name;
+    TCriContainerResourcesPtr Resources;
+
+    REGISTER_YSON_STRUCT(TCriPodSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCriPodSpec)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NContainers::NCri

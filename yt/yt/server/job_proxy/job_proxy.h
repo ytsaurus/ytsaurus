@@ -131,6 +131,7 @@ private:
 
     const NConcurrency::TActionQueuePtr JobThread_;
     const NConcurrency::TActionQueuePtr ControlThread_;
+    const NConcurrency::TActionQueuePtr JobProxyEnvironmentThread_;
 
     const NLogging::TLogger Logger;
 
