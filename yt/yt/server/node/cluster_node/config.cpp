@@ -333,7 +333,7 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("exec_node_is_not_data_node", &TThis::ExecNodeIsNotDataNode)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("flavors", &TThis::Flavors)
         .Default({
