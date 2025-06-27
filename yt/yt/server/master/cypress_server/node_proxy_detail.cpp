@@ -2050,7 +2050,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, LockCopyDestinatio
 
     auto effectiveInheritableAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
     if (GetDynamicCypressManagerConfig()->EnableInheritAttributesDuringCopy && !inplace) {
-        YT_VERIFY(IsCompositeNodeType(parentNode->GetType()));
+        YT_LOG_ALERT_AND_THROW_UNLESS(
+            IsCompositeNodeType(parentNode->GetType()),
+            "Attempt to copy to a non-composite node was made (ParentNodeId: %v, ParentNodeType: %v)",
+            parentNode->GetVersionedId(),
+            parentNode->GetType());
 
         // All attributes CAN be recalculated upon copy now, but this doesn't mean that we HAVE TO.
         GatherInheritableAttributes(
@@ -2559,7 +2563,11 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
 
     auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
     if (GetDynamicCypressManagerConfig()->EnableInheritAttributesDuringCopy && !inplace) {
-        YT_VERIFY(IsCompositeNodeType(parentNode->GetType()));
+        YT_LOG_ALERT_AND_THROW_UNLESS(
+            IsCompositeNodeType(parentNode->GetType()),
+            "Attempt to copy to a non-composite node was made (ParentNodeId: %v, ParentNodeType: %v)",
+            parentNode->GetVersionedId(),
+            parentNode->GetType());
 
         GatherInheritableAttributes(
             parentNode,
