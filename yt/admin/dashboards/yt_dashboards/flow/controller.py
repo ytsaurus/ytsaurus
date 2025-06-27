@@ -48,7 +48,6 @@ def add_partitions_by_current_job_status_cell(row):
         return (FlowController(f"yt.flow.controller.job_status.{status}")
             .aggr("computation_id")
             .aggr("previous_job_finish_reason")
-            .aggr("job_finish_reason")  # Temporary code.
             .query_transformation(f'alias({{query}}, "{alias}")'))
 
     description = dedent("""\
@@ -62,6 +61,8 @@ def add_partitions_by_current_job_status_cell(row):
         **Warming up** is semi-good status. These jobs are working, but not for a long time.
 
         **Working** is good status. If all jobs are `Working` pipeline has no problems with job deaths.
+
+        **Stopped** means that pipeline is pausing/paused/stopped and partitions have no jobs due to this.
     """)
 
     return (row
@@ -72,7 +73,8 @@ def add_partitions_by_current_job_status_cell(row):
                     job_status("working_young", "Warming up (working ≤ 5 min after recovering)"),
                     job_status("working_with_retryable_error", "Has retryable errors"),
                     job_status("preparing", "Recovering (new job is preparing)"),
-                    job_status("unknown", "Unknown"))
+                    job_status("unknown", "Unknown"),
+                    job_status("stopped", "Stopped"))
                     .min(0.8)
                     .unit("UNIT_COUNT")
                     .axis_type("YAXIS_TYPE_LOGARITHMIC"),
@@ -83,6 +85,7 @@ def add_partitions_by_current_job_status_cell(row):
                     "Has retryable errors": "#cc0000",
                     "Recovering (new job is preparing)": "#ffa500",
                     "Unknown": "#11114e",
+                    "Stopped": "#84c1ff",
                 },
                 description=description)
     )
