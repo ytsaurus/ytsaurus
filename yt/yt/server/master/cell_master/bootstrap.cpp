@@ -707,8 +707,6 @@ void TBootstrap::DoRun()
 
 void TBootstrap::DoInitialize()
 {
-    auto sequoiaTableDescriptorInitialization = ITableDescriptor::Initialize(NRpc::TDispatcher::Get()->GetHeavyInvoker());
-
     Config_->PrimaryMaster->ValidateAllPeersPresent();
     for (auto cellConfig : Config_->SecondaryMasters) {
         cellConfig->ValidateAllPeersPresent();
@@ -1101,9 +1099,6 @@ void TBootstrap::DoInitialize()
 
     DiskSpaceSensorProducer_ = CreateDiskSpaceSensorProducer(Config_);
     TProfiler{""}.AddProducer("", DiskSpaceSensorProducer_);
-
-    WaitFor(sequoiaTableDescriptorInitialization)
-        .ThrowOnError();
 }
 
 void TBootstrap::InitializeTimestampProvider()
