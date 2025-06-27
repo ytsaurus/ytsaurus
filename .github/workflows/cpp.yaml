@@ -201,7 +201,7 @@ jobs:
     if: always()
     uses: ./.github/workflows/check-status-and-send-alert.yaml
     with:
-      current_job_conclusion: ${{ github.event.workflow_run.conclusion }}
+      current_job_conclusion: ${{ failure() && 'failure' || 'success' }}
     secrets:
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
