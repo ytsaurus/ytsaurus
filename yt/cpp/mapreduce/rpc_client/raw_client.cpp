@@ -9,9 +9,11 @@
 #include <yt/cpp/mapreduce/interface/logging/yt_log.h>
 
 #include <yt/yt/client/api/file_reader.h>
+#include <yt/yt/client/api/file_writer.h>
 
 #include <yt/yt/client/api/rpc_proxy/client_base.h>
 #include <yt/yt/client/api/rpc_proxy/row_stream.h>
+#include <yt/yt/client/api/rpc_proxy/table_writer.h>
 
 #include <yt/yt/client/table_client/blob_reader.h>
 #include <yt/yt/client/table_client/name_table.h>
@@ -920,6 +922,40 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadFile(
     auto future = Client_->CreateFileReader(path.Path_, SerializeOptionsForReadFile(transactionId, options));
     auto reader = WaitAndProcess(future);
     return CreateSyncAdapter(CreateCopyingAdapter(reader));
+}
+
+class TRpcWriteFileRequestStream
+    : public IOutputStream
+{
+public:
+    TRpcWriteFileRequestStream(NApi::IFileWriterPtr writer)
+        : Writer_(std::move(writer))
+    {
+        WaitAndProcess(Writer_->Open());
+    }
+
+private:
+    void DoWrite(const void* buf, size_t len) override
+    {
+        WaitAndProcess(Writer_->Write(TSharedRef::MakeCopy<TDefaultSharedBlobTag>(TRef(buf, len))));
+    }
+
+    void DoFinish() override
+    {
+        WaitAndProcess(Writer_->Close());
+    }
+
+private:
+    const NApi::IFileWriterPtr Writer_;
+};
+
+std::unique_ptr<IOutputStream> TRpcRawClient::WriteFile(
+    const TTransactionId& transactionId,
+    const TRichYPath& path,
+    const TFileWriterOptions& options)
+{
+    auto writer = Client_->CreateFileWriter(ToApiRichPath(path), SerializeOptionsForWriteFile(transactionId, options));
+    return std::make_unique<TRpcWriteFileRequestStream>(std::move(writer));
 }
 
 TMaybe<TYPath> TRpcRawClient::GetFileFromCache(
