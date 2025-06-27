@@ -17,6 +17,8 @@ import yt_error_codes
 
 import pytest
 
+import re
+
 
 class TestQueriesYqlBase(YTEnvSetup):
     NUM_YQL_AGENTS = 1
@@ -1241,3 +1243,37 @@ class TestAssignedEngine(TestQueriesYqlBase):
 
         assert query_running_info["annotations"]["assigned_engine"] == query_finished_info["annotations"]["assigned_engine"]
         assert query_finished_info["annotations"]["assigned_engine"] in yqla_instances
+
+
+class TestAstReturns(TestQueriesYqlBase):
+    @authors("kirsiv40")
+    @pytest.mark.timeout(90)
+    def test_ast_attr_in_progress(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
+        query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+
+        wait(lambda: ("progress" in query.get() and "yql_ast" in query.get()["progress"]))
+
+        query_running_info = query.get()
+
+        runnug_query_ast_lines = query_running_info["progress"]["yql_ast"].split('\n')
+        assert len(runnug_query_ast_lines) > 2
+        for line in runnug_query_ast_lines:
+            assert (re.fullmatch(r"([()]*)|(^\(.*\)$)|(^\(.*\(block '\($)", line.strip()))
+
+        set("//sys/pools/small/@resource_limits/user_slots", 1)
+        query.track()
+
+        query_finished_info = query.get()
+        assert "yql_ast" in query_finished_info["progress"]
+
+        finished_query_ast_lines = query_finished_info["progress"]["yql_ast"].split('\n')
+        assert len(finished_query_ast_lines) > 2
+        for line in finished_query_ast_lines:
+            assert (re.fullmatch(r"([()]*)|(^\(.*\)$)|(^\(.*\(block '\($)", line.strip()))
