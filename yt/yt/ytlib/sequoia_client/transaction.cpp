@@ -267,6 +267,12 @@ public:
         };
         auto commitSession = GetOrCreateTableCommitSession(descriptor);
         commitSession->Requests.push_back(request);
+
+        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
+            "Row locked (SequoiaTable: %v, Key: %v, LockType: %v)",
+            table,
+            key,
+            lockType);
     }
 
     void WriteRow(
@@ -280,6 +286,12 @@ public:
             .Table = table,
         };
         WriteRow(descriptor, row, lockType);
+
+        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
+            "Row written (SequoiaTable: %v, Row: %v, LockType: %v)",
+            table,
+            row,
+            lockType);
     }
 
     void WriteRow(
@@ -298,6 +310,12 @@ public:
 
         auto commitSession = GetOrCreateTableCommitSession(tableDescriptor);
         commitSession->Requests.push_back(request);
+
+        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
+            "Row written (SequoiaTable: %v, Row: %v, LockType: %v)",
+            tableDescriptor.Table,
+            row,
+            lockType);
     }
 
     void DeleteRow(
@@ -316,6 +334,11 @@ public:
         descriptor.Table = table;
         auto commitSession = GetOrCreateTableCommitSession(descriptor);
         commitSession->Requests.push_back(request);
+
+        YT_LOG_DEBUG_IF(SequoiaTransactionOptions_.EnableVerboseLogging,
+            "Row deleted (SequoiaTable: %v, Key: %v)",
+            table,
+            key);
     }
 
     void AddTransactionAction(
