@@ -63,7 +63,7 @@ TChunkReaderHostPtr TChunkReaderHost::FromClient(
 
 namespace {
 
-THashMap<TClusterName, TChunkReaderHostPtr> CreateHostsMap(
+THashMap<TClusterName, TChunkReaderHostPtr> CreateHostMap(
     const TChunkReaderHostPtr& baseHost,
     const std::vector<TMultiChunkReaderHost::TClusterContext>& clusterContextList)
 {
@@ -107,7 +107,7 @@ TMultiChunkReaderHost::TMultiChunkReaderHost(
     std::vector<TClusterContext> clusterContextList)
     : BaseHost_(std::move(baseHost))
     , BandwidthThrottlerFactory_(std::move(bandwidthThrottlerFactory))
-    , Hosts_(CreateHostsMap(BaseHost_, clusterContextList))
+    , Hosts_(CreateHostMap(BaseHost_, clusterContextList))
     , ChunkReaderStatisticsMap_(CreateChunkReaderStatistics(clusterContextList))
 { }
 
