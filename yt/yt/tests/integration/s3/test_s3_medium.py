@@ -747,6 +747,20 @@ class TestS3Medium(YTEnvSetup):
         import_table("//tmp/imported", s3_keys=["foo.parquet"])
         assert read_table("//tmp/imported") == [{'x': 1, 'y': [[[1], [3]]]}, {'x': 2, 'y': [[[1]], []]}]
 
+        buffer = BytesIO()
+        pq.write_table(pa.Table.from_arrays([
+            pa.array([1, 2, 3]),
+            pa.array([1.4, None, 2.5]),
+        ], schema=pa.schema([
+            pa.field("x", pa.int64()),
+            pa.field("y", pa.float64()),
+        ])), buffer)
+        buffer.seek(0)
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=buffer)
+
+        import_table("//tmp/imported", s3_keys=["foo.parquet"])
+        assert read_table("//tmp/imported") == [{'x': 1, 'y': 1.4}, {'x': 2, 'y': None}, {'x': 3, 'y': 2.5}]
+
         row_count = 5000
         row_group_count = 250
 
