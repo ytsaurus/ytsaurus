@@ -539,6 +539,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(1.1);
     registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCache)
         .DefaultNew();
+    registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
+        .DefaultNew();
     registrar.Parameter("huge_page_manager", &TThis::HugePageManager)
         .DefaultNew();
     registrar.Parameter("fair_share_hierarchical_scheduler", &TThis::FairShareHierarchicalScheduler)

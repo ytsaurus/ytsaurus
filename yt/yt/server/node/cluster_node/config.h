@@ -24,6 +24,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
@@ -502,6 +504,8 @@ struct TClusterNodeDynamicConfig
 
     //! Chaos residency cache config overrides.
     TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
+
+    NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;
 
     //! Configuration for huge page manager.
     NIO::THugePageManagerDynamicConfigPtr HugePageManager;

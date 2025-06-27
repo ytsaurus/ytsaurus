@@ -770,6 +770,12 @@ def get_dynamic_node_config():
                     "abort_on_jobs_disabled": True,
                 },
             },
+            "master_cell_directory_synchronizer": {
+                "sync_period": 500,
+                "retry_period": 500,
+                "expire_after_successful_update_time": 500,
+                "expire_after_failed_update_time": 500,
+            },
             "master_connector": {
                 "heartbeat_executor": {
                     "period": 100,

@@ -25,6 +25,8 @@ struct ICellDirectorySynchronizer
 
     //! Returns a future that was set by the most recent sync.
     virtual TFuture<void> RecentSync() = 0;
+
+    virtual void Reconfigure(const TCellDirectorySynchronizerConfigPtr& newConfig) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellDirectorySynchronizer)
