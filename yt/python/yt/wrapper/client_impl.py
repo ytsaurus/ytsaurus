@@ -2041,15 +2041,15 @@ class YtClient(ClientState):
 
     def read_table_structured(
             self,
-            table, row_type,
-            table_reader=None, unordered=None, response_parameters=None, enable_read_parallel=None):
+            table,
+            row_type=None, table_reader=None, unordered=None, response_parameters=None, enable_read_parallel=None):
         """
         Reads rows from table in structured format. Cf. docstring for read_table
         """
         return client_api.read_table_structured(
-            table, row_type,
+            table,
             client=self,
-            table_reader=table_reader, unordered=unordered, response_parameters=response_parameters,
+            row_type=row_type, table_reader=table_reader, unordered=unordered, response_parameters=response_parameters,
             enable_read_parallel=enable_read_parallel)
 
     def register_queue_consumer(

@@ -350,6 +350,7 @@ class ContextProtocol(Protocol):
 
 
 if is_schema_module_available():
+
     Int8 = create_annotated_type(int, ti.Int8)
     Int16 = create_annotated_type(int, ti.Int16)
     Int32 = create_annotated_type(int, ti.Int32)
@@ -410,3 +411,29 @@ if is_schema_module_available():
 
         def __init_subclass__(cls, *args, **kwargs):
             raise TypeError("{} cannot be subclassed".format(FormattedPyDatetime._name()))
+
+    _PY_TYPE_BY_TI_TYPE = {
+        ti.Bool: bool,
+        ti.Utf8: str,
+        ti.String: bytes,
+
+        ti.Int8: Int8,
+        ti.Int16: Int16,
+        ti.Int32: Int32,
+        ti.Int64: Int64,
+
+        ti.Uint8: Uint8,
+        ti.Uint16: Uint16,
+        ti.Uint32: Uint32,
+        ti.Uint64: Uint64,
+
+        ti.Float: Float,
+        ti.Double: Double,
+
+        ti.Date: Date,
+        ti.Datetime: Datetime,
+        ti.Timestamp: Timestamp,
+        ti.Interval: Interval,
+
+        ti.Yson: YsonBytes,
+    }
