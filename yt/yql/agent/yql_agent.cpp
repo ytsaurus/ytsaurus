@@ -318,6 +318,7 @@ public:
                 TYqlResponse yqlResponse;
                 ValidateAndFillYqlResponseField(yqlResponse, result.Plan, &TYqlResponse::mutable_plan);
                 ValidateAndFillYqlResponseField(yqlResponse, result.Progress, &TYqlResponse::mutable_progress);
+                ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
                 response.mutable_yql_response()->Swap(&yqlResponse);
             }
             return response;
@@ -427,6 +428,7 @@ private:
             ValidateAndFillYqlResponseField(yqlResponse, result.Statistics, &TYqlResponse::mutable_statistics);
             ValidateAndFillYqlResponseField(yqlResponse, result.Progress, &TYqlResponse::mutable_progress);
             ValidateAndFillYqlResponseField(yqlResponse, result.TaskInfo, &TYqlResponse::mutable_task_info);
+            ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
             if (request.build_rowsets() && result.YsonResult) {
                 auto rowsets = BuildRowsets(ClientDirectory_, *result.YsonResult, request.row_count_limit());
 

@@ -75,6 +75,8 @@ struct TBridgeQueryResult
 
     const char* YsonError = nullptr;
     ssize_t YsonErrorLength = 0;
+    const char* Ast = nullptr;
+    ssize_t AstLength = 0;
 };
 
 #define FOR_EACH_QUERY_RESULT_STRING_FIELD(XX) \
@@ -83,6 +85,7 @@ struct TBridgeQueryResult
     XX(Statistics) \
     XX(Progress) \
     XX(TaskInfo) \
+    XX(Ast) \
     XX(YsonError)
 
 struct TBridgeClustersResult

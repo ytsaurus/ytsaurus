@@ -101,14 +101,15 @@ std::optional<TString> MaybeToOptional(const TMaybe<TString>& maybeStr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TQueryPlan
+struct TQueryRepresentations
     : public TRefCounted
 {
     std::optional<TString> Plan;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PlanSpinLock);
+    std::optional<TString> Ast;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReprSpinLock);
 };
-DECLARE_REFCOUNTED_TYPE(TQueryPlan)
-DEFINE_REFCOUNTED_TYPE(TQueryPlan)
+DECLARE_REFCOUNTED_TYPE(TQueryRepresentations)
+DEFINE_REFCOUNTED_TYPE(TQueryRepresentations)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,10 +118,10 @@ class TQueryPipelineConfigurator
     , public TRefCounted
 {
 public:
-    const TQueryPlanPtr Plan;
+    const TQueryRepresentationsPtr Repr;
 
     TQueryPipelineConfigurator(NYql::TProgramPtr program)
-        : Plan(New<TQueryPlan>())
+        : Repr(New<TQueryRepresentations>())
         , Program_(std::move(program))
     { }
 
@@ -135,13 +136,14 @@ public:
         auto transformer = [this](NYql::TExprNode::TPtr input, NYql::TExprNode::TPtr& output, NYql::TExprContext& /*ctx*/) {
             output = input;
 
-            auto guard = WriterGuard(Plan->PlanSpinLock);
-            Plan->Plan = MaybeToOptional(Program_->GetQueryPlan());
+            auto guard = WriterGuard(Repr->ReprSpinLock);
+            Repr->Plan = MaybeToOptional(Program_->GetQueryPlan());
+            Repr->Ast = MaybeToOptional(Program_->GetQueryAst());
 
             return NYql::IGraphTransformer::TStatus::Ok;
         };
 
-        pipeline->Add(NYql::CreateFunctorTransformer(transformer), "PlanOutput");
+        pipeline->Add(NYql::CreateFunctorTransformer(transformer), "PlanAndAstOutput");
     }
 
 private:
@@ -179,6 +181,7 @@ struct TActiveQuery
     TProgressMerger ProgressMerger;
     TQueryPipelineConfiguratorPtr PipelineConfigurator;
     std::optional<TString> Plan;
+    std::optional<TString> Ast;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -559,12 +562,14 @@ public:
         auto userDataTable = FilesToUserTable(files);
         program->AddUserDataTable(userDataTable);
 
-        auto queryPlan = pipelineConfigurator->Plan;
-        program->SetProgressWriter([queryPlan, queryId, this] (const NYql::TOperationProgress& progress) {
+        auto queryRepr = pipelineConfigurator->Repr;
+        program->SetProgressWriter([queryRepr, queryId, this] (const NYql::TOperationProgress& progress) {
             std::optional<TString> plan;
+            std::optional<TString> ast;
             {
-                auto guard = ReaderGuard(queryPlan->PlanSpinLock);
-                plan.swap(queryPlan->Plan);
+                auto guard = ReaderGuard(queryRepr->ReprSpinLock);
+                plan.swap(queryRepr->Plan);
+                ast.swap(queryRepr->Ast);
             }
 
             auto guard = WriterGuard(ProgressSpinLock_);
@@ -572,6 +577,9 @@ public:
                 ActiveQueriesProgress_[queryId].ProgressMerger.MergeWith(progress);
                 if (plan) {
                     ActiveQueriesProgress_[queryId].Plan.swap(plan);
+                }
+                if (ast) {
+                    ActiveQueriesProgress_[queryId].Ast.swap(ast);
                 }
             }
         });
@@ -659,6 +667,7 @@ public:
             .Statistics = MaybeToOptional(program->GetStatistics()),
             .Progress = progress,
             .TaskInfo = MaybeToOptional(program->GetTasksInfo()),
+            .Ast = MaybeToOptional(program->GetQueryAst()),
         };
     }
 
@@ -713,6 +722,7 @@ public:
             if (ActiveQueriesProgress_[queryId].ProgressMerger.HasChangesSinceLastFlush()) {
                 result.Plan = ActiveQueriesProgress_[queryId].Plan;
                 result.Progress = ActiveQueriesProgress_[queryId].ProgressMerger.ToYsonString();
+                result.Ast = ActiveQueriesProgress_[queryId].Ast;
             }
             return result;
         } else {
