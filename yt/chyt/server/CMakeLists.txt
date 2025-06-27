@@ -88,6 +88,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/host.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/http_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/index.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/index_stats.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/invoker_liveness_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/job_size_constraints.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/launcher_compatibility.cpp
@@ -103,6 +104,7 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_progress.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/read_from_yt_step.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/read_plan.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/remote_source.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/revision_tracker.cpp

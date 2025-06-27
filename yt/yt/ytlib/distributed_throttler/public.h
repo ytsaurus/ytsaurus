@@ -9,6 +9,8 @@ namespace NYT::NDistributedThrottler {
 DECLARE_REFCOUNTED_STRUCT(TDistributedThrottlerConfig)
 DECLARE_REFCOUNTED_STRUCT(IDistributedThrottlerFactory)
 
+using TThrottlerId = std::string;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_ERROR_ENUM(

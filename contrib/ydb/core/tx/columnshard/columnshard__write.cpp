@@ -14,7 +14,7 @@
 #include "transactions/operators/ev_write/sync.h"
 
 #include <contrib/ydb/core/tx/columnshard/tablet/write_queue.h>
-#include <contrib/ydb/core/tx/conveyor/usage/service.h>
+#include <contrib/ydb/core/tx/conveyor_composite/usage/service.h>
 #include <contrib/ydb/core/tx/data_events/events.h>
 
 namespace NKikimr::NColumnShard {
@@ -24,6 +24,7 @@ using namespace NTabletFlatExecutor;
 void TColumnShard::OverloadWriteFail(const EOverloadStatus overloadReason, const NEvWrite::TWriteMeta& writeMeta, const ui64 writeSize,
     const ui64 cookie, std::unique_ptr<NActors::IEventBase>&& event, const TActorContext& ctx) {
     Counters.GetTabletCounters()->IncCounter(COUNTER_WRITE_FAIL);
+    Counters.GetCSCounters().OnWriteOverload(overloadReason, writeSize);
     switch (overloadReason) {
         case EOverloadStatus::Disk:
             Counters.OnWriteOverloadDisk();
@@ -80,8 +81,8 @@ TColumnShard::EOverloadStatus TColumnShard::CheckOverloadedImmediate(const TInte
         return EOverloadStatus::Disk;
     }
     ui64 txLimit = Settings.OverloadTxInFlight;
-    const ui64 writesLimit = HasAppData() ? AppDataVerified().ColumnShardConfig.GetWritingInFlightRequestsCountLimit() : 1000;
-    const ui64 writesSizeLimit = HasAppData() ? AppDataVerified().ColumnShardConfig.GetWritingInFlightRequestBytesLimit() : (((ui64)128) << 20);
+    const ui64 writesLimit = HasAppData() ? AppDataVerified().ColumnShardConfig.GetWritingInFlightRequestsCountLimit() : 1000000;
+    const ui64 writesSizeLimit = HasAppData() ? AppDataVerified().ColumnShardConfig.GetWritingInFlightRequestBytesLimit() : (((ui64)1) << 30);
     if (txLimit && Executor()->GetStats().TxInFly > txLimit) {
         AFL_WARN(NKikimrServices::TX_COLUMNSHARD_WRITE)("event", "shard_overload")("reason", "tx_in_fly")("sum", Executor()->GetStats().TxInFly)(
             "limit", txLimit);
@@ -296,7 +297,7 @@ void TColumnShard::Handle(TEvColumnShard::TEvWrite::TPtr& ev, const TActorContex
             Counters.GetCSCounters().WritingCounters, GetLastTxSnapshot(), std::make_shared<TAtomicCounter>(1), true,
             BufferizationInsertionWriteActorId, BufferizationPortionsWriteActorId);
         std::shared_ptr<NConveyor::ITask> task = std::make_shared<NOlap::TBuildBatchesTask>(std::move(writeData), context);
-        NConveyor::TInsertServiceOperator::AsyncTaskToExecute(task);
+        NConveyorComposite::TInsertServiceOperator::SendTaskToExecute(task);
     }
 }
 

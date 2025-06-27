@@ -6,6 +6,9 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <yt/yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/config.h>
+
 #include <yt/yt/core/rpc/bus/channel.h>
 
 #include <yt/yt/library/program/program.h>
@@ -73,6 +76,8 @@ public:
 protected:
     void DoRun() override
     {
+        //NLogging::TLogManager::Get()->Configure(NLogging::TLogManagerConfig::CreateStderrLogger(NLogging::ELogLevel::Debug));
+
         auto config = NYTree::ConvertTo<TConfigPtr>(NYson::TYsonString(TFileInput(ConfigPath_).ReadAll()));
 
         auto client = NYT::NBus::CreateBusClient(NYT::NBus::TBusClientConfig::CreateTcp(config->Address));
@@ -87,9 +92,11 @@ protected:
         deviceConfig->DataNodeNbdServiceMakeTimeout = config->DataNodeNbdServiceMakeTimeout;
 
         auto handler = NYT::NNbd::CreateChunkHandler(
+            /*blockDevice*/ nullptr,
             std::move(deviceConfig),
             queue->GetInvoker(),
             std::move(channel),
+            /*sessionId*/ NChunkClient::TSessionId(),
             Logger());
 
         handler->Initialize().Get().ThrowOnError();
@@ -101,8 +108,8 @@ protected:
             auto data = Format("data_%v", i);
             auto offset = RandomNumber<ui64>(config->Size - data.size());
             handler->Write(offset, TSharedRef::FromString(data), {.Cookie = RandomNumber<ui64>()}).Get().ThrowOnError();
-            auto value = handler->Read(offset, data.length(), {.Cookie = RandomNumber<ui64>()}).Get().ValueOrThrow();
-            assert(ToString(value.ToStringBuf()) == data);
+            auto response = handler->Read(offset, data.length(), {.Cookie = RandomNumber<ui64>()}).Get().ValueOrThrow();
+            assert(ToString(response.Data.ToStringBuf()) == data);
         }
 
         NHPTimer::STime tcur = t;

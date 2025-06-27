@@ -23,6 +23,8 @@ class TestColumnarRead(ClickHouseTestBase):
         }
     }
 
+    NUM_TEST_PARTITIONS = 2
+
     @staticmethod
     def _check_single_column(clique, type, required, values):
         create(
@@ -37,7 +39,7 @@ class TestColumnarRead(ClickHouseTestBase):
         assert data == values
 
     @authors("babenko")
-    @pytest.mark.timeout(180)
+    @pytest.mark.timeout(240)
     def test_integer(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             for type in ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]:

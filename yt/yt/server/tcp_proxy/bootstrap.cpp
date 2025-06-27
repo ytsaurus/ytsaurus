@@ -55,12 +55,13 @@ using namespace NCoreDump;
 using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NYTree;
+using namespace NYPath;
 using namespace NFusion;
 using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TcpProxyLogger;
+constinit const auto Logger = TcpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -181,9 +182,11 @@ private:
 
         {
             TCypressRegistrarOptions options{
-                .RootPath = TcpProxiesInstancesPath + NNet::BuildServiceAddress(
-                    NNet::GetLocalHostName(),
-                    Config_->RpcPort),
+                .RootPath = Format("%v/%v",
+                    TcpProxiesInstancesPath,
+                    ToYPathLiteral(NNet::BuildServiceAddress(
+                        NNet::GetLocalHostName(),
+                        Config_->RpcPort))),
                 .OrchidRemoteAddresses = GetLocalAddresses(/*addresses*/ {}, Config_->RpcPort),
                 .ExpireSelf = true,
             };

@@ -1,6 +1,7 @@
 #include "tablet_cell_write_manager.h"
 
 #include "automaton.h"
+#include "config.h"
 #include "hunk_lock_manager.h"
 #include "mutation_forwarder.h"
 #include "sorted_dynamic_store.h"
@@ -92,7 +93,7 @@ public:
 
     TFuture<void> Write(
         const TTabletSnapshotPtr& tabletSnapshot,
-        TWireWriteCommandBatchReader* reader,
+        TWireWriteCommandsBatchingReader* reader,
         const TTabletCellWriteParams& params) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);

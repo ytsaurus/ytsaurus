@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
+#include <yt/yt/server/lib/security_server/config.h>
+
 #include <yt/yt/server/lib/signature/instance_config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -170,6 +172,11 @@ void TApiConfig::Register(TRegistrar registrar)
     registrar.Parameter("force_tracing", &TThis::ForceTracing)
         .Default(false);
 
+    registrar.Parameter("cpu_update_period", &TThis::CpuUpdatePeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("user_access_validator", &TThis::UserAccessValidator)
+        .DefaultNew();
+
     registrar.Parameter("testing", &TThis::TestingOptions)
         .Default();
 }
@@ -186,6 +193,9 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
         .Default(false);
+
+    registrar.Parameter("user_access_validator", &TThis::UserAccessValidator)
+        .DefaultNew();
 
     registrar.Parameter("use_compression_thread_pool", &TThis::UseCompressionThreadPool)
         .Default(true);

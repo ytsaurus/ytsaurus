@@ -184,7 +184,7 @@ struct TUserObject
     // TODO(ignat): migrate to optional.
     i64 ChunkCount = UndefinedChunkCount;
 
-    std::optional<TString> Account;
+    std::optional<std::string> Account;
 
     virtual ~TUserObject() = default;
 
@@ -309,6 +309,9 @@ struct TAllyReplicasInfo
 
     static TAllyReplicasInfo FromChunkReplicas(
         const TChunkReplicaWithMediumList& chunkReplicas,
+        NHydra::TRevision revision = NHydra::NullRevision);
+    static TAllyReplicasInfo FromChunkReplicas(
+        const TChunkReplicaList& chunkReplicas,
         NHydra::TRevision revision = NHydra::NullRevision);
 
     static TAllyReplicasInfo FromWrittenChunkReplicasInfo(TWrittenChunkReplicasInfo replicasInfo);

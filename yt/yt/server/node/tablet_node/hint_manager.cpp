@@ -1,5 +1,7 @@
 #include "hint_manager.h"
+
 #include "bootstrap.h"
+#include "config.h"
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
@@ -23,7 +25,7 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

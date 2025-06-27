@@ -32,6 +32,20 @@ struct TTransactionPrepareOptions;
 struct TTransactionCommitOptions;
 struct TTransactionAbortOptions;
 
+template <class TSaveContext, class TLoadContext>
+struct ITransactionActionState;
+
+template <class TSaveContext, class TLoadContext>
+struct ITransactionActionStateFactory;
+
+template <class TTransaction, class TProto, class TState>
+struct TTypedTransactionActionDescriptor;
+
+template <class TTransaction, class TSaveContext, class TLoadContext>
+class TTypeErasedTransactionActionDescriptor;
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NProto {
 
 class TTransactionPrepareOptions;
@@ -63,7 +77,7 @@ DEFINE_ENUM(ETransactionState,
     // Transaction in Serialized state will not finish until all serializations are completed.
     // Finish of a coarse serialization will always trigger transition to Serialized.
     //
-    // NB: There is no real checks or events connected to this state.
+    // NB: There are no real checks or events connected to Serialized state.
     ((Serialized)                 (6))
     ((TransientAbortPrepared)     (4))
     ((Aborted)                    (5))

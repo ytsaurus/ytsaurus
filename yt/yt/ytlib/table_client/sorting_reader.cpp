@@ -54,7 +54,7 @@ public:
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 

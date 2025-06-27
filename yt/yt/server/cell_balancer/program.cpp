@@ -22,18 +22,26 @@ public:
 
         Opts_
             .AddLongOption(
-                "dry-run",
+                "apply",
+                "Apply changes from run-once iteration")
+            .SetFlag(&Apply_)
+            .NoArgument();
+
+        Opts_
+            .AddLongOption(
+                "run-once",
                 "Read cluster state and schedule mutations without applying anything")
-            .SetFlag(&DryRun_)
+            .SetFlag(&RunOnce_)
             .NoArgument();
     }
 
 private:
-    bool DryRun_ = false;
+    bool Apply_ = false;
+    bool RunOnce_ = false;
 
     void DoStart() final
     {
-        if (DryRun_) {
+        if (RunOnce_) {
             auto config = GetConfig();
 
             auto loggingConfig = config->GetSingletonConfig<NLogging::TLogManagerConfig>();
@@ -46,8 +54,8 @@ private:
             GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
 
-        if (DryRun_) {
-            bootstrap->ExecuteDryRunIteration();
+        if (RunOnce_) {
+            bootstrap->ExecuteIteration(!Apply_);
 
             NLogging::TLogManager::Get()->Shutdown();
 

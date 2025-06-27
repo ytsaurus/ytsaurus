@@ -567,7 +567,7 @@ public:
             std::move(nameTable),
             chunkTimestamps,
             dataSink)
-        , BlockWriter_(std::make_unique<THorizontalBlockWriter>(Schema_))
+        , BlockWriter_(std::make_unique<THorizontalBlockWriter>(Schema_, Options_->MemoryUsageTracker))
     { }
 
     i64 GetCompressedDataSize() const override
@@ -592,7 +592,7 @@ public:
                 auto block = BlockWriter_->FlushBlock();
                 block.Meta.set_chunk_row_count(RowCount_);
                 RegisterBlock(block, row);
-                BlockWriter_ = std::make_unique<THorizontalBlockWriter>(Schema_);
+                BlockWriter_ = std::make_unique<THorizontalBlockWriter>(Schema_, Options_->MemoryUsageTracker);
             }
         }
 
@@ -1489,7 +1489,7 @@ public:
         BlockWriters_.reserve(partitionCount);
 
         for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
-            BlockWriters_.emplace_back(new THorizontalBlockWriter(Schema_, BlockReserveSize_));
+            BlockWriters_.emplace_back(new THorizontalBlockWriter(Schema_, Options_->MemoryUsageTracker, BlockReserveSize_));
             CurrentBufferCapacity_ += BlockWriters_.back()->GetCapacity();
         }
 
@@ -1662,7 +1662,7 @@ private:
 
         auto block = blockWriter->FlushBlock();
         block.Meta.set_partition_index(partitionIndex);
-        blockWriter.reset(new THorizontalBlockWriter(Schema_, BlockReserveSize_));
+        blockWriter.reset(new THorizontalBlockWriter(Schema_, Options_->MemoryUsageTracker, BlockReserveSize_));
         CurrentBufferCapacity_ += blockWriter->GetCapacity();
 
         YT_LOG_DEBUG("Flushing partition block (PartitionIndex: %v, BlockSize: %v, BlockRowCount: %v, CurrentBufferCapacity: %v)",
@@ -2371,11 +2371,11 @@ void PatchWriterConfigs(
     const NLogging::TLogger& Logger)
 {
     options->ReplicationFactor = attributes.Get<int>("replication_factor");
-    options->MediumName = attributes.Get<TString>("primary_medium");
+    options->MediumName = attributes.Get<std::string>("primary_medium");
     options->CompressionCodec = tableUploadOptions.CompressionCodec;
     options->ErasureCodec = tableUploadOptions.ErasureCodec;
     options->EnableStripedErasure = tableUploadOptions.EnableStripedErasure;
-    options->Account = attributes.Get<TString>("account");
+    options->Account = attributes.Get<std::string>("account");
     options->ChunksVital = attributes.Get<bool>("vital");
     options->EnableSkynetSharing = attributes.Get<bool>("enable_skynet_sharing", false);
 
@@ -2421,7 +2421,7 @@ INodePtr GetTableAttributes(
     static const auto AttributeKeys = [] {
         return ConcatVectors(
             GetTableUploadOptionsAttributeKeys(),
-            std::vector<TString>{
+            std::vector<std::string>{
                 "account",
                 "chunk_writer",
                 "primary_medium",
@@ -2948,7 +2948,6 @@ public:
         , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
             cookie.PatchInfo.RichPath,
             TransactionId_))
-        , DummySignatureGenerator_(NSignature::CreateDummySignatureGenerator())
     { }
 
     TFuture<void> Open()
@@ -3017,8 +3016,6 @@ private:
     // convert WriteResult_ to the proper type possibly to be signed
     // by rpc proxy later.
     TSignedWriteFragmentResultPtr SignedResult_;
-
-    const NSignature::ISignatureGeneratorPtr DummySignatureGenerator_;
 
     bool FirstRow_ = true;
 
@@ -3146,7 +3143,8 @@ private:
                 << underlyingWriterCloseError;
         }
 
-        SignedResult_ = TSignedWriteFragmentResultPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(WriteResult_).ToString()));
+        const auto& signatureGenerator = Client_->GetNativeConnection()->GetSignatureGenerator();
+        SignedResult_ = TSignedWriteFragmentResultPtr(signatureGenerator->Sign(ConvertToYsonString(WriteResult_).ToString()));
 
         // Log all statistics.
         YT_LOG_DEBUG("Writer data statistics (DataStatistics: %v)", UnderlyingWriter_->GetDataStatistics());

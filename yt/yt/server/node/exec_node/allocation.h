@@ -1,12 +1,28 @@
 #pragma once
 
 #include "job.h"
+#include "helpers.h"
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
+
+#include <yt/yt/library/gpu/public.h>
 
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void InitAllocationProfiler(const NProfiling::TProfiler& profiler);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EAllocationFinishReason,
+    (Aborted)
+    (Preempted)
+    (MultipleJobsDisabled)
+    (NoNewJobSettled)
+    (AgentDisconnected)
+    (JobFinishedUnsuccessfully)
+);
 
 class TAllocation
     : public NJobAgent::TResourceOwner
@@ -35,7 +51,8 @@ public:
         TAllocationId id,
         TOperationId operationId,
         const NClusterNode::TJobResources& resourceUsage,
-        std::optional<NScheduler::TAllocationAttributes> attributes,
+        NScheduler::TAllocationAttributes attributes,
+        std::optional<NGpu::TNetworkPriority> networkPriority,
         TControllerAgentDescriptor agentDescriptor,
         IBootstrap* bootstrap);
     ~TAllocation();
@@ -51,6 +68,8 @@ public:
     double GetRequestedCpu() const noexcept;
     i64 GetRequestedMemory() const noexcept;
 
+    std::optional<NGpu::TNetworkPriority> GetNetworkPriority() const noexcept;
+
     void Start();
     void Cleanup();
 
@@ -63,7 +82,7 @@ public:
     NClusterNode::TJobResources GetResourceUsage(bool excludeReleasing = false) const noexcept;
 
     void Abort(TError error);
-    void Complete();
+    void Complete(EAllocationFinishReason finishReason);
     void Preempt(
         TDuration timeout,
         TString preemptionReason,
@@ -101,11 +120,12 @@ private:
 
     const NClusterNode::TJobResources InitialResourceDemand_;
 
-    // NB(arkady-e1ppa): "optional" is a COMPAT
-    // Remove when scheduler and nodes both are 24.2.
-    std::optional<NScheduler::TAllocationAttributes> Attributes_;
+    NScheduler::TAllocationAttributes Attributes_;
 
-    TControllerAgentDescriptor ControllerAgentDescriptor_;
+    TControllerAgentAffiliationInfo ControllerAgentInfo_;
+
+    const std::optional<NGpu::TNetworkPriority> NetworkPriority_;
+
     // TODO(pogorelov): Maybe strong ref?
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
 
@@ -120,27 +140,29 @@ private:
 
     TEvent SettlementNewJobOnAbortRequested_;
 
+    int TotalJobCount_ = 0;
+
     const TAllocationConfigPtr& GetConfig() const noexcept;
 
-    void SettleJob();
+    void SettleJob(bool isJobFirst);
 
     void OnSettledJobReceived(
+        const NProfiling::TWallTimer& timer,
+        bool isJobFirst,
         TErrorOr<TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo>&& jobInfoOrError);
 
     void CreateAndSettleJob(
         TJobId jobId,
         NControllerAgent::NProto::TJobSpec&& jobSpec);
 
-    void OnAllocationFinished();
+    void OnAllocationFinished(EAllocationFinishReason finishReason);
 
     void OnJobPrepared(TJobPtr job);
     void OnJobFinished(TJobPtr job);
 
     void TransferResourcesToJob();
 
-    void PrepareAllocationFromAttributes(const NScheduler::TAllocationAttributes& attributes);
-    void LegacyPrepareAllocationFromStartInfo(
-        TControllerAgentConnectorPool::TControllerAgentConnector::TJobStartInfo& jobInfo);
+    void PrepareAllocation();
 
     NYTree::IYPathServicePtr GetStaticOrchidService();
 
@@ -152,8 +174,9 @@ DEFINE_REFCOUNTED_TYPE(TAllocation)
 TAllocationPtr CreateAllocation(
     TAllocationId id,
     TOperationId operationId,
-    const NClusterNode::TJobResources& resourceUsage,
-    std::optional<NScheduler::TAllocationAttributes> attributes,
+    const NClusterNode::TJobResources& resourceDemand,
+    NScheduler::TAllocationAttributes attributes,
+    std::optional<NGpu::TNetworkPriority> networkPriority,
     TControllerAgentDescriptor agentDescriptor,
     IBootstrap* bootstrap);
 

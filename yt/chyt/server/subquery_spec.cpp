@@ -9,6 +9,11 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/ytlib/chunk_pools/chunk_stripe.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+
 #include <DataTypes/DataTypeFactory.h>
 
 namespace NYT::NClickHouseServer {
@@ -18,6 +23,33 @@ using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NYTree;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FillDataSliceDescriptors(
+    std::vector<TSecondaryQueryReadDescriptors>& dataSliceDescriptors,
+    const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap,
+    const TRange<NChunkPools::TChunkStripePtr>& chunkStripes)
+{
+    for (const auto& chunkStripe : chunkStripes) {
+        auto& inputDataSliceDescriptors = dataSliceDescriptors.emplace_back();
+        for (const auto& dataSlice : chunkStripe->DataSlices) {
+            auto& inputDataSliceDescriptor = inputDataSliceDescriptors.emplace_back();
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                auto& chunkSpec = inputDataSliceDescriptor.ChunkSpecs.emplace_back();
+                ToProto(&chunkSpec, chunkSlice, /*comparator*/ TComparator(), EDataSourceType::UnversionedTable);
+                auto it = miscExtMap.find(chunkSlice->GetInputChunk()->GetChunkId());
+                YT_VERIFY(it != miscExtMap.end());
+                if (it->second) {
+                    SetProtoExtension(
+                        chunkSpec.mutable_chunk_meta()->mutable_extensions(),
+                        static_cast<const NChunkClient::NProto::TMiscExt&>(*it->second));
+                }
+            }
+            inputDataSliceDescriptor.VirtualRowIndex = dataSlice->VirtualRowIndex;
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

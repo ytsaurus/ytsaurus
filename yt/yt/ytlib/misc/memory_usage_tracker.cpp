@@ -10,8 +10,6 @@
 
 #include <library/cpp/yt/containers/enum_indexed_array.h>
 
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
-
 #include <algorithm>
 
 namespace NYT {
@@ -200,6 +198,7 @@ private:
     TPool* GetOrRegisterPool(const TPoolTag& poolTag);
     TPool* GetOrRegisterPool(const std::optional<TPoolTag>& poolTag);
     i64 CalculatePoolLimit(i64 limit, const TPool* pool) const;
+    void SetupPoolProfilers(ECategory category, const TPoolTag& poolTag);
 
     TReferenceKey GetReferenceKey(TRef ref);
     TReferenceAddressMapShard& GetReferenceAddressMapShard(TReferenceKey key);
@@ -366,7 +365,7 @@ i64 TNodeMemoryTracker::GetTotalLimit() const
 
 i64 TNodeMemoryTracker::GetTotalUsed() const
 {
-    return TotalUsed_.load();
+    return TotalUsed_.load() - Categories_[EMemoryCategory::AllocFragmentation].Used.load();
 }
 
 i64 TNodeMemoryTracker::GetTotalFree() const
@@ -418,6 +417,10 @@ i64 TNodeMemoryTracker::CalculatePoolLimit(i64 limit, const TPool* pool) const
 
     YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
+    auto saturatedCastToInteger = [] (double value) {
+        return value >= std::numeric_limits<i64>::max() ? std::numeric_limits<i64>::max() : static_cast<i64>(value);
+    };
+
     auto result = limit;
 
     auto totalPoolWeight = TotalPoolWeight_.load();
@@ -431,11 +434,11 @@ i64 TNodeMemoryTracker::CalculatePoolLimit(i64 limit, const TPool* pool) const
         }
 
         auto fpResult = 1.0 * limit / totalPoolWeight * (*poolWeight);
-        result = std::min(static_cast<i64>(fpResult), result);
+        result = std::min(saturatedCastToInteger(fpResult), result);
     }
 
     if (poolRatio) {
-        result = std::min(static_cast<i64>(limit * (*poolRatio)), result);
+        result = std::min(saturatedCastToInteger(limit * (*poolRatio)), result);
     }
 
     return result;
@@ -638,7 +641,8 @@ bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
     if (currentFree < 0) {
         overcommitted = true;
 
-        YT_LOG_WARNING("Total memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
+        YT_LOG_WARNING(
+            "Total memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
             -currentFree,
             category,
             size);
@@ -650,12 +654,25 @@ bool TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
         if (poolUsed > poolLimit) {
             overcommitted = true;
 
-            YT_LOG_WARNING("Per-pool memory overcommit detected (Debt: %v, RequestCategory: %v, PoolTag: %v, RequestSize: %v)",
+            YT_LOG_WARNING(
+                "Per-pool memory overcommit detected (Debt: %v, RequestCategory: %v, PoolTag: %v, RequestSize: %v)",
                 poolUsed - poolLimit,
                 category,
                 *poolTag,
                 size);
         }
+    }
+
+    auto categoryUsed = DoGetUsed(category);
+    auto categoryLimit = DoGetLimit(category);
+    if (categoryUsed > categoryLimit) {
+        overcommitted = true;
+
+        YT_LOG_WARNING(
+            "Per-category memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
+            categoryUsed - categoryLimit,
+            category,
+            size);
     }
 
     return !overcommitted;
@@ -768,6 +785,24 @@ i64 TNodeMemoryTracker::UpdateUsage(ECategory category, i64 newUsage)
     return oldUsage;
 }
 
+void TNodeMemoryTracker::SetupPoolProfilers(ECategory category, const TPoolTag& poolTag)
+{
+    auto* pool = GetOrRegisterPool(poolTag);
+
+    auto categoryProfiler = Profiler_
+        .WithTag("category", FormatEnum(category))
+        .WithTag("pool", ToString(poolTag));
+
+    categoryProfiler.AddFuncGauge("/pool_used", pool, [pool, category] {
+        return pool->Used[category].load();
+    });
+
+    categoryProfiler.AddFuncGauge("/pool_limit", pool, [this, pool, this_ = MakeStrong(this), category] {
+        auto guard = Guard(SpinLock_);
+        return DoGetLimit(category, pool);
+    });
+}
+
 IMemoryUsageTrackerPtr TNodeMemoryTracker::WithCategory(
     ECategory category,
     std::optional<TPoolTag> poolTag)
@@ -779,12 +814,13 @@ IMemoryUsageTrackerPtr TNodeMemoryTracker::WithCategory(
 
         if (it.IsEnd()) {
             TEnumIndexedArray<EMemoryCategory, IMemoryUsageTrackerPtr> trackers;
+            SetupPoolProfilers(category, *poolTag);
             auto tracker = New<TMemoryUsageTracker>(
                 this,
                 category,
-                std::move(poolTag));
+                poolTag);
             trackers[category] = tracker;
-            PoolTrackers_.insert({poolTag.value(), std::move(trackers)});
+            PoolTrackers_.insert_or_assign(std::move(poolTag.value()), std::move(trackers));
             return tracker;
         } else {
             auto& trackers = it->second;
@@ -792,6 +828,7 @@ IMemoryUsageTrackerPtr TNodeMemoryTracker::WithCategory(
             if (auto tracker = trackers[category]) {
                 return tracker;
             } else {
+                SetupPoolProfilers(category, *poolTag);
                 tracker = New<TMemoryUsageTracker>(
                     this,
                     category,
@@ -1053,19 +1090,6 @@ TNodeMemoryTracker::GetOrRegisterPool(const TPoolTag& poolTag)
     pool->Tag = poolTag;
     for (auto category : TEnumTraits<ECategory>::GetDomainValues()) {
         pool->Used[category].store(0);
-
-        auto categoryProfiler = Profiler_
-            .WithTag("category", FormatEnum(category))
-            .WithTag("pool", ToString(poolTag));
-
-        categoryProfiler.AddFuncGauge("/pool_used", pool, [pool = pool.Get(), category] {
-            return pool->Used[category].load();
-        });
-
-        categoryProfiler.AddFuncGauge("/pool_limit", pool, [this, pool = pool.Get(), this_ = MakeStrong(this), category] {
-            auto guard = Guard(SpinLock_);
-            return DoGetLimit(category, pool);
-        });
     }
 
     Pools_.emplace(poolTag, pool);

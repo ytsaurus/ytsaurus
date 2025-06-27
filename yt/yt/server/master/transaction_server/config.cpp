@@ -54,7 +54,7 @@ void TDynamicTransactionManagerConfig::Register(TRegistrar registrar)
         .Default(0)
         .DontSerializeDefault();
 
-    THashMap<EObjectType, THashSet<TString>> defaultWhitelist;
+    THashMap<EObjectType, THashSet<std::string>> defaultWhitelist;
     defaultWhitelist[EObjectType::UploadTransaction] = {
         "BeginUpload",
         "EndUpload",

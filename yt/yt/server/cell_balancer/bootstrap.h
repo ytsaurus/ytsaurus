@@ -27,7 +27,7 @@ struct IBootstrap
 
     virtual const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const = 0;
 
-    virtual void ExecuteDryRunIteration() = 0;
+    virtual void ExecuteIteration(bool dryRun) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

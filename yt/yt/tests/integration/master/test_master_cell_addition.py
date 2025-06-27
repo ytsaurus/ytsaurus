@@ -1,12 +1,16 @@
+from yt_env_setup import YTEnvSetup, update_inplace
+from yt.common import YtError
+from yt.environment.helpers import assert_items_equal
+from yt.environment.default_config import get_dynamic_node_config
+
 from yt_commands import (
-    authors, create_dynamic_table, insert_rows, map_reduce, sync_create_cells,
+    authors, create_dynamic_table, get_cell_tag, get_driver, insert_rows, map_reduce, sync_create_cells,
     raises_yt_error, read_table, select_rows, sync_mount_table, wait, get, set, ls, create,
     start_transaction, write_table)
 
-from yt.common import YtError
-
 from yt_master_cell_addition_base import MasterCellAdditionBase, MasterCellAdditionBaseChecks, MasterCellAdditionChaosMultiClusterBaseChecks
 
+import time
 import pytest
 import builtins
 
@@ -126,7 +130,8 @@ class TestMasterCellsMultipleAdditions(MasterCellAdditionBase):
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000,
+            "update_period": 500,
+            "init_retry_period": 500,
         },
     }
 
@@ -294,13 +299,13 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
 
         wait_for_cell_to_become_healthy(cell_id)
         assert check_cell_tags(cell_id, ["10", "11", "12"])
-        assert select_rows("* from [//tmp/dt]") == rows
+        assert_items_equal(select_rows("* from [//tmp/dt]"), rows)
 
         self._enable_last_cell(downtime=False)
 
         wait_for_cell_to_become_healthy(cell_id)
         assert check_cell_tags(cell_id, ["10", "11", "12", "13"])
-        assert select_rows("* from [//tmp/dt]") == rows
+        assert_items_equal(select_rows("* from [//tmp/dt]"), rows)
 
 
 ##################################################################
@@ -319,7 +324,8 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000,
+            "update_period": 500,
+            "init_retry_period": 500,
         },
     }
 
@@ -337,6 +343,12 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 
     DELTA_NODE_CONFIG = {
         "exec_node_is_not_data_node": True,
+        "delay_master_cell_directory_start": True,
+        # NB: In real clusters this flag is disabled.
+        "data_node": {
+            "sync_directories_on_connect": False,
+        },
+        "sync_directories_on_connect": False,
     }
 
     @classmethod
@@ -374,8 +386,9 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 
         self._enable_last_cell(downtime=False)
 
-        # Make sure nodes have discovered the new cell.
+        # Make sure nodes have discovered the new cell and the last master cell receive all heartbetas.
         wait(lambda: self._nodes_synchronized_with_masters(nodes))
+        self._wait_for_nodes_state("online", aggregate_state=False)
 
         # Nodes should not reregister.
         for node in ls("//sys/cluster_nodes"):
@@ -389,7 +402,7 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         set("//sys/@config/multicell_manager/cell_descriptors", {"13": {"roles": ["cypress_node_host", "chunk_host"]}})
 
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
-        write_table("//tmp/t", [{"a" : "b"}])
+        wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"a" : "b"}])))
         assert read_table("//tmp/t") == [{"a" : "b"}]
 
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 13})
@@ -418,18 +431,19 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 ##################################################################
 
 
-class TestMasterCellDynamicPropagationDuringRegistration(MasterCellAdditionBase):
+class TestMasterCellDynamicPropagationDuringMultiflavorNodeRegistration(MasterCellAdditionBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
     NUM_SECONDARY_MASTER_CELLS = 3
-    NUM_NODES = 1
+    NUM_NODES = 4
 
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000,
+            "update_period": 500,
+            "init_retry_period": 500,
         },
     }
 
@@ -448,59 +462,177 @@ class TestMasterCellDynamicPropagationDuringRegistration(MasterCellAdditionBase)
     @authors("cherepashka")
     def test_registration_after_synchronization(self):
         self.Env.kill_nodes()
-        self._enable_last_cell(downtime=False)
+        self._enable_last_cell(downtime=False, wait_for_nodes=False)
         # Registration on primary master triggers master cell synhronization, which follows receiving new master cell
         # and attempt of starting cellar/data/tablet heartbeats before actual registration.
         # This shouldn't crash node.
         self.Env.start_nodes()
 
 
-##################################################################
-
-
-class TestDynamicMasterCellPropagationForExecNodes(MasterCellAdditionBase):
+class TestMasterCellDynamicPropagationDuringDataNodeRegistration(TestMasterCellDynamicPropagationDuringMultiflavorNodeRegistration):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_SECONDARY_MASTER_CELLS = 3
-    NUM_NODES = 1
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager" : {
-            "cell_descriptors" : {
-                "13": {"roles": []},
-            }
-        }
-    }
-
     DELTA_NODE_CONFIG = {
         "exec_node_is_not_data_node": True,
+        "delay_master_cell_directory_start": True,
+        # NB: In real clusters this flag is disabled.
+        "data_node": {
+            "sync_directories_on_connect": False,
+        },
+        "sync_directories_on_connect": False,
     }
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
-        config["flavors"] = ["exec"]
+        config["flavors"] = ["data"]
+
         cls._collect_cell_ids_and_maybe_stash_last_cell(
             config["cluster_connection"],
             cluster_index,
             cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
+
+##################################################################
+
+
+class TestMasterCellsPeersListChange(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are components restarts.
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_NODES = 1
+    DEFER_NODE_START = True
+
+    REMOVED_PEER = None
+
+    def setup_class(cls):
+        super(TestMasterCellsPeersListChange, cls).setup_class()
+
+        for cluster_index, env in enumerate([cls.Env] + cls.remote_envs):
+            if cls.get_param("NUM_NODES", cluster_index) != 0:
+                env.start_nodes()
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        if cluster_index != 0:
+            return
+        if cls.REMOVED_PEER is None:
+            cls.REMOVED_PEER = config["cluster_connection"]["secondary_masters"][-1]["peers"][-1]["address"][::]
+        assert cls.REMOVED_PEER == config["cluster_connection"]["secondary_masters"][-1]["peers"][-1]["address"]
+        assert cls.REMOVED_PEER == config["cluster_connection"]["secondary_masters"][-1]["addresses"][-1]
+        del config["cluster_connection"]["secondary_masters"][-1]["peers"][-1]
+        del config["cluster_connection"]["secondary_masters"][-1]["addresses"][-1]
+
+    def _get_connected_secondary_masters_addresses(slef, node, cell_id):
+        connected_secondary_masters = get(f"//sys/cluster_nodes/{node}/orchid/connected_secondary_masters", driver=get_driver(0))
+        connected_secondary_masters = {int(cell_tag) : connection_config for cell_tag, connection_config in connected_secondary_masters.items()}
+        cell_tag = get_cell_tag(cell_id)
+        if cell_tag not in connected_secondary_masters.keys():
+            return None
+        return connected_secondary_masters[cell_tag]["addresses"]
+
     @authors("cherepashka")
-    def test_master_reliability_states_for_exec_nodes(self):
-        def check_reliability_status(node, dynamically_discovered_master=None):
-            reliabilities = get(f"//sys/cluster_nodes/{node}/@master_cells_reliabilities")
-            for master in reliabilities.keys():
-                if dynamically_discovered_master is not None and master == dynamically_discovered_master:
-                    if reliabilities[master] != "dynamically_discovered":
-                        return False
-                elif reliabilities[master] != "statically_known":
+    @pytest.mark.parametrize("increase_sync_period", [True, False])
+    def test_master_cell_peers_addition_on_node(self, increase_sync_period):
+        def _check_for_all_nodes_have_same_host_status(host_should_be_removed=True):
+            for node in nodes:
+                connected_secondary_masters = self._get_connected_secondary_masters_addresses(node, last_cell["cell_id"])
+                if connected_secondary_masters is None:
+                    return False
+                if host_should_be_removed and self.REMOVED_PEER in connected_secondary_masters:
+                    return False
+                elif not host_should_be_removed and self.REMOVED_PEER not in connected_secondary_masters:
                     return False
             return True
 
         nodes = ls("//sys/cluster_nodes")
+        secondary_masters = get("//sys/@cluster_connection/secondary_masters")
+        last_cell = secondary_masters[-1]
+        assert self.REMOVED_PEER == last_cell["peers"][-1]["address"]
 
-        self._enable_last_cell(downtime=False)
+        # Remove last peer on master testing override.
+        secondary_masters[-1]["addresses"] = secondary_masters[-1]["addresses"][:-1]
+        secondary_masters[-1]["peers"] = secondary_masters[-1]["peers"][:-1]
+        set("//sys/@config/multicell_manager/testing/master_cell_directory_override", {
+            "secondary_masters" :  secondary_masters
+        }, driver=get_driver(0))
 
-        for node in nodes:
-            wait(lambda:  check_reliability_status(node, "13"))
+        # Restart nodes so masters will be able to "remove" last address.
+        self.Env.kill_nodes()
+        self.Env.start_nodes()
+
+        # Wait for all nodes to receive new master cells configuration.
+        wait(lambda: _check_for_all_nodes_have_same_host_status(host_should_be_removed=True))
+
+        if increase_sync_period:
+            # Increase synchronization period for discovery of new peers.
+            current_config = get_dynamic_node_config()["%true"]
+            old_patch = {
+                "master_cell_directory_synchronizer": current_config["master_cell_directory_synchronizer"].copy(),
+            }
+            patch = {
+                "master_cell_directory_synchronizer": {
+                    "sync_period": 360000,
+                    "retry_period": 360000,
+                }
+            }
+            update_inplace(current_config, patch)
+            config = {
+                "%true": current_config,
+            }
+            set("//sys/cluster_nodes/@config", config)
+            # Wait for running synchronization to finish.
+            time.sleep(2)
+
+        # Return last peer.
+        secondary_masters[-1]["addresses"].append(self.REMOVED_PEER)
+        secondary_masters[-1]["peers"].append(self.REMOVED_PEER)
+        set("//sys/@config/multicell_manager/testing/master_cell_directory_override", {
+            "secondary_masters" :  secondary_masters
+        }, driver=get_driver(0))
+
+        if increase_sync_period:
+            time.sleep(2)
+            # Synchronization didn't happen yet, host was not added yet.
+            assert _check_for_all_nodes_have_same_host_status(host_should_be_removed=True)
+
+            update_inplace(current_config, old_patch)
+            config = {
+                "%true": current_config,
+            }
+            set("//sys/cluster_nodes/@config", config)
+
+        # Wait for all nodes to receive new master cells configuration.
+        wait(lambda: _check_for_all_nodes_have_same_host_status(host_should_be_removed=False))
+
+    @authors("cherepashka")
+    def test_no_master_cell_peers_removals_on_node(self):
+        nodes = ls("//sys/cluster_nodes")
+        secondary_masters = get("//sys/@cluster_connection/secondary_masters")
+        last_cell = secondary_masters[-1]
+        assert self.REMOVED_PEER == last_cell["peers"][-1]["address"]
+
+        def _check_for_all_nodes_have_same_hosts():
+            for node in nodes:
+                connected_secondary_masters = self._get_connected_secondary_masters_addresses(node, last_cell["cell_id"])
+                if connected_secondary_masters is None or self.REMOVED_PEER not in connected_secondary_masters:
+                    return False
+            return True
+
+        # Nodes received atual configuration via master cell directory synchronizer.
+        assert _check_for_all_nodes_have_same_hosts()
+
+        # Remove last peer on master testing override.
+        secondary_masters[-1]["addresses"] = secondary_masters[-1]["addresses"][:-1]
+        secondary_masters[-1]["peers"] = secondary_masters[-1]["peers"][:-1]
+        set("//sys/@config/multicell_manager/testing/master_cell_directory_override", {
+            "secondary_masters" :  secondary_masters
+        }, driver=get_driver(0))
+
+        # Wait for synchronization.
+        time.sleep(2)
+        assert _check_for_all_nodes_have_same_hosts()
+
+
+##################################################################

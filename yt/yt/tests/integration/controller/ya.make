@@ -23,7 +23,12 @@ TEST_SRCS(
     test_remote_operation.py
     test_shuffle_service.py
     test_sort_operation.py
+    test_user_job_spec.py
     test_vanilla_operation.py
+)
+
+PEERDIR(
+    yt/yt/python/yt_driver_rpc_bindings
 )
 
 IF (NOT OPENSOURCE)

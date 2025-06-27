@@ -15,9 +15,14 @@ namespace NYT::NShuffleServer {
 struct IShuffleController
     : public TRefCounted
 {
-    virtual TFuture<void> RegisterChunks(std::vector<NChunkClient::TInputChunkPtr> chunks) = 0;
+    virtual TFuture<void> RegisterChunks(
+        std::vector<NChunkClient::TInputChunkPtr> chunks,
+        std::optional<int> writerIndex,
+        bool overwriteExistingWriterData) = 0;
 
-    virtual TFuture<std::vector<NChunkClient::TInputChunkSlicePtr>> FetchChunks(int partitionIndex) = 0;
+    virtual TFuture<std::vector<NChunkClient::TInputChunkSlicePtr>> FetchChunks(
+        int partitionIndex,
+        std::optional<std::pair<int, int>> writerIndexRange) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IShuffleController)

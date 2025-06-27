@@ -48,7 +48,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -843,20 +843,6 @@ bool TSlotManager::Disable(TError error)
 
     const auto& jobController = Bootstrap_->GetJobController();
 
-    if (auto volumeManager = RootVolumeManager_.Acquire()) {
-        auto result = WaitFor(volumeManager->GetVolumeReleaseEvent()
-            .Apply(BIND(&IVolumeManager::DisableLayerCache, volumeManager, Passed(std::move(error)))
-            .AsyncVia(Bootstrap_->GetControlInvoker()))
-            .WithTimeout(timeout));
-        if (!result.IsOK()) {
-            YT_LOG_EVENT(
-                Logger(),
-                dynamicConfig->AbortOnFreeVolumeSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
-                result,
-                "Free volume synchronization failed");
-        }
-    }
-
     if (auto syncResult = WaitFor(jobController->AbortAllJobs(jobsAbortionError).WithTimeout(timeout));
         !syncResult.IsOK())
     {
@@ -868,6 +854,32 @@ bool TSlotManager::Disable(TError error)
             InitializedSlotCount_.load(),
             InitializationEpoch_,
             TRingQueueIterableWrapper(FreeSlots_));
+    }
+
+    if (auto volumeManager = RootVolumeManager_.Acquire()) {
+        auto disableVolumeManagerResult = WaitFor(volumeManager->GetVolumeReleaseEvent()
+            .WithTimeout(timeout));
+
+        auto disableLayerCacheResult = WaitFor(BIND(&IVolumeManager::DisableLayerCache, volumeManager, Passed(std::move(error)))
+            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .Run()
+            .WithTimeout(timeout));
+
+        if (!disableVolumeManagerResult.IsOK()) {
+            YT_LOG_EVENT(
+                Logger(),
+                dynamicConfig->AbortOnFreeVolumeSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
+                disableVolumeManagerResult,
+                "Free volume synchronization failed");
+        }
+
+        if (!disableLayerCacheResult.IsOK()) {
+            YT_LOG_EVENT(
+                Logger(),
+                dynamicConfig->AbortOnFreeVolumeSynchronizationFailed ? NLogging::ELogLevel::Fatal : NLogging::ELogLevel::Error,
+                disableLayerCacheResult,
+                "Disabling the layer cache failed with an error");
+        }
     }
 
     YT_LOG_WARNING("Disable slot manager finished");
@@ -1206,10 +1218,23 @@ void TSlotManager::AsyncInitialize()
     }
     YT_LOG_INFO("Locations initialization finished");
 
+    auto dynamicConfig = DynamicConfig_.Acquire();
+    auto timeout = dynamicConfig->SlotReleaseTimeout;
+    auto slotSync = WaitFor(Bootstrap_->GetJobController()->GetAllJobsCleanupFinishedFuture()
+        .WithTimeout(timeout));
+
+    YT_LOG_FATAL_IF(!slotSync.IsOK(), slotSync, "Slot synchronization failed");
+
     // To this moment all old processed must have been killed, so we can safely clean up old volumes
     // during root volume manager initialization.
     JobEnvironmentType_ = StaticConfig_->JobEnvironment.GetCurrentType();
     if (JobEnvironmentType_ == NJobProxy::EJobEnvironmentType::Porto) {
+        if (auto oldVolumeManager = RootVolumeManager_.Acquire()) {
+            oldVolumeManager->MarkLayersAsNotRemovable();
+            oldVolumeManager->ClearCaches();
+            RootVolumeManager_.Reset();
+        }
+
         auto volumeManager = WaitFor(CreatePortoVolumeManager(
             Bootstrap_->GetConfig()->DataNode,
             Bootstrap_->GetDynamicConfigManager(),
@@ -1223,13 +1248,6 @@ void TSlotManager::AsyncInitialize()
 
         RootVolumeManager_.Store(volumeManager);
     }
-
-    auto dynamicConfig = DynamicConfig_.Acquire();
-    auto timeout = dynamicConfig->SlotReleaseTimeout;
-    auto slotSync = WaitFor(Bootstrap_->GetJobController()->GetAllJobsCleanupFinishedFuture()
-        .WithTimeout(timeout));
-
-    YT_LOG_FATAL_IF(!slotSync.IsOK(), slotSync, "Slot synchronization failed");
 
     NumaNodeStates_.clear();
 

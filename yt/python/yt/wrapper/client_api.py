@@ -20,7 +20,7 @@ from .run_operation_commands import (  # noqa
     run_join_reduce, run_remote_copy, run_operation)
 from .operation_commands import (  # noqa
     get_operation_state, abort_operation, complete_operation,
-    get_operation, list_operations, iterate_operations)
+    get_operation, list_operations, iterate_operations, list_operation_events)
 from .file_commands import read_file, write_file, smart_upload_file  # noqa
 from .transaction import Transaction, PingTransaction, get_current_transaction_id  # noqa
 from .batch_helpers import create_batch_client, batch_apply  # noqa
@@ -45,6 +45,6 @@ from .admin_commands import (  # noqa
     add_maintenance, remove_maintenance, disable_chunk_locations,
     destroy_chunk_locations, resurrect_chunk_locations)
 from .auth_commands import (  # noqa
-    set_user_password, issue_token, revoke_token, list_user_tokens)
+    set_user_password, issue_token, revoke_token, list_user_tokens, get_current_user)
 
 all_names = [key for key in locals().keys() if not key.startswith("_")]

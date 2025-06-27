@@ -3,14 +3,16 @@
 #include "automaton.h"
 #include "bootstrap.h"
 #include "chaos_cell_synchronizer.h"
-#include "chaos_slot.h"
 #include "chaos_lease.h"
+#include "chaos_slot.h"
 #include "foreign_migrated_replication_card_remover.h"
+#include "helpers.h"
 #include "migrated_replication_card_remover.h"
 #include "replication_card.h"
 #include "replication_card_batcher.h"
 #include "replication_card_collocation.h"
 #include "replication_card_observer.h"
+#include "replication_card_serialization.h"
 #include "transaction.h"
 #include "transaction_manager.h"
 
@@ -18,8 +20,8 @@
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
-#include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/helpers.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
@@ -31,6 +33,7 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
+#include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher_serialization.h>
 
 #include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
@@ -41,11 +44,13 @@
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
-#include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NChaosNode {
 
@@ -113,6 +118,9 @@ public:
             BIND(&TChaosManager::PeriodicMigrateLeftovers, MakeWeak(this)),
             Config_->LeftoverMigrationPeriod))
         , ReplicationCardWatcher_(slot->GetReplicationCardsWatcher())
+        , ChaosLeaseTracker_(CreateTransactionLeaseTracker(
+            Bootstrap_->GetTransactionLeaseTrackerThreadPool(),
+            Logger))
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
@@ -142,6 +150,8 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraAlterTableReplica, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateTableReplicaProgress, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateTableProgress, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraUpdateMultipleTableProgresses, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraCommenceNewReplicationEra, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraPropagateCurrentTimestamps, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TChaosManager::HydraRspGrantShortcuts, Unretained(this)));
@@ -180,6 +190,10 @@ public:
         return OrchidService_;
     }
 
+    virtual ITransactionLeaseTrackerPtr GetChaosLeaseTracker() const override
+    {
+        return ChaosLeaseTracker_;
+    }
 
     void GenerateReplicationCardId(const TCtxGenerateReplicationCardIdPtr& context) override
     {
@@ -261,6 +275,26 @@ public:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
+    void UpdateTableProgress(const TCtxUpdateTableProgressPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraUpdateTableProgress,
+            this);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    void UpdateMultipleTableProgresses(const TCtxUpdateMultipleTableProgressesPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            HydraManager_,
+            context,
+            &TChaosManager::HydraUpdateMultipleTableProgresses,
+            this);
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
     void MigrateReplicationCards(const TCtxMigrateReplicationCardsPtr& context) override
     {
         auto mutation = CreateMutation(
@@ -326,6 +360,17 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ReplicationCard, TReplicationCard);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ReplicationCardCollocation, TReplicationCardCollocation);
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(ChaosLease, TChaosLease);
+
+    TReplicationCard* FindNotMigratedReplicationCard(TReplicationCardId replicationCardId)
+    {
+        auto* replicationCard = FindReplicationCard(replicationCardId);
+
+        if (!replicationCard || IsReplicationCardMigrated(replicationCard)) {
+            return nullptr;
+        }
+
+        return replicationCard;
+    }
 
     TReplicationCard* GetReplicationCardOrThrow(TReplicationCardId replicationCardId, bool allowMigrated=false) override
     {
@@ -403,12 +448,21 @@ public:
         YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
     }
 
+    void PingChaosLease(const TCtxPingChaosLeasePtr& context) override
+    {
+        auto chaosLeaseId = FromProto<TChaosLeaseId>(context->Request().chaos_lease_id());
+        bool pingAncestors = context->Request().ping_ancestors();
+
+        auto pingFuture = ChaosLeaseTracker_->PingTransaction(chaosLeaseId, pingAncestors);
+        context->Reply();
+    }
+
+
     TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) override
     {
         auto* chaosLease = FindChaosLease(chaosLeaseId);
         if (!chaosLease) {
-            THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such chaos lease")
-                << TErrorAttribute("chaos_lease_id", chaosLeaseId);
+            ThrowChaosLeaseNotKnown(chaosLeaseId);
         }
 
         return chaosLease;
@@ -506,6 +560,8 @@ private:
     const TPeriodicExecutorPtr LeftoversMigrationExecutor_;
     const IReplicationCardsWatcherPtr ReplicationCardWatcher_;
 
+    const ITransactionLeaseTrackerPtr ChaosLeaseTracker_;
+
     TEntityMap<TReplicationCard> ReplicationCardMap_;
     TEntityMap<TReplicationCardCollocation> CollocationMap_;
     TEntityMap<TChaosLease> ChaosLeaseMap_;
@@ -599,6 +655,18 @@ private:
         MigratedReplicationCardRemover_->Start();
         ForeignMigratedReplicationCardRemover_->Start();
         Slot_->GetReplicatedTableTracker()->EnableTracking();
+        ChaosLeaseTracker_->Start();
+
+        // Recreate chaos leases.
+        for (auto [chaosLeaseId, chaosLease] : ChaosLeaseMap_) {
+            ChaosLeaseTracker_->RegisterTransaction(
+                chaosLeaseId,
+                chaosLease->GetParentId(),
+                chaosLease->GetTimeout(),
+                std::nullopt,
+                BIND(&TChaosManager::OnLeaseExpired, MakeStrong(this))
+                    .Via(Slot_->GetAutomatonInvoker()));
+        }
     }
 
     void OnStopLeading() override
@@ -1260,13 +1328,13 @@ private:
         }
 
         bool shouldForbidReplicaSwitchToAsync = false;
-        int minSyncQueuesCount = 0;
-        int syncReplicasCount = MaxReplicasPerReplicationCard;
+        int minSyncQueueCount = 0;
+        int syncReplicaCount = MaxReplicasPerReplicationCard;
 
         if (IsSyncQueueReplica(*replicaInfo)) {
-            minSyncQueuesCount = GetMinRequiredSyncQueuesCount(*replicationCard);
-            syncReplicasCount = CountSyncQueueReplicas(*replicationCard);
-            shouldForbidReplicaSwitchToAsync = minSyncQueuesCount >= syncReplicasCount;
+            minSyncQueueCount = GetMinRequiredSyncQueueCount(*replicationCard);
+            syncReplicaCount = CountSyncQueueReplicas(*replicationCard);
+            shouldForbidReplicaSwitchToAsync = minSyncQueueCount >= syncReplicaCount;
         }
 
         // COMPAT(osidorkin)
@@ -1288,15 +1356,15 @@ private:
                                 "Queue replica cannot be switched to async mode because there will not be enough sync queues")
                                 << TErrorAttribute("replication_card_id", replicationCardId)
                                 << TErrorAttribute("replica_id", replicaId)
-                                << TErrorAttribute("min_sync_queues_count", minSyncQueuesCount);
+                                << TErrorAttribute("min_sync_queue_count", minSyncQueueCount);
                         } else {
                             YT_LOG_WARNING(
                                 "Forcing queue replica switch beyond the minimum sync queues count "
-                                "(ReplicationCardId: %v, ReplicaId: %v, MinSyncQueuesCount: %v, SyncQueuesCount: %v)",
+                                "(ReplicationCardId: %v, ReplicaId: %v, MinSyncQueueCount: %v, SyncQueueCount: %v)",
                                 replicationCardId,
                                 replicaId,
-                                minSyncQueuesCount,
-                                syncReplicasCount);
+                                minSyncQueueCount,
+                                syncReplicaCount);
                         }
                     }
 
@@ -1319,15 +1387,15 @@ private:
                         "Queue replica cannot be disabled because there will not be enough sync queues")
                             << TErrorAttribute("replication_card_id", replicationCardId)
                         << TErrorAttribute("replica_id", replicaId)
-                        << TErrorAttribute("min_sync_queues_count", minSyncQueuesCount);
+                        << TErrorAttribute("min_sync_queue_count", minSyncQueueCount);
                 } else {
                     YT_LOG_WARNING(
                         "Forcing queue replica disabling beyond the minimum sync queues count "
-                        "(ReplicationCardId: %v, ReplicaId: %v, MinSyncQueuesCount: %v, SyncQueuesCount: %v)",
+                        "(ReplicationCardId: %v, ReplicaId: %v, MinSyncQueueCount: %v, SyncQueueCount: %v)",
                         replicationCardId,
                         replicaId,
-                        minSyncQueuesCount,
-                        syncReplicasCount);
+                        minSyncQueueCount,
+                        syncReplicaCount);
                 }
             }
 
@@ -1746,6 +1814,7 @@ private:
 
             auto replicationCardId = FromProto<TReplicationCardId>(protoMigrationCard.replication_card_id());
             auto* replicationCard = FindReplicationCard(replicationCardId);
+            bool replicationCardCreated = false;
             if (!replicationCard) {
                 if (IsDomesticReplicationCard(replicationCardId)) {
                     // Seems like card has been removed.
@@ -1758,6 +1827,7 @@ private:
                 replicationCard = replicationCardHolder.get();
 
                 ReplicationCardMap_.Insert(replicationCardId, std::move(replicationCardHolder));
+                replicationCardCreated = true;
 
                 YT_LOG_DEBUG("Replication card created for immigration (ReplicationCardId: %v)",
                     replicationCardId);
@@ -1810,6 +1880,14 @@ private:
 
             if (!collocation) {
                 BindReplicationCardToRtt(replicationCard);
+            }
+
+            if (replicationCardCreated) {
+                auto clientReplicationCard = replicationCard->ConvertToClientCard(MinimalFetchOptions);
+                ReplicationCardWatcher_->RegisterReplicationCard(
+                    replicationCardId,
+                    clientReplicationCard,
+                    NullTimestamp);
             }
 
             HandleReplicationCardStateTransition(replicationCard);
@@ -2203,14 +2281,14 @@ private:
             return;
         }
 
-        int minSyncQueuesCount = GetMinRequiredSyncQueuesCount(*replicationCard);
-        int syncQueuesCount = CountSyncQueueReplicas(*replicationCard);
-        if (syncQueuesCount < minSyncQueuesCount) {
+        int minSyncQueueCount = GetMinRequiredSyncQueueCount(*replicationCard);
+        int syncQueueCount = CountSyncQueueReplicas(*replicationCard);
+        if (syncQueueCount < minSyncQueueCount) {
             YT_LOG_DEBUG("Will not commence new replication era since there would be not enough sync queue replicas "
-                "(ReplicationCard: %v, MinSyncQueuesCount: %v, SyncQueuesCount: %v)",
+                "(ReplicationCard: %v, MinSyncQueueCount: %v, SyncQueueCount: %v)",
                 *replicationCard,
-                minSyncQueuesCount,
-                syncQueuesCount);
+                minSyncQueueCount,
+                syncQueueCount);
             return;
         }
 
@@ -2451,6 +2529,109 @@ private:
         }
     }
 
+    void HydraUpdateTableProgress(
+        const TCtxUpdateTableProgressPtr& /*context*/,
+        NChaosClient::NProto::TReqUpdateTableProgress* request,
+        NChaosClient::NProto::TRspUpdateTableProgress* response)
+    {
+        auto replicationCardProgressUpdate = FromProto<TReplicationCardProgressUpdate>(
+            request->replication_card_progress_update());
+
+        auto* replicationCard = GetReplicationCardOrThrow(replicationCardProgressUpdate.ReplicationCardId);
+        for (const auto& replicaProgressUpdate : replicationCardProgressUpdate.ReplicaProgressUpdates) {
+            auto* replicaInfo = replicationCard->FindReplica(replicaProgressUpdate.ReplicaId);
+            if (!replicaInfo) {
+                YT_LOG_DEBUG("Replica progress was not updated because replica had not been found "
+                    "(ReplicationCardId: %v, ReplicaId: %v)",
+                    replicationCardProgressUpdate.ReplicationCardId,
+                    replicaProgressUpdate.ReplicaId);
+            }
+
+            if (replicaInfo->History.empty()) {
+                YT_LOG_DEBUG("Replication progress update is prohibited because replica history has "
+                    "not been started yet (ReplicationCardId: %v, ReplicaId: %v)",
+                    replicationCardProgressUpdate.ReplicationCardId,
+                    replicaProgressUpdate.ReplicaId);
+
+                continue;
+            }
+
+            replicaInfo->ReplicationProgress = BuildMaxProgress(
+                replicaInfo->ReplicationProgress,
+                replicaProgressUpdate.ReplicationProgressUpdate);
+        }
+
+        if (replicationCardProgressUpdate.FetchOptions) {
+            ToProto(
+                response->mutable_replication_card(),
+                *replicationCard,
+                *replicationCardProgressUpdate.FetchOptions);
+        }
+
+        YT_LOG_DEBUG("Successfully updated replication progress (ReplicationCardId: %v)",
+            replicationCardProgressUpdate.ReplicationCardId);
+    }
+
+    void HydraUpdateMultipleTableProgresses(
+        const TCtxUpdateMultipleTableProgressesPtr& /*context*/,
+        NChaosClient::NProto::TReqUpdateMultipleTableProgresses* request,
+        NChaosClient::NProto::TRspUpdateMultipleTableProgresses* response)
+    {
+        auto replicationCardProgressUpdatesBatch = FromProto<TReplicationCardProgressUpdatesBatch>(*request);
+        const auto& replicationCardProgressUpdates = replicationCardProgressUpdatesBatch.ReplicationCardProgressUpdates;
+
+        response->mutable_replication_card_progress_update_results()->Reserve(replicationCardProgressUpdates.size());
+
+        for (const auto& replicationCardProgressUpdate : replicationCardProgressUpdates) {
+            auto* updateResult = response->add_replication_card_progress_update_results();
+            ToProto(updateResult->mutable_replication_card_id(), replicationCardProgressUpdate.ReplicationCardId);
+
+            auto* replicationCard = FindNotMigratedReplicationCard(replicationCardProgressUpdate.ReplicationCardId);
+            if (!replicationCard) {
+                YT_LOG_DEBUG("Replication card not found (ReplicationCardId: %v)",
+                    replicationCardProgressUpdate.ReplicationCardId);
+
+                ToProto(updateResult->mutable_error(), TError("Replication card not found"));
+                continue;
+            }
+
+            for (const auto& replicaProgressUpdate : replicationCardProgressUpdate.ReplicaProgressUpdates) {
+                auto* replicaInfo = replicationCard->FindReplica(replicaProgressUpdate.ReplicaId);
+                if (!replicaInfo) {
+                    YT_LOG_DEBUG("Replica progress was not updated because replica had not been found "
+                        "(ReplicationCardId: %v, ReplicaId: %v)",
+                        replicationCardProgressUpdate.ReplicationCardId,
+                        replicaProgressUpdate.ReplicaId);
+
+                    continue;
+                }
+
+                if (replicaInfo->History.empty()) {
+                    YT_LOG_DEBUG("Replication progress update is prohibited because replica history has "
+                        "not been started yet (ReplicationCardId: %v, ReplicaId: %v)",
+                        replicationCardProgressUpdate.ReplicationCardId,
+                        replicaProgressUpdate.ReplicaId);
+
+                    continue;
+                }
+
+                replicaInfo->ReplicationProgress = BuildMaxProgress(
+                    replicaInfo->ReplicationProgress,
+                    replicaProgressUpdate.ReplicationProgressUpdate);
+            }
+
+            if (replicationCardProgressUpdate.FetchOptions) {
+                ToProto(
+                    updateResult->mutable_result()->mutable_replication_card(),
+                    *replicationCard,
+                    *replicationCardProgressUpdate.FetchOptions);
+            }
+
+            YT_LOG_DEBUG("Successfully updated replication progress (ReplicationCardId: %v)",
+                replicationCardProgressUpdate.ReplicationCardId);
+        }
+    }
+
     void HydraRemoveExpiredReplicaHistory(NProto::TReqRemoveExpiredReplicaHistory *request)
     {
         auto expires = FromProto<std::vector<TExpiredReplicaHistory>>(request->expired_replica_histories());
@@ -2538,25 +2719,48 @@ private:
 
     void HydraCreateChaosLease(
         const TCtxCreateChaosLeasePtr& context,
-        NChaosClient::NProto::TReqCreateChaosLease* /*request*/,
+        NChaosClient::NProto::TReqCreateChaosLease* request,
         NChaosClient::NProto::TRspCreateChaosLease* response)
     {
         auto chaosLeaseId = GenerateNewChaosLeaseId();
+        auto timeout = FromProto<TDuration>(request->timeout());
+        auto parentId = request->has_parent_id()
+            ? FromProto<TChaosLeaseId>(request->parent_id())
+            : TChaosLeaseId{};
+
+        ChaosLeaseTracker_->RegisterTransaction(
+            chaosLeaseId,
+            parentId,
+            timeout,
+            std::nullopt,
+            BIND(&TChaosManager::OnLeaseExpired, MakeStrong(this))
+                .Via(Slot_->GetAutomatonInvoker()));
 
         auto chaosLease = std::make_unique<TChaosLease>(chaosLeaseId);
+        chaosLease->SetParentId(parentId);
+        chaosLease->SetTimeout(timeout);
         auto* chaosLeasePtr = ChaosLeaseMap_.Insert(chaosLeaseId, std::move(chaosLease));
-
-        ToProto(response->mutable_chaos_lease_id(), chaosLeaseId);
 
         YT_LOG_DEBUG("Created chaos lease (LeaseId: %v)",
             chaosLeaseId);
 
         GrantShortcuts(chaosLeasePtr, CoordinatorCellIds_);
 
+        ToProto(response->mutable_chaos_lease_id(), chaosLeaseId);
+
         if (context) {
             context->SetResponseInfo("ChaosLeaseId: %v",
                 chaosLeaseId);
         }
+    }
+
+    void OnLeaseExpired(TChaosLeaseId chaosLeaseId)
+    {
+        NChaosClient::NProto::TReqRemoveChaosLease request;
+        ToProto(request.mutable_chaos_lease_id(), chaosLeaseId);
+        auto mutation = CreateMutation(HydraManager_, request);
+
+        YT_UNUSED_FUTURE(mutation->Commit());
     }
 
     void HydraRemoveChaosLease(
@@ -2572,6 +2776,9 @@ private:
 
         // TODO(gryzlov-ad): Handle lease migration.
         ChaosLeaseMap_.Remove(chaosLeaseId);
+
+        ChaosLeaseTracker_->UnregisterTransaction(
+            chaosLeaseId);
 
         YT_LOG_DEBUG("Chaos lease removed (ChaosLeaseId: %v)",
             chaosLeaseId);
@@ -3025,7 +3232,7 @@ private:
             .WithPrefix("/replication_card").WithTags(NProfiling::TTagSet(tagsList)));
     }
 
-    static int GetMinRequiredSyncQueuesCount(const TReplicationCard& replicationCard)
+    static int GetMinRequiredSyncQueueCount(const TReplicationCard& replicationCard)
     {
         const auto& replicatedTableOptions = replicationCard.GetReplicatedTableOptions();
         return replicatedTableOptions->MinSyncQueueReplicaCount.value_or(

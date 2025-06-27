@@ -39,6 +39,8 @@ void TCellarDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("size", &TThis::Size)
         .GreaterThanOrEqual(0)
         .Optional();
+    registrar.Parameter("changelogs", &TThis::Changelogs)
+        .DefaultNew();
     registrar.Parameter("hydra_manager", &TThis::HydraManager)
         .DefaultNew();
 }

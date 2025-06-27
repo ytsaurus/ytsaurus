@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/security_server/public.h>
 
+#include <yt/yt/ytlib/chaos_client/public.h>
+
 #include <yt/yt/library/query/row_comparer_api/row_comparer_generator.h>
 
 namespace NYT::NTabletNode {
@@ -51,6 +53,9 @@ struct IBootstrap
         const std::string& poolName,
         const NConcurrency::TFairShareThreadPoolTag& tag) const = 0;
 
+    virtual IInvokerPtr GetPullRowsInvoker(
+        const NConcurrency::TFairShareThreadPoolTag& tag) const = 0;
+
     // Throttlers.
     virtual const NConcurrency::IThroughputThrottlerPtr& GetThrottler(NTabletNode::ETabletNodeThrottlerKind kind) const = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(EWorkloadCategory category) const = 0;
@@ -69,10 +74,11 @@ struct IBootstrap
     // TODO(gritukan): Remove it after node split.
     const NDataNode::IChunkRegistryPtr& GetChunkRegistry() const override = 0;
 
-    virtual const TOverloadControllerPtr& GetOverloadController() const = 0;
+    virtual const NRpc::IOverloadControllerPtr& GetOverloadController() const = 0;
 
     virtual const ICompressionDictionaryManagerPtr& GetCompressionDictionaryManager() const = 0;
     virtual const IAlienClusterClientCachePtr& GetReplicatorClientCache() const = 0;
+    virtual const NChaosClient::IReplicationCardUpdatesBatcherPtr& GetReplicationCardUpdatesBatcher() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

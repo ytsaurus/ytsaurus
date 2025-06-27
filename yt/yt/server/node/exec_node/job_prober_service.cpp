@@ -15,6 +15,8 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NExecNode {
 
 using namespace NRpc;
@@ -147,9 +149,9 @@ private:
         auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         auto pollShellResponse = job->PollJobShell(jobShellDescriptor, parameters);
 
-        response->set_result(pollShellResponse.Result.ToString());
+        response->set_result(ToProto(pollShellResponse.Result));
         if (pollShellResponse.LoggingContext) {
-            response->set_logging_context(pollShellResponse.LoggingContext.ToString());
+            response->set_logging_context(ToProto(pollShellResponse.LoggingContext));
             context->SetResponseInfo("LoggingContext: %v", pollShellResponse.LoggingContext);
         }
         context->Reply();

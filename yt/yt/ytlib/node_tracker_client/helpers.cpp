@@ -211,12 +211,30 @@ const TNodeResources& InfiniteNodeResources()
 
 TObjectId ObjectIdFromNodeId(TNodeId nodeId, TCellTag cellTag)
 {
-    return MakeId(EObjectType::ClusterNode, cellTag, nodeId.Underlying(), 0);
+    return MakeId(
+        EObjectType::ClusterNode,
+        cellTag,
+        nodeId.Underlying(),
+        /*entropy*/ 0);
 }
 
 TNodeId NodeIdFromObjectId(TObjectId objectId)
 {
     return TNodeId(CounterFromId(objectId));
+}
+
+TObjectId ObjectIdFromChunkLocationIndex(TChunkLocationIndex chunkLocationIndex, TCellTag cellTag)
+{
+    return MakeId(
+        EObjectType::ChunkLocation,
+        cellTag,
+        chunkLocationIndex.Underlying(),
+        /*entropy*/ 0);
+}
+
+TChunkLocationIndex ChunkLocationIndexFromObjectId(TObjectId objectId)
+{
+    return TChunkLocationIndex(CounterFromId(objectId));
 }
 
 void ValidateNodeTags(const std::vector<std::string>& tags)

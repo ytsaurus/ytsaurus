@@ -38,7 +38,7 @@ NHttp::IClientPtr CreateHttpClient(
 ////////////////////////////////////////////////////////////////////////////////
 
 THuggingfaceClient::THuggingfaceClient(
-    const std::optional<TString>& token,
+    const std::optional<std::string>& token,
     NConcurrency::IPollerPtr poller,
     const std::optional<TString>& urlOverride)
     : Url_(urlOverride.value_or(DefaultHuggingfaceUrl))

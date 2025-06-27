@@ -4,47 +4,27 @@
 
 #include <yt/yt/core/ypath/public.h>
 
-#include <yt/yt/core/ypath/tokenizer.h>
-
 #include <library/cpp/yt/yson/consumer.h>
 
 namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSlashRootDesignatorTag
-{ };
-
-using TRootDesignator = std::variant<NObjectClient::TObjectId, TSlashRootDesignatorTag>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <bool Absolute, class TUnderlying>
-class TYPathBase
+class TPathBase
 {
 public:
-    // TODO(kvk1920): add constructors without validation.
-    // Rationale: NYPath::TTokenizer operates with raw TStringBuf and can return
-    // already validated its suffix. We don't need to run validation twice.
-
-    explicit TYPathBase(TStringBuf path);
-    explicit TYPathBase(const char* path);
-    explicit TYPathBase(const TString& path);
-    explicit TYPathBase(const TRawYPath& path);
-
-    //! Returns the last path segment.
+    //! Returns the path's last segment key.
     TString GetBaseName() const;
 
-    TMangledSequoiaPath ToMangledSequoiaPath() const;
+    //! Removes the path's last segment. No-op in case of an empty path.
+    void RemoveLastSegment();
 
-    TRawYPath ToRawYPath() const &;
-    TRawYPath ToRawYPath() &&;
-
-    //! Compares paths lexicographically according to their 'String' representation.
+    //! Compares paths lexicographically according to their canonical representation.
     template <class T>
-    std::strong_ordering operator<=>(const TYPathBase<Absolute, T>& rhs) const noexcept;
+    std::strong_ordering operator<=>(const TPathBase<Absolute, T>& rhs) const noexcept;
     template <class T>
-    bool operator==(const TYPathBase<Absolute, T>& rhs) const noexcept;
+    bool operator==(const TPathBase<Absolute, T>& rhs) const noexcept;
 
     const TUnderlying& Underlying() const &;
     TUnderlying&& Underlying() &&;
@@ -54,7 +34,9 @@ public:
 protected:
     TUnderlying Path_;
 
-    void Validate() const;
+    TPathBase(const TUnderlying& path);
+    explicit TPathBase(TUnderlying&& path) noexcept;
+
     ptrdiff_t FindLastSegment() const;
     TUnderlying* UnsafeMutableUnderlying() noexcept;
 };
@@ -62,92 +44,86 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute, class TUnderlying>
-class TYPathBaseImpl;
+class TPathBaseImpl;
 
 template <class TUnderlying>
-class TYPathBaseImpl<false, TUnderlying>
-    : public TYPathBase<false, TUnderlying>
+class TPathBaseImpl<false, TUnderlying>
+    : public TPathBase<false, TUnderlying>
 {
 public:
-    TYPathBaseImpl();
+    using TBase = TPathBase<false, TUnderlying>;
+    using TBase::TBase;
+
+    TPathBaseImpl();
 
     [[nodiscard]] bool IsEmpty() const;
 
-    using TBase = TYPathBase<false, TUnderlying>;
-
-    using TBase::TBase;
-
-    //! Returns part preceding the name, stripped of trailing slash (if any).
-    TYPathBuf GetDirPath() const;
-
-    //! Allows iteration over path segments, omitting directory separators.
-    class TSegmentView;
-    TSegmentView AsSegments() const;
+    //! Returns the part preceding the base name.
+    TRelativePathBuf GetDirPath() const;
 };
 
 template <class TUnderlying>
-class TYPathBaseImpl<true, TUnderlying>
-    : public TYPathBase<true, TUnderlying>
+class TPathBaseImpl<true, TUnderlying>
+    : public TPathBase<true, TUnderlying>
 {
 public:
-    using TBase = TYPathBase<true, TUnderlying>;
-
+    using TBase = TPathBase<true, TUnderlying>;
     using TBase::TBase;
 
-    //! Returns part preceding the name, stripped of trailing slash (if any).
-    TAbsoluteYPathBuf GetDirPath() const;
+    //! Returns the part preceding the name.
+    TAbsolutePathBuf GetDirPath() const;
 
-    //! Returns the root designator, throws if path does not contain any.
-    //! Validates GUID in case of object root designator.
-    std::pair<TRootDesignator, TYPathBuf> GetRootDesignator() const;
+    TMangledSequoiaPath ToMangledSequoiaPath() const;
+
+    TRealPath ToRealPath() const &;
+    TRealPath ToRealPath() &&;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute>
-class TBasicYPathBuf
-    : public TYPathBaseImpl<Absolute, TStringBuf>
+class TBasicPathBuf
+    : public TPathBaseImpl<Absolute, TStringBuf>
 {
 public:
-    using TBase = TYPathBaseImpl<Absolute, TStringBuf>;
-
+    using TBase = TPathBaseImpl<Absolute, TStringBuf>;
     using TBase::TBase;
 
     template <class T>
-    TBasicYPathBuf(const TYPathBase<Absolute, T>& other);
+    TBasicPathBuf(const TPathBase<Absolute, T>& other);
 
     template <class T>
-    TBasicYPathBuf& operator=(const TYPathBase<Absolute, T>& rhs);
+    TBasicPathBuf& operator=(const TPathBase<Absolute, T>& rhs);
+
+    //! See #TAbsolutePath::UnsafeMakeCanonicalPath.
+    static TBasicPathBuf UnsafeMakeCanonicalPath(NYPath::TYPathBuf path);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute>
-class TBasicYPath
-    : public TYPathBaseImpl<Absolute, TString>
+class TBasicPath
+    : public TPathBaseImpl<Absolute, TString>
 {
 public:
-    using TBase = TYPathBaseImpl<Absolute, TString>;
-
+    using TBase = TPathBaseImpl<Absolute, TString>;
     using TBase::TBase;
 
-    explicit TBasicYPath(const TMangledSequoiaPath& mangledPath);
-
     template <class T>
-    TBasicYPath(const TYPathBase<Absolute, T>& other);
+    TBasicPath(const TPathBase<Absolute, T>& other);
 
-    //! Joins two paths.
+    //! Joins the two paths.
     template <class T>
-    void Join(const TYPathBase<false, T>& other);
+    void Join(const TPathBase<false, T>& other);
 
     //! Same as #Join.
     template <class T>
-    void operator+=(const TYPathBase<false, T>& rhs);
+    void operator+=(const TPathBase<false, T>& rhs);
 
-    //! Appends literal to the path with introducing a directory separator.
+    //! Appends the literal to the path and introduces a directory separator.
     void Append(TStringBuf literal);
 
-    //! Allows to modify underlying string. Absolutely unsafe since there are no
+    //! Allows to modify the underlying string. Absolutely unsafe since there are no
     //! validations.
     // TODO(kvk1920): provide some sane methods like Rebase() or ReplacePrefix()
     // instead of accessing internal representation directly.
@@ -156,92 +132,80 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TUnderlying>
-class TYPathBaseImpl<false, TUnderlying>::TSegmentView
+class TRelativePath
+    : public TBasicPath<false>
 {
 public:
-    class TIterator;
-    using iterator = TIterator;
-    using const_iterator = iterator;
+    using TBase = TBasicPath<false>;
+    using TBase::TBase;
 
-    const_iterator begin() const;
-    const_iterator end() const;
-
-private:
-    const TYPathBaseImpl* Owner_;
-
-    friend class TYPathBaseImpl;
-
-    explicit TSegmentView(const TYPathBaseImpl* owner);
-};
-
-template <class TUnderlying>
-class TYPathBaseImpl<false, TUnderlying>::TSegmentView::TIterator
-{
-public:
-    bool operator==(const TIterator& rhs) const;
-
-    const TYPathBuf& operator*() const;
-    const TYPathBuf* operator->() const;
-
-    TIterator& operator++();
-    TIterator operator++(int);
-
-private:
-    const TYPathBaseImpl* Owner_ = nullptr;
-    ptrdiff_t Offset_ = 0;
-    TYPathBuf Current_;
-
-    friend class TSegmentView;
-
-    TIterator(const TYPathBaseImpl* owner, ptrdiff_t offset);
-
-    NYPath::TTokenizer GetTokenizer() const;
-
-    void Increment();
-    void UpdateCurrent();
+    static TRelativePath MakeCanonicalPathOrThrow(NYPath::TYPathBuf path);
+    //! See #TAbsolutePath::UnsafeMakeCanonicalPath.
+    static TRelativePath UnsafeMakeCanonicalPath(NYPath::TYPath&& path) noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Joins two YPaths.
-template <bool Absolute, class T, class U>
-TBasicYPath<Absolute> YPathJoin(const TYPathBase<Absolute, T>& lhs, const TYPathBase<false, U>& rhs);
+class TAbsolutePath
+    : public TBasicPath<true>
+{
+public:
+    using TBase = TBasicPath<true>;
+    using TBase::TBase;
 
-//! Same as #YPathJoin.
-template <bool Absolute, class T, class U>
-TBasicYPath<Absolute> operator+(const TYPathBase<Absolute, T>& lhs, const TYPathBase<false, U>& rhs);
+    explicit TAbsolutePath(const TMangledSequoiaPath& mangledPath);
 
-//! Appends literals to the path with introducing a directory separator.
-template <bool Absolute, class T, typename ...TArgs>
-TBasicYPath<Absolute> YPathJoin(const TYPathBase<Absolute, T>& path, TArgs&&... literals);
+    static TAbsolutePath MakeCanonicalPathOrThrow(NYPath::TYPathBuf path);
+    //! Construct a path from the canonical path with no validation.
+    static TAbsolutePath UnsafeMakeCanonicalPath(NYPath::TYPath&& path) noexcept;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Joins the two paths.
+template <bool Absolute, class T, class U>
+TBasicPath<Absolute> PathJoin(const TPathBase<Absolute, T>& lhs, const TPathBase<false, U>& rhs);
+
+//! Same as #PathJoin.
+template <bool Absolute, class T, class U>
+TBasicPath<Absolute> operator+(const TPathBase<Absolute, T>& lhs, const TPathBase<false, U>& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <bool Absolute>
-void FormatValue(TStringBuilderBase* builder, const TBasicYPath<Absolute>& path, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TBasicPath<Absolute>& path, TStringBuf spec);
 
 template <bool Absolute>
-void FormatValue(TStringBuilderBase* builder, const TBasicYPathBuf<Absolute>& path, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TBasicPathBuf<Absolute>& path, TStringBuf spec);
 
 template <bool Absolute, class TUnderlying>
-void Serialize(const TYPathBase<Absolute, TUnderlying>& path, NYson::IYsonConsumer* consumer);
+void Serialize(const TPathBase<Absolute, TUnderlying>& path, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaClient
 
 template <bool Absolute>
-struct THash<NYT::NSequoiaClient::TBasicYPath<Absolute>>
+struct THash<NYT::NSequoiaClient::TBasicPath<Absolute>>
 {
-    size_t operator()(const NYT::NSequoiaClient::TBasicYPath<Absolute>& path) const;
+    size_t operator()(const NYT::NSequoiaClient::TBasicPath<Absolute>& path) const;
 };
 
 template <bool Absolute>
-struct THash<NYT::NSequoiaClient::TBasicYPathBuf<Absolute>>
+struct THash<NYT::NSequoiaClient::TBasicPathBuf<Absolute>>
 {
-    size_t operator()(const NYT::NSequoiaClient::TBasicYPathBuf<Absolute>& path) const;
+    size_t operator()(const NYT::NSequoiaClient::TBasicPathBuf<Absolute>& path) const;
 };
+
+template <>
+struct THash<NYT::NSequoiaClient::TRelativePath>
+    : public THash<NYT::NSequoiaClient::TRelativePath::TBase>
+{ };
+
+template <>
+struct THash<NYT::NSequoiaClient::TAbsolutePath>
+    : public THash<NYT::NSequoiaClient::TAbsolutePath::TBase>
+{ };
 
 #define YPATH_DETAIL_INL_H_
 #include "ypath_detail-inl.h"

@@ -40,6 +40,10 @@ DECLARE_REFCOUNTED_STRUCT(IReadRequestCombiner)
 
 DECLARE_REFCOUNTED_STRUCT(ILoadAdjuster)
 
+DECLARE_REFCOUNTED_STRUCT(THugePageManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(THugePageManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(IHugePageManager)
+
 class TIOEngineHandle;
 using TIOEngineHandlePtr = TIntrusivePtr<TIOEngineHandle>;
 

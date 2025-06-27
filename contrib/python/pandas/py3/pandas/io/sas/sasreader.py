@@ -3,22 +3,12 @@ Read SAS sas7bdat or xport files.
 """
 from __future__ import annotations
 
-from abc import (
-    ABCMeta,
-    abstractmethod,
-)
-from types import TracebackType
 from typing import (
     TYPE_CHECKING,
-    Hashable,
+    Protocol,
     overload,
 )
 
-from pandas._typing import (
-    CompressionOptions,
-    FilePath,
-    ReadBuffer,
-)
 from pandas.util._decorators import doc
 
 from pandas.core.shared_docs import _shared_docs
@@ -26,22 +16,28 @@ from pandas.core.shared_docs import _shared_docs
 from pandas.io.common import stringify_path
 
 if TYPE_CHECKING:
+    from collections.abc import Hashable
+    from types import TracebackType
+
+    from pandas._typing import (
+        CompressionOptions,
+        FilePath,
+        ReadBuffer,
+    )
+
     from pandas import DataFrame
 
 
-# TODO(PY38): replace with Protocol in Python 3.8
-class ReaderBase(metaclass=ABCMeta):
+class ReaderBase(Protocol):
     """
     Protocol for XportReader and SAS7BDATReader classes.
     """
 
-    @abstractmethod
     def read(self, nrows: int | None = None) -> DataFrame:
-        pass
+        ...
 
-    @abstractmethod
     def close(self) -> None:
-        pass
+        ...
 
     def __enter__(self) -> ReaderBase:
         return self
@@ -130,6 +126,10 @@ def read_sas(
     -------
     DataFrame if iterator=False and chunksize=None, else SAS7BDATReader
     or XportReader
+
+    Examples
+    --------
+    >>> df = pd.read_sas("sas_data.sas7bdat")  # doctest: +SKIP
     """
     if format is None:
         buffer_error_msg = (

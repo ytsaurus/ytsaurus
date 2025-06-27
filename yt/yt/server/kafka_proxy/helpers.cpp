@@ -82,6 +82,7 @@ TRecordBatch ConvertKafkaQueueRowsToRecordBatch(
         if (!row) {
             records.emplace_back();
         } else {
+            // TODO(nadya73): Handle nulls.
             records.push_back({
                 .Key = row[*keyColumnId].AsString(),
                 .Value = row[*valueColumnId].AsString(),

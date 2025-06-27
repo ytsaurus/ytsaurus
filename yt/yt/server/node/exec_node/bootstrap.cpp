@@ -32,6 +32,12 @@
 #include <yt/yt/server/lib/nbd/config.h>
 #include <yt/yt/server/lib/nbd/server.h>
 
+#include <yt/yt/server/lib/signature/cypress_key_store.h>
+#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/key_rotator.h>
+#include <yt/yt/server/lib/signature/signature_generator.h>
+#include <yt/yt/server/lib/signature/signature_validator.h>
+
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/tvm_bridge_service.h>
 
@@ -43,6 +49,9 @@
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/scheduler/cluster_name.h>
+
+#include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/validator.h>
 
 #include <yt/yt/library/dns_over_rpc/server/dns_over_rpc_service.h>
 
@@ -74,11 +83,12 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NScheduler;
 using namespace NServer;
+using namespace NSignature;
 using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,6 +113,7 @@ public:
         SlotManager_ = New<TSlotManager>(this);
 
         GpuManager_ = New<TGpuManager>(this);
+        GpuManager_->Initialize();
 
         JobReporter_ = New<TJobReporter>(
             New<TJobReporterConfig>(),
@@ -167,6 +178,35 @@ public:
             NNet::TAddressResolver::Get()->GetDnsResolver(),
             DnsOverRpcActionQueue_->GetInvoker()));
 
+        if (auto signatureValidationConfig = GetConfig()->ExecNode->SignatureValidation) {
+            auto cypressKeyReader = CreateCypressKeyReader(
+                signatureValidationConfig->CypressKeyReader,
+                GetClient());
+            SignatureValidator_ = New<TSignatureValidator>(
+                signatureValidationConfig->Validator,
+                std::move(cypressKeyReader));
+        } else {
+            // NB(pavook): we cannot do any meaningful signature operations safely.
+            SignatureValidator_ = CreateAlwaysThrowingSignatureValidator();
+        }
+
+        if (auto signatureGenerationConfig = GetConfig()->ExecNode->SignatureGeneration) {
+            auto cypressKeyWriter = WaitFor(CreateCypressKeyWriter(
+                signatureGenerationConfig->CypressKeyWriter,
+                GetClient()))
+                .ValueOrThrow();
+            auto signatureGenerator = New<TSignatureGenerator>(signatureGenerationConfig->Generator);
+            SignatureKeyRotator_ = New<TKeyRotator>(
+                signatureGenerationConfig->KeyRotator,
+                GetControlInvoker(),
+                std::move(cypressKeyWriter),
+                signatureGenerator);
+            SignatureGenerator_ = std::move(signatureGenerator);
+        } else {
+            // NB(pavook): we cannot do any meaningful signature operations safely.
+            SignatureGenerator_ = CreateAlwaysThrowingSignatureGenerator();
+        }
+
         // NB(psushin): initialize chunk cache first because slot manager (and root
         // volume manager inside it) can start using it to populate tmpfs layers cache.
         ChunkCache_->Initialize();
@@ -222,7 +262,8 @@ public:
             auto layerBlockCache = CreateClientBlockCache(
                 blockCacheConfig,
                 EBlockType::CompressedData,
-                GetNullMemoryUsageTracker());
+                GetNullMemoryUsageTracker(),
+                ExecNodeProfiler().WithPrefix("/layer_block_cache"));
 
             LayerReaderHost_ = New<TChunkReaderHost>(
                 client,
@@ -262,6 +303,11 @@ public:
                 GetOrchidRoot(),
                 "/disk_monitoring",
                 CreateVirtualNode(hotswapManager->GetOrchidService()));
+        }
+
+        if (SignatureKeyRotator_) {
+            WaitFor(SignatureKeyRotator_->Start())
+                .ThrowOnError();
         }
 
         // COMPAT(pogorelov)
@@ -395,6 +441,16 @@ public:
         updateDynamicTags(std::move(dynamicTags), GetJobProxySolomonExporter()->GetRegistry());
     }
 
+    ISignatureGeneratorPtr GetSignatureGenerator() const override
+    {
+        return SignatureGenerator_;
+    }
+
+    ISignatureValidatorPtr GetSignatureValidator() const override
+    {
+        return SignatureValidator_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -435,6 +491,10 @@ private:
     TChunkReaderHostPtr LayerReaderHost_;
 
     IJobProxyLogManagerPtr JobProxyLogManager_;
+
+    ISignatureGeneratorPtr SignatureGenerator_;
+    ISignatureValidatorPtr SignatureValidator_;
+    TKeyRotatorPtr SignatureKeyRotator_;
 
     void BuildJobProxyConfigTemplate()
     {

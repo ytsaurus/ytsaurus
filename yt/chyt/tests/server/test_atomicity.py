@@ -16,6 +16,8 @@ import pytest
 
 
 class TestClickHouseAtomicity(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 2
+
     def get_config_for_dynamic_table_tests(self):
         return {
             "yt": {

@@ -10,11 +10,12 @@
 #include "query_context.h"
 #include "query_context.h"
 #include "subquery.h"
+#include "subquery_spec.h"
+#include "storage_distributor.h"
 #include "table.h"
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -83,33 +84,6 @@ using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NYPath;
 using namespace NLogging;
-
-////////////////////////////////////////////////////////////////////////////////
-
-void FillDataSliceDescriptors(
-    TSubquerySpec& subquerySpec,
-    THashMap<TChunkId, TRefCountedMiscExtPtr> miscExtMap,
-    const TRange<NChunkPools::TChunkStripePtr>& chunkStripes)
-{
-    for (const auto& chunkStripe : chunkStripes) {
-        auto& inputDataSliceDescriptors = subquerySpec.DataSliceDescriptors.emplace_back();
-        for (const auto& dataSlice : chunkStripe->DataSlices) {
-            auto& inputDataSliceDescriptor = inputDataSliceDescriptors.emplace_back();
-            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                auto& chunkSpec = inputDataSliceDescriptor.ChunkSpecs.emplace_back();
-                ToProto(&chunkSpec, chunkSlice, /*comparator*/ TComparator(), EDataSourceType::UnversionedTable);
-                auto it = miscExtMap.find(chunkSlice->GetInputChunk()->GetChunkId());
-                YT_VERIFY(it != miscExtMap.end());
-                if (it->second) {
-                    SetProtoExtension(
-                        chunkSpec.mutable_chunk_meta()->mutable_extensions(),
-                        static_cast<const NChunkClient::NProto::TMiscExt&>(*it->second));
-                }
-            }
-            inputDataSliceDescriptor.VirtualRowIndex = dataSlice->VirtualRowIndex;
-        }
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -299,6 +273,7 @@ DB::ASTPtr CreateKeyComparison(
 
     return DB::makeASTForLogicalOr(std::move(disjunctionArgs));
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 EReadInOrderMode GetReadInOrderColumnDirection(ESortOrder sortOrder, DB::SortDirection direction)
@@ -316,7 +291,7 @@ EReadInOrderMode GetReadInOrderColumnDirection(ESortOrder sortOrder, DB::SortDir
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void extractTableExpressionPtrsImpl(DB::QueryTreeNodePtr& joinTreeNode, std::vector<DB::QueryTreeNodePtr*>& result)
+void extractTableExpressionSequentiallyImpl(const DB::QueryTreeNodePtr& joinTreeNode, std::vector<DB::QueryTreeNodePtr>& result)
 {
     auto node_type = joinTreeNode->getNodeType();
 
@@ -326,18 +301,18 @@ void extractTableExpressionPtrsImpl(DB::QueryTreeNodePtr& joinTreeNode, std::vec
         case DB::QueryTreeNodeType::QUERY:
         case DB::QueryTreeNodeType::UNION:
         case DB::QueryTreeNodeType::TABLE_FUNCTION: {
-            result.push_back(&joinTreeNode);
+            result.push_back(joinTreeNode);
             break;
         }
         case DB::QueryTreeNodeType::ARRAY_JOIN: {
             auto & array_join_node = joinTreeNode->as<DB::ArrayJoinNode&>();
-            extractTableExpressionPtrsImpl(array_join_node.getTableExpression(), result);
+            extractTableExpressionSequentiallyImpl(array_join_node.getTableExpression(), result);
             break;
         }
         case DB::QueryTreeNodeType::JOIN: {
             auto & join_node = joinTreeNode->as<DB::JoinNode&>();
-            extractTableExpressionPtrsImpl(join_node.getLeftTableExpression(), result);
-            extractTableExpressionPtrsImpl(join_node.getRightTableExpression(), result);
+            extractTableExpressionSequentiallyImpl(join_node.getLeftTableExpression(), result);
+            extractTableExpressionSequentiallyImpl(join_node.getRightTableExpression(), result);
             break;
         }
         default: {
@@ -348,10 +323,10 @@ void extractTableExpressionPtrsImpl(DB::QueryTreeNodePtr& joinTreeNode, std::vec
     }
 }
 
-std::vector<DB::QueryTreeNodePtr*> extractTableExpressionPtrs(DB::QueryTreeNodePtr& joinTreeNode)
+std::vector<DB::QueryTreeNodePtr> extractTableExpressionSequentially(const DB::QueryTreeNodePtr& joinTreeNode)
 {
-    std::vector<DB::QueryTreeNodePtr*> result;
-    extractTableExpressionPtrsImpl(joinTreeNode, result);
+    std::vector<DB::QueryTreeNodePtr> result;
+    extractTableExpressionSequentiallyImpl(joinTreeNode, result);
     return result;
 }
 
@@ -402,6 +377,196 @@ JoinKeyLists ParseJoinKeyColumns(const DB::QueryTreeNodePtr& queryNode, const DB
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSecondaryQueryBuilder::TSecondaryQueryBuilder(
+    DB::ContextPtr context,
+    const NLogging::TLogger& logger,
+    DB::QueryTreeNodePtr query,
+    const std::vector<TSubquerySpec>& specs,
+    TBoundJoinOptions boundJoinOptions)
+    : Context_(std::move(context))
+    , Logger(logger)
+    , Query_(std::move(query))
+    , TableSpecs_(specs)
+    , BoundJoinOptions_(std::move(boundJoinOptions))
+{ }
+
+TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
+    const TRange<TSubquery>& threadSubqueries,
+    const THashMap<TChunkId, TRefCountedMiscExtPtr>& miscExtMap,
+    int subqueryIndex,
+    bool isLastSubquery)
+{
+    auto Logger = this->Logger.WithTag("SubqueryIndex: %v", subqueryIndex);
+
+    i64 totalRowCount = 0;
+    i64 totalDataWeight = 0;
+    i64 totalChunkCount = 0;
+    for (const auto& subquery : threadSubqueries) {
+        const auto& stripeList = subquery.StripeList;
+        totalRowCount += stripeList->TotalRowCount;
+        totalDataWeight += stripeList->TotalDataWeight;
+        totalChunkCount += stripeList->TotalChunkCount;
+    }
+
+    YT_LOG_DEBUG(
+        "Creating secondary query (ThreadSubqueryCount: %v, TotalDataWeight: %v, TotalRowCount: %v, TotalChunkCount: %v)",
+        threadSubqueries.size(),
+        totalDataWeight,
+        totalRowCount,
+        totalChunkCount);
+
+    DB::Scalars scalars;
+    for (int index = 0; index < std::ssize(TableSpecs_); ++index) {
+        std::vector<TChunkStripePtr> stripes;
+        for (const auto& subquery : threadSubqueries) {
+            stripes.emplace_back(subquery.StripeList->Stripes[index]);
+        }
+
+        auto spec = TableSpecs_[index];
+        spec.SubqueryIndex = subqueryIndex;
+
+        FillDataSliceDescriptors(spec.DataSliceDescriptors, miscExtMap, TRange(stripes));
+
+        auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
+        auto encodedSpec = protoSpec.SerializeAsString();
+
+        YT_LOG_DEBUG("Serializing subquery spec (TableIndex: %v, SpecLength: %v)", index, encodedSpec.size());
+
+        std::string scalarName = "yt_table_" + std::to_string(index);
+        scalars[scalarName] = DB::Block{{DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)), std::make_shared<DB::DataTypeString>(), "scalarName"}};
+    }
+
+    auto secondaryQuery = Query_;
+    if (BoundJoinOptions_.FilterJoinedSubqueryBySortKey && !threadSubqueries.empty()) {
+        // TODO(max42): this comparator should be created beforehand.
+        TComparator comparator(std::vector<ESortOrder>(BoundJoinOptions_.JoinRightKeyExpressions.size(), ESortOrder::Ascending));
+
+        TOwningKeyBound lowerBound;
+        TOwningKeyBound upperBound;
+
+        if (BoundJoinOptions_.RightOrFullJoin) {
+            // For right or full join we need to distribute all rows
+            // even if they do not match to anything in left table.
+            if (PreviousUpperBound_) {
+                lowerBound = PreviousUpperBound_.Invert();
+            }
+            if (!isLastSubquery) {
+                upperBound = threadSubqueries.Back().Bounds.second;
+            }
+            PreviousUpperBound_ = upperBound;
+        } else {
+            lowerBound = threadSubqueries.Front().Bounds.first;
+            upperBound = threadSubqueries.Back().Bounds.second;
+        }
+
+        if (lowerBound && upperBound) {
+            YT_VERIFY(comparator.CompareKeyBounds(lowerBound, upperBound) <= 0);
+        }
+        secondaryQuery = AddBoundConditionToJoinedSubquery(secondaryQuery, BoundJoinOptions_.JoinRightTableExpression, lowerBound, upperBound);
+    }
+
+    auto secondaryQueryAst = DB::queryNodeToSelectQuery(secondaryQuery);
+
+    YT_LOG_DEBUG("Query was created (NewQuery: %v)", *secondaryQueryAst);
+
+    return {std::move(secondaryQueryAst),
+        std::move(scalars),
+        static_cast<ui64>(totalRowCount),
+        static_cast<ui64>(totalDataWeight)};
+}
+
+DB::QueryTreeNodePtr TSecondaryQueryBuilder::AddBoundConditionToJoinedSubquery(
+    DB::QueryTreeNodePtr query,
+    DB::QueryTreeNodePtr joinedTableExpression,
+    TOwningKeyBound lowerBound,
+    TOwningKeyBound upperBound)
+{
+    YT_LOG_DEBUG("Adding bound condition to joined subquery (LowerLimit: %v, UpperLimit: %v)",
+        lowerBound,
+        upperBound);
+
+    auto createBoundCondition = [&] (const auto& bound) -> DB::ASTPtr {
+        if (bound.IsUniversal()) {
+            return std::make_shared<DB::ASTLiteral>(true);
+        }
+        if (bound.IsEmpty()) {
+            return std::make_shared<DB::ASTLiteral>(false);
+        }
+
+        auto boundLiterals = UnversionedRowToFields(bound.Prefix, *BoundJoinOptions_.JoinLeftTableExpressionSchema);
+        // The bound is not universal nor empty, so it should contain at least one literal.
+        YT_VERIFY(!boundLiterals.empty());
+
+        int literalsSize = boundLiterals.size();
+
+        // TODO(buyval01): pass already converted to ast expressions to query builder
+        std::vector<DB::ASTPtr> joinKeyExpressions;
+        auto keyColumnCount = std::ssize(BoundJoinOptions_.JoinRightKeyExpressions);
+        joinKeyExpressions.reserve(keyColumnCount);
+        std::transform(
+            BoundJoinOptions_.JoinRightKeyExpressions.begin(),
+            BoundJoinOptions_.JoinRightKeyExpressions.end(),
+            std::back_inserter(joinKeyExpressions),
+            [](const DB::QueryTreeNodePtr& expression) { return expression->toAST(); });
+
+        if (literalsSize < keyColumnCount) {
+            joinKeyExpressions.resize(literalsSize);
+        }
+
+        auto condition = CreateKeyComparison(
+            (bound.IsUpper ? "less" : "greater"),
+            /*isOrEquals*/ bound.IsInclusive,
+            std::move(joinKeyExpressions),
+            std::move(boundLiterals),
+            /*careAboutNulls*/ BoundJoinOptions_.CareAboutNullsInBoundCondition);
+
+        return condition;
+    };
+
+    DB::ASTs conjunctionArgs = {};
+
+    if (lowerBound) {
+        YT_VERIFY(!lowerBound.IsUpper);
+        conjunctionArgs.emplace_back(createBoundCondition(lowerBound));
+    }
+
+    if (upperBound) {
+        YT_VERIFY(upperBound.IsUpper);
+        conjunctionArgs.emplace_back(createBoundCondition(upperBound));
+    }
+
+    if (conjunctionArgs.empty()) {
+        return query;
+    }
+
+    DB::ASTPtr boundConditions = DB::makeASTForLogicalAnd(std::move(conjunctionArgs));
+
+    YT_LOG_TRACE("Bound conditions generated (LowerBound: %v, UpperBound: %v, Conditions: %v)",
+        lowerBound,
+        upperBound,
+        *boundConditions);
+
+    // Adding where condition into existing table expression is difficult or impossible because of:
+    // 1. Table expression is a table function (e.g. numberes(10)) or not-yt table identifier (e.g. system.clique).
+    // 2. Table expression is a subquery with complex structure with unions (e.g. ((select 1) union (select 1 union select 2)) ).
+    // 3. Key column names could be qualified with subquery alias (e.g. (...) as a join (...) as b on a.x = b.y).
+    //    This alias is not accessible inside the subquery.
+    // The simplest way to add conditions in such expressions is to wrap them with 'select * from <table expression>'.
+    auto newTableExpressionNode = std::make_shared<DB::QueryNode>(DB::Context::createCopy(Context_));
+
+    auto selectListNode = std::make_shared<DB::ListNode>();
+    selectListNode->getNodes().push_back(std::make_shared<DB::MatcherNode>());
+    newTableExpressionNode->getProjectionNode() = std::move(selectListNode);
+    newTableExpressionNode->getWhere() = DB::buildQueryTree(std::move(boundConditions), Context_);
+    newTableExpressionNode->getJoinTree() = joinedTableExpression->clone();
+    newTableExpressionNode->setIsSubquery(true);
+    newTableExpressionNode->setAlias(joinedTableExpression->getAlias());
+
+    return query->cloneAndReplace(joinedTableExpression, std::move(newTableExpressionNode));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQueryAnalyzer::TQueryAnalyzer(
     DB::ContextPtr context,
     const TStorageContext* storageContext,
@@ -438,17 +603,11 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
 
     auto* queryNode = QueryInfo_.query_tree->as<DB::QueryNode>();
     YT_VERIFY(queryNode);
-    auto joinNodeType = queryNode->getJoinTree()->getNodeType();
-    YT_VERIFY(joinNodeType == DB::QueryTreeNodeType::JOIN || joinNodeType == DB::QueryTreeNodeType::ARRAY_JOIN);
 
-    auto joinNode = queryNode->getJoinTree();
-    if (joinNodeType == DB::QueryTreeNodeType::ARRAY_JOIN) {
-        // In the case where the outermost join in a JoinTree is an ArrayJoin,
-        // it should be skipped because further analysis is performed for a normal join.
-        // We can safely do this because there can be at most one ArrayJoin in a JoinTree
-        // and we know that the JoinTree contains a normal join.
-        joinNode = joinNode->as<DB::ArrayJoinNode>()->getTableExpression();
-    }
+    // We need to extract the leftmost JoinNode of the connection tree.
+    auto tableExpressionsStack = DB::buildTableExpressionsStack(queryNode->getJoinTree());
+    YT_VERIFY(tableExpressionsStack.size() >= 3 && tableExpressionsStack[2]->getNodeType() == DB::QueryTreeNodeType::JOIN);
+    auto joinNode = tableExpressionsStack[2];
 
     auto keyLists = ParseJoinKeyColumns(joinNode, QueryInfo_.planner_context);
     const auto& joinLeftKeys = keyLists.joinLeftKeys;
@@ -599,18 +758,17 @@ void TQueryAnalyzer::InferSortedJoinKeyColumns(bool needSortedPool)
     }
 
     if (matchedKeyPrefixSize == 0) {
-        // Prevent error when sored pool is not required.
-        if (!needSortedPool) {
-            return;
-        }
+        YT_LOG_DEBUG(
+            "As a result of the inferring sorted join key columns, the key turned out to be empty "
+            "(MatchedLeftKeyNames: %Qv, LeftKeyPositionMap: %Qv, RightKeyPositionMap: %Qv, "
+            "UnmatchedKeyPairs: %Qv, JoinKeySize: %Qv)",
+            matchedLeftKeyNames,
+            leftKeyPositionMap,
+            rightKeyPositionMap,
+            unmatchedKeyPairs,
+            joinKeySize);
 
-        const char* errorPrefix = (TwoYTTableJoin_ ? "Invalid sorted JOIN" : "Invalid RIGHT or FULL JOIN");
-        THROW_ERROR_EXCEPTION("%v: key is empty", errorPrefix)
-            << TErrorAttribute("matched_left_key_columns", matchedLeftKeyNames)
-            << TErrorAttribute("left_key_position_map", leftKeyPositionMap)
-            << TErrorAttribute("right_key_position_map", rightKeyPositionMap)
-            << TErrorAttribute("unmatched_key_pairs", unmatchedKeyPairs)
-            << TErrorAttribute("join_key_size", joinKeySize);
+        return;
     }
 
     KeyColumnCount_ = matchedKeyPrefixSize;
@@ -772,6 +930,7 @@ void TQueryAnalyzer::ParseQuery()
             Storages_.pop_back();
         }
     }
+    SecondaryQueryOperandCount_ = YtTableCount_;
 
     YT_LOG_DEBUG(
         "Extracted table expressions from query (Query: %v, TableExpressionCount: %v, YtTableCount: %v, "
@@ -1029,7 +1188,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
 
     TQueryAnalysisResult result;
 
-    for (const auto& [index, storage] : Enumerate(Storages_)) {
+    for (int index = 0; index < SecondaryQueryOperandCount_; ++index) {
+        const auto& storage = Storages_[index];
         if (!storage) {
             continue;
         }
@@ -1105,24 +1265,21 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
     return result;
 }
 
-void TQueryAnalyzer::LazyProcessQueryTree() {
+void TQueryAnalyzer::LazyProcessQueryTree()
+{
     if (GlobalJoin_) {
         QueryInfo_.query_tree = DB::buildQueryTreeForShard(QueryInfo_.planner_context, QueryInfo_.query_tree);
         QueryInfo_.query = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
     }
 
     auto* selectQuery = QueryInfo_.query_tree->as<DB::QueryNode>();
-    TableExpressionPtrs_ = extractTableExpressionPtrs(selectQuery->getJoinTree());
+    TableExpressions_ = extractTableExpressionSequentially(selectQuery->getJoinTree());
 
     QueryTreeProcessed_ = true;
 }
 
-TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
-    const TRange<TSubquery>& threadSubqueries,
-    TSubquerySpec specTemplate,
-    const THashMap<TChunkId, TRefCountedMiscExtPtr>& miscExtMap,
-    int subqueryIndex,
-    bool isLastSubquery)
+std::shared_ptr<TSecondaryQueryBuilder> TQueryAnalyzer::GetSecondaryQueryBuilder(
+    TSubquerySpec specTemplate)
 {
     if (!Prepared_) {
         THROW_ERROR_EXCEPTION("Query analyzer is not prepared but CreateSecondaryQuery method is already called; "
@@ -1133,50 +1290,18 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
         LazyProcessQueryTree();
     }
 
-    auto Logger = this->Logger.WithTag("SubqueryIndex: %v", subqueryIndex);
+    std::vector<TSubquerySpec> tableSpecs;
+    tableSpecs.reserve(SecondaryQueryOperandCount_);
 
-    i64 totalRowCount = 0;
-    i64 totalDataWeight = 0;
-    i64 totalChunkCount = 0;
-    for (const auto& subquery : threadSubqueries) {
-        const auto& stripeList = subquery.StripeList;
-        totalRowCount += stripeList->TotalRowCount;
-        totalDataWeight += stripeList->TotalDataWeight;
-        totalChunkCount += stripeList->TotalChunkCount;
-    }
+    DB::IQueryTreeNode::ReplacementMap replacementMap;
 
-    YT_LOG_DEBUG(
-        "Rewriting query (YtTableCount: %v, ThreadSubqueryCount: %v, TotalDataWeight: %v, TotalRowCount: %v, TotalChunkCount: %v)",
-        YtTableCount_,
-        threadSubqueries.size(),
-        totalDataWeight,
-        totalRowCount,
-        totalChunkCount);
+    for (int index = 0; index < SecondaryQueryOperandCount_; ++index) {
+        YT_VERIFY(TableExpressions_[index]);
+        const auto& tableExpressionNode = TableExpressions_[index];
 
-    specTemplate.SubqueryIndex = subqueryIndex;
-
-    std::vector<DB::QueryTreeNodePtr> newTableExpressions;
-
-    DB::Scalars scalars;
-
-    for (int index = 0; index < YtTableCount_; ++index) {
-        auto tableExpressionNode = TableExpressions_[index];
-
-        std::vector<TChunkStripePtr> stripes;
-        for (const auto& subquery : threadSubqueries) {
-            stripes.emplace_back(subquery.StripeList->Stripes[index]);
-        }
-
-        auto spec = specTemplate;
+        auto& spec = tableSpecs.emplace_back(specTemplate);
         spec.TableIndex = index;
         spec.ReadSchema = Storages_[index]->GetSchema();
-
-        FillDataSliceDescriptors(spec, miscExtMap, TRange(stripes));
-
-        auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
-        auto encodedSpec = protoSpec.SerializeAsString();
-
-        YT_LOG_DEBUG("Serializing subquery spec (TableIndex: %v, SpecLength: %v)", index, encodedSpec.size());
 
         std::string scalarName = "yt_table_" + std::to_string(index);
 
@@ -1186,64 +1311,35 @@ TSecondaryQuery TQueryAnalyzer::CreateSecondaryQuery(
         auto tableFunctionNode = std::make_shared<DB::TableFunctionNode>("ytSubquery");
         tableFunctionNode->getArguments().getNodes().emplace_back(std::move(scalarFunctionNode));
 
-        scalars[scalarName] = DB::Block{{DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)), std::make_shared<DB::DataTypeString>(), "scalarName"}};
-
         if (tableExpressionNode->hasAlias()) {
             tableFunctionNode->setAlias(tableExpressionNode->getAlias());
         }
 
-        newTableExpressions.emplace_back(std::move(tableFunctionNode));
+        replacementMap[tableExpressionNode.get()] = std::move(tableFunctionNode);
     }
 
-    ReplaceTableExpressions(newTableExpressions);
+    auto queryTreeToDistribute = QueryInfo_.query_tree->cloneAndReplace(replacementMap);
+    YT_LOG_DEBUG("Query tree for distribution: %v", queryTreeToDistribute->formatConvertedASTForErrorMessage());
 
+    TBoundJoinOptions boundJoinOptions{};
     const auto& executionSettings = StorageContext_->Settings->Execution;
+    if (!TwoYTTableJoin_ && (executionSettings->FilterJoinedSubqueryBySortKey || RightOrFullJoin_) && JoinedByKeyColumns_) {
+        auto newTableExpressions = extractTableExpressionSequentially(queryTreeToDistribute->as<DB::QueryNode>()->getJoinTree());
 
-    bool filterJoinedSubquery = executionSettings->FilterJoinedSubqueryBySortKey || RightOrFullJoin_;
-
-    if (!TwoYTTableJoin_ && filterJoinedSubquery && JoinedByKeyColumns_ && !threadSubqueries.empty()) {
-        // TODO(max42): this comparator should be created beforehand.
-        TComparator comparator(std::vector<ESortOrder>(KeyColumnCount_, ESortOrder::Ascending));
-
-        TOwningKeyBound lowerBound;
-        TOwningKeyBound upperBound;
-
-        if (RightOrFullJoin_) {
-            // For right or full join we need to distribute all rows
-            // even if they do not match to anything in left table.
-            if (PreviousUpperBound_) {
-                lowerBound = PreviousUpperBound_.Invert();
-            }
-            if (!isLastSubquery) {
-                upperBound = threadSubqueries.Back().Bounds.second;
-            }
-            PreviousUpperBound_ = upperBound;
-        } else {
-            lowerBound = threadSubqueries.Front().Bounds.first;
-            upperBound = threadSubqueries.Back().Bounds.second;
-        }
-
-        if (lowerBound && upperBound) {
-            YT_VERIFY(comparator.CompareKeyBounds(lowerBound, upperBound) <= 0);
-        }
-        AddBoundConditionToJoinedSubquery(lowerBound, upperBound);
+        boundJoinOptions.FilterJoinedSubqueryBySortKey = true;
+        boundJoinOptions.RightOrFullJoin = RightOrFullJoin_;
+        boundJoinOptions.CareAboutNullsInBoundCondition = RightOrFullJoin_ && executionSettings->KeepNullsInRightOrFullJoin;
+        boundJoinOptions.JoinLeftTableExpressionSchema = Storages_[0]->GetSchema();
+        boundJoinOptions.JoinRightTableExpression = newTableExpressions.size() >= 2 ? newTableExpressions[1] : nullptr;
+        boundJoinOptions.JoinRightKeyExpressions = JoinKeyRightExpressions_;
     }
 
-    auto secondaryQueryAst = DB::queryNodeToSelectQuery(QueryInfo_.query_tree);
-
-    RollbackModifications();
-
-    YT_LOG_TRACE("Restoring qualified names (QueryBefore: %v)", *secondaryQueryAst);
-
-    DB::RestoreQualifiedNamesVisitor::Data data;
-    DB::RestoreQualifiedNamesVisitor(data).visit(secondaryQueryAst);
-
-    YT_LOG_DEBUG("Query rewritten (NewQuery: %v)", *secondaryQueryAst);
-
-    return {std::move(secondaryQueryAst),
-        std::move(scalars),
-        static_cast<ui64>(totalRowCount),
-        static_cast<ui64>(totalDataWeight)};
+    return std::make_shared<TSecondaryQueryBuilder>(
+        getContext(),
+        Logger,
+        std::move(queryTreeToDistribute),
+        std::move(tableSpecs),
+        std::move(boundJoinOptions));
 }
 
 IStorageDistributorPtr TQueryAnalyzer::GetStorage(const DB::QueryTreeNodePtr& tableExpression) const
@@ -1265,135 +1361,14 @@ IStorageDistributorPtr TQueryAnalyzer::GetStorage(const DB::QueryTreeNodePtr& ta
     return std::dynamic_pointer_cast<IStorageDistributor>(storage);
 }
 
-void TQueryAnalyzer::ApplyModification(DB::QueryTreeNodePtr* queryPart, DB::QueryTreeNodePtr newValue, DB::QueryTreeNodePtr previousValue)
-{
-    YT_LOG_DEBUG("Replacing query part (QueryPart: %v, NewValue: %v)", previousValue->toAST(), newValue->toAST());
-    Modifications_.emplace_back(queryPart, std::move(previousValue));
-    *queryPart = std::move(newValue);
-}
-
-void TQueryAnalyzer::ApplyModification(DB::QueryTreeNodePtr* queryPart, DB::QueryTreeNodePtr newValue)
-{
-    ApplyModification(queryPart, newValue, *queryPart);
-}
-
-void TQueryAnalyzer::RollbackModifications()
-{
-    YT_LOG_DEBUG("Rolling back modifications (ModificationCount: %v)", Modifications_.size());
-    while (!Modifications_.empty()) {
-        auto& [queryPart, oldValue] = Modifications_.back();
-        *queryPart = std::move(oldValue);
-        Modifications_.pop_back();
-    }
-}
-
-void TQueryAnalyzer::AddBoundConditionToJoinedSubquery(
-    TOwningKeyBound lowerBound,
-    TOwningKeyBound upperBound)
-{
-    YT_LOG_DEBUG("Adding bound condition to joined subquery (LowerLimit: %v, UpperLimit: %v)",
-        lowerBound,
-        upperBound);
-
-    auto createBoundCondition = [&] (const auto& bound) -> DB::ASTPtr {
-        if (bound.IsUniversal()) {
-            return std::make_shared<DB::ASTLiteral>(true);
-        }
-        if (bound.IsEmpty()) {
-            return std::make_shared<DB::ASTLiteral>(false);
-        }
-
-        auto tableSchema = Storages_[0]->GetSchema();
-        auto boundLiterals = UnversionedRowToFields(bound.Prefix, *tableSchema);
-        // The bound is not universal nor empty, so it should contain at least one literal.
-        YT_VERIFY(!boundLiterals.empty());
-
-        int literalsSize = boundLiterals.size();
-
-        std::vector<DB::ASTPtr> joinKeyExpressions;
-        joinKeyExpressions.reserve(JoinKeyRightExpressions_.size());
-        std::transform(
-            JoinKeyRightExpressions_.begin(),
-            JoinKeyRightExpressions_.end(),
-            std::back_inserter(joinKeyExpressions),
-            [](const DB::QueryTreeNodePtr& expression) { return expression->toAST(); });
-
-        if (literalsSize < KeyColumnCount_) {
-            joinKeyExpressions.resize(literalsSize);
-        }
-
-        bool keepNulls = StorageContext_->Settings->Execution->KeepNullsInRightOrFullJoin;
-
-        auto condition = CreateKeyComparison(
-            (bound.IsUpper ? "less" : "greater"),
-            /*isOrEquals*/ bound.IsInclusive,
-            std::move(joinKeyExpressions),
-            std::move(boundLiterals),
-            /*careAboutNulls*/ RightOrFullJoin_ && keepNulls);
-
-        return condition;
-    };
-
-    DB::ASTs conjunctionArgs = {};
-
-    if (lowerBound) {
-        YT_VERIFY(!lowerBound.IsUpper);
-        conjunctionArgs.emplace_back(createBoundCondition(lowerBound));
-    }
-
-    if (upperBound) {
-        YT_VERIFY(upperBound.IsUpper);
-        conjunctionArgs.emplace_back(createBoundCondition(upperBound));
-    }
-
-    YT_VERIFY(std::ssize(JoinKeyRightExpressions_) == KeyColumnCount_);
-
-    if (conjunctionArgs.empty()) {
-        return;
-    }
-
-    DB::ASTPtr boundConditions = DB::makeASTForLogicalAnd(std::move(conjunctionArgs));
-
-    YT_LOG_TRACE("Bound conditions generated (LowerBound: %v, UpperBound: %v, Conditions: %v)",
-        lowerBound,
-        upperBound,
-        *boundConditions);
-
-    YT_VERIFY(TableExpressions_.size() == 2 && TableExpressions_[1]);
-    YT_VERIFY(TableExpressionPtrs_.size() == 2 && TableExpressionPtrs_[1]);
-
-    // Adding where condition into existing table expression is difficult or impossible because of:
-    // 1. Table expression is a table function (e.g. numberes(10)) or not-yt table identifier (e.g. system.clique).
-    // 2. Table expression is a subquery with complex structure with unions (e.g. ((select 1) union (select 1 union select 2)) ).
-    // 3. Key column names could be qualified with subquery alias (e.g. (...) as a join (...) as b on a.x = b.y).
-    //    This alias is not accessible inside the subquery.
-    // The simplest way to add conditions in such expressions is to wrap them with 'select * from <table expression>'.
-    auto newTableExpressionNode = std::make_shared<DB::QueryNode>(DB::Context::createCopy(getContext()));
-
-    auto selectListNode = std::make_shared<DB::ListNode>();
-    selectListNode->getNodes().push_back(std::make_shared<DB::MatcherNode>());
-    newTableExpressionNode->getProjectionNode() = std::move(selectListNode);
-    newTableExpressionNode->getWhere() = DB::buildQueryTree(std::move(boundConditions), getContext());
-    newTableExpressionNode->getJoinTree() = TableExpressions_[1]->clone();
-    newTableExpressionNode->setIsSubquery(true);
-    newTableExpressionNode->setAlias(TableExpressions_[1]->getAlias());
-
-    // Replace the whole table expression.
-    ApplyModification(TableExpressionPtrs_[1], std::move(newTableExpressionNode));
-}
-
-void TQueryAnalyzer::ReplaceTableExpressions(std::vector<DB::QueryTreeNodePtr> newTableExpressions)
-{
-    YT_VERIFY(std::ssize(newTableExpressions) == YtTableCount_);
-    for (int index = 0; index < std::ssize(newTableExpressions); ++index) {
-        YT_VERIFY(newTableExpressions[index]);
-        ApplyModification(TableExpressionPtrs_[index], newTableExpressions[index]);
-    }
-}
-
 bool TQueryAnalyzer::HasJoinWithTwoTables() const
 {
     return TwoYTTableJoin_;
+}
+
+bool TQueryAnalyzer::HasRightOrFullJoin() const
+{
+    return RightOrFullJoin_;
 }
 
 bool TQueryAnalyzer::HasGlobalJoin() const
@@ -1404,6 +1379,15 @@ bool TQueryAnalyzer::HasGlobalJoin() const
 bool TQueryAnalyzer::HasInOperator() const
 {
     return HasInOperator_;
+}
+
+bool TQueryAnalyzer::IsJoinedByKeyColumns() const
+{
+    if (!Prepared_) {
+        THROW_ERROR_EXCEPTION("Query analyzer is not prepared but IsJoinedByKeyColumns method is already called; "
+            "this is a bug; please, file an issue in CHYT queue");
+    }
+    return JoinedByKeyColumns_;
 }
 
 void TQueryAnalyzer::Prepare()
@@ -1419,6 +1403,11 @@ void TQueryAnalyzer::Prepare()
 
     if (needSortedPool || filterJoinedTableBySortedKey) {
         InferSortedJoinKeyColumns(needSortedPool);
+    }
+    // If we couldn't get a common key prefix to join two YT tables,
+    // we will distribute the query across the first one.
+    if (TwoYTTableJoin_ && !JoinedByKeyColumns_) {
+        SecondaryQueryOperandCount_ = 1;
     }
     if (settings->Execution->OptimizeQueryProcessingStage) {
         OptimizeQueryProcessingStage();

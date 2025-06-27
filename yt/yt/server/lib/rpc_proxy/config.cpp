@@ -79,7 +79,7 @@ void TApiServiceConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("enable_large_columnar_statistics", &TThis::EnableLargeColumnarStatistics)
-        .Default(false);
+        .Default(true);
 
     registrar.Preprocessor([] (TThis* config) {
         config->ClientCache->Capacity = 1'000;

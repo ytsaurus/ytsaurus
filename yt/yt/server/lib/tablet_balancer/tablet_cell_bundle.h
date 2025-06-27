@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/table_client/schema.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NTabletBalancer {
@@ -22,6 +24,9 @@ struct TTabletCellBundle final
     THashMap<TTabletCellId, TTabletCellPtr> TabletCells;
     THashMap<TTableId, TTablePtr> Tables;
     THashMap<TNodeAddress, TNodeStatistics> NodeStatistics;
+
+    NTableClient::TTableSchemaPtr PerformanceCountersTableSchema;
+    THashMap<TClusterName, NTableClient::TTableSchemaPtr> PerClusterPerformanceCountersTableSchemas;
 
     TTabletCellBundle(TString name);
 

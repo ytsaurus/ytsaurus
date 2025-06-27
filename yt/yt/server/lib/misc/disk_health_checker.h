@@ -39,7 +39,7 @@ public:
 
     TFuture<void> Stop();
 
-    void OnConfigChanged(const TDiskHealthCheckerConfigPtr& newConfig);
+    void Reconfigure(const TDiskHealthCheckerConfigPtr& newConfig);
 
     DEFINE_SIGNAL(void(const TError&), Failed);
 

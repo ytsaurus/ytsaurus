@@ -205,7 +205,7 @@ private:
 
             // Update replicas in place for all input chunks with current chunkId.
             for (const auto& chunkSpec : description.ChunkSpecs) {
-                chunkSpec->SetReplicaList(chunkInfo.Replicas);
+                chunkSpec->SetReplicas(chunkInfo.Replicas);
             }
 
             auto observedCount = UnavailableFetcherChunkCount_.fetch_sub(1) - 1;
@@ -293,7 +293,7 @@ TFuture<void> TFetcherBase::Fetch()
 
     THashSet<TNodeId> nodeIds;
     for (int unfetchedChunkIndex : UnfetchedChunkIndexes_) {
-        for (auto replica : Chunks_[unfetchedChunkIndex]->GetReplicaList()) {
+        for (auto replica : Chunks_[unfetchedChunkIndex]->GetReplicas()) {
             nodeIds.insert(replica.GetNodeId());
         }
     }
@@ -468,7 +468,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
         const auto& chunk = Chunks_[chunkIndex];
         auto chunkId = chunk->GetChunkId();
         bool chunkAvailable = false;
-        const auto replicas = chunk->GetReplicaList();
+        const auto replicas = chunk->GetReplicas();
         for (auto replica : replicas) {
             auto nodeId = replica.GetNodeId();
             if (!DeadNodes_.contains(nodeId) &&

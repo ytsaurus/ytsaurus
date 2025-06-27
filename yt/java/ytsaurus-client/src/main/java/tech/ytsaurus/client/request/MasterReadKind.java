@@ -5,8 +5,7 @@ import tech.ytsaurus.rpcproxy.EMasterReadKind;
 public enum MasterReadKind {
     Leader("leader", EMasterReadKind.MRK_LEADER),
     Follower("follower", EMasterReadKind.MRK_FOLLOWER),
-    Cache("cache", EMasterReadKind.MRK_CACHE),
-    MasterCache("master_cache", EMasterReadKind.MRK_MASTER_CACHE);
+    Cache("cache", EMasterReadKind.MRK_CACHE);
 
     private final String wireName;
     private final EMasterReadKind protoValue;

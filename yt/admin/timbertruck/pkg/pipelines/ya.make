@@ -1,6 +1,7 @@
 GO_LIBRARY()
 
 SRCS(
+    decompressor.go
     file.go
     followingfile.go
     pipelines.go

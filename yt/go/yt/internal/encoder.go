@@ -7,8 +7,12 @@ import (
 	"fmt"
 	"io"
 
+	"golang.org/x/xerrors"
+
 	"go.ytsaurus.tech/library/go/ptr"
 	"go.ytsaurus.tech/yt/go/guid"
+	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -569,6 +573,20 @@ func (e *Encoder) ListJobs(
 	return
 }
 
+func (e *Encoder) GetJob(
+	ctx context.Context,
+	opID yt.OperationID,
+	jobID yt.JobID,
+	options *yt.GetJobOptions,
+) (r *yt.JobStatus, err error) {
+	call := e.newCall(NewGetJobParams(opID, jobID, options))
+	err = e.do(ctx, call, GetJobResultDecoder(&r))
+	if r != nil {
+		r.ID = jobID
+	}
+	return
+}
+
 func (e *Encoder) GetJobStderr(
 	ctx context.Context,
 	opID yt.OperationID,
@@ -643,9 +661,21 @@ func (e *Encoder) WriteTable(
 	path ypath.YPath,
 	options *yt.WriteTableOptions,
 ) (w yt.TableWriter, err error) {
+	var format any
+	if options != nil && options.Format != nil {
+		format = options.Format
+		skiffFormat, ok := options.Format.(skiff.Format)
+		if !ok {
+			return nil, xerrors.Errorf("unexpected format: %+v", format)
+		}
+		path, err = ypathWithSkiffColumns(path, skiffFormat)
+		if err != nil {
+			return
+		}
+	}
 	call := e.newCall(NewWriteTableParams(path, options))
-	w, err = e.InvokeWriteRow(ctx, call)
-	return
+	call.Format = format
+	return e.InvokeWriteRow(ctx, call)
 }
 
 func (e *Encoder) ReadTable(
@@ -653,8 +683,88 @@ func (e *Encoder) ReadTable(
 	path ypath.YPath,
 	options *yt.ReadTableOptions,
 ) (r yt.TableReader, err error) {
+	var format any
+	var tableSchema *schema.Schema
+	if options != nil && options.Format != nil {
+		format = options.Format
+		skiffFormat, ok := options.Format.(skiff.Format)
+		if !ok {
+			return nil, xerrors.Errorf("unexpected output format: %+v", format)
+		}
+		tableSchema, err = e.tableSchema(ctx, path)
+		if err != nil {
+			return nil, err
+		}
+		path, err = ypathWithSkiffColumns(path, skiffFormat)
+		if err != nil {
+			return
+		}
+	}
 	call := e.newCall(NewReadTableParams(path, options))
+	call.Format = format
+	call.TableSchema = tableSchema
 	return e.InvokeReadRow(ctx, call)
+}
+
+func (e *Encoder) tableSchema(ctx context.Context, path ypath.YPath) (*schema.Schema, error) {
+	var attrs struct {
+		Schema     schema.Schema `yson:"schema"`
+		SchemaMode string        `yson:"schema_mode"`
+	}
+	err := e.GetNode(ctx, path.YPath().Attrs(), &attrs, &yt.GetNodeOptions{Attributes: []string{"schema", "schema_mode"}})
+	if err != nil {
+		return nil, xerrors.Errorf("failed to get table schema: %w", err)
+	}
+	if attrs.SchemaMode == "weak" {
+		return nil, nil
+	}
+	return &attrs.Schema, nil
+}
+
+func ypathWithSkiffColumns(path ypath.YPath, skiffFormat skiff.Format) (ypath.YPath, error) {
+	var columns []string
+	columns, err := skiffFormatColumnNames(skiffFormat)
+	if err != nil {
+		return nil, err
+	}
+	pathWithColumns, err := ypathWithColumns(path, columns)
+	if err != nil {
+		return nil, err
+	}
+	return pathWithColumns, nil
+}
+
+func skiffFormatColumnNames(skiffFormat skiff.Format) ([]string, error) {
+	tableSkiffSchema, err := skiff.SingleSchema(&skiffFormat)
+	if err != nil {
+		return nil, err
+	}
+	var columns []string
+	for _, columnSchema := range tableSkiffSchema.Children {
+		columns = append(columns, columnSchema.Name)
+	}
+	return columns, nil
+}
+
+func ypathWithColumns(path ypath.YPath, columns []string) (ypath.YPath, error) {
+	var rich *ypath.Rich
+	var err error
+	switch p := path.(type) {
+	case ypath.Path:
+		rich, err = ypath.Parse(p.String())
+		if err != nil {
+			return nil, err
+		}
+	case *ypath.Rich:
+		rich = p
+	default:
+		return nil, xerrors.Errorf("unsupported path type: %T", path)
+	}
+
+	if len(rich.Columns) == 0 {
+		rich.SetColumns(columns)
+	}
+	return rich, nil
 }
 
 func marshalKeys(keys []any) ([]byte, error) {

@@ -209,6 +209,15 @@ struct IObjectManager
         NTransactionServer::TTransaction* transaction,
         const TResolvePathOptions& options) = 0;
 
+    //! Resolves path to either local or remote object.
+    //! If the path resolves locally, returns a pointer to the local target object.
+    //! If the path leads to another cell (including Sequoia), returns nullptr.
+    //! If the path fails to resolve (i.e. leads to a missing object), throws.
+    virtual TObject* ResolvePathToObject(
+        const NYPath::TYPath& path,
+        NTransactionServer::TTransaction* transaction,
+        const TResolvePathOptions& options) = 0;
+
     virtual TObjectId ResolvePathToObjectId(
         const NYPath::TYPath& path,
         const std::string& method,

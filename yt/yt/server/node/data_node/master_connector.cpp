@@ -50,6 +50,7 @@
 #include <yt/yt/core/utilex/random.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 
 #include <util/random/shuffle.h>
 
@@ -648,20 +649,16 @@ protected:
         auto state = GetMasterConnectorState(cellTag);
         EmplaceOrCrash(CellTagToMasterConnectorState_, cellTag, state);
 
-        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
-        TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
-        proxy.SetDefaultTimeout(GetDynamicConfig()->FullHeartbeatTimeout);
-
         switch (state) {
             case EMasterConnectorState::Registered: {
                 TFuture<void> voidFuture;
                 // COMPAT(danilalexeev): YT-23781.
                 if (PerLocationFullHeartbeatsEnabled_) {
-                    auto future = ScheduleFullHeartbeatSession(std::move(proxy), cellTag);
+                    auto future = ScheduleFullHeartbeatSession(cellTag);
                     variantResult = future;
                     voidFuture = future.AsVoid();
                 } else {
-                    auto future = InvokeFullHeartbeatRequest(std::move(proxy), cellTag);
+                    auto future = InvokeFullHeartbeatRequest(cellTag);
                     variantResult = future;
                     voidFuture = future.AsVoid();
                 }
@@ -670,7 +667,7 @@ protected:
             }
 
             case EMasterConnectorState::Online: {
-                auto future = InvokeIncrementalHeartbeatRequest(std::move(proxy), cellTag);
+                auto future = InvokeIncrementalHeartbeatRequest(cellTag);
                 variantResult = future;
                 EmplaceOrCrash(CellTagToVariantHeartbeatRspFuture_, cellTag, std::move(variantResult));
                 return future.AsVoid();
@@ -680,8 +677,6 @@ protected:
                 YT_LOG_WARNING("Skip heartbeat report to master, since node is in invalid state (CellTag: %v, DataNodeState: %v)",
                     cellTag,
                     state);
-
-                Bootstrap_->ResetAndRegisterAtMaster();
 
                 return MakeFuture(TError("Invalid node state %Qlv", state) << TErrorAttribute("data_node_state", state));
             }
@@ -720,7 +715,7 @@ protected:
                     cellTag,
                     state);
 
-                Bootstrap_->ResetAndRegisterAtMaster();
+                Bootstrap_->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
             }
         }
     }
@@ -757,7 +752,7 @@ protected:
                     cellTag,
                     state);
 
-                Bootstrap_->ResetAndRegisterAtMaster();
+                Bootstrap_->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
             }
         }
     }
@@ -1145,7 +1140,7 @@ private:
                 if (IsRetriableError(rspOrError) || rspOrError.FindMatching(HeartbeatRetriableErrors)) {
                     DoScheduleJobHeartbeat(/*immediately*/ false);
                 } else {
-                    Bootstrap_->ResetAndRegisterAtMaster();
+                    Bootstrap_->ResetAndRegisterAtMaster(ERegistrationReason::HeartbeatFailure);
                 }
 
                 return;
@@ -1181,13 +1176,15 @@ private:
     }
 
     // COMPAT(danilalexeev): YT-23781.
-    TFuture<TDataNodeRspFullHeartbeat> InvokeFullHeartbeatRequest(
-        TDataNodeTrackerServiceProxy proxy,
-        TCellTag cellTag)
+    TFuture<TDataNodeRspFullHeartbeat> InvokeFullHeartbeatRequest(TCellTag cellTag)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ClearChunksDeltaForCell(cellTag);
+
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
+        TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
+        proxy.SetDefaultTimeout(GetDynamicConfig()->FullHeartbeatTimeout);
 
         auto nodeId = Bootstrap_->GetNodeId();
         // Full heartbeat construction can take a while; offload it RPC Heavy thread pool.
@@ -1206,15 +1203,29 @@ private:
         return req->Invoke();
     }
 
-    TFuture<TFullHeartbeatSessionResult> ScheduleFullHeartbeatSession(
-        TDataNodeTrackerServiceProxy proxy,
-        TCellTag cellTag)
+    TFuture<TFullHeartbeatSessionResult> ScheduleFullHeartbeatSession(TCellTag cellTag)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto nodeId = Bootstrap_->GetNodeId();
 
         ClearChunksDeltaForCell(cellTag);
+
+        auto masterChannel = CreateRetryingChannel(
+            GetDynamicConfig()->FullHeartbeatSessionRetryingChannel,
+            Bootstrap_->GetMasterChannel(cellTag),
+            BIND([cellTag, Logger = this->Logger] (const TError& error) -> bool {
+                if (IsRetriableError(error) || error.FindMatching(HeartbeatRetriableErrors)) {
+                    YT_LOG_DEBUG(
+                        error,
+                        "Failed to report location full heartbeat (CellTag: %v)",
+                        cellTag);
+                    return true;
+                }
+                return false;
+            }));
+        TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
+        proxy.SetDefaultTimeout(GetDynamicConfig()->LocationFullHeartbeatTimeout);
 
         auto buildLocationHeartbeatRequests = BIND([=, this, this_ = MakeStrong(this)] {
             const auto& chunkStore = Bootstrap_->GetChunkStore();
@@ -1281,10 +1292,13 @@ private:
     }
 
     TFuture<TDataNodeRspIncrementalHeartbeat> InvokeIncrementalHeartbeatRequest(
-        TDataNodeTrackerServiceProxy proxy,
         TCellTag cellTag)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        auto masterChannel = Bootstrap_->GetMasterChannel(cellTag);
+        TDataNodeTrackerServiceProxy proxy(std::move(masterChannel));
+        proxy.SetDefaultTimeout(GetDynamicConfig()->IncrementalHeartbeatTimeout);
 
         auto nodeId = Bootstrap_->GetNodeId();
 
@@ -1365,10 +1379,26 @@ private:
             }
         }
 
+        auto mediumDirectory = Bootstrap_->GetMediumDirectoryManager()->GetMediumDirectory();
         for (auto [mediumIndex, ioWeight] : mediumIndexToIOWeight) {
             auto* protoStatistics = statistics->add_media();
             protoStatistics->set_medium_index(mediumIndex);
             protoStatistics->set_io_weight(ioWeight);
+
+            const auto& mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
+            if (!mediumDescriptor) {
+                continue;
+            }
+
+            const auto& locationConfigPerMedium = GetNodeDynamicConfig()->StoreLocationConfigPerMedium;
+            auto config = locationConfigPerMedium.find(mediumDescriptor->Name);
+            if (config == locationConfigPerMedium.end()) {
+                continue;
+            }
+
+            if (auto sessionCountLimit = config->second->SessionCountLimit) {
+                protoStatistics->set_max_write_sessions_per_location(*sessionCountLimit);
+            }
         }
 
         int totalCachedChunkCount = 0;
@@ -1385,9 +1415,11 @@ private:
         statistics->set_full(full);
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        statistics->set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User));
+        statistics->set_total_user_session_count(sessionManager->GetSessionCount(ESessionType::User) + sessionManager->GetSessionCount(ESessionType::Nbd));
         statistics->set_total_replication_session_count(sessionManager->GetSessionCount(ESessionType::Replication));
         statistics->set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
+
+        statistics->set_max_write_sessions(Bootstrap_->GetConfig()->DataNode->MaxWriteSessions);
     }
 
     bool IsLocationWriteable(const TStoreLocationPtr& location) const
@@ -1420,7 +1452,7 @@ private:
         chunkAddInfo.set_sealed(chunk->GetInfo().sealed());
 
         auto locationUuid = chunk->GetLocation()->GetUuid();
-        chunkAddInfo.set_location_index(locationDirectory->GetOrCreateIndex(locationUuid));
+        chunkAddInfo.set_location_directory_index(locationDirectory->GetOrCreateIndex(locationUuid));
         // COMPAT(kvk1920): Remove after 23.2.
         if (LocationUuidsRequired_) {
             ToProto(chunkAddInfo.mutable_location_uuid(), locationUuid);
@@ -1444,7 +1476,7 @@ private:
         chunkRemoveInfo.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
 
         auto locationUuid = chunk->GetLocation()->GetUuid();
-        chunkRemoveInfo.set_location_index(locationDirectory->GetOrCreateIndex(locationUuid));
+        chunkRemoveInfo.set_location_directory_index(locationDirectory->GetOrCreateIndex(locationUuid));
         if (LocationUuidsRequired_) {
             ToProto(chunkRemoveInfo.mutable_location_uuid(), locationUuid);
         }

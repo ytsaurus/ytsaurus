@@ -4,14 +4,15 @@
 
 #include "bootstrap.h"
 #include "config.h"
+#include "cypress_proxy_service_base.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
 #include "master_connector.h"
 #include "path_resolver.h"
 #include "per_user_and_workload_request_queue_provider.h"
+#include "response_keeper.h"
 #include "sequoia_service.h"
 #include "sequoia_session.h"
-#include "response_keeper.h"
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
 
@@ -25,9 +26,12 @@
 
 #include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
+
+#include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -57,21 +61,19 @@ using NSequoiaClient::TRawYPath;
 
 class TObjectService
     : public IObjectService
-    , public TServiceBase
+    , public TCypressProxyServiceBase
 {
 public:
     explicit TObjectService(IBootstrap* bootstrap)
-        : TServiceBase(
-            /*invoker*/ nullptr,
+        : TCypressProxyServiceBase(
+            bootstrap,
+            bootstrap->GetInvoker("ObjectService"),
             TObjectServiceProxy::GetDescriptor(),
             CypressProxyLogger(),
             TServiceOptions{
                 .Authenticator = bootstrap->GetNativeAuthenticator(),
             })
-        , Bootstrap_(bootstrap)
         , Connection_(bootstrap->GetNativeConnection())
-        , ThreadPool_(CreateThreadPool(/*threadCount*/ 1, "ObjectService"))
-        , Invoker_(ThreadPool_->GetInvoker())
         , ThrottlerFactory_(bootstrap->CreateDistributedThrottlerFactory(
             GetDynamicConfig()->DistributedThrottler,
             bootstrap->GetControlInvoker(),
@@ -88,7 +90,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10'000)
             .SetConcurrencyLimit(10'000)
-            .SetInvoker(Invoker_)
             .SetRequestQueueProvider(RequestQueueProvider_));
 
         DeclareServerFeature(EMasterFeature::Portals);
@@ -102,11 +103,6 @@ public:
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
-    void Reconfigure(const TObjectServiceDynamicConfigPtr& config) override
-    {
-        ThreadPool_->SetThreadCount(config->ThreadPoolSize);
-    }
-
     IServicePtr GetService() override
     {
         return MakeStrong(this);
@@ -114,7 +110,7 @@ public:
 
     bool IsUp(const TCtxDiscoverPtr& /*context*/) override
     {
-        return Bootstrap_->GetMasterConnector()->IsRegistered();
+        return Bootstrap_->GetMasterConnector()->IsUp();
     }
 
     const TObjectServiceDynamicConfigPtr& GetDynamicConfig() const
@@ -125,12 +121,7 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 
-    IBootstrap* const Bootstrap_;
-
-    const NApi::NNative::IConnectionPtr Connection_;
-
-    const IThreadPoolPtr ThreadPool_;
-    const IInvokerPtr Invoker_;
+    const NNative::IConnectionPtr Connection_;
 
     const IDistributedThrottlerFactoryPtr ThrottlerFactory_;
     const TPerUserAndWorkloadRequestQueueProviderPtr RequestQueueProvider_;
@@ -169,8 +160,7 @@ private:
                     "BytesThrottler",
                     CypressProxyLogger()),
                 Owner_->ThrottlerFactory_->GetOrCreateThrottler(
-                    // TODO(babenko): migrate to std::string
-                    TString(throttlerId),
+                    throttlerId,
                     throttlerConfig));
         }
     };
@@ -270,8 +260,8 @@ public:
         , TargetCellTag_(targetCellTag)
         , MasterChannelKind_(masterChannelKind)
         , ForceUseTargetCellTag_(
-            targetCellTag != Owner_->Bootstrap_->GetNativeConnection()->GetPrimaryMasterCellTag())
-        , Logger(Owner_->Logger)
+            targetCellTag != Owner_->Connection_->GetPrimaryMasterCellTag())
+        , Logger(Owner_->Logger.WithTag("RequestId: %v", RpcContext_->GetRequestId()))
     { }
 
     void Run()
@@ -301,6 +291,8 @@ private:
 
     struct TSubrequest
     {
+        int Index;
+
         TSharedRefArray RequestMessage;
         std::optional<NRpc::NProto::TRequestHeader> RequestHeader;
 
@@ -359,6 +351,7 @@ private:
         std::optional<bool> mutating;
         for (int index = 0; index < subrequestCount; ++index) {
             auto& subrequest = Subrequests_[index];
+            subrequest.Index = index;
 
             auto partCount = request.part_counts(index);
             TSharedRefArrayBuilder messageBuilder(partCount);
@@ -381,6 +374,17 @@ private:
 
             const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             auto mutatingSubrequest = ypathExt.mutating();
+
+            YT_LOG_DEBUG("Parsed subrequest (Method: %v, TargetPath: %v, Mutating: %v%v, Retry: %v)",
+                header.method(),
+                ypathExt.target_path(),
+                mutatingSubrequest,
+                MakeFormatterWrapper([&] (TStringBuilderBase* builder) {
+                    if (mutatingSubrequest) {
+                        builder->AppendFormat(", MutationId: %v", NRpc::GetMutationId(header));
+                    }
+                }),
+                header.retry());
 
             if (!mutating.has_value()) {
                 mutating = mutatingSubrequest;
@@ -478,7 +482,9 @@ private:
         }
 
         auto responses = WaitFor(AllSet(std::move(responseFutures)))
-            .ValueOrThrow(); // Unexpected error, just reply to the client.
+            // On unexpected error, just reply to the client.
+            .ValueOrThrow();
+
         for (const auto& [response, requestInfo] : Zip(responses, requestInfos)) {
             if (!response.IsOK()) {
                 if (requestInfo.SubrequestIndices.size() == Subrequests_.size()) {
@@ -511,10 +517,11 @@ private:
         TRange<int> subrequestIndices,
         TCellTag cellTag)
     {
-        const auto& connection = Owner_->Bootstrap_->GetNativeConnection();
-        const auto& masterCellDirectory = connection->GetMasterCellDirectory();
+        const auto& masterCellDirectory = Owner_->Connection_->GetMasterCellDirectory();
         const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(nakedMasterChannel);
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
         auto masterRequest = proxy.Execute();
 
@@ -617,8 +624,7 @@ private:
                 if (IsSubrequestRejectedByMaster(index, subresponseMessage)) {
                     YT_LOG_DEBUG(
                         "Subrequest was rejected by master server in favor of Sequoia "
-                        "(RequestId: %v, SubrequestIndex: %v)",
-                        RpcContext_->GetRequestId(),
+                        "(SubrequestIndex: %v)",
                         index);
 
                     Subrequests_[index].Target = ERequestTarget::Sequoia;
@@ -630,8 +636,7 @@ private:
                     YT_LOG_DEBUG(
                         originError,
                         "Possible Sequoia resolve miss encountered; marking it as retriable "
-                        "(RequestId: %v, SubrequestIndex: %v, SequoiaObjectId: %v)",
-                        RpcContext_->GetRequestId(),
+                        "(SubrequestIndex: %v, SequoiaObjectId: %v)",
                         index,
                         Subrequests_[index].ResolvedNodeId);
                     // See comment next to |TSubrequest::TResolvedNodeId|.
@@ -640,13 +645,21 @@ private:
             }
 
             Subrequests_[index].Target = ERequestTarget::None;
-            ReplyOnSubrequest(index, std::move(subresponseMessage));
+
+            // TODO(banbenko, kvk1920): Currently this is only filled for requests forwarded to masters.
+            // Handle Sequoia requests as well!
+            auto revision = FromProto<NHydra::TRevision>(subresponse.revision());
+            ReplyOnSubrequest(index, std::move(subresponseMessage), revision);
         }
 
         for (int index : subrequestsWithoutResponse) {
             // In case of backoff alarm master can omit response for some
             // subrequests. Such subrequests shouldn't be invoked in Sequoia.
             Subrequests_[index].Target = ERequestTarget::None;
+        }
+
+        for (int uncertainIndex : masterResponse->uncertain_subrequest_indexes()) {
+            RpcContext_->Response().add_uncertain_subrequest_indexes(subrequestIndices[uncertainIndex]);
         }
     }
 
@@ -775,12 +788,15 @@ private:
 
         Visit(resolveResult,
             [&] (const TCypressResolveResult& cypressResolveResult) {
-                newPath = cypressResolveResult.Path.Underlying();
+                newPath = cypressResolveResult.Path;
+            },
+            [&] (const TMasterResolveResult& /*masterResolveResult*/) {
+                // NB: Path is currently unused in master requests.
             },
             [&] (const TSequoiaResolveResult& sequoiaResolveResult) {
                 subrequest->ResolvedNodeId = sequoiaResolveResult.Id;
 
-                newPath = sequoiaResolveResult.UnresolvedSuffix.Underlying();
+                newPath = sequoiaResolveResult.UnresolvedSuffix;
             });
 
         auto& header = *subrequest->RequestHeader;
@@ -800,7 +816,7 @@ private:
             header);
     }
 
-    static void RewriteRequestForForwardingToMaster(
+    void RewriteRequestForForwardingToMaster(
         TSubrequest* subrequest,
         const TResolveResult& resolveResult)
     {
@@ -809,14 +825,19 @@ private:
         auto& header = *subrequest->RequestHeader;
         SetAllowResolveFromSequoiaObject(&header, true);
 
+        auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
         // Replace "<unresolved-suffix>"" with "#<object-id>/<unresolved-suffix>".
         if (const auto* sequoiaResolveResult = std::get_if<TSequoiaResolveResult>(&resolveResult)) {
-            auto* ypathExt = header.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
             ypathExt->set_target_path(
-                FromObjectId(sequoiaResolveResult->Id) + sequoiaResolveResult->UnresolvedSuffix.Underlying());
+                FromObjectId(sequoiaResolveResult->Id) + sequoiaResolveResult->UnresolvedSuffix);
         }
 
         subrequest->RequestMessage = SetRequestHeader(subrequest->RequestMessage, header);
+
+        YT_LOG_DEBUG(
+            "Forwarding subrequest to master (SubrequestIndex: %v, TargetPath: %v)",
+            subrequest->Index,
+            ypathExt->target_path());
     }
 
     //! Either executes subrequest in Sequoia or marks it as non-Sequoia. May
@@ -827,9 +848,10 @@ private:
             subrequest->Target == ERequestTarget::Undetermined ||
             subrequest->Target == ERequestTarget::Sequoia);
 
-        auto originalTargetPath = TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader));
+        auto originalTargetPath = ValidateAndMakeYPath(
+            TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader))
+        );
         auto cypressTransactionId = GetTransactionId(*subrequest->RequestHeader);
-        auto isMutating = IsRequestMutating(*subrequest->RequestHeader);
         auto prerequisiteTransactionIds = ParsePrerequisiteTransactionIds(*subrequest->RequestHeader);
 
         if (cypressTransactionId && !IsCypressTransactionType(TypeFromId(cypressTransactionId))) {
@@ -838,20 +860,19 @@ private:
             return std::nullopt;
         }
 
-        THROW_ERROR_EXCEPTION_IF(
-            !isMutating && !prerequisiteTransactionIds.empty(),
-            "Read requests with prerequisites are forbidden in Sequoia");
-
         TSequoiaSessionPtr session;
         TResolveResult resolveResult;
-
         try {
             session = TSequoiaSession::Start(Owner_->Bootstrap_, cypressTransactionId, prerequisiteTransactionIds);
             resolveResult = ResolvePath(
                 session,
-                originalTargetPath,
+                std::move(originalTargetPath),
+                /*pathIsAdditional*/ false,
+                subrequest->RequestHeader->service(),
                 subrequest->RequestHeader->method());
         } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Subrequest resolve failed (SubrequestIndex: %v)",
+                subrequest->Index);
             return CreateErrorResponseMessage(ex);
         }
 
@@ -870,15 +891,16 @@ private:
 
         auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
             ->TryInvoke(context, session, resolveResult);
+        // TODO(kvk1920): check prerequisite transaction liveness after read
+        // request.
         switch (invokeResult) {
             case EInvokeResult::Executed:
                 return context->GetResponseMessage();
+
             case EInvokeResult::ForwardToMaster:
                 RewriteRequestForForwardingToMaster(subrequest, resolveResult);
                 subrequest->Target = ERequestTarget::Master;
                 return std::nullopt;
-            default:
-                YT_ABORT();
         }
     }
 
@@ -887,6 +909,7 @@ private:
         const auto& masterConnector = Owner_->Bootstrap_->GetMasterConnector();
         masterConnector->ValidateRegistration();
 
+        auto processInitialSync = true;
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
             auto& subrequest = Subrequests_[index];
             auto target = subrequest.Target;
@@ -894,8 +917,11 @@ private:
                 continue;
             }
 
-            YT_LOG_DEBUG("Executing subrequest in Sequoia (RequestId: %v, SubrequestIndex: %v)",
-                RpcContext_->GetRequestId(),
+            if (std::exchange(processInitialSync, false)) {
+                MaybeSyncWithMaster();
+            }
+
+            YT_LOG_DEBUG("Executing subrequest in Sequoia (SubrequestIndex: %v)",
                 index);
 
             if (auto subresponse = ExecuteSequoiaSubrequest(&subrequest)) {
@@ -910,33 +936,87 @@ private:
         RpcContext_->Reply(error);
     }
 
-    void ReplyOnSubrequest(int subrequestIndex, TSharedRefArray subresponseMessage)
+    void ReplyOnSubrequest(
+        int subrequestIndex,
+        TSharedRefArray subresponseMessage,
+        NHydra::TRevision revision = NHydra::NullRevision)
     {
         // Caller is responsible for marking subrequest as executed.
         YT_VERIFY(Subrequests_[subrequestIndex].Target == ERequestTarget::None);
 
         auto& response = RpcContext_->Response();
 
-        auto* subresponseInfo = response.add_subresponses();
-        subresponseInfo->set_index(subrequestIndex);
-        subresponseInfo->set_part_count(subresponseMessage.Size());
+        auto* subresponse = response.add_subresponses();
+        subresponse->set_index(subrequestIndex);
+        subresponse->set_part_count(subresponseMessage.Size());
+        if (revision != NHydra::NullRevision) {
+            subresponse->set_revision(ToProto(revision));
+        }
+
         response.Attachments().insert(
             response.Attachments().end(),
             subresponseMessage.Begin(),
             subresponseMessage.End());
     }
 
-    bool CheckSubresponseError(const TSharedRefArray& message, TErrorCode errorCode)
+    // Performs selective synchronization with
+    // - the user directory,
+    // - the ground update queues across all master cells.
+    void MaybeSyncWithMaster() const
     {
-        try {
-            auto subresponse = New<NYTree::TYPathResponse>();
-            subresponse->Deserialize(message);
-        } catch (const std::exception& ex) {
-            auto error = TError(ex);
-            return error.FindMatching(errorCode).has_value();
+        const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
+        if (!config->EnableUserDirectorySync &&
+            !config->EnableGroundUpdateQueuesSync)
+        {
+            return;
         }
 
-        return false;
+        YT_LOG_DEBUG(
+            "Synchronizing with master before Sequoia request invocation "
+            "(UserDirectorySync: %v, GroundUpdateQueuesSync: %v)",
+            config->EnableUserDirectorySync,
+            config->EnableGroundUpdateQueuesSync);
+
+        std::vector<TFuture<void>> futures;
+        if (config->EnableUserDirectorySync) {
+            const auto& userDirectorySynchronizer = Owner_->Bootstrap_->GetUserDirectorySynchronizer();
+            futures.push_back(userDirectorySynchronizer->NextSync(true));
+        }
+        if (config->EnableGroundUpdateQueuesSync) {
+            futures.push_back(DoSyncWithGroundUpdateQueues());
+        }
+
+        WaitFor(AllSucceeded(std::move(futures)))
+            .ThrowOnError();
+
+        YT_LOG_DEBUG("Successfully synchronized with master");
+    }
+
+    TFuture<void> DoSyncWithGroundUpdateQueues() const
+    {
+        const auto& connection = Owner_->Bootstrap_->GetNativeConnection();
+        const auto& masterCellDirectory = connection->GetMasterCellDirectory();
+        auto cellTagsToSyncWith = masterCellDirectory->GetMasterCellTagsWithRole(
+            NCellMasterClient::EMasterCellRole::CypressNodeHost);
+
+        const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
+
+        auto syncWithCell = [&] (TCellTag cellTag) {
+            const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(
+                EMasterChannelKind::Follower,
+                cellTag);
+            auto proxy = TSequoiaTransactionServiceProxy(std::move(nakedMasterChannel));
+            proxy.SetDefaultTimeout(config->GroundUpdateQueuesSyncRequestTimeout);
+
+            auto request = proxy.SyncWithGroundUpdateQueue();
+            return request->Invoke().AsVoid();
+        };
+
+        std::vector<TFuture<void>> futures;
+        for (auto cellTag : cellTagsToSyncWith) {
+            futures.push_back(syncWithCell(cellTag));
+        }
+        return AllSucceeded(std::move(futures));
     }
 };
 
@@ -944,29 +1024,16 @@ private:
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
-    if (!request->has_cell_tag()) {
-        THROW_ERROR_EXCEPTION("Cell tag is not provided in request");
-    }
+    auto cellTag = context->GetTargetMasterCellTag();
+    auto masterChannelKind = context->GetTargetMasterChannelKind();
 
-    if (!request->has_master_channel_kind()) {
-        THROW_ERROR_EXCEPTION("Peer kind is not provided in request");
-    }
-
-    auto cellTag = FromProto<TCellTag>(request->cell_tag());
-    if (cellTag == PrimaryMasterCellTagSentinel) {
-        cellTag = Bootstrap_->GetNativeConnection()->GetPrimaryMasterCellTag();
-    }
-    auto masterChannelKind = FromProto<EMasterChannelKind>(request->master_channel_kind());
-
-    context->SetRequestInfo("CellTag: %v, MasterChannelKind: %v, RequestCount: %v",
-        cellTag,
-        masterChannelKind,
+    context->SetRequestInfo("RequestCount: %v",
         request->part_counts_size());
 
     if (masterChannelKind != EMasterChannelKind::Leader &&
         masterChannelKind != EMasterChannelKind::Follower)
     {
-        THROW_ERROR_EXCEPTION("Expected %Qv or %Qv master channel kind, got %Qv",
+        THROW_ERROR_EXCEPTION("Expected %Qlv or %Qlv master channel kind, got %Qlv",
             EMasterChannelKind::Leader,
             EMasterChannelKind::Follower,
             masterChannelKind);

@@ -100,6 +100,7 @@ struct TSelectRowsCounters
     NProfiling::TCounter UnmergedMissingRowCount;
     NProfiling::TCounter UnmergedDataWeight;
     NProfiling::TCounter WastedUnmergedDataWeight;
+    NProfiling::TCounter ConcurrentStoreRotateErrors;
 
     NProfiling::TTimeCounter CpuTime;
     NProfiling::TTimeCounter DecompressionCpuTime;
@@ -419,15 +420,30 @@ private:
         TEnumIndexedArray<EHunkCompactionReason, i64> hunkChunkCountByReason);
 };
 
+struct TSmoothMovementCounters
+{
+    TSmoothMovementCounters() = default;
+
+    explicit TSmoothMovementCounters(const NProfiling::TProfiler& profiler);
+
+    // Stage times are profiled at smooth movement source and denote the time
+    // of the corresponding stage.
+    // Switch time is profiled at target and denotes the time between the moment
+    // when TReqSwitchServant mutation is sent by source and the moment when
+    // it arrives at target.
+    TEnumIndexedArray<ESmoothMovementStage, NProfiling::TEventTimer> StageTime;
+    NProfiling::TEventTimer SwitchTime;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TTableProfilerPtr CreateTableProfiler(
     EDynamicTableProfilingMode profilingMode,
-    const TString& tabletCellBundle,
-    const TString& tablePath,
+    const std::string& tabletCellBundle,
+    const NYPath::TYPath& tablePath,
     const TString& tableTag,
-    const TString& account,
-    const TString& medium,
+    const std::string& account,
+    const std::string& medium,
     NObjectClient::TObjectId schemaId,
     const NTableClient::TTableSchemaPtr& schema);
 
@@ -484,6 +500,7 @@ public:
     NProfiling::TEventTimer* GetThrottlerTimer(ETabletDistributedThrottlerKind kind);
     NProfiling::TCounter* GetThrottlerCounter(ETabletDistributedThrottlerKind kind);
     TLsmCounters* GetLsmCounters();
+    TSmoothMovementCounters* GetSmoothMovementCounters();
 
     const NProfiling::TProfiler& GetProfiler() const;
 
@@ -527,6 +544,7 @@ private:
     TTabletDistributedThrottlerTimersVector ThrottlerWaitTimers_;
     TTabletDistributedThrottlerCounters ThrottlerCounters_;
     TLsmCounters LsmCounters_;
+    std::optional<TSmoothMovementCounters> SmoothMovementCounters_;
 
     template <class TCounter>
     TCounter* GetCounterUnlessDisabled(TCounter* counter);

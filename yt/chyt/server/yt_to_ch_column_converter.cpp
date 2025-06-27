@@ -512,7 +512,7 @@ private:
 // I still don't get the difference...). Similarly, input native YT columns will always be
 // string columns. I am not sure if these string columns may provide non-trivial null bitmap,
 // but that makes not much difference as our implementation is ready for that.
-template <bool IsV1Optional>
+template <bool IsV1Optional, bool EnableComplexNullConverison>
 class TOptionalConverter
     : public TYsonExtractingConverterBase
 {
@@ -573,6 +573,11 @@ public:
                 for (const auto& value : values) {
                     NullColumn_->insertValue(value.Type == EValueType::Null ? 1 : 0);
                 }
+            } else if constexpr (!EnableComplexNullConverison) {
+                auto isNull = [](const auto& value) { return value.Type == EValueType::Null; };
+                if (std::any_of(values.begin(), values.end(), isNull)) {
+                    ThrowComplexNullConversion();
+                }
             }
             UnderlyingConverter_->ConsumeUnversionedValues(values);
         } else {
@@ -586,6 +591,8 @@ public:
     {
         if (NullColumn_) {
             NullColumn_->getData().resize_fill(NullColumn_->size() + count, 1);
+        } else if constexpr (!EnableComplexNullConverison) {
+            ThrowComplexNullConversion();
         }
         UnderlyingConverter_->ConsumeNulls(count);
     }
@@ -596,8 +603,14 @@ public:
             // Column of type Null or Void.
             ConsumeNulls(column.ValueCount);
         } else if constexpr (IsV1Optional) {
+            auto bytemap = BuildNullBytemapForCHColumn(column);
             if (NullColumn_) {
-                ReplaceColumnTypeChecked(NullColumn_, BuildNullBytemapForCHColumn(column));
+                ReplaceColumnTypeChecked(NullColumn_, std::move(bytemap));
+            } else if constexpr (!EnableComplexNullConverison) {
+                auto isNull = [](const auto& value) { return value == 0; };
+                if (std::any_of(bytemap->getData().begin(), bytemap->getData().end(), isNull)) {
+                    ThrowComplexNullConversion();
+                }
             }
 
             UnderlyingConverter_->ConsumeYtColumn(column, filterHint);
@@ -633,6 +646,11 @@ private:
     const IConverterPtr UnderlyingConverter_;
     int NestingLevel_;
     DB::ColumnVector<DB::UInt8>::MutablePtr NullColumn_;
+
+    void ThrowComplexNullConversion() const
+    {
+        THROW_ERROR_EXCEPTION("ClickHouse doesn't support nullable arrays and complex structures, conversion is disabled");
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1325,9 +1343,17 @@ private:
         }
 
         if (isV1Optional) {
-            return std::make_unique<TOptionalConverter<true>>(std::move(underlyingConverter), nestingLevel);
+            if (Settings_->EnableComplexNullConverison) {
+                return std::make_unique<TOptionalConverter<true, true>>(std::move(underlyingConverter), nestingLevel);
+            } else {
+                return std::make_unique<TOptionalConverter<true, false>>(std::move(underlyingConverter), nestingLevel);
+            }
         } else {
-            return std::make_unique<TOptionalConverter<false>>(std::move(underlyingConverter), nestingLevel);
+            if (Settings_->EnableComplexNullConverison) {
+                return std::make_unique<TOptionalConverter<false, true>>(std::move(underlyingConverter), nestingLevel);
+            } else {
+                return std::make_unique<TOptionalConverter<false, false>>(std::move(underlyingConverter), nestingLevel);
+            }
         }
     }
 

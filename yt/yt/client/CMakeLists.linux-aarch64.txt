@@ -62,19 +62,22 @@ target_link_libraries(yt-yt-client PUBLIC
   yt-core-https
   yt-library-auth
   yt-library-decimal
-  yt-library-re2
   yt-library-erasure
   yt-library-numeric
   yt-library-quantile_digest
+  yt-library-re2
+  yt-library-tz_types
   yt_proto-yt-client
   cpp-digest-crc32c
   library-cpp-json
   cpp-string_utils-base64
+  library-cpp-cron_expression
   contrib-libs-pfr
 )
 
 target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/chaos_lease_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/client_common.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/client_cache.cpp
@@ -106,6 +109,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/chaos_lease.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/client_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/client_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/connection.cpp
@@ -117,6 +121,7 @@ target_sources(yt-yt-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/table_mount_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/table_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/table_writer.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/target_cluster_injecting_channel.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/timestamp_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/transaction.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/api/rpc_proxy/transaction_impl.cpp

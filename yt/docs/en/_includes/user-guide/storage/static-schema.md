@@ -17,7 +17,7 @@ Each such element is a dict with a set structure:
 | `name` | `string` | Column name. | Yes |
 | `type` | `string` | Type of column elements. | Yes, if `type_v3` is not set |
 | `type_v3` | `any` | Alternative type representation. This field enables you to specify columns with [composite types](../../../user-guide/storage/data-types.md#schema). | Yes, if `type` is not set |
-| `sort_order` | `string` | The column sort order - either a missing value or the `ascending` value is allowed. If the value is set, the column is key. | No |
+| `sort_order` | `string` | The column sort order - either a missing value or the `ascending` value is allowed. If the value is set, the column is key. (Please note that the `descending` sort order is currently in alpha and may be unavailable on clusters; we don't recommend using it) | No |
 | `lock` | `string` | Lock name. For non-key columns only. | No |
 | `expression` | `string` | An expression defining the value of the computed column field. For key columns only. For more information, see [Sharding](../../../user-guide/dynamic-tables/resharding.md). | No |
 | `aggregate` | `string` | Aggregate function name. For non-key columns only. | No |
@@ -26,14 +26,14 @@ Each such element is a dict with a set structure:
 
 Schema properties:
 
-- The column name must be a non-empty string. The maximum length is 256 characters;
-- The column name cannot begin with system prefix `@`;
-- Column names cannot be repeated within a table;
-- Key columns must form the schema prefix;
-- All key columns must be specified in the schema;
-- Up to 32,000 columns are supported, but we recommend limiting the number of columns to four figures;
-- A column must always have an explicitly specified type: in the `type` or `type_v3` attribute;
-- When reading a schema, both attributes are always returned: `type` and `type_v3` regardless of how the schema was created;
+- The column name must be a non-empty string. The maximum length is 256 characters.
+- The column name cannot begin with system prefix `@`.
+- Column names cannot be repeated within a table.
+- Key columns must form the schema prefix.
+- All key columns must be specified in the schema.
+- Up to 32,000 columns are supported, but we recommend limiting the number of columns to four figures.
+- A column must always have an explicitly specified type: in the `type` or `type_v3` attribute.
+- When reading a schema, both attributes are always returned: `type` and `type_v3` regardless of how the schema was created.
 - Computed columns can only be key. Computed columns can depend only on key non-computed columns.
 
 Schema attributes:
@@ -50,7 +50,7 @@ Values in the table cells always have the type specified in the schema.
 
 You can use one of the following methods to specify a type in the table schema:
 
-- Using the `type` and (optional) `required` keys, you can specify only primitive or optional primitive types;
+- Using the `type` and (optional) `required` keys, you can specify only primitive or optional primitive types.
 - Using the `type_v3` key.
 
 The `type` key expects a string.
@@ -202,7 +202,7 @@ $ yt --proxy {{prestable-cluster}} get //tmp/table_1/@schema
     "unique_keys" = %false;
     "strict" = %false;
 > []
-# Create a table with explicit indication of a schema
+# Create a table with an explicitly specified schema
 $ yt --proxy {{prestable-cluster}} create table //tmp/table_2 --attributes '{schema = [{name = a; type = int64}; {name = b; type = string}]}'
 213c-b75ef-3fc0191-1e85fe66
 $ yt --proxy {{prestable-cluster}} get //tmp/table_2/@schema_mode
@@ -229,7 +229,7 @@ $ yt --proxy {{prestable-cluster}} get //tmp/table_2/@schema
   - If you additionally enable the columnar format of storing [chunks](../../../user-guide/storage/chunks.md) `optimize_for = scan`, data will be stored more compactly and reading a subset of columns will be faster.
   - Some table readers can work faster for tables with a schema.
 - Convenience and more options:
-  - {% if audience == "public" %}YQL{% else %}[YQL](https://yql.{{internal-domain}}/){% endif %} is more convenient for working with schematized tables;
+  - {% if audience == "public" %}YQL{% else %}[YQL](https://yql.{{internal-domain}}/){% endif %} is more convenient for working with schematized tables.
   - In [CHYT](../../../user-guide/data-processing/chyt/about-chyt.md), you cannot work with unschematized data.
 
 
@@ -276,9 +276,9 @@ System operations such as Sort, Erase, Merge, and Remote copy can independently 
 Changing a schema is an easy operation with metainformation that does not require reading data. To change a schema, use the `alter_table` command.
 The schema of an empty table can be changed in a random manner. For non-empty tables, there are several allowed schema change scenarios:
 
-- Adding a non-key column to a strict schema: `strict = %true`;
-- Adding a key column to the end of the key in a strict schema: `strict = %true`;
-- Deleting a column from a non-strict schema: `strict = %false`;
+- Adding a non-key column to a strict schema: `strict = %true`.
+- Adding a key column to the end of the key in a strict schema: `strict = %true`.
+- Deleting a column from a non-strict schema: `strict = %false`.
 - Converting a schema from strict (`strict = %true`) to non-strict (`strict = %false`).
 
 Other schema changes are prohibited, because they require data revalidation and such changes can be made through `Merge` or `Map` operations.
@@ -295,7 +295,6 @@ There are a number of restrictions on changing the schema:
 ### Reading a schema
 
 - CLI
-
   ```bash
   yt --proxy {{prestable-cluster}} get //home/tutorial/links_sorted_schematized/@schema
   ```
@@ -307,6 +306,7 @@ There are a number of restrictions on changing the schema:
   ```
 
 ### Creating a table with a schema
+
 
 - CLI
 
@@ -338,7 +338,7 @@ You can use the `@schema` attribute of the path when writing data using the `wri
 
 - CLI
   ```bash
-  cat data | yt --proxy {{prestable-cluster}} write '<schema=[{name = a; type = int64}; {name = b; type = string}]>//tmp/table'
+  cat data | yt write '<schema=[{name = a; type = int64}; {name = b; type = string}]>//tmp/table'
   ```
 
 ### Setting a schema and changing a format for typified and structured data
@@ -357,7 +357,7 @@ CLI
 
     {% if doc_type=='internal' %}
 
-  - InferSchema in c++ ;
+  - InferSchema in c++ .
 
   - If you have a .proto file corresponding to the table, CreateTableSchema can help.
 

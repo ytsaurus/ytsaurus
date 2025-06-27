@@ -6,11 +6,11 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFirstBatchTimeTrackingBase::TFirstBatchTimeTrackingBase(TCpuInstant startTime)
+TFirstBatchTimeTrackingBase::TFirstBatchTimeTrackingBase(TInstant startTime)
     : StartTime_(startTime)
 { }
 
-std::optional<TCpuDuration> TFirstBatchTimeTrackingBase::GetTimeToFirstBatch() const
+std::optional<TDuration> TFirstBatchTimeTrackingBase::GetTimeToFirstBatch() const
 {
     if (auto firstBatchTime = FirstBatchTime_.load()) {
         YT_VERIFY(firstBatchTime >= StartTime_);
@@ -28,8 +28,8 @@ void TFirstBatchTimeTrackingBase::TryUpdateFirstBatchTime()
     }
 
     // Slow path.
-    TCpuInstant zero = 0;
-    auto now = GetCpuInstant();
+    TInstant zero = TInstant::Zero();
+    auto now = GetInstant();
     // Try to set FirstBatchTime_.
     // If FirstBatchTime_ appeared not to be equal to zero then
     // we are not the first batch and should do nothing.

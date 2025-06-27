@@ -1,12 +1,14 @@
 #include "table_puller.h"
 
-#include "alien_cluster_client_cache_base.h"
 #include "alien_cluster_client_cache.h"
+#include "alien_cluster_client_cache_base.h"
 #include "chaos_agent.h"
+#include "config.h"
+#include "error_manager.h"
+#include "private.h"
 #include "tablet.h"
 #include "tablet_slot.h"
 #include "tablet_snapshot_store.h"
-#include "private.h"
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
@@ -78,11 +80,11 @@ class TBannedReplicaTracker
 public:
     struct TBanInfo
     {
-        size_t Counter;
+        int Counter;
         TError LastError;
     };
 
-    explicit TBannedReplicaTracker(NLogging::TLogger logger, std::optional<size_t> replicaBanDuration)
+    explicit TBannedReplicaTracker(NLogging::TLogger logger, std::optional<int> replicaBanDuration)
         : Logger(std::move(logger))
         , ReplicaBanDuration_(replicaBanDuration)
     { }
@@ -92,7 +94,7 @@ public:
         auto it = BannedReplicas_.find(replicaId);
         bool result = it != BannedReplicas_.end() && it->second.Counter > 0;
 
-        YT_LOG_INFO("Banned replica tracker checking replica (ReplicaId: %v, Result: %v)",
+        YT_LOG_DEBUG("Banned replica tracker checking replica (ReplicaId: %v, Result: %v)",
             replicaId,
             result);
 
@@ -136,7 +138,7 @@ public:
 
 private:
     const NLogging::TLogger Logger;
-    const std::optional<size_t> ReplicaBanDuration_;
+    const std::optional<int> ReplicaBanDuration_;
 
     THashMap<TReplicaId, TBanInfo> BannedReplicas_;
 
@@ -209,7 +211,8 @@ public:
         ITabletSnapshotStorePtr tabletSnapshotStore,
         IInvokerPtr workerInvoker,
         IThroughputThrottlerPtr nodeInThrottler,
-        IMemoryUsageTrackerPtr memoryTracker)
+        IMemoryUsageTrackerPtr memoryTracker,
+        IErrorManagerPtr errorManager)
         : Config_(std::move(config))
         , Slot_(std::move(slot))
         , TabletSnapshotStore_(std::move(tabletSnapshotStore))
@@ -225,13 +228,15 @@ public:
             .WithTag("%v, UpstreamReplicaId: %v",
                 tablet->GetLoggingTag(),
                 ReplicaId_))
+        , ReplicationThrottler_(CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger))
         , Throttler_(CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             std::move(nodeInThrottler),
-            CreateReconfigurableThroughputThrottler(MountConfig_->ReplicationThrottler, Logger)
+            ReplicationThrottler_
         }))
         , MemoryTracker_(std::move(memoryTracker))
+        , ErrorManager_(std::move(errorManager))
         , ChaosAgent_(tablet->GetChaosAgent())
-        , BannedReplicaTracker_(Logger, MountConfig_->Testing.TablePullerReplicaBanIterationsCount)
+        , BannedReplicaTracker_(Logger, MountConfig_->Testing.TablePullerReplicaBanIterationCount)
         , LastReplicationProgressAdvance_(*tablet->RuntimeData()->ReplicationProgress.Acquire())
         , ReplicatorClientCache_(std::move(replicatorClientCache))
     { }
@@ -256,6 +261,20 @@ public:
         FiberFuture_.Reset();
     }
 
+    void BuildOrchidYson(NYTree::TFluentMap fluent) override
+    {
+        fluent.Item("table_puller")
+            .BeginMap()
+                .Item("replication_throttler")
+                    .BeginMap()
+                        .Item("limit").Value(ReplicationThrottler_->GetLimit())
+                        .Item("period").Value(ReplicationThrottler_->GetPeriod())
+                        .Item("estimated_overdraft_duration")
+                            .Value(ReplicationThrottler_->GetEstimatedOverdraftDuration())
+                    .EndMap()
+            .EndMap();
+    }
+
 private:
     const TTabletManagerConfigPtr Config_;
     const ITabletSlotPtr Slot_;
@@ -272,8 +291,11 @@ private:
 
     const NLogging::TLogger Logger;
 
+    const IReconfigurableThroughputThrottlerPtr ReplicationThrottler_;
     const IThroughputThrottlerPtr Throttler_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
+
+    const IErrorManagerPtr ErrorManager_;
 
     IChaosAgentPtr ChaosAgent_;
     TBannedReplicaTracker BannedReplicaTracker_;
@@ -281,6 +303,7 @@ private:
     TReplicationProgress LastReplicationProgressAdvance_;
     TInstant NextPermittedTimeForProgressBehindAlert_ = Now();
     TPerFiberClusterClientCache ReplicatorClientCache_;
+    TReplicaId LastPulledFromReplicaId_;
 
     TFuture<void> FiberFuture_;
 
@@ -306,7 +329,7 @@ private:
                 EPullerErrorKind::Default);
 
             if (kind == EPullerErrorKind::UnableToPickQueueReplica) {
-                TError aggregatedError = TError("Some queue replicas are banned");
+                auto aggregatedError = TError("Some queue replicas are banned");
 
                 for (const auto& [replicaId, banInfo] : BannedReplicaTracker_.GetBannedReplicas()) {
                     if (banInfo.Counter > 0) {
@@ -346,6 +369,21 @@ private:
             auto replicationCard = tabletSnapshot->TabletRuntimeData->ReplicationCard.Acquire();
             if (!replicationCard) {
                 THROW_ERROR_EXCEPTION("No replication card");
+            }
+
+            auto snapshotEra = tabletSnapshot->TabletRuntimeData->ReplicationEra.load();
+            if (snapshotEra == InvalidReplicationEra) {
+                YT_LOG_DEBUG("Will not pull rows since replication era is not known yet");
+                return;
+            }
+
+            if (replicationCard->Era < snapshotEra) {
+                // This can happen right after snapshot loading when old replication card is fetched from cache.
+                YT_LOG_DEBUG("Will not pull rows since replication card is outdated "
+                    "(ReplicationCardEra: %v, TabletSnapshotReplicationEra: %v)",
+                    replicationCard->Era,
+                    snapshotEra);
+                return;
             }
 
             auto* selfReplica = replicationCard->FindReplica(tabletSnapshot->UpstreamReplicaId);
@@ -390,6 +428,18 @@ private:
             }
             ReplicationRound_ = replicationRound;
 
+            if (auto pullRowsTransactionId = tabletSnapshot->TabletChaosData->PreparedWritePulledRowsTransactionId.Load()) {
+                YT_LOG_DEBUG("Will not pull rows since previous pull rows transaction is not fully serialized yet (TransactionId: %v)",
+                    pullRowsTransactionId);
+                return;
+            }
+
+            if (auto advanceTransactionId = tabletSnapshot->TabletChaosData->PreparedAdvanceReplicationProgressTransactionId.Load()) {
+                YT_LOG_DEBUG("Will not pull rows since previous advance transaction is not fully serialized yet (TransactionId: %v)",
+                    advanceTransactionId);
+                return;
+            }
+
             TAsyncSemaphoreGuard configGuard;
             auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();
             if (writeMode == ETabletWriteMode::Pull) {
@@ -405,10 +455,18 @@ private:
                 writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load();
             }
 
+            if (snapshotEra != tabletSnapshot->TabletRuntimeData->ReplicationEra.load()) {
+                YT_LOG_DEBUG("Skipping pull rows iteration since snapshot era has changed (SnapshotEra: %v, ReplicationEra: %v)",
+                    snapshotEra,
+                    tabletSnapshot->TabletRuntimeData->ReplicationEra.load());
+                return;
+            }
+
             if (writeMode != ETabletWriteMode::Pull) {
                 YT_LOG_DEBUG("Will not pull rows since tablet write mode does not imply pulling (WriteMode: %v)",
                     writeMode);
                 UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
+                LastPulledFromReplicaId_ = NullObjectId;
                 return;
             }
 
@@ -443,6 +501,8 @@ private:
                     ++ReplicationRound_;
                     LastReplicationProgressAdvance_ = std::move(*newProgress);
                 }
+
+                LastPulledFromReplicaId_ = NullObjectId;
             } else {
                 BannedReplicaTracker_.SyncReplicas(replicationCard);
                 DoPullRows(
@@ -454,10 +514,12 @@ private:
 
             UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, TError());
         } catch (const std::exception& ex) {
+            LastPulledFromReplicaId_ = NullObjectId;
             auto error = TError(ex);
             YT_LOG_ERROR(error, "Error pulling rows, backing off");
             if (tabletSnapshot) {
                 UpdatePullerErrors(tabletSnapshot->TabletRuntimeData->Errors, error);
+                ErrorManager_->HandleError(error, "PullRows", tabletSnapshot);
             }
 
             if (error.Attributes().Get<bool>("hard", false)) {
@@ -471,7 +533,8 @@ private:
     TReplicaOrError PickQueueReplica(
         const TTabletSnapshotPtr& tabletSnapshot,
         const TReplicationCardPtr& replicationCard,
-        const TRefCountedReplicationProgressPtr& replicationProgress)
+        const TRefCountedReplicationProgressPtr& replicationProgress,
+        TReplicaId lastPulledFromReplicaId)
     {
         // If our progress is less than any queue replica progress, pull from that replica.
         // Otherwise pull from sync replica of oldest era corresponding to our progress.
@@ -522,7 +585,19 @@ private:
             // NB: Allow this since sync replica could be catching up.
         }
 
+        auto chooseReplica = [&] (const auto& candidates) {
+            const auto& selfClusterName = selfReplica->ClusterName;
+            for (const auto& candidate : candidates) {
+                if (std::get<1>(candidate)->ClusterName == selfClusterName) {
+                    return candidate;
+                }
+            }
+
+            return candidates[RandomNumber(candidates.size())];
+        };
+
         auto findFreshQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*> {
+            std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*>> candidates;
             for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
                 if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
                     continue;
@@ -537,7 +612,11 @@ private:
 
                 if (selfReplica->ContentType == ETableReplicaContentType::Data) {
                     if (!IsReplicationProgressGreaterOrEqual(*replicationProgress, replicaInfo.ReplicationProgress)) {
-                        return {replicaId, &replicaInfo};
+                        if (replicaId == lastPulledFromReplicaId) {
+                            return {replicaId, &replicaInfo};
+                        }
+
+                        candidates.emplace_back(replicaId, &replicaInfo);
                     }
                 } else {
                     YT_VERIFY(selfReplica->ContentType == ETableReplicaContentType::Queue);
@@ -546,14 +625,24 @@ private:
                         replicationProgress->Segments[0].LowerKey,
                         replicationProgress->UpperKey);
                     if (replicaOldestTimestamp > oldestTimestamp) {
-                        return {replicaId, &replicaInfo};
+                        if (replicaId == lastPulledFromReplicaId) {
+                            return {replicaId, &replicaInfo};
+                        }
+
+                        candidates.emplace_back(replicaId, &replicaInfo);
                     }
                 }
             }
+
+            if (!candidates.empty()) {
+                return chooseReplica(candidates);
+            }
+
             return {};
         };
 
         auto findSyncQueueReplica = [&] () -> std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp> {
+            std::vector<std::tuple<NChaosClient::TReplicaId, NChaosClient::TReplicaInfo*, TTimestamp>> candidates;
             for (auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
                 if (BannedReplicaTracker_.IsReplicaBanned(replicaId)) {
                     continue;
@@ -587,7 +676,15 @@ private:
                     upperTimestamp = selfReplica->History.back().Timestamp;
                 }
 
-                return {replicaId, &replicaInfo, upperTimestamp};
+                if (replicaId == lastPulledFromReplicaId) {
+                    return {replicaId, &replicaInfo, upperTimestamp};
+                }
+
+                candidates.emplace_back(replicaId, &replicaInfo, upperTimestamp);
+            }
+
+            if (!candidates.empty()) {
+                return chooseReplica(candidates);
             }
 
             return {};
@@ -644,7 +741,12 @@ private:
             }
         }
 
-        auto queueReplicaOrError = PickQueueReplica(tabletSnapshot, replicationCard, replicationProgress);
+        auto queueReplicaOrError = PickQueueReplica(
+            tabletSnapshot,
+            replicationCard,
+            replicationProgress,
+            LastPulledFromReplicaId_);
+
         if (!queueReplicaOrError.IsOK()) {
             // This form of logging accepts only string literals.
             YT_LOG_DEBUG(queueReplicaOrError, "Unable to pick a queue replica to replicate from");
@@ -657,6 +759,7 @@ private:
             .ValueOrThrow();
         YT_VERIFY(queueReplicaId);
         YT_VERIFY(queueReplicaInfo);
+        LastPulledFromReplicaId_ = queueReplicaId;
 
         try {
             const auto& clusterName = queueReplicaInfo->ClusterName;
@@ -680,8 +783,10 @@ private:
                 options.OrderRowsByTimestamp = selfReplica->ContentType == ETableReplicaContentType::Queue;
                 options.TableSchema = TableSchema_;
                 options.MemoryTracker = reservingTracker;
+                options.SelfTabletId = TabletId_;
 
-                YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %v)",
+                YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, "
+                    "ReplicationRowIndexes: %v, UpperTimestamp: %v)",
                     clusterName,
                     replicaPath,
                     options.ReplicationProgress,
@@ -741,6 +846,7 @@ private:
                 }
             } else {
                 auto progressTimestamp = replicationProgress->Segments[0].Timestamp;
+                auto previousTimestamp = progressTimestamp;
                 auto unversionedRows = ReinterpretCastRange<TUnversionedRow>(resultRows);
 
                 auto timestampColumnIndex = nameTable->FindId(TimestampColumnName);
@@ -756,18 +862,23 @@ private:
                             row,
                             *timestampColumnIndex);
                     }
-                    if (auto rowTimestamp = row[*timestampColumnIndex].Data.Uint64; progressTimestamp >= rowTimestamp) {
-                        YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",
+
+                    auto rowTimestamp = row[*timestampColumnIndex].Data.Uint64;
+
+                    if (progressTimestamp >= rowTimestamp || previousTimestamp > rowTimestamp) {
+                        YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %v, PreviousTimestamp: %v, Row: %v, Progress: %v)",
                             rowTimestamp,
-                            progressTimestamp,
+                            previousTimestamp,
                             row,
                             static_cast<TReplicationProgress>(*replicationProgress));
 
                         THROW_ERROR_EXCEPTION("Inappropriate row timestamp in pull rows response")
                             << TErrorAttribute("row_timestamp", rowTimestamp)
-                            << TErrorAttribute("progress_timestamp", progressTimestamp)
+                            << TErrorAttribute("previous_timestamp", previousTimestamp)
                             << HardErrorAttribute;
                     }
+
+                    previousTimestamp = rowTimestamp;
                 }
             }
 
@@ -951,7 +1062,8 @@ ITablePullerPtr CreateTablePuller(
     ITabletSnapshotStorePtr tabletSnapshotStore,
     IInvokerPtr workerInvoker,
     IThroughputThrottlerPtr nodeInThrottler,
-    IMemoryUsageTrackerPtr memoryTracker)
+    IMemoryUsageTrackerPtr memoryTracker,
+    IErrorManagerPtr errorManager)
 {
     return New<TTablePuller>(
         std::move(config),
@@ -961,7 +1073,8 @@ ITablePullerPtr CreateTablePuller(
         std::move(tabletSnapshotStore),
         std::move(workerInvoker),
         std::move(nodeInThrottler),
-        std::move(memoryTracker));
+        std::move(memoryTracker),
+        std::move(errorManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

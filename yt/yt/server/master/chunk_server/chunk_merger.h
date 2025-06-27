@@ -246,10 +246,6 @@ private:
     };
 
     THashMap<NSecurityServer::TAccountId, TAccountQueuesUsage> QueuesUsage_;
-
-    // COMPAT(aleksandra-zh)
-    bool NeedRestorePersistentStatistics_ = false;
-
     THashMap<NSecurityServer::TAccountId, std::vector<TDuration>> AccountIdToNodeMergeDurations_;
     THashMap<NObjectClient::TObjectId, int> NodeToRescheduleCountAfterMaxBackoffDelay_;
     THashMap<NSecurityServer::TAccountId, THashSet<NObjectClient::TObjectId>> AccountIdToStuckNodes_;
@@ -354,10 +350,6 @@ private:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
-    // COMPAT(vovamelnikov): ChunkMergerQueuesUsagePerAccount
-    // It is only used to restore accountId from old snapshot.
-    void OnAfterSnapshotLoaded() override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkMerger)

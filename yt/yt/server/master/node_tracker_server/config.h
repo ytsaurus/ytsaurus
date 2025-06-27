@@ -91,6 +91,7 @@ struct TDynamicNodeTrackerConfig
     THashMap<std::string, TNodeGroupConfigPtr> NodeGroups;
 
     TDuration TotalNodeStatisticsUpdatePeriod;
+    TDuration LocalStateToNodeCountUpdatePeriod;
 
     // COMPAT(aleksandra-zh).
     TDuration FullNodeStatesGossipPeriod;

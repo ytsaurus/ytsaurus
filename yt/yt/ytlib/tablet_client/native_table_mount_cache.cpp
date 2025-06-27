@@ -266,6 +266,9 @@ private:
             auto& rsp = getAttributesRspOrError.Value();
 
             PrimaryRevision_ = batchRsp->GetRevision(0);
+            if (PrimaryRevision_ == NHydra::NullRevision) {
+                THROW_ERROR_EXCEPTION("Table attributes request did not return a valid revision");
+            }
 
             auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
@@ -336,6 +339,9 @@ private:
             const auto& rsp = rspOrError.Value();
 
             SecondaryRevision_ = batchRsp->GetRevision(0);
+            if (SecondaryRevision_ == NHydra::NullRevision) {
+                THROW_ERROR_EXCEPTION("Table mount info request did not return a valid revision");
+            }
 
             auto tableInfo = New<TTableMountInfo>();
             tableInfo->Path = Path_;

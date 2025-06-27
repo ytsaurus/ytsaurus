@@ -44,17 +44,17 @@ std::vector<TChecksum> BlocksToChecksums(const std::vector<TBlock>& blocks)
 {
     std::vector<TChecksum> checksums;
     checksums.reserve(blocks.size());
-    for (auto &block : blocks) {
+    for (const auto& block : blocks) {
         checksums.push_back(block.GetOrComputeChecksum());
     }
     return checksums;
 }
 
-TString GenerateRandomString(size_t size, TRandomGenerator* generator)
+TString GenerateRandomString(int size, TRandomGenerator* generator)
 {
     TString result;
     result.reserve(size + sizeof(ui64));
-    while (result.size() < size) {
+    while (std::ssize(result) < size) {
         ui64 value = generator->Generate<ui64>();
         result += TStringBuf(reinterpret_cast<const char*>(&value), sizeof(value));
     }
@@ -68,14 +68,14 @@ std::vector<TBlock> CreateBlocks(int count, TRandomGenerator* generator)
     blocks.reserve(count);
 
     for (int index = 0; index < count; index++) {
-        int size = 10 + generator->Generate<ui32>() % 11;
+        int size = 10 + generator->Generate<uint>() % 11;
         blocks.push_back(TBlock(TSharedRef::FromString(GenerateRandomString(size, generator))));
     }
 
     return blocks;
 }
 
-std::vector<TChecksum> ChecksumsFromHashMap(const THashMap<i32, TBlock>& blocks)
+std::vector<TChecksum> ChecksumsFromHashMap(const THashMap<int, TBlock>& blocks)
 {
     std::vector<TChecksum> checksums(blocks.size());
 
@@ -92,7 +92,7 @@ class TTestDataNodeService
     : public TServiceBase
 {
 public:
-    explicit TTestDataNodeService(size_t throttledBlockCount,
+    explicit TTestDataNodeService(int throttledBlockCount,
         bool alwaysFail,
         bool netThrottling,
         bool useErrorOnNetThrottling,
@@ -119,11 +119,12 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
     {
         if (!SessionCanceled_) {
-            if (!SessionId_.has_value() || *SessionId_ != FromProto<TSessionId>(request->session_id())) {
+            auto sessionId = FromProto<TSessionId>(request->session_id());
+            if (!SessionId_.has_value() || *SessionId_ != sessionId) {
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::NoSuchSession,
                     "Session %v is invalid or expired",
-                    request->session_id());
+                    sessionId);
             }
         }
 
@@ -139,7 +140,7 @@ public:
 
         if (NetThrottling_) {
             response->set_net_throttling(true);
-            response->set_net_queue_size(10000);
+            response->set_net_queue_size(10_KB);
         } else {
             response->set_net_throttling(false);
             response->set_net_queue_size(0);
@@ -232,7 +233,7 @@ public:
             return;
         }
 
-        for (size_t i = firstBlockIndex; i < firstBlockIndex + blocks.size(); i++) {
+        for (int i = firstBlockIndex; i < firstBlockIndex + std::ssize(blocks); i++) {
             YT_VERIFY(!LocalBlocks_.contains(i));
             YT_VERIFY(!IsBlockFlushed_.contains(i));
 
@@ -270,14 +271,15 @@ public:
                 return;
             } else {
                 response->set_net_throttling(true);
-                response->set_net_queue_size(1000);
+                response->set_net_queue_size(10_KB);
                 context->Reply();
             }
             return;
         }
 
-        YT_VERIFY(ChannelFactory_);
-        auto channel = ChannelFactory_->CreateChannel(targetDescriptor.GetDefaultAddress());
+        auto channelFactory = ChannelFactory_.Lock();
+        YT_VERIFY(channelFactory);
+        auto channel = channelFactory->CreateChannel(targetDescriptor.GetDefaultAddress());
         TDataNodeServiceProxy proxy(channel);
         auto req = proxy.PutBlocks();
         req->SetResponseHeavy(true);
@@ -289,7 +291,9 @@ public:
         std::vector<TBlock> blocks;
         blocks.reserve(blockCount);
         for (int blockIndex = firstBlockIndex; blockIndex < firstBlockIndex + blockCount; ++blockIndex) {
-            blocks.push_back(LocalBlocks_.at(blockIndex));
+            auto it = LocalBlocks_.find(blockIndex);
+            YT_VERIFY(it != LocalBlocks_.end());
+            blocks.push_back(it->second);
         }
         SetRpcAttachedBlocks(req, blocks);
 
@@ -315,16 +319,17 @@ public:
 
         auto blockIndex = request->block_index();
 
-        for (i32 i = 0; i <= blockIndex; i++) {
-            YT_VERIFY(IsBlockFlushed_.contains(i));
+        for (int i = 0; i <= blockIndex; i++) {
+            auto it = IsBlockFlushed_.find(i);
+            YT_VERIFY(it != IsBlockFlushed_.end());
 
-            IsBlockFlushed_.at(i) = true;
+            it->second = true;
         }
 
         context->Reply();
     }
 
-    void SetChannelFactory(IChannelFactory* channelFactory)
+    void SetChannelFactory(TIntrusivePtr<IChannelFactory> channelFactory)
     {
         ChannelFactory_ = channelFactory;
     }
@@ -341,8 +346,10 @@ public:
 
     bool GetAllBlocksFlushed() const
     {
-        return std::all_of(LocalBlocks_.begin(), LocalBlocks_.end(), [this](const auto& pair) {
-            return IsBlockFlushed_.at(pair.first);
+        return std::all_of(LocalBlocks_.begin(), LocalBlocks_.end(), [this] (const auto& pair) {
+            auto it = IsBlockFlushed_.find(pair.first);
+            YT_VERIFY(it != IsBlockFlushed_.end());
+            return it->second;
         });
     }
 
@@ -351,11 +358,11 @@ public:
         return SessionStarted_;
     }
 private:
-    size_t ThrottledBlockCount_;
-    bool AlwaysFail_;
-    bool NetThrottling_;
+    const int ThrottledBlockCount_;
+    const bool AlwaysFail_;
+    const bool NetThrottling_;
 
-    size_t PutBlocksCounter_ = 0;
+    int PutBlocksCounter_ = 0;
 
     std::optional<TSessionId> SessionId_;
     bool SessionStarted_ = false;
@@ -365,9 +372,9 @@ private:
     i64 MaxCumulativeBlockSize_ = 0;
 
     // Weak Pointer because of circular dependency
-    IChannelFactory* ChannelFactory_ = nullptr;
-    THashMap<i32, TBlock> LocalBlocks_;
-    THashMap<i32, bool> IsBlockFlushed_;
+    TWeakPtr<IChannelFactory> ChannelFactory_ = nullptr;
+    THashMap<int, TBlock> LocalBlocks_;
+    THashMap<int, bool> IsBlockFlushed_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -375,13 +382,13 @@ private:
 struct TWriterTestCase
 {
     bool UseProbePutBlocks = false;
-    size_t ReplicationFactor = 3;
-    size_t NodeCount = 3;
-    size_t BlockCount = 10;
-    size_t ThrottledBlockCount = 1;
-    std::set<i32> NetThrottlingNodes;
-    std::set<i32> ThrottlingNodes;
-    std::set<i32> FailedNodes;
+    int ReplicationFactor = 3;
+    int NodeCount = 3;
+    int BlockCount = 10;
+    int ThrottledBlockCount = 1;
+    std::set<int> NetThrottlingNodes;
+    std::set<int> ThrottlingNodes;
+    std::set<int> FailedNodes;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -411,10 +418,10 @@ public:
         auto replicationFactor = testCase.ReplicationFactor;
         auto blockCount = testCase.BlockCount;
         auto nodeCount = testCase.NodeCount;
-        size_t throttledBlockCount = testCase.ThrottledBlockCount;
-        std::set<i32> netThrottlingNodes = testCase.NetThrottlingNodes;
-        std::set<i32> throttlingNodes = testCase.ThrottlingNodes;
-        std::set<i32> failedNodes = testCase.FailedNodes;
+        int throttledBlockCount = testCase.ThrottledBlockCount;
+        std::set<int> netThrottlingNodes = testCase.NetThrottlingNodes;
+        std::set<int> throttlingNodes = testCase.ThrottlingNodes;
+        std::set<int> failedNodes = testCase.FailedNodes;
 
         ActionQueue = New<TActionQueue>();
         Invoker = CreateSerializedInvoker(ActionQueue->GetInvoker());
@@ -429,11 +436,11 @@ public:
 
         TRandomGenerator generator(42);
         GeneratedBlocks = CreateBlocks(blockCount, &generator);
-        EXPECT_EQ(GeneratedBlocks.size(), blockCount);
+        EXPECT_EQ(std::ssize(GeneratedBlocks), blockCount);
 
         TChunkReplicaWithMediumList replicaList;
 
-        for (size_t index = 0; index < nodeCount; ++index) {
+        for (int index = 0; index < nodeCount; ++index) {
             auto address = std::string(Format("local:%v", index));
             NodeDescriptors.push_back(NNodeTrackerClient::TNodeDescriptor(address));
             NodeDirectory->AddDescriptor(
@@ -487,7 +494,7 @@ public:
         config->NodeChannel->RetryAttempts = 5;
 
         TChunkReplicaWithMediumList replicasPerMedium;
-        for (size_t node = 0; node < nodeCount; ++node) {
+        for (int node = 0; node < nodeCount; ++node) {
             replicasPerMedium.push_back(TChunkReplicaWithMedium(NNodeTrackerClient::TNodeId(node), GenericChunkReplicaIndex, AllMediaIndex));
         }
 
@@ -520,7 +527,7 @@ TEST_P(TReplicationWriterTest, WriteTest)
 {
     auto testCase = GetParam();
 
-    std::set<i32> failedNodes = testCase.FailedNodes;
+    std::set<int> failedNodes = testCase.FailedNodes;
 
     IChunkWriter::TWriteBlocksOptions writeOptions;
     TWorkloadDescriptor workloadDescriptor;
@@ -543,19 +550,19 @@ TEST_P(TReplicationWriterTest, WriteTest)
 
     EXPECT_TRUE(std::all_of(Services.begin(), Services.end(), [] (auto service) { return service->GetSessionStarted(); }));
 
-    for (size_t i = 0; i < Services.size(); ++i) {
+    for (int i = 0; i < std::ssize(Services); ++i) {
         if (!failedNodes.contains(i)) {
             EXPECT_FALSE(Services[i]->GetSessionCanceled());
         }
     }
 
-    for (size_t i = 0; i < Services.size(); ++i) {
+    for (int i = 0; i < std::ssize(Services); ++i) {
         if (!failedNodes.contains(i)) {
             EXPECT_TRUE(Services[i]->GetAllBlocksFlushed());
         }
     }
 
-    for (size_t i = 0; i < Services.size(); ++i) {
+    for (int i = 0; i < std::ssize(Services); ++i) {
         if (!failedNodes.contains(i)) {
             EXPECT_EQ(Services[i]->GetBlockChecksums(), blockChecksums);
         }

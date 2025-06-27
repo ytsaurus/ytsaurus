@@ -181,7 +181,11 @@ class TCGOpaqueValuesContext
     : public TCGBaseContext
 {
 public:
-    TCGOpaqueValuesContext(const TCGBaseContext& base, Value* literals, Value* opaqueValues);
+    TCGOpaqueValuesContext(
+        const TCGBaseContext& base,
+        Value* literals,
+        Value* opaqueValues,
+        Value* bindedValues = nullptr);
 
     TCGOpaqueValuesContext(const TCGBaseContext& base, const TCGOpaqueValuesContext& other);
 
@@ -191,9 +195,12 @@ public:
 
     Value* GetOpaqueValue(size_t index) const;
 
+    Value* GetBindedValues() const;
+
 private:
     Value* const Literals_;
     Value* const OpaqueValues_;
+    Value* BindedValues_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

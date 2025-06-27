@@ -43,6 +43,7 @@ target_sources(server-lib-tablet_balancer PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/parameterized_balancing_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/replica_balancing_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/table.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/tablet_balancer/tablet_cell.cpp

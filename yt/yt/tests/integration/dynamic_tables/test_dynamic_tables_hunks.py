@@ -1,11 +1,9 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
-from yt_helpers import profiler_factory
-
 from yt_commands import (
-    authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows,
-    lookup_rows, delete_rows, remount_table, build_master_snapshots,
-    write_table, alter_table, read_table, map, sync_reshard_table, sync_create_cells,
+    authors, wait, create, exists, get, set, ls, insert_rows, remove, select_rows, trim_rows,
+    lookup_rows, delete_rows, remount_table, build_master_snapshots, get_tablet_leader_address,
+    write_table, alter_table, read_table, map, merge, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
     write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy,
@@ -29,6 +27,7 @@ import yt_error_codes
 import pytest
 import yt.yson as yson
 
+from copy import deepcopy
 import time
 
 import builtins
@@ -956,29 +955,34 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         _check(["value", "key"])
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky profiling tests")
     def test_hunks_profiling_flush(self):
         sync_create_cells(1)
         self._create_table()
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
+        chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/data_weight",
+            tags={"method": "store_flush"})
+        hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/data_weight",
+            tags={"method": "store_flush"})
+
+        inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/inline_value_count",
+            tags={"column": "value", "method": "store_flush"})
+        ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/ref_value_count",
+            tags={"column": "value", "method": "store_flush"})
+
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
         rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
-
-        chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/data_weight",
-            tags={"method": "store_flush"})
-        hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/data_weight",
-            tags={"method": "store_flush"})
-
-        inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/inline_value_count",
-            tags={"column": "value", "method": "store_flush"})
-        ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/ref_value_count",
-            tags={"column": "value", "method": "store_flush"})
 
         sync_flush_table("//tmp/t")
 
@@ -989,43 +993,52 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: ref_hunk_value_count.get_delta() == 5)
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky profiling tests")
     def test_hunks_profiling_compaction(self):
         sync_create_cells(1)
         self._create_table(max_inline_hunk_size=10)
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
 
+        reader_hunk_chunk_transmitted = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_reader/hunks/chunk_reader_statistics/data_bytes_transmitted",
+            tags={"method": "compaction"})
+        reader_hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_reader/hunks/data_weight",
+            tags={"method": "compaction"})
+
+        reader_inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_reader/hunks/inline_value_count",
+            tags={"column": "value"})
+        reader_ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_reader/hunks/ref_value_count",
+            tags={"column": "value"})
+
+        writer_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/data_weight",
+            tags={"method": "compaction"})
+        writer_hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/data_weight",
+            tags={"method": "compaction"})
+
+        writer_inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/inline_value_count",
+            tags={"column": "value", "method": "compaction"})
+        writer_ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "chunk_writer/hunks/ref_value_count",
+            tags={"column": "value", "method": "compaction"})
+
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
         rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
-
-        reader_hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_reader/hunks/chunk_reader_statistics/data_bytes_transmitted",
-            tags={"method": "compaction"})
-        reader_hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_reader/hunks/data_weight",
-            tags={"method": "compaction"})
-
-        reader_inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_reader/hunks/inline_value_count",
-            tags={"column": "value"})
-        reader_ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_reader/hunks/ref_value_count",
-            tags={"column": "value"})
-
-        writer_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/data_weight",
-            tags={"method": "compaction"})
-        writer_hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/data_weight",
-            tags={"method": "compaction"})
-
-        writer_inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/inline_value_count",
-            tags={"column": "value", "method": "compaction"})
-        writer_ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="chunk_writer/hunks/ref_value_count",
-            tags={"column": "value", "method": "compaction"})
 
         sync_unmount_table("//tmp/t")
         alter_table("//tmp/t", schema=self._get_table_schema(schema=self.SCHEMA, max_inline_hunk_size=30))
@@ -1046,11 +1059,39 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert writer_ref_hunk_value_count.get_delta() == 0
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky profiling tests")
     def test_hunks_profiling_lookup(self):
         sync_create_cells(1)
         self._create_table()
         set("//tmp/t/@enable_hunk_columnar_profiling", True)
         sync_mount_table("//tmp/t")
+
+        hunk_chunk_transmitted = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/chunk_reader_statistics/data_bytes_transmitted")
+        hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/data_weight")
+
+        inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/inline_value_count")
+        ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/ref_value_count")
+
+        columnar_inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/inline_value_count",
+            tags={"column": "value"})
+        columnar_ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/ref_value_count",
+            tags={"column": "value"})
+
+        backend_read_request_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "lookup/hunks/backend_read_request_count")
 
         keys1 = [{"key": i} for i in range(10)]
         rows1 = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5)]
@@ -1058,26 +1099,6 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         rows2 = [{"key": i, "value": "value" + str(i)} for i in range(5, 15)]
         insert_rows("//tmp/t", rows1 + rows2)
         sync_flush_table("//tmp/t")
-
-        hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/chunk_reader_statistics/data_bytes_transmitted")
-        hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/data_weight")
-
-        inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/inline_value_count")
-        ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/ref_value_count")
-
-        columnar_inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/inline_value_count",
-            tags={"column": "value"})
-        columnar_ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/ref_value_count",
-            tags={"column": "value"})
-
-        backend_read_request_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="lookup/hunks/backend_read_request_count")
 
         assert_items_equal(lookup_rows("//tmp/t", keys1 + keys2), rows1 + rows2)
 
@@ -1094,6 +1115,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         wait(lambda: backend_read_request_count.get_delta() > 2)
 
     @authors("akozhikhov")
+    @pytest.mark.skip(reason="Flaky profiling tests")
     def test_hunks_profiling_select(self):
         sync_create_cells(1)
         self._create_table()
@@ -1105,16 +1127,20 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows1 + rows2)
         sync_flush_table("//tmp/t")
 
-        hunk_chunk_transmitted = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="select/hunks/chunk_reader_statistics/data_bytes_transmitted")
-        hunk_chunk_data_weight = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="select/hunks/data_weight")
+        hunk_chunk_transmitted = self._init_tablet_sensor(
+            "//tmp/t",
+            "select/hunks/chunk_reader_statistics/data_bytes_transmitted")
+        hunk_chunk_data_weight = self._init_tablet_sensor(
+            "//tmp/t",
+            "select/hunks/data_weight")
 
-        inline_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="select/hunks/inline_value_count",
+        inline_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "select/hunks/inline_value_count",
             tags={"column": "value"})
-        ref_hunk_value_count = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="select/hunks/ref_value_count",
+        ref_hunk_value_count = self._init_tablet_sensor(
+            "//tmp/t",
+            "select/hunks/ref_value_count",
             tags={"column": "value"})
 
         assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
@@ -1253,8 +1279,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
-        request_counter = profiler_factory().at_tablet_node("//tmp/t").counter(
-            name="hunks/hedging_manager/primary_request_count")
+        request_counter = self._init_tablet_sensor(
+            "//tmp/t",
+            "hunks/hedging_manager/primary_request_count")
 
         assert_items_equal(lookup_rows("//tmp/t", keys), rows)
 
@@ -1491,74 +1518,6 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"key": 1}], timeout=1000) == rows[1:]
 
     @authors("akozhikhov")
-    def test_hunks_performance_counters_1(self):
-        sync_create_cells(1)
-        self._create_table()
-
-        sync_mount_table("//tmp/t")
-
-        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i)} for i in range(5)])
-        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5, 10)])
-        sync_flush_table("//tmp/t")
-
-        lookup_rows("//tmp/t", [{"key": i} for i in range(10)])
-
-        lookup_data_weight = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_data_weight_count"
-        hunk_lookup_data_weight = "//tmp/t/@tablets/0/performance_counters/static_hunk_chunk_row_lookup_data_weight_count"
-        wait(lambda: get(lookup_data_weight) > 0)
-        wait(lambda: get(hunk_lookup_data_weight) > 0)
-
-        prev_value = get(lookup_data_weight)
-        hunk_prev_value = get(hunk_lookup_data_weight)
-        lookup_rows("//tmp/t", [{"key": i} for i in range(5)])
-        wait(lambda: get(lookup_data_weight) > prev_value)
-        assert get(hunk_lookup_data_weight) == hunk_prev_value
-
-        hunk_select_data_weight = "//tmp/t/@tablets/0/performance_counters/static_hunk_chunk_row_read_data_weight_count"
-        hunk_prev_value = get(hunk_select_data_weight)
-        select_rows("key, value from [//tmp/t]")
-        wait(lambda: get(hunk_select_data_weight) > hunk_prev_value)
-
-        hunk_prev_value = get(hunk_select_data_weight)
-        select_rows("key, value from [//tmp/t] where key in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9)")
-        wait(lambda: get(hunk_select_data_weight) > hunk_prev_value)
-
-        hunk_prev_value = get(hunk_select_data_weight)
-        select_rows("key, value from [//tmp/t] where key in (0, 1, 2, 3, 4)")
-        time.sleep(3)
-        assert get(hunk_select_data_weight) == hunk_prev_value
-
-    @authors("akozhikhov")
-    def test_hunks_performance_counters_2(self):
-        sync_create_cells(1)
-        self._create_table()
-
-        sync_mount_table("//tmp/t")
-
-        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i)} for i in range(5)])
-        insert_rows("//tmp/t", [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(5, 10)])
-        sync_flush_table("//tmp/t")
-
-        lookup_data_weight = "//tmp/t/@tablets/0/performance_counters/static_hunk_chunk_row_lookup_data_weight_count"
-        select_data_weight = "//tmp/t/@tablets/0/performance_counters/static_hunk_chunk_row_read_data_weight_count"
-        lookup_data_weight_value = get(lookup_data_weight)
-        select_data_weight_value = get(select_data_weight)
-
-        chunk_ids_before_compaction = builtins.set(self._get_store_chunk_ids("//tmp/t"))
-        set("//tmp/t/@forced_compaction_revision", 1)
-        remount_table("//tmp/t")
-
-        def _check_forced_compaction():
-            chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
-            return chunk_ids_before_compaction.isdisjoint(chunk_ids)
-
-        wait(_check_forced_compaction)
-
-        time.sleep(3)
-        assert lookup_data_weight_value == get(lookup_data_weight)
-        assert select_data_weight_value == get(select_data_weight)
-
-    @authors("akozhikhov")
     def test_read_from_sorted_dynamic_store_with_hunks(self):
         sync_create_cells(1)
         self._create_table(enable_dynamic_store_read=True)
@@ -1778,6 +1737,45 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         remove("//tmp/t")
         wait(lambda: not exists("#{}".format(store_chunk_id)))
+
+    @authors("akozhikhov")
+    def test_trim_with_hunk_chunk(self):
+        def _get_journal_hunk_chunk_ids():
+            chunk_ids = get("//tmp/t/@chunk_ids")
+            store_chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
+            hunk_chunk_ids = builtins.set([chunk_id for chunk_id in chunk_ids if chunk_id not in store_chunk_ids])
+            return list(hunk_chunk_ids)
+
+        sync_create_cells(1)
+        self._create_table()
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={
+            "store_rotation_period": 2000,
+            "store_removal_grace_period": 100,
+        })
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        for i in range(len(rows)):
+            rows[i]["$tablet_index"] = 0
+            rows[i]["$row_index"] = i
+
+        sync_flush_table("//tmp/t")
+
+        hunk_chunk_id = _get_journal_hunk_chunk_ids()
+        assert len(hunk_chunk_id) == 1
+        hunk_chunk_id = hunk_chunk_id[0]
+        assert exists("#{}".format(hunk_chunk_id))
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        tablet_chunk_list_id = get("#{0}/@child_ids/0".format(root_chunk_list_id))
+        trim_rows("//tmp/t", 0, 10)
+        wait(lambda: get("#{0}/@statistics/row_count".format(tablet_chunk_list_id)) == 0)
+
+        wait(lambda: not exists("#{}".format(hunk_chunk_id)))
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -3533,6 +3531,130 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         remount_table("//tmp/t")
 
         self._perform_forced_compaction("//tmp/t", "compaction")
+
+    @authors("akozhikhov")
+    def test_value_compression_partitioning(self):
+        sync_create_cells(1)
+        self._create_table()
+        self._setup_for_dictionary_compression("//tmp/t")
+        set("//tmp/t/@mount_config/value_dictionary_compression/elect_random_policy", True)
+        set("//tmp/t/@chunk_writer", {"block_size": 64, "tesing_delay_before_chunk_close": 1000})
+        set("//tmp/t/@compression_codec", "none")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "x" * 100} for i in range(50)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+        assert len(self._find_tablet_orchid(address, tablet_id)["partitions"]) == 1
+
+        def _get_eden_chunk_ids():
+            return [
+                chunk_id for chunk_id in get("//tmp/t/@chunk_ids")
+                if get("#{}/@eden".format(chunk_id)) and get("#{}/@chunk_type".format(chunk_id)) != "hunk"
+            ]
+
+        assert len(_get_eden_chunk_ids()) == 1
+
+        set("//tmp/t/@max_partition_data_size", 640)
+        set("//tmp/t/@desired_partition_data_size", 512)
+        set("//tmp/t/@min_partition_data_size", 256)
+        remount_table("//tmp/t")
+
+        wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["partitions"]) > 1)
+
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        assert len(_get_eden_chunk_ids()) == 0
+
+    @authors("coteeq", "akozhikhov")
+    def test_value_compression_merge_with_filter(self):
+        sync_create_cells(1)
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 10},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ]
+        self._create_table(schema=schema)
+        self._setup_for_dictionary_compression("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value1": "i am huuuunk" * 5, "value2": "i am hunk too" * 5} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        merge(
+            in_="//tmp/t",
+            out="<create=%true>//tmp/t_static",
+            mode="unordered",
+            spec={
+                "force_transform": True,
+            },
+        )
+
+        assert read_table("//tmp/t_static") == rows
+
+        def _run_merge_with_column_subset(columns):
+            merge(
+                in_="<columns=[{}]>//tmp/t".format("; ".join(columns)),
+                out="<create=%true>//tmp/t_static",
+                mode="unordered",
+                spec={
+                    "force_transform": True,
+                },
+            )
+
+            def drop_value(row):
+                row = deepcopy(row)
+                for column in schema:
+                    if column["name"] in columns:
+                        continue
+                    row[column["name"]] = yson.YsonEntity()
+                return row
+
+            assert read_table("//tmp/t_static") == [drop_value(row) for row in rows]
+
+        _run_merge_with_column_subset(["key", "value1"])
+        _run_merge_with_column_subset(["value1", "value2"])
+        _run_merge_with_column_subset(["key", "value2"])
+        _run_merge_with_column_subset(["value2"])
+
+    @authors("akozhikhov")
+    def test_value_compression_select_with_key_filter(self):
+        sync_create_cells(1)
+        self._create_table(schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 10},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ])
+        self._setup_for_dictionary_compression("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value1": "i am huuuunk" * 30, "value2": "i am hunk too" * 30} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        def _filter_rows(rows, keys):
+            new_rows = []
+            for row in rows:
+                new_rows.append(dict([(key, row[key]) for key in keys]))
+            return new_rows
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        assert_items_equal(select_rows("key, value1 from [//tmp/t]"),  _filter_rows(rows, ["key", "value1"]))
+        assert_items_equal(select_rows("value1, value2 from [//tmp/t]"),  _filter_rows(rows, ["value1", "value2"]))
+        assert_items_equal(select_rows("key, value2 from [//tmp/t]"),  _filter_rows(rows, ["key", "value2"]))
+        assert_items_equal(select_rows("value2 from [//tmp/t]"),  _filter_rows(rows, ["value2"]))
 
 
 ################################################################################

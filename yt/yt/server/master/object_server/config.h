@@ -66,7 +66,7 @@ struct TDynamicObjectManagerConfig
 
     //! Per-type list of attributes which will become interned in future versions
     //! and thus should not be set. Maps attribute names to error messages.
-    THashMap<EObjectType, THashMap<TString, TString>> ReservedAttributes;
+    THashMap<EObjectType, THashMap<std::string, std::string, THash<TStringBuf>, TEqualTo<>>> ReservedAttributes;
 
     //! Minimum length of YSON strings that will be interned during mutations.
     //! Outside mutations DefaultYsonStringInternLengthThreshold is always used.

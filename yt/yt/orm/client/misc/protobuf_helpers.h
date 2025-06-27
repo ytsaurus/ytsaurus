@@ -13,7 +13,7 @@ namespace NYT::NOrm::NClient {
 template <typename TField>
 std::vector<TField> VectorFromProtoField(TField field);
 
-template <template<typename> typename TRepeatedField, typename TFieldArg>
+template <template <typename> typename TRepeatedField, typename TFieldArg>
 std::vector<TFieldArg> VectorFromProtoField(TRepeatedField<TFieldArg> proto);
 
 template <class T>

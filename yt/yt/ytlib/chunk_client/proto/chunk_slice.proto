@@ -19,6 +19,7 @@ message TChunkSlice
     optional int64 row_count_override = 4;
     optional int64 data_weight_override = 5;
     optional int64 compressed_data_size_override = 6;
+    optional int64 uncompressed_data_size_override = 7;
 }
 
 message TSliceRequest

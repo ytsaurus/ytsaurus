@@ -20,12 +20,33 @@ A list of available production clusters with a standalone balancer: {{clusters-w
 
 ## Balancing strategies
 
-* **Resharding by size**. To evenly distribute table tablets across tablet cells, each tablet needs to be of a reasonable size. Large tablets are split into several smaller ones, and small tablets are combined with the neighboring ones.
-* **Resharding by parameter and size** (available only for clusters with a standalone balancer). To evenly balance the table by parameter, all table tablets need to be of approximately the same size and have approximately the same load. Tablets with a higher load or of a larger size are resharded, and smaller tablets with a smaller load are combined with the neighboring ones.
-* **Balancing between tablet cells**
+ * **Resharding by size**. To evenly distribute table tablets across tablet cells, each tablet needs to be of a reasonable size. Large tablets are split into several smaller ones, and small tablets are combined with the neighboring ones.
+ * **Resharding by parameter and size** (available only for clusters with a standalone balancer). To evenly balance the table by parameter, all table tablets need to be of approximately the same size and have approximately the same load. Tablets with a higher load or of a larger size are resharded, and smaller tablets with a smaller load are combined with the neighboring ones.
+ * **Balancing between tablet cells**
    * **In-memory tables**. In-memory tables are balanced by minimizing the load on the most loaded cell (for tables with hunks, this is done on their non-hunk part). Only the total node memory usage across all tables is taken into account, the tablet distribution within each individual table is not optimized.
    * **Disk tables**. Disk tables are balanced by the number of table tablets by the bundle's tablet cells.
-* **Parameterized balancing between nodes** (aka balancing by load, available only for clusters with a standalone balancer). Minimizes the dispersion of the selected metric by node and, to a lesser extent, by cell. Per-table distribution is not taken into account, all tablets are considered equivalent.
+ * **Parameterized balancing between nodes** (aka balancing by load, available only for clusters with a standalone balancer). Minimizes the dispersion of the selected metric by node and, to a lesser extent, by cell. Per-table distribution is not taken into account, all tablets are considered equivalent.
+
+## Quick start for parameterized balancing { #quick-start }
+
+> Available only for clusters with a standalone balancer.
+
+If the bundle doesn't have parameterized balancing enabled and dedicated balancing groups set up, all you need to do is create a group with the desired settings and put the tables into that group.
+
+1. To verify whether these instructions apply to you, make sure that the bundle config doesn't contain a list of groups (the `//sys/tablet_cell_bundles/<bundle_name>/@tablet_balancer_config` map doesn't include the `groups` field).
+2. Select a metric for balancing the tables. For the meta cluster, if writes to replicated tables are evenly distributed across their tablets, we recommend balancing the load based on the number of tablets `(metric = "1")`. The list of available metrics is provided in the [section on parameterized balancing configuration](#parameterized). You can add metrics using the + operator in the formula. If the bundle contains groups of tables with varying types of load, you may want to balance them using different metrics. To do that, create multiple groups with custom settings. For more information, see the [section on table groups](#group).
+3. For large balancing groups with more than 50,000 tablets, you may need to adjust the `max_action_count` parameter, which specifies the number of movements per balancing iteration. For more information, see the section on [parameterized balancing configuration](#parameterized). If you enable parameterized balancing for the entire bundle, you can view the total number of tablets across all tables on the bundle page.
+4. Create a `default` [group](#system-groups) with the desired config for parameterized balancing and enter the desired metric in the creation command. If needed, use a similar approach to set the `max_action_count` parameter.
+    ```(bash)
+    yt set //sys/tablet_cell_bundles/<bundle_name>/@tablet_balancer_config/groups
+    '{default = {parameterized = {metric = "<metric_formula>"}}}'
+    ```
+5. Enable parameterized balancing for the desired tables.
+    - To enable it for the entire bundle:
+      `yt set //sys/tablet_cell_bundles/<bundle_name>/@tablet_balancer_config/enable_parameterized_by_default %true`
+    - To enable it only for specific tables, enable parameterized balancing for each table individually:
+      `yt set //path/to/table/@tablet_balancer_config/enable_parameterized %true`
+6. You can monitor the balancer's actions on the bundle page: go to Monitoring → Maintenance.
 
 ## Balancing configuration
 
@@ -210,30 +231,40 @@ This is not a recommendation. The example only lists possible options with rando
 
 | **Name**       | **Type** | **Default value** | **Description** |
 | -- | -- | -- | -- |
-| metric      | str   | - | Balancing metric (parameter) |
+| metric      | str | write data weight | Balancing metric (parameter) |
 | max_action_count | int | - | Maximum number of tablets to be moved in one iteration |
 | enable_reshard        | boolean   | - | Enables the resharding algorithm by parameter and size instead of resharding by size |
+| per_table_uniform        | boolean   | - | Enables the movement balancing algorithm, which among other functions aims to ensure an even distribution of tables across nodes and cells. Recommended for groups of no more than 50 tables |
 
 The metric for parameterized balancing is set by an arithmetic formula using per-table metrics. The metric must be positive for any given tablet. For the correct operation of the balancing algorithm, the metric size must be in direct ratio to the tablet load. The formula may include tablet size metrics. Each of the load metrics can have one of the following two suffixes: `_10m_rate` or `_1h_rate`, which are calculated as the exponential decay of requests within 10 minutes and 1 hour, respectively. In the table, all metrics are given for the 10-minute window.
 
 Below you will find per-table metrics that can prove useful.
 
-- Data weight
-   `double([/performance_counters/dynamic_row_write_data_weight_10m_rate])`
+- Write data weight
+  `double([/performance_counters/dynamic_row_write_data_weight_10m_rate])`
 - Amount of data read by lookup requests
-   `double([/performance_counters/dynamic_row_lookup_data_weight_10m_rate]) + double([/performance_counters/static_chunk_row_lookup_data_weight_10m_rate])`
+  `double([/performance_counters/dynamic_row_lookup_data_weight_10m_rate]) + double([/performance_counters/static_chunk_row_lookup_data_weight_10m_rate])`
 - Amount of data read by select requests
-   `double([/performance_counters/dynamic_row_read_data_weight_10m_rate]) + double([/performance_counters/static_chunk_row_read_data_weight_10m_rate])`
+  `double([/performance_counters/dynamic_row_read_data_weight_10m_rate]) + double([/performance_counters/static_chunk_row_read_data_weight_10m_rate])`
 - Uncompressed size
-   `double([/statistics/uncompressed_data_size])`
+  `double([/statistics/uncompressed_data_size])`
 - Compressed size
-   `double([/statistics/compressed_data_size])`
+  `double([/statistics/compressed_data_size])`
 - Memory size (the amount of data occupied by an in-memory table, equal to either compressed or uncompressed size depending on `in_memory_mode`)
-   `double([/statistics/memory_size])`
+  `double([/statistics/memory_size])`
 - CPU time consumed by lookup requests
-   `double([/performance_counters/lookup_cpu_time_10m_rate])` |
+  `double([/performance_counters/lookup_cpu_time_10m_rate])` |
 - Number of tablets (can be used if tablets need to be distributed equally across nodes without taking the load into account)
-   `1`
+  `1`
+
+You may need to set the `max_action_count` parameter, which represents the number of movements per balancing iteration. This parameter determines how many tablets will be inaccessible during balancing. If your bundle is fairly large or, for some reason, the default values don't suit your needs, you can apply the following principle to estimate an initial value for this parameter:
+- For bundles of up to 100 tablet nodes: No less than the number of nodes and no less than 10.
+- For groups of up to 100 tablets: 10.
+- For groups of up to 1000 tablets: 50.
+- For groups of up to 10,000 tablets: 100.
+- For groups of up to 50,000 tablets: 250.
+- For groups of up to 100,000 tablets: 500.
+If all the bundle tables use parameterized balancing and there is only one parameterized balancing group, then the total number of tablets across all tables is displayed on the bundle page.
 
 ### Resharding configuration
 
@@ -375,7 +406,7 @@ For the algorithm to work properly, **max_tablet_size / min_tablet_size > 2** ne
 
 #### Resharding by size and metric
 
-Performed by splitting and combining neighboring tablets. Tables are resharded independently, except for the stage when planned actions are sorted by relevance.
+Resharding by size and metric is performed by splitting and combining neighboring tablets. Tables are resharded independently, except for the stage when planned actions are sorted by relevance.
 
 ##### Algorithm overview
 

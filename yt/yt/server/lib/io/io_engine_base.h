@@ -22,6 +22,7 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr auto DefaultBlockSize = 512;
 constexpr auto DefaultPageSize = 4_KB;
 constexpr auto MaxIovCountPerRequest = 64;
 
@@ -196,6 +197,7 @@ protected:
     using TConfigPtr = TIntrusivePtr<TConfig>;
 
     const TString LocationId_;
+    const IHugePageManagerPtr HugePageManager_;
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
     const TIOEngineSensorsPtr Sensors_ = New<TIOEngineSensors>();
@@ -203,6 +205,7 @@ protected:
     TIOEngineBase(
         TConfigPtr config,
         TString locationId,
+        IHugePageManagerPtr hugePageManager,
         NProfiling::TProfiler profiler,
         NLogging::TLogger logger);
 
@@ -216,6 +219,7 @@ protected:
     void DoResize(const TResizeRequest& request);
     void AddWriteWaitTimeSample(TDuration duration);
     void AddReadWaitTimeSample(TDuration duration);
+    TSharedMutableRef AllocateHugeBlob();
     void Reconfigure(const NYTree::INodePtr& node) override;
 
     TRequestCounterGuard CreateInFlightRequestGuard(EIOEngineRequestType requestType);

@@ -64,21 +64,10 @@ DEFINE_ENUM(EChunkMergerStatus,
     ((InMergePipeline)              (2))
 );
 
-// This enum is used only for text representation of table chunk formats in deprecated
-// TableChunkFormat and TableChunkFormatStatistics attributes.
+// Only used for producing text representation of table chunk formats in
+// deprecated TableChunkFormat and TableChunkFormatStatistics attributes.
 // Keep in sync with NChunkClient::EChunkFormat.
-DEFINE_ENUM(ETableChunkFormat,
-    ((Old)                             (1))
-
-    ((UnversionedSchemaful)            (3))
-    ((UnversionedSchemalessHorizontal) (4))
-    ((UnversionedColumnar)             (6))
-
-    ((VersionedSimple)                 (2))
-    ((VersionedColumnar)               (5))
-    ((VersionedIndexed)                (8))
-    ((VersionedSlim)                   (9))
-);
+TStringBuf SerializeChunkFormatAsTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
 
 ////////////////////////////////////////////////////////////////////////////////
 

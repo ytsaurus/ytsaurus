@@ -281,7 +281,7 @@ private:
         TInputChunkDescriptor* descriptor);
     void OnInputChunkAvailable(
         NChunkClient::TChunkId chunkId,
-        const NChunkClient::TChunkReplicaWithMediumList& replicas,
+        const NChunkClient::TChunkReplicaList& replicas,
         TInputChunkDescriptor* descriptor);
 
     void RegisterUnavailableInputChunk(NChunkClient::TChunkId chunkId);

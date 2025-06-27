@@ -687,6 +687,8 @@ std::string cpp_bin_float<Digits, DigitBase, Allocator, Exponent, MinE, MaxE>::s
       case exponent_infinity:
          s = sign() ? "-inf" : f & std::ios_base::showpos ? "+inf" : "inf";
          break;
+      default:
+         break;
       }
    }
    return s;

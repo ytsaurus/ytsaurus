@@ -4,7 +4,8 @@ from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_u
 
 from yt_commands import (authors, create, create_user, sync_mount_table,
                          write_table, insert_rows, alter_table, raises_yt_error,
-                         write_file, create_pool, wait, get, set, ls)
+                         write_file, create_pool, wait, get, set, ls, list_operations,
+                         get_operation)
 
 from yt_env_setup import YTEnvSetup
 
@@ -55,6 +56,22 @@ class TestQueriesYqlBase(YTEnvSetup):
                 if "pending" in stage and stage["pending"] > 0 :
                     return True
         return False
+
+
+class TestGetOperationLink(TestQueriesYqlBase):
+    @authors("mpereskokova")
+    def test_operation_link(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+        query = start_query("yql", 'select a+1 as result from primary.`//tmp/t`')
+        query.track()
+
+        op = list_operations()["operations"][0]["id"]
+        op_url = get_operation(op)["runtime_parameters"]["annotations"]["description"]["yql_op_url"]
+        assert str(op_url) == f"https://ui.test.ru/primary/queries/{query.id}"
 
 
 class TestMetrics(TestQueriesYqlBase):
@@ -157,6 +174,10 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
             select core::IndexOf([3,7,1], 7) as idx, test::my_sqr(3) as sqr;
         """, [{"idx": 1, "sqr": 9}])
 
+
+class TestTypes(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 4
+
     @authors("a-romanov")
     def test_datetime_types(self, query_tracker, yql_agent):
         self._test_simple_query("""
@@ -213,7 +234,7 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
                 AsTagged(123, "tag") as `Tagged`,
                 Decimal("123456.789", 13, 3) as `Decimal`,
                 '[1, "text", 3.14]'j as `Json`,
-                Just('[7u; "str"; -3.14]'y) as `Yson`,
+                '[7u; "str"; -3.14]'y as `Yson`,
         """, [{"EmptyDict": None,
                "EmptyList": None,
                "Null": None,
@@ -227,6 +248,17 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
                "Json": '[1, "text", 3.14]',
                "Yson": [7, 'str', -3.14]
                }])
+
+    @authors("a-romanov")
+    def test_double_optional(self, query_tracker, yql_agent):
+        self._test_simple_query("""
+            $list = ["abc"u, null];
+            select $list, $list[0], $list[1], $list[2],
+            (just($list[0]), just($list[1]), just($list[2])),
+            {$list[0], $list[1], $list[2]};
+        """, [{'column0': ['abc', None], 'column1': ['abc'], 'column2': [None], 'column3': None,
+               'column4': [[['abc']], [[None]], [None]],
+               'column5': [[None, None], [[None], None], [['abc'], None]]}])
 
 
 class TestYqlAgentBan(TestQueriesYqlBase):
@@ -758,7 +790,7 @@ class TestYqlAgent(TestQueriesYqlBase):
             assert not gateway_config["execute_udf_locally_if_possible"]
             assert len(gateway_config["cluster_mapping"]) == 1
             assert len(gateway_config["cluster_mapping"][0]["settings"]) == 2
-            assert len(gateway_config["default_settings"]) == 58
+            assert len(gateway_config["default_settings"]) == 59
 
             setting_found = False
             for setting in gateway_config["default_settings"]:
@@ -811,6 +843,7 @@ class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
 
 
 class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 2
     QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"resulting_rowset_value_length_limit": 20 * 1024**2}}
 
     @staticmethod
@@ -1156,3 +1189,36 @@ class TestYqlColumnOrderDifferentSources(TestQueriesYqlBase):
             select * from primary.`//tmp/t1`
             limit 4
         """, [{"a": 45, "b": "bar", "c": -3.0}, {"a": 46, "b": "abc", "c": -4.0}, {"a": 47, "b": "def", "c": -5.0}, {"a": 42, "b": "foo", "c": 2.0}])
+
+
+class TestAssignedEngine(TestQueriesYqlBase):
+    NUM_YQL_AGENTS = 2
+
+    @authors("kirsiv40")
+    def test_assigned_engine(self, query_tracker, yql_agent):
+        yqla_instances = get("//sys/yql_agent/instances")
+
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
+        query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+
+        wait(lambda: query.get_state() == "running")
+
+        query_running_info = query.get()
+        assert "annotations" in query_running_info
+        assert "assigned_engine" in query_running_info["annotations"]
+
+        set("//sys/pools/small/@resource_limits/user_slots", 1)
+        query.track()
+
+        query_finished_info = query.get()
+        assert "annotations" in query_finished_info
+        assert "assigned_engine" in query_finished_info["annotations"]
+
+        assert query_running_info["annotations"]["assigned_engine"] == query_finished_info["annotations"]["assigned_engine"]
+        assert query_finished_info["annotations"]["assigned_engine"] in yqla_instances

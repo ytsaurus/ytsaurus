@@ -37,6 +37,7 @@
 #include <yt/yt/core/yson/writer.h>
 #include <yt/yt/core/yson/async_writer.h>
 #include <yt/yt/core/yson/attribute_consumer.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
@@ -82,11 +83,39 @@ std::optional<TVirtualCompositeNodeReadOffloadParams> TVirtualSinglecellMapBase:
         return std::nullopt;
     }
     const auto& objectService = Bootstrap_->GetObjectService();
+
+    class TVirtualSingleCellMapBaseReadOffloadGuard
+        : public TVirtualCompositeNodeReadOffloadGuard
+    {
+    public:
+        TVirtualSingleCellMapBaseReadOffloadGuard(
+            ISecurityManagerPtr securityManager,
+            const NRpc::TAuthenticationIdentity& identity)
+            : AuthenticatedUserGuard_(std::move(securityManager), identity)
+        { }
+
+    private:
+        TAuthenticatedUserGuard AuthenticatedUserGuard_;
+    };
+
+    TCallback<std::unique_ptr<TVirtualCompositeNodeReadOffloadGuard>()> createReadOffloadGuard;
+    if (config->CypressManager->EnableVirtualMapReadOffloadAuthenticatedUserPropagation) {
+        createReadOffloadGuard = BIND([
+            bootstrap = Bootstrap_,
+            identity = NRpc::GetCurrentAuthenticationIdentity()
+        ] () -> std::unique_ptr<TVirtualCompositeNodeReadOffloadGuard> {
+            return std::make_unique<TVirtualSingleCellMapBaseReadOffloadGuard>(
+                bootstrap->GetSecurityManager(),
+                identity);
+        });
+    }
+
     return TVirtualCompositeNodeReadOffloadParams{
         // NB: Must not release LocalRead thread.
         .OffloadInvoker = objectService->GetLocalReadOffloadInvoker(),
         .WaitForStrategy = EWaitForStrategy::Get,
         .BatchSize = *config->CypressManager->VirtualMapReadOffloadBatchSize,
+        .CreateReadOffloadGuard = std::move(createReadOffloadGuard),
     };
 }
 
@@ -304,7 +333,7 @@ TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchLocalItems(
         asyncAttributes.emplace_back(writer.Finish());
     }
 
-    std::vector<TString> keys(items.size());
+    std::vector<std::string> keys(items.size());
     std::ranges::transform(items, keys.begin(), [] (auto objectId) {
         return ToString(objectId);
     });
@@ -334,6 +363,8 @@ TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchRemoteItems(
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
         multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+    // TODO(nadya02): Set the correct timeout here.
+    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetUser(user->GetName());
 
@@ -343,11 +374,12 @@ TFuture<void> TVirtualSinglecellWithRemoteItemsMapBase::FetchRemoteItems(
     for (const auto& item : items) {
         auto req = TYPathProxy::Get(FromObjectId(item) + "/@");
         ToProto(req->mutable_attributes(), attributeFilter);
+        SetAllowResolveFromSequoiaObject(req, true);
 
         batchReq->AddRequest(req);
     }
 
-    std::vector<TString> keys(items.size());
+    std::vector<std::string> keys(items.size());
     std::ranges::transform(items, keys.begin(), [] (auto objectId) {
         return ToString(objectId);
     });
@@ -690,6 +722,8 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
         multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+    // TODO(nadya02): Set the correct timeout here.
+    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetSuppressUpstreamSync(true);
 
@@ -794,6 +828,8 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
         multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
+    // TODO(nadya02): Set the correct timeout here.
+    proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetUser(user->GetName());
 
@@ -913,7 +949,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
                     for (int index = 0; index < response->items_size(); ++index) {
                         const auto& value = values[index];
                         if (!value.AsStringBuf().empty()) {
-                            response->mutable_items(index)->set_attributes(value.ToString());
+                            response->mutable_items(index)->set_attributes(ToProto(value));
                         }
                     }
 

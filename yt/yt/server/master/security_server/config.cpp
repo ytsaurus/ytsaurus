@@ -39,7 +39,7 @@ void TDynamicSecurityManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_master_memory_usage_account_overcommit_validation", &TThis::EnableMasterMemoryUsageAccountOvercommitValidation)
         .Default(false);
     registrar.Parameter("enable_tablet_resource_validation", &TThis::EnableTabletResourceValidation)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("enable_distributed_throttler", &TThis::EnableDistributedThrottler)
         .Default(false);

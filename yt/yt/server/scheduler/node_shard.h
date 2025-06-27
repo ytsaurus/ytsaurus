@@ -341,7 +341,8 @@ private:
     void LogOngoingAllocationsOnHeartbeat(
         const INodeHeartbeatStrategyProxyPtr& strategyProxy,
         TInstant now,
-        const TStateToAllocationList& ongoingAllocationsByState) const;
+        const TStateToAllocationList& ongoingAllocationsByState,
+        const TExecNodePtr& node) const;
 
     void SubtractNodeResources(const TExecNodePtr& node);
     void AddNodeResources(const TExecNodePtr& node);

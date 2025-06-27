@@ -15,6 +15,10 @@ public class CreateShuffleWriter extends RequestBase<CreateShuffleWriter.Builder
     private final String partitionColumn;
     @Nullable
     private final YTreeNode config;
+    @Nullable
+    private final Integer writerIndex;
+    @Nullable
+    private final Boolean overwriteExistingWriterData;
 
     private static final YTreeNode EMPTY_CONFIG = YTree.builder().beginMap().endMap().build();
 
@@ -26,6 +30,8 @@ public class CreateShuffleWriter extends RequestBase<CreateShuffleWriter.Builder
         this.handle = builder.handle;
         this.partitionColumn = builder.partitionColumn;
         this.config = builder.config;
+        this.writerIndex = builder.writerIndex;
+        this.overwriteExistingWriterData = builder.overwriteExistingWriterData;
         this.windowSize = builder.windowSize;
         this.packetSize = builder.packetSize;
     }
@@ -47,8 +53,14 @@ public class CreateShuffleWriter extends RequestBase<CreateShuffleWriter.Builder
     }
 
     public void writeTo(TReqWriteShuffleData.Builder builder) {
-        builder.setShuffleHandle(handle.getPayload());
+        builder.setSignedShuffleHandle(handle.getPayload());
         builder.setPartitionColumn(partitionColumn);
+        if (writerIndex != null) {
+            builder.setWriterIndex(writerIndex);
+        }
+        if (overwriteExistingWriterData != null) {
+            builder.setOverwriteExistingWriterData(overwriteExistingWriterData);
+        }
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         YTreeBinarySerializer.serialize(this.config == null ? EMPTY_CONFIG : this.config, baos);
@@ -62,6 +74,8 @@ public class CreateShuffleWriter extends RequestBase<CreateShuffleWriter.Builder
                 .setHandle(handle)
                 .setPartitionColumn(partitionColumn)
                 .setConfig(config)
+                .setWriterIndex(writerIndex)
+                .setOverwriteExistingWriterData(overwriteExistingWriterData)
                 .setWindowSize(windowSize)
                 .setPacketSize(packetSize);
     }
@@ -80,6 +94,10 @@ public class CreateShuffleWriter extends RequestBase<CreateShuffleWriter.Builder
         private String partitionColumn;
         @Nullable
         private YTreeNode config = null;
+        @Nullable
+        private Integer writerIndex;
+        @Nullable
+        private Boolean overwriteExistingWriterData;
 
         private long windowSize = 16000000L;
         private long packetSize = windowSize / 2;
@@ -96,6 +114,16 @@ public class CreateShuffleWriter extends RequestBase<CreateShuffleWriter.Builder
 
         public TBuilder setConfig(@Nullable YTreeNode config) {
             this.config = config;
+            return self();
+        }
+
+        public TBuilder setWriterIndex(@Nullable Integer writerIndex) {
+            this.writerIndex = writerIndex;
+            return self();
+        }
+
+        public TBuilder setOverwriteExistingWriterData(@Nullable Boolean overwriteExistingWriterData) {
+            this.overwriteExistingWriterData = overwriteExistingWriterData;
             return self();
         }
 

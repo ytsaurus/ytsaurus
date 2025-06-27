@@ -66,16 +66,16 @@ public:
     ExecuteMany(TIntrusivePtr<TTypedRequests>... innerRequests);
 
     class TReqExecuteBatchBase;
+    class TReqExecuteBatchNoSequoiaRetries;
     class TReqExecuteBatch;
-    class TReqExecuteBatchWithRetries;
-    class TReqExecuteBatchWithRetriesInParallel;
+    class TReqExecuteBatchInParallel;
     class TRspExecuteBatch;
 
     //! Mimics the types introduced by |DEFINE_RPC_PROXY_METHOD|.
     using TReqExecuteBatchBasePtr = TIntrusivePtr<TReqExecuteBatchBase>;
+    using TReqExecuteBatchNoSequoiaRetriesPtr = TIntrusivePtr<TReqExecuteBatchNoSequoiaRetries>;
     using TReqExecuteBatchPtr = TIntrusivePtr<TReqExecuteBatch>;
-    using TReqExecuteBatchWithRetriesPtr = TIntrusivePtr<TReqExecuteBatchWithRetries>;
-    using TReqExecuteBatchWithRetriesInParallelPtr = TIntrusivePtr<TReqExecuteBatchWithRetriesInParallel>;
+    using TReqExecuteBatchInParallelPtr = TIntrusivePtr<TReqExecuteBatchInParallel>;
     using TRspExecuteBatchPtr = TIntrusivePtr<TRspExecuteBatch>;
     using TErrorOrRspExecuteBatchPtr = TErrorOr<TRspExecuteBatchPtr>;
 
@@ -102,9 +102,6 @@ private:
         const NApi::NNative::TStickyGroupSizeCachePtr StickyGroupSizeCache_;
         const int SubbatchSize_;
 
-        const std::optional<TCellTag> CellTag_;
-        const std::optional<NApi::EMasterChannelKind> ChannelKind_;
-
         std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
         NRpc::TRequestId OriginalRequestId_;
         bool SuppressUpstreamSync_ = false;
@@ -113,9 +110,7 @@ private:
         TReqExecuteSubbatch(
             NRpc::IChannelPtr channel,
             int subbatchSize,
-            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
-            std::optional<TCellTag> cellTag,
-            std::optional<NApi::EMasterChannelKind> channelKind);
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
         TReqExecuteSubbatch(
             const TReqExecuteSubbatch& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
@@ -123,7 +118,7 @@ private:
         TFuture<TRspExecuteBatchPtr> DoInvoke();
 
     private:
-        friend class TReqExecuteBatch;
+        friend class TReqExecuteBatchNoSequoiaRetries;
 
         DECLARE_NEW_FRIEND()
 
@@ -135,8 +130,7 @@ private:
 
     const NApi::NNative::TStickyGroupSizeCachePtr StickyGroupSizeCache_;
 
-    const std::optional<TCellTag> CellTag_;
-    const std::optional<NApi::EMasterChannelKind> ChannelKind_;
+    const TReqExecuteBatchRetriesConfigPtr SequoiaRetriesConfig_;
 
 public:
     class TReqExecuteBatchBase
@@ -171,17 +165,15 @@ public:
             std::any tag = {},
             std::optional<size_t> hash = std::nullopt);
 
-        //! Invokes the batch request. Beware: this doesn't retry back offs and uncertain indexes.
-        //! Instead, consider using TReqExecuteBatch or even TReqExecuteBatchWithRetries.
+        //! Invokes the batch request. Beware: this doesn't retry back offs and
+        //! uncertain indexes. Instead, consider using TReqExecuteBatch.
         TFuture<TRspExecuteBatchPtr> Invoke();
 
     protected:
         TReqExecuteBatchBase(
             NRpc::IChannelPtr channel,
             int subbatchSize,
-            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
-            std::optional<TCellTag> cellTag,
-            std::optional<NApi::EMasterChannelKind> channelKind);
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
         TReqExecuteBatchBase(
             const TReqExecuteBatchBase& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
@@ -202,7 +194,7 @@ public:
     //! A batched request to Cypress that holds a vector of individual requests.
     //! They're sent in groups of several requests at a time. These groups are
     //! called subbatches and are transferred within a single RPC envelope.
-    class TReqExecuteBatch
+    class TReqExecuteBatchNoSequoiaRetries
         : public TReqExecuteBatchBase
     {
     public:
@@ -213,13 +205,11 @@ public:
         void SetEnableClientStickiness(bool value);
 
     protected:
-        TReqExecuteBatch(
+        TReqExecuteBatchNoSequoiaRetries(
             NRpc::IChannelPtr channel,
             int subbatchSize,
-            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
-            std::optional<TCellTag> cellTag,
-            std::optional<NApi::EMasterChannelKind> channelKind);
-        TReqExecuteBatch(
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
+        TReqExecuteBatchNoSequoiaRetries(
             const TReqExecuteBatchBase& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
 
@@ -254,23 +244,37 @@ public:
         std::optional<int> GetAdvisedStickyGroupSize() const;
     };
 
-    class TReqExecuteBatchWithRetries
+    class TReqExecuteBatch
         : public TReqExecuteBatchBase
     {
     public:
         //! Starts the asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
 
+        void SetStickyGroupSize(int value);
+        void SetEnableClientStickiness(bool value);
+
     private:
+        std::vector<int> PendingIndexes_;
+        int CurrentRetry_ = 0;
+
+        TFuture<TRspExecuteBatchPtr> CurrentReqFuture_;
+        const TReqExecuteBatchRetriesConfigPtr Config_;
+        const TCallback<bool(int, const TError&)> NeedRetry_;
+        // See PatchMutationId() implementation.
+        const bool RegenerateMutationIdForRetries_;
+
+        std::optional<int> StickyGroupSize_;
+        bool EnableClientStickiness_ = false;
+
         // For testing purposes
-        TReqExecuteBatchWithRetries(
+        TReqExecuteBatch(
             NRpc::IChannelPtr channel,
-            TReqExecuteBatchWithRetriesConfigPtr config,
+            TReqExecuteBatchRetriesConfigPtr config,
             NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
-            std::optional<TCellTag> cellTag,
-            std::optional<NApi::EMasterChannelKind> channelKind,
             TCallback<bool(int, const TError&)> needRetry,
-            int subbatchSize = DefaultSubbatchSize);
+            int subbatchSize,
+            bool regenerateMutationIdForRetries);
 
         DECLARE_NEW_FRIEND()
 
@@ -282,28 +286,21 @@ public:
         bool IsRetryNeeded(const TError& error);
         TDuration GetCurrentDelay();
 
-
-        static TSharedRefArray PatchMutationId(const TSharedRefArray& message);
-
-        std::vector<int> PendingIndexes_;
-        int CurrentRetry_ = 0;
-
-        TFuture<TRspExecuteBatchPtr> CurrentReqFuture_;
-        TReqExecuteBatchWithRetriesConfigPtr Config_;
-        TCallback<bool(const TError&)> NeedRetry_;
+        static TSharedRefArray PatchMutationId(
+            const TSharedRefArray& message,
+            bool retry,
+            bool regenerateMutationIdForRetries);
     };
 
-    class TReqExecuteBatchWithRetriesInParallel
+    class TReqExecuteBatchInParallel
         : public TReqExecuteBatchBase
     {
     public:
-        TReqExecuteBatchWithRetriesInParallel(
+        TReqExecuteBatchInParallel(
             NRpc::IChannelPtr channel,
             int subbatchSize,
             NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
-            std::optional<TCellTag> cellTag,
-            std::optional<NApi::EMasterChannelKind> channelKind,
-            std::vector<TReqExecuteBatchWithRetriesPtr> parallelReqs);
+            std::vector<TReqExecuteBatchPtr> parallelReqs);
 
         //! Starts the asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
@@ -312,7 +309,7 @@ public:
         TRspExecuteBatchPtr OnParallelResponses(const TErrorOr<std::vector<TRspExecuteBatchPtr>>& parallelRsps);
 
     private:
-        std::vector<TReqExecuteBatchWithRetriesPtr> ParallelReqs_;
+        std::vector<TReqExecuteBatchPtr> ParallelReqs_;
     };
 
     //! A response to a batched request.
@@ -394,9 +391,9 @@ public:
 
     private:
         friend class TReqExecuteSubbatch;
+        friend class TReqExecuteBatchNoSequoiaRetries;
         friend class TReqExecuteBatch;
-        friend class TReqExecuteBatchWithRetries;
-        friend class TReqExecuteBatchWithRetriesInParallel;
+        friend class TReqExecuteBatchInParallel;
 
         struct TResponseMeta
         {
@@ -454,8 +451,9 @@ public:
 
     explicit TObjectServiceProxy(NRpc::IChannelPtr channel);
 
-    //! Executes a batched Cypress request. Retries backed off and uncertain
-    //! subrequests. May take an arbitrarily long time.
+    //! Executes a batched Cypress request. Retries backed off, uncertain
+    //! subrequests and Sequoia retriable errors. May take an arbitrarily long
+    //! time.
     TReqExecuteBatchPtr ExecuteBatch(int subbatchSize = DefaultSubbatchSize);
 
     //! Executes a single batch RPC request. Results in a (batch) response that
@@ -463,14 +461,15 @@ public:
     TReqExecuteBatchBasePtr ExecuteBatchNoBackoffRetries(int subbatchSize = DefaultSubbatchSize);
 
     //! Same as ExecuteBatch, but additionally retries any subrequest that results a retriable error.
-    TReqExecuteBatchWithRetriesPtr ExecuteBatchWithRetries(
-        TReqExecuteBatchWithRetriesConfigPtr config,
+    TReqExecuteBatchPtr ExecuteBatchWithRetries(
+        TReqExecuteBatchRetriesConfigPtr config,
         TCallback<bool(int, const TError&)> needRetry = BIND(IsRetriableObjectServiceError),
-        int subbatchSize = DefaultSubbatchSize);
+        int subbatchSize = DefaultSubbatchSize,
+        bool regenerateMutationIdForRetries = true);
 
     //! Same as ExecuteBatchWithRetries, but allows to send several subbatches in parallel.
-    TReqExecuteBatchWithRetriesInParallelPtr ExecuteBatchWithRetriesInParallel(
-        TReqExecuteBatchWithRetriesConfigPtr config,
+    TReqExecuteBatchInParallelPtr ExecuteBatchWithRetriesInParallel(
+        TReqExecuteBatchRetriesConfigPtr config,
         TCallback<bool(int, const TError&)> needRetry = BIND(IsRetriableObjectServiceError),
         int subbatchSize = DefaultSubbatchSize,
         int maxParallelSubbatchCount = DefaultMaxParallelSubbatchCount);

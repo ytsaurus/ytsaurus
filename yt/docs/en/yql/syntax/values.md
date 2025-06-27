@@ -3,6 +3,7 @@
 ## VALUES as a top-level operator
 
 It lets you create a table from specified values. For example, this statement creates a table of k columns and n rows:
+
 ```yql
 VALUES (expr_11, expr_12, ..., expr_1k),
        (expr_21, expr_22, ..., expr_2k),
@@ -21,7 +22,7 @@ SELECT expr_n1, expr_n2, ..., expr_nk;
 
 ```
 
-**Example:**
+#### Example
 
 ```yql
 VALUES (1,2), (3,4);
@@ -30,13 +31,15 @@ VALUES (1,2), (3,4);
 
 ## VALUES after FROM
 
-VALUES can also be used in a subquery, after FROM. For example, the following two queries are equivalent:
+VALUES can also be used in a subquery, after [FROM](select/from.md). For example, the following two queries are equivalent:
+
 ```yql
 VALUES (1,2), (3,4);
 SELECT * FROM (VALUES (1,2), (3,4));
 ```
 
 In all examples above, column names are assigned by YQL as `column0 ... columnN`. To assign arbitrary column names, you can use the following construct:
+
 ```yql
 SELECT * FROM (VALUES (1,2), (3,4)) as t(x,y);
 ```

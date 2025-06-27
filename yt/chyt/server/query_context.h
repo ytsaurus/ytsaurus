@@ -98,6 +98,9 @@ public:
     //! Level of the query in an execution tree.
     int QueryDepth = 0;
 
+    //! Number of write sinks created for insert query.
+    std::atomic<int> WriteSinkCount = 0;
+
     NTableClient::TRowBufferPtr RowBuffer;
 
     TQuerySettingsPtr Settings;
@@ -291,7 +294,7 @@ NLogging::TLogger GetLogger(DB::ContextPtr context);
 
 void InvalidateCache(
     TQueryContext* queryContext,
-    std::vector<NYPath::TYPath> paths,
+    std::vector<std::pair<NYPath::TYPath, NHydra::TRevision>> paths,
     std::optional<EInvalidateCacheMode> invalidateMode = std::nullopt);
 
 ////////////////////////////////////////////////////////////////////////////////

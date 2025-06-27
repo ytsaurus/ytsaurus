@@ -1,5 +1,8 @@
 #include "helpers.h"
 #include "config.h"
+#include "private.h"
+
+#include "cypress_user_manager.h"
 
 #include <yt/yt/library/re2/re2.h>
 
@@ -16,6 +19,7 @@
 
 namespace NYT::NAuth {
 
+using namespace NConcurrency;
 using namespace NCrypto;
 using namespace NLogging;
 using namespace NYson;
@@ -80,6 +84,7 @@ static const THashSet<TString> PrivateUrlParams{
     "sessionid",
     "sslsessionid",
     "user_ticket",
+    "sessguard",
 };
 
 void TSafeUrlBuilder::AppendString(TStringBuf str)
@@ -152,14 +157,14 @@ void Serialize(const THashedCredentials& hashedCredentials, IYsonConsumer* consu
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString SignCsrfToken(const std::string& userId, const TString& key, TInstant now)
+std::string SignCsrfToken(const std::string& userId, const TString& key, TInstant now)
 {
     auto msg = userId + ":" + ToString(now.TimeT());
     return CreateSha256Hmac(key, msg) + ":" + ToString(now.TimeT());
 }
 
 TError CheckCsrfToken(
-    const TString& csrfToken,
+    const std::string& csrfToken,
     const std::string& userId,
     const TString& key,
     TInstant expirationTime)
@@ -189,7 +194,7 @@ TError CheckCsrfToken(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ApplyStringReplacement(const TString& input, const TStringReplacementConfigPtr& replacement, const TLogger& logger)
+std::string ApplyStringReplacement(const std::string& input, const TStringReplacementConfigPtr& replacement, const TLogger& logger)
 {
     const auto& Logger = logger;
 
@@ -218,6 +223,53 @@ TString ApplyStringReplacement(const TString& input, const TStringReplacementCon
         regexReplacementCount);
 
     return output;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TError EnsureUserExists(
+    bool createIfNotExists,
+    const ICypressUserManagerPtr& userManager,
+    const std::string& name,
+    const std::vector<std::string>& tags)
+{
+    const auto& Logger = AuthLogger;
+
+    YT_LOG_DEBUG("Checking if user exists (Name: %v)", name);
+    auto result = WaitFor(userManager->CheckUserExists(name));
+    if (!result.IsOK()) {
+        auto error = TError("Failed to verify if user exists")
+            << TErrorAttribute("name", name)
+            << std::move(result);
+        YT_LOG_WARNING(error);
+        return error;
+    }
+
+    if (result.Value()) {
+        YT_LOG_DEBUG("User exists (Name: %v)", name);
+        return TError();
+    }
+
+    YT_LOG_DEBUG("User does not exist (Name: %v)", name);
+    if (!createIfNotExists) {
+        auto error = TError(NRpc::EErrorCode::InvalidCredentials, "User does not exist")
+            << TErrorAttribute("name", name);
+        return error;
+    }
+
+    YT_LOG_DEBUG("Creating user (Name: %v, Tags: %v)", name, tags);
+
+    auto userOrError = WaitFor(userManager->CreateUser(name, tags));
+    if (userOrError.IsOK()) {
+        YT_LOG_DEBUG("User created (Name: %v)", name);
+        return TError();
+    }
+
+    auto error = TError("Failed to create user")
+        << TErrorAttribute("name", name)
+        << std::move(userOrError);
+    YT_LOG_WARNING(error);
+    return error;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

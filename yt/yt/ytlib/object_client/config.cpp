@@ -23,6 +23,9 @@ void TObjectAttributeCacheConfig::Register(TRegistrar registrar)
     registrar.Parameter("master_cache_cache_sticky_group_size", &TThis::MasterCacheStickyGroupSize_)
         .Optional();
 
+    registrar.Parameter("refresh_revision_storage_size", &TThis::RefreshRevisionStorageSize)
+        .Default(100000);
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->ReadFrom_) {
             config->MasterReadOptions->ReadFrom = *config->ReadFrom_;
@@ -94,16 +97,16 @@ void TCachingObjectServiceDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReqExecuteBatchWithRetriesConfig::Register(TRegistrar registrar)
+void TReqExecuteBatchRetriesConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("base_backoff", &TThis::StartBackoff)
+    registrar.BaseClassParameter("base_backoff", &TThis::StartBackoff)
         .Default(TDuration::Seconds(1));
-    registrar.Parameter("max_backoff", &TThis::MaxBackoff)
+    registrar.BaseClassParameter("max_backoff", &TThis::MaxBackoff)
         .Default(TDuration::Seconds(20));
-    registrar.Parameter("backoff_multiplier", &TThis::BackoffMultiplier)
+    registrar.BaseClassParameter("backoff_multiplier", &TThis::BackoffMultiplier)
         .GreaterThanOrEqual(1)
         .Default(2);
-    registrar.Parameter("retry_count", &TThis::RetryCount)
+    registrar.BaseClassParameter("retry_count", &TThis::RetryCount)
         .GreaterThanOrEqual(0)
         .Default(5);
 }

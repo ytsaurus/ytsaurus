@@ -86,7 +86,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletServerLogger;
+constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -271,11 +271,12 @@ DEFINE_REFCOUNTED_TYPE(TClusterStateCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatedTableTracker::TImpl
-    : public TMasterAutomatonPart
+class TMasterReplicatedTableTracker
+    : public IMasterReplicatedTableTracker
+    , public TMasterAutomatonPart
 {
 public:
-    TImpl(TReplicatedTableTrackerConfigPtr config, TBootstrap* bootstrap)
+    TMasterReplicatedTableTracker(TReplicatedTableTrackerConfigPtr config, TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ReplicatedTableTracker)
         , Config_(std::move(config))
         , ConnectionThread_(New<TActionQueue>("RTTConnection"))
@@ -289,10 +290,10 @@ public:
         YT_ASSERT_INVOKER_THREAD_AFFINITY(CheckerThreadPool_->GetInvoker(), CheckerThread);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->SubscribeNodeCreated(BIND_NO_PROPAGATE(&TImpl::OnNodeCreated, MakeStrong(this)));
+        cypressManager->SubscribeNodeCreated(BIND_NO_PROPAGATE(&TMasterReplicatedTableTracker::OnNodeCreated, MakeStrong(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterReplicatedTableTracker::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 private:
@@ -471,8 +472,8 @@ private:
         const i64 MaxIterationsWithoutAcceptableBundleHealth_;
 
         std::atomic<i64> IterationsWithoutAcceptableBundleHealth_ = 0;
-        std::atomic<TInstant> LastUpdateTime_ = {};
-        NThreading::TAtomicObject<TFuture<TString>> AsyncTabletCellBundleName_ = MakeFuture<TString>(TError("<unknown>"));
+        std::atomic<TInstant> LastUpdateTime_;
+        NThreading::TAtomicObject<TFuture<std::string>> AsyncTabletCellBundleName_ = MakeFuture<std::string>(TError("<unknown>"));
 
         TFuture<void> CheckClusterState()
         {
@@ -500,7 +501,7 @@ private:
         TFuture<void> CheckBundleHealth()
         {
             return GetAsyncTabletCellBundleName()
-                .Apply(BIND([client = Client_, clusterName = ClusterName_, bundleHealthCache = BundleHealthCache_] (const TErrorOr<TString>& bundleNameOrError) {
+                .Apply(BIND([client = Client_, clusterName = ClusterName_, bundleHealthCache = BundleHealthCache_] (const TErrorOr<std::string>& bundleNameOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError, "Error getting table bundle name");
 
                     const auto& bundleName = bundleNameOrError.Value();
@@ -562,7 +563,7 @@ private:
                     << TErrorAttribute("replica_lag_threshold", SyncReplicaLagThreshold_);
         }
 
-        TFuture<TString> GetAsyncTabletCellBundleName()
+        TFuture<std::string> GetAsyncTabletCellBundleName()
         {
             auto now = NProfiling::GetInstant();
             auto asyncTabletCellBundleName = AsyncTabletCellBundleName_.Load();
@@ -576,7 +577,7 @@ private:
                 asyncTabletCellBundleName = Client_->GetNode(Path_ + "/@tablet_cell_bundle")
                     .Apply(BIND([] (const TErrorOr<TYsonString>& bundleNameOrError) {
                         THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError, "Error getting table bundle name");
-                        return ConvertTo<TString>(bundleNameOrError.Value());
+                        return ConvertTo<std::string>(bundleNameOrError.Value());
                     }));
                 AsyncTabletCellBundleName_.Store(asyncTabletCellBundleName);
             }
@@ -1095,12 +1096,12 @@ private:
 
         UpdaterExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker),
-            BIND(&TImpl::UpdateIteration, MakeWeak(this)));
+            BIND(&TMasterReplicatedTableTracker::UpdateIteration, MakeWeak(this)));
         UpdaterExecutor_->Start();
 
         CheckerExecutor_ = New<TPeriodicExecutor>(
             CheckerThreadPool_->GetInvoker(),
-            BIND(&TImpl::CheckIteration, MakeWeak(this)));
+            BIND(&TMasterReplicatedTableTracker::CheckIteration, MakeWeak(this)));
         CheckerExecutor_->Start();
     }
 
@@ -1313,13 +1314,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicatedTableTracker::TReplicatedTableTracker(
-    TReplicatedTableTrackerConfigPtr config,
+IMasterReplicatedTableTrackerPtr CreateMasterReplicatedTableTracker(
+    NTabletServer::TReplicatedTableTrackerConfigPtr config,
     TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
-{ }
-
-TReplicatedTableTracker::~TReplicatedTableTracker() = default;
+{
+    return New<TMasterReplicatedTableTracker>(std::move(config), bootstrap);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1626,7 +1626,7 @@ private:
         EnqueueAction(std::move(action), "ReplicationCollocationDestroyed");
     }
 
-    void EnqueueAction(TUpdateAction action, const TString& actionString)
+    void EnqueueAction(TUpdateAction action, TStringBuf actionString)
     {
         auto revision = ++Revision_;
         action.set_revision(revision);

@@ -29,3 +29,7 @@ class TestAuthCommands(object):
         with set_config_option("enable_password_strength_validation", True):
             with pytest.raises(ValueError):
                 yt.set_user_password("admin", password)
+
+    @authors("denvr")
+    def test_get_current_user(self):
+        assert yt.get_current_user() == {"user": "root"}

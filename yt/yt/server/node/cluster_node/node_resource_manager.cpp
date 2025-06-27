@@ -43,7 +43,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ClusterNodeLogger;
+constinit const auto Logger = ClusterNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -387,6 +387,20 @@ TError VerifyEquals(const TJobResources& lhs, const TJobResources& rhs, TStringB
                 << TErrorAttribute("resource_name", PP_STRINGIZE(name)) \
                 << TErrorAttribute("value", lhs.Name) \
                 << TErrorAttribute("expected_e_to", rhs.Name); \
+        }
+
+    ITERATE_JOB_RESOURCE_FIELDS(XX)
+    #undef XX
+
+    return {};
+}
+
+TError VerifyNonNegative(const TJobResources& resources, TStringBuf failMessage)
+{
+    #define XX(name, Name) if (resources.Name < 0) { \
+            return TError(TRuntimeFormat(failMessage)) \
+                << TErrorAttribute("resource_name", PP_STRINGIZE(name)) \
+                << TErrorAttribute("value", resources.Name); \
         }
 
     ITERATE_JOB_RESOURCE_FIELDS(XX)

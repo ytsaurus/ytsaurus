@@ -76,7 +76,6 @@ target_sources(unittester-tablet-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/lookup_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_dynamic_store_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/ordered_store_manager_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/overload_controller_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/replication_log_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/simple_tablet_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/simple_transaction_supervisor.cpp

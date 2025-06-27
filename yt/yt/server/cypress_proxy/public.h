@@ -15,6 +15,8 @@ DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 using ISequoiaServiceContext = NYTree::IYPathServiceContext;
 using ISequoiaServiceContextPtr = NYTree::IYPathServiceContextPtr;
 
+DECLARE_REFCOUNTED_CLASS(TCypressProxyServiceBase)
+
 DECLARE_REFCOUNTED_STRUCT(INodeProxy)
 
 DECLARE_REFCOUNTED_STRUCT(IObjectService)
@@ -34,6 +36,7 @@ DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 
 DECLARE_REFCOUNTED_STRUCT(TObjectServiceDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TSequoiaResponseKeeperDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TTestConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressProxyBootstrapConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressProxyProgramConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressProxyDynamicConfig)
@@ -48,10 +51,18 @@ DECLARE_REFCOUNTED_STRUCT(ISequoiaResponseKeeper)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCypressResolveResult;
+
+// This means that the request was originally sent to a master service that
+// doesn't use resolve. This is typical of requests that are concerned either
+// with "master as a whole" (e.g. SetMaintennance) or requests that try to
+// avoid tasking the master with resolving paths to objects (e.g. VectorizedRead).
+struct TMasterResolveResult;
+
 struct TSequoiaResolveResult;
 
 using TResolveResult = std::variant<
     TCypressResolveResult,
+    TMasterResolveResult,
     TSequoiaResolveResult
 >;
 
@@ -95,7 +106,7 @@ struct TMultisetAttributesSubrequest
 struct TCypressNodeDescriptor
 {
     NCypressClient::TNodeId Id;
-    NSequoiaClient::TAbsoluteYPath Path;
+    NSequoiaClient::TAbsolutePath Path;
 };
 
 struct TCypressChildDescriptor
@@ -122,7 +133,7 @@ struct TCypressChildDescriptor
  */
 struct TProgenitorTransactionCache
 {
-    THashMap<NSequoiaClient::TAbsoluteYPath, NCypressClient::TTransactionId> Path;
+    THashMap<NSequoiaClient::TAbsolutePath, NCypressClient::TTransactionId> Path;
     THashMap<NCypressClient::TNodeId, NCypressClient::TTransactionId> Node;
     // Key: (parent ID, child key).
     THashMap<std::pair<NCypressClient::TNodeId, std::string>, NCypressClient::TTransactionId> Child;

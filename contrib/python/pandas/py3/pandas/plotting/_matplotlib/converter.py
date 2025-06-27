@@ -12,11 +12,10 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Final,
-    Generator,
     cast,
 )
+import warnings
 
-from dateutil.relativedelta import relativedelta
 import matplotlib.dates as mdates
 from matplotlib.ticker import (
     AutoLocator,
@@ -58,6 +57,8 @@ from pandas.core.indexes.period import (
 import pandas.core.tools.datetimes as tools
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from pandas._libs.tslibs.offsets import BaseOffset
 
 # constants
@@ -243,18 +244,29 @@ class PeriodConverter(mdates.DateConverter):
         if not hasattr(axis, "freq"):
             raise TypeError("Axis must have `freq` set to convert to Periods")
         valid_types = (str, datetime, Period, pydt.date, pydt.time, np.datetime64)
-        if isinstance(values, valid_types) or is_integer(values) or is_float(values):
-            return get_datevalue(values, axis.freq)
-        elif isinstance(values, PeriodIndex):
-            return values.asfreq(axis.freq).asi8
-        elif isinstance(values, Index):
-            return values.map(lambda x: get_datevalue(x, axis.freq))
-        elif lib.infer_dtype(values, skipna=False) == "period":
-            # https://github.com/pandas-dev/pandas/issues/24304
-            # convert ndarray[period] -> PeriodIndex
-            return PeriodIndex(values, freq=axis.freq).asi8
-        elif isinstance(values, (list, tuple, np.ndarray, Index)):
-            return [get_datevalue(x, axis.freq) for x in values]
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", "Period with BDay freq is deprecated", category=FutureWarning
+            )
+            warnings.filterwarnings(
+                "ignore", r"PeriodDtype\[B\] is deprecated", category=FutureWarning
+            )
+            if (
+                isinstance(values, valid_types)
+                or is_integer(values)
+                or is_float(values)
+            ):
+                return get_datevalue(values, axis.freq)
+            elif isinstance(values, PeriodIndex):
+                return values.asfreq(axis.freq).asi8
+            elif isinstance(values, Index):
+                return values.map(lambda x: get_datevalue(x, axis.freq))
+            elif lib.infer_dtype(values, skipna=False) == "period":
+                # https://github.com/pandas-dev/pandas/issues/24304
+                # convert ndarray[period] -> PeriodIndex
+                return PeriodIndex(values, freq=axis.freq).asi8
+            elif isinstance(values, (list, tuple, np.ndarray, Index)):
+                return [get_datevalue(x, axis.freq) for x in values]
         return values
 
 
@@ -349,11 +361,7 @@ class PandasAutoDateFormatter(mdates.AutoDateFormatter):
 class PandasAutoDateLocator(mdates.AutoDateLocator):
     def get_locator(self, dmin, dmax):
         """Pick the best locator based on a distance."""
-        delta = relativedelta(dmax, dmin)
-
-        num_days = (delta.years * 12.0 + delta.months) * 31.0 + delta.days
-        num_sec = (delta.hours * 60.0 + delta.minutes) * 60.0 + delta.seconds
-        tot_sec = num_days * 86400.0 + num_sec
+        tot_sec = (dmax - dmin).total_seconds()
 
         if abs(tot_sec) < self.minticks:
             self._freq = -1
@@ -571,14 +579,30 @@ def _daily_finder(vmin, vmax, freq: BaseOffset):
     # save this for later usage
     vmin_orig = vmin
 
-    (vmin, vmax) = (
-        Period(ordinal=int(vmin), freq=freq),
-        Period(ordinal=int(vmax), freq=freq),
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", "Period with BDay freq is deprecated", category=FutureWarning
+        )
+        warnings.filterwarnings(
+            "ignore", r"PeriodDtype\[B\] is deprecated", category=FutureWarning
+        )
+        (vmin, vmax) = (
+            Period(ordinal=int(vmin), freq=freq),
+            Period(ordinal=int(vmax), freq=freq),
+        )
     assert isinstance(vmin, Period)
     assert isinstance(vmax, Period)
     span = vmax.ordinal - vmin.ordinal + 1
-    dates_ = period_range(start=vmin, end=vmax, freq=freq)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", "Period with BDay freq is deprecated", category=FutureWarning
+        )
+        warnings.filterwarnings(
+            "ignore", r"PeriodDtype\[B\] is deprecated", category=FutureWarning
+        )
+        dates_ = period_range(start=vmin, end=vmax, freq=freq)
+
     # Initialize the output
     info = np.zeros(
         span, dtype=[("val", np.int64), ("maj", bool), ("min", bool), ("fmt", "|S20")]
@@ -1076,7 +1100,13 @@ class TimeSeries_DateFormatter(Formatter):
             fmt = self.formatdict.pop(x, "")
             if isinstance(fmt, np.bytes_):
                 fmt = fmt.decode("utf-8")
-            period = Period(ordinal=int(x), freq=self.freq)
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    "Period with BDay freq is deprecated",
+                    category=FutureWarning,
+                )
+                period = Period(ordinal=int(x), freq=self.freq)
             assert isinstance(period, Period)
             return period.strftime(fmt)
 

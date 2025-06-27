@@ -1,7 +1,7 @@
 from yt_env_setup import NODES_SERVICE, Restarter, YTEnvSetup
 
 from yt_commands import (
-    authors, print_debug, wait, release_breakpoint, wait_breakpoint, with_breakpoint, events_on_fs, create, create_tmpdir,
+    authors, print_debug, update_nodes_dynamic_config, wait, release_breakpoint, wait_breakpoint, with_breakpoint, events_on_fs, create, create_tmpdir,
     ls, get, sorted_dicts,
     set, remove, exists, create_user, make_ace, start_transaction, commit_transaction, write_file, read_table,
     write_table, map, reduce, map_reduce, sort, alter_table, start_op,
@@ -13,6 +13,8 @@ from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, m
 
 from yt_helpers import skip_if_old
 
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
 import yt_error_codes
 import yt.yson as yson
 
@@ -21,6 +23,7 @@ from yt.environment.helpers import assert_items_equal
 
 import pytest
 
+from copy import deepcopy
 from collections import defaultdict
 from random import shuffle
 import datetime
@@ -70,6 +73,20 @@ class TestSchedulerMapReduceBase(YTEnvSetup):
 
         return banned_nodes
 
+    def _enable_multiple_jobs(self):
+        """
+        A little hack to serialize job scheduling one-by-one.
+        """
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "allocation": {
+                        "enable_multiple_jobs": True,
+                    }
+                }
+            }
+        })
+
 
 ##################################################################
 
@@ -83,24 +100,24 @@ class TestSchedulerMapReduceCommands(TestSchedulerMapReduceBase):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "sort_operation_options": {
-                "min_uncompressed_block_size": 1
+            "operation_options": {
+                "min_uncompressed_block_size": 1,
+                "spec_template": {
+                    "enable_table_index_if_has_trivial_mapper": True,
+                }
             },
             "map_reduce_operation_options": {
                 "data_balancer": {
                     "tolerance": 1.0,
                 },
-                "min_uncompressed_block_size": 1,
                 "spec_template": {
                     "use_new_sorted_pool": False,
-                }
+                },
+                "sorted_merge_job_size_adjuster": {},
             },
             "enable_partition_map_job_size_adjustment": True,
-            "operation_options": {
-                "spec_template": {
-                    "enable_table_index_if_has_trivial_mapper": True,
-                }
-            },
+            "enable_ordered_partition_map_job_size_adjustment": True,
+            "enable_sorted_merge_in_sort_job_size_adjustment": True,
         }
     }
 
@@ -614,6 +631,7 @@ print("x={0}\ty={1}".format(x, y))
         assert len(read_table("//tmp/t_out", verbose=False)) > 0
 
     @authors("levysotsky")
+    @not_implemented_in_sequoia  # ACL
     def test_intermediate_live_preview(self):
         create_user("u")
         create("table", "//tmp/t1")
@@ -678,6 +696,7 @@ print("x={0}\ty={1}".format(x, y))
             wait(lambda: get("//sys/operations/@acl") == get("//sys/operations&/@acl"))
 
     @authors("levysotsky")
+    @not_implemented_in_sequoia  # ACL
     def test_intermediate_new_live_preview(self):
         partition_map_vertex = "partition_map(0)"
 
@@ -1156,9 +1175,13 @@ print("x={0}\ty={1}".format(x, y))
         assert get("//tmp/t2/@schema_mode") == "strong"
         assert read_table("//tmp/t2") == [{"k1": i * 2, "k2": i} for i in range(2)]
 
-    @authors("klyachin")
-    @pytest.mark.skipif("True", reason="YT-8228")
-    def test_map_reduce_job_size_adjuster_boost(self):
+    @authors("klyachin", "coteeq")
+    @pytest.mark.parametrize("ordered", [True, False])
+    def test_map_reduce_job_size_adjuster_boost(self, ordered):
+        skip_if_old(self.Env, (25, 2), "No multiple_jobs in 25.1")
+        if ordered:
+            skip_if_old(self.Env, (25, 3), "No ordered adjuster in 25.2")
+
         create("table", "//tmp/t_input")
         # original_data should have at least 1Mb of data
         original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in range(31)]
@@ -1167,6 +1190,8 @@ print("x={0}\ty={1}".format(x, y))
 
         create("table", "//tmp/t_output")
 
+        self._enable_multiple_jobs()
+
         map_reduce(
             in_="//tmp/t_input",
             out="//tmp/t_output",
@@ -1174,13 +1199,74 @@ print("x={0}\ty={1}".format(x, y))
             mapper_command="echo lines=`wc -l`",
             reducer_command="cat",
             spec={
+                "ordered": ordered,
                 "mapper": {"format": "dsv"},
                 "map_job_io": {"table_writer": {"block_size": 1024}},
                 "resource_limits": {"user_slots": 1},
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "enable_multiple_jobs_in_allocation": True,
             },
         )
 
         expected = [{"lines": str(2 ** i)} for i in range(5)]
+        actual = read_table("//tmp/t_output")
+        assert_items_equal(actual, expected)
+
+    @authors("coteeq")
+    @pytest.mark.timeout(300)
+    def test_map_reduce_job_size_adjuster_sorted_merge(self):
+        self.skip_if_legacy_sorted_pool()
+        create("table", "//tmp/t_input")
+        original_data = [{"index": "%05d" % i, "foo": "a" * 35000} for i in range(15)]
+        for row in original_data:
+            write_table("<append=true>//tmp/t_input", row, verbose=False)
+
+        create("table", "//tmp/t_output")
+
+        self._enable_multiple_jobs()
+
+        map_reduce(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            reduce_by="index",
+            mapper_command="cat",
+            reducer_command="echo lines=`wc -l`",
+            spec={
+                "mapper": {"format": "dsv"},
+                "reducer": {"format": "dsv"},
+                "resource_limits": {"user_slots": 1},
+                # Explicit map_job_count disables job_size_adjuster for map jobs.
+                "map_job_count": 15,
+                "data_size_per_sort_job": 36000,
+                "partition_count": 1,
+                "force_job_size_adjuster": True,
+                "job_testing_options": {
+                    "fake_prepare_duration": 10000,
+                },
+                "enable_multiple_jobs_in_allocation": True,
+            },
+        )
+
+        # NB(coteeq): A little quirk of sorted job builder is that it checks for data weight too late.
+        # So initially it will produce jobs with row counts [1, 2, 2, 2, 2, 2, 2, 2].
+        # JobManager will then schedule fat jobs first, so we will schedule jobs starting from the second.
+        # But this second job will not trigger enlargement, because the jobs are already too large.
+        # So the job sizes will look like this (c means completed):
+        # [1, 2, 2, 2, 2, 2, 2, 2]
+        # [1, c, 2, 2, 2, 2, 2, 2]
+        # [1, c, c, 4, 4, 2]
+        # [1, c, c, c, 6]
+        # [1, c, c, c, c]
+        # [c, c, c, c, c]
+        expected = [
+            {"lines": "1"},
+            {"lines": "2"},
+            {"lines": "2"},
+            {"lines": "4"},
+            {"lines": "6"},
+        ]
         actual = read_table("//tmp/t_output")
         assert_items_equal(actual, expected)
 
@@ -1229,8 +1315,6 @@ print("x={0}\ty={1}".format(x, y))
 
     @authors("max42", "galtsev")
     def test_data_balancing(self):
-        skip_if_old(self.Env, (24, 1), "Data balancing is broken in older versions")
-
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         job_count = 20
@@ -3785,9 +3869,28 @@ for line in sys.stdin:
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMapReduceCommandsWithOldSlicing(TestSchedulerMapReduceCommands):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerMapReduceCommands, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
+
+##################################################################
+
+
 class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["transaction_coordinator"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################
@@ -3797,6 +3900,46 @@ class TestSchedulerMapReduceCommandsPortal(TestSchedulerMapReduceCommandsMultice
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     ENABLE_TMP_PORTAL = True
 
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
+
+##################################################################
+
+
+class TestSchedulerMapReduceCommandsSysOperationsRootstock(TestSchedulerMapReduceCommandsPortal):
+    ENABLE_MULTIDAEMON = False
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 4
+    NUM_TEST_PARTITIONS = 15
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["sequoia_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["chunk_host"]},
+    }
+
+
+class TestSchedulerMapReduceCommandsSequoia(TestSchedulerMapReduceCommandsSysOperationsRootstock):
+    ENABLE_MULTIDAEMON = False
+    ENABLE_TMP_ROOTSTOCK = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["sequoia_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["chunk_host"]},
+    }
+
 
 ##################################################################
 
@@ -3805,24 +3948,24 @@ class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "sort_operation_options": {
-                "min_uncompressed_block_size": 1
+            "operation_options": {
+                "min_uncompressed_block_size": 1,
+                "spec_template": {
+                    "enable_table_index_if_has_trivial_mapper": True,
+                },
             },
             "map_reduce_operation_options": {
                 "data_balancer": {
                     "tolerance": 1.0,
                 },
-                "min_uncompressed_block_size": 1,
                 "spec_template": {
                     "use_new_sorted_pool": True,
-                }
+                },
+                "sorted_merge_job_size_adjuster": {},
             },
             "enable_partition_map_job_size_adjustment": True,
-            "operation_options": {
-                "spec_template": {
-                    "enable_table_index_if_has_trivial_mapper": True,
-                },
-            },
+            "enable_ordered_partition_map_job_size_adjustment": True,
+            "enable_sorted_merge_in_sort_job_size_adjustment": True,
         }
     }
 
@@ -4388,6 +4531,18 @@ fi
         # NB: There is a race condition between the completion of the sorted_reduce task
         # and node unregistering. The number of aborted jobs can be either 1 or 2.
         assert get(op.get_path() + "/@progress/sorted_reduce/aborted/total") >= 1
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMapReduceDeterminismWithOldSlicing(TestSchedulerMapReduceDeterminism):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerMapReduceDeterminism, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
 
 
 ##################################################################

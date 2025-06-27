@@ -1,5 +1,7 @@
 #include "table_replicator.h"
 
+#include "config.h"
+#include "error_manager.h"
 #include "hint_manager.h"
 #include "private.h"
 #include "relative_replication_throttler.h"
@@ -102,7 +104,8 @@ public:
         IInvokerPtr workerInvoker,
         EWorkloadCategory workloadCategory,
         IThroughputThrottlerPtr nodeOutThrottler,
-        IMemoryUsageTrackerPtr memoryTracker)
+        IMemoryUsageTrackerPtr memoryTracker,
+        IErrorManagerPtr errorManager)
         : Config_(std::move(config))
         , LocalConnection_(std::move(localConnection))
         , Slot_(std::move(slot))
@@ -133,6 +136,7 @@ public:
         , RelativeThrottler_(CreateRelativeReplicationThrottler(
             MountConfig_->RelativeReplicationThrottler))
         , MemoryTracker_(std::move(memoryTracker))
+        , ErrorManager_(std::move(errorManager))
         , SoftErrorBackoff_(TBackoffStrategy(TExponentialBackoffOptions{
             .MinBackoff = Config_->ReplicatorSoftBackoffTime,
             .MaxBackoff = Config_->ReplicatorHardBackoffTime,
@@ -184,6 +188,7 @@ private:
     const IThroughputThrottlerPtr Throttler_;
     const IRelativeReplicationThrottlerPtr RelativeThrottler_;
     const IMemoryUsageTrackerPtr MemoryTracker_;
+    const IErrorManagerPtr ErrorManager_;
 
     TBackoffStrategy SoftErrorBackoff_;
 
@@ -202,8 +207,9 @@ private:
     void FiberIteration()
     {
         TTableReplicaSnapshotPtr replicaSnapshot;
+        TTabletSnapshotPtr tabletSnapshot;
         try {
-            auto tabletSnapshot = TabletSnapshotStore_->FindTabletSnapshot(TabletId_, MountRevision_);
+            tabletSnapshot = TabletSnapshotStore_->FindTabletSnapshot(TabletId_, MountRevision_);
             if (!tabletSnapshot) {
                 THROW_ERROR_EXCEPTION("No tablet snapshot is available")
                     << HardErrorAttribute;
@@ -226,7 +232,7 @@ private:
             auto& counters = replicaSnapshot->Counters;
 
             auto countError = Finally([&] {
-                if (std::uncaught_exceptions()) {
+                if (std::uncaught_exceptions() > 0) {
                     counters.ReplicationErrorCount.Increment();
                 }
             });
@@ -389,7 +395,7 @@ private:
             auto updateChunkReaderStatisticsGuard = Finally([&] {
                 counters.ChunkReaderStatisticsCounters.Increment(
                     chunkReadOptions.ChunkReaderStatistics,
-                    /*failed*/ std::uncaught_exceptions());
+                    /*failed*/ std::uncaught_exceptions() > 0);
             });
 
             EReaderTerminationReason readerResult = EReaderTerminationReason::None;
@@ -522,6 +528,11 @@ private:
                 replicaSnapshot->RuntimeData->Error.Store(
                     error << TErrorAttribute("tablet_id", TabletId_));
             }
+
+            if (tabletSnapshot) {
+                ErrorManager_->HandleError(error, "Replication", tabletSnapshot);
+            }
+
             if (error.Attributes().Get<bool>("hard", false)) {
                 DoHardBackoff(error);
             } else if (error.FindMatching(NTabletClient::EErrorCode::UpstreamReplicaMismatch)) {
@@ -748,7 +759,8 @@ TTableReplicator::TTableReplicator(
     IInvokerPtr workerInvoker,
     EWorkloadCategory workloadCategory,
     IThroughputThrottlerPtr nodeOutThrottler,
-    IMemoryUsageTrackerPtr memoryTracker)
+    IMemoryUsageTrackerPtr memoryTracker,
+    IErrorManagerPtr errorManager)
     : Impl_(New<TImpl>(
         std::move(config),
         tablet,
@@ -760,7 +772,8 @@ TTableReplicator::TTableReplicator(
         std::move(workerInvoker),
         workloadCategory,
         std::move(nodeOutThrottler),
-        std::move(memoryTracker)))
+        std::move(memoryTracker),
+        std::move(errorManager)))
 { }
 
 TTableReplicator::~TTableReplicator() = default;

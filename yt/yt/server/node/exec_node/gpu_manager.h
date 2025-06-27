@@ -59,6 +59,7 @@ struct TGpuStatistics
     i64 CumulativeUtilizationPower = 0;
     i64 CumulativePower = 0;
     i64 CumulativeUtilizationClocksSM = 0;
+    i64 CumulativeSMClocks = 0;
     i64 CumulativeSMUtilization = 0;
     i64 CumulativeSMOccupancy = 0;
     i64 NvlinkRxBytes = 0;
@@ -68,6 +69,10 @@ struct TGpuStatistics
     i64 MaxStuckDuration = 0;
     i64 CumulativeTensorActivity = 0;
     i64 CumulativeDramActivity = 0;
+    i64 CumulativeSwThermalSlowdown = 0;
+    i64 CumulativeHwThermalSlowdown = 0;
+    i64 CumulativeHwPowerBrakeSlowdown = 0;
+    i64 CumulativeHwSlowdown = 0;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistics, TStringBuf /*format*/);
@@ -91,6 +96,8 @@ class TGpuManager
 {
 public:
     explicit TGpuManager(IBootstrap* bootstrap);
+
+    void Initialize();
 
     int GetTotalGpuCount() const;
     int GetFreeGpuCount() const;
@@ -118,12 +125,16 @@ public:
         const TGpuManagerDynamicConfigPtr& oldConfig,
         const TGpuManagerDynamicConfigPtr& newConfig);
 
+    void ApplyNetworkPriority(std::optional<NGpu::TNetworkPriority> networkPriority);
+
     bool ShouldTestResource() const;
     bool ShouldTestExtraGpuCheckCommandFailure() const;
     bool ShouldTestLayers() const;
     bool ShouldTestSetupCommands() const;
 
 private:
+    static inline const NGpu::TNetworkPriority DefaultNetworkPriority = 0;
+
     IBootstrap* const Bootstrap_;
     const TGpuManagerConfigPtr StaticConfig_;
     TAtomicIntrusivePtr<TGpuManagerDynamicConfig> DynamicConfig_;
@@ -162,6 +173,7 @@ private:
     std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
     TString DriverVersionString_;
     TAtomicIntrusivePtr<NGpu::IGpuInfoProvider> GpuInfoProvider_;
+    NGpu::TNetworkPriority CurrentNetworkPriority_ = DefaultNetworkPriority;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

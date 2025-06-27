@@ -29,7 +29,7 @@ struct ICellarOccupant
     TIntrusivePtr<T> GetTypedOccupier() const;
 
     virtual int GetIndex() const = 0;
-    virtual const TString& GetCellBundleName() const = 0;
+    virtual const std::string& GetCellBundleName() const = 0;
 
     // Hydra stuff.
     virtual const NHydra::IDistributedHydraManagerPtr GetHydraManager() const = 0;
@@ -66,7 +66,7 @@ struct ICellarOccupant
 
     virtual int GetDynamicConfigVersion() const = 0;
     virtual void UpdateDynamicConfig(const NCellarNodeTrackerClient::NProto::TUpdateCellSlotInfo& updateInfo) = 0;
-    virtual void Reconfigure(NHydra::TDynamicDistributedHydraManagerConfigPtr config) = 0;
+    virtual void Reconfigure(TCellarDynamicConfigPtr config) = 0;
 
     // Orchid.
     virtual const NYTree::IYPathServicePtr& GetOrchidService() const = 0;

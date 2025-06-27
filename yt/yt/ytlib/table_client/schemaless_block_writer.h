@@ -6,6 +6,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/private.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 #include <library/cpp/yt/memory/chunked_output_stream.h>
 
 namespace NYT::NTableClient {
@@ -17,8 +19,8 @@ class THorizontalBlockWriter
 public:
     explicit THorizontalBlockWriter(
         TTableSchemaPtr schema,
-        i64 reserveSize = 128_KB,
-        IMemoryUsageTrackerPtr memoryUsageTracker = GetNullMemoryUsageTracker());
+        IMemoryUsageTrackerPtr memoryUsageTracker,
+        i64 reserveSize = 128_KB);
 
     void WriteRow(TUnversionedRow row);
 

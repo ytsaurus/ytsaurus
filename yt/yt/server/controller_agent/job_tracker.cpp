@@ -618,6 +618,11 @@ bool TJobTracker::TNodeInfo::CheckHeartbeatSequenceNumber(ui64 sequenceNumber)
     return false;
 }
 
+TJobTracker::TInBarrier::TInBarrier(const TOutBarrier& outBarrier)
+    : Future(outBarrier.Promise)
+    , Id(outBarrier.Id)
+{ }
+
 TJobTracker::TAllocationInfo::TAllocationInfo(
     TOperationId operationId,
     TAllocationId allocationId)
@@ -793,6 +798,16 @@ TEvent& TJobTracker::TAllocationInfo::GetEventOrCrash(TNonNullPtr<TSchedulerToAg
         "Unexpected allocation event type (Event: %v)",
         *event);
     return *typedEvent;
+}
+
+void TJobTracker::TAllocationInfo::SetNewJobSettlingBarrier(TInBarrier barrier)
+{
+    NewJobSettlingBarrier_ = std::move(barrier);
+}
+
+const std::optional<TJobTracker::TInBarrier>& TJobTracker::TAllocationInfo::GetNewJobSettlingBarrier() const
+{
+    return NewJobSettlingBarrier_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1066,6 +1081,15 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
         THROW_ERROR_EXCEPTION("Allocation %v is already finished", allocationId);
     }
 
+    if (const auto& newJobSettlingBarrier = allocationInfo->GetNewJobSettlingBarrier()) {
+        YT_LOG_DEBUG(
+            "Waiting for new job settling barrier (BarrierId: %v)",
+            newJobSettlingBarrier->Id);
+
+        // NB(pogorelov): Wait for all previous job events are processed by controller.
+        WaitFor(newJobSettlingBarrier->Future).ThrowOnError();
+    }
+
     auto operationIt = RegisteredOperations_.find(operationId);
     if (operationIt == std::end(RegisteredOperations_)) {
         YT_LOG_INFO("Operation is not registered in job tracker; skip settle job request");
@@ -1097,7 +1121,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
         .Run();
 
     auto jobInfoOrError = WaitFor(
-        asyncJobInfo);
+        std::move(asyncJobInfo));
 
     if (Config_->TestingOptions) {
         MaybeDelay(Config_->TestingOptions->DelayInSettleJob);
@@ -1569,7 +1593,8 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
             operationIdToUpdatesProcessingContext,
             heartbeatProcessingContext,
             heartbeatProcessingResult,
-            operationId);
+            operationId,
+            /*createBarrier:*/ true);
         if (!operationUpdatesProcessingContext.OperationController) {
             continue;
         }
@@ -1619,6 +1644,13 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
                     throttledAnyEvents |= wasJobEventThrottled;
 
                     increaseJobMessageSizes(/*isKnownJob:*/ true);
+
+                    // NB(pogorelov): We store jobs only if event is not throttled.
+                    // (Actually, for now we never throttle finish jobs at all.)
+                    if (!wasJobEventThrottled) {
+                        YT_VERIFY(operationUpdatesProcessingContext.ContextProcessedBarrier.Promise);
+                        allocation.SetNewJobSettlingBarrier(operationUpdatesProcessingContext.ContextProcessedBarrier);
+                    }
 
                     continue;
                 }
@@ -1896,7 +1928,8 @@ TJobTracker::TOperationUpdatesProcessingContext& TJobTracker::AddOperationUpdate
     TNonNullPtr<THashMap<TOperationId, TOperationUpdatesProcessingContext>> contexts,
     TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
     TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult,
-    TOperationId operationId)
+    TOperationId operationId,
+    bool createBarrier)
 {
     auto* response = &heartbeatProcessingContext->RpcContext->Response();
 
@@ -1906,6 +1939,15 @@ TJobTracker::TOperationUpdatesProcessingContext& TJobTracker::AddOperationUpdate
 
     auto& operationUpdatesProcessingContext = it->second;
     if (!inserted) {
+        if (createBarrier && !operationUpdatesProcessingContext.ContextProcessedBarrier.Promise) {
+            operationUpdatesProcessingContext.ContextProcessedBarrier = TOutBarrier{
+                .Promise = NewPromise<void>(),
+            };
+
+            YT_LOG_DEBUG(
+                "Added context processing barrier (BarrierId: %v)",
+                operationUpdatesProcessingContext.ContextProcessedBarrier.Id);
+        }
         return operationUpdatesProcessingContext;
     }
 
@@ -1944,6 +1986,16 @@ TJobTracker::TOperationUpdatesProcessingContext& TJobTracker::AddOperationUpdate
     }
 
     operationUpdatesProcessingContext.OperationController = std::move(operationController);
+
+    if (createBarrier) {
+        operationUpdatesProcessingContext.ContextProcessedBarrier = TOutBarrier{
+            .Promise = NewPromise<void>(),
+        };
+
+        YT_LOG_DEBUG(
+            "Created context processing barrier (BarrierId: %v)",
+            operationUpdatesProcessingContext.ContextProcessedBarrier.Id);
+    }
 
     return operationUpdatesProcessingContext;
 }
@@ -2389,7 +2441,10 @@ void TJobTracker::DoReleaseJobs(
         grouppedJobsToRelease[nodeId][allocationId].push_back(job);
     }
 
-    auto& operationInfo = GetOrCrash(RegisteredOperations_, operationId);
+    TOperationUpdatesProcessingContext context{.OperationId = operationId,};
+    context.OperationLogger = Logger().WithTag("OperationId: %v", operationId);
+    context.OperationInfo = &GetOrCrash(RegisteredOperations_, operationId);
+    context.OperationController = context.OperationInfo->OperationController.Lock();
 
     for (const auto& [nodeId, allocationIdToJobsToRelease] : grouppedJobsToRelease) {
         auto* nodeInfo = FindNodeInfo(nodeId);
@@ -2429,13 +2484,17 @@ void TJobTracker::DoReleaseJobs(
                 if (jobErased) {
                     // NB(pogorelov): No postponed allocation event expected here,
                     // since events are postponed only for allocations with running jobs.
-                    auto allocationInfo = EraseAllocationIfNeeded(nodeJobs, allocationIt, &operationInfo);
+                    auto allocationInfo = EraseAllocationIfNeeded(nodeJobs, allocationIt, context.OperationInfo);
 
-                    YT_VERIFY(!allocationInfo || !allocationInfo->GetPostponedEvent());
+                    if (allocationInfo && allocationInfo->GetPostponedEvent()) {
+                        context.AddAllocationEvent(allocationInfo->ConsumePostponedEventOrCrash());
+                    }
                 }
             }
         }
     }
+
+    ProcessOperationContext(std::move(context));
 }
 
 void TJobTracker::RequestJobAbortion(
@@ -3169,7 +3228,7 @@ const std::string& TJobTracker::GetNodeAddressForLogging(TNodeId nodeId)
         static const std::string NotReceivedAddress{"<address not received>"};
         return NotReceivedAddress;
     } else {
-        return nodeIt->second->Address;
+        return NNodeTrackerClient::GetDefaultAddress(nodeIt->second->Addresses);
     }
 }
 
@@ -3274,6 +3333,15 @@ void TJobTracker::ProcessOperationContext(TOperationUpdatesProcessingContext con
                 discountGuard = std::move(discountGuard)
             ] () mutable {
                 const auto& Logger = operationUpdatesProcessingContext.OperationLogger;
+
+                if (operationUpdatesProcessingContext.ContextProcessedBarrier.Promise) {
+                    YT_LOG_DEBUG(
+                        "Releasing context processing barrier (BarrierId: %v)",
+                        operationUpdatesProcessingContext.ContextProcessedBarrier.Id);
+
+                    operationUpdatesProcessingContext.ContextProcessedBarrier.Promise.Set();
+                }
+
                 for (auto& jobSummary : operationUpdatesProcessingContext.JobSummaries) {
                     YT_VERIFY(jobSummary);
 

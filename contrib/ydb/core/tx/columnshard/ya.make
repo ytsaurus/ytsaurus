@@ -63,6 +63,7 @@ PEERDIR(
     contrib/ydb/core/tx/columnshard/transactions/operators
     contrib/ydb/core/tx/columnshard/tx_reader
     contrib/ydb/core/tx/conveyor/usage
+    contrib/ydb/core/tx/conveyor_composite/service
     contrib/ydb/core/tx/long_tx_service/public
     contrib/ydb/core/tx/priorities/service
     contrib/ydb/core/tx/tiering
@@ -88,6 +89,7 @@ END()
 RECURSE(
     engines
     splitter
+    tools/visualize_portions
 )
 
 RECURSE_FOR_TESTS(

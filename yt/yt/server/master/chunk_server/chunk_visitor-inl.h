@@ -119,13 +119,13 @@ namespace NDetail {
 struct TDefaultKeyFormatter
 {
     template <class E>
-    TString operator()(E value) const
+    std::string operator()(E value) const
         requires TEnumTraits<E>::IsEnum
     {
         return FormatEnum(value);
     }
 
-    TString operator()(NObjectClient::TCellTag value) const
+    std::string operator()(NObjectClient::TCellTag value) const
     {
         return ToString(value);
     }

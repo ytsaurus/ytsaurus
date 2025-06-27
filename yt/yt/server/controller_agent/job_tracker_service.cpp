@@ -64,13 +64,15 @@ private:
         auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
         auto operationId = FromProto<TOperationId>(request->operation_id());
         auto allocationId = FromProto<TAllocationId>(request->allocation_id());
+        auto lastJobId = YT_OPTIONAL_FROM_PROTO(*request, last_job_id);
         context->SetRequestInfo(
-            "NodeId: %v, NodeAddress: %v, KnownIncarnationId: %v, OperationId: %v, AllocationId: %v",
+            "NodeId: %v, NodeAddress: %v, KnownIncarnationId: %v, OperationId: %v, AllocationId: %v, LastJobId: %v",
             nodeId,
             descriptor.GetDefaultAddress(),
             incarnationId,
             operationId,
-            allocationId);
+            allocationId,
+            lastJobId);
 
         Bootstrap_->GetControllerAgent()->GetJobTracker()->SettleJob(context);
     }

@@ -258,7 +258,7 @@ TFuture<void> TTransactionPresenceCache::SubscribeRemoteTransactionReplicated(TT
             subscriptionPromise = &it->second;
         }
 
-        result = subscriptionPromise->ToFuture();
+        result = subscriptionPromise->ToFuture().ToUncancelable();
     }
 
     // Recheck to avoid races with transactions that became replicated while we were subscribing.

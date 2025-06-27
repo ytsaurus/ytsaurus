@@ -18,6 +18,8 @@ from yt.common import YtError
 
 from yt.yson.yson_types import YsonEntity
 
+from copy import deepcopy
+
 import pytest
 import random
 import string
@@ -58,9 +60,6 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "fetcher": {
             "node_rpc_timeout": 10000
-        },
-        "table_writer": {
-            "enable_large_columnar_statistics": True,
         },
     }
 
@@ -165,6 +164,16 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
             if expected_statistics.get(statistics_name) is not None:
                 assert statistics.get(statistics_name) == expected_statistics.get(statistics_name), \
                     "Error when checking {}, table path is {}".format(statistics_name, path)
+
+    @staticmethod
+    def _get_completed_summary(summaries):
+        result = None
+        for summary in summaries:
+            if summary["tags"]["job_state"] == "completed":
+                assert not result
+                result = summary
+        assert result
+        return result["summary"]
 
 
 @pytest.mark.enabled_multidaemon
@@ -778,9 +787,9 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
         estimated_uncompressed_data_size = statistics["uncompressed_data_size"]
 
         job_input_statistics = progress["job_statistics_v2"]["data"]["input"]
-        actual_compressed_data_size = job_input_statistics["compressed_data_size"][0]["summary"]["sum"]
-        actual_uncompressed_data_size = job_input_statistics["uncompressed_data_size"][0]["summary"]["sum"]
-        actual_data_weight = job_input_statistics["data_weight"][0]["summary"]["sum"]
+        actual_compressed_data_size = self._get_completed_summary(job_input_statistics["compressed_data_size"])["sum"]
+        actual_uncompressed_data_size = self._get_completed_summary(job_input_statistics["uncompressed_data_size"])["sum"]
+        actual_data_weight = self._get_completed_summary(job_input_statistics["data_weight"])["sum"]
 
         assert 0.99 * estimated_data_weight <= actual_data_weight <= 1.01 * estimated_data_weight
 
@@ -871,6 +880,18 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
+class TestColumnarStatisticsOperationsWithOldSlicing(TestColumnarStatisticsOperations):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestColumnarStatisticsOperations, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
+
+##################################################################
+
+
 class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperations):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -907,7 +928,6 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
         "fetcher": {
             "node_rpc_timeout": 3000
         },
-        "enable_large_columnar_statistics": True,
     }
 
     @classmethod
@@ -943,7 +963,6 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
         "fetcher": {
             "node_rpc_timeout": 3000
         },
-        "enable_large_columnar_statistics": True,
     }
 
     @authors("achulkov2")
@@ -1136,16 +1155,6 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
     def _make_random_string(size) -> str:
         return ''.join(random.choice(string.ascii_letters) for _ in range(size))
 
-    @staticmethod
-    def get_completed_summary(summaries):
-        result = None
-        for summary in summaries:
-            if summary["tags"]["job_state"] == "completed":
-                assert not result
-                result = summary
-        assert result
-        return result["summary"]
-
     @authors("apollo1321")
     @pytest.mark.timeout(300)
     @pytest.mark.parametrize("strict", [False, True])
@@ -1234,8 +1243,8 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
 
             progress = get(op.get_path() + "/@progress")
             input_statistics = progress["job_statistics_v2"]["data"]["input"]
-            actual_uncompressed_data_size = self.get_completed_summary(input_statistics["uncompressed_data_size"])["sum"]
-            actual_compressed_data_size = self.get_completed_summary(input_statistics["compressed_data_size"])["sum"]
+            actual_uncompressed_data_size = self._get_completed_summary(input_statistics["uncompressed_data_size"])["sum"]
+            actual_compressed_data_size = self._get_completed_summary(input_statistics["compressed_data_size"])["sum"]
 
             estimated_uncompressed_data_size = progress["estimated_input_statistics"]["uncompressed_data_size"]
             estimated_compressed_data_size = progress["estimated_input_statistics"]["compressed_data_size"]
@@ -1286,7 +1295,7 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
         )
 
         progress = get(op.get_path() + "/@progress")
-        actual_compressed_data_size = self.get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["compressed_data_size"])["sum"]
+        actual_compressed_data_size = self._get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["compressed_data_size"])["sum"]
         estimated_compressed_data_size = progress["estimated_input_statistics"]["compressed_data_size"]
 
         assert 4 * 2**20 < actual_compressed_data_size < 7 * 2**20

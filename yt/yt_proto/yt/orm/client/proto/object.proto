@@ -215,7 +215,7 @@ message TLocalAttributeMigration
 // Next field number 55.
 message TObjectTypeOption
 {
-    reserved 6, 7, 15, 17, 20, 21, 28, 29, 38, 46;
+    reserved 6, 7, 15, 17, 20, 21, 28, 29, 37, 38, 46;
     reserved "use_custom_default_permissions";
     reserved "history_indexed_attributes";
     reserved "history_attributes";
@@ -224,6 +224,7 @@ message TObjectTypeOption
     reserved "primary_key_data_group";
     reserved "labels_data_group";
     reserved "forbid_parent_removal";
+    reserved "yp_compat_includes";
 
     // Snake case names of fields in /meta comprising the primary key, in order.
     repeated string primary_key = 13;
@@ -299,9 +300,6 @@ message TObjectTypeOption
 
     repeated TAttributeSensor attribute_sensors = 36;
 
-    // Use to migrate objects with not generated dependencies.
-    repeated string yp_compat_includes = 37;
-
     optional bool use_custom_default_acl = 39;
     repeated TAccessControlEntry default_acl = 40;
 
@@ -357,12 +355,6 @@ enum EHistoryCommitTime
     HCT_TRANSACTION_START = 1;
 }
 
-enum EHistoryTimeMode
-{
-    HTM_LOGICAL = 0;
-    HTM_PHYSICAL = 1;
-}
-
 enum EVersionCompatibility
 {
     VC_LOWER_OR_EQUAL_THAN_DB_VERSION = 0;
@@ -386,19 +378,12 @@ message THistoryTableOptions
 {
     // Needed for migration without write downtime. Details in YTORM-513.
     // NB!: It is considered to be used only during the migration, when history is write-only,
-    // so, if you intend to use it longer, modify configs accordingly (e.g. |last_trim_time_per_history_table| option).
+    // so, if you intend to use it longer, modify configs accordingly (e.g. |history_last_trim_time_per_table| option).
     optional string primary_table_name = 1;
     optional string index_table_name = 2;
 
-    // Defines whether internal history representation would be based on physical clock or logical clock.
-    //
-    // Logical clocks have several advantages:
-    // 1. Prevent interleavings of events for different objects with the same object key;
-    // 2. Allow to search for events via their timestamps.
-    //
-    // One disadvantage logical clocks have is that it is currently not possible to store commit timestamp inside event
-    // because it is not known before the actual commit happens.
-    optional EHistoryTimeMode time_mode = 3;
+    reserved "time_mode";
+    reserved 3;
 
     // Specifies time with which history would be committed.
     // By default, history events are committed with commit start time.
@@ -413,8 +398,8 @@ message THistoryTableOptions
     // Therefore, it may beneficial to omit uuid from key in cases, where the majority of queries comes without uuid.
     optional bool use_uuid_in_key = 5;
 
-    // Hash column is not generated if enabled.
-    optional bool no_hash = 6;
+    reserved "no_hash";
+    reserved 6;
 
     // Primary key columns group for history table.
     // "default" used if value not set.
@@ -770,15 +755,15 @@ message TJoinOption
 
 enum EFilterPlace
 {
-    FILTER_PROHIBITED = 0;
-    FILTER_WHERE = 1;
-    FILTER_HAVING = 2;
-    FILTER_JOIN_PREDICATE = 3;
+    FILTER_WHERE = 0;
+    FILTER_HAVING = 1;
+    FILTER_JOIN_PREDICATE = 2;
 }
 
 message TJoinedColumnOption
 {
-    optional bool select_allowed = 1 [default = true];
+    reserved 1;
+    reserved "select_allowed";
     optional EFilterPlace filter_place = 2;
     // Field evaluation expression. Mutually exclusive with name and aggregation.
     optional string expression = 3;
@@ -788,7 +773,7 @@ message TJoinedColumnOption
     optional string aggregation = 5;
 }
 
-// Next field 31055.
+// Next field 31056.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -931,6 +916,11 @@ extend google.protobuf.FieldOptions
 
     // Field (in the same message) that actually stores the content of this field in raw protobuf format as bytes.
     optional string raw_protobuf = 31051;
+
+    // Each predicate is an ORM QL expression over field's attribute.
+    // Alias `value` can be used instead of spelling out full attribute path in the expression.
+    // Validation is performed only for mutating API calls, not for server-side plugins.
+    repeated string field_validation_predicates = 31055;
 }
 
 // Next field 32016.

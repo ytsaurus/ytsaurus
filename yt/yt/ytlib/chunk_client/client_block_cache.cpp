@@ -13,9 +13,8 @@
 
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/config.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/property.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 namespace NYT::NChunkClient {
 
@@ -24,7 +23,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkClientLogger;
+constinit const auto Logger = ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

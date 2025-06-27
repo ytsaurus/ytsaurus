@@ -256,7 +256,7 @@ private:
     {
         std::vector<std::string> queries;
 
-        const auto & settings = context->getSettingsRef();
+        const auto& settings = context->getSettingsRef();
 
         auto parseRes = splitMultipartQuery(input, queries,
             settings.max_query_size,
@@ -264,7 +264,7 @@ private:
             settings.max_parser_backtracks,
             settings.allow_settings_after_format_in_insert);
         if (!parseRes.second) {
-            THROW_ERROR_EXCEPTION("Cannot parse and execute the following part of query: %s", parseRes.first);
+            THROW_ERROR_EXCEPTION("Cannot parse and execute query part %Qv", parseRes.first);
         }
 
         return queries;
@@ -344,7 +344,10 @@ private:
             ToProto(response->mutable_multi_progress()->mutable_progresses()->Add(), additionalQueryId, queryProgress);
         }
         if (response->multi_progress().progresses().size() > 0) {
-            context->SetResponseInfo("QueryId: %v, ProgressesCount: %v, IsFinishedCount: %v", queryId, response->multi_progress().progresses().size(), isFinishedCount);
+            context->SetResponseInfo("QueryId: %v, ProgressesCount: %v, IsFinishedCount: %v",
+                queryId,
+                response->multi_progress().progresses().size(),
+                isFinishedCount);
         } else {
             context->SetResponseInfo(
                 "No progress found because the query has already finished or was initiated on another instance");

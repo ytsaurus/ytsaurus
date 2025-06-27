@@ -2,13 +2,14 @@ from yt.test_helpers import assert_items_equal
 
 from yt.environment.migrationlib import TableInfo, Conversion, Migration
 
-from yt.wrapper.ypath import ypath_split
-from yt_commands import (authors, get, insert_rows, ls, print_debug, set,
+from yt.wrapper.ypath import ypath_split, ypath_join
+from yt_commands import (authors, get, insert_rows, ls, print_debug, set, wait,
                          read_table, create_tablet_cell_bundle, sync_create_cells)
 
 from yt_env_setup import YTEnvSetup
 
 import pytest
+import logging
 
 
 def check_table_schema(table, table_info):
@@ -221,3 +222,88 @@ class TestConversionFilterCallback(YTEnvSetup):
             check_table_schema("{}/test_table2".format(tables_path), INITIAL_TABLE_INFOS["test_table2"])
         else:
             check_table_schema("{}/test_table2".format(tables_path), TRANSFORMS[2][0].table_info)
+
+
+class TestInitCallback(YTEnvSetup):
+    USE_DYNAMIC_TABLES = True
+    NUM_SCHEDULERS = 1
+
+    INITIAL_TABLE_INFOS = {
+        "test_table": TableInfo(
+            [("id", "int64")],
+            [("field", "string")],
+            attributes={"tablet_cell_bundle": "sys"},
+        ),
+    }
+    INITIAL_VERSION = 0
+    TRANSFORMS = {
+        1: [
+            Conversion(
+                "test_table",
+                table_info=TableInfo(
+                    [("id", "int64"), ("key_field", "int64", "1")],
+                    [("field", "string")],
+                ),
+                use_default_mapper=True,
+            )
+        ],
+        2: [
+            Conversion(
+                "test_table2",
+                table_info=TableInfo(
+                    [("id", "int64"),],
+                    [("field2", "string")],
+                    attributes={"tablet_cell_bundle": "sys"},
+                ),
+                use_default_mapper=True,
+            )
+        ],
+    }
+
+    MIGRATION = Migration(
+        initial_table_infos=INITIAL_TABLE_INFOS,
+        initial_version=INITIAL_VERSION,
+        transforms=TRANSFORMS,
+    )
+
+    @authors("bystrovserg")
+    def test_init_callback(self):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        tables_path = "//tmp/test_init_callback"
+        client = self.Env.create_client()
+
+        def table_init_callback(client, table_path):
+            _, table_name = ypath_split(table_path)
+            logging.info("Table init callback called for table %s", table_name)
+            if table_name == "test_table":
+                client.set(table_path + "/@max_data_ttl", 1)
+            if table_name == "test_table2":
+                client.set(table_path + "/@max_data_ttl", 2)
+
+        self.MIGRATION.table_init_callback = table_init_callback
+        self.MIGRATION.create_tables(
+            client=client,
+            target_version=self.INITIAL_VERSION,
+            tables_path=tables_path,
+            shard_count=1,
+            override_tablet_cell_bundle=None,
+        )
+
+        table1_path_ttl = ypath_join(tables_path, "test_table", "@max_data_ttl")
+        table2_path_ttl = ypath_join(tables_path, "test_table2", "@max_data_ttl")
+
+        wait(lambda: get(table1_path_ttl) == 1)
+
+        self.MIGRATION.run(
+            client=client,
+            tables_path=tables_path,
+            target_version=self.MIGRATION.get_latest_version(),
+            shard_count=1,
+            force=False,
+            retransform=False,
+        )
+
+        wait(lambda: get(table1_path_ttl) == 1)
+        wait(lambda: get(table2_path_ttl) == 2)

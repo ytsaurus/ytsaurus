@@ -262,6 +262,8 @@ struct TDynamicTabletManagerConfig
 
     bool SynchronizeTabletCellLeaderSwitches;
 
+    TDuration MaxPreloadWaitTimeBeforeLeaderSwitch;
+
     // TODO(gritukan): Move it to node dynamic config when it will be ready.
     bool AbandonLeaderLeaseDuringRecovery;
 
@@ -330,6 +332,8 @@ struct TDynamicTabletManagerConfig
 
     // COMPAT(danilalexeev)
     bool SafeCheckSecondaryCellStorage;
+
+    bool EnableSmoothTabletMovement;
 
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 

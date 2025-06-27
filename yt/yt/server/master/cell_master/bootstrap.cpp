@@ -5,6 +5,7 @@
 #include "config_manager.h"
 #include "disk_space_sensor_producer.h"
 #include "epoch_history_manager.h"
+#include "hive_profiling_manager.h"
 #include "hydra_facade.h"
 #include "master_hydra_service.h"
 #include "multicell_manager.h"
@@ -127,6 +128,8 @@
 
 #include <yt/yt/ytlib/auth/native_authenticating_channel.h>
 
+#include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
+
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/helpers.h>
 
@@ -163,7 +166,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
-#include <yt/yt/ytlib/sequoia_client/client.h>
+#include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -377,9 +380,9 @@ const NNative::IClientPtr& TBootstrap::GetRootClient() const
     return RootClient_;
 }
 
-const ISequoiaClientPtr& TBootstrap::GetSequoiaClient() const
+ISequoiaClientPtr TBootstrap::GetSequoiaClient() const
 {
-    return SequoiaClient_;
+    return ClusterConnection_->GetSequoiaClient();
 }
 
 const TCellManagerPtr& TBootstrap::GetCellManager() const
@@ -547,7 +550,7 @@ const ITamedCellManagerPtr& TBootstrap::GetTamedCellManager() const
     return TamedCellManager_;
 }
 
-const TTabletManagerPtr& TBootstrap::GetTabletManager() const
+const ITabletManagerPtr& TBootstrap::GetTabletManager() const
 {
     return TabletManager_;
 }
@@ -704,6 +707,8 @@ void TBootstrap::DoRun()
 
 void TBootstrap::DoInitialize()
 {
+    auto sequoiaTableDescriptorInitialization = ITableDescriptor::Initialize(NRpc::TDispatcher::Get()->GetHeavyInvoker());
+
     Config_->PrimaryMaster->ValidateAllPeersPresent();
     for (auto cellConfig : Config_->SecondaryMasters) {
         cellConfig->ValidateAllPeersPresent();
@@ -784,10 +789,6 @@ void TBootstrap::DoInitialize()
     RootClient_ = ClusterConnection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
-
-    SequoiaClient_ = CreateSequoiaClient(
-        Config_->ClusterConnection->Dynamic->SequoiaConnection,
-        RootClient_);
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(ClusterConnection_);
 
@@ -880,6 +881,8 @@ void TBootstrap::DoInitialize()
         CreateMulticellUpstreamSynchronizer(this),
         NativeAuthenticator_);
 
+    HiveProfilingManager_ = CreateHiveProfilingManager(this);
+
     std::vector<std::string> addresses;
     addresses.reserve(localCellConfig->Peers.size());
     for (const auto& peer : localCellConfig->Peers) {
@@ -934,7 +937,7 @@ void TBootstrap::DoInitialize()
 
     TableManager_ = CreateTableManager(this);
 
-    TabletManager_ = New<TTabletManager>(this);
+    TabletManager_ = CreateTabletManager(this);
 
     BackupManager_ = CreateBackupManager(this);
 
@@ -944,7 +947,7 @@ void TBootstrap::DoInitialize()
 
     CypressProxyTracker_ = CreateCypressProxyTracker(this, ChannelFactory_);
 
-    ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
+    ReplicatedTableTracker_ = CreateMasterReplicatedTableTracker(Config_->ReplicatedTableTracker, this);
 
     SchedulerPoolManager_ = CreateSchedulerPoolManager(this);
 
@@ -1007,6 +1010,7 @@ void TBootstrap::DoInitialize()
     GraftingManager_->Initialize();
     MulticellStatisticsCollector_->Initialize();
     SequoiaActionsExecutor_->Initialize();
+    HiveProfilingManager_->Initialize();
 
     // NB: Keep Config Manager initialization last and prevent
     // new automaton parts registration after its initialization.
@@ -1097,6 +1101,9 @@ void TBootstrap::DoInitialize()
 
     DiskSpaceSensorProducer_ = CreateDiskSpaceSensorProducer(Config_);
     TProfiler{""}.AddProducer("", DiskSpaceSensorProducer_);
+
+    WaitFor(sequoiaTableDescriptorInitialization)
+        .ThrowOnError();
 }
 
 void TBootstrap::InitializeTimestampProvider()

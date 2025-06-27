@@ -215,7 +215,7 @@ public:
         THashSet<NScheduler::TAllocationId>* allocationsToPostpone,
         THashMap<NScheduler::TAllocationId, NScheduler::EAbortReason>* allocationsToAbort);
 
-    void UnregisterOperation(NScheduler::IOperationStrategyHost* operation);
+    void UnregisterOperation(const NScheduler::IOperationStrategyHostPtr& operation);
 
     void BuildSchedulingAttributesForNode(
         NNodeTrackerClient::TNodeId nodeId,

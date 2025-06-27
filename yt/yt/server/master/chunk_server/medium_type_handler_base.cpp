@@ -1,6 +1,7 @@
 #include "medium_type_handler_base.h"
 
 #include "chunk_manager.h"
+#include "domestic_medium.h"
 #include "medium_base.h"
 #include "s3_medium.h"
 

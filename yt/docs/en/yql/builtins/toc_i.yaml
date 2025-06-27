@@ -1,13 +1,13 @@
 items:
-- { name: Обзор,                        href: index.md }
-- { name: Базовые,                      href: basic.md }
-- { name: Агрегатные,                   href: aggregation.md }
-- { name: Оконные,                      href: window.md,            when: feature_window_functions }
-- { name: Для работы со списками,       href: list.md }
-- { name: Для работы со словарями,      href: dict.md }
-- { name: Для работы со структурами,    href: struct.md }
-- { name: Для работы с типами,          href: types.md }
-- { name: Для работы с генерацией кода, href: codegen.md,           when: feature_codegen }
-- { name: Для работы с JSON,            href: json.md }
-- name: Библиотеки C++
+- { name: Overview,              href: index.md }
+- { name: Basic,                 href: basic.md }
+- { name: Aggregate,             href: aggregation.md }
+- { name: Window,                href: window.md }
+- { name: For lists,             href: list.md }
+- { name: For dictionaries,      href: dict.md }
+- { name: For structures,        href: struct.md }
+- { name: For types,             href: types.md }
+- { name: For code generation,   href: codegen.md }
+- { name: For JSON,              href: json.md }
+- name: C++ libraries
   include: { mode: link, path: ../udf/list/toc_i.yaml }

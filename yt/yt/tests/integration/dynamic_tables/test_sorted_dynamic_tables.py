@@ -311,7 +311,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         commit_transaction(tx1)
         commit_transaction(tx2)
 
-        with pytest.raises(YtError):
+        with raises_yt_error(yt_error_codes.TransactionLockConflict):
             commit_transaction(tx3)
 
         assert lookup_rows("//tmp/t", [{"key": 2}], column_names=["key", "a", "b"]) == [{"key": 2, "a": 1, "b": 2}]
@@ -324,7 +324,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         commit_transaction(tx2)
 
-        with pytest.raises(YtError):
+        with raises_yt_error(yt_error_codes.TransactionLockConflict):
             commit_transaction(tx1)
 
         tx1 = start_transaction(type="tablet")
@@ -335,7 +335,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         commit_transaction(tx1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error(yt_error_codes.TransactionLockConflict):
             commit_transaction(tx2)
 
     @authors("ponasenko-rs")
@@ -358,11 +358,16 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         set("//tmp/t/@dynamic_store_auto_flush_period", None)
         sync_mount_table("//tmp/t")
 
-        tx = start_transaction(type="tablet")
+        tx_to_conflict_after_recovery = start_transaction(type="tablet")
+        tx_to_conflict_before_recovery = start_transaction(type="tablet")
 
         lock_tx = start_transaction(type="tablet")
         lock_rows("//tmp/t", [{"key": 0}], locks=["value_lock"], lock_type=lock_type, tx=lock_tx)
         commit_transaction(lock_tx)
+
+        insert_rows("//tmp/t", [{"key": 0, "value": 0xb}], tx=tx_to_conflict_before_recovery)
+        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+            commit_transaction(tx_to_conflict_before_recovery)
 
         build_snapshot(cell_id=cell_id)
         snapshots = ls("//sys/tablet_cells/" + cell_id + "/snapshots")
@@ -371,10 +376,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with self.CellsDisabled(clusters=["primary"], tablet_bundles=[get(f'#{cell_id}/@tablet_cell_bundle')]):
             pass
 
-        insert_rows("//tmp/t", [{"key": 0, "value": 0}], tx=tx)
-        with pytest.raises(YtError):
-            commit_transaction(tx)
+        insert_rows("//tmp/t", [{"key": 0, "value": 0xa}], tx=tx_to_conflict_after_recovery)
+        with raises_yt_error(yt_error_codes.TransactionLockConflict):
+            commit_transaction(tx_to_conflict_after_recovery)
 
+    # It actually works with RPC proxies so we use "run=False" here to avoid
+    # XPASS test result.
     @authors("kvk1920")
     @pytest.mark.xfail(run=False, reason="YT-23209")
     def test_lock_unexisting_key(self):
@@ -429,7 +436,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 2, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
 
         commit_transaction(tx1)
-        with pytest.raises(YtError):
+        with raises_yt_error(yt_error_codes.TransactionLockConflict):
             commit_transaction(tx2)
         commit_transaction(tx3)
 
@@ -445,7 +452,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 3, "a": 3}], update=True, lock_type="shared_write", tx=tx3)
 
         commit_transaction(tx1)
-        with pytest.raises(YtError):
+        with raises_yt_error(yt_error_codes.TransactionLockConflict):
             commit_transaction(tx2)
         commit_transaction(tx3)
 
@@ -1048,8 +1055,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         sync_mount_table("//tmp/correct")
 
         if in_memory_mode != "none":
-            self._wait_for_in_memory_stores_preload("//tmp/t")
-            self._wait_for_in_memory_stores_preload("//tmp/correct")
+            wait(lambda: get("//tmp/t/@preload_state") == "complete")
+            wait(lambda: get("//tmp/correct/@preload_state") == "complete")
 
         for iter in range(num_write_iterations):
             insert_keys = [random_row() for i in range(num_writes_per_iteration)]
@@ -1895,6 +1902,7 @@ class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
     ENABLE_RPC_PROXY = True
 
     @authors("gritukan")
+    @pytest.mark.timeout(120)
     def test_write_retries_stress(self):
         set("//sys/rpc_proxies/@config", {
             "cluster_connection": {

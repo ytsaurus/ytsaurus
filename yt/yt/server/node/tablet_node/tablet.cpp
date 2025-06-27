@@ -2,6 +2,7 @@
 
 #include "automaton.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "compression_dictionary_manager.h"
 #include "distributed_throttler_manager.h"
 #include "hedging_manager_registry.h"
@@ -13,10 +14,11 @@
 #include "sorted_dynamic_store.h"
 #include "store_manager.h"
 #include "structured_logger.h"
+#include "table_puller.h"
 #include "tablet_manager.h"
-#include "tablet_snapshot_store.h"
-#include "tablet_slot.h"
 #include "tablet_profiling.h"
+#include "tablet_slot.h"
+#include "tablet_snapshot_store.h"
 #include "transaction_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -30,8 +32,6 @@
 
 #include <yt/yt/server/lib/hydra/distributed_hydra_manager.h>
 
-#include <yt/yt/client/chaos_client/helpers.h>
-
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -41,6 +41,9 @@
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
+
+#include <yt/yt/client/chaos_client/helpers.h>
+#include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
@@ -62,7 +65,11 @@
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
+
+#include <library/cpp/iterator/zip.h>
 
 namespace NYT::NTabletNode {
 
@@ -89,7 +96,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,16 +110,10 @@ TPreloadStatistics& TPreloadStatistics::operator+=(const TPreloadStatistics& oth
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCompressionDictionaryInfo::Save(TSaveContext& context) const
+void TCompressionDictionaryInfo::Persist(const TPersistenceContext& context)
 {
-    using NYT::Save;
-    Save(context, ChunkId);
-}
-
-void TCompressionDictionaryInfo::Load(TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, ChunkId);
+    using NYT::Persist;
+    Persist(context, ChunkId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,6 +183,16 @@ TRefCountedReplicationProgress& TRefCountedReplicationProgress::operator=(
 {
     TReplicationProgress::operator=(std::move(progress));
     return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRuntimeSmoothMovementData::Reset()
+{
+    Role.store(ESmoothMovementRole::None);
+    IsActiveServant.store(true);
+    SiblingServantCellId.Store(NullObjectId);
+    SiblingServantMountRevision.store(TRevision{});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -326,7 +337,16 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
         auto siblingCellId = smoothMovementData.SiblingServantCellId.Load();
         auto siblingMountRevision = smoothMovementData.SiblingServantMountRevision.load();
 
-        if (siblingCellId && siblingMountRevision) {
+        if (!siblingCellId || !siblingMountRevision) {
+            // This may happen if movement finishes concurrently with the request.
+            if (smoothMovementData.IsActiveServant.load()) {
+                return;
+            } else {
+                THROW_ERROR error;
+            }
+        }
+
+        if (smoothMovementData.Role.load() == ESmoothMovementRole::Source) {
             error <<= TErrorAttribute("sibling_servant_cell_id", siblingCellId);
             error <<= TErrorAttribute("sibling_servant_mount_revision", siblingMountRevision);
 
@@ -348,6 +368,14 @@ void TTabletSnapshot::ValidateServantIsActive(const ICellDirectoryPtr& cellDirec
                 .ThrowOnError();
             YT_LOG_DEBUG("Finished waiting for target servant activation future (%v)",
                 LoggingTag);
+
+            // Not a YT_VERIFY since the violation of this condition is not critical
+            // and should not fail the process.
+            YT_ASSERT(smoothMovementData.IsActiveServant.load());
+        }
+
+        if (!smoothMovementData.IsActiveServant.load()) {
+            THROW_ERROR error;
         }
     }
 }
@@ -540,6 +568,23 @@ void TTableReplicaInfo::RecomputeReplicaStatus()
     }
 
     RuntimeData_->Status = newStatus;
+}
+
+void TTableReplicaInfo::BuildOrchidYson(TFluentMap fluent) const
+{
+    fluent
+        .Item("cluster_name").Value(GetClusterName())
+        .Item("replica_path").Value(GetReplicaPath())
+        .Item("state").Value(GetState())
+        .Item("mode").Value(GetMode())
+        .Item("atomicity").Value(GetAtomicity())
+        .Item("preserve_timestamps").Value(GetPreserveTimestamps())
+        .Item("start_replication_timestamp").Value(GetStartReplicationTimestamp())
+        .Item("current_replication_row_index").Value(GetCurrentReplicationRowIndex())
+        .Item("committed_replication_row_index").Value(GetCommittedReplicationRowIndex())
+        .Item("current_replication_timestamp").Value(GetCurrentReplicationTimestamp())
+        .Item("prepared_replication_transaction").Value(GetPreparedReplicationTransactionId())
+        .Item("prepared_replication_row_index").Value(GetPreparedReplicationRowIndex());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -909,11 +954,12 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, DynamicStoreIdRequested_);
     Save(context, ReservedDynamicStoreIdCount_);
     Save(context, SchemaId_);
+    Save(context, RuntimeData_->ReplicationEra.load());
     TNullableIntrusivePtrSerializer<>::Save(context, RuntimeData_->ReplicationProgress.Acquire());
     Save(context, ChaosData_->ReplicationRound);
     Save(context, ChaosData_->CurrentReplicationRowIndexes.Load());
-    Save(context, ChaosData_->PreparedWritePulledRowsTransactionId);
-    Save(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId);
+    Save(context, ChaosData_->PreparedWritePulledRowsTransactionId.Load());
+    Save(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId.Load());
     Save(context, BackupMetadata_);
     Save(context, *TabletWriteManager_);
     Save(context, LastDiscardStoresRevision_);
@@ -1076,14 +1122,21 @@ void TTablet::Load(TLoadContext& context)
 
     Load(context, SchemaId_);
 
+    // COMPAT(osidorkin)
+    if ((context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent) ||
+        (context.GetVersion() < ETabletReign::Start_25_2 &&
+            context.GetVersion() >= ETabletReign::ChaosReplicationEraIsPersistent_25_1)) {
+        RuntimeData_->ReplicationEra.store(Load<TReplicationEra>(context));
+    }
+
     TRefCountedReplicationProgressPtr replicationProgress;
     TNullableIntrusivePtrSerializer<>::Load(context, replicationProgress);
     RuntimeData_->ReplicationProgress.Store(std::move(replicationProgress));
     Load(context, ChaosData_->ReplicationRound);
     ChaosData_->CurrentReplicationRowIndexes.Store(Load<THashMap<TTabletId, i64>>(context));
 
-    Load(context, ChaosData_->PreparedWritePulledRowsTransactionId);
-    Load(context, ChaosData_->PreparedAdvanceReplicationProgressTransactionId);
+    ChaosData_->PreparedWritePulledRowsTransactionId.Store(Load<TTransactionId>(context));
+    ChaosData_->PreparedAdvanceReplicationProgressTransactionId.Store(Load<TTransactionId>(context));
 
     Load(context, BackupMetadata_);
 
@@ -1124,17 +1177,16 @@ void TTablet::Load(TLoadContext& context)
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
 
-    if (IsActiveServant()) {
-        RuntimeData_->SmoothMovementData.IsActiveServant.store(true);
-    } else {
-        RuntimeData_->SmoothMovementData.IsActiveServant.store(false);
+    if (SmoothMovementData_.GetRole() != ESmoothMovementRole::None) {
+        auto& runtimeData = RuntimeData_->SmoothMovementData;
+        runtimeData.SiblingServantMountRevision.store(
+            SmoothMovementData_.GetSiblingMountRevision());
+        runtimeData.SiblingServantCellId.Store(
+            SmoothMovementData_.GetSiblingCellId());
+        runtimeData.Role.store(SmoothMovementData_.GetRole());
+        RuntimeData_->SmoothMovementData.IsActiveServant.store(IsActiveServant());
 
-        if (SmoothMovementData_.GetRole() == ESmoothMovementRole::Source) {
-            RuntimeData_->SmoothMovementData.SiblingServantMountRevision.store(
-                SmoothMovementData_.GetSiblingMountRevision());
-            RuntimeData_->SmoothMovementData.SiblingServantCellId.Store(
-                SmoothMovementData_.GetSiblingCellId());
-        } else {
+        if (SmoothMovementData_.GetRole() == ESmoothMovementRole::Target) {
             InitializeTargetServantActivationFuture();
         }
     }
@@ -1881,7 +1933,7 @@ void TTablet::StartEpoch(const ITabletSlotPtr& slot)
 
     InitializeTargetServantActivationFuture();
 
-    SmoothMovementData().SetLastStageChangeTime(TInstant::Zero());
+    SmoothMovementData().SetLastStageChangeTime(TInstant::Now());
 }
 
 void TTablet::StopEpoch()
@@ -1890,6 +1942,8 @@ void TTablet::StopEpoch()
         CancelableContext_->Cancel(TError("Tablet epoch canceled"));
         CancelableContext_.Reset();
     }
+
+    ChaosData_->IsTrimInProgress.store(false);
 
     std::fill(EpochAutomatonInvokers_.begin(), EpochAutomatonInvokers_.end(), GetNullInvoker());
 
@@ -1962,45 +2016,16 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->DistributedThrottlers = DistributedThrottlers_;
     snapshot->HedgingManagerRegistry = HedgingManagerRegistry_;
     snapshot->CompressionDictionaryInfos = CompressionDictionaryInfos_;
-
-    auto addStoreStatistics = [&] (const IStorePtr& store) {
-        if (store->IsChunk()) {
-            auto chunkStore = store->AsChunk();
-
-            auto preloadState = chunkStore->GetPreloadState();
-            switch (preloadState) {
-                case EStorePreloadState::Scheduled:
-                case EStorePreloadState::Running:
-                    if (chunkStore->IsPreloadAllowed()) {
-                        ++snapshot->PreloadPendingStoreCount;
-                    } else {
-                        ++snapshot->PreloadFailedStoreCount;
-                    }
-                    break;
-                case EStorePreloadState::Complete:
-                    ++snapshot->PreloadCompletedStoreCount;
-                    break;
-                default:
-                    break;
-            }
-        }
-    };
-
-    auto addPartitionStatistics = [&] (const TPartitionSnapshotPtr& partitionSnapshot) {
-        for (const auto& store : partitionSnapshot->Stores) {
-            addStoreStatistics(store);
-        }
-    };
+    snapshot->OrderedDynamicStoreRotateEpoch = RuntimeData_->OrderedDynamicStoreRotateEpoch.load();
+    snapshot->CommitOrdering = CommitOrdering_;
 
     snapshot->Eden = Eden_->BuildSnapshot();
-    addPartitionStatistics(snapshot->Eden);
     snapshot->ActiveStore = ActiveStore_;
 
     snapshot->PartitionList.reserve(PartitionList_.size());
     for (const auto& partition : PartitionList_) {
         auto partitionSnapshot = partition->BuildSnapshot();
         snapshot->PartitionList.push_back(partitionSnapshot);
-        addPartitionStatistics(partitionSnapshot);
     }
 
     if (IsPhysicallyOrdered()) {
@@ -2008,11 +2033,15 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
         snapshot->OrderedStores.reserve(StoreRowIndexMap_.size());
         for (const auto& [_, store] : StoreRowIndexMap_) {
             snapshot->OrderedStores.push_back(store);
-            addStoreStatistics(store);
         }
 
         snapshot->TotalRowCount = GetTotalRowCount();
     }
+
+    auto preloadStatistics = ComputePreloadStatistics();
+    snapshot->PreloadPendingStoreCount = preloadStatistics.PendingStoreCount;
+    snapshot->PreloadCompletedStoreCount = preloadStatistics.CompletedStoreCount;
+    snapshot->PreloadFailedStoreCount = preloadStatistics.FailedStoreCount;
 
     if (IsPhysicallySorted() && StoreManager_) {
         auto lockedStores = StoreManager_->GetLockedStores();
@@ -2345,7 +2374,7 @@ const std::string& TTablet::GetLoggingTag() const
     return LoggingTag_;
 }
 
-std::optional<TString> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const
+std::optional<std::string> TTablet::GetPoolTagByMemoryCategory(EMemoryCategory category) const
 {
     if (category == EMemoryCategory::TabletDynamic) {
         return Context_->GetTabletCellBundleName();
@@ -2567,7 +2596,7 @@ void TTablet::PopulateReplicateTabletContentRequest(NProto::TReqReplicateTabletC
     replicatableContent->set_retained_timestamp(RetainedTimestamp_);
     replicatableContent->set_cumulative_data_weight(CumulativeDataWeight_);
     if (CustomRuntimeData_) {
-        replicatableContent->set_custom_runtime_data(CustomRuntimeData_.ToString());
+        replicatableContent->set_custom_runtime_data(ToProto(CustomRuntimeData_));
     }
     ToProto(request->mutable_allocated_dynamic_store_ids(), this->DynamicStoreIdPool_);
 
@@ -2964,6 +2993,11 @@ void TTablet::SetCompressionDictionaryRebuildBackoffTime(
     CompressionDictionaryInfos_[policy].RebuildBackoffTime = backoffTime;
 }
 
+TChunkId TTablet::GetCompressionDictionaryId(EDictionaryCompressionPolicy policy) const
+{
+    return CompressionDictionaryInfos_[policy].ChunkId;
+}
+
 void TTablet::InitializeTargetServantActivationFuture()
 {
     if (!IsActiveServant() && SmoothMovementData_.GetRole() == ESmoothMovementRole::Target) {
@@ -2982,46 +3016,242 @@ bool TTablet::IsVersionedWriteUnversioned() const
     return !IsPhysicallyLog() && !IsPhysicallySorted();
 }
 
+TPreloadStatistics TTablet::ComputePreloadStatistics() const
+{
+    TPreloadStatistics result;
+
+    auto addStoreStatistics = [&] (const IStorePtr& store) {
+        if (store->IsChunk()) {
+            auto chunkStore = store->AsChunk();
+
+            auto preloadState = chunkStore->GetPreloadState();
+            switch (preloadState) {
+                case EStorePreloadState::Scheduled:
+                case EStorePreloadState::Running:
+                    if (chunkStore->IsPreloadAllowed()) {
+                        ++result.PendingStoreCount;
+                    } else {
+                        ++result.FailedStoreCount;
+                    }
+                    break;
+                case EStorePreloadState::Complete:
+                    ++result.CompletedStoreCount;
+                    break;
+                default:
+                    break;
+            }
+        }
+    };
+
+    auto addPartitionStatistics = [&] (const TPartition* partition) {
+        for (const auto& store : partition->Stores()) {
+            addStoreStatistics(store);
+        }
+    };
+
+    addPartitionStatistics(Eden_.get());
+
+    for (const auto& partition : PartitionList_) {
+        addPartitionStatistics(partition.get());
+    }
+
+    if (IsPhysicallyOrdered()) {
+        for (const auto& [_, store] : StoreRowIndexMap_) {
+            addStoreStatistics(store);
+        }
+    }
+
+    return result;
+}
+
+void TTablet::BuildOrchidYson(TFluentMap fluent) const
+{
+    const auto& storeManager = GetStoreManager();
+    bool opaqueStores = GetSettings().MountConfig->Testing.OpaqueStoresInOrchid;
+
+    fluent
+        .Item("table_id").Value(GetTableId())
+        .Item("state").Value(GetState())
+        .Item("total_lock_count").Value(GetTotalTabletLockCount())
+        .Item("lock_count").DoMapFor(
+            TEnumTraits<ETabletLockType>::GetDomainValues(),
+            [&] (auto fluent, auto lockType) {
+                fluent.Item(FormatEnum(lockType)).Value(GetTabletLockCount(lockType));
+            })
+        .Item("hash_table_size").Value(GetHashTableSize())
+        .Item("overlapping_store_count").Value(GetOverlappingStoreCount())
+        .Item("dynamic_store_count").Value(GetDynamicStoreCount())
+        .Item("retained_timestamp").Value(GetRetainedTimestamp())
+        .Item("last_periodic_rotation_time").Value(storeManager->GetLastPeriodicRotationTime())
+        .Item("in_flight_user_mutation_count").Value(GetInFlightUserMutationCount())
+        .Item("in_flight_replicator_mutation_count").Value(GetInFlightReplicatorMutationCount())
+        .Item("pending_user_write_record_count").Value(GetPendingUserWriteRecordCount())
+        .Item("pending_replicator_write_record_count").Value(GetPendingReplicatorWriteRecordCount())
+        .Item("upstream_replica_id").Value(GetUpstreamReplicaId())
+        .Item("replication_card").Value(RuntimeData()->ReplicationCard.Acquire())
+        .Item("replication_progress").Value(RuntimeData()->ReplicationProgress.Acquire())
+        .Item("replication_era").Value(RuntimeData()->ReplicationEra.load())
+        .Item("replication_round").Value(ChaosData()->ReplicationRound.load())
+        .Item("write_mode").Value(RuntimeData()->WriteMode.load())
+        .Item("lsm_statistics")
+            .BeginMap()
+            .Item("pending_compaction_store_count").DoMapFor(
+                TEnumTraits<NLsm::EStoreCompactionReason>::GetDomainValues(),
+                [&] (auto fluent, auto reason) {
+                    auto value = LsmStatistics().PendingCompactionStoreCount[reason];
+                    if (reason != NLsm::EStoreCompactionReason::None &&
+                        reason != NLsm::EStoreCompactionReason::DiscardByTtl)
+                    {
+                        fluent
+                            .Item(Format("%lv", reason)).Value(value);
+                    }
+                })
+            .EndMap()
+        .Do(BIND(&BuildTableSettingsOrchidYson, GetSettings()))
+        .Item("raw_settings").BeginMap()
+            .Item("global_patch").Value(RawSettings().GlobalPatch)
+            .Item("experiments").Value(RawSettings().Experiments)
+            .Item("provided_config").Value(RawSettings().Provided.MountConfigNode)
+            .Item("provided_extra_config").Value(RawSettings().Provided.ExtraMountConfig)
+        .EndMap()
+        .OptionalItem("custom_runtime_data", CustomRuntimeData())
+        .DoIf(IsPhysicallySorted(), [&] (auto fluent) {
+            fluent
+                .Item("pivot_key").Value(GetPivotKey())
+                .Item("next_pivot_key").Value(GetNextPivotKey())
+                .Item("eden").DoMap(BIND(&TPartition::BuildOrchidYson, GetEden()))
+                .Item("partitions").DoListFor(
+                    PartitionList(), [&] (auto fluent, const std::unique_ptr<TPartition>& partition) {
+                        fluent
+                            .Item()
+                            .DoMap(BIND(&TPartition::BuildOrchidYson, partition.get()));
+                    });
+        })
+        .DoIf(IsPhysicallyOrdered(), [&] (auto fluent) {
+            fluent
+                .Item("stores").DoMapFor(
+                    StoreIdMap(),
+                    [&] (auto fluent, const auto& pair) {
+                        const auto& [storeId, store] = pair;
+                        fluent
+                            .Item(ToString(storeId))
+                            .Do(BIND(&IStore::BuildOrchidYson, store, opaqueStores));
+                    })
+                .Item("total_row_count").Value(GetTotalRowCount())
+                .Item("trimmed_row_count").Value(GetTrimmedRowCount());
+        })
+        .Item("hunk_chunks").DoMapFor(HunkChunkMap(), [&] (auto fluent, const auto& pair) {
+            const auto& [chunkId, hunkChunk] = pair;
+            fluent
+                .Item(ToString(chunkId))
+                .Do(BIND(&THunkChunk::BuildOrchidYson, hunkChunk, opaqueStores));
+        })
+        .Item("hunk_lock_manager").Do(BIND(&IHunkLockManager::BuildOrchid, GetHunkLockManager()))
+        .DoIf(IsReplicated(), [&] (auto fluent) {
+            fluent
+                .Item("replicas").DoMapFor(
+                    Replicas(),
+                    [&] (auto fluent, const auto& pair) {
+                        const auto& [replicaId, replica] = pair;
+                        fluent
+                            .Item(ToString(replicaId))
+                            .DoMap(BIND(&TTableReplicaInfo::BuildOrchidYson, Unretained(&replica)));
+                    });
+        })
+        .Do([&] (auto fluent) {
+            if (auto tablePuller = GetTablePuller()) {
+                tablePuller->BuildOrchidYson(fluent);
+            }
+        })
+        .DoIf(IsPhysicallySorted(), [&] (auto fluent) {
+            fluent
+                .Item("dynamic_table_locks").DoMap(
+                    BIND(&TLockManager::BuildOrchidYson, GetLockManager()));
+        })
+        .Item("errors").DoList([&] (auto fluentList) {
+            RuntimeData()->Errors.ForEachError([&] (const TError& error) {
+                if (!error.IsOK()) {
+                    fluentList.Item().Value(error);
+                }
+            });
+        })
+        .Item("replication_errors").DoMapFor(
+            Replicas(),
+            [&] (auto fluent, const auto& replica) {
+                auto replicaId = replica.first;
+                auto error = replica.second.GetError();
+                if (!error.IsOK()) {
+                    fluent
+                        .Item(ToString(replicaId)).Value(error);
+                }
+            })
+        .DoIf(GetSettings().MountConfig->EnableDynamicStoreRead, [&] (auto fluent) {
+            fluent
+                .Item("dynamic_store_id_pool")
+                    .DoAttributesIf(opaqueStores, [] (auto fluent) {
+                        fluent
+                            .Item("opaque").Value(true);
+                    })
+                    .DoListFor(
+                        DynamicStoreIdPool(),
+                        [&] (auto fluent, auto dynamicStoreId) {
+                            fluent
+                                .Item().Value(dynamicStoreId);
+                        });
+        })
+        .Item("backup_stage").Value(GetBackupStage())
+        .Item("backup_checkpoint_timestamp").Value(GetBackupCheckpointTimestamp())
+        .DoIf(SmoothMovementData().GetRole() != ESmoothMovementRole::None, [&] (auto fluent) {
+            fluent
+                .Item("smooth_movement").DoMap(
+                    BIND(&TSmoothMovementData::BuildOrchidYson, &SmoothMovementData()));
+        })
+        .Item("mount_revision").Value(GetMountRevision())
+        .Item("mount_time").Value(GetMountTime())
+        .Item("compression_dictionary_infos").DoMapFor(
+            Zip(
+                TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues(),
+                CompressionDictionaryInfos_),
+            [] (auto fluent, const auto& item) {
+                const auto& [policy, info] = item;
+                fluent.Item(FormatEnum(policy)).BeginMap()
+                    .Item("chunk_id").Value(info.ChunkId)
+                    .Item("rebuild_backoff_time").Value(info.RebuildBackoffTime)
+                    .Item("building_in_progress").Value(info.BuildingInProgress)
+                    .EndMap();
+            });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluentMap fluent)
 {
+    bool opaque = options.MountConfig->Testing.OpaqueSettingsInOrchid;
+
+    auto addMaybeOpaqueItem = [&] (TYsonStructPtr item, TFluentAny fluent) {
+        fluent
+            .DoAttributesIf(opaque, [] (auto fluent) {
+                fluent
+                    .Item("opaque").Value(true);
+            })
+            .Value(item);
+    };
+
     fluent
         .Item("config")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.MountConfig)
+            .Do(BIND(addMaybeOpaqueItem, options.MountConfig))
         .Item("store_writer_config")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.StoreWriterConfig)
+            .Do(BIND(addMaybeOpaqueItem, options.StoreWriterConfig))
         .Item("store_writer_options")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.StoreWriterOptions)
+            .Do(BIND(addMaybeOpaqueItem, options.StoreWriterOptions))
         .Item("hunk_writer_config")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.HunkWriterConfig)
+            .Do(BIND(addMaybeOpaqueItem, options.HunkWriterConfig))
         .Item("hunk_writer_options")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.HunkWriterOptions)
+            .Do(BIND(addMaybeOpaqueItem, options.HunkWriterOptions))
         .Item("store_reader_config")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.StoreReaderConfig)
+            .Do(BIND(addMaybeOpaqueItem, options.StoreReaderConfig))
         .Item("hunk_reader_config")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.HunkReaderConfig);
+            .Do(BIND(addMaybeOpaqueItem, options.HunkReaderConfig));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -303,14 +303,14 @@ int FindListNodeChildIndex(
     return -1;
 }
 
-THashMap<TString, NYson::TYsonString> GetNodeAttributes(
+THashMap<std::string, NYson::TYsonString> GetNodeAttributes(
     const ICypressManagerPtr& cypressManager,
     TCypressNode* trunkNode,
     TTransaction* transaction)
 {
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
-    THashMap<TString, TYsonString> result;
+    THashMap<std::string, TYsonString> result;
     for (const auto* node : originators) {
         const auto* userAttributes = node->GetAttributes();
         if (userAttributes) {
@@ -389,12 +389,29 @@ void AttachChildToSequoiaNodeOrThrow(
     auto type = parent->GetType();
     YT_VERIFY(type == EObjectType::Scion || type == EObjectType::SequoiaMapNode);
     auto* sequoiaNode = parent->As<TSequoiaMapNode>();
+    auto* originator = sequoiaNode;
+    auto isReplacement = false;
+    while (originator) {
+        auto& children = originator->MutableChildren();
+        if (auto it = children.KeyToChild().find(childKey); it != children.KeyToChild().end()) {
+            isReplacement = (it->second).operator bool();
+            break;
+        }
+
+        originator = originator->GetOriginator()->As<TSequoiaMapNode>();
+    }
+
     auto& children = sequoiaNode->MutableChildren();
     if (auto it = children.KeyToChild().find(childKey); it != children.KeyToChild().end()) {
         // NB: "ignore_existing" flag is validated in Cypress proxy.
         children.Remove(childKey, it->second);
     }
+
     children.Insert(childKey, childId);
+    // If it's not a replacement, then it's an addition of a new node.
+    if (!isReplacement) {
+        ++sequoiaNode->ChildCountDelta();
+    }
 }
 
 void MaybeSetUnreachable(
@@ -425,6 +442,8 @@ std::optional<std::string> FindNodeKey(
     YT_ASSERT(trunkNode->IsTrunk());
     if (trunkNode->GetType() == EObjectType::PortalExit) {
         return trunkNode->As<TPortalExitNode>()->GetKey();
+    } else if (trunkNode->IsSequoia() && trunkNode->ImmutableSequoiaProperties()) {
+        return trunkNode->ImmutableSequoiaProperties()->Key;
     } else {
         auto* parent = trunkNode->GetParent();
         if (!parent || parent->GetNodeType() != ENodeType::Map) {
@@ -577,7 +596,7 @@ TCypressNode* FindClosestAncestorWithAnnotation(TCypressNode* node)
     return node;
 }
 
-std::optional<TString> GetEffectiveAnnotation(TCypressNode* node)
+std::optional<std::string> GetEffectiveAnnotation(TCypressNode* node)
 {
     auto* ancestor = FindClosestAncestorWithAnnotation(node);
     return ancestor ? ancestor->TryGetAnnotation() : std::nullopt;
@@ -659,8 +678,8 @@ void MaybeTouchNode(
 
 TLockRequest CreateLockRequest(
     ELockMode mode,
-    const std::optional<TString>& childKey,
-    const std::optional<TString>& attributeKey,
+    const std::optional<std::string>& childKey,
+    const std::optional<std::string>& attributeKey,
     TTimestamp timestamp)
 {
     YT_ASSERT(CheckLockRequest(mode, childKey, attributeKey).IsOK());

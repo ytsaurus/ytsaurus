@@ -11,9 +11,15 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/query_client/query_builder.h>
+
+#include <yt/yt/client/table_client/helpers.h>
+
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/scheduler_api.h>
+
+#include <util/string/join.h>
 
 namespace NYT::NTabletBalancer {
 
@@ -34,7 +40,7 @@ namespace {
 THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(
     const NApi::NNative::IClientPtr& client,
     const std::vector<std::pair<TObjectId, TCellTag>>& objectIdsWithCellTags,
-    const std::vector<TString>& attributeKeys)
+    const std::vector<std::string>& attributeKeys)
 {
     // TODO(alexelex): Receive list of error codes to skip them.
 
@@ -81,9 +87,9 @@ TInstant TruncateToMinutes(TInstant t)
 } // namespace
 
 THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributes(
-    const NApi::NNative::IClientPtr& client,
+    const NNative::IClientPtr& client,
     const THashSet<TObjectId>& objectIds,
-    const std::vector<TString>& attributeKeys)
+    const std::vector<std::string>& attributeKeys)
 {
     std::vector<std::pair<TObjectId, TCellTag>> objectIdsWithCellTags;
     objectIdsWithCellTags.reserve(std::ssize(objectIds));
@@ -94,20 +100,26 @@ THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributes(
 }
 
 THashMap<TCellTag, TCellTagRequest> FetchTableAttributes(
-    const NApi::NNative::IClientPtr& client,
+    const NNative::IClientPtr& client,
     const THashSet<TTableId>& tableIds,
-    const THashMap<TTableId, TTablePtr>& Tables,
+    const THashSet<TTableId>& tableIdsToFetchPivotKeys,
+    const THashMap<TTableId, TCellTag>& tableIdToCellTag,
     std::function<void(const TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr&)> prepareRequestProto)
 {
     THashMap<TCellTag, TCellTagRequest> batchRequests;
     for (auto tableId : tableIds) {
-        auto cellTag = GetOrCrash(Tables, tableId)->ExternalCellTag;
-        TMasterTabletServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag));
+        auto cellTag = GetOrCrash(tableIdToCellTag, tableId);
+        TMasterTabletServiceProxy proxy(
+            client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag));
         auto [it, isNew] = batchRequests.emplace(cellTag, TCellTagRequest{proxy.GetTableBalancingAttributes(), {}});
         if (isNew) {
             prepareRequestProto(it->second.Request);
         }
+
         ToProto(it->second.Request->add_table_ids(), tableId);
+        if (tableIdsToFetchPivotKeys.contains(tableId)) {
+            ToProto(it->second.Request->add_table_ids_to_fetch_pivot_keys(), tableId);
+        }
     }
 
     ExecuteRequestsToCellTags(&batchRequests);
@@ -117,6 +129,40 @@ THashMap<TCellTag, TCellTagRequest> FetchTableAttributes(
 TInstant TruncatedNow()
 {
     return TruncateToMinutes(Now());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::tuple<TTablePerformanceCountersMap, TTableSchemaPtr> FetchPerformanceCountersAndSchemaFromTable(
+    const NNative::IClientPtr& client,
+    const THashSet<TTableId>& tableIds,
+    const NYPath::TYPath& tablePath)
+{
+    std::vector<TString> quotedTableIds;
+    for (auto tableId : tableIds) {
+        quotedTableIds.push_back("\"" + ToString(tableId) + "\"");
+    }
+
+    NQueryClient::TQueryBuilder builder;
+    builder.SetSource(tablePath);
+    builder.AddSelectExpression("*");
+    builder.AddWhereConjunct(Format(
+        "table_id in (%v)",
+        JoinSeq(", ", quotedTableIds)));
+
+    auto selectResult = WaitFor(client->SelectRows(builder.Build()))
+        .ValueOrThrow();
+    const auto& tableSchema = selectResult.Rowset->GetSchema();
+
+    TTablePerformanceCountersMap tableToPerformanceCounters;
+    for (const auto& row : selectResult.Rowset->GetRows()) {
+        auto tableId = TGuid::FromString(FromUnversionedValue<TString>(
+            row[tableSchema->GetColumnIndexOrThrow("table_id")]));
+        auto tabletId = TGuid::FromString(FromUnversionedValue<TString>(
+            row[tableSchema->GetColumnIndexOrThrow("tablet_id")]));
+        tableToPerformanceCounters[tableId][tabletId] = TUnversionedOwningRow(row);
+    }
+    return {tableToPerformanceCounters, tableSchema};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

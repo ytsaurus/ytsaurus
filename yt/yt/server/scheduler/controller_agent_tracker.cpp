@@ -28,7 +28,7 @@
 
 #include <yt/yt/core/rpc/response_keeper.h>
 
-#include <yt/yt/core/yson/public.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
@@ -50,7 +50,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SchedulerLogger;
+constinit const auto Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -888,7 +888,7 @@ public:
         auto incarnationId = agent->GetIncarnationId();
 
         ToProto(response->mutable_incarnation_id(), incarnationId);
-        response->set_config(ConvertToYsonString(SchedulerConfig_).ToString());
+        response->set_config(ToProto(ConvertToYsonString(SchedulerConfig_)));
         response->set_scheduler_version(GetVersion());
 
         context->SetResponseInfo("IncarnationId: %v", incarnationId);

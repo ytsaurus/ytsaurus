@@ -12,6 +12,8 @@
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/fs.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <util/system/fs.h>
 
 namespace NYT::NJobProber {
@@ -95,9 +97,9 @@ private:
             jobShellDescriptor.Subcontainer);
 
         auto pollJobShellResponse = GetJobProxy()->PollJobShell(jobShellDescriptor, parameters);
-        response->set_result(pollJobShellResponse.Result.ToString());
+        response->set_result(ToProto(pollJobShellResponse.Result));
         if (pollJobShellResponse.LoggingContext) {
-            response->set_logging_context(pollJobShellResponse.LoggingContext.ToString());
+            response->set_logging_context(ToProto(pollJobShellResponse.LoggingContext));
             context->SetResponseInfo(
                 "LoggingContext: %v",
                 pollJobShellResponse.LoggingContext);

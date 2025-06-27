@@ -33,7 +33,8 @@ $ yt get //sys/account_tree/my_account/@
 {% endcut %}
 
 {% cut "Creating an account" %}
-To create an account, specify a name in the `name` attribute as well as the parent name in `parent_name`. If no parent name is specified, a topmost account will be created. Only cluster administrators have the right o create topmost accounts.
+
+To create an account, specify its name in the `name` attribute and the parent name in the `parent_name` attribute. If no parent name is specified, a topmost account will be created. Only cluster administrators have the right to create topmost accounts.
 
 <small>Listing 2 — Creating a new account</small>
 
@@ -115,7 +116,7 @@ You can additionally pass pool-specific attributes. These attributes will be val
 {% endcut %}
 
 
-{% cut "Сhanging pool attributes" %}
+{% cut "Changing pool attributes" %}
 
 <small>Listing 3 — Pool attributes changes</small>
 
@@ -155,7 +156,7 @@ Unlike data storage quotas, the scheduler validates that distributed computing q
 
 Users and groups are presented by user and group objects, while access rights are managed by the acl attribute. For more information about the access rights model, see the relevant [section](../../user-guide/storage/access-control.md).
 
-As a rule, user, group, and access management is delegated to a third-party system (for example, in [IAM](https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html)). But for the small installations it is reasonable to handle user, groups and acls manually.
+As a rule, user, group, and access management is delegated to a third-party system (for example, in [IAM](https://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html)), but for the small installations it is reasonable to handle user, groups and acls manually.
 
 Examples of user and group management.
 
@@ -247,7 +248,7 @@ $ yt set //sys/users/my_user/@write_request_rate_limit 200
 
 {% cut "Viewing a node's ACL" %}
 
-Note that access rights configured directly on the Cypress node and access rights inherited from the parent may differ.
+Note that access rights configured directly on the Cypress node and access rights inherited from the parent may differ
 
 <small>Listing 8 — Viewing a node's ACL</small>
 
@@ -316,9 +317,9 @@ $ yt get //home/my_user/@effective_acl
 
 #### Recommendations for access management
 
-* Grant permissions to groups and not to specific users. In that way you can easily grant/take away access scope from users by adding them to or excluding them from a group.
-* Grant permissions to large project directories rather than specific tables since tables can be recreated (access is then lost) or moved (the `effective_acl` turns out to be different because of the new Cypress location, which means access might be inherited where it shouldn't be).
-* The `deny` permission should be reserved for exceptional cases when you need to quickly revoke permissions of a specific user. A better way to differentiate permissions is to mindfully manage group composition and use `inherit_acl=%false` to prevent overly broad inheritance of parent node permissions.
+  * Use groups and grant permissions exclusively to them so you can grant/take away access scope from users by adding them to or excluding them from a group.
+  * Grant permissions to large project directories rather than specific tables since tables can be recreated (access is then lost) or moved (the `effective_acl` turns out to be different because of the new Cypress location, which means access might be inherited where it shouldn't be).
+  * The `deny` permission should be reserved for exceptional cases when you need to quickly revoke permissions of a specific user. A better way to differentiate permissions is to mindfully manage group composition and use `inherit_acl=%false` to prevent overly broad inheritance of parent node permissions.
 
 
 ### Managing cluster nodes
@@ -359,7 +360,7 @@ Node attributes are shown in table 1:
 
 Listed attributes are informational, which means they're based on the cluster configuration and current cluster state.
 
-Another category of attributes, named control attributes, support updating their values with a `set` command. This way, you can update node properties or request some activity for the cluster node.
+There are also management attributes that support updating their values with `set` calls. This way, you can update node properties or request some activity for the cluster node.
 
 <small>Table 2 — Node management attributes</small>
 
@@ -368,7 +369,7 @@ Another category of attributes, named control attributes, support updating their
 | resource_limits_overrides | ClusterResources | Override current node resources (doesn't work for `user_slots`) |
 | user_tags | list<string> | List of additional node [tags](../../admin-guide/node-tags.md) |
 | banned | bool | Setting the `%true` value bans this node |
-| decommissioned | bool | Setting the `%true` value initiates the transfer of chunks from this node to others in the cluster |
+| decommissioned | bool | Setting the `%true` initiates the transfer of chunks from this node to others in the cluster |
 | disable_write_sessions | bool | Setting the `%true` value stop creating new write session on this node |
 | disable_scheduler_jobs | bool | Setting the `%true` value stop new jobs from being scheduled and within some timeout interrupts existing jobs on the node |
 
@@ -392,9 +393,9 @@ $ yt get //sys/cluster_nodes/localhost:17359/@
 
 It can be useful to know the node's state from the scheduler's perspective. This information can be accessed in the [Orchid](../../user-guide/storage/orchid.md) of the scheduler. For example, you can check the node's `scheduler_state`.
 
-{% cut "Viewing node state from the scheduler's perspective" %}
+{% cut "Viewing node state in the scheduler" %}
 
-<small>Listing 2 — Viewing node state in the scheduler</small>
+<small>Listing 2 — Viewing node state from the scheduler's perspective</small>
 
 ```bash
 $ yt get //sys/scheduler/orchid/scheduler/nodes
@@ -410,7 +411,7 @@ $ yt get //sys/scheduler/orchid/scheduler/nodes
 
 {% else %}{% endif %}
 
-### Dynamic configs
+### Dynamic configs { #ytdyncfgen }
 
 Most cluster components support dynamic config management through Cypress. The general concept is that config patch can be specified as a document at the special path in Cypress. Cluster components periodically read this path in Cypress and apply new config patches.
 
@@ -429,7 +430,7 @@ Controller agents are configured similarly but the config is managed via the `//
 
 {% cut "Examples of how to manage scheduler and controller agent configs" %}
 
-<small> Listing 1 — Increasing the maximum file size allowed in job sandboxes</small>
+<small> Listing 1 — Increasing the maximum file size allowed in job sandboxes </small>
 
 ```bash
 # See the current value of this option

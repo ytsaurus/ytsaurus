@@ -35,7 +35,7 @@ DECLARE_REFCOUNTED_STRUCT(INodeHeartbeatStrategyProxy)
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulerStrategy)
 struct ISchedulerStrategyHost;
-struct IOperationStrategyHost;
+DECLARE_REFCOUNTED_STRUCT(IOperationStrategyHost)
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulingContext)
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerStrategyHost)

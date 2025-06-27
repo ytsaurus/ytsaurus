@@ -166,7 +166,7 @@ public:
         ScheduledAt_.reset();
     }
 
-    TString GetMediumName() const
+    std::string GetMediumName() const
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
@@ -558,7 +558,7 @@ private:
 
     TMediumThroughputMeterConfigPtr GetMediumConfig(
         TIOThroughputMeterConfigPtr config,
-        const TString& medium)
+        const std::string& medium)
     {
         for (const auto& mediumConfig : config->Media) {
             if (mediumConfig->MediumName == medium) {

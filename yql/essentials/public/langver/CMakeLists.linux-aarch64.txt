@@ -14,6 +14,13 @@
 
 find_package(linux-headers-generic REQUIRED)
 
+get_built_tool_path(
+  TOOL_enum_parser_bin
+  TOOL_enum_parser_dependency
+  tools/enum_parser/enum_parser
+  enum_parser
+)
+
 add_library(essentials-public-langver)
 
 
@@ -21,9 +28,16 @@ target_link_libraries(essentials-public-langver PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  tools-enum_parser-enum_serialization_runtime
 )
 
 target_sources(essentials-public-langver PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/public/langver/yql_langver.cpp
 )
 
+
+generate_enum_serilization(essentials-public-langver
+  ${PROJECT_SOURCE_DIR}/yql/essentials/public/langver/yql_langver.h
+  INCLUDE_HEADERS
+  yql/essentials/public/langver/yql_langver.h
+)

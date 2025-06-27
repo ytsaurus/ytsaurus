@@ -2,16 +2,17 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, CONTROLLER_AGENTS
 
 from yt_commands import (
     authors, wait, retry, wait_no_assert, wait_breakpoint,
-    release_breakpoint, with_breakpoint, create, get, create_tmpdir,
+    release_breakpoint, with_breakpoint, create, get, set, create_tmpdir,
     create_pool, insert_rows, select_rows, lookup_rows, write_table,
     map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
     update_controller_agent_config, print_debug, exists, get_allocation_id_from_job_id,
-    make_random_string, raises_yt_error, clear_metadata_caches, ls)
+    make_random_string, raises_yt_error, clear_metadata_caches, ls, get_job, list_operation_events)
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
 
-from yt_operations_archive_helpers import get_allocation_id_from_archive, get_job_from_archive
+from yt_operations_archive_helpers import (
+    get_allocation_id_from_archive, get_job_from_archive, update_job_in_archive)
 
 import yt_error_codes
 
@@ -140,6 +141,10 @@ class TestListJobsBase(YTEnvSetup):
                 "max_repeat_delay": 10,
             },
         },
+    }
+
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
 
     NUM_MASTERS = 1
@@ -425,10 +430,12 @@ class TestListJobsCommon(TestListJobsBase):
 
     @staticmethod
     def _check_after_finish(op, job_ids, operation_cleaned):
+        type_counts_full = {"partition_reduce": 1, "partition_map": 5}
+        state_counts_full = {"completed": 4, "failed": 1, "aborted": 1}
         res = checked_list_jobs(op.id)
         assert builtins.set(job["id"] for job in res["jobs"]) == builtins.set(job_ids["reduce"] + job_ids["map"])
-        assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 5}
-        assert res["state_counts"] == {"completed": 4, "failed": 1, "aborted": 1}
+        assert res["type_counts"] == type_counts_full
+        assert res["state_counts"] == state_counts_full
 
         if operation_cleaned:
             assert res["controller_agent_job_count"] == res["scheduler_job_count"] == 0
@@ -436,6 +443,28 @@ class TestListJobsCommon(TestListJobsBase):
             assert res["controller_agent_job_count"] == res["scheduler_job_count"] == 6
         assert res["cypress_job_count"] == yson.YsonEntity()
         assert res["archive_job_count"] == 6
+
+        @wait_no_assert
+        def check_statistics_with_filters():
+            res = checked_list_jobs(op.id, type="partition_reduce")
+            assert res["type_counts"] == type_counts_full
+            assert res["state_counts"] == {"completed": 1}
+
+            res = checked_list_jobs(op.id, state="completed")
+            assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 3}
+            assert res["state_counts"] == state_counts_full
+
+            res = checked_list_jobs(op.id, state="completed", type="partition_reduce")
+            assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 3}
+            assert res["state_counts"] == {"completed": 1}
+
+            res = checked_list_jobs(op.id, with_stderr=True)
+            assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 4}
+            assert res["state_counts"] == {"completed": 4, "failed": 1}
+
+            res = checked_list_jobs(op.id, with_stderr=True, state="completed")
+            assert res["type_counts"] == {"partition_reduce": 1, "partition_map": 3}
+            assert res["state_counts"] == {"completed": 4, "failed": 1}
 
         answers_for_filters = TestListJobs._get_answers_for_filters_after_finish(job_ids)
         TestListJobs._validate_filters(
@@ -623,6 +652,7 @@ class TestListJobsStatisticsLz4(TestListJobsCommon):
 
 class TestListJobs(TestListJobsCommon):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_TEST_PARTITIONS = 2
 
     @authors("ermolovd", "omgronny")
     def test_running_jobs_stderr_size(self):
@@ -1023,8 +1053,6 @@ class TestListJobs(TestListJobsCommon):
 
     @authors("eshcherbin", "pogorelov")
     def test_operation_incarnation(self):
-        update_controller_agent_config("vanilla_operation_options/gang_manager/enabled", True)
-
         def get_operation_incarnation(op):
             wait(lambda: exists(op.get_orchid_path() + "/controller/operation_incarnation"))
             incarnation_id = get(op.get_orchid_path() + "/controller/operation_incarnation")
@@ -1035,7 +1063,7 @@ class TestListJobs(TestListJobsCommon):
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
             job_count=2,
-            task_patch={"gang_manager": {}},
+            task_patch={"gang_options": {}},
         )
 
         job_ids = wait_breakpoint(job_count=2)
@@ -1048,6 +1076,12 @@ class TestListJobs(TestListJobsCommon):
 
         jobs = list_jobs(op.id)["jobs"]
 
+        wait(lambda: len(list_operation_events(op.id, event_type="incarnation_started")) == 1)
+        event_before = list_operation_events(op.id, event_type="incarnation_started")[0]
+
+        assert event_before["event_type"] == "incarnation_started"
+        assert event_before.get("incarnation_switch_reason") is None
+
         assert frozenset(job["id"] for job in jobs) == frozenset(job_ids)
         assert all([job["operation_incarnation"] == incarnation for job in jobs])
 
@@ -1057,17 +1091,17 @@ class TestListJobs(TestListJobsCommon):
 
         abort_job(first_job_id)
 
-        job_orchid_addresses = [op.get_job_node_orchid_path(job_id) + f"/exec_node/job_controller/active_jobs/{job_id}" for job_id in job_ids]
+        job_orchid_addresses = {job_id: op.get_job_node_orchid_path(job_id) + f"/exec_node/job_controller/active_jobs/{job_id}" for job_id in job_ids}
 
         release_breakpoint(job_id=job_ids[0])
-        release_breakpoint(job_id=job_ids[1])
+        wait(lambda: not exists(job_orchid_addresses[job_ids[0]]))
 
-        for job_orchid_address in job_orchid_addresses:
-            wait(lambda: not exists(job_orchid_address))
+        release_breakpoint(job_id=job_ids[1])
+        wait(lambda: not exists(job_orchid_addresses[job_ids[1]]))
 
         new_job_ids = wait_breakpoint(job_count=2)
 
-        assert len(set(job_ids) & set(new_job_ids)) == 0
+        assert len(builtins.set(job_ids) & builtins.set(new_job_ids)) == 0
 
         new_incarnation = get_operation_incarnation(op)
 
@@ -1086,6 +1120,25 @@ class TestListJobs(TestListJobsCommon):
         jobs = list_jobs(op.id, operation_incarnation=new_incarnation)["jobs"]
         assert frozenset(job["id"] for job in jobs) == frozenset(new_job_ids)
         assert all([job["operation_incarnation"] == new_incarnation for job in jobs])
+
+        @wait_no_assert
+        def check_list_operation_events():
+            wait(lambda: len(list_operation_events(op.id, event_type="incarnation_started")) == 2)
+            events_after = list_operation_events(op.id, event_type="incarnation_started")
+            assert all(event["event_type"] == "incarnation_started" for event in events_after)
+            event_operation_started, event_job_aborted = events_after[0], events_after[1]
+            assert event_operation_started.get("incarnation_switch_reason") is None
+            assert event_job_aborted["incarnation_switch_reason"] == "job_aborted"
+            assert event_operation_started["timestamp"] < event_job_aborted["timestamp"]
+            assert event_operation_started["incarnation"] == incarnation
+            assert event_job_aborted["incarnation"] == new_incarnation
+
+            event_info_job_aborted = event_job_aborted["incarnation_switch_info"]
+            assert event_info_job_aborted["trigger_job_id"] == first_job_id
+
+            event_after = list_operation_events(op.id, event_type="incarnation_started", limit=1)
+            assert len(event_after) == 1
+            assert event_after[0]["incarnation"] == incarnation
 
     @authors("bystrovserg")
     def test_from_time_and_to_time_filters(self):
@@ -1283,6 +1336,113 @@ class TestListJobs(TestListJobsCommon):
         completed_jobs = list_jobs(op.id)["jobs"]
 
         assert frozenset(job["start_time"] for job in running_jobs) == frozenset(job["start_time"] for job in completed_jobs)
+
+    @authors("bystrovserg")
+    def test_state_count_in_statistics(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+        )
+        (job_id,) = wait_breakpoint()
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        release_breakpoint()
+        op.track()
+
+        wait_for_cells()
+
+        wait(lambda: len(list_jobs(op.id)["state_counts"]) == 2)
+        state_counts = list_jobs(op.id)["state_counts"]
+        assert frozenset(state_counts.keys()) == frozenset(["aborted", "completed"])
+
+    @authors("bystrovserg")
+    def test_brief_statistics_without_full_statistics(self):
+        if not self.ENABLE_RPC_PROXY:
+            set("//sys/clusters/primary/request_full_statistics_for_brief_statistics_in_list_jobs", False)
+        else:
+            rpc_config = {
+                "cluster_connection" : {
+                    "request_full_statistics_for_brief_statistics_in_list_jobs": False
+                }
+            }
+            set("//sys/rpc_proxies/@config", rpc_config)
+
+        input_table, output_table = self._create_tables()
+        op = map(
+            track=False,
+            in_=input_table,
+            out=output_table,
+            command="cat",
+            spec={"job_count": 1},
+        )
+        op.track()
+
+        wait(lambda: len(list_jobs(op.id)["jobs"]) == 1)
+        job_id = list_jobs(op.id)["jobs"][0]["id"]
+
+        print_debug("Clear job's statistics in archive")
+        update_job_in_archive(op.id, job_id, {"statistics" : "", "statistics_lz4" : ""})
+
+        @wait_no_assert
+        def check_brief_statistics():
+            jobs = list_jobs(op.id, attributes=["brief_statistics"])["jobs"]
+            assert len(jobs) == 1
+            job = jobs[0]
+            assert job.get("brief_statistics") != {}
+
+    @authors("bystrovserg")
+    def test_stale_for_completed_jobs(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+        )
+        jobs = wait_breakpoint()
+        release_breakpoint(job_id=jobs[0])
+
+        wait(lambda: get_job(op.id, jobs[0])["state"] == "completed")
+        orchid_path = op.get_orchid_path()
+        wait(lambda: len(get(orchid_path + "/retained_finished_jobs", default=1)) == 0)
+
+        wait(lambda: len(list_jobs(op.id)["jobs"]) == 2)
+        wait(lambda: all(not job["is_stale"] for job in list_jobs(op.id)["jobs"]))
+
+        release_breakpoint()
+        op.track()
+
+    # TODO(bystrovserg): Do smth with copypaste of similar tests for get_job and list_jobs.
+    @authors("bystrovserg")
+    def test_gang_rank(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={
+                "gang_options": {},
+            },
+        )
+
+        wait_breakpoint(job_count=3)
+
+        wait(lambda: len(op.get_running_jobs()) == 3)
+        running_jobs = op.get_running_jobs()
+
+        job_ranks = {job_id: info["gang_rank"] for job_id, info in running_jobs.items()}
+        print_debug("Acquired job ranks from controller: {}".format(job_ranks))
+
+        def check_job_ranks():
+            jobs = list_jobs(op.id, attributes=["gang_rank"])["jobs"]
+            wait(lambda: len(list_jobs(op.id, attributes=["gang_rank"])["jobs"]) == 3)
+            wait(lambda: all(job.get("gang_rank") is not None for job in list_jobs(op.id, attributes=["gang_rank"])["jobs"]))
+            jobs = list_jobs(op.id, attributes=["gang_rank"])["jobs"]
+
+            job_ranks_api = {job["id"]: job["gang_rank"] for job in jobs}
+            assert job_ranks_api == job_ranks
+
+        check_job_ranks()
+
+        release_breakpoint()
+        op.track()
+
+        check_job_ranks()
 
 
 class TestListJobsAllocation(TestListJobsBase):

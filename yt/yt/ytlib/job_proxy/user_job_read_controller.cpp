@@ -61,33 +61,37 @@ public:
         IJobSpecHelperPtr jobSpecHelper,
         IInvokerPtr invoker,
         TClientChunkReadOptions chunkReadOptions,
-        TChunkReaderHostPtr chunkReaderHost,
+        TMultiChunkReaderHostPtr chunkReaderHost,
         TClosure onNetworkRelease,
         std::optional<TString> udfDirectory,
         TDuration threshold,
         i64 adaptiveRowCountUpperBound,
-        TCpuInstant ioStartTime)
+        TInstant ioStartTime)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker), "user_job_read_controller"))
         , ChunkReadOptions_(std::move(chunkReadOptions))
         , ChunkReaderHost_(std::move(chunkReaderHost))
         , OnNetworkRelease_(std::move(onNetworkRelease))
+        , IOStartTime_(ioStartTime)
         , UdfDirectory_(std::move(udfDirectory))
+        , MaxRowsPerRead_(JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount.value_or(false)
+            ? std::min<i64>(adaptiveRowCountUpperBound, JobSpecHelper_->GetJobIOConfig()->AdaptiveRowCountUpperBound)
+            : JobSpecHelper_->GetJobIOConfig()->BufferRowCount)
         , Guesser_(
             JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount.value_or(false)
                 ? threshold
                 : TDuration::Zero(),
             JobSpecHelper_->GetJobIOConfig()->BufferRowCount,
-            std::min<i64>(adaptiveRowCountUpperBound, JobSpecHelper_->GetJobIOConfig()->AdaptiveRowCountUpperBound))
-        , IOStartTime_(ioStartTime)
+            MaxRowsPerRead_)
     { }
 
     //! Returns closure that launches data transfer to given async output.
     TCallback<TFuture<void>()> PrepareJobInputTransfer(const IAsyncOutputStreamPtr& asyncOutput) override
     {
         YT_LOG_DEBUG(
-            "Preparing job input transfer (GuesserEnabled: %v)",
-            Guesser_.IsEnabled());
+            "Preparing job input transfer (GuesserEnabled: %v, MaxRowsPerRead: %v)",
+            Guesser_.IsEnabled(),
+            MaxRowsPerRead_);
 
         const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
 
@@ -105,7 +109,7 @@ public:
 
     double GetProgress() const override
     {
-        if (!Initialized_) {
+        if (!ReaderInitialized_) {
             return 0;
         }
 
@@ -121,7 +125,7 @@ public:
 
     TFuture<std::vector<TBlob>> GetInputContext() const override
     {
-        if (!Initialized_) {
+        if (!WriterInitialized_) {
             return MakeFuture(std::vector<TBlob>());
         }
 
@@ -138,12 +142,12 @@ public:
 
     std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        return Initialized_ ? Reader_->GetFailedChunkIds() : std::vector<TChunkId>();
+        return ReaderInitialized_ ? Reader_->GetFailedChunkIds() : std::vector<TChunkId>();
     }
 
     std::optional<NChunkClient::NProto::TDataStatistics> GetDataStatistics() const override
     {
-        if (!Initialized_) {
+        if (!ReaderInitialized_ || !WriterInitialized_) {
             return std::nullopt;
         }
         auto dataStatistics = Reader_->GetDataStatistics();
@@ -167,7 +171,7 @@ public:
 
     std::optional<TCodecStatistics> GetDecompressionStatistics() const override
     {
-        if (!Initialized_) {
+        if (!ReaderInitialized_) {
             return std::nullopt;
         }
         return Reader_->GetDecompressionStatistics();
@@ -175,7 +179,7 @@ public:
 
     std::optional<TTimingStatistics> GetTimingStatistics() const override
     {
-        if (!Initialized_) {
+        if (!ReaderInitialized_) {
             return std::nullopt;
         }
         return Reader_->GetTimingStatistics();
@@ -183,7 +187,7 @@ public:
 
     void InterruptReader() override
     {
-        if (!Initialized_) {
+        if (!ReaderInitialized_) {
             THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::JobNotPrepared, "Cannot interrupt uninitialized reader");
         }
 
@@ -219,17 +223,17 @@ public:
             .ValueOrThrow();
     }
 
-    std::optional<TCpuDuration> GetReaderTimeToFirstBatch() const override
+    std::optional<TDuration> GetReaderTimeToFirstBatch() const override
     {
-        if (Initialized_) {
+        if (ReaderInitialized_) {
             return Reader_->GetTimeToFirstBatch();
         }
         return std::nullopt;
     }
 
-    std::optional<TCpuDuration> GetWriterTimeToFirstBatch() const override
+    std::optional<TDuration> GetWriterTimeToFirstBatch() const override
     {
-        if (!FormatWriters_.empty()) {
+        if (WriterInitialized_) {
             YT_VERIFY(FormatWriters_.size() == 1);
             return FormatWriters_[0]->GetTimeToFirstBatch();
         }
@@ -240,15 +244,19 @@ private:
     const IJobSpecHelperPtr JobSpecHelper_;
     const IInvokerPtr SerializedInvoker_;
     const TClientChunkReadOptions ChunkReadOptions_;
-    const TChunkReaderHostPtr ChunkReaderHost_;
+    const TMultiChunkReaderHostPtr ChunkReaderHost_;
     const TClosure OnNetworkRelease_;
+    const TInstant IOStartTime_;
 
     IProfilingMultiChunkReaderPtr Reader_;
     std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics_;
     std::vector<IProfilingSchemalessFormatWriterPtr> FormatWriters_;
     std::optional<TString> UdfDirectory_;
-    std::atomic<bool> Initialized_ = {false};
-    std::atomic<bool> Interrupted_ = {false};
+    std::atomic<bool> ReaderInitialized_ = false;
+    std::atomic<bool> WriterInitialized_ = false;
+    std::atomic<bool> Interrupted_ = false;
+
+    const i64 MaxRowsPerRead_;
 
     // Jobs have interruption timeout
     // known here as |Threshold_|.
@@ -262,7 +270,13 @@ private:
             : Threshold_(threshold)
             , UpperBound_(upperBound)
             , CurrentGuess_(currentGuess)
-        { }
+        {
+            YT_LOG_DEBUG(
+                "Initializing optimal row count guesser (Threshold: %v, CurrentGuess: %v, UpperBound: %v)",
+                Threshold_,
+                CurrentGuess_,
+                UpperBound_);
+        }
 
         bool IsEnabled() const noexcept
         {
@@ -291,10 +305,11 @@ private:
             auto nextGuess = std::max<i64>(CurrentGuess_ * scaling, 1);
 
             YT_LOG_DEBUG(
-                "Updating guess for batch row count (CurrentGuess: %v, ProcessTime: %v, NextGuess: %v)",
+                "Updating guess for batch row count (CurrentGuess: %v, ProcessTime: %v, NextGuess: %v, UpperBound: %v)",
                 CurrentGuess_,
                 processTime,
-                nextGuess);
+                nextGuess,
+                UpperBound_);
 
             CurrentGuess_ = std::min<i64>(nextGuess, UpperBound_);
 
@@ -309,7 +324,6 @@ private:
     };
 
     TOptimalRowCountGuesser Guesser_;
-    const TCpuInstant IOStartTime_;
 
 private:
     bool IsContextSavingEnabled() const
@@ -367,6 +381,7 @@ private:
         }
 
         FormatWriters_.push_back(CreateProfilingSchemalessFormatWriter(std::move(writer), IOStartTime_));
+        WriterInitialized_ = true;
 
         return FormatWriters_.back();
     }
@@ -377,21 +392,15 @@ private:
         const TRowBatchReadOptions& options,
         TDuration pipeDelay)
     {
+        TCallback<void(TRowBatchReadOptions* mutableOptions, TDuration timeForBatch)> batchRorCountOptionsUpdater;
         if (Guesser_.IsEnabled()) {
-            PipeReaderToWriterByBatches(
-                CreateApiFromSchemalessChunkReaderAdapter(reader),
-                writer,
-                options,
-                BIND(&TUserJobReadController::UpdateRowBatchReadOptions, MakeStrong(this)),
-                pipeDelay);
-            return;
+            batchRorCountOptionsUpdater = BIND_NO_PROPAGATE(&TUserJobReadController::UpdateRowBatchReadOptions, MakeStrong(this));
         }
-
         PipeReaderToWriterByBatches(
             CreateApiFromSchemalessChunkReaderAdapter(reader),
             writer,
             options,
-            /*optionsUpdater*/ {},
+            std::move(batchRorCountOptionsUpdater),
             pipeDelay);
     }
 
@@ -404,7 +413,7 @@ private:
 
         NTableClient::TRowBatchReadOptions options;
         options.Columnar = format.GetType() == EFormatType::Arrow;
-        options.MaxRowsPerRead = JobSpecHelper_->GetJobIOConfig()->BufferRowCount;
+        options.MaxRowsPerRead = std::min<i64>(MaxRowsPerRead_, JobSpecHelper_->GetJobIOConfig()->BufferRowCount);
         // NB(arkady-e1ppa): BIND catches job_proxy trace context
         // for logs in adapters.
         return BIND([=, this, this_ = MakeStrong(this)] {
@@ -451,6 +460,7 @@ private:
                         CreateProfilingSchemalessFormatWriter(
                             std::move(schemalessWriter),
                             IOStartTime_));
+                    WriterInitialized_ = true;
 
                     return FormatWriters_.back();
                 },
@@ -477,7 +487,7 @@ private:
             columnFilter);
         Reader_ = CreateProfilingMultiChunkReader(std::move(result.Reader), IOStartTime_);
         PreparationDataStatistics_ = std::move(result.PreparationDataStatistics);
-        Initialized_ = true;
+        ReaderInitialized_ = true;
     }
 };
 
@@ -537,12 +547,12 @@ public:
         return 0;
     }
 
-    std::optional<TCpuDuration> GetReaderTimeToFirstBatch() const override
+    std::optional<TDuration> GetReaderTimeToFirstBatch() const override
     {
         return std::nullopt;
     }
 
-    std::optional<TCpuDuration> GetWriterTimeToFirstBatch() const override
+    std::optional<TDuration> GetWriterTimeToFirstBatch() const override
     {
         return std::nullopt;
     }
@@ -554,7 +564,7 @@ DEFINE_REFCOUNTED_TYPE(TVanillaUserJobReadController)
 
 IUserJobReadControllerPtr CreateUserJobReadController(
     IJobSpecHelperPtr jobSpecHelper,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     IInvokerPtr invoker,
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
@@ -562,7 +572,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     TString /*localHostName*/,
     TDuration adaptiveConfigTimeoutThreshold,
     i64 adaptiveRowCountUpperBound,
-    TCpuInstant ioStartTime)
+    TInstant ioStartTime)
 {
     if (jobSpecHelper->GetJobType() != EJobType::Vanilla) {
         if (jobSpecHelper->GetJobSpecExt().has_input_query_spec()) {

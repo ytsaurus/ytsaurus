@@ -2,6 +2,7 @@
 
 #include "chaos_manager.h"
 #include "chaos_slot.h"
+#include "chaos_lease.h"
 #include "private.h"
 #include "replication_card.h"
 #include "replication_card_collocation.h"
@@ -24,6 +25,8 @@
 #include <yt/yt/client/tablet_client/helpers.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 namespace NYT::NChaosNode {
 
@@ -84,6 +87,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingChaosLease));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveChaosLease));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FindChaosObject));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateTableProgress));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateMultipleTableProgresses));
     }
 
 private:
@@ -147,13 +152,28 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         auto* replicationCard = chaosManager->GetReplicationCardOrThrow(replicationCardId);
-        auto collocationId = replicationCard->GetCollocation()
-            ? replicationCard->GetCollocation()->GetId()
-            : TReplicationCardCollocationId();
+        if (!fetchOptions.IncludeProgress) {
+            // Replication card is small without replication progress,
+            // so do not try to copy or validate the progress if progress was not requested.
+            ToProto(response->mutable_replication_card(), *replicationCard, fetchOptions);
+            context->SetResponseInfo("ReplicationCardId: %v",
+                replicationCardId);
+            context->Reply();
+            return;
+        }
+
         auto awaitingCollocationId = replicationCard->GetAwaitingCollocationId();
 
         auto isSame = [] (const auto& cachedCard, const auto& replicationCard) {
             if (cachedCard->Era != replicationCard->GetEra()) {
+                return false;
+            }
+
+            auto collocationId = replicationCard->GetCollocation()
+                ? replicationCard->GetCollocation()->GetId()
+                : TReplicationCardCollocationId();
+
+            if (cachedCard->ReplicationCardCollocationId != collocationId) {
                 return false;
             }
 
@@ -163,6 +183,7 @@ private:
                     ++grantedCoordinatorsCount;
                 }
             }
+
             if (std::ssize(cachedCard->CoordinatorCellIds) != grantedCoordinatorsCount) {
                 return false;
             }
@@ -212,33 +233,11 @@ private:
         }
 
         const auto& invoker = Slot_->GetSnapshotStoreReadPoolInvoker();
-        auto callback = BIND([context, response, replicationCard = std::move(replicationCardCopy), fetchOptions, collocationId, awaitingCollocationId] {
+        auto callback = BIND([context, response, replicationCard = std::move(replicationCardCopy), fetchOptions, awaitingCollocationId] {
             auto* protoReplicationCard = response->mutable_replication_card();
-            protoReplicationCard->set_era(replicationCard->Era);
-            ToProto(protoReplicationCard->mutable_table_id(), replicationCard->TableId);
-            protoReplicationCard->set_table_path(replicationCard->TablePath);
-            protoReplicationCard->set_table_cluster_name(replicationCard->TableClusterName);
-            protoReplicationCard->set_current_timestamp(replicationCard->CurrentTimestamp);
-
-            if (collocationId) {
-                ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), collocationId);
-            } else if (awaitingCollocationId) {
+            ToProto(protoReplicationCard, *replicationCard, fetchOptions);
+            if (!replicationCard->ReplicationCardCollocationId && awaitingCollocationId) {
                 ToProto(protoReplicationCard->mutable_replication_card_collocation_id(), awaitingCollocationId);
-            }
-
-            std::vector<TCellId> coordinators;
-            if (fetchOptions.IncludeCoordinators) {
-                ToProto(protoReplicationCard->mutable_coordinator_cell_ids(), replicationCard->CoordinatorCellIds);
-            }
-
-            for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
-                auto* protoEntry = protoReplicationCard->add_replicas();
-                ToProto(protoEntry->mutable_id(), replicaId);
-                ToProto(protoEntry->mutable_info(), replicaInfo, fetchOptions);
-            }
-
-            if (fetchOptions.IncludeReplicatedTableOptions) {
-                protoReplicationCard->set_replicated_table_options(ConvertToYsonString(replicationCard->ReplicatedTableOptions).ToString());
             }
         }).AsyncVia(invoker);
 
@@ -380,6 +379,22 @@ private:
         chaosManager->UpdateTableReplicaProgress(std::move(context));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, UpdateTableProgress)
+    {
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->UpdateTableProgress(std::move(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, UpdateMultipleTableProgresses)
+    {
+        int replicationCardUpdatesSize = request->replication_card_progress_updates().size();
+        context->SetRequestInfo("ReplicationCardCount: %v",
+            replicationCardUpdatesSize);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->UpdateMultipleTableProgresses(std::move(context));
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, AlterReplicationCard)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
@@ -442,7 +457,7 @@ private:
             replicationCardCollocationId,
             replicationCardIds);
         ToProto(response->mutable_replication_card_ids(), replicationCardIds);
-        response->set_options(ConvertToYsonString(collocation->Options()).ToString());
+        response->set_options(ToProto(ConvertToYsonString(collocation->Options())));
         context->Reply();
     }
 
@@ -479,27 +494,14 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         auto* chaosLease = chaosManager->GetChaosLeaseOrThrow(chaosLeaseId);
+        response->set_timeout(ToProto(chaosLease->GetTimeout()));
 
-        auto* protoChaosLease = response->mutable_chaos_lease();
-        Y_UNUSED(chaosLease, protoChaosLease);
+        auto futureLastPingTime = chaosManager->GetChaosLeaseTracker()->GetLastPingTime(chaosLeaseId)
+            .Apply(BIND([=] (TInstant lastPingTime) {
+                response->set_last_ping_time(ToProto(lastPingTime));
+            }));
 
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, PingChaosLease)
-    {
-        // TODO(gryzlov-ad): Support pings for chaos leases.
-        auto chaosLeaseId = FromProto<TChaosLeaseId>(request->chaos_lease_id());
-
-        context->SetRequestInfo("ChaosLeaseId: %v",
-            chaosLeaseId);
-
-        const auto& chaosManager = Slot_->GetChaosManager();
-        auto* chaosLease = chaosManager->GetChaosLeaseOrThrow(chaosLeaseId);
-
-        Y_UNUSED(chaosLease);
-
-        context->Reply();
+        context->ReplyFrom(futureLastPingTime);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, RemoveChaosLease)
@@ -511,6 +513,20 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->RemoveChaosLease(std::move(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, PingChaosLease)
+    {
+        auto chaosLeaseId = FromProto<TChaosLeaseId>(context->Request().chaos_lease_id());
+        bool pingAncestors = context->Request().ping_ancestors();
+
+        context->SetRequestInfo("ChaosLeaseId: %v, PingAncestors: %v",
+            chaosLeaseId,
+            pingAncestors);
+
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->PingChaosLease(std::move(context));
     }
 };
 

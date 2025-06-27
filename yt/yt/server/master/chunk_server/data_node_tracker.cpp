@@ -1,6 +1,7 @@
 #include "data_node_tracker.h"
 
 #include "data_node_tracker_internal.h"
+#include "domestic_medium.h"
 #include "chunk_manager.h"
 #include "chunk_location.h"
 #include "chunk_location_type_handler.h"
@@ -27,11 +28,14 @@
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 #include <yt/yt/server/master/node_tracker_server/node_tracker.h>
+#include <yt/yt/server/master/node_tracker_server/helpers.h>
 
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 #include <yt/yt/ytlib/data_node_tracker_client/proto/data_node_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
+
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -41,6 +45,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/ytree/helpers.h>
+
+#include <yt/yt/core/misc/id_generator.h>
 
 #include <yt/yt/core/actions/new_with_offloaded_dtor.h>
 
@@ -69,7 +75,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,6 +108,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraProcessLocationFullHeartbeat, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraFinalizeFullHeartbeatSession, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraCleanExpiredDanglingLocations, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraRemapChunkLocationIds, Unretained(this)));
 
         RegisterLoader(
             "DataNodeTracker.Keys",
@@ -160,10 +167,13 @@ public:
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         const auto& originalRequest = context->Request();
-        THashSet<int> sequoiaLocationIndices;
+        THashSet<int> sequoiaLocationDirectoryIndices;
+        THashMap<int, TChunkLocationIndex> locationDirectoryIndexToLocationIndex;
         for (int i = 0; i < std::ssize(locationDirectory); ++i) {
-            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(locationDirectory[i])) {
-                InsertOrCrash(sequoiaLocationIndices, i);
+            auto* location = locationDirectory[i];
+            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(location)) {
+                InsertOrCrash(sequoiaLocationDirectoryIndices, i);
+                locationDirectoryIndexToLocationIndex[i] = location->GetIndex();
             }
         }
 
@@ -171,7 +181,7 @@ public:
         auto isSequoiaEnabled = sequoiaChunkReplicasConfig->Enable;
         auto sequoiaChunkProbability = sequoiaChunkReplicasConfig->ReplicasPercentage;
 
-        auto splitRequest = BIND([&, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] {
+        auto splitRequest = BIND([&, sequoiaLocationDirectoryIndices = std::move(sequoiaLocationDirectoryIndices)] {
             auto preparedRequest = NewWithOffloadedDtor<TFullHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
             if (!isSequoiaEnabled) {
@@ -181,17 +191,15 @@ public:
             preparedRequest->NonSequoiaRequest.mutable_chunks()->Clear();
 
             preparedRequest->SequoiaRequest->set_node_id(originalRequest.node_id());
-            for (auto* location : locationDirectory) {
-                ToProto(preparedRequest->SequoiaRequest->add_location_directory(), location->GetUuid());
-            }
 
-            for (const auto& chunkInfo : originalRequest.chunks()) {
+            for (auto chunkInfo : originalRequest.chunks()) {
                 auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-                auto locationIndex = chunkInfo.location_index();
-                if (sequoiaLocationIndices.contains(locationIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
-                    *preparedRequest->SequoiaRequest->add_added_chunks() = chunkInfo;
+                auto locationDirectoryIndex = chunkInfo.location_directory_index();
+                if (sequoiaLocationDirectoryIndices.contains(locationDirectoryIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
+                    chunkInfo.set_location_index(ToProto(GetOrCrash(locationDirectoryIndexToLocationIndex, locationDirectoryIndex)));
+                    *preparedRequest->SequoiaRequest->add_added_chunks() = std::move(chunkInfo);
                 } else {
-                    *preparedRequest->NonSequoiaRequest.add_chunks() = chunkInfo;
+                    *preparedRequest->NonSequoiaRequest.add_chunks() = std::move(chunkInfo);
                 }
             }
 
@@ -345,21 +353,13 @@ public:
         auto nodeId = FromProto<TNodeId>(originalRequest.node_id());
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
         auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, originalRequest);
-        THashSet<int> sequoiaLocationIndices;
+        THashSet<int> sequoiaLocationDirectoryIndices;
+        THashMap<int, TChunkLocationIndex> locationDirectoryIndexToLocationIndex;
         for (int i = 0; i < std::ssize(locationDirectory); ++i) {
-            YT_LOG_TRACE("Checking location (LocationIndex: %v, Uuid: %v)",
-                i,
-                locationDirectory[i]->GetUuid());
-
-            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(locationDirectory[i])) {
-                InsertOrCrash(sequoiaLocationIndices, i);
-                YT_LOG_TRACE("Location is Sequoia (LocationIndex: %v, Uuid: %v)",
-                    i,
-                    locationDirectory[i]->GetUuid());
-            } else {
-                YT_LOG_TRACE("Location is not Sequoia (LocationIndex: %v, Uuid: %v)",
-                    i,
-                    locationDirectory[i]->GetUuid());
+            auto* location = locationDirectory[i];
+            if (chunkReplicaFetcher->CanHaveSequoiaReplicas(location)) {
+                InsertOrCrash(sequoiaLocationDirectoryIndices, i);
+                locationDirectoryIndexToLocationIndex[i] = location->GetIndex();
             }
         }
 
@@ -367,7 +367,7 @@ public:
         auto isSequoiaEnabled = sequoiaChunkReplicasConfig->Enable;
         auto sequoiaChunkProbability = sequoiaChunkReplicasConfig->ReplicasPercentage;
 
-        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] {
+        auto splitRequest = BIND([=, sequoiaLocationDirectoryIndices = std::move(sequoiaLocationDirectoryIndices)] {
             auto preparedRequest = NewWithOffloadedDtor<TIncrementalHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
             if (!isSequoiaEnabled) {
@@ -378,25 +378,26 @@ public:
             preparedRequest->NonSequoiaRequest.mutable_removed_chunks()->Clear();
 
             preparedRequest->SequoiaRequest->set_node_id(originalRequest.node_id());
-            preparedRequest->SequoiaRequest->mutable_location_directory()->CopyFrom(originalRequest.location_directory());
 
-            for (const auto& chunkInfo : originalRequest.added_chunks()) {
+            for (auto chunkInfo : originalRequest.added_chunks()) {
                 auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-                auto locationIndex = chunkInfo.location_index();
-                if (sequoiaLocationIndices.contains(locationIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
-                    *preparedRequest->SequoiaRequest->add_added_chunks() = chunkInfo;
+                auto locationDirectoryIndex = chunkInfo.location_directory_index();
+                if (sequoiaLocationDirectoryIndices.contains(locationDirectoryIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
+                    chunkInfo.set_location_index(ToProto(GetOrCrash(locationDirectoryIndexToLocationIndex, locationDirectoryIndex)));
+                    *preparedRequest->SequoiaRequest->add_added_chunks() = std::move(chunkInfo);
                 } else {
-                    *preparedRequest->NonSequoiaRequest.add_added_chunks() = chunkInfo;
+                    *preparedRequest->NonSequoiaRequest.add_added_chunks() = std::move(chunkInfo);
                 }
             }
 
-            for (const auto& chunkInfo : originalRequest.removed_chunks()) {
+            for (auto chunkInfo : originalRequest.removed_chunks()) {
                 auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
-                auto locationIndex = chunkInfo.location_index();
-                if (sequoiaLocationIndices.contains(locationIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
-                    *preparedRequest->SequoiaRequest->add_removed_chunks() = chunkInfo;
+                auto locationDirectoryIndex = chunkInfo.location_directory_index();
+                if (sequoiaLocationDirectoryIndices.contains(locationDirectoryIndex) && chunkReplicaFetcher->CanHaveSequoiaReplicas(chunkIdWithIndex.Id, sequoiaChunkProbability)) {
+                    chunkInfo.set_location_index(ToProto(GetOrCrash(locationDirectoryIndexToLocationIndex, locationDirectoryIndex)));
+                    *preparedRequest->SequoiaRequest->add_removed_chunks() = std::move(chunkInfo);
                 } else {
-                    *preparedRequest->NonSequoiaRequest.add_removed_chunks() = chunkInfo;
+                    *preparedRequest->NonSequoiaRequest.add_removed_chunks() = std::move(chunkInfo);
                 }
             }
 
@@ -655,27 +656,63 @@ public:
         return GetOrCrash(ChunkLocationUuidToLocation_, locationUuid);
     }
 
+    TChunkLocation* FindChunkLocationByIndex(TChunkLocationIndex locationIndex) override
+    {
+        auto locationId = ObjectIdFromChunkLocationIndex(locationIndex);
+        return ChunkLocationMap_.Find(locationId);
+    }
+
+    TChunkLocation* GetChunkLocationByIndex(TChunkLocationIndex locationIndex) override
+    {
+        auto location = FindChunkLocationByIndex(locationIndex);
+        YT_VERIFY(IsObjectAlive(location));
+        return location;
+    }
+
+    TChunkLocationIndex GenerateChunkLocationIndex()
+    {
+        // It seems easier to recover from this verify than from having different ids.
+        YT_VERIFY(!Bootstrap_->IsSecondaryMaster());
+        return GenerateCounterId(ChunkLocationIdGenerator_, InvalidChunkLocationIndex, MaxChunkLocationIndex);
+    }
+
+    TObjectId ObjectIdFromChunkLocationIndex(TChunkLocationIndex chunkLocationIndex)
+    {
+        return NNodeTrackerClient::ObjectIdFromChunkLocationIndex(
+            chunkLocationIndex,
+            Bootstrap_->GetMulticellManager()->GetPrimaryCellTag());
+    }
+
+    TChunkLocationIndex ChunkLocationIndexFromObjectId(TObjectId objectId)
+    {
+        return NNodeTrackerClient::ChunkLocationIndexFromObjectId(objectId);
+    }
+
     TChunkLocation* CreateChunkLocation(
         TChunkLocationUuid locationUuid,
         TObjectId hintId) override
     {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto locationId = objectManager->GenerateId(EObjectType::ChunkLocation, hintId);
+        YT_VERIFY(hintId || Bootstrap_->IsPrimaryMaster());
 
-        auto locationHolder = TPoolAllocator::New<TChunkLocation>(locationId);
-        auto* location = ChunkLocationMap_.Insert(locationId, std::move(locationHolder));
+        auto objectId = hintId ? hintId : ObjectIdFromChunkLocationIndex(GenerateChunkLocationIndex());
+
+        auto locationHolder = TPoolAllocator::New<TChunkLocation>(objectId);
+        auto* location = ChunkLocationMap_.Insert(objectId, std::move(locationHolder));
         location->SetUuid(locationUuid);
 
         if (Bootstrap_->IsSecondaryMaster()) {
             location->SetForeign();
         }
 
+        const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(location);
 
         RegisterChunkLocationUuid(location);
 
-        YT_LOG_DEBUG("Chunk location created (LocationId: %v, LocationUuid: %v)",
-            locationId,
+        auto locationIndex = ChunkLocationIndexFromObjectId(objectId);
+        YT_LOG_DEBUG("Chunk location created (ObjectId: %v, LocationIndex: %v, LocationUuid: %v)",
+            objectId,
+            locationIndex,
             locationUuid);
 
         return location;
@@ -723,6 +760,9 @@ private:
     const TAsyncSemaphorePtr LocationFullHeartbeatSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0);
     // COMPAT(cherepashka)
     const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(/*totalSlots*/ 0);
+
+    TIdGenerator ChunkLocationIdGenerator_;
+    bool PatchChunkLocationIds_ = false;
 
     NHydra::TEntityMap<TChunkLocation> ChunkLocationMap_;
     TChunkLocationUuidMap ChunkLocationUuidToLocation_;
@@ -1009,11 +1049,11 @@ private:
         auto now = GetCurrentMutationContext()->GetTimestamp();
         auto expirationTimeout = GetDynamicConfig()->DanglingLocationCleaner->ExpirationTimeout;
 
-        auto danglingLocationUuids = FromProto<std::vector<TChunkLocationUuid>>(request->chunk_location_uuids());
+        auto danglingLocationIds = FromProto<std::vector<TObjectId>>(request->chunk_location_ids());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto uuid : danglingLocationUuids) {
-            auto* location = ChunkLocationMap_.Find(uuid);
+        for (auto id : danglingLocationIds) {
+            auto* location = ChunkLocationMap_.Find(id);
             if (!IsObjectAlive(location) || location->GetState() != EChunkLocationState::Dangling) {
                 continue;
             }
@@ -1150,7 +1190,7 @@ private:
         auto cleaningLimit = GetDynamicConfig()->DanglingLocationCleaner->MaxLocationsToCleanPerIteration;
 
         constexpr auto defaultCleaningLimit = TDanglingLocationCleanerConfig::DefaultMaxLocationsToCleanPerIteration;
-        TCompactVector<TChunkLocationId, defaultCleaningLimit> expiredDanglingLocations;
+        TCompactVector<TObjectId, defaultCleaningLimit> expiredDanglingLocations;
 
         for (auto [id, location] : ChunkLocationMap_) {
             if (std::ssize(expiredDanglingLocations) >= cleaningLimit) {
@@ -1168,7 +1208,7 @@ private:
             YT_LOG_INFO("Removing dangling chunk locations (ChunkLocationIds: %v)", expiredDanglingLocations);
 
             NProto::TReqRemoveDanglingChunkLocations request;
-            ToProto(request.mutable_chunk_location_uuids(), expiredDanglingLocations);
+            ToProto(request.mutable_chunk_location_ids(), expiredDanglingLocations);
 
             YT_UNUSED_FUTURE(CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
                 ->CommitAndLog(Logger()));
@@ -1184,6 +1224,8 @@ private:
         for (auto& shard : ShardedChunkLocationUuidToLocation_) {
             shard.clear();
         }
+        ChunkLocationIdGenerator_.Reset();
+        PatchChunkLocationIds_ = false;
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -1198,6 +1240,7 @@ private:
         ChunkLocationMap_.SaveValues(context);
         // COMPAT(koloshmet)
         Save(context, DanglingLocationsDefaultLastSeenTime_);
+        Save(context, ChunkLocationIdGenerator_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -1216,15 +1259,11 @@ private:
         } else {
             DanglingLocationsDefaultLastSeenTime_ = TInstant::Max();
         }
-    }
 
-    TChunkLocationId ChunkLocationIdFromUuid(TChunkLocationUuid uuid)
-    {
-        auto id = ReplaceCellTagInId(
-            ReplaceTypeInId(uuid, EObjectType::ChunkLocation),
-            Bootstrap_->GetPrimaryCellTag());
-        id.Parts32[3] &= 0x3fff;
-        return id;
+        if (context.GetVersion() >= EMasterReign::ChunkLocationCounterId) {
+            Load(context, ChunkLocationIdGenerator_);
+        }
+        PatchChunkLocationIds_ = context.GetVersion() < EMasterReign::ChunkLocationCounterId;
     }
 
     void OnLeaderActive() override
@@ -1267,6 +1306,19 @@ private:
         OnEpochFinished();
     }
 
+    // COMPAT(aleksandra-zh)
+    void RemapLocation(TObjectId oldLocationId, TObjectId newLocationId)
+    {
+        // This could be more efficient, but hopefully we'll be fine.
+        auto location = ChunkLocationMap_.Release(oldLocationId);
+        location->SetId(newLocationId);
+        YT_LOG_DEBUG("Changing location id to counter location id (OldId: %v, NewId: %v, LocationUuid: %v)",
+            oldLocationId,
+            newLocationId,
+            location->GetUuid());
+        ChunkLocationMap_.Insert(newLocationId, std::move(location));
+    }
+
     void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
@@ -1278,6 +1330,41 @@ private:
         // COMPAT(koloshmet)
         if (DanglingLocationsDefaultLastSeenTime_ == TInstant::Max()) {
             DanglingLocationsDefaultLastSeenTime_ = GetCurrentHydraContext()->GetTimestamp();
+        }
+
+        // COMPAT(aleksandra-zh)
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (PatchChunkLocationIds_ && multicellManager->IsPrimaryMaster()) {
+            std::vector<TObjectId> locationIds;
+            for (auto locationId : GetKeys(ChunkLocationMap_)) {
+                locationIds.push_back(locationId);
+            }
+
+            std::sort(locationIds.begin(), locationIds.end());
+
+            // This is fat.
+            NProto::TReqRemapChunkLocationIds request;
+            for (auto oldLocationId : locationIds) {
+                auto locationIndex = GenerateChunkLocationIndex();
+                auto newLocationId = ObjectIdFromChunkLocationIndex(locationIndex);
+
+                RemapLocation(oldLocationId, newLocationId);
+
+                auto* remap = request.add_location_id_remap();
+                ToProto(remap->mutable_old_location_id(), oldLocationId);
+                ToProto(remap->mutable_new_location_id(), newLocationId);
+            }
+            multicellManager->PostToSecondaryMasters(request);
+        }
+    }
+
+    void HydraRemapChunkLocationIds(NProto::TReqRemapChunkLocationIds* request)
+    {
+        for (const auto& protoRemap : request->location_id_remap()) {
+            auto oldLocationId = FromProto<TObjectId>(protoRemap.old_location_id());
+            auto newLocationId = FromProto<TObjectId>(protoRemap.new_location_id());
+
+            RemapLocation(oldLocationId, newLocationId);
         }
     }
 

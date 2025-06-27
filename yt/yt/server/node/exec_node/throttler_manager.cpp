@@ -95,6 +95,8 @@ private:
 
     void TryUpdateClusterThrottlersConfig();
     //! Lock_ has to be taken prior to calling this method.
+    void UpdateClusterLimits(const THashMap<std::string, TClusterLimitsConfigPtr>& clusterLimits);
+    //! Lock_ has to be taken prior to calling this method.
     void UpdateDistributedThrottlers();
     //! Lock_ has to be taken prior to calling this method.
     IThroughputThrottlerPtr GetLocalThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType) const;
@@ -136,7 +138,7 @@ std::pair<EThrottlerTrafficType, TClusterName> TThrottlerManager::FromThrottlerI
 {
     for (auto trafficType : TEnumTraits<EThrottlerTrafficType>::GetDomainValues()) {
         auto trafficTypeString = Format("%lv_", trafficType);
-        if (throttlerId.StartsWith(trafficTypeString)) {
+        if (throttlerId.starts_with(trafficTypeString)) {
             return {trafficType, TClusterName(throttlerId.substr(trafficTypeString.size()))};
         }
     }
@@ -276,12 +278,13 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
                     "/remote_cluster_throttlers_group",
                     TMemberId(LocalAddress_),
                     RpcServer_,
-                    // TODO(babenko): switch to std::string
-                    TString(LocalAddress_),
+                    LocalAddress_,
                     this->Logger,
                     Authenticator_,
                     Profiler_.WithPrefix("/distributed_throttler"));
             }
+
+            UpdateClusterLimits(ClusterThrottlersConfig_->ClusterLimits);
         } else {
             DistributedThrottlersHolder_.clear();
 
@@ -293,6 +296,33 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
     }
 
     ClusterThrottlersConfigInitializedPromise_.TrySet();
+}
+
+void TThrottlerManager::UpdateClusterLimits(const THashMap<std::string, TClusterLimitsConfigPtr>& clusterLimits)
+{
+    YT_VERIFY(ClusterThrottlersConfig_);
+
+    THashMap<TThrottlerId, std::optional<double>> throttlerIdToTotalLimit;
+    for (const auto& [clusterName, throttlerConfig] : clusterLimits) {
+        if (!throttlerConfig) {
+            continue;
+        }
+
+        EThrottlerTrafficType trafficType{};
+        if (throttlerConfig->Bandwidth) {
+            trafficType = EThrottlerTrafficType::Bandwidth;
+        } else if (throttlerConfig->Rps) {
+            trafficType = EThrottlerTrafficType::Rps;
+        } else {
+            YT_LOG_WARNING("Unexpected traffic type in cluster limits config (ClusterName: %v)",
+                clusterName);
+            continue;
+        }
+
+        auto throttlerId = ToThrottlerId(trafficType, TClusterName(clusterName));
+        EmplaceOrCrash(throttlerIdToTotalLimit, throttlerId, throttlerConfig->Bandwidth->Limit);
+    }
+    DistributedThrottlerFactory_->UpdateTotalLimits(std::move(throttlerIdToTotalLimit));
 }
 
 IThroughputThrottlerPtr TThrottlerManager::GetLocalThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType) const
@@ -370,7 +400,9 @@ TThrottlerManager::TThrottlerManager(
     , Logger(std::move(options.Logger))
     , ClusterThrottlersConfigUpdater_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
-        BIND(&TThrottlerManager::TryUpdateClusterThrottlersConfig, MakeWeak(this))))
+        BIND(&TThrottlerManager::TryUpdateClusterThrottlersConfig, MakeWeak(this)),
+        // Default period will be updated once config has been retrieved.
+        TDuration::Seconds(10)))
 {
     if (ClusterNodeConfig_->EnableFairThrottler) {
         Throttlers_[EExecNodeThrottlerKind::JobIn] = Bootstrap_->GetInThrottler("job_in");
@@ -396,13 +428,13 @@ TThrottlerManager::TThrottlerManager(
             Throttlers_[kind] = std::move(throttler);
         }
     }
-
-    ClusterThrottlersConfigUpdater_->Start();
-    ClusterThrottlersConfigUpdater_->ScheduleOutOfBand();
 }
 
 TFuture<void> TThrottlerManager::Start()
 {
+    ClusterThrottlersConfigUpdater_->Start();
+    ClusterThrottlersConfigUpdater_->ScheduleOutOfBand();
+
     return ClusterThrottlersConfigInitializedPromise_.ToFuture();
 }
 

@@ -79,6 +79,10 @@ struct TProxyBootstrapConfig
     //! speaking, and with various caveats.
     std::vector<TStringTransformationConfigPtr> TopicNameTransformations;
 
+    // Configures a list of transformations to be applied to the queue path to get the Kafka topic name.
+    //! See TopicNameTransformations.
+    std::vector<TStringTransformationConfigPtr> QueuePathTransformations;
+
     REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 
     static void Register(TRegistrar registrar);
@@ -128,6 +132,8 @@ struct TProxyDynamicConfig
     std::optional<std::string> LocalHostName;
 
     TGroupCoordinatorConfigPtr GroupCoordinator;
+
+    std::vector<TString> Topics;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

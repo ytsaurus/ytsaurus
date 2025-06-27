@@ -46,8 +46,11 @@ using NYT::NQueryClient::TRowSchemaInformation;
 using NYT::NQueryClient::TCompositeMemberAccessorPath;
 using NYT::NQueryClient::TSubqueryParameters;
 using NYT::NQueryClient::TSubqueryWriteOpClosure;
+using NYT::NQueryClient::TNestedExecutionContext;
+using NYT::NQueryClient::TNestedGroupByClosure;
 
 using NYT::NTableClient::TRowBuffer;
+using NYT::NTableClient::TLogicalTypePtr;
 
 using NYT::TSharedRange;
 
@@ -89,6 +92,9 @@ struct TTypeBuilder<bool>
     OPAQUE_TYPE(TCompositeMemberAccessorPath*)
     OPAQUE_TYPE(TSubqueryParameters*)
     OPAQUE_TYPE(TSubqueryWriteOpClosure*)
+    OPAQUE_TYPE(TLogicalTypePtr*)
+
+    OPAQUE_TYPE(TNestedExecutionContext*)
 
     OPAQUE_TYPE(struct tm*)
 
@@ -198,6 +204,26 @@ public:
             TTypeBuilder<TComparerFunction*>::Get(context),
             TTypeBuilder<TComparerFunction*>::Get(context),
             TTypeBuilder<TTernaryComparerFunction*>::Get(context)});
+    }
+};
+
+template <>
+struct TTypeBuilder<TNestedExecutionContext>
+{
+public:
+    enum Fields
+    {
+        ExpressionContext,
+        FromValues,
+        Result,
+    };
+
+    static StructType* Get(LLVMContext& context)
+    {
+        return StructType::get(context, {
+            TTypeBuilder<void*>::Get(context),
+            TTypeBuilder<TPIValue*>::Get(context),
+            TTypeBuilder<TPIValue>::Get(context)});
     }
 };
 

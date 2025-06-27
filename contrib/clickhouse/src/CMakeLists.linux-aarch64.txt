@@ -80,6 +80,7 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/lz4
   ${PROJECT_SOURCE_DIR}/contrib/libs/miniselect/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pocketfft
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/simdjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
@@ -122,6 +123,7 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-metrohash
   contrib-libs-miniselect
   contrib-libs-msgpack
+  contrib-libs-pocketfft
   libs-poco-MongoDB
   contrib-libs-rapidjson
   contrib-libs-re2
@@ -130,6 +132,7 @@ target_link_libraries(contrib-clickhouse-src PUBLIC
   contrib-libs-wyhash
   contrib-libs-xxhash
   contrib-libs-zstd
+  contrib-restricted-abseil-cpp
   restricted-aws-aws-c-auth
   restricted-aws-aws-c-common
   restricted-aws-aws-c-io
@@ -1974,6 +1977,7 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/lz4
   ${PROJECT_SOURCE_DIR}/contrib/libs/miniselect/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/msgpack/include
+  ${PROJECT_SOURCE_DIR}/contrib/libs/pocketfft
   ${PROJECT_SOURCE_DIR}/contrib/libs/rapidjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/simdjson/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/sparsehash/src
@@ -2016,6 +2020,7 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   contrib-libs-metrohash
   contrib-libs-miniselect
   contrib-libs-msgpack
+  contrib-libs-pocketfft
   libs-poco-MongoDB
   contrib-libs-rapidjson
   contrib-libs-re2
@@ -2024,6 +2029,7 @@ target_link_libraries(contrib-clickhouse-src.global PUBLIC
   contrib-libs-wyhash
   contrib-libs-xxhash
   contrib-libs-zstd
+  contrib-restricted-abseil-cpp
   restricted-aws-aws-c-auth
   restricted-aws-aws-c-common
   restricted-aws-aws-c-io

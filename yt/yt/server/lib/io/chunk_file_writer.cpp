@@ -32,7 +32,7 @@ static constexpr auto FileMode =
     AWUser |
     AWGroup;
 
-static constexpr auto& Logger = IOLogger;
+constinit const auto Logger = IOLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -177,7 +177,7 @@ bool TChunkFileWriter::WriteBlocks(
     buffers.reserve(blocks.size());
 
     for (const auto& block : blocks) {
-        auto error = block.ValidateChecksum();
+        auto error = block.CheckChecksum();
         YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Block checksum mismatch during file writing");
 
         auto* blockInfo = BlocksExt_.add_blocks();

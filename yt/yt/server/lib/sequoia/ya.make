@@ -8,6 +8,7 @@ SRCS(
     cypress_transaction.cpp
     helpers.cpp
     protobuf_helpers.cpp
+    response_keeper.cpp
 
     proto/cypress_proxy_tracker.proto
     proto/transaction_manager.proto

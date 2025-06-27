@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
-#include <yt/yt/ytlib/sequoia_client/public.h>
+#include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
 
 namespace NYT::NSequoiaServer {
 

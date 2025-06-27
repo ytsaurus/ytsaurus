@@ -61,6 +61,8 @@ struct TChunkReaderStatistics
     void RecordSession();
     void RecordPass();
     void RecordRetry();
+
+    void AddFrom(const TChunkReaderStatisticsPtr& from);
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderStatistics)

@@ -49,6 +49,7 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NControllerAgent;
 using namespace NControllerAgent::NProto;
+using namespace NScheduler;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYson;
@@ -159,7 +160,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     TDataSourceDirectoryPtr dataSourceDirectory,
     TTableReaderOptionsPtr options,
     TTableReaderConfigPtr tableReaderConfig,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     bool isParallel,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter,
@@ -286,7 +287,7 @@ TCreateUserJobReaderResult CreateMapJobReader(
     const TTableReaderOptionsPtr& tableReaderOptions,
     const TTableReaderConfigPtr& tableReaderConfig,
     const TClientChunkReadOptions& chunkReadOptions,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter)
 {
@@ -312,7 +313,7 @@ TCreateUserJobReaderResult CreateMapJobReader(
     bool isParallel,
     const IJobSpecHelperPtr& jobSpecHelper,
     const TClientChunkReadOptions& chunkReadOptions,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter)
 {
@@ -334,7 +335,7 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
     bool interruptAtKeyEdge,
     const IJobSpecHelperPtr& jobSpecHelper,
     const TClientChunkReadOptions& chunkReadOptions,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter)
 {
@@ -654,7 +655,7 @@ private:
 TCreateUserJobReaderResult CreatePartitionReduceJobReader(
     const IJobSpecHelperPtr& jobSpecHelper,
     const TClientChunkReadOptions& chunkReadOptions,
-    TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     TClosure onNetworkReleased,
     TNameTablePtr nameTable,
     const TColumnFilter& columnFilter)
@@ -713,7 +714,8 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
     return {
         CreatePartitionSortReader(
             jobSpecHelper->GetJobIOConfig()->TableReader,
-            chunkReaderHost,
+            // NB(coteeq): Partition reader never reads from a remote cluster.
+            chunkReaderHost->CreateHostForCluster(LocalClusterName),
             GetComparator(sortColumns),
             nameTable,
             onNetworkReleased,
@@ -770,7 +772,7 @@ IUserJobWriterFactoryPtr CreateUserJobWriterFactory(
 TCreateUserJobReaderResult CreateUserJobReader(
     const IJobSpecHelperPtr& jobSpecHelper,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
-    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
+    TMultiChunkReaderHostPtr chunkReaderHost,
     TClosure onNetworkReleased,
     NTableClient::TNameTablePtr nameTable,
     const NTableClient::TColumnFilter& columnFilter)

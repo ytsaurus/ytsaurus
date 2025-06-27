@@ -15,6 +15,7 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/yson/async_writer.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -114,7 +115,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
             ToProto(chunkSpec, chunk);
             // NB: Chunk we got may have non-zero table index, override it with zero.
             chunkSpec->set_table_index(0);
-            nodeDirectoryBuilder.Add(chunk->GetReplicaList());
+            nodeDirectoryBuilder.Add(chunk->GetReplicas());
             chunkSpec->set_row_count_override(chunkUpperLimit - chunkLowerLimit);
             if (chunkLowerLimit != 0) {
                 chunkSpec->mutable_lower_limit()->set_row_index(chunkLowerLimit);
@@ -309,7 +310,7 @@ void TVirtualStaticTable::GetSelf(
     writer.Finish()
         .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
-                response->set_value(resultOrError.Value().ToString());
+                response->set_value(ToProto(resultOrError.Value()));
                 context->Reply();
             } else {
                 context->Reply(resultOrError);

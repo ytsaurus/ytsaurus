@@ -16,6 +16,8 @@ SRCS(
     mirrorer.h
     ownerinfo.cpp
     offload_actor.cpp
+    partition_blob_encoder.cpp
+    partition_compaction.cpp
     partition_init.cpp
     partition_monitoring.cpp
     partition_read.cpp
@@ -76,6 +78,7 @@ PEERDIR(
     contrib/ydb/library/protobuf_printer
     contrib/ydb/public/lib/base
     contrib/ydb/public/sdk/cpp/src/client/persqueue_public
+    #ydb/library/dbgtrace
 )
 
 END()

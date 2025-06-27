@@ -10,7 +10,7 @@ namespace NYT::NLsm {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = NTabletNode::TabletNodeLogger;
+constinit const auto Logger = NTabletNode::TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,7 +64,7 @@ public:
 
     TLsmActionBatch BuildLsmActions(
         const std::vector<TTabletPtr>& tablets,
-        const TString& bundleName) override
+        const std::string& bundleName) override
     {
         YT_LOG_DEBUG("Started building LSM action batch");
 

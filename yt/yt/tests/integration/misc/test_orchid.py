@@ -77,8 +77,10 @@ class TestOrchid(YTEnvSetup):
         assert get("//tmp")["orchid"] == yson.YsonEntity()
         assert get("//tmp", attributes=["type"])["orchid"].attributes["type"] == "orchid"
 
-        # TODO(max42): somehow this does not work.
-        # assert exists("//tmp/orchid")
+        # TODO(kvk1920): /@remote_addresses is validated before node existance
+        # is checked. Fix it on master's side.
+        with raises_yt_error("Missing required parameter /remote_addresses"):
+            exists("//tmp/orchid")
 
         # These must trigger error.
         with raises_yt_error("Missing required parameter /remote_addresses"):
@@ -114,6 +116,22 @@ class TestOrchidMulticell(TestOrchid):
     @authors("rebenkoy")
     def test_at_cluster_masters(self):
         self._check_orchid("//sys/cluster_masters", self.NUM_MASTERS * (self.NUM_SECONDARY_MASTER_CELLS + 1), "master")
+
+
+##################################################################
+
+
+@authors("kvk1920")
+@pytest.mark.enabled_multidaemon
+class TestOrchidSequoia(TestOrchidMulticell):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################

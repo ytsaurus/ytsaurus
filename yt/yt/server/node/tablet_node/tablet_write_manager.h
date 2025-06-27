@@ -5,6 +5,7 @@
 #include "dynamic_store_bits.h"
 #include "serialize.h"
 #include "transaction.h"
+#include "write_log.h"
 
 #include <yt/yt/core/concurrency/async_barrier.h>
 #include <yt/yt/core/misc/persistent_queue.h>
@@ -12,114 +13,6 @@
 #include <library/cpp/containers/bitset/bitset.h>
 
 namespace NYT::NTabletNode {
-
-////////////////////////////////////////////////////////////////////////////////
-
-TWireWriteCommands ParseWriteCommands(
-    const NTableClient::TSchemaData& schemaData,
-    NTableClient::IWireProtocolReader* reader,
-    bool isVersionedWriteUnversioned);
-
-class TWireWriteCommandsBatch
-{
-public:
-    TWireWriteCommandsBatch() = default;
-    TWireWriteCommandsBatch(
-        TWireWriteCommands commands,
-        NTableClient::TRowBufferPtr rowBuffer,
-        TSharedRef data);
-
-    DEFINE_BYREF_RO_PROPERTY(TWireWriteCommands, Commands);
-    DEFINE_BYREF_RO_PROPERTY(TSharedRef, Data);
-
-    friend struct TTransactionWriteRecord;
-
-private:
-    NTableClient::TRowBufferPtr RowBuffer_;
-};
-
-struct IWireWriteCommandReader
-{
-    virtual const TWireWriteCommand& NextCommand(bool IsVersionedWriteUnversioned = false) = 0;
-    virtual bool IsFinished() const = 0;
-    virtual void RollbackLastCommand() = 0;
-};
-
-class TWireWriteCommandBatchReader
-    : public IWireWriteCommandReader
-{
-public:
-    TWireWriteCommandBatchReader(
-        TSharedRef data,
-        std::unique_ptr<NTableClient::IWireProtocolReader> reader,
-        NTableClient::TSchemaData schemaData);
-
-    const TWireWriteCommand& NextCommand(bool IsVersionedWriteUnversioned = false) final;
-    bool IsFinished() const final;
-    void RollbackLastCommand() final;
-
-    TWireWriteCommandsBatch FinishBatch();
-    bool IsBatchEmpty() const;
-
-private:
-    const TSharedRef Data_;
-    const NTableClient::TSchemaData SchemaData_;
-    const std::unique_ptr<NTableClient::IWireProtocolReader> Reader_;
-
-    NTableClient::IWireProtocolReader::TIterator CurrentBatchStartingPosition_;
-    TWireWriteCommands CurrentBatch_;
-    std::optional<NTableClient::IWireProtocolReader::TIterator> LastCommandPosition_;
-};
-
-class TWireWriteCommandsAsReader
-    : public IWireWriteCommandReader
-{
-public:
-    TWireWriteCommandsAsReader(const TWireWriteCommands& commands);
-
-    const TWireWriteCommand& NextCommand(bool IsVersionedWriteUnversioned = false) final;
-    bool IsFinished() const final;
-    void RollbackLastCommand() final;
-
-private:
-    const TWireWriteCommands& Commands_;
-
-    size_t CurrentIndex_ = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTransactionWriteRecord
-{
-    TTransactionWriteRecord() = default;
-    TTransactionWriteRecord(
-        TTabletId tabletId,
-        TWireWriteCommandsBatch writeCommands,
-        int rowCount,
-        i64 byteSize,
-        const TSyncReplicaIdList& syncReplicaIds,
-        const std::optional<NTableClient::THunkChunksInfo>& hunkChunksInfo);
-
-    TTabletId TabletId;
-    TWireWriteCommandsBatch WriteCommands;
-    int RowCount = 0;
-    i64 DataWeight = 0;
-    TSyncReplicaIdList SyncReplicaIds;
-
-    std::optional<NTableClient::THunkChunksInfo> HunkChunksInfo;
-
-    void Save(TSaveContext& context) const;
-    void Load(TLoadContext& context);
-
-    i64 GetByteSize() const;
-};
-
-constexpr size_t TransactionWriteLogChunkSize = 256;
-using TTransactionWriteLog = TPersistentQueue<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
-using TTransactionIndexedWriteLog = TIndexedPersistentQueue<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
-using TTransactionWriteLogSnapshot = TPersistentQueueSnapshot<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
-
-i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,7 +44,7 @@ struct ITabletWriteManager
 {
     virtual TWriteContext TransientWriteRows(
         TTransaction* transaction,
-        IWireWriteCommandReader* reader,
+        IWireWriteCommandsReader* reader,
         NTransactionClient::EAtomicity atomicity,
         bool versioned,
         int rowCount,
@@ -205,6 +98,9 @@ struct ITabletWriteManager
 
     virtual bool HasUnfinishedTransientTransactions() const = 0;
     virtual bool HasUnfinishedPersistentTransactions() const = 0;
+
+    //! Returns all transactions that affect the tablet, both transient and persistent.
+    virtual THashSet<TTransactionId> GetAffectingTransactionIds() const = 0;
 
     virtual void StartEpoch() = 0;
     virtual void StopEpoch() = 0;

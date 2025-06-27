@@ -75,13 +75,20 @@ public:
     void RemoveChunkFromCache(TChunkId /*chunkId*/) override
     { }
 
-    const TFairShareHierarchicalSchedulerPtr<std::string> GetFairShareHierarchicalScheduler()  override
+    const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler()  override
     {
-        return nullptr;
+        return FairShareHierarchicalScheduler_;
+    }
+
+    const NIO::IHugePageManagerPtr& GetHugePageManager()  override
+    {
+        return HugePageManager_;
     }
 
 private:
     const INodeMemoryTrackerPtr MemoryUsageTracker_ = CreateNodeMemoryTracker(1_GBs);
+    const TFairShareHierarchicalSchedulerPtr<std::string> FairShareHierarchicalScheduler_ = nullptr;
+    const NIO::IHugePageManagerPtr HugePageManager_ = nullptr;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFakeChunkStoreHost)

@@ -20,15 +20,28 @@ MonitoringTag = BackendTag.make_new("MonitoringTag")
 ##################################################################
 
 
-class MonitoringLabelDashboardParameter:
-    def __init__(self, project_id, label_key, default_value):
+class MonitoringProjectDashboardParameter:
+    def __init__(self, projects=None):
         self.dict = {
-            "labelValues": {
-                "projectId": project_id,
-                "labelKey": label_key,
-                "defaultValues": [default_value],
-            }
+            "projectParameter": {
+                "values": projects if projects else [],
+            },
         }
+
+
+##################################################################
+
+
+class MonitoringLabelDashboardParameter:
+    def __init__(self, project_id, label_key, default_value, selectors=None):
+        values = {
+            "projectId": project_id,
+            "labelKey": label_key,
+            "defaultValues": [default_value],
+        }
+        if selectors:
+            values["selectors"] = selectors
+        self.dict = {"labelValues": values}
 
 
 ##################################################################
@@ -344,6 +357,16 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
         if cell.description is not None:
             chart["description"] = cell.description
 
+        if cell.colors is not None:
+            series_overrides = chart.setdefault("series_overrides", [])
+            for name, color in cell.colors.items():
+                series_overrides.append({
+                    "name": name,
+                    "settings": {
+                        "color": color,
+                    },
+                })
+
         for axis, label in cell.yaxis_to_label.items():
             assert axis in (SystemFields.LeftAxis, SystemFields.RightAxis)
             axisKey = "left" if axis == SystemFields.LeftAxis else "right"
@@ -418,7 +441,11 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
                 "title": parameter["title"],
             }
             for arg in parameter.get("args", []):
-                if type(arg) in [MonitoringLabelDashboardParameter, MonitoringTextDashboardParameter]:
+                if type(arg) in [
+                    MonitoringProjectDashboardParameter,
+                    MonitoringLabelDashboardParameter,
+                    MonitoringTextDashboardParameter,
+                ]:
                     dct.update(arg.dict)
             result.append(dct)
         return result

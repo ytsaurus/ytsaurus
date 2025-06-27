@@ -94,6 +94,8 @@ TFuture<NProto::TReqLostVitalChunksSample> TLostVitalChunksSample::GetLocalCellU
     responseFutures.reserve(channels.size());
     for (const auto& channel : channels) {
         auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
         auto batchReq = proxy.ExecuteBatch();
         auto req = TCypressYPathProxy::Enumerate("//sys/local_lost_vital_chunks");
         req->set_limit(limit);

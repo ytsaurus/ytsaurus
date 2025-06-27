@@ -133,12 +133,28 @@ DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicRemoteChangelogStoreConfig
+    : public virtual NYTree::TYsonStruct
+{
+    NApi::TDynamicJournalWriterConfigPtr Writer;
+
+    REGISTER_YSON_STRUCT(TDynamicRemoteChangelogStoreConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicRemoteChangelogStoreConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TRemoteChangelogStoreConfig
     : public NYTree::TYsonStruct
 {
     NApi::TJournalReaderConfigPtr Reader;
     NApi::TJournalWriterConfigPtr Writer;
     std::optional<TDuration> LockTransactionTimeout;
+
+    TRemoteChangelogStoreConfigPtr ApplyDynamic(const TDynamicRemoteChangelogStoreConfigPtr& dynamicConfig) const;
 
     REGISTER_YSON_STRUCT(TRemoteChangelogStoreConfig);
 
@@ -508,7 +524,7 @@ struct THydraDryRunConfig
 
     TCellId TabletCellId;
 
-    TString TabletCellBundle;
+    std::string TabletCellBundle;
 
     NApi::TClusterTag ClockClusterTag;
 

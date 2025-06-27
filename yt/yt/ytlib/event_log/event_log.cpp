@@ -41,6 +41,22 @@ void TFluentLogEventConsumer::OnMyEndMap()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFluentLogEvent::TFluentLogEvent(std::unique_ptr<NYson::IYsonConsumer> consumer)
+    : TBase(consumer.get())
+    , Consumer_(std::move(consumer))
+{
+    Consumer_->OnBeginMap();
+}
+
+TFluentLogEvent::~TFluentLogEvent()
+{
+    if (Consumer_) {
+        Consumer_->OnEndMap();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEventLogValueConsumer
     : public IValueConsumer
 {

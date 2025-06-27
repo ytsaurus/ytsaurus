@@ -28,6 +28,7 @@ struct TTableProfilingCounters
     NProfiling::TCounter TabletSplits;
     NProfiling::TCounter NonTrivialReshards;
     NProfiling::TCounter ParameterizedMoves;
+    NProfiling::TCounter ReplicaMoves;
     NProfiling::TCounter ParameterizedReshardMerges;
     NProfiling::TCounter ParameterizedReshardSplits;
 };
@@ -53,32 +54,37 @@ class TBundleState
 public:
     using TTabletMap = THashMap<TTabletId, TTabletPtr>;
     using TTableProfilingCounterMap = THashMap<TTableId, TTableProfilingCounters>;
+    using TPerClusterPerformanceCountersTableSchemas = THashMap<TClusterName, NQueryClient::TTableSchemaPtr>;
 
     DEFINE_BYREF_RO_PROPERTY(TTabletMap, Tablets);
     DEFINE_BYVAL_RO_PROPERTY(NTabletClient::ETabletCellHealth, Health);
     DEFINE_BYVAL_RO_PROPERTY(TTabletCellBundlePtr, Bundle);
     DEFINE_BYREF_RW_PROPERTY(TTableProfilingCounterMap, ProfilingCounters);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasUntrackedUnfinishedActions, false);
-    DEFINE_BYVAL_RO_PROPERTY(NQueryClient::TTableSchemaPtr, PerformanceCountersTableSchema);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, PerformanceCountersKeys);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<std::string>, PerformanceCountersKeys);
+    DEFINE_BYVAL_RW_BOOLEAN_PROPERTY(LastReplicaMoveBalancingFetchFailed, false);
 
 public:
     TBundleState(
         TString name,
         TTableRegistryPtr tableRegistry,
         NApi::NNative::IClientPtr client,
-        IInvokerPtr invoker);
+        NHiveClient::TClientDirectoryPtr clientDirectory,
+        IInvokerPtr invoker,
+        std::string clusterName);
 
     void UpdateBundleAttributes(
         const NYTree::IAttributeDictionary* attributes);
 
     bool IsParameterizedBalancingEnabled() const;
+    bool IsReplicaBalancingEnabled() const;
 
     TFuture<void> UpdateState(bool fetchTabletCellsFromSecondaryMasters, int iterationIndex);
     TFuture<void> FetchStatistics(
         const NYTree::IListNodePtr& nodeStatistics,
         bool useStatisticsReporter,
         const NYPath::TYPath& statisticsTablePath);
+    TFuture<void> FetchReplicaStatistics();
 
     TTableProfilingCounters& GetProfilingCounters(
         const TTable* table,
@@ -112,12 +118,20 @@ private:
         TInstant MountTime = TInstant::Zero();
     };
 
+    struct TTableStatisticsResponse
+    {
+        std::vector<TTabletStatisticsResponse> Tablets;
+        std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
+    };
+
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler_;
 
     const NApi::NNative::IClientPtr Client_;
+    const NHiveClient::TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr Invoker_;
     const TTableRegistryPtr TableRegistry_;
+    const std::string SelfClusterName_;
 
     std::vector<TTabletCellId> CellIds_;
     TBundleProfilingCountersPtr Counters_;
@@ -142,15 +156,29 @@ private:
         bool useStatisticsReporter,
         const NYPath::TYPath& statisticsTablePath);
 
-    THashMap<TTableId, TTableSettings> FetchActualTableSettings() const;
-    THashMap<TTableId, std::vector<TTabletStatisticsResponse>> FetchTableStatistics(
-        const THashSet<TTableId>& tableIds,
-        bool fetchPerformanceCounters) const;
-    void FetchPerformanceCountersFromTable(
-        THashMap<TTableId, std::vector<TTabletStatisticsResponse>>* tableIdToStatistics,
-        const NYPath::TYPath& statisticsTablePath);
+    void DoFetchReplicaStatistics();
 
-    bool IsTableBalancingAllowed(const TTableSettings& table) const;
+    THashMap<TTableId, TTableSettings> FetchActualTableSettings() const;
+
+    THashMap<TTableId, TTableStatisticsResponse> FetchTableStatistics(
+        const NApi::NNative::IClientPtr& client,
+        const THashSet<TTableId>& tableIds,
+        const THashSet<TTableId>& tableIdsToFetchPivotKeys,
+        const THashMap<TTableId, NObjectClient::TCellTag>& tableIdToCellTag,
+        bool fetchPerformanceCounters,
+        bool parameterizedBalancingEnabledDefault = false) const;
+
+    void FetchPerformanceCountersFromTable(
+        THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
+        const NYPath::TYPath& statisticsTablePath);
+    void FillPerformanceCounters(
+        THashMap<TTableId, TTableStatisticsResponse>* tableIdToStatistics,
+        const THashMap<TTableId, THashMap<TTabletId, NTableClient::TUnversionedOwningRow>>& tableToPerformanceCounters) const;
+    void FillTabletWithStatistics(const TTabletPtr& tablet, TTabletStatisticsResponse& tabletResponse) const;
+
+    bool IsTableBalancingEnabled(const TTableSettings& table) const;
+    bool IsReplicaBalancingEnabled(const TTableSettings& table) const;
+    bool HasReplicaBalancingGroups() const;
 
     TTableProfilingCounters InitializeProfilingCounters(
         const TTable* table,
@@ -158,7 +186,9 @@ private:
 
     static void SetTableStatistics(
         const TTablePtr& table,
-        const std::vector<TTabletStatisticsResponse>& tablets);
+        const TTableStatisticsResponse& tableStatistics);
+
+    THashSet<TTableId> GetReplicaBalancingMajorTables() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBundleState)

@@ -87,6 +87,7 @@
 
 #include <yt/yt/server/lib/io/config.h>
 #include <yt/yt/server/lib/io/io_tracker.h>
+#include <yt/yt/server/lib/io/huge_page_manager.h>
 
 #include <yt/yt/server/lib/hydra/snapshot.h>
 
@@ -388,6 +389,11 @@ public:
         return FairShareHierarchicalScheduler_;
     }
 
+    const IHugePageManagerPtr& GetHugePageManager() const override
+    {
+        return HugePageManager_;
+    }
+
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override
     {
         return DynamicConfigManager_;
@@ -485,9 +491,9 @@ public:
         return unwrapAddresses(secondaryMaster->Addresses);
     }
 
-    void ResetAndRegisterAtMaster() override
+    void ResetAndRegisterAtMaster(ERegistrationReason reason) override
     {
-        return MasterConnector_->ResetAndRegisterAtMaster();
+        return MasterConnector_->ResetAndRegisterAtMaster(reason);
     }
 
     bool IsConnected() const override
@@ -721,6 +727,7 @@ private:
     TBufferedProducerPtr BufferedProducer_;
 
     TFairShareHierarchicalSchedulerPtr<std::string> FairShareHierarchicalScheduler_;
+    IHugePageManagerPtr HugePageManager_;
 
     IReconfigurableThroughputThrottlerPtr LegacyRawTotalInThrottler_;
     IThroughputThrottlerPtr LegacyTotalInThrottler_;
@@ -919,6 +926,14 @@ private:
         FairShareHierarchicalScheduler_ = CreateFairShareHierarchicalScheduler<std::string>(
             New<TFairShareHierarchicalSchedulerDynamicConfig>(),
             ClusterNodeProfiler().WithPrefix("/fair_share_hierarchical_scheduler"));
+
+        try {
+            HugePageManager_ = CreateHugePageManager(
+                Config_->HugePageManager,
+                ClusterNodeProfiler().WithPrefix("/huge_page_manager"));
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to initialize huge page manager");
+        }
 
         RawUserJobContainerCreationThrottler_ = CreateNamedReconfigurableThroughputThrottler(
             New<NConcurrency::TThroughputThrottlerConfig>(),
@@ -1222,7 +1237,9 @@ private:
 
         Connection_->GetClusterDirectorySynchronizer()->Start();
 
-        Connection_->GetMasterCellDirectorySynchronizer()->Start();
+        if (!Config_->DelayMasterCellDirectoryStart) {
+            Connection_->GetMasterCellDirectorySynchronizer()->Start();
+        }
 
         if (Config_->ExposeConfigInOrchid) {
             SetNodeByYPath(
@@ -1492,12 +1509,20 @@ private:
             : Config_->DataNode->AnnounceChunkReplicaRpsOutThrottler);
         RawUserJobContainerCreationThrottler_->Reconfigure(newConfig->ExecNode->UserJobContainerCreationThrottler);
 
+        if (auto fairShareScheduler = FairShareHierarchicalScheduler_) {
+            fairShareScheduler->Reconfigure(newConfig->FairShareHierarchicalScheduler);
+        }
+
         BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
         RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
         for (const auto& [_, service] : GetCachingObjectServices()) {
             service->Reconfigure(newConfig->CachingObjectService);
+        }
+
+        if (auto hugePageManager = HugePageManager_) {
+            hugePageManager->Reconfigure(newConfig->HugePageManager);
         }
 
         IOTracker_->SetConfig(newConfig->IOTracker);
@@ -1547,6 +1572,7 @@ private:
             newChaosResidencyCacheConfig->EnableClientMode,
             newConfig->ChaosResidencyCache->EnableClientMode);
         Connection_->GetChaosResidencyCache()->Reconfigure(std::move(newChaosResidencyCacheConfig));
+        Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(newConfig->MasterCellDirectorySynchronizer);
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)
@@ -1835,6 +1861,11 @@ const TFairShareHierarchicalSchedulerPtr<std::string>& TBootstrapBase::GetFairSh
     return Bootstrap_->GetFairShareHierarchicalScheduler();
 }
 
+const IHugePageManagerPtr& TBootstrapBase::GetHugePageManager() const
+{
+    return Bootstrap_->GetHugePageManager();
+}
+
 const TClusterNodeBootstrapConfigPtr& TBootstrapBase::GetConfig() const
 {
     return Bootstrap_->GetConfig();
@@ -1915,9 +1946,9 @@ std::vector<std::string> TBootstrapBase::GetMasterAddressesOrThrow(TCellTag cell
     return Bootstrap_->GetMasterAddressesOrThrow(cellTag);
 }
 
-void TBootstrapBase::ResetAndRegisterAtMaster()
+void TBootstrapBase::ResetAndRegisterAtMaster(ERegistrationReason reason)
 {
-    return Bootstrap_->ResetAndRegisterAtMaster();
+    return Bootstrap_->ResetAndRegisterAtMaster(reason);
 }
 
 bool TBootstrapBase::IsConnected() const

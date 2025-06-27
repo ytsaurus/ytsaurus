@@ -5,6 +5,8 @@ import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 import "yt_proto/yt/core/ytree/proto/ypath.proto";
 
+import "yt/ytlib/cypress_client/proto/cypress_ypath.proto";
+
 // COMPAT(kvk1920): make |transaction_id| required in all these actions (in 25.2).
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,7 +121,7 @@ message TReqRemoveNodeAttribute
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqLockNode
+message TReqExplicitlyLockNode
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid node_id = 2;
@@ -131,10 +133,57 @@ message TReqLockNode
     required NYT.NProto.TGuid lock_id = 8;
 }
 
+message TReqImplicitlyLockNode
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required NYT.NProto.TGuid node_id = 2;
+    required int32 mode = 3; // ELockMode
+    optional string child_key = 4;
+    optional string attribute_key = 5;
+}
+
 message TReqUnlockNode
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required NYT.NProto.TGuid node_id = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqMaterializeNode
+{
+    required NYT.NCypressClient.NProto.TSerializedNode serialized_node = 1;
+
+    required int32 mode = 2; // ENodeCloneMode
+    required int32 version = 3; // EMasterReign
+
+    // Used when turning map_node -> scion / portal or vice versa.
+    optional NYT.NProto.TGuid existing_node_id = 4;
+
+    optional NYT.NYTree.NProto.TAttributeDictionary inherited_attributes_override = 5;
+
+    // If empty - preserve account of the source node.
+    optional NYT.NProto.TGuid new_account_id = 6;
+
+    optional bool preserve_creation_time = 7 [default = false];
+    optional bool preserve_expiration_time = 8 [default = false];
+    optional bool preserve_expiration_timeout = 9 [default = false];
+    optional bool preserve_owner = 10 [default = false];
+
+    optional NYT.NProto.TGuid transaction_id = 11;
+    required NYT.NProto.TGuid node_id = 12;
+}
+
+message TReqFinishNodeMaterialization
+{
+    required NYT.NProto.TGuid node_id = 1;
+    required NYT.NProto.TGuid parent_id = 2;
+    required string path = 3;
+
+    optional bool preserve_modification_time = 4 [default = false];
+    optional bool preserve_acl = 5 [default = false];
+
+    optional NYT.NProto.TGuid transaction_id = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

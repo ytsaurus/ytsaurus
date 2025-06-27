@@ -35,6 +35,7 @@ target_link_libraries(yql-essentials-minikql PUBLIC
   library-cpp-enumbitset
   cpp-monlib-dynamic_counters
   library-cpp-packedtypes
+  cpp-type_info-tz
   library-cpp-resource
   library-cpp-yson
   essentials-core-pg_settings
@@ -46,7 +47,6 @@ target_link_libraries(yql-essentials-minikql PUBLIC
   essentials-public-issue
   essentials-public-langver
   essentials-public-udf
-  public-udf-tz
   essentials-types-binary_json
   essentials-types-dynumber
   essentials-types-uuid

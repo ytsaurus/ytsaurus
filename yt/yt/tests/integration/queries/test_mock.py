@@ -154,6 +154,31 @@ class TestQueriesMock(YTEnvSetup):
         assert q.read_result(1, columns=["bar", "foo", "bar"], output_format="dsv") == \
             b"""bar=abc\tfoo=42\nbar=def\tfoo=-17\nbar=ghi\tfoo=123\n"""
 
+    @authors("kirsiv40")
+    def test_assigned_tracker_attr_saves_after_query_finishes(self, query_tracker):
+        error = {"code": 42, "message": "Mock query execution error", "attributes": {"some_attr": "some_value"}}
+        schema = [{"name": "foo", "type": "int64"}, {"name": "bar", "type": "string"}]
+        rows = [{"foo": 42, "bar": "abc"}, {"foo": -17, "bar": "def"}, {"foo": 123, "bar": "ghi"}]
+
+        q = start_query("mock", "complete_after", settings={
+            "duration": 3000,
+            "results": [
+                {"error": error},
+                {"schema": schema, "rows": rows},
+            ]
+        })
+
+        wait(lambda: q.get_state() == "running")
+
+        active_query_info = q.get()
+        assert "assigned_tracker" in active_query_info
+
+        q.track()
+
+        finished_query_info = q.get()
+        assert "assigned_tracker" in finished_query_info
+        assert finished_query_info["assigned_tracker"] == active_query_info["assigned_tracker"]
+
     @authors("max42")
     def test_list(self, query_tracker):
         create_user("u1")
@@ -290,6 +315,7 @@ class TestQueryTrackerBan(YTEnvSetup):
             "execution_start_time": 0,
             "state": "pending",
             "settings": {},
+            "annotations": {},
         }])
 
         acquisition_iterations = get(f"//sys/query_tracker/instances/{address}/orchid/query_tracker/acquisition_iterations")

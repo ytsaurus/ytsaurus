@@ -26,6 +26,8 @@
 
 #include <yt/yt/client/security_client/access_control.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/library/re2/re2.h>
 
 namespace NYT::NScheduler {
@@ -82,7 +84,7 @@ TJobShellInfo::TJobShellInfo(
     YT_VERIFY(JobShell_);
 }
 
-const std::vector<TString>& TJobShellInfo::GetOwners()
+const std::vector<std::string>& TJobShellInfo::GetOwners()
 {
     if (JobShellRuntimeParameters_) {
         return JobShellRuntimeParameters_->Owners;
@@ -177,13 +179,13 @@ const TYPath& GetUserToDefaultPoolMapPath()
     return path;
 }
 
-std::optional<TString> FindControllerAgentAddressFromCypress(
+std::optional<std::string> FindControllerAgentAddressFromCypress(
     TOperationId operationId,
     const NApi::NNative::IClientPtr& client)
 {
     using NYT::ToProto;
 
-    static const std::vector<TString> attributes = {"controller_agent_address"};
+    static const std::vector<std::string> attributes = {"controller_agent_address"};
 
     auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
@@ -307,7 +309,13 @@ const NYPath::TYPath& GetOperationsArchiveOperationIdsPath()
 
 const NYPath::TYPath& GetOperationsArchiveJobTraceEventsPath()
 {
-    static const TYPath path = "//sys/operations_archive/job_trace_events";
+    static const TYPath path = GetOperationsArchivePath() + "/job_trace_events";
+    return path;
+}
+
+const NYPath::TYPath& GetOperationsArchiveOperationEventsPath()
+{
+    static const TYPath path = GetOperationsArchivePath() + "/operation_events";
     return path;
 }
 
@@ -381,18 +389,18 @@ TError GetUserTransactionAbortedError(TTransactionId transactionId)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetOperationsAcoPrincipalPath(const TString& acoName)
+NYPath::TYPath GetOperationsAcoPrincipalPath(TStringBuf acoName)
 {
     static constexpr TStringBuf OperationsAccessControlObjectPrincipalPath = "//sys/access_control_object_namespaces/operations/%v/principal";
-    return Format(OperationsAccessControlObjectPrincipalPath, acoName);
+    return Format(OperationsAccessControlObjectPrincipalPath, ToYPathLiteral(acoName));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const TString& acoName)
+TYsonString GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const std::string& acoName)
 {
     TGetNodeOptions getNodeOptions;
-    getNodeOptions.ReadFrom = EMasterChannelKind::LocalCache;
+    getNodeOptions.ReadFrom = EMasterChannelKind::ClientSideCache;
     return NConcurrency::WaitFor(
         client->GetNode(
             GetOperationsAcoPrincipalPath(acoName) + "/@acl"))
@@ -405,13 +413,13 @@ TAccessControlRule::TAccessControlRule(TSerializableAccessControlList acl)
     : AccessControlRule_(std::move(acl))
 { }
 
-TAccessControlRule::TAccessControlRule(TString acoName)
+TAccessControlRule::TAccessControlRule(std::string acoName)
     : AccessControlRule_(std::move(acoName))
 { }
 
 bool TAccessControlRule::IsAcoName() const
 {
-    return std::holds_alternative<TString>(AccessControlRule_);
+    return std::holds_alternative<std::string>(AccessControlRule_);
 }
 
 bool TAccessControlRule::IsAcl() const
@@ -419,12 +427,12 @@ bool TAccessControlRule::IsAcl() const
     return !IsAcoName();
 }
 
-TString TAccessControlRule::GetAcoName() const
+std::string TAccessControlRule::GetAcoName() const
 {
-    return std::get<TString>(AccessControlRule_);
+    return std::get<std::string>(AccessControlRule_);
 }
 
-void TAccessControlRule::SetAcoName(TString aco)
+void TAccessControlRule::SetAcoName(std::string aco)
 {
     AccessControlRule_ = std::move(aco);
 }
@@ -523,18 +531,16 @@ void ValidateOperationAccessByAco(
     TOperationId operationId,
     TJobId jobId,
     EPermissionSet permissionSet,
-    const TString& acoName,
+    const std::string& acoName,
     const NNative::IClientPtr& client,
     const TLogger& logger)
 {
-    auto acoPath = GetOperationsAcoPrincipalPath(acoName);
-
     auto authenticatedUser = user.value_or(GetCurrentAuthenticationIdentity().User);
 
     std::vector<TFuture<TCheckPermissionResponse>> futures;
     for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
         if (Any(permission & permissionSet)) {
-            futures.push_back(client->CheckPermission(authenticatedUser, acoPath, permission));
+            futures.push_back(client->CheckPermission(authenticatedUser, GetOperationsAcoPrincipalPath(acoName), permission));
         }
     }
 
@@ -547,7 +553,7 @@ void ValidateOperationAccessByAco(
         jobId,
         permissionSet,
         results,
-        acoPath,
+        TAccessControlRule(acoName),
         logger);
 }
 
@@ -595,7 +601,7 @@ void ValidateOperationAccessByAcl(
         jobId,
         permissionSet,
         results,
-        acl,
+        TAccessControlRule(acl),
         logger);
 }
 
@@ -772,7 +778,7 @@ void ToProto(
 
     if (allocationBriefInfo.OperationAcl) {
         auto aclYson = ConvertToYsonString(*allocationBriefInfo.OperationAcl);
-        allocationBriefInfoProto->set_operation_acl(aclYson.ToString());
+        allocationBriefInfoProto->set_operation_acl(ToProto(aclYson));
     }
     if (allocationBriefInfo.OperationAcoName) {
         allocationBriefInfoProto->set_operation_aco_name(*allocationBriefInfo.OperationAcoName);

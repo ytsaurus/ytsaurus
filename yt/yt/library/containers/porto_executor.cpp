@@ -1,6 +1,7 @@
 #include "porto_executor.h"
 #include "config.h"
 
+#include "porto_helpers.h"
 #include "private.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -30,7 +31,7 @@ using Porto::EError;
 
 #ifdef _linux_
 
-static constexpr auto& Logger = ContainersLogger;
+constinit const auto Logger = ContainersLogger;
 static constexpr auto RetryInterval = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -612,11 +613,11 @@ private:
 
             auto* netConfig = portoSpec.mutable_net()->add_cfg();
             netConfig->set_opt("L3");
-            netConfig->add_arg("veth0");
+            netConfig->add_arg(spec.NetworkInterface.value_or(TString(DefaultPortoNetworkInterface)));
 
             for (const auto& address : spec.IPAddresses) {
                 auto* ipConfig = portoSpec.mutable_ip()->add_cfg();
-                ipConfig->set_dev("veth0");
+                ipConfig->set_dev(spec.NetworkInterface.value_or(TString(DefaultPortoNetworkInterface)));
                 ipConfig->set_ip(ToString(address));
             }
 

@@ -1,35 +1,33 @@
 #include "job_proxy.h"
+
 #include "cpu_monitor.h"
+#include "job_prober_service.h"
+#include "job_throttler.h"
 #include "merge_job.h"
 #include "partition_job.h"
 #include "partition_sort_job.h"
 #include "remote_copy_job.h"
+#include "shallow_merge_job.h"
+#include "signature_proxy.h"
 #include "simple_sort_job.h"
 #include "sorted_merge_job.h"
 #include "user_job.h"
 #include "user_job_write_controller.h"
-#include "job_prober_service.h"
-#include "job_throttler.h"
-#include "shallow_merge_job.h"
 
 #include <yt/yt/server/lib/exec_node/helpers.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 #include <yt/yt/server/lib/controller_agent/statistics.h>
 
-#include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h>
 
 #include <yt/yt/server/lib/rpc_proxy/access_checker.h>
 #include <yt/yt/server/lib/rpc_proxy/api_service.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
-#include <yt/yt/server/lib/signature/cypress_key_store.h>
-#include <yt/yt/server/lib/signature/signature_validator.h>
+#include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
 
 #include <yt/yt/server/lib/user_job/config.h>
-
-#include <yt/yt/server/exec/user_job_synchronizer.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -42,12 +40,10 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
-#include <yt/yt/ytlib/chunk_client/data_source.h>
-
-#include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
@@ -56,116 +52,106 @@
 #include <yt/yt/ytlib/job_proxy/config.h>
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
-#include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
-#include <yt/yt/library/auth/credentials_injecting_channel.h>
+#include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
 #include <yt/yt/library/auth_server/authentication_manager.h>
 #include <yt/yt/library/auth_server/public.h>
 
-#include <yt/yt/library/containers/public.h>
-
-#include <yt/yt/library/profiling/sensor.h>
-
-#include <yt/yt/library/program/program.h>
-#include <yt/yt/library/program/helpers.h>
-#include <yt/yt/library/program/config.h>
-
-#include <yt/yt/library/tracing/jaeger/sampler.h>
-
-#include <yt/yt/client/api/client.h>
-
-#include <yt/yt/client/chunk_client/data_statistics.h>
-
-#include <yt/yt/client/logging/dynamic_table_log_writer.h>
-
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/yt/client/signature/generator.h>
 #include <yt/yt/client/signature/validator.h>
 
-#include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
+#include <yt/yt/client/table_client/config.h>
+
+#include <yt/yt/library/auth/credentials_injecting_channel.h>
+
+#include <yt/yt/library/containers/public.h>
+
+#include <yt/yt/library/program/config.h>
+#include <yt/yt/library/program/program.h>
+
+#include <yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.h>
+
+#include <yt/yt/library/tracing/jaeger/sampler.h>
 
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 #include <yt/yt/core/bus/tcp/server.h>
 
+#include <yt/yt/core/bus/server.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
-#include <yt/yt/core/concurrency/thread_pool_poller.h>
-
-#include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
-#include <yt/yt/core/rpc/authenticator.h>
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
-#include <yt/yt/core/rpc/helpers.h>
+
 #include <yt/yt/core/rpc/retrying_channel.h>
 #include <yt/yt/core/rpc/server.h>
 
-#include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/convert.h>
+#include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/virtual.h>
 
-#include <yt/yt/core/ypath/token.h>
+#include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/yt/library/dns_over_rpc/client/dns_over_rpc_resolver.h>
-
-#include <yt/yt/library/oom/oom.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <util/system/fs.h>
-#include <util/system/execpath.h>
-
-#include <util/folder/dirut.h>
 
 #include <sys/resource.h>
-#include <sys/time.h>
 
 namespace NYT::NJobProxy {
 
-using namespace NScheduler;
-using namespace NExecNode;
-using namespace NExecNode::NProto;
-using namespace NBus;
-using namespace NRpc;
 using namespace NRpcProxy;
+
 using namespace NApi;
-using namespace NScheduler;
-using namespace NScheduler::NProto;
+using namespace NBus;
 using namespace NChunkClient;
+using namespace NConcurrency;
+using namespace NContainers;
+using namespace NControllerAgent::NProto;
+using namespace NControllerAgent;
+using namespace NExecNode::NProto;
+using namespace NExecNode;
 using namespace NJobProber;
 using namespace NJobProberClient;
 using namespace NJobProxy;
-using namespace NControllerAgent;
-using namespace NControllerAgent::NProto;
-using namespace NConcurrency;
-using namespace NYTree;
-using namespace NYson;
-using namespace NYPath;
-using namespace NContainers;
+using namespace NLogging;
+using namespace NNet;
 using namespace NProfiling;
+using namespace NRpc;
+using namespace NScheduler::NProto;
+using namespace NScheduler;
+using namespace NScheduler;
+using namespace NServer;
+using namespace NShuffleServer;
+using namespace NSignature;
+using namespace NStatisticPath;
 using namespace NTracing;
 using namespace NTransactionClient;
-using namespace NStatisticPath;
-using namespace NSignature;
 using namespace NUserJob;
-using namespace NLogging;
-using namespace NServer;
+using namespace NYPath;
+using namespace NYTree;
+using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -183,7 +169,7 @@ namespace {
 void FillStatistics(auto& req, const IJobPtr& job, const TStatistics& enrichedStatistics)
 {
     auto extendedStatistics = job->GetStatistics();
-    req->set_statistics(ConvertToYsonString(enrichedStatistics).ToString());
+    req->set_statistics(ToProto(ConvertToYsonString(enrichedStatistics)));
     *req->mutable_total_input_data_statistics() = std::move(extendedStatistics.TotalInputStatistics.DataStatistics);
     for (auto& statistics : extendedStatistics.OutputStatistics) {
         *req->add_output_data_statistics() = std::move(statistics.DataStatistics);
@@ -525,6 +511,7 @@ void TJobProxy::RetrieveJobSpec()
     const auto& resourceUsage = rsp->resource_usage();
 
     Ports_ = FromProto<std::vector<int>>(rsp->ports());
+    JobProxyRpcServerPort_ = YT_OPTIONAL_FROM_PROTO(*rsp, job_proxy_rpc_server_port);
 
     auto authenticatedUser = GetJobSpecHelper()->GetJobSpecExt().authenticated_user();
     YT_LOG_INFO(
@@ -762,7 +749,7 @@ void TJobProxy::SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment)
     JobProxyEnvironment_.Store(std::move(environment));
 }
 
-void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
+void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool enableShuffleService)
 {
     YT_VERIFY(Config_->OriginalClusterConnection);
 
@@ -774,7 +761,34 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
     }
     connection->GetMasterCellDirectorySynchronizer()->Start();
 
+    ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
+
+    auto signatureGenerator = Config_->EnableSignatureGeneration
+        ? New<TProxySignatureGenerator>(*SupervisorProxy_, JobId_)
+        : NSignature::CreateAlwaysThrowingSignatureGenerator();
+    connection->SetSignatureGenerator(std::move(signatureGenerator));
+
     auto rootClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
+
+    if (enableShuffleService) {
+        YT_VERIFY(!PublicRpcServer_);
+        YT_VERIFY(!Config_->BusServer->Port.has_value());
+        YT_VERIFY(JobProxyRpcServerPort_.has_value());
+        Config_->BusServer->Port = *JobProxyRpcServerPort_;
+
+        PublicRpcServer_ = NRpc::NBus::CreateBusServer(CreatePublicTcpBusServer(Config_->BusServer));
+        PublicRpcServer_->Start();
+        YT_LOG_INFO("Public RPC server started (JobProxyRpcServerPort: %v)", JobProxyRpcServerPort_);
+
+        auto localServerAddress = BuildServiceAddress(GetLocalHostName(), *Config_->BusServer->Port);
+        auto shuffleService = CreateShuffleService(
+            ApiServiceThreadPool_->GetInvoker(),
+            rootClient,
+            localServerAddress);
+        PublicRpcServer_->RegisterService(std::move(shuffleService));
+        connection->RegisterShuffleService(localServerAddress);
+        YT_LOG_INFO("Shuffle Service registered (LocalServerAddress: %v)", localServerAddress);
+    }
 
     auto proxyCoordinator = CreateProxyCoordinator();
     proxyCoordinator->SetAvailableState(true);
@@ -783,9 +797,13 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         Config_->AuthenticationManager,
         NYT::NBus::TTcpDispatcher::Get()->GetXferPoller(),
         rootClient);
-    ApiServiceThreadPool_ = CreateThreadPool(rpcProxyWorkerThreadPoolSize, "RpcProxy");
+
+    auto signatureValidator = Config_->EnableSignatureValidation
+        ? New<TProxySignatureValidator>(*SupervisorProxy_, JobId_)
+        : NSignature::CreateAlwaysThrowingSignatureValidator();
+
     auto apiService = CreateApiService(
-        Config_->ApiService,
+        Config_->JobProxyApiServiceStatic,
         GetControlInvoker(),
         ApiServiceThreadPool_->GetInvoker(),
         connection,
@@ -795,9 +813,8 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         New<TSampler>(),
         RpcProxyLogger(),
         TProfiler(),
-        NSignature::CreateAlwaysThrowingSignatureValidator(),
-        NSignature::CreateAlwaysThrowingSignatureGenerator());
-    // TODO(pavook) do signature validation in job proxies.
+        std::move(signatureValidator));
+    apiService->OnDynamicConfigChanged(Config_->JobProxyApiService);
 
     GetRpcServer()->RegisterService(std::move(apiService));
     YT_LOG_INFO("RPC proxy API service registered (ThreadCount: %v)", rpcProxyWorkerThreadPoolSize);
@@ -846,7 +863,7 @@ TJobResult TJobProxy::RunJob()
 
         InitializeOrchid();
 
-        RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
+        RpcServer_ = NRpc::NBus::CreateBusServer(CreateLocalTcpBusServer(Config_->BusServer));
         RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));
         RpcServer_->RegisterService(NOrchid::CreateOrchidService(
             OrchidRoot_,
@@ -948,8 +965,13 @@ TJobResult TJobProxy::RunJob()
                 NProfiling::TTag{"job_descriptor", jobProxyDescriptor},
                 NProfiling::TTag{"slot_index", ToString(Config_->SlotIndex)}});
         }
-        if (jobSpecExt.has_user_job_spec() && jobSpecExt.user_job_spec().enable_rpc_proxy_in_job_proxy()) {
-            EnableRpcProxyInJobProxy(jobSpecExt.user_job_spec().rpc_proxy_worker_thread_pool_size());
+        if (jobSpecExt.has_user_job_spec()) {
+            const auto& userJobSpec = jobSpecExt.user_job_spec();
+            if (userJobSpec.enable_rpc_proxy_in_job_proxy()) {
+                EnableRpcProxyInJobProxy(userJobSpec.rpc_proxy_worker_thread_pool_size(), userJobSpec.enable_shuffle_service_in_job_proxy());
+            } else {
+                YT_VERIFY(!userJobSpec.enable_shuffle_service_in_job_proxy());
+            }
         }
 
         JobProxyMemoryOvercommitLimit_ = jobSpecExt.has_job_proxy_memory_overcommit_limit()
@@ -996,6 +1018,14 @@ TJobResult TJobProxy::RunJob()
             job = CreateBuiltinJob();
         }
 
+        if (GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters_size() > 0) {
+            // NB(coteeq): Do not sync cluster directory if data is local only.
+            auto connection = GetClient()->GetNativeConnection();
+            WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
+                .ThrowOnError();
+        }
+
+        InitializeChunkReaderHost();
         SetJob(job);
         job->Initialize();
 
@@ -1029,7 +1059,7 @@ TJobResult TJobProxy::RunJob()
     return job->Run();
 }
 
-NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config)
+NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const
 {
     if (TvmBridge_ && config->Dynamic->TvmId) {
         YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", *config->Dynamic->TvmId);
@@ -1115,6 +1145,68 @@ void TJobProxy::ReportResult(
     YT_LOG_INFO("Job result reported");
 }
 
+void TJobProxy::InitializeChunkReaderHost()
+{
+    auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
+        auto thisLocked = weakThis.Lock();
+        if (!thisLocked) {
+            return IThroughputThrottlerPtr();
+        }
+
+        if (JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()) {
+            return GetInBandwidthThrottler(clusterName);
+        }
+
+        return GetInBandwidthThrottler(LocalClusterName);
+    });
+
+    std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList {
+        {
+            .Name = LocalClusterName,
+            .Client = Client_,
+            .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
+        },
+    };
+    for (const auto& [clusterName, protoRemoteCluster] : GetJobSpecHelper()->GetJobSpecExt().remote_input_clusters()) {
+        auto remoteConnection = Client_
+            ->GetNativeConnection()
+            ->GetClusterDirectory()
+            ->GetConnectionOrThrow(clusterName);
+
+        if (!protoRemoteCluster.networks().empty()) {
+            auto connectionConfig = remoteConnection
+                ->GetCompoundConfig()
+                ->Clone();
+            connectionConfig->Static->Networks = FromProto<NNodeTrackerClient::TNetworkPreferenceList>(
+                protoRemoteCluster.networks());
+            remoteConnection = CreateNativeConnection(std::move(connectionConfig));
+        }
+
+        remoteConnection->GetNodeDirectory()->MergeFrom(protoRemoteCluster.node_directory());
+
+        clusterContextList.emplace_back(
+            TMultiChunkReaderHost::TClusterContext{
+                .Name = TClusterName(clusterName),
+                .Client = remoteConnection->CreateNativeClient(Client_->GetOptions()),
+                .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
+            });
+    }
+
+    MultiChunkReaderHost_ = CreateMultiChunkReaderHost(
+        New<TChunkReaderHost>(
+            Client_,
+            LocalDescriptor_,
+            ReaderBlockCache_,
+            /*chunkMetaCache*/ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
+            bandwidthThrottlerFactory(LocalClusterName),
+            GetOutRpsThrottler(),
+            /*mediumThrottler*/ GetUnlimitedThrottler(),
+            GetTrafficMeter()),
+        std::move(bandwidthThrottlerFactory),
+        clusterContextList);
+}
+
 TStatistics TJobProxy::GetEnrichedStatistics() const
 {
     TStatistics statistics;
@@ -1136,7 +1228,19 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
             DumpCodecStatistics(extendedStatistics.OutputStatistics[index].CodecStatistics, "/codec/cpu/encode"_SP / ypathIndex, &statistics);
         }
 
-        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.ChunkReaderStatistics);
+        auto totalChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        for (const auto& [clusterName, chunkReaderStatistics] : MultiChunkReaderHost_->GetChunkReaderStatistics()) {
+            if (Config_->EnablePerClusterChunkReaderStatistics) {
+                DumpChunkReaderStatistics(
+                    &statistics,
+                    "/chunk_reader_statistics"_SP / TStatisticPathLiteral(ToStringViaBuilder(clusterName)),
+                    chunkReaderStatistics);
+            }
+            totalChunkReaderStatistics->AddFrom(chunkReaderStatistics);
+        }
+
+        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics"_SP, totalChunkReaderStatistics);
         DumpTimingStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.TimingStatistics);
 
         for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.ChunkWriterStatistics.size()); ++index) {
@@ -1324,23 +1428,6 @@ IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment(const TJobSpecEnviron
             rootFS.Binds.push_back(TBind{
                 .SourcePath = GetPreparationPath(),
                 .TargetPath = GetSlotPath(),
-                .ReadOnly = false,
-            });
-
-            // Temporary workaround for nirvana - make tmp directories writable.
-            auto tmpPath = NFS::CombinePaths(
-                NFs::CurrentWorkingDirectory(),
-                GetSandboxRelPath(ESandboxKind::Tmp));
-
-            rootFS.Binds.push_back(TBind{
-                .SourcePath = tmpPath,
-                .TargetPath = "/tmp",
-                .ReadOnly = false,
-            });
-
-            rootFS.Binds.push_back(TBind{
-                .SourcePath = tmpPath,
-                .TargetPath = "/var/tmp",
                 .ReadOnly = false,
             });
         }
@@ -1573,32 +1660,9 @@ NApi::NNative::IClientPtr TJobProxy::GetClient() const
     return Client_;
 }
 
-TChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
+const TMultiChunkReaderHostPtr& TJobProxy::GetChunkReaderHost() const
 {
-    auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
-        auto thisLocked = weakThis.Lock();
-        if (!thisLocked) {
-            return IThroughputThrottlerPtr();
-        }
-
-        if (JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()) {
-            return GetInBandwidthThrottler(clusterName);
-        }
-
-        return GetInBandwidthThrottler(LocalClusterName);
-    });
-
-    return New<TChunkReaderHost>(
-        Client_,
-        LocalDescriptor_,
-        ReaderBlockCache_,
-        /*chunkMetaCache*/ nullptr,
-        /*nodeStatusDirectory*/ nullptr,
-        bandwidthThrottlerFactory(LocalClusterName),
-        GetOutRpsThrottler(),
-        /*mediumThrottler*/ GetUnlimitedThrottler(),
-        GetTrafficMeter(),
-        std::move(bandwidthThrottlerFactory));
+    return MultiChunkReaderHost_;
 }
 
 IBlockCachePtr TJobProxy::GetReaderBlockCache() const

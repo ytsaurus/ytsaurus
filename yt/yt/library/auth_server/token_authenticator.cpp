@@ -25,7 +25,7 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = AuthLogger;
+constinit const auto Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +56,8 @@ public:
             userIP);
 
         THashMap<TString, TString> params{
-            {"oauth_token", token},
+            // TODO(babenko): migrate to std::string
+            {"oauth_token", TString(token)},
             {"userip", userIP},
         };
 
@@ -219,7 +220,7 @@ private:
     const IClientPtr Client_;
 
 private:
-    static void SanitizeToken(TError* error, const TString& token)
+    static void SanitizeToken(TError* error, const std::string& token)
     {
         auto message = TString(error->GetMessage());
         SubstGlobal(message, token, "<redacted>");
@@ -229,7 +230,7 @@ private:
         }
     }
 
-    TAuthenticationResult OnCallResult(const TString& token, const TString& tokenHash, const TErrorOr<TYsonString>& callResult)
+    TAuthenticationResult OnCallResult(const std::string& token, const TString& tokenHash, const TErrorOr<TYsonString>& callResult)
     {
         if (!callResult.IsOK()) {
             TError error = callResult;
@@ -281,7 +282,7 @@ ITokenAuthenticatorPtr CreateLegacyCypressTokenAuthenticator(
 
 struct TTokenAuthenticatorCacheKey
 {
-    TString Token;
+    std::string Token;
     TString UserIPFactor;
 
     operator size_t() const

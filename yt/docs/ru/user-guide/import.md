@@ -48,7 +48,7 @@ $ ./import.py \
      --metastore master_host:9083 \
      --warehouse-dir /path/to/hive/warehouse \
      --input hive:database_name.table_name \
-     --output //path/in/yt/table
+     --output //path/in/yt/table \
      --proxy https://ytsaurus.company.net \
      --num-executors 5 \
      --executor-memory 4G \

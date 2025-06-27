@@ -197,21 +197,30 @@ void TDataBuilder::OnDecimal(TStringBuf value)
 }
 
 void TDataBuilder::OnBeginOptional()
-{ }
+{
+    ++OptionalLevels_.top();
+}
 
 void TDataBuilder::OnBeforeOptionalItem()
-{ }
+{
+    AddBeginOptional();
+}
 
 void TDataBuilder::OnAfterOptionalItem()
-{ }
+{
+    AddEndOptional();
+}
 
 void TDataBuilder::OnEmptyOptional()
 {
+    AddBeginOptional();
     AddNull();
+    AddEndOptional();
 }
 
 void TDataBuilder::OnEndOptional()
 {
+    --OptionalLevels_.top();
 }
 
 void TDataBuilder::OnBeginList()
@@ -221,7 +230,7 @@ void TDataBuilder::OnBeginList()
 
 void TDataBuilder::OnBeforeListItem()
 {
-    NextItem();
+    OpenItem();
     if (Depth_ < 0) {
         ValueConsumer_->OnBeginRow();
     }
@@ -229,6 +238,7 @@ void TDataBuilder::OnBeforeListItem()
 
 void TDataBuilder::OnAfterListItem()
 {
+    CloseItem();
     if (Depth_ < 0) {
         ValueConsumer_->OnEndRow();
     }
@@ -246,11 +256,12 @@ void TDataBuilder::OnBeginTuple()
 
 void TDataBuilder::OnBeforeTupleItem()
 {
-    NextItem();
+    OpenItem();
 }
 
 void TDataBuilder::OnAfterTupleItem()
 {
+    CloseItem();
 }
 
 void TDataBuilder::OnEndTuple()
@@ -268,11 +279,12 @@ void TDataBuilder::OnBeginStruct()
 
 void TDataBuilder::OnBeforeStructItem()
 {
-    NextItem();
+    OpenItem();
 }
 
 void TDataBuilder::OnAfterStructItem()
 {
+    CloseItem();
     if (!Depth_) {
         ++ColumnIndex_;
     }
@@ -295,20 +307,23 @@ void TDataBuilder::OnBeforeDictItem()
 
 void TDataBuilder::OnBeforeDictKey()
 {
-    NextItem();
+    OpenItem();
 }
 
 void TDataBuilder::OnAfterDictKey()
 {
+    CloseItem();
 }
 
 void TDataBuilder::OnBeforeDictPayload()
 {
-    NextItem();
+    OpenItem();
 }
 
 void TDataBuilder::OnAfterDictPayload()
-{ }
+{
+    CloseItem();
+}
 
 void TDataBuilder::OnAfterDictItem()
 {
@@ -323,13 +338,15 @@ void TDataBuilder::OnEndDict()
 void TDataBuilder::OnBeginVariant(ui32 index)
 {
     BeginList();
-    NextItem();
+    OpenItem();
+    CloseItem();
     AddSigned(index);
-    NextItem();
+    OpenItem();
 }
 
 void TDataBuilder::OnEndVariant()
 {
+    CloseItem();
     EndList();
 }
 
@@ -339,6 +356,20 @@ void TDataBuilder::OnPg(TMaybe<TStringBuf> value, bool /*isUtf8*/)
         AddString(*value);
     } else {
         AddNull();
+    }
+}
+
+void TDataBuilder::AddBeginOptional()
+{
+    if (OptionalLevels_.top() > 1) {
+        BeginList();
+    }
+}
+
+void TDataBuilder::AddEndOptional()
+{
+    if (OptionalLevels_.top() > 1) {
+        EndList();
     }
 }
 
@@ -412,11 +443,17 @@ void TDataBuilder::BeginList()
     }
 }
 
-void TDataBuilder::NextItem()
+void TDataBuilder::OpenItem()
 {
+    OptionalLevels_.push(0);
     if (Depth_ > 0) {
         ValueWriter_.OnListItem();
     }
+}
+
+void TDataBuilder::CloseItem()
+{
+    OptionalLevels_.pop();
 }
 
 void TDataBuilder::EndList()

@@ -57,7 +57,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletServerLogger;
+constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -635,7 +635,7 @@ public:
         }
     }
 
-    TString CommitUpdateTabletStores(
+    std::string CommitUpdateTabletStores(
         TTablet* tablet,
         NTransactionServer::TTransaction* transaction,
         NProto::TReqUpdateTabletStores* request,
@@ -840,7 +840,7 @@ public:
             hunkChunksToDetach,
             table->IsPhysicallySorted()
                 ? EChunkDetachPolicy::SortedTablet
-                : EChunkDetachPolicy::OrderedTabletPrefix);
+                : EChunkDetachPolicy::OrderedTabletHunk);
 
         // Unstage just attached chunks.
         for (auto chunk : chunksToAttach) {
@@ -880,7 +880,7 @@ public:
             detachedRowCount);
     }
 
-    TString CommitUpdateHunkTabletStores(
+    std::string CommitUpdateHunkTabletStores(
         THunkTablet* tablet,
         NProto::TReqUpdateHunkTabletStores* request) override
     {
@@ -1059,9 +1059,13 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         if (policy == EChunkDetachPolicy::OrderedTabletPrefix ||
-            policy == EChunkDetachPolicy::OrderedTabletSuffix)
+            policy == EChunkDetachPolicy::OrderedTabletSuffix ||
+            policy == EChunkDetachPolicy::OrderedTabletHunk)
         {
-            chunkManager->DetachFromChunkList(tablet->GetChunkList(), chunkTrees, policy);
+            auto* chunkList = policy == EChunkDetachPolicy::OrderedTabletHunk
+                ? tablet->GetHunkChunkList()
+                : tablet->GetChunkList();
+            chunkManager->DetachFromChunkList(chunkList, chunkTrees, policy);
             return;
         }
 
@@ -1317,7 +1321,7 @@ public:
     }
 
 private:
-    using TProfilerKey = std::tuple<std::optional<ETabletStoresUpdateReason>, TString, bool>;
+    using TProfilerKey = std::tuple<std::optional<ETabletStoresUpdateReason>, std::string, bool>;
     THashMap<TProfilerKey, TProfilingCounters> Counters_;
 
     TProfilingCounters* GetCounters(std::optional<ETabletStoresUpdateReason> reason, TTabletOwnerBase* owner)
@@ -1350,7 +1354,7 @@ private:
 
         auto profiler = TabletServerProfiler()
             .WithSparse()
-            .WithTag("tablet_cell_bundle", std::get<TString>(key))
+            .WithTag("tablet_cell_bundle", std::get<std::string>(key))
             .WithTag("table_type", table->IsPhysicallySorted() ? "sorted" : "ordered");
 
         if (reason) {
@@ -1372,7 +1376,7 @@ private:
     {
         auto makeError = [&] (const TDynamicStore* dynamicStore) {
             const auto* originalTablet = dynamicStore->GetTablet();
-            const TString& originalTablePath = IsObjectAlive(originalTablet) && IsObjectAlive(originalTablet->GetTable())
+            const auto& originalTablePath = IsObjectAlive(originalTablet) && IsObjectAlive(originalTablet->GetTable())
                 ? originalTablet->GetTable()->GetMountPath()
                 : "";
             return TError("Cannot restore table from backup since "
@@ -1718,6 +1722,26 @@ private:
         return result;
     }
 
+    static bool IsSubtabletInTabletChunkTree(const TChunkList* tabletChunkList, TChunkTreeRawPtr subtablet)
+    {
+        YT_VERIFY(subtablet->GetType() == EObjectType::ChunkList);
+
+        auto* chunkList = subtablet->AsChunkList();
+        if (chunkList->GetKind() != EChunkListKind::SortedDynamicSubtablet) {
+            return false;
+        }
+        if (tabletChunkList->ChildToIndex().contains(chunkList)) {
+            return true;
+        }
+        for (auto subtabletParent : chunkList->Parents()) {
+            if (IsSubtabletInTabletChunkTree(tabletChunkList, subtabletParent)) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
     void ValidateTabletContainsStore(const TTablet* tablet, TChunkTree* const store)
     {
         const auto* tabletChunkList = tablet->GetChunkList();
@@ -1727,37 +1751,11 @@ private:
             return;
         }
 
-        auto onParent = [&] (TChunkTree* parent) {
-            if (parent->GetType() != EObjectType::ChunkList) {
-                return false;
-            }
-            auto* chunkList = parent->AsChunkList();
-            if (chunkList->GetKind() != EChunkListKind::SortedDynamicSubtablet) {
-                return false;
-            }
-            if (tabletChunkList->ChildToIndex().contains(chunkList)) {
-                return true;
-            }
-            return false;
-        };
-
-        // NB: Tablet chunk list has rank of at most 2, so it suffices to check only
-        // one intermediate chunk list between store and tablet.
-        if (IsChunkTabletStoreType(store->GetType())) {
-            for (auto& [parent, multiplicity] : store->AsChunk()->Parents()) {
-                if (onParent(parent)) {
-                    return;
-                }
-            }
-        } else if (store->GetType() == EObjectType::ChunkView) {
+        // NB(dave11ar): Subtrees from bulk insert can have any rank.
+        // Subtrees contain only chunks, chunk views and sorted dynamic subtablets.
+        if (store->GetType() == EObjectType::ChunkView) {
             for (auto parent : store->AsChunkView()->Parents()) {
-                if (onParent(parent)) {
-                    return;
-                }
-            }
-        } else if (IsDynamicTabletStoreType(store->GetType())) {
-            for (auto parent : store->AsDynamicStore()->Parents()) {
-                if (onParent(parent)) {
+                if (IsSubtabletInTabletChunkTree(tabletChunkList, parent)) {
                     return;
                 }
             }

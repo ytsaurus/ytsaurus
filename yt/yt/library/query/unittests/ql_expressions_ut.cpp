@@ -42,6 +42,26 @@ using NCodegen::EExecutionBackend;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const auto StringType = MakeLogicalType(ESimpleLogicalValueType::String, /*required*/ false);
+const auto IntType = MakeLogicalType(ESimpleLogicalValueType::Int64, /*required*/ false);
+const auto UintType = MakeLogicalType(ESimpleLogicalValueType::Uint64, /*required*/ false);
+const auto BoolType = MakeLogicalType(ESimpleLogicalValueType::Boolean, /*required*/ false);
+const auto DoubleType = MakeLogicalType(ESimpleLogicalValueType::Double, /*required*/ false);
+
+std::vector<EValueType> ToWireTypes(TRange<TLogicalTypePtr> logicalTypes)
+{
+    std::vector<EValueType> wireTypes;
+    std::transform(
+        logicalTypes.begin(),
+        logicalTypes.end(),
+        std::back_inserter(wireTypes),
+        [] (const TLogicalTypePtr& logicalType) { return GetWireType(logicalType); });
+
+    return wireTypes;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TResultMatcher>
 void Evaluate(
     const TConstExpressionPtr& expr,
@@ -1916,7 +1936,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 using TEvaluateAggregationParam = std::tuple<
     const char*,
-    EValueType,
+    TLogicalTypePtr,
     TUnversionedValue,
     TUnversionedValue,
     TUnversionedValue>;
@@ -1946,9 +1966,9 @@ TEST_F(TEvaluateAggregationTest, AggregateFlag)
     // TODO(dtorilov): Test both execution backends.
     auto image = CodegenAggregate(
         aggregateProfilers->GetAggregate("xor_aggregate")->Profile(
-            {EValueType::Int64},
-            EValueType::Int64,
-            EValueType::Int64,
+            {IntType},
+            IntType,
+            IntType,
             "xor_aggregate",
             EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
         {EValueType::Int64},
@@ -2012,11 +2032,13 @@ TEST_F(TEvaluateAggregationTest, Aliasing)
         "concat_all",
         ECallingConvention::UnversionedValue);
 
+    auto stringType = MakeLogicalType(ESimpleLogicalValueType::String, /*required*/ false);
+
     auto image = CodegenAggregate(
         /* codegenAggregate */ aggregateProfilers->GetAggregate("concat_all")->Profile(
-            /* argumentTypes */ {EValueType::String},
-            /* stateType */ EValueType::String,
-            /* resultType */ EValueType::String,
+            /* argumentTypes */ {stringType},
+            /* stateType */ stringType,
+            /* resultType */ stringType,
             /* name */ "concat_all",
             EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
         /* argumentTypes */ {EValueType::String},
@@ -2088,6 +2110,7 @@ TEST_P(TEvaluateAggregationTest, Basic)
     const auto& param = GetParam();
     const auto& aggregateName = std::get<0>(param);
     auto type = std::get<1>(param);
+    auto wireType = GetWireType(type);
     auto value1 = std::get<2>(param);
     auto value2 = std::get<3>(param);
     auto expected = std::get<4>(param);
@@ -2101,8 +2124,8 @@ TEST_P(TEvaluateAggregationTest, Basic)
             type,
             aggregateName,
             EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
-        {type},
-        type,
+        {wireType},
+        wireType,
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native);
     auto instance = image.Instantiate();
 
@@ -2136,49 +2159,49 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         TEvaluateAggregationParam{
             "sum",
-            EValueType::Int64,
+            IntType,
             MakeUnversionedSentinelValue(EValueType::Null),
             MakeUnversionedSentinelValue(EValueType::Null),
             MakeUnversionedSentinelValue(EValueType::Null)},
         TEvaluateAggregationParam{
             "sum",
-            EValueType::Int64,
+            IntType,
             MakeUnversionedSentinelValue(EValueType::Null),
             MakeInt64(1),
             MakeInt64(1)},
         TEvaluateAggregationParam{
             "sum",
-            EValueType::Int64,
+            IntType,
             MakeInt64(1),
             MakeInt64(2),
             MakeInt64(3)},
         TEvaluateAggregationParam{
             "sum",
-            EValueType::Uint64,
+            UintType,
             MakeUint64(1),
             MakeUint64(2),
             MakeUint64(3)},
         TEvaluateAggregationParam{
             "max",
-            EValueType::Int64,
+            IntType,
             MakeInt64(10),
             MakeInt64(20),
             MakeInt64(20)},
         TEvaluateAggregationParam{
             "min",
-            EValueType::Int64,
+            IntType,
             MakeInt64(10),
             MakeInt64(20),
             MakeInt64(10)},
         TEvaluateAggregationParam{
             "max",
-            EValueType::Boolean,
+            BoolType,
             MakeBoolean(true),
             MakeBoolean(false),
             MakeBoolean(true)},
         TEvaluateAggregationParam{
             "min",
-            EValueType::Boolean,
+            BoolType,
             MakeBoolean(true),
             MakeBoolean(false),
             MakeBoolean(false)}
@@ -2188,9 +2211,9 @@ INSTANTIATE_TEST_SUITE_P(
 
 using TEvaluateAggregationWithStringStateParam = std::tuple<
     const char*,
-    std::vector<EValueType>,
-    EValueType,
-    EValueType,
+    std::vector<TLogicalTypePtr>,
+    TLogicalTypePtr,
+    TLogicalTypePtr,
     std::vector<std::vector<TUnversionedValue>>,
     std::vector<std::vector<TUnversionedValue>>,
     std::vector<TStringBuf>,
@@ -2229,8 +2252,8 @@ TEST_P(TEvaluateAggregationWithStringStateTest, Basic)
             resultType,
             aggregateName,
             EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native),
-        argumentTypes,
-        stateType,
+        ToWireTypes(argumentTypes),
+        GetWireType(stateType),
         EnableWebAssemblyInUnitTests() ? EExecutionBackend::WebAssembly : EExecutionBackend::Native);
     auto instance = image.Instantiate();
 
@@ -2268,9 +2291,9 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         TEvaluateAggregationWithStringStateParam{
             "argmax",
-            {EValueType::String, EValueType::Int64},
-            EValueType::String,
-            EValueType::String,
+            {StringType, IntType},
+            StringType,
+            StringType,
             {
                 {MakeString("ingrid"), MakeInt64(022)},
                 {MakeString("kilian"), MakeInt64(016)},
@@ -2295,9 +2318,9 @@ INSTANTIATE_TEST_SUITE_P(
             MakeString("tyodor")},
         TEvaluateAggregationWithStringStateParam{
             "argmin",
-            {EValueType::Boolean, EValueType::Int64},
-            EValueType::String,
-            EValueType::Boolean,
+            {BoolType, IntType},
+            StringType,
+            BoolType,
             {
                 {MakeBoolean(true), MakeInt64(022)},
                 {MakeBoolean(false), MakeInt64(016)},
@@ -2322,9 +2345,9 @@ INSTANTIATE_TEST_SUITE_P(
             MakeBoolean(false)},
         TEvaluateAggregationWithStringStateParam{
             "argmin",
-            {EValueType::String, EValueType::String},
-            EValueType::String,
-            EValueType::String,
+            {StringType, StringType},
+            StringType,
+            StringType,
             {
                 {MakeString("aba"), MakeString("caba")},
                 {MakeString("aca"), MakeString("baca")}
@@ -2345,9 +2368,9 @@ INSTANTIATE_TEST_SUITE_P(
             MakeString("cab")},
         TEvaluateAggregationWithStringStateParam{
             "argmax",
-            {EValueType::Double, EValueType::Double},
-            EValueType::String,
-            EValueType::Double,
+            {DoubleType, DoubleType},
+            StringType,
+            DoubleType,
             {
                 {MakeDouble(4.44), MakeDouble(44.4)},
                 {MakeDouble(5.55), MakeDouble(33.3)}
@@ -2437,9 +2460,10 @@ TEST_P(TEvaluateExpressionTest, Basic)
 
     // TODO(dtorilov): build and link is_finite and *_localtime udf
     if (auto function = expr->As<TFunctionExpression>();
-        function &&
-        (function->FunctionName == "is_finite" || function->FunctionName.ends_with("_localtime")) ||
-        !EnableWebAssemblyInUnitTests())
+        function && (
+            function->FunctionName == "is_finite" ||
+            function->FunctionName.ends_with("_localtime") ||
+            function->FunctionName.ends_with("_tz")))
     {
         return;
     }
@@ -2815,7 +2839,11 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=1446325284",
             "timestamp_floor_year(i1)",
-            MakeInt64(1420070400))
+            MakeInt64(1420070400)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "i1=1446325284; s1=\"Asia/Bangkok\"",
+            "timestamp_floor_day_tz(i1, s1)",
+            MakeInt64(1446310800))
 ));
 
 class TFormatTimestampExpressionTest
@@ -3152,18 +3180,15 @@ TEST_F(TExpressionStrConvTest, ErrorConvertStringToNumericTest) {
         HasSubstr("Cannot convert value"));
 }
 
-class TIllegalDoubleToIntCast
+class TIllegalDoubleToIntCastTest
     : public ::testing::Test
 {
 protected:
-    void SetUp() override
-    { }
-
     TTableSchemaPtr Schema_ = New<TTableSchema>();
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 };
 
-TEST_F(TIllegalDoubleToIntCast, NanToZero)
+TEST_F(TIllegalDoubleToIntCastTest, NanToZero)
 {
     TUnversionedValue result{};
 
@@ -3181,7 +3206,7 @@ TEST_F(TIllegalDoubleToIntCast, NanToZero)
     }
 }
 
-TEST_F(TIllegalDoubleToIntCast, UnsignedBoundaries)
+TEST_F(TIllegalDoubleToIntCastTest, UnsignedBoundaries)
 {
     TUnversionedValue result{};
 
@@ -3224,7 +3249,7 @@ TEST_F(TIllegalDoubleToIntCast, UnsignedBoundaries)
     }
 }
 
-TEST_F(TIllegalDoubleToIntCast, SignedBoundaries)
+TEST_F(TIllegalDoubleToIntCastTest, SignedBoundaries)
 {
     TUnversionedValue result{};
 

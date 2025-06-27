@@ -45,7 +45,7 @@ using NYT::FromProto;
 
 const TChunk::TEmptyChunkReplicasData TChunk::EmptyChunkReplicasData = {};
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -364,16 +364,18 @@ void TChunk::SetApprovedReplicaCount(int count)
     MutableReplicasData()->ApprovedReplicaCount = count;
 }
 
-void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
+void TChunk::ValidateConfirmation(const TChunkInfo& /*chunkInfo*/, const TChunkMeta& chunkMeta) const
 {
     // YT-3251
     if (!HasProtoExtension<TMiscExt>(chunkMeta.extensions())) {
         THROW_ERROR_EXCEPTION("Missing TMiscExt in chunk meta");
     }
 
-    Y_UNUSED(FromProto<EChunkType>(chunkMeta.type()));
-    Y_UNUSED(FromProto<EChunkFormat>(chunkMeta.format()));
+    ValidateFromProto(chunkMeta);
+}
 
+void TChunk::Confirm(const TChunkInfo& chunkInfo, const TChunkMeta& chunkMeta)
+{
     ChunkMeta_ = FromProto<TImmutableChunkMetaPtr>(chunkMeta);
 
     SetDiskSpace(chunkInfo.disk_space());
@@ -763,6 +765,38 @@ bool TChunk::HasConsistentReplicaPlacementHash() const
         !IsErasure(); // CRP with erasure is not supported.
 }
 
+int TChunk::CapTotalReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const
+{
+    switch (GetType()) {
+        case EObjectType::Chunk:
+        case EObjectType::JournalChunk:
+            return std::min(replicationFactor, config->MaxReplicationFactor);
+        case EObjectType::ErasureChunk:
+        case EObjectType::ErasureJournalChunk:
+            return replicationFactor;
+        default:
+            YT_ABORT();
+    }
+}
+
+int TChunk::CapPerRackReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr& config) const
+{
+    replicationFactor = std::min(replicationFactor, config->MaxReplicasPerRack);
+
+    switch (GetType()) {
+        case EObjectType::Chunk:
+            return std::min(replicationFactor, config->MaxRegularReplicasPerRack);
+        case EObjectType::ErasureChunk:
+            return std::min(replicationFactor, config->MaxErasureReplicasPerRack);
+        case EObjectType::JournalChunk:
+            return std::min(replicationFactor, config->MaxJournalReplicasPerRack);
+        case EObjectType::ErasureJournalChunk:
+            return std::min(replicationFactor, config->MaxErasureJournalReplicasPerRack);
+        default:
+            YT_ABORT();
+    }
+}
+
 void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
 {
     RowCount_ = miscExt.row_count();
@@ -878,6 +912,41 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Sav
     Save(context, LastSeenReplicas);
     Save(context, LastSeenReplicaCount);
     Save(context, ApprovedReplicaCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkId TDummyNbdChunk::GetId() const
+{
+    return TChunkId();
+}
+
+bool TDummyNbdChunk::IsErasure() const
+{
+    return false;
+}
+
+int TDummyNbdChunk::GetMaxReplicasPerFailureDomain(
+    int /*mediumIndex*/,
+    std::optional<int> /*replicationFactorOverride*/,
+    const TChunkRequisitionRegistry* /*registry*/) const
+{
+    return 1;
+}
+
+int TDummyNbdChunk::GetPhysicalReplicationFactor(int /*mediumIndex*/, const TChunkRequisitionRegistry* /*registry*/) const
+{
+    return 1;
+}
+
+int TDummyNbdChunk::CapTotalReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr&) const
+{
+    return replicationFactor;
+}
+
+int TDummyNbdChunk::CapPerRackReplicationFactor(int replicationFactor, const TDomesticMediumConfigPtr&) const
+{
+    return replicationFactor;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

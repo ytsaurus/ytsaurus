@@ -13,6 +13,8 @@
 #include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
 #include <yt/yt/ytlib/chaos_client/public.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+#include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher.h>
+#include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher_serialization.h>
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher.h>
 #include <yt/yt/ytlib/chaos_client/replication_cards_watcher_client.h>
 
@@ -82,7 +84,6 @@ public:
         YT_LOG_DEBUG("Unknown replication card (ReplicationCardId: %v)",
             replicationCardId);
 
-        ReplicationCardsWatcher_->OnReplicationCardRemoved(replicationCardId);
         ChaosCache_->TryRemove(GetKey(replicationCardId));
     }
 
@@ -147,6 +148,20 @@ IReplicationCardsWatcherClientPtr CreateReplicationCardsWatcherClientWithCallbac
     return watcherClient;
 }
 
+const TReplicationCardFetchOptions& ExtendFetchOptions(const TReplicationCardFetchOptions& fetchOptions)
+{
+    if (MinimalFetchOptions.Contains(fetchOptions)) {
+        return MinimalFetchOptions;
+    }
+
+    if (FetchOptionsWithProgress.Contains(fetchOptions)) {
+        return FetchOptionsWithProgress;
+    }
+
+    // Seems to be request from master.
+    return fetchOptions;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChaosCacheService
@@ -170,24 +185,33 @@ public:
         , Client_(std::move(client))
         , ReplicationCardsWatcher_(CreateReplicationCardsWatcher(
             config->ReplicationCardsWatcher,
-            std::move(invoker)))
+            invoker))
         , ReplicationCardsWatcherClient_(CreateReplicationCardsWatcherClientWithCallbacks(
             ReplicationCardsWatcher_,
             Cache_,
             config->UnwatchedCardExpirationDelay,
             Client_->GetNativeConnection(),
             Logger))
+        , ReplicationCardUpdatesBatcher_(CreateMasterCacheReplicationCardUpdatesBatcher(
+            config->ReplicationCardUpdateBatcher,
+            Client_->GetNativeConnection(),
+            std::move(invoker),
+            Logger))
     {
         ReplicationCardsWatcher_->Start({});
+        ReplicationCardUpdatesBatcher_->Start();
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WatchReplicationCard));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCardResidency));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChaosObjectResidency));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateTableProgress));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateMultipleTableProgresses));
     }
 
     ~TChaosCacheService()
     {
+        ReplicationCardUpdatesBatcher_->Stop();
         ReplicationCardsWatcher_->Stop();
     }
 
@@ -196,11 +220,14 @@ private:
     const IClientPtr Client_;
     const IReplicationCardsWatcherPtr ReplicationCardsWatcher_;
     const IReplicationCardsWatcherClientPtr ReplicationCardsWatcherClient_;
+    const IReplicationCardUpdatesBatcherPtr ReplicationCardUpdatesBatcher_;
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCard);
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, WatchReplicationCard);
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCardResidency);
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetChaosObjectResidency);
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, UpdateTableProgress);
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, UpdateMultipleTableProgresses);
 
     TFuture<TCellTag> DoGetChaosObjectResidency(
         TChaosObjectId chaosObjectId,
@@ -217,9 +244,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
         ? request->refresh_era()
         : InvalidReplicationEra;
 
-    const auto& extendedFetchOptions = MinimalFetchOptions.Contains(fetchOptions)
-        ? MinimalFetchOptions
-        : fetchOptions;
+    const auto& extendedFetchOptions = ExtendFetchOptions(fetchOptions);
 
     TFuture<TReplicationCardPtr> replicationCardFuture;
     const auto& requestHeader = context->GetRequestHeader();
@@ -362,7 +387,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetChaosObjectResidency)
         cellTagToForceRefresh);
 
     auto replier = BIND([context, response] (const TCellTag& cellTag) {
-        response->set_chaos_object_cell_tag(ToProto<ui32>(cellTag));
+        response->set_chaos_object_cell_tag(ToProto(cellTag));
     });
 
     auto residencyFuture = DoGetChaosObjectResidency(chaosObjectId, cellTagToForceRefresh);
@@ -386,13 +411,77 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCardResidency)
         cellTagToForceRefresh);
 
     auto replier = BIND([context, response] (const TCellTag& cellTag) {
-        response->set_replication_card_cell_tag(ToProto<ui32>(cellTag));
+        response->set_replication_card_cell_tag(ToProto(cellTag));
     });
 
     auto residencyFuture = DoGetChaosObjectResidency(replicationCardId, cellTagToForceRefresh);
 
     context->ReplyFrom(residencyFuture
         .Apply(replier));
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, UpdateTableProgress)
+{
+    auto replicationProgressUpdate = NYT::FromProto<TReplicationCardProgressUpdate>(
+        request->replication_card_progress_update());
+
+    context->SetRequestInfo("ReplicationCardId: %v, FetchOptions: %v",
+        replicationProgressUpdate.ReplicationCardId,
+        replicationProgressUpdate.FetchOptions);
+
+    auto futureCard = ReplicationCardUpdatesBatcher_->AddReplicationCardProgressesUpdate(std::move(
+        replicationProgressUpdate));
+
+    auto futureResponse = futureCard.ApplyUnique(BIND([context, response] (TReplicationCardPtr&& card) {
+        if (card) {
+            ToProto(response->mutable_replication_card(), *card);
+        }
+    }));
+
+    context->ReplyFrom(std::move(futureResponse));
+}
+
+DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, UpdateMultipleTableProgresses)
+{
+    auto replicationProgressUpdatesBatch = NYT::FromProto<TReplicationCardProgressUpdatesBatch>(*request);
+    context->SetRequestInfo("ReplicationCardIdsCount: %v",
+        replicationProgressUpdatesBatch.ReplicationCardProgressUpdates.size());
+
+    auto futureCardsByIds = ReplicationCardUpdatesBatcher_->AddBulkReplicationCardProgressesUpdate(std::move(
+        replicationProgressUpdatesBatch));
+
+    auto futureCards = std::vector<TFuture<TReplicationCardPtr>>();
+    futureCards.reserve(futureCardsByIds.size());
+    for (auto& futureCardById : futureCardsByIds) {
+        futureCards.push_back(futureCardById.second);
+    }
+
+    auto futureAllCardsUpdated = AllSet(std::move(futureCards));
+
+    auto futureUpdateResult = futureAllCardsUpdated.ApplyUnique(BIND(
+        [
+            context,
+            response,
+            futureCardsByIds = std::move(futureCardsByIds)
+        ] (std::vector<TErrorOr<TReplicationCardPtr>>&& /*results*/) {
+            response->mutable_replication_card_progress_update_results()->Reserve(futureCardsByIds.size());
+
+            for (auto& [replicatrionCardId, replicationCardFuture] : futureCardsByIds) {
+                auto* protoUpdateResult = response->add_replication_card_progress_update_results();
+                ToProto(protoUpdateResult->mutable_replication_card_id(), replicatrionCardId);
+
+                if (const auto& replicationCardOrError = replicationCardFuture.Get(); replicationCardOrError.IsOK()) {
+                    auto* protoProgressUpdateResult = protoUpdateResult->mutable_result();
+                    if (const auto& replicationCardPtr = replicationCardOrError.Value()) {
+                        ToProto(protoProgressUpdateResult->mutable_replication_card(), *replicationCardPtr);
+                    }
+                } else {
+                    ToProto(protoUpdateResult->mutable_error(), replicationCardOrError);
+                }
+            }
+        }));
+
+    context->ReplyFrom(std::move(futureUpdateResult));
 }
 
 IServicePtr CreateChaosCacheService(

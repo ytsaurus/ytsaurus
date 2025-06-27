@@ -73,7 +73,7 @@ private:
 
     struct TCellState
     {
-        NObjectClient::TObjectServiceProxy::TReqExecuteBatchWithRetriesPtr BatchReq;
+        NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr BatchReq;
         int ReqCount = 0;
         std::vector<int> TableIndices;
         std::vector<int> RangeIndices;
@@ -158,7 +158,7 @@ private:
         std::vector<NTabletClient::TTabletId> MissingTabletIds;
     };
 
-    THashMap<TString, TNodeState> NodeAddressToState_;
+    THashMap<std::string, TNodeState> NodeAddressToState_;
 
     void AddSorted(
         const NTabletClient::TTableMountInfo& tableMountInfo,

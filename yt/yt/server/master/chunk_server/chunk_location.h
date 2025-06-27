@@ -71,6 +71,11 @@ public:
     // TODO(kvk1920): Use TDomesticMedium* here.
     int GetEffectiveMediumIndex() const;
 
+    NNodeTrackerClient::TChunkLocationIndex GetIndex() const;
+
+    // COMPAT(aleksandra-zh);
+    void SetId(NObjectServer::TObjectId id);
+
     void ReserveReplicas(int sizeHint);
 
     //! Returns |true| if the replica was actually added.

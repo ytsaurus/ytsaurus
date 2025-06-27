@@ -23,7 +23,11 @@ namespace NYT::NChaosNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTransaction
-    : public NTransactionSupervisor::TTransactionBase<NTabletNode::TObjectBase>
+    : public NTransactionSupervisor::TTransactionBase<
+        NTabletNode::TObjectBase,
+        TSaveContext,
+        TLoadContext
+    >
     , public TRefTracked<TTransaction>
 {
 public:

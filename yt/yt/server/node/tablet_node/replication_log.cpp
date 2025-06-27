@@ -1,8 +1,8 @@
 #include "replication_log.h"
 
+#include "private.h"
 #include "tablet.h"
 #include "tablet_reader.h"
-#include "private.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 

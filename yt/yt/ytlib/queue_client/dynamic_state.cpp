@@ -35,7 +35,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = QueueClientLogger;
+constinit const auto Logger = QueueClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -387,7 +387,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
         .Sorted = cypressAttributes->Find<bool>("sorted"),
         .AutoTrimConfig = cypressAttributes->Find<TQueueAutoTrimConfig>("auto_trim_config").value_or(TQueueAutoTrimConfig()),
         .StaticExportConfig = cypressAttributes->Find<THashMap<TString, TQueueStaticExportConfigPtr>>("static_export_config"),
-        .QueueAgentStage = cypressAttributes->Find<TString>("queue_agent_stage"),
+        .QueueAgentStage = cypressAttributes->Find<std::string>("queue_agent_stage"),
         .ObjectId = cypressAttributes->Find<TObjectId>("id"),
         .QueueAgentBanned = cypressAttributes->Find<bool>("queue_agent_banned"),
         .SynchronizationError = TError(),
@@ -451,7 +451,7 @@ TConsumerTableRow TConsumerTableRow::FromAttributeDictionary(
         .ObjectType = cypressAttributes->Get<EObjectType>("type"),
         .TreatAsQueueConsumer = cypressAttributes->Get<bool>("treat_as_queue_consumer", false),
         .Schema = cypressAttributes->Find<TTableSchema>("schema"),
-        .QueueAgentStage = cypressAttributes->Find<TString>("queue_agent_stage"),
+        .QueueAgentStage = cypressAttributes->Find<std::string>("queue_agent_stage"),
         .QueueAgentBanned = cypressAttributes->Find<bool>("queue_agent_banned"),
         .SynchronizationError = TError(),
     };

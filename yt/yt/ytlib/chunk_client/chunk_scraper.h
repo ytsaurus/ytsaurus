@@ -21,11 +21,11 @@ namespace NYT::NChunkClient {
 struct TScrapedChunkInfo
 {
     TChunkId ChunkId;
-    TChunkReplicaWithMediumList Replicas;
-    bool Missing;
+    TChunkReplicaList Replicas;
+    bool Missing = false;
 };
 
-using TChunkBatchLocatedHandler = TCallback<void(const std::vector<TScrapedChunkInfo>&)>;
+using TChunkBatchLocatedHandler = TCallback<void(std::vector<TScrapedChunkInfo>)>;
 
 //! A chunk scraper for unavailable chunks.
 class TChunkScraper

@@ -250,7 +250,7 @@ class TestBundleController(YTEnvSetup):
 
         set("//sys/tablet_cell_bundles/default/@resource_quota", {
             "cpu": 100,
-            "network": 5*1024*1024*1024,
+            "net_bytes": 5*1024*1024*1024,
             "memory": 750323855360})
 
         self._set_bundle_system_quotas_account_for_bundle("default")

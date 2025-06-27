@@ -462,7 +462,9 @@ private:
     {
         if (Type_ == EObjectType::ChunkMap) {
             const auto& chunkManager = Bootstrap_->GetChunkManager();
-            return MakeFuture(ToObjectIds(GetValues(chunkManager->Chunks(), limit)));
+            const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+            auto limitOverride = std::min(limit, config->VirtualChunkMapReadResultLimit);
+            return MakeFuture(ToObjectIds(GetValues(chunkManager->Chunks(), limitOverride)));
         } else if (IsLocal()) {
             return MakeFuture(GetFilteredChunkIds(limit));
         } else {
@@ -475,6 +477,8 @@ private:
             responseFutures.reserve(channels.size());
             for (const auto& channel : channels) {
                 auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
+                // TODO(nadya02): Set the correct timeout here.
+                proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
                 auto batchReq = proxy.ExecuteBatch();
                 auto req = TCypressYPathProxy::Enumerate(GetWellKnownPath(GetLocalChunkMapType()));
                 req->set_limit(limit);
@@ -539,6 +543,8 @@ private:
             responseFutures.reserve(channels.size());
             for (const auto& channel : channels) {
                 auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
+                // TODO(nadya02): Set the correct timeout here.
+                proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
                 auto req = TYPathProxy::Get(GetWellKnownPath(GetLocalChunkMapType()) + "/@count");
                 responseFutures.push_back(proxy.Execute(req));
             }

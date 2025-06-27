@@ -237,7 +237,7 @@ private:
                 AddTrivialSlice(chunkIndex);
             } else {
                 requestedChunkIndexes.push_back(chunkIndex);
-                auto chunkId = EncodeChunkId(chunk, nodeId);
+                auto chunkId = chunk->EncodeReplica(nodeId);
 
                 auto* protoSliceRequest = req->add_slice_requests();
                 ToProto(protoSliceRequest->mutable_chunk_id(), chunkId);

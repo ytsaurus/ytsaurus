@@ -34,7 +34,7 @@ using namespace NProfiling;
 
 #ifdef _linux_
 
-static constexpr auto& Logger = IOLogger;
+constinit const auto Logger = IOLogger;
 
 static constexpr int UringEngineNotificationCount = 2;
 static constexpr int MaxUringConcurrentRequestsPerThread = 128;
@@ -82,6 +82,7 @@ struct TUringIOEngineConfig
     // Request size in bytes.
     int DesiredRequestSize;
     int MinRequestSize;
+    bool EnableSlicing;
 
     double UserInteractiveRequestWeight;
     double UserRealtimeRequestWeight;
@@ -113,6 +114,8 @@ struct TUringIOEngineConfig
         registrar.Parameter("min_request_size", &TThis::MinRequestSize)
             .GreaterThanOrEqual(512)
             .Default(32_KB);
+        registrar.Parameter("enable_slicing", &TThis::EnableSlicing)
+            .Default(true);
 
         registrar.Parameter("user_interactive_weight", &TThis::UserInteractiveRequestWeight)
             .GreaterThanOrEqual(1)
@@ -432,6 +435,7 @@ struct TUringConfigProvider final
     YT_DECLARE_ATOMIC_FIELD(bool, FlushAfterWrite)
     YT_DECLARE_ATOMIC_FIELD(int, DesiredRequestSize)
     YT_DECLARE_ATOMIC_FIELD(int, MinRequestSize)
+    YT_DECLARE_ATOMIC_FIELD(bool, EnableSlicing)
     YT_DECLARE_ATOMIC_FIELD(double, UserInteractiveRequestWeight)
     YT_DECLARE_ATOMIC_FIELD(double, UserRealtimeRequestWeight)
 
@@ -453,6 +457,7 @@ struct TUringConfigProvider final
         YT_STORE_ATOMIC_FIELD(newConfig, FlushAfterWrite)
         YT_STORE_ATOMIC_FIELD(newConfig, DesiredRequestSize)
         YT_STORE_ATOMIC_FIELD(newConfig, MinRequestSize)
+        YT_STORE_ATOMIC_FIELD(newConfig, EnableSlicing)
         YT_STORE_ATOMIC_FIELD(newConfig, UserInteractiveRequestWeight)
         YT_STORE_ATOMIC_FIELD(newConfig, UserRealtimeRequestWeight)
     }
@@ -1652,11 +1657,13 @@ public:
     TUringIOEngineBase(
         TConfigPtr config,
         TString locationId,
+        IHugePageManagerPtr hugePageManager,
         TProfiler profiler,
         NLogging::TLogger logger)
         : TIOEngineBase(
             config,
             locationId,
+            std::move(hugePageManager),
             std::move(profiler),
             std::move(logger))
         , StaticConfig_(std::move(config))
@@ -1699,7 +1706,7 @@ public:
             Config_->GetDirectIOPageSize(),
             tagCookie);
 
-        TRequestSlicer requestSlicer(Config_->GetDesiredRequestSize(), Config_->GetMinRequestSize());
+        TRequestSlicer requestSlicer(Config_->GetDesiredRequestSize(), Config_->GetMinRequestSize(), Config_->GetEnableSlicing());
 
         return SubmitReadRequests(
             readRequestCombiner,
@@ -1714,7 +1721,7 @@ public:
         EWorkloadCategory category,
         TIOSessionId sessionId) override
     {
-        TRequestSlicer requestSlicer(Config_->GetDesiredRequestSize(), Config_->GetMinRequestSize());
+        TRequestSlicer requestSlicer(Config_->GetDesiredRequestSize(), Config_->GetMinRequestSize(), Config_->GetEnableSlicing());
 
         auto slices = requestSlicer.Slice(std::move(request));
 
@@ -1797,46 +1804,6 @@ private:
     TFuture<TReadResponse> SubmitReadRequests(
         IReadRequestCombinerPtr readRequestCombiner,
         std::vector<IReadRequestCombiner::TCombinedRequest>& combinedRequests,
-        TDummyRequestSlicer& /*slicer*/,
-        EWorkloadCategory category,
-        TIOSessionId sessionId)
-    {
-        auto uringRequest = std::make_unique<TReadUringRequest>(readRequestCombiner);
-        uringRequest->Type = EUringRequestType::Read;
-        uringRequest->ReadSubrequests.reserve(combinedRequests.size());
-        uringRequest->ReadSubrequestStates.reserve(combinedRequests.size());
-        uringRequest->PendingReadSubrequestIndexes.reserve(combinedRequests.size());
-        uringRequest->RequestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Read);
-
-        for (int index = 0; index < std::ssize(combinedRequests); ++index) {
-            const auto& ioRequest = combinedRequests[index].ReadRequest;
-            uringRequest->PaddedBytes += GetPaddedSize(
-                ioRequest.Offset,
-                ioRequest.Size,
-                ioRequest.Handle->IsOpenForDirectIO() ? Config_->GetDirectIOPageSize() : DefaultPageSize);
-            uringRequest->ReadSubrequests.push_back({
-                .Handle = std::move(ioRequest.Handle),
-                .Offset = ioRequest.Offset,
-                .Size = ioRequest.Size
-            });
-            uringRequest->ReadSubrequestStates.push_back({
-                .Buffer = std::move(combinedRequests[index].ResultBuffer)
-            });
-            uringRequest->PendingReadSubrequestIndexes.push_back(index);
-        }
-
-        return SubmitRequest(std::move(uringRequest), category, sessionId)
-            .Apply(BIND([
-                combiner = std::move(readRequestCombiner)
-            ] (TReadResponse response) mutable {
-                response.OutputBuffers = std::move(combiner->ReleaseOutputBuffers());
-                return response;
-            }));
-    }
-
-    TFuture<TReadResponse> SubmitReadRequests(
-        IReadRequestCombinerPtr readRequestCombiner,
-        std::vector<IReadRequestCombiner::TCombinedRequest>& combinedRequests,
         TIORequestSlicer& slicer,
         EWorkloadCategory category,
         TIOSessionId sessionId)
@@ -1905,6 +1872,7 @@ IIOEnginePtr CreateIOEngineUring(
     EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
     TString locationId,
+    IHugePageManagerPtr hugePageManager,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
 
@@ -1912,23 +1880,23 @@ IIOEnginePtr CreateIOEngineUring(
 #ifdef _linux_
 
     using TFairUringIOEngine = TUringIOEngineBase<TFairShareQueue, TIORequestSlicer>;
-    using TUringIOEngine = TUringIOEngineBase<TMoodyCamelQueue, TDummyRequestSlicer>;
+    using TUringIOEngine = TUringIOEngineBase<TMoodyCamelQueue, TIORequestSlicer>;
 
     switch (engineType) {
         case EIOEngineType::FairShareUring:
             return CreateIOEngine<TFairUringIOEngine>(
                 std::move(ioConfig),
                 std::move(locationId),
+                std::move(hugePageManager),
                 std::move(profiler),
                 std::move(logger));
-
         case EIOEngineType::Uring:
             return CreateIOEngine<TUringIOEngine>(
                 std::move(ioConfig),
                 std::move(locationId),
+                std::move(hugePageManager),
                 std::move(profiler),
                 std::move(logger));
-
         default:
             YT_ABORT();
     };

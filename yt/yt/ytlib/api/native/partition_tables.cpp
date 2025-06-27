@@ -100,6 +100,7 @@ void TMultiTablePartitioner::InitializeChunkPool()
         Options_.DataWeightPerPartition,
         Options_.AdjustDataWeightPerPartition ? Options_.MaxPartitionCount : std::nullopt,
         Options_.UseNewSlicingImplementationInOrderedPool,
+        Options_.UseNewSlicingImplementationInUnorderedPool,
         Logger);
 }
 
@@ -225,7 +226,7 @@ void TMultiTablePartitioner::BuildPartitions()
             .TableRanges = CombineDataSlices(DataSourceDirectory_, slicesByTable, Paths_),
             .AggregateStatistics = chunkStripeList->GetAggregateStatistics()});
         if (Options_.EnableCookies) {
-            auto signatureGenerator = NSignature::GetDummySignatureGenerator();
+            const auto& signatureGenerator = Client_->GetNativeConnection()->GetSignatureGenerator();
             auto cookie = GetTablePartitionCookie(DataSourceDirectory_, slicesByTable);
             cookie.set_user(User_);
             auto cookieBytes = SerializeProtoToString(cookie);

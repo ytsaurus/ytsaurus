@@ -16,6 +16,8 @@ namespace NRoren::NPrivate {
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TTypeTag<TBackTrace> TransformBacktraceTag{"transform-backtrace"};
+DEFINE_ROREN_TAG(KeyColumns, NRoren::NPrivate::TPCollectionNode, NYT::NTableClient::TKeyColumns, object);
+DEFINE_ROREN_TAG(EventTimestampColumn, NRoren::NPrivate::TPCollectionNode, TString, object);
 
 ////////////////////////////////////////////////////////////////////////////////
 

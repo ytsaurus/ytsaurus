@@ -13,16 +13,18 @@ namespace {{namespace}} {
 using namespace NTableClient;
 using namespace NTableClient::NDetail;
 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 {% for type in types %}
 {{type.type_name}}IdMapping::{{type.type_name}}IdMapping(const TNameTablePtr& nameTable)
-{%- for field in type.fields if not field.expression %}
-    {{":" if loop.index0 == 0 else ","}} {{field.cpp_name}}(nameTable->FindId("{{field.column_name}}"))
+{%- if not type.sorted %}
+    : TabletIndex(nameTable->FindId(TabletIndexColumnName))
+    , RowIndex(nameTable->FindId(RowIndexColumnName))
+{%- endif -%}
+{%- for field in type.fields if field.expression is none %}
+    {{":" if loop.index0 == 0 and type.sorted else ","}} {{field.cpp_name}}(nameTable->FindId("{{field.column_name}}"))
 {%- endfor %}
-{% if type.sorted is not none and not type.sorted %}
-    , RowIndex(nameTable->FindId("$row_index"))
-{% endif %}
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,12 +34,12 @@ const {{type.type_name}}Descriptor* {{type.type_name}}Descriptor::Get()
     return LeakySingleton<{{type.type_name}}Descriptor>();
 }
 
-const NTableClient::TTableSchemaPtr& {{type.type_name}}Descriptor::GetSchema() const
+const TTableSchemaPtr& {{type.type_name}}Descriptor::GetSchema() const
 {
     return Schema_;
 }
 
-const NTableClient::TNameTablePtr& {{type.type_name}}Descriptor::GetNameTable() const
+const TNameTablePtr& {{type.type_name}}Descriptor::GetNameTable() const
 {
     return NameTable_;
 }
@@ -47,10 +49,19 @@ const {{type.type_name}}IdMapping& {{type.type_name}}Descriptor::GetIdMapping() 
     return IdMapping_;
 }
 
+const TTableSchemaPtr& {{type.type_name}}Descriptor::GetPrimaryTableSchema() const
+{
+    return PrimaryTableSchema_;
+}
+
 {{type.type_name}}Descriptor::{{type.type_name}}Descriptor()
     : Schema_(New<TTableSchema>(
         std::vector{
-{%- for field in type.fields if not field.expression %}
+{%- if not type.sorted %}
+            TColumnSchema(TabletIndexColumnName, ESimpleLogicalValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+{%- endif %}
+{%- for field in type.fields if field.expression is none %}
             TColumnSchema("{{field.column_name}}", ESimpleLogicalValueType::{{field.column_type}})
 {%- if field.sort_order %}
                 .SetSortOrder(ESortOrder::{{field.sort_order}})
@@ -66,16 +77,40 @@ const {{type.type_name}}IdMapping& {{type.type_name}}Descriptor::GetIdMapping() 
         }))
     , NameTable_(TNameTable::FromSchema(*Schema_))
     , IdMapping_(NameTable_)
+    , PrimaryTableSchema_(New<TTableSchema>(std::vector{
+{% for field in type.fields -%}
+        TColumnSchema("{{field.column_name}}", ESimpleLogicalValueType::{{field.column_type}})
+{%- if field.sort_order %}
+            .SetSortOrder(ESortOrder::{{field.sort_order}})
+{%- endif %}
+{%- if field.lock %}
+            .SetLock("{{field.lock}}")
+{%- endif %}
+{%- if field.required is not none %}
+            .SetRequired({{"true" if field.required else "false"}})
+{%- endif %}
+{%- if field.aggregate is not none %}
+            .SetAggregate("{{field.aggregate}}")
+{%- endif %}
+{%- if field.expression is not none %}
+            .SetExpression("{{field.expression}}")
+{%- endif -%}
+,
+{%- endfor %}
+        })
+{% if type.sorted -%}
+            ->SetUniqueKeys(true)
+{%- endif %})
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-{%- if type.sorted is none or type.sorted %}
+{%- if type.sorted %}
 
 TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
 {
     std::array values{
-{%- for field in type.fields if field.sort_order and not field.expression %}
+{%- for field in type.fields if field.sort_order and field.expression is none %}
         ToUnversionedValue({{field.cpp_name}}, rowBuffer, {{loop.index0}}),
 {%- endfor %}
     };
@@ -87,7 +122,7 @@ TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
     YT_VERIFY(key);
     ValidateKeyValueCount(key, {{type.type_name}}Descriptor::Get()->GetSchema()->GetKeyColumnCount());
     {{type.type_name}}Key result;
-{%- for field in type.fields if field.sort_order and not field.expression %}
+{%- for field in type.fields if field.sort_order and field.expression is none %}
     FromUnversionedValue(&result.{{field.cpp_name}}, key[{{loop.index0}}]);
 {%- endfor %}
     return result;
@@ -103,13 +138,19 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     EValueFlags flags) const
 {
     std::array values{
-{%- for field in type.fields if field.sort_order and not field.expression %}
+{% if not type.sorted -%}
+        ToUnversionedValue(
+            TabletIndex,
+            rowBuffer,
+            GetColumnIdOrThrow(idMapping.TabletIndex, TabletIndexColumnName)),
+{%- endif %}
+{% for field in type.fields if field.sort_order and field.expression is none -%}
         ToUnversionedValue(
             Key.{{field.cpp_name}},
             rowBuffer,
             GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))),
 {%- endfor %}
-{%- for field in type.fields if not field.sort_order and not field.expression %}
+{%- for field in type.fields if not field.sort_order and field.expression is none %}
         ToUnversionedValue(
             {{field.cpp_name}},
             rowBuffer,
@@ -131,7 +172,19 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     const {{type.type_name}}IdMapping& idMapping)
 {
     {{type.type_name}} result;
-{%- for field in type.fields if not field.expression %}
+
+{% if not type.sorted %}
+    if (auto id = idMapping.TabletIndex) {
+        ValidateRowValueCount(row, *id);
+        FromUnversionedValue(&result.TabletIndex, row[*id]);
+    }
+    if (auto id = idMapping.RowIndex) {
+        ValidateRowValueCount(row, *id);
+        FromUnversionedValue(&result.RowIndex, row[*id]);
+    }
+{% endif %}
+
+{%- for field in type.fields if field.expression is none %}
     if (idMapping.{{field.cpp_name}}) {
         auto id = *idMapping.{{field.cpp_name}};
         ValidateRowValueCount(row, id);
@@ -153,12 +206,6 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     {% endif %}
 {%- endfor %}
 
-{% if type.sorted is not none and not type.sorted %}
-    if (idMapping.RowIndex) {
-        auto id = *idMapping.RowIndex;
-        FromUnversionedValue(&result.RowIndex, row[id]);
-    }
-{% endif %}
     return result;
 }
 
@@ -170,7 +217,14 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
     EValueFlags flags) const
 {
     TUnversionedRowBuilder builder;
-{%- for field in type.fields if field.sort_order and not field.expression %}
+{% if not type.sorted -%}
+    builder.AddValue(
+        ToUnversionedValue(
+            TabletIndex,
+            rowBuffer,
+            GetColumnIdOrThrow(idMapping.TabletIndex, TabletIndexColumnName)));
+{%- endif %}
+{%- for field in type.fields if field.sort_order and field.expression is none %}
     builder.AddValue(
         ToUnversionedValue(
             Key.{{field.cpp_name}},
@@ -192,6 +246,7 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
         ));
     }
 {%- endfor %}
+
     return rowBuffer->CaptureRow(builder.GetRow(), /*captureValues*/ false);
 }
 
@@ -200,6 +255,26 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
     const {{type.type_name}}IdMapping& idMapping)
 {
     {{type.type_name}}Partial result;
+{% if not type.sorted -%}
+    if (auto id = idMapping.TabletIndex) {
+        ValidateRowValueCount(row, *id);
+        try {
+            FromUnversionedValue(&result.TabletIndex, row[*id]);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing column %Qv", TabletIndexColumnName)
+                << ex;
+        }
+    }
+    if (auto id = idMapping.RowIndex) {
+        ValidateRowValueCount(row, *id);
+        try {
+            FromUnversionedValue(&result.RowIndex, row[*id]);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing column %Qv", RowIndexColumnName)
+                << ex;
+        }
+    }
+{%- endif %}
 {%- for field in type.fields if not field.expression %}
     if (idMapping.{{field.cpp_name}}) {
         auto id = *idMapping.{{field.cpp_name}};
@@ -216,6 +291,7 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
         }
     }
 {%- endfor %}
+
     return result;
 }
 

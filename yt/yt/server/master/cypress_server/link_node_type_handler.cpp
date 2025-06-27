@@ -32,7 +32,7 @@ using namespace NSecurityServer;
 using namespace NSequoiaClient;
 using namespace NTableClient;
 
-static constexpr auto& Logger = CypressServerLogger;
+constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,8 +144,8 @@ private:
             auto linkPath = shard->MaybeRewritePath(originalLinkPath);
             auto targetPath = shard->MaybeRewritePath(originalTargetPath);
 
-            static const TString nullService;
-            static const TString nullMethod;
+            static const std::string nullService;
+            static const std::string nullMethod;
 
             auto getPayloadObject = [&] (TPathResolver::TResolveResult result) -> TCypressNode* {
                 auto payload = std::get_if<TPathResolver::TLocalObjectPayload>(&result.Payload);
@@ -165,7 +165,7 @@ private:
 
             TCypressNode* linkPathObject = getPayloadObject(linkPathResolveResult);
 
-            TString canonicalLinkPath;
+            NYPath::TYPath canonicalLinkPath;
             if (linkPathObject) {
                 canonicalLinkPath = cypressManager->GetNodePath(linkPathObject->GetTrunkNode(), linkPathObject->GetTransaction());
                 canonicalLinkPath += linkPathResolveResult.UnresolvedPathSuffix;
@@ -176,7 +176,7 @@ private:
                 }
             }
 
-            auto incrementalResolveWithCheck = [&] (const TString& pathToResolve, const TString& forbiddenPrefix) {
+            auto incrementalResolveWithCheck = [&] (const NYPath::TYPath& pathToResolve, NYPath::TYPathBuf forbiddenPrefix) {
                 auto currentResolvePath = pathToResolve;
                 TPathResolverOptions options;
 
@@ -186,7 +186,7 @@ private:
                 options.SymlinkEncounterCountLimit = 1;
 
                 // Using this as a bootleg flag to see if we hit the end of the resolve loop.
-                TString previousResolvedPath;
+                NYPath::TYPath previousResolvedPath;
 
                 while (true) {
                     // Resolving currentResolvePath before we hit the 1st symlink after it.
@@ -197,7 +197,13 @@ private:
                     // 4th resolve: //tmp/node1/symlink1/node2/symlink2/symlink3/node3
                     // 5th resolve: //tmp/node1/symlink1/node2/symlink2/symlink3/node3
                     // Resolve 4 and 5 returned the same object -> stop the resolve loop.
-                    TPathResolver pathResolver(GetBootstrap(), nullService, nullMethod, currentResolvePath, context.Transaction);
+
+                    // NB: "Exists" instead of nullMethod is used here because it produces a missing object payload
+                    // when the path starts with a foreign #object-id (while other methods throw "no such object").
+                    // TODO(shakurov): consider respecting TPathResolverOptions.EnablePartialResolve and producing
+                    // a missing object payload for other methods. This will require patching TNonexistingService
+                    // to support these methods.
+                    TPathResolver pathResolver(GetBootstrap(), nullService, "Exists", currentResolvePath, context.Transaction);
                     auto pathResolveResult = pathResolver.Resolve(options);
                     auto pathObject = getPayloadObject(pathResolveResult);
                     // Patching resolve depth to make sure we don't go into an infinite loop.
@@ -259,6 +265,7 @@ private:
 
         const auto& cypressManager = GetBootstrap()->GetCypressManager();
         auto pathRootType = EPathRootType::Other;
+        // TODO(danilalexeev): YT-20675. Forbid the usage of '\0' in YPath.
         auto linkPath = cypressManager->GetNodePath(
             node->GetTrunkNode(), node->GetTransaction(), &pathRootType);
         if (pathRootType == EPathRootType::Other) [[unlikely]] {
@@ -279,7 +286,7 @@ private:
 
         const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
         queueManager->EnqueueWrite(NRecords::TPathToNodeId{
-            .Key = {.Path = MangleSequoiaPath(linkPath), .TransactionId = transactionId},
+            .Key = {.Path = MangleSequoiaPath(TRealPath(linkPath)), .TransactionId = transactionId},
             .NodeId = node->GetId(),
         });
         queueManager->EnqueueWrite(NRecords::TNodeIdToPath{
@@ -306,7 +313,7 @@ private:
 
         const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
         queueManager->EnqueueDelete(NRecords::TPathToNodeIdKey{
-            .Path = MangleSequoiaPath(path),
+            .Path = MangleSequoiaPath(TRealPath(path)),
             .TransactionId = transactionId,
         });
         queueManager->EnqueueDelete(NRecords::TNodeIdToPathKey{

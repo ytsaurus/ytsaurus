@@ -17,17 +17,9 @@ TMutablePIValueRange AllocatePIValueRange(
     NWebAssembly::EAddressSpace where);
 
 void CapturePIValue(
+    NWebAssembly::IWebAssemblyCompartment* compartment,
     TExpressionContext* context,
-    TPIValue* value,
-    NWebAssembly::EAddressSpace sourceAddressSpace,
-    NWebAssembly::EAddressSpace destinationAddressSpace);
-
-TMutablePIValueRange CapturePIValueRange(
-    TExpressionContext* context,
-    TPIValueRange values,
-    NWebAssembly::EAddressSpace sourceAddressSpace,
-    NWebAssembly::EAddressSpace destinationAddressSpace,
-    bool captureValues = true);
+    TPIValue* value);
 
 TSharedRange<TRange<TPIValue>> CopyAndConvertToPI(
     const TSharedRange<TUnversionedRow>& rows,
@@ -37,14 +29,15 @@ TSharedRange<TPIRowRange> CopyAndConvertToPI(
     bool captureValues = true);
 
 TMutableUnversionedRow CopyAndConvertFromPI(
+    NWebAssembly::IWebAssemblyCompartment* compartment,
     TExpressionContext* context,
     TPIValueRange values,
-    NWebAssembly::EAddressSpace sourceAddressSpace,
     bool captureValues = true);
+
 std::vector<TUnversionedRow> CopyAndConvertFromPI(
+    NWebAssembly::IWebAssemblyCompartment* compartment,
     TExpressionContext* context,
     const std::vector<TPIValueRange>& rows,
-    NWebAssembly::EAddressSpace sourceAddressSpace,
     bool captureValues = true);
 
 TMutablePIValueRange CaptureUnversionedValueRange(

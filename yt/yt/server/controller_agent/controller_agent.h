@@ -104,6 +104,11 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    const NServer::TOperationEventReporterPtr& GetOperationEventReporter() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
     TMasterConnector* GetMasterConnector();
 
     /*!

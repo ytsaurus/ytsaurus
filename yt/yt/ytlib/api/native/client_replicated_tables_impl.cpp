@@ -207,7 +207,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
     auto isChaos = static_cast<bool>(tableInfo->ReplicationCardId);
 
     auto replicationCard = isChaos
-        ? GetSyncReplicationCard(Connection_, tableInfo)
+        ? GetSyncReplicationCard(Connection_, tableInfo->ReplicationCardId)
         : nullptr;
 
     tableInfo->ValidateDynamic();

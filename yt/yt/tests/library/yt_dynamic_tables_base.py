@@ -3,8 +3,9 @@ from yt_env_setup import YTEnvSetup
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    wait, ls, get, set, exists, remove, create_dynamic_table, set_node_decommissioned,
-    disable_tablet_cells_on_node, get_driver, get_cluster_drivers, print_debug
+    wait, ls, get, set, exists, create_dynamic_table, set_node_decommissioned,
+    disable_tablet_cells_on_node, get_driver, get_cluster_drivers, print_debug,
+    remove
 )
 
 from yt.common import YtError
@@ -191,10 +192,15 @@ class DynamicTablesBase(YTEnvSetup):
                     proxies = ls("//sys/rpc_proxies", driver=driver)
                     orchid_path = f"orchid/dynamic_config_manager/effective_config{config_path}"
                     for proxy in proxies:
-                        assert get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) == config_value
+                        wait(lambda: get(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver) == config_value)
             else:
                 assert config_path == ""
                 self._update_and_wait(lambda: remove("//sys/rpc_proxies/@config", driver=driver), driver)
+
+                proxies = ls("//sys/rpc_proxies", driver=driver)
+                orchid_path = "orchid/dynamic_config_manager/raw_config_patch"
+                for proxy in proxies:
+                    wait(lambda: not exists(f"//sys/rpc_proxies/{proxy}/{orchid_path}", driver=driver))
 
     def _create_sorted_table(self, path, **attributes):
         if "schema" not in attributes:
@@ -369,3 +375,18 @@ class DynamicTablesBase(YTEnvSetup):
             table,
             user,
         )
+
+    def _init_tablet_sensor(self, path, name, tags=None, fixed_tags=None):
+        sensors = [None]
+
+        def _do_init():
+            sensors[0] = profiler_factory().at_tablet_node(
+                path,
+                fixed_tags=fixed_tags).counter(name=name, tags=tags)
+            if sensors[0].start_value != 0:
+                return False
+            return True
+
+        wait(lambda: _do_init())
+
+        return sensors[0]

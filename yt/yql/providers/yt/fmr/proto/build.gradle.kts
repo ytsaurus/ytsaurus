@@ -35,6 +35,7 @@ val prepareProto = tasks.register<Copy>("prepareProto") {
     from(rootDir) {
         include("yt/yql/providers/yt/fmr/proto/coordinator.proto")
         include("yt/yql/providers/yt/fmr/proto/request_options.proto")
+        include("yt/yql/providers/yt/fmr/proto/table_data_service.proto")
     }
     into(buildProtoDir)
 }

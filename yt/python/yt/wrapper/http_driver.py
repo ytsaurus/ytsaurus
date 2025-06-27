@@ -112,7 +112,7 @@ class HeavyProxyProvider(ProxyProvider):
     def on_error_occurred(self, error):
         if isinstance(error, self.ban_errors) and self.state.last_provided_proxy is not None:
             proxy = self.state.last_provided_proxy
-            logger.info("Proxy %s banned", proxy)
+            logger.info("Proxy %s considered unavailable and temporarily banned", proxy)
             self.state.banned_proxies[proxy] = datetime.now()
 
     def _configure_proxy(self, proxy):

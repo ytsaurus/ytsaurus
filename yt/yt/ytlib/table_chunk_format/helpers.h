@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
+#include <library/cpp/yt/misc/compare.h>
+
 namespace NYT::NTableChunkFormat {
 
 using NYT::FromProto;
@@ -95,13 +97,7 @@ int CompareTypedValues(
     TValue rhsValue;
     GetValue(&rhsValue, rhs);
 
-    if (lhsValue < rhsValue) {
-        return -1;
-    } else if (lhsValue > rhsValue) {
-        return +1;
-    } else {
-        return 0;
-    }
+    return NaNSafeTernaryCompare(lhsValue, rhsValue);
 }
 
 template <NTableClient::EValueType valueType>

@@ -67,7 +67,7 @@ using NChunkClient::TSessionId; // Suppress ambiguity with NProto::TSessionId.
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,9 +111,6 @@ public:
         builder.Add(replicas);
         for (auto replica : replicas) {
             const auto* location = replica.GetPtr();
-            jobSpecExt->add_legacy_source_replicas(ToProto<ui32>(TNodePtrWithReplicaIndex(
-                location->GetNode(),
-                replica.GetReplicaIndex())));
             jobSpecExt->add_source_replicas(ToProto(TNodePtrWithReplicaAndMediumIndex(
                 location->GetNode(),
                 replica.GetReplicaIndex(),

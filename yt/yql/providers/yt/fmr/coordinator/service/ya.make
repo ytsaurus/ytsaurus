@@ -17,6 +17,10 @@ PEERDIR(
     library/cpp/yson/node
     yt/yql/providers/yt/fmr/coordinator/server
     yt/yql/providers/yt/fmr/coordinator/impl
+    yt/yql/providers/yt/fmr/table_data_service/interface
+    yt/yql/providers/yt/fmr/table_data_service/client/impl
+    yt/yql/providers/yt/fmr/table_data_service/discovery/file
+    yt/yql/providers/yt/fmr/gc_service/impl
     yql/essentials/utils/log
 )
 

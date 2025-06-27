@@ -60,7 +60,7 @@ struct IChaosSlot
 {
     static constexpr NCellarClient::ECellarType CellarType = NCellarClient::ECellarType::Chaos;
 
-    virtual const TString& GetCellBundleName() const = 0;
+    virtual const std::string& GetCellBundleName() const = 0;
     virtual NHydra::EPeerState GetAutomatonState() const = 0;
 
     virtual NHydra::IDistributedHydraManagerPtr GetHydraManager() const = 0;

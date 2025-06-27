@@ -52,29 +52,29 @@ def take_2d_axis0_bool_bool(const uint8_t[:, :] values,
     fv = fill_value
 
     # GH#3130
-    if (values.strides[1] == out.strides[1] and
-        values.strides[1] == sizeof(uint8_t) and
-        sizeof(uint8_t) * n >= 256):
+    with nogil:
+        if (values.strides[1] == out.strides[1] and
+            values.strides[1] == sizeof(uint8_t) and
+            sizeof(uint8_t) * n >= 256):
 
-        for i in range(n):
-            idx = indexer[i]
-            if idx == -1:
-                for j in range(k):
-                    out[i, j] = fv
-            else:
-                v = &values[idx, 0]
-                o = &out[i, 0]
-                memmove(o, v, <size_t>(sizeof(uint8_t) * k))
-        return
-
-    for i in range(n):
-        idx = indexer[i]
-        if idx == -1:
-            for j in range(k):
-                out[i, j] = fv
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    v = &values[idx, 0]
+                    o = &out[i, 0]
+                    memmove(o, v, <size_t>(sizeof(uint8_t) * k))
         else:
-            for j in range(k):
-                out[i, j] = values[idx, j]
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    for j in range(k):
+                        out[i, j] = values[idx, j]
 
 
 @cython.wraparound(False)
@@ -283,29 +283,29 @@ def take_2d_axis0_int8_int8(const int8_t[:, :] values,
     fv = fill_value
 
     # GH#3130
-    if (values.strides[1] == out.strides[1] and
-        values.strides[1] == sizeof(int8_t) and
-        sizeof(int8_t) * n >= 256):
+    with nogil:
+        if (values.strides[1] == out.strides[1] and
+            values.strides[1] == sizeof(int8_t) and
+            sizeof(int8_t) * n >= 256):
 
-        for i in range(n):
-            idx = indexer[i]
-            if idx == -1:
-                for j in range(k):
-                    out[i, j] = fv
-            else:
-                v = &values[idx, 0]
-                o = &out[i, 0]
-                memmove(o, v, <size_t>(sizeof(int8_t) * k))
-        return
-
-    for i in range(n):
-        idx = indexer[i]
-        if idx == -1:
-            for j in range(k):
-                out[i, j] = fv
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    v = &values[idx, 0]
+                    o = &out[i, 0]
+                    memmove(o, v, <size_t>(sizeof(int8_t) * k))
         else:
-            for j in range(k):
-                out[i, j] = values[idx, j]
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    for j in range(k):
+                        out[i, j] = values[idx, j]
 
 
 @cython.wraparound(False)
@@ -728,29 +728,29 @@ def take_2d_axis0_int16_int16(const int16_t[:, :] values,
     fv = fill_value
 
     # GH#3130
-    if (values.strides[1] == out.strides[1] and
-        values.strides[1] == sizeof(int16_t) and
-        sizeof(int16_t) * n >= 256):
+    with nogil:
+        if (values.strides[1] == out.strides[1] and
+            values.strides[1] == sizeof(int16_t) and
+            sizeof(int16_t) * n >= 256):
 
-        for i in range(n):
-            idx = indexer[i]
-            if idx == -1:
-                for j in range(k):
-                    out[i, j] = fv
-            else:
-                v = &values[idx, 0]
-                o = &out[i, 0]
-                memmove(o, v, <size_t>(sizeof(int16_t) * k))
-        return
-
-    for i in range(n):
-        idx = indexer[i]
-        if idx == -1:
-            for j in range(k):
-                out[i, j] = fv
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    v = &values[idx, 0]
+                    o = &out[i, 0]
+                    memmove(o, v, <size_t>(sizeof(int16_t) * k))
         else:
-            for j in range(k):
-                out[i, j] = values[idx, j]
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    for j in range(k):
+                        out[i, j] = values[idx, j]
 
 
 @cython.wraparound(False)
@@ -1173,29 +1173,29 @@ def take_2d_axis0_int32_int32(const int32_t[:, :] values,
     fv = fill_value
 
     # GH#3130
-    if (values.strides[1] == out.strides[1] and
-        values.strides[1] == sizeof(int32_t) and
-        sizeof(int32_t) * n >= 256):
+    with nogil:
+        if (values.strides[1] == out.strides[1] and
+            values.strides[1] == sizeof(int32_t) and
+            sizeof(int32_t) * n >= 256):
 
-        for i in range(n):
-            idx = indexer[i]
-            if idx == -1:
-                for j in range(k):
-                    out[i, j] = fv
-            else:
-                v = &values[idx, 0]
-                o = &out[i, 0]
-                memmove(o, v, <size_t>(sizeof(int32_t) * k))
-        return
-
-    for i in range(n):
-        idx = indexer[i]
-        if idx == -1:
-            for j in range(k):
-                out[i, j] = fv
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    v = &values[idx, 0]
+                    o = &out[i, 0]
+                    memmove(o, v, <size_t>(sizeof(int32_t) * k))
         else:
-            for j in range(k):
-                out[i, j] = values[idx, j]
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    for j in range(k):
+                        out[i, j] = values[idx, j]
 
 
 @cython.wraparound(False)
@@ -1511,29 +1511,29 @@ def take_2d_axis0_int64_int64(const int64_t[:, :] values,
     fv = fill_value
 
     # GH#3130
-    if (values.strides[1] == out.strides[1] and
-        values.strides[1] == sizeof(int64_t) and
-        sizeof(int64_t) * n >= 256):
+    with nogil:
+        if (values.strides[1] == out.strides[1] and
+            values.strides[1] == sizeof(int64_t) and
+            sizeof(int64_t) * n >= 256):
 
-        for i in range(n):
-            idx = indexer[i]
-            if idx == -1:
-                for j in range(k):
-                    out[i, j] = fv
-            else:
-                v = &values[idx, 0]
-                o = &out[i, 0]
-                memmove(o, v, <size_t>(sizeof(int64_t) * k))
-        return
-
-    for i in range(n):
-        idx = indexer[i]
-        if idx == -1:
-            for j in range(k):
-                out[i, j] = fv
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    v = &values[idx, 0]
+                    o = &out[i, 0]
+                    memmove(o, v, <size_t>(sizeof(int64_t) * k))
         else:
-            for j in range(k):
-                out[i, j] = values[idx, j]
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    for j in range(k):
+                        out[i, j] = values[idx, j]
 
 
 @cython.wraparound(False)
@@ -1742,29 +1742,29 @@ def take_2d_axis0_float32_float32(const float32_t[:, :] values,
     fv = fill_value
 
     # GH#3130
-    if (values.strides[1] == out.strides[1] and
-        values.strides[1] == sizeof(float32_t) and
-        sizeof(float32_t) * n >= 256):
+    with nogil:
+        if (values.strides[1] == out.strides[1] and
+            values.strides[1] == sizeof(float32_t) and
+            sizeof(float32_t) * n >= 256):
 
-        for i in range(n):
-            idx = indexer[i]
-            if idx == -1:
-                for j in range(k):
-                    out[i, j] = fv
-            else:
-                v = &values[idx, 0]
-                o = &out[i, 0]
-                memmove(o, v, <size_t>(sizeof(float32_t) * k))
-        return
-
-    for i in range(n):
-        idx = indexer[i]
-        if idx == -1:
-            for j in range(k):
-                out[i, j] = fv
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    v = &values[idx, 0]
+                    o = &out[i, 0]
+                    memmove(o, v, <size_t>(sizeof(float32_t) * k))
         else:
-            for j in range(k):
-                out[i, j] = values[idx, j]
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    for j in range(k):
+                        out[i, j] = values[idx, j]
 
 
 @cython.wraparound(False)
@@ -1973,29 +1973,29 @@ def take_2d_axis0_float64_float64(const float64_t[:, :] values,
     fv = fill_value
 
     # GH#3130
-    if (values.strides[1] == out.strides[1] and
-        values.strides[1] == sizeof(float64_t) and
-        sizeof(float64_t) * n >= 256):
+    with nogil:
+        if (values.strides[1] == out.strides[1] and
+            values.strides[1] == sizeof(float64_t) and
+            sizeof(float64_t) * n >= 256):
 
-        for i in range(n):
-            idx = indexer[i]
-            if idx == -1:
-                for j in range(k):
-                    out[i, j] = fv
-            else:
-                v = &values[idx, 0]
-                o = &out[i, 0]
-                memmove(o, v, <size_t>(sizeof(float64_t) * k))
-        return
-
-    for i in range(n):
-        idx = indexer[i]
-        if idx == -1:
-            for j in range(k):
-                out[i, j] = fv
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    v = &values[idx, 0]
+                    o = &out[i, 0]
+                    memmove(o, v, <size_t>(sizeof(float64_t) * k))
         else:
-            for j in range(k):
-                out[i, j] = values[idx, j]
+            for i in range(n):
+                idx = indexer[i]
+                if idx == -1:
+                    for j in range(k):
+                        out[i, j] = fv
+                else:
+                    for j in range(k):
+                        out[i, j] = values[idx, j]
 
 
 @cython.wraparound(False)

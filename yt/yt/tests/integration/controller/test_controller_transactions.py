@@ -82,6 +82,8 @@ class TestControllerTransactions(YTEnvSetup):
             authenticated_user="user",
         )
 
+        op.wait_for_state("running")
+
         (job_id_1, _) = wait_breakpoint(job_count=2)
         release_breakpoint(job_id=job_id_1)
         wait_breakpoint()

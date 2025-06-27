@@ -42,9 +42,9 @@ class TDummyResourceLimitsManager
 {
 public:
     void ValidateResourceLimits(
-        const TString& /*account*/,
-        const TString& /*mediumName*/,
-        const std::optional<TString>& /*tabletCellBundle*/,
+        const std::string& /*account*/,
+        const std::string& /*mediumName*/,
+        const std::optional<std::string>& /*tabletCellBundle*/,
         EInMemoryMode /*inMemoryMode*/) override
     { }
 

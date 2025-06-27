@@ -2,13 +2,15 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/core/ypath/public.h>
+
 namespace NYT::NTcpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr TStringBuf TcpProxiesRootPath = "//sys/tcp_proxies";
-constexpr TStringBuf TcpProxiesInstancesPath = "//sys/tcp_proxies/instances";
-constexpr TStringBuf TcpProxiesRoutesPath = "//sys/tcp_proxies/routes";
+constexpr NYPath::TYPathBuf TcpProxiesRootPath = "//sys/tcp_proxies";
+constexpr NYPath::TYPathBuf TcpProxiesInstancesPath = "//sys/tcp_proxies/instances";
+constexpr NYPath::TYPathBuf TcpProxiesRoutesPath = "//sys/tcp_proxies/routes";
 
 ////////////////////////////////////////////////////////////////////////////////
 

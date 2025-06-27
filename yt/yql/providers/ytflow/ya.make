@@ -7,6 +7,8 @@ IF (NOT OPENSOURCE)
     RECURSE(
         codec
         gateway
+        job
+        lambda_builder
         provider
     )
 ENDIF()

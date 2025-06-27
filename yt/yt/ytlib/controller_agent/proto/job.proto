@@ -34,6 +34,8 @@ message TJobSpec
 {
     required int32 type = 1;
     optional int32 version = 2;
+    // COMPAT(pogorelov):
+    optional NNodeTrackerClient.NProto.TNodeResources resource_limits = 3;
 
     extensions 100 to max;
 }
@@ -158,6 +160,13 @@ message TJobProfilerSpec
     required bool run_external_symbolizer = 5;
 }
 
+message TNetworkProject
+{
+    required int32 id = 1;
+    required bool enable_nat64 = 2;
+    required bool disable_network = 3;
+}
+
 // Specification for starting user code during a job.
 message TUserJobSpec
 {
@@ -254,6 +263,7 @@ message TUserJobSpec
 
     optional string cuda_toolkit_version = 46;
 
+    // COMPAT(ignat)
     optional uint32 network_project_id = 47;
 
     optional int32 enable_porto = 49; // NScheduler::EEnablePorto
@@ -265,8 +275,6 @@ message TUserJobSpec
     optional double container_cpu_limit = 53 [default = 0];
 
     optional int64 slot_container_memory_limit = 73;
-
-    optional bool make_rootfs_writable = 54 [default = false];
 
     optional int32 restart_exit_code = 55;
 
@@ -285,11 +293,14 @@ message TUserJobSpec
 
     repeated string gpu_check_binary_args = 63;
     map<string, string> gpu_check_environment = 79;
+    optional TNetworkProject gpu_check_network_project = 81;
 
+    // COMPAT(ignat)
     // The following options must be used only with network projects.
     // Enables NAT64 - YT-15665.
     optional bool enable_nat64 = 64;
 
+    // COMPAT(ignat)
     // Disables networking inside the job.
     optional bool disable_network = 67;
 
@@ -299,6 +310,7 @@ message TUserJobSpec
     optional int64 job_proxy_memory_reserve = 66;
 
     optional bool enable_rpc_proxy_in_job_proxy = 70 [default = false];
+    optional bool enable_shuffle_service_in_job_proxy = 82 [default = false];
     optional int32 rpc_proxy_worker_thread_pool_size = 71 [default = 1];
 
     optional bool redirect_stdout_to_stderr = 72 [default = false];
@@ -311,7 +323,9 @@ message TUserJobSpec
 
     optional bool start_queue_consumer_registration_manager = 77 [default = true];
 
-    reserved 38, 48, 61, 62;
+    reserved 38, 48, 54, 61, 62;
+
+    optional TNetworkProject network_project = 80;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -380,6 +394,7 @@ message TRemoteInputCluster
 {
     required string name = 1;
     required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
+    repeated string networks = 3;
 }
 
 // Describes a job submitted by a scheduler.

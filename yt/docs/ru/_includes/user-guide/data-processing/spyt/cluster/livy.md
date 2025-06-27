@@ -1,4 +1,4 @@
-# Livy сервер
+# Livy server
 
 Начиная с версии 1.74.0 в SPYT доступен сервис [Livy](https://livy.apache.org/), который позволяет осуществлять общение между клиентом и Spark кластером через REST интерфейс. Этот функционал используется в модуле [Query tracker](../../../../../user-guide/query-tracker/about.md) для выполнения Spark SQL запросов в {{product-name}}.
 
@@ -41,3 +41,12 @@ resp = req.json()
 ## Sparkmagic {#sparkmagic}
 
 К серверу Livy можно подключиться через [Sparkmagic](https://github.com/jupyter-incubator/sparkmagic), который позволяет работать с SPYT кластером в Jupyter ноутбуке посредством REST интерфейса. Это сокращает количество сетевых доступов, требуемых для интерактивной работы на Python, сохраняя функционал. Помимо языка Python в Sparkmagic поддержаны Scala и SQL.
+
+## Запуск отдельного Livy сервиса { #livy-launch-yt }
+
+Для запуска Livy сервера можно использовать команду `livy-launch-yt`, входящую в дистрибутив SPYT. Её основные параметры повторяют параметры команды [spark-launch-yt](../../../../../user-guide/data-processing/spyt/cluster/cluster-start.md#spark-launch-yt-params) с небольшими отличиями, приведёнными в таблице:
+
+| **Параметр** | **Обязательный** | **Значение по умолчанию** | **Описание** | **С какой версии** |
+| ------------ | ---------------- | ------------------------- | ------------ | ------------------ |
+| `--spark-master-address` | да | - | Адрес Spark мастера, который будет использован для запуска экзекьюторов. Может быть `ytsaurus://<Cluster endpoint>` для запуска задач, используя планировщик {{product-name}} | - |
+| `--master-group-id` | нет | - | Название группы в {{product-name}} Discovery server, используется при запуске через Strawberry | - |

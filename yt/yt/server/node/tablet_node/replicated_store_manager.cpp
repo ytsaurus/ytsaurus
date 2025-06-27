@@ -66,7 +66,7 @@ void TReplicatedStoreManager::StopEpoch()
 }
 
 bool TReplicatedStoreManager::ExecuteWrites(
-    IWireWriteCommandReader* reader,
+    IWireWriteCommandsReader* reader,
     TWriteContext* context)
 {
     auto tableSchema = Tablet_->GetTableSchema();
@@ -168,12 +168,12 @@ void TReplicatedStoreManager::Rotate(bool createNewStore, NLsm::EStoreRotationRe
     LogStoreManager_->Rotate(createNewStore, reason, allowEmptyStore);
 }
 
-void TReplicatedStoreManager::AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint)
+void TReplicatedStoreManager::AddStore(IStorePtr store, bool useInterceptedChunkData, bool onFlush, TPartitionId partitionIdHint)
 {
-    LogStoreManager_->AddStore(std::move(store), onMount, onFlush, partitionIdHint);
+    LogStoreManager_->AddStore(std::move(store), useInterceptedChunkData, onFlush, partitionIdHint);
 }
 
-void TReplicatedStoreManager::BulkAddStores(TRange<IStorePtr> /*stores*/, bool /*onMount*/)
+void TReplicatedStoreManager::BulkAddStores(TRange<IStorePtr> /*stores*/)
 {
     YT_ABORT();
 }

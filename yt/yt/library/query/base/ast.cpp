@@ -226,13 +226,7 @@ TStringBuf TExpression::GetSource(TStringBuf source) const
     return source.substr(begin, end - begin);
 }
 
-TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
-{
-    auto begin = sourceLocation.first;
-    auto end = sourceLocation.second;
-
-    return source.substr(begin, end - begin);
-}
+////////////////////////////////////////////////////////////////////////////////
 
 void TTableHint::Register(TRegistrar registrar)
 {
@@ -240,6 +234,16 @@ void TTableHint::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("push_down_group_by", &TThis::PushDownGroupBy)
         .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
+{
+    auto begin = sourceLocation.first;
+    auto end = sourceLocation.second;
+
+    return source.substr(begin, end - begin);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf /*spec*/)

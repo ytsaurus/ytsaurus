@@ -465,6 +465,10 @@ private:
     //! This method is idempotent and cheap to call (on average).
     void AttachForeignSlices(TKeyBound primaryUpperBound)
     {
+        if (!Options_.EnableKeyGuarantee && !primaryUpperBound.IsInclusive) {
+            primaryUpperBound = primaryUpperBound.ToggleInclusiveness();
+        }
+
         YT_LOG_TRACE(
             "Attaching foreign slices (PrimaryUpperBound: %v, FirstUnstagedForeignIndex: %v)",
             primaryUpperBound,
@@ -533,7 +537,7 @@ private:
                 index,
                 endpoint.KeyBound,
                 endpoint.Type,
-                GetDataSliceDebugString(endpoint.DataSlice));
+                endpoint.DataSlice ? GetDataSliceDebugString(endpoint.DataSlice) : "<null>");
         }
     }
 
@@ -1044,11 +1048,10 @@ private:
             }
         }
 
-        StagingArea_->PutBarrier();
-
         AttachForeignSlices(TKeyBound::MakeUniversal(/*isUpper*/ true));
 
         StagingArea_->Finish();
+        StagingArea_->PutBarrier();
 
         for (auto& preparedJob : StagingArea_->PreparedJobs()) {
             PeriodicYielder_.TryYield();

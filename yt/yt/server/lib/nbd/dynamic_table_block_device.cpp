@@ -316,7 +316,7 @@ public:
         return TString();
     }
 
-    virtual TFuture<TSharedRef> Read(
+    virtual TFuture<TReadResponse> Read(
         i64 offset,
         i64 length,
         const TReadOptions& options) override
@@ -331,7 +331,7 @@ public:
                 offset,
                 length,
                 options.Cookie);
-            return MakeFuture<TSharedRef>({});
+            return MakeFuture<TReadResponse>({});
         }
 
         auto blockIds = CalcRangeBlockIds(offset, length);
@@ -366,10 +366,10 @@ public:
             result.size(),
             options.Cookie);
 
-        return MakeFuture<TSharedRef>(std::move(result));
+        return MakeFuture<TReadResponse>({std::move(result), false});
     }
 
-    virtual TFuture<void> Write(
+    virtual TFuture<TWriteResponse> Write(
         i64 offset,
         const TSharedRef& data,
         const TWriteOptions& options) override
@@ -389,7 +389,7 @@ public:
                 options.Flush,
                 options.Cookie);
 
-            return VoidFuture;
+            return MakeFuture<TWriteResponse>({});
         }
 
         auto blockIds = CalcRangeBlockIds(offset, length);
@@ -402,7 +402,7 @@ public:
             options.Flush,
             options.Cookie);
 
-        return VoidFuture;
+        return MakeFuture<TWriteResponse>({});
     }
 
     TFuture<void> Flush() override

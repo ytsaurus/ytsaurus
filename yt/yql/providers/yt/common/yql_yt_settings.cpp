@@ -156,7 +156,7 @@ TYtConfiguration::TYtConfiguration(TTypeAnnotationContext& typeCtx)
 
     REGISTER_SETTING(*this, DefaultCluster)
         .Validator([this] (const TString&, TString value) {
-            if (!ValidClusters.contains(value)) {
+            if (!GetValidClusters().contains(value)) {
                 throw yexception() << "Unknown cluster name: " << value;
             }
         });
@@ -459,6 +459,7 @@ TYtConfiguration::TYtConfiguration(TTypeAnnotationContext& typeCtx)
     REGISTER_SETTING(*this, MaxKeyRangeCount).Upper(10000);
     REGISTER_SETTING(*this, MaxChunksForDqRead).Lower(1);
     REGISTER_SETTING(*this, NetworkProject);
+    REGISTER_SETTING(*this, StaticNetworkProject);
     REGISTER_SETTING(*this, FileCacheTtl);
     REGISTER_SETTING(*this, _ImpersonationUser);
     REGISTER_SETTING(*this, InferSchemaMode).Parser([](const TString& v) { return FromString<EInferSchemaMode>(v); });
@@ -471,6 +472,7 @@ TYtConfiguration::TYtConfiguration(TTypeAnnotationContext& typeCtx)
     REGISTER_SETTING(*this, UsePartitionsByKeysForFinalAgg);
     REGISTER_SETTING(*this, ForceJobSizeAdjuster);
     REGISTER_SETTING(*this, EnforceJobUtc);
+    REGISTER_SETTING(*this, _EnforceRegexpProbabilityFail);
     REGISTER_SETTING(*this, UseRPCReaderInDQ);
     REGISTER_SETTING(*this, DQRPCReaderInflight).Lower(1);
     REGISTER_SETTING(*this, DQRPCReaderTimeout);
@@ -543,14 +545,14 @@ TYtConfiguration::TYtConfiguration(TTypeAnnotationContext& typeCtx)
             if (cluster != "$all") {
                 throw yexception() << "Per-cluster setting is not supported for RuntimeCluster";
             }
-            if (!ValidClusters.contains(value)) {
+            if (!GetValidClusters().contains(value)) {
                 throw yexception() << "Unknown cluster name: " << value;
             }
         });
     REGISTER_SETTING(*this, RuntimeClusterSelection).Parser([](const TString& v) { return FromString<ERuntimeClusterSelectionMode>(v); });
     REGISTER_SETTING(*this, DefaultRuntimeCluster)
         .Validator([this] (const TString&, TString value) {
-            if (!ValidClusters.contains(value)) {
+            if (!GetValidClusters().contains(value)) {
                 throw yexception() << "Unknown cluster name: " << value;
             }
         });
@@ -559,6 +561,7 @@ TYtConfiguration::TYtConfiguration(TTypeAnnotationContext& typeCtx)
     REGISTER_SETTING(*this, UseNativeDynamicTableRead);
     REGISTER_SETTING(*this, _ForbidSensitiveDataInOperationSpec);
     REGISTER_SETTING(*this, DontForceTransformForInputTables);
+    REGISTER_SETTING(*this, _LocalTableContentLimit);
 }
 
 EReleaseTempDataMode GetReleaseTempDataMode(const TYtSettings& settings) {

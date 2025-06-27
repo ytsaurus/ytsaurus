@@ -479,7 +479,6 @@ TConstExpressionPtr TExprBuilderV2::OnReference(const NAst::TReference& referenc
 {
     auto referenceExpr = OnColumnReference(reference);
 
-
     if (reference.CompositeTypeAccessor.IsEmpty()) {
         return referenceExpr;
     }
@@ -498,8 +497,25 @@ TConstExpressionPtr TExprBuilderV2::OnReference(const NAst::TReference& referenc
 
 TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* functionExpr)
 {
-    auto functionName = functionExpr->FunctionName;
-    functionName.to_lower();
+    auto functionName = to_lower(TString(functionExpr->FunctionName));
+
+    if (functionName == "cast_operator") {
+        THROW_ERROR_EXCEPTION_IF(functionExpr->Arguments.size() != 2,
+            "Expected two arguments for %Qv function, got %v",
+            functionName,
+            functionExpr->Arguments.size());
+
+        auto* literalArgument = functionExpr->Arguments[1]->As<NAst::TLiteralExpression>();
+
+        THROW_ERROR_EXCEPTION_UNLESS(literalArgument && std::holds_alternative<TString>(literalArgument->Value),
+            "Misuse of function %Qv",
+            functionName);
+
+        return New<TFunctionExpression>(
+            NTableClient::ParseType(std::get<TString>(literalArgument->Value)),
+            functionName,
+            std::vector<TConstExpressionPtr>{OnExpression(functionExpr->Arguments[0])});
+    }
 
     const auto& descriptor = Functions_->GetFunction(functionName);
 
@@ -517,10 +533,10 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
     };
 
     // Regular function.
-    if (const auto* regularFunction = descriptor->As<TFunctionTypeInferrer>()) {
+    if (!descriptor->IsAggregate()) {
         getArguments();
 
-        auto functionTypes = regularFunction->InferTypes(
+        auto functionTypes = descriptor->InferTypes(
             &TypingCtx_,
             argumentTypes,
             functionName);
@@ -532,8 +548,8 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
             }
         }
 
-        return New<TFunctionExpression>(TypingCtx_.GetWireType(functionTypes[0]), functionName, typedOperands);
-    } else if (const auto* aggregateFunction = descriptor->As<TAggregateFunctionTypeInferrer>()) {
+        return New<TFunctionExpression>(TypingCtx_.GetLogicalType(functionTypes[0]), functionName, typedOperands);
+    } else {
         // Aggregate function.
 
         std::vector<std::unique_ptr<TAliasResolver>> poppedAliasResolvers;
@@ -584,7 +600,7 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
 
         std::vector<TTypeId> inferredTypes;
 
-        inferredTypes = aggregateFunction->InferTypes(
+        inferredTypes = descriptor->InferTypes(
             &TypingCtx_,
             argumentTypes,
             functionName);
@@ -618,8 +634,6 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
             YT_VERIFY(aliasResolver->AggregateLookup.emplace(subexpressionName, expr).second);
             return expr;
         }
-    } else {
-        YT_ABORT();
     }
 }
 
@@ -826,7 +840,7 @@ void TExprBuilderV2::InferArgumentTypes(
     std::unordered_set<std::string> columnNames;
 
     for (const auto& argument : expressions) {
-        auto typedArgument = DoBuildTypedExpression(argument, {});
+        auto typedArgument = OnExpression(argument);
 
         if (auto reference = typedArgument->As<TReferenceExpression>()) {
             if (!columnNames.insert(reference->ColumnName).second) {

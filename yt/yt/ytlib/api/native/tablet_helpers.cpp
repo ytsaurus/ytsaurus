@@ -557,7 +557,7 @@ std::vector<std::vector<TCellDescriptorPtr>> GroupCellDescriptorsByPeer(
     const auto& networks = connection->GetNetworks();
 
     std::vector<std::vector<TCellDescriptorPtr>> cellDescriptorsByPeer;
-    THashMap<TString, int> channelIndexByAddress;
+    THashMap<std::string, int> channelIndexByAddress;
 
     for (auto cellId : cellIds) {
         auto descriptor = cellDirectory->GetDescriptorByCellIdOrThrow(cellId);

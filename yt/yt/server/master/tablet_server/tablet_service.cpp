@@ -22,8 +22,8 @@ using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressServer;
-using namespace NHydra;
 using namespace NHiveServer;
+using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
@@ -42,62 +42,61 @@ using namespace NYson;
 using NTransactionServer::TTransaction;
 
 using NYT::FromProto;
-using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletServerLogger;
+constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletService::TImpl
-    : public TMasterAutomatonPart
+class TTabletService
+    : public ITabletService
+    , public TMasterAutomatonPart
 {
 public:
-    explicit TImpl(
-        NCellMaster::TBootstrap* bootstrap)
-        : TMasterAutomatonPart(bootstrap,  NCellMaster::EAutomatonThreadQueue::TabletManager)
+    explicit TTabletService(TBootstrap* bootstrap)
+        : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::TabletManager)
     {
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
     }
 
-    void Initialize()
+    void Initialize() override
     {
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->RegisterTransactionActionHandlers<TReqMount>({
-            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareMount, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitMount, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortMount, Unretained(this)),
+            .Prepare = BIND_NO_PROPAGATE(&TTabletService::HydraPrepareMount, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletService::HydraCommitMount, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletService::HydraAbortMount, Unretained(this)),
         });
 
         transactionManager->RegisterTransactionActionHandlers<TReqUnmount>({
-            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareUnmount, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitUnmount, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortUnmount, Unretained(this)),
+            .Prepare = BIND_NO_PROPAGATE(&TTabletService::HydraPrepareUnmount, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletService::HydraCommitUnmount, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletService::HydraAbortUnmount, Unretained(this)),
         });
 
         transactionManager->RegisterTransactionActionHandlers<TReqFreeze>({
-            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareFreeze, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitFreeze, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortFreeze, Unretained(this)),
+            .Prepare = BIND_NO_PROPAGATE(&TTabletService::HydraPrepareFreeze, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletService::HydraCommitFreeze, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletService::HydraAbortFreeze, Unretained(this)),
         });
 
         transactionManager->RegisterTransactionActionHandlers<TReqUnfreeze>({
-            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareUnfreeze, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitUnfreeze, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortUnfreeze, Unretained(this)),
+            .Prepare = BIND_NO_PROPAGATE(&TTabletService::HydraPrepareUnfreeze, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletService::HydraCommitUnfreeze, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletService::HydraAbortUnfreeze, Unretained(this)),
         });
 
         transactionManager->RegisterTransactionActionHandlers<TReqRemount>({
-            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareRemount, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitRemount, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortRemount, Unretained(this)),
+            .Prepare = BIND_NO_PROPAGATE(&TTabletService::HydraPrepareRemount, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletService::HydraCommitRemount, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletService::HydraAbortRemount, Unretained(this)),
         });
 
         transactionManager->RegisterTransactionActionHandlers<TReqReshard>({
-            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareReshard, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitReshard, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortReshard, Unretained(this)),
+            .Prepare = BIND_NO_PROPAGATE(&TTabletService::HydraPrepareReshard, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletService::HydraCommitReshard, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletService::HydraAbortReshard, Unretained(this)),
         });
     }
 
@@ -885,17 +884,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletService::TTabletService(
-    NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TTabletService::~TTabletService()
-{ }
-
-void TTabletService::Initialize()
+ITabletServicePtr CreateTabletService(TBootstrap* bootstrap)
 {
-    Impl_->Initialize();
+    return New<TTabletService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

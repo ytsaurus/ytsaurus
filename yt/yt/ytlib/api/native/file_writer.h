@@ -13,7 +13,8 @@ namespace NYT::NApi::NNative {
 IFileWriterPtr CreateFileWriter(
     IClientPtr client,
     const NYPath::TRichYPath& path,
-    const TFileWriterOptions& options = TFileWriterOptions());
+    const TFileWriterOptions& options = TFileWriterOptions(),
+    IMemoryUsageTrackerPtr memoryUsageTracker = GetNullMemoryUsageTracker());
 
 ////////////////////////////////////////////////////////////////////////////////
 

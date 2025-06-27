@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
 
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/core/http/helpers.h>
 
 #include <yt/yt/core/misc/finally.h>
@@ -21,6 +23,7 @@ using namespace NHttp;
 using namespace NNet;
 using namespace NProfiling;
 using namespace NSecurityClient;
+using namespace NSecurityServer;
 using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
@@ -52,6 +55,10 @@ TApi::TApi(TBootstrap* bootstrap)
     , ControlInvoker_(bootstrap->GetControlInvoker())
     , Poller_(bootstrap->GetPoller())
     , MemoryUsageTracker_(bootstrap->GetMemoryUsageTracker())
+    , UserAccessValidator_(CreateUserAccessValidator(
+        Config_->UserAccessValidator,
+        bootstrap->GetNativeConnection(),
+        HttpProxyLogger()))
     , DefaultNetworkName_(bootstrap->GetConfig()->DefaultNetwork)
 {
     for (const auto& network : bootstrap->GetConfig()->Networks) {
@@ -124,22 +131,9 @@ const INodeMemoryTrackerPtr& TApi::GetMemoryUsageTracker() const
     return MemoryUsageTracker_;
 }
 
-bool TApi::IsUserBannedInCache(const std::string& user)
+void TApi::ValidateUser(const std::string& user)
 {
-    auto now = TInstant::Now();
-    auto guard = ReaderGuard(BanCacheLock_);
-    auto it = BanCache_.find(user);
-    if (it != BanCache_.end()) {
-        return now < it->second;
-    }
-
-    return false;
-}
-
-void TApi::PutUserIntoBanCache(const std::string& user)
-{
-    auto guard = WriterGuard(BanCacheLock_);
-    BanCache_[user] = TInstant::Now() + Config_->BanCacheExpirationTime;
+    UserAccessValidator_->ValidateUser(user);
 }
 
 TError TApi::CheckAccess(const std::string& user)
@@ -212,9 +206,9 @@ void TApi::IncrementUserCounter(
     TUserCounterMap* counterMap,
     const std::string& user,
     const std::string& networkName,
-    const TString& counterName,
-    const TString& tagName,
-    const TString& tagValue,
+    const std::string& counterName,
+    const std::string& tagName,
+    const std::string& tagValue,
     i64 value)
 {
     counterMap->FindOrInsert(std::pair(user, networkName), [&, this] {
@@ -234,8 +228,7 @@ void TApi::IncrementBytesOutProfilingCounters(
 {
     auto networkName = GetNetworkNameForAddress(clientAddress);
 
-    // TODO(babenko): migrate to std::string
-    IncrementUserCounter(&BytesOut_, user, networkName, "/bytes_out", "network", TString(networkName), bytesOut);
+    IncrementUserCounter(&BytesOut_, user, networkName, "/bytes_out", "network", networkName, bytesOut);
 
     if (outputFormat) {
         IncrementUserCounter(
@@ -269,8 +262,7 @@ void TApi::IncrementBytesInProfilingCounters(
 {
     auto networkName = GetNetworkNameForAddress(clientAddress);
 
-    // TODO(babenko): migrate to std::string
-    IncrementUserCounter(&BytesIn_, user, networkName, "/bytes_in", "network", TString(networkName), bytesIn);
+    IncrementUserCounter(&BytesIn_, user, networkName, "/bytes_in", "network", networkName, bytesIn);
 
     if (inputFormat) {
         IncrementUserCounter(
@@ -339,6 +331,15 @@ void TApi::IncrementProfilingCounters(
     }
 }
 
+void TApi::IncrementCpuProfilingCounter(
+    const std::string& user,
+    const TString& command,
+    TDuration cpuTime)
+{
+    auto* counters = GetProfilingCounters({user, command});
+    counters->CumulativeRequestCpuTime.Add(cpuTime);
+}
+
 void TApi::HandleRequest(
     const IRequestPtr& req,
     const IResponseWriterPtr& rsp)
@@ -373,6 +374,7 @@ void TApi::OnDynamicConfigChanged(
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     DynamicConfig_.Store(newConfig->Api);
+    UserAccessValidator_->Reconfigure(newConfig->Api->UserAccessValidator);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

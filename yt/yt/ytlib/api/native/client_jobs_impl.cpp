@@ -107,6 +107,8 @@ void TClient::DoAbandonJob(
     NControllerAgent::TJobProberServiceProxy jobProberProxy(
         ChannelFactory_->CreateChannel(
             *allocationBriefInfo.ControllerAgentDescriptor.Addresses));
+    // TODO(nadya02): Set the correct timeout here.
+    jobProberProxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
     auto request = jobProberProxy.AbandonJob();
     ToProto(request->mutable_incarnation_id(), allocationBriefInfo.ControllerAgentDescriptor.IncarnationId);
@@ -202,6 +204,8 @@ void TClient::DoAbortJob(
     if (options.InterruptTimeout.value_or(TDuration::Zero()) != TDuration::Zero()) {
         NControllerAgent::TJobProberServiceProxy proxy(ChannelFactory_->CreateChannel(
             *allocationBriefInfo.ControllerAgentDescriptor.Addresses));
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
         RequestJobInterruption(
             proxy,
             jobId,

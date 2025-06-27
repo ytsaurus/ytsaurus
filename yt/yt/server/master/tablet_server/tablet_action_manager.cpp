@@ -15,38 +15,39 @@
 
 namespace NYT::NTabletServer {
 
+using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NTabletServer::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletServerLogger;
+constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletActionManager::TImpl
-    : public TRefCounted
+class TTabletActionManager
+    : public ITabletActionManager
 {
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
+    explicit TTabletActionManager(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , CleanupExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletManager),
-            BIND(&TImpl::RunCleanup, MakeWeak(this))))
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TabletManager),
+            BIND(&TTabletActionManager::RunCleanup, MakeWeak(this))))
     { }
 
-    void Start()
+    void Start() override
     {
         DoReconfigure();
         CleanupExecutor_->Start();
     }
 
-    void Stop()
+    void Stop() override
     {
         YT_UNUSED_FUTURE(CleanupExecutor_->Stop());
     }
 
-    void Reconfigure(TTabletActionManagerMasterConfigPtr config)
+    void Reconfigure(TTabletActionManagerMasterConfigPtr config) override
     {
         Config_ = std::move(config);
         DoReconfigure();
@@ -54,7 +55,7 @@ public:
 
 private:
     TTabletActionManagerMasterConfigPtr Config_ = New<TTabletActionManagerMasterConfig>();
-    const NCellMaster::TBootstrap* Bootstrap_;
+    const TBootstrap* Bootstrap_;
     NConcurrency::TPeriodicExecutorPtr CleanupExecutor_;
 
     void DoReconfigure()
@@ -92,25 +93,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletActionManager::TTabletActionManager(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TTabletActionManager::~TTabletActionManager() = default;
-
-void TTabletActionManager::Stop()
+ITabletActionManagerPtr CreateTabletActionManager(TBootstrap* bootstrap)
 {
-    Impl_->Stop();
-}
-
-void TTabletActionManager::Start()
-{
-    Impl_->Start();
-}
-
-void TTabletActionManager::Reconfigure(TTabletActionManagerMasterConfigPtr config)
-{
-    Impl_->Reconfigure(std::move(config));
+    return New<TTabletActionManager>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

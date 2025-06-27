@@ -59,8 +59,6 @@ public:
 
     TSortedChunkStorePtr AsSortedChunk() override;
 
-    void BuildOrchidYson(NYTree::TFluentMap fluent) override;
-
     // ISortedStore implementation.
     TLegacyOwningKey GetMinKey() const override;
     TLegacyOwningKey GetUpperBoundKey() const override;
@@ -147,6 +145,8 @@ private:
     const NTableClient::TKeyComparer& GetKeyComparer() const override;
 
     ISortedStorePtr GetSortedBackingStore() const;
+
+    void DoBuildOrchidYson(NYTree::TFluentMap fluent) override;
 
     struct TKeyFilteringResult
     {

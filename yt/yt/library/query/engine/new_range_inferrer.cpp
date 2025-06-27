@@ -16,7 +16,7 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = QueryClientLogger;
+constinit const auto Logger = QueryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -854,6 +854,19 @@ public:
             }
 
             do {
+                bool moduloColumnViolatesConstraints = false;
+                for (auto columnId : moduloColumnIds) {
+                    if (!TestValue(boundRow[columnId], constraintRow[columnId].Lower, constraintRow[columnId].Upper)) {
+                        moduloColumnViolatesConstraints = true;
+                        break;
+                    }
+                }
+
+                if (moduloColumnViolatesConstraints) {
+                    YT_LOG_DEBUG_IF(VerboseLogging_, "Skipping range (BoundRow: %kv)", boundRow);
+                    continue;
+                }
+
                 TRowRange rowRange;
                 if (prefixSize < keyColumnCount) {
                     // Included/excluded bounds are also considered inside TQuotientValueGenerator.

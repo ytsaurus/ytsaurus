@@ -44,6 +44,17 @@ constexpr int ProtobufMapValueFieldNumber = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::string RandomString(int length, TStringBuf charset)
+{
+    TStringBuilder builder;
+    for (int index = 0; index < length; ++index) {
+        builder.AppendChar(charset[RandomNumber(charset.size())]);
+    }
+    return builder.Flush();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 const TProtobufMessageType* GetMessageTypeByYPath(
     const TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
@@ -68,7 +79,8 @@ const TProtobufMessageType* GetMessageTypeByYPath(
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
-    const TWireString& wireStringPayload)
+    const TWireString& wireStringPayload,
+    const NYson::TProtobufParserOptions& options)
 {
     THROW_ERROR_EXCEPTION_IF(wireStringPayload.size() > 1,
         EErrorCode::Unimplemented,
@@ -82,16 +94,17 @@ NYTree::INodePtr ConvertProtobufToNode(
 
     auto builder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
     builder->BeginTree();
-    ParseProtobuf(&*builder, &protobufInputStream, payloadType);
+    ParseProtobuf(&*builder, &protobufInputStream, payloadType, options);
     return builder->EndTree();
 }
 
 NYTree::INodePtr ConvertProtobufToNode(
     const TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
-    const TString& payload)
+    const TString& payload,
+    const NYson::TProtobufParserOptions& options)
 {
-    return ConvertProtobufToNode(rootType, path, TWireString::FromSerialized(payload));
+    return ConvertProtobufToNode(rootType, path, TWireString::FromSerialized(payload), options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -457,10 +470,10 @@ std::partial_ordering CompareScalarFields(
         case FieldDescriptor::CppType::CPPTYPE_STRING: {
             TString lhsScratch;
             TString rhsScratch;
-            return lhsReflection->
-                GetStringReference(*lhsMessage, lhsFieldDescriptor, &lhsScratch).ConstRef()
-                <=> rhsReflection->
-                GetStringReference(*rhsMessage, rhsFieldDescriptor, &rhsScratch).ConstRef();
+            return lhsReflection
+                ->GetStringReference(*lhsMessage, lhsFieldDescriptor, &lhsScratch).ConstRef()
+                <=> rhsReflection
+                ->GetStringReference(*rhsMessage, rhsFieldDescriptor, &rhsScratch).ConstRef();
         }
         default:
             return std::partial_ordering::unordered;

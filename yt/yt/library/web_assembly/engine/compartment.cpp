@@ -958,11 +958,6 @@ void SetCurrentCompartment(IWebAssemblyCompartment* compartment)
     }
 }
 
-bool HasCurrentCompartment()
-{
-    return CurrentCompartment() != nullptr;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NWebAssembly

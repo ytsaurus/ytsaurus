@@ -2,6 +2,7 @@
 #include "io_engine_base.h"
 #include "io_engine_uring.h"
 #include "io_request_slicer.h"
+#include "huge_page_manager.h"
 #include "private.h"
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -78,6 +79,19 @@ TFlushFileRangeResponse DoFlushFileRange(
     bool enableSync,
     const TIOEngineSensorsPtr& sensors);
 
+TSharedMutableRef UnwrapAlignedBuffer(const TReadRequest& request, TSharedMutableRef& buffer)
+{
+    if (request.Handle->IsOpenForDirectIO()) {
+        auto outputBufferBegin = request.Offset % DefaultBlockSize;
+        auto outputBuffer = buffer.Slice(
+            outputBufferBegin,
+            outputBufferBegin + request.Size);
+        return outputBuffer;
+    } else {
+        return buffer;
+    }
+}
+
 std::vector<TSharedMutableRef> AllocateReadBuffers(
     const std::vector<TReadRequest>& requests,
     TRefCountedTypeCookie tagCookie,
@@ -99,12 +113,18 @@ std::vector<TSharedMutableRef> AllocateReadBuffers(
             : TSharedMutableRef::Allocate(size, options, tagCookie);
     };
 
+    auto getAlignedRequestSize = [&] (auto& request) {
+        return shouldBeAligned
+            ? AlignUp<i64>(request.Offset + request.Size, DefaultBlockSize) - AlignDown<i64>(request.Offset, DefaultBlockSize)
+            : request.Size;
+    };
+
     std::vector<TSharedMutableRef> results;
     results.reserve(requests.size());
 
     if (useDedicatedAllocations) {
         for (const auto& request : requests) {
-            results.push_back(allocate(request.Size));
+            results.push_back(allocate(getAlignedRequestSize(request)));
         }
         return results;
     }
@@ -112,22 +132,61 @@ std::vector<TSharedMutableRef> AllocateReadBuffers(
     // Collocate blocks in single buffer.
     i64 totalSize = 0;
     for (const auto& request : requests) {
-        totalSize += shouldBeAligned
-            ? AlignUp<i64>(request.Size, DefaultPageSize)
-            : request.Size;
+        totalSize += getAlignedRequestSize(request);
     }
 
     auto buffer = allocate(totalSize);
     i64 offset = 0;
     for (const auto& request : requests) {
-        results.push_back(buffer.Slice(offset, offset + request.Size));
-        offset += shouldBeAligned
-            ? AlignUp<i64>(request.Size, DefaultPageSize)
-            : request.Size;
+        results.push_back(buffer.Slice(offset, offset + getAlignedRequestSize(request)));
+        offset += getAlignedRequestSize(request);
     }
+
     return results;
 }
 
+// Request execution path.
+// 1. IOEngine receives read requests, each request is processed according to
+//    the same principle in the Read methods.
+// 2. First of all, buffers are allocated for the necessary requests. Each request gets
+//    itself an allocated piece of memory. If read requests go through DirectIO, then the buffers
+//    must be aligned using aligned_malloc. In addition, the buffer size should be the difference between
+//    the aligned start at the lower boundary and the aligned end at the upper boundary. This is necessary
+//    for the correct execution of queries in the DoRead method.
+// 3. After a buffer has been allocated for each request, a splitter comes into play, which divides
+//    requests into subqueries. The splitter greedily tries to cut requests into buffers and takes DirectIO into account.
+// 4. In the response, the client is given only the buffer slice that he
+//    requested and the size that is strictly equal to the requested one.
+// 5. When reading, hugepages can be used to minimize latency.
+//
+//    For example: Offset 1355, Size: 1113, End: 2468
+//    Aligned(FileOffset)                 = 1024
+//    Aligned(FileOffset + RequestSize)   = 2560
+//    TotalBufferSize                     = 1536
+//
+//    Subrequests:
+//    1. Offset: 1024, Size: 512 (really read = 181)
+//    2. Offset: 1536, Size: 512 (really read = 512)
+//    3. Offset: 2048, Size: 512 (really read = 420)
+//
+//    Aligned buffer start        Second subrequest           Third Subrequest           Aligned buffer end
+//    |                           |   (aligned)               |     (aligned)            |
+//    V                           V                           V                          V
+//    *---------------------------*---------------------------*--------------------------*    Buffer
+//    ^    partial reading (end)         full really read       partial reading (begin)  ^
+//    |                                                                                  |
+//    |                                                                                  |
+//    *-----------------------*##################################*-----------------------*    File
+//    Aligned(FileOffset)     FileOffset                         FileOffset              Aligned(FileOffset
+//                                                                 + RequestSize           + RequestSize)
+// To request from direct io, the method requires:
+// 1. aligned starting offset in the file.
+// 2. aligned starting offset in the buffer.
+// 3. Aligned read sizes.
+// 4. Aligned buffer size.
+//
+// Hugepages are requested by blobs via hugepagemanager and are used only at the time of the request.
+// Bytes after reading in hugepage are copied to the output buffer.
 TInternalReadResponse DoRead(
     const TReadRequest& request,
     TSharedMutableRef buffer,
@@ -136,38 +195,86 @@ TInternalReadResponse DoRead(
     EWorkloadCategory category,
     TIOSessionId sessionId,
     TRequestCounterGuard requestCounterGuard,
+    TSharedMutableRef hugePageBlob,
     const TIOEngineSensorsPtr& sensors,
     const NLogging::TLogger& Logger)
 {
-    YT_VERIFY(std::ssize(buffer) == request.Size);
-
     Y_UNUSED(requestCounterGuard);
 
     sensors->UpdateKernelStatistics();
 
-    auto toReadRemaining = std::ssize(buffer);
-    auto fileOffset = request.Offset;
+    bool useDirectIO = request.Handle->IsOpenForDirectIO();
+    i64 blockSize = useDirectIO ? DefaultBlockSize : 1;
+    i64 toReadRemaining = std::ssize(buffer);
+    i64 fileOffset = AlignDown<i64>(request.Offset, blockSize);
     i64 bufferOffset = 0;
+
+    YT_VERIFY(reinterpret_cast<i64>(buffer.Begin()) % blockSize == 0);
+    YT_VERIFY(buffer.Size() % blockSize == 0);
+    YT_VERIFY(fileOffset % blockSize == 0);
+    YT_VERIFY(toReadRemaining % blockSize == 0);
 
     TInternalReadResponse response;
 
     NFS::WrapIOErrors([&] {
         while (toReadRemaining > 0) {
-            auto toRead = static_cast<ui32>(Min(toReadRemaining, maxBytesPerRead));
+            i64 toRead = AlignUp<i64>(Min<i64>(toReadRemaining, AlignDown<i64>(maxBytesPerRead, blockSize)), blockSize);
+            i64 reallyRead = -1;
+            bool hugePageAvailable = hugePageBlob && static_cast<i64>(hugePageBlob.Size()) >= toRead;
+            TRequestStatsGuard statsGuard(sensors->ReadSensors);
+            NTracing::TNullTraceContextGuard nullTraceContextGuard;
 
-            i64 reallyRead;
-            {
-                TRequestStatsGuard statsGuard(sensors->ReadSensors);
-                NTracing::TNullTraceContextGuard nullTraceContextGuard;
-                reallyRead = HandleEintr(::pread, *request.Handle, buffer.Begin() + bufferOffset, toRead, fileOffset);
-                ++response.IORequests;
+            if (hugePageAvailable) {
+                reallyRead = HandleEintr(
+                    ::pread,
+                    *request.Handle,
+                    hugePageBlob.Begin(),
+                    toRead,
+                    fileOffset);
 
-                YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
-                    "Finished reading from disk (Handle: %v, ReadBytes: %v, ReadSessionId: %v, ReadTime: %v)",
-                    static_cast<FHANDLE>(*request.Handle),
-                    reallyRead,
-                    sessionId,
-                    statsGuard.GetElapsedTime());
+                if (reallyRead > 0) {
+                    memcpy(
+                        buffer.Begin() + bufferOffset,
+                        hugePageBlob.Begin(),
+                        reallyRead);
+                }
+            } else {
+                reallyRead = HandleEintr(
+                    ::pread,
+                    *request.Handle,
+                    buffer.Begin() + bufferOffset,
+                    toRead,
+                    fileOffset);
+            }
+
+            ++response.IORequests;
+
+            if (reallyRead > 0) {
+                sensors->RegisterReadBytes(reallyRead);
+            }
+
+            YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
+                "Finished reading from disk (Handle: %v, ReadBytes: %v, ReadSessionId: %v, ReadTime: %v)",
+                static_cast<FHANDLE>(*request.Handle),
+                reallyRead,
+                sessionId,
+                statsGuard.GetElapsedTime());
+
+            if (useDirectIO && reallyRead < toRead && fileOffset + reallyRead != request.Handle->GetLength()) {
+                THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "DirectIO call failed")
+                    << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle))
+                    << TErrorAttribute("to_read_remaining", toReadRemaining)
+                    << TErrorAttribute("max_bytes_per_read", maxBytesPerRead)
+                    << TErrorAttribute("request_size", request.Size)
+                    << TErrorAttribute("request_offset", request.Offset)
+                    << TErrorAttribute("to_read", toRead)
+                    << TErrorAttribute("really_read", reallyRead)
+                    << TErrorAttribute("file_offset", fileOffset)
+                    << TErrorAttribute("file_size", request.Handle->GetLength())
+                    << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle));
+            } else if (useDirectIO && fileOffset + reallyRead == request.Handle->GetLength()) {
+                toReadRemaining = 0;
+                break;
             }
 
             if (reallyRead < 0) {
@@ -182,7 +289,6 @@ TInternalReadResponse DoRead(
                 break;
             }
 
-            sensors->RegisterReadBytes(reallyRead);
             if (simulatedMaxBytesPerRead) {
                 reallyRead = Min(reallyRead, *simulatedMaxBytesPerRead);
             }
@@ -199,6 +305,7 @@ TInternalReadResponse DoRead(
             << TErrorAttribute("max_bytes_per_read", maxBytesPerRead)
             << TErrorAttribute("request_size", request.Size)
             << TErrorAttribute("request_offset", request.Offset)
+            << TErrorAttribute("file_offset", fileOffset)
             << TErrorAttribute("file_size", request.Handle->GetLength())
             << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle));
     }
@@ -511,6 +618,7 @@ struct TThreadPoolIOEngineConfig
     // Request size in bytes.
     i64 DesiredRequestSize;
     i64 MinRequestSize;
+    bool EnableSlicing;
 
     // Fair-share thread pool settings.
     double DefaultPoolWeight;
@@ -545,6 +653,8 @@ struct TThreadPoolIOEngineConfig
         registrar.Parameter("min_request_size", &TThis::MinRequestSize)
             .GreaterThanOrEqual(512)
             .Default(64_KB);
+        registrar.Parameter("enable_slicing", &TThis::EnableSlicing)
+            .Default(false);
 
         registrar.Parameter("default_pool_weight", &TThis::DefaultPoolWeight)
             .GreaterThan(0)
@@ -692,17 +802,18 @@ public:
     TThreadPoolIOEngine(
         TConfigPtr config,
         TString locationId,
+        IHugePageManagerPtr hugePageManager,
         TProfiler profiler,
         NLogging::TLogger logger)
         : TIOEngineBase(
             config,
             std::move(locationId),
+            std::move(hugePageManager),
             std::move(profiler),
             std::move(logger))
         , StaticConfig_(std::move(config))
         , Config_(StaticConfig_)
         , ThreadPool_(StaticConfig_, LocationId_, Logger)
-        , RequestSlicer_(StaticConfig_->DesiredRequestSize, StaticConfig_->MinRequestSize)
     { }
 
     TFuture<TReadResponse> Read(
@@ -725,7 +836,10 @@ public:
         auto config = Config_.Acquire();
 
         for (int index = 0; index < std::ssize(requests); ++index) {
-            for (auto& slice : RequestSlicer_.Slice(std::move(requests[index]), buffers[index])) {
+            auto requestBuffer = buffers[index];
+            buffers[index] = UnwrapAlignedBuffer(requests[index], buffers[index]);
+
+            for (auto& slice : GetRequestSlicer().Slice(std::move(requests[index]), requestBuffer)) {
                 auto future = BIND([=, this, this_ = MakeStrong(this), category = category, sessionId = sessionId] (
                     const TReadRequest& request,
                     TSharedMutableRef buffer,
@@ -749,6 +863,7 @@ public:
                         category,
                         sessionId,
                         std::move(requestCounterGuard),
+                        request.Handle->IsOpenForDirectIO() ? AllocateHugeBlob() : TSharedMutableRef(),
                         Sensors_,
                         Logger);
                 })
@@ -794,7 +909,7 @@ public:
         }
 
         std::vector<TFuture<TWriteResponse>> futures;
-        for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
+        for (auto& slice : GetRequestSlicer().Slice(std::move(request))) {
             auto future = BIND([=, this, this_ = MakeStrong(this)] (
                 const TWriteRequest &request,
                 TWallTimer timer,
@@ -848,7 +963,7 @@ public:
         TIOSessionId sessionId) override
     {
         std::vector<TFuture<TFlushFileRangeResponse>> futures;
-        for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
+        for (auto& slice : GetRequestSlicer().Slice(std::move(request))) {
             futures.push_back(
                 BIND(&DoFlushFileRange, std::move(slice), StaticConfig_->EnableSync, Sensors_)
                     .AsyncVia(ThreadPool_.GetWriteInvoker(category, sessionId))
@@ -872,7 +987,16 @@ private:
     TAtomicIntrusivePtr<TConfig> Config_;
 
     TThreadPool ThreadPool_;
-    TRequestSlicer RequestSlicer_;
+
+    TRequestSlicer GetRequestSlicer() const
+    {
+        auto config = Config_.Acquire();
+        return TRequestSlicer(
+            config->DesiredRequestSize,
+            config->MinRequestSize,
+            config->EnableSlicing
+        );
+    }
 
     void DoReconfigure(const NYTree::INodePtr& node) override
     {
@@ -902,18 +1026,19 @@ public:
     TFairShareHierarchicalThreadPoolIOEngine(
         TConfigPtr config,
         TString locationId,
+        IHugePageManagerPtr hugePageManager,
         TProfiler profiler,
         NLogging::TLogger logger,
         TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue)
         : TIOEngineBase(
             config,
             std::move(locationId),
+            std::move(hugePageManager),
             std::move(profiler),
             std::move(logger))
         , StaticConfig_(std::move(config))
         , Config_(StaticConfig_)
         , ThreadPool_(CreateThreadPool(StaticConfig_->FairShareThreadCount, Format("IOFS:%v", LocationId_)))
-        , RequestSlicer_(StaticConfig_->DesiredRequestSize, StaticConfig_->MinRequestSize)
         , FairShareQueue_(std::move(fairShareQueue))
     {
         RunActions();
@@ -939,7 +1064,10 @@ public:
         auto guard = Guard(Lock_);
 
         for (int index = 0; index < std::ssize(requests); ++index) {
-            for (auto& slice : RequestSlicer_.Slice(std::move(requests[index]), buffers[index])) {
+            auto requestBuffer = buffers[index];
+            buffers[index] = UnwrapAlignedBuffer(requests[index], buffers[index]);
+
+            for (auto& slice : GetRequestSlicer().Slice(std::move(requests[index]), requestBuffer)) {
                 auto slotId = requests[index].FairShareSlotId;
                 auto requestId = TGuid::Create();
                 auto promise = CreateRequestPromise<TInternalReadResponse>(
@@ -974,6 +1102,7 @@ public:
                         category,
                         sessionId,
                         std::move(requestCounterGuard),
+                        request.Handle->IsOpenForDirectIO() ? AllocateHugeBlob() : TSharedMutableRef(),
                         Sensors_,
                         Logger);
                 });
@@ -1029,7 +1158,7 @@ public:
         auto guard = Guard(Lock_);
         std::vector<TFuture<TWriteResponse>> futures;
         auto slotId = request.FairShareSlotId;
-        for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
+        for (auto& slice : GetRequestSlicer().Slice(std::move(request))) {
             auto requestId = TGuid::Create();
             auto promise = CreateRequestPromise<TWriteResponse>(
                 slotId,
@@ -1127,7 +1256,8 @@ public:
         auto slotId = request.FairShareSlotId;
 
         auto guard = Guard(Lock_);
-        for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
+
+        for (auto& slice : GetRequestSlicer().Slice(std::move(request))) {
             auto requestId = TGuid::Create();
             auto promise = CreateRequestPromise<TFlushFileRangeResponse>(
                 slotId,
@@ -1262,9 +1392,8 @@ private:
     std::atomic<int> LoopCount_ = 0;
 
     IThreadPoolPtr ThreadPool_;
-    TIORequestSlicer RequestSlicer_;
 
-    TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_;
+    const TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     THashMap<TFairShareSlotId, std::deque<std::pair<TGuid, EFairShareIOEngineRequestType>>> SlotIdToRequestIds_;
@@ -1276,6 +1405,16 @@ private:
     THashMap<TGuid, TRequestHandler<TFlushFileRangeResponse>> FlushFileRangeRequestStorage_;
 
     NThreading::TEventCount EventCount_;
+
+    TIORequestSlicer GetRequestSlicer() const
+    {
+        auto config = Config_.Acquire();
+        return TIORequestSlicer(
+            config->DesiredRequestSize,
+            config->MinRequestSize,
+            config->EnableSlicing
+        );
+    }
 
     template <class TResponse>
     TPromise<TResponse> CreateRequestPromise(
@@ -1385,9 +1524,10 @@ IIOEnginePtr CreateIOEngine(
     TString locationId,
     TProfiler profiler,
     NLogging::TLogger logger,
-    TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue)
+    TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue,
+    IHugePageManagerPtr hugePageManager)
 {
-    using TClassicThreadPoolIOEngine = TThreadPoolIOEngine<TFixedPriorityExecutor, TDummyRequestSlicer>;
+    using TClassicThreadPoolIOEngine = TThreadPoolIOEngine<TFixedPriorityExecutor, TIORequestSlicer>;
     using TFairShareThreadPoolIOEngine = TThreadPoolIOEngine<TFairShareThreadPool, TIORequestSlicer>;
 
     switch (engineType) {
@@ -1395,6 +1535,7 @@ IIOEnginePtr CreateIOEngine(
             return CreateIOEngine<TClassicThreadPoolIOEngine>(
                 std::move(ioConfig),
                 std::move(locationId),
+                std::move(hugePageManager),
                 std::move(profiler),
                 std::move(logger));
 #ifdef _linux_
@@ -1404,6 +1545,7 @@ IIOEnginePtr CreateIOEngine(
                 engineType,
                 std::move(ioConfig),
                 std::move(locationId),
+                std::move(hugePageManager),
                 std::move(profiler),
                 std::move(logger));
 #endif
@@ -1411,12 +1553,14 @@ IIOEnginePtr CreateIOEngine(
             return CreateIOEngine<TFairShareThreadPoolIOEngine>(
                 std::move(ioConfig),
                 std::move(locationId),
+                std::move(hugePageManager),
                 std::move(profiler),
                 std::move(logger));
         case EIOEngineType::FairShareHierarchical:
             return CreateIOEngine<TFairShareHierarchicalThreadPoolIOEngine>(
                 std::move(ioConfig),
                 std::move(locationId),
+                std::move(hugePageManager),
                 std::move(profiler),
                 std::move(logger),
                 std::move(fairShareQueue));

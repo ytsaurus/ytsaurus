@@ -1,6 +1,7 @@
 #include "tablet_write_manager.h"
 
 #include "backup_manager.h"
+#include "config.h"
 #include "hunks_serialization.h"
 #include "private.h"
 #include "serialize.h"
@@ -11,10 +12,12 @@
 #include "transaction.h"
 #include "transaction_manager.h"
 
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/hive/helpers.h>
 
 #include <yt/yt/server/lib/hydra/hydra_manager.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
+
+#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
@@ -23,225 +26,21 @@
 namespace NYT::NTabletNode {
 
 using namespace NChaosClient;
+using namespace NConcurrency;
+using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
-using namespace NYson;
 using namespace NYTree;
-using namespace NConcurrency;
-using namespace NServer;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTabletWriterPoolTag
 { };
-
-////////////////////////////////////////////////////////////////////////////////
-
-TWireWriteCommands ParseWriteCommands(
-    const NTableClient::TSchemaData& schemaData,
-    NTableClient::IWireProtocolReader* reader,
-    bool isVersionedWriteUnversioned)
-{
-    TWireWriteCommands writeCommands;
-
-    while (!reader->IsFinished()) {
-        writeCommands.push_back(reader->ReadWriteCommand(
-            schemaData,
-            /*captureValues*/ false,
-            isVersionedWriteUnversioned));
-    }
-
-    return writeCommands;
-}
-
-TWireWriteCommandsBatch::TWireWriteCommandsBatch(
-    TWireWriteCommands commands,
-    NTableClient::TRowBufferPtr rowBuffer,
-    TSharedRef data)
-    : Commands_(std::move(commands))
-    , Data_(std::move(data))
-    , RowBuffer_(std::move(rowBuffer))
-{ }
-
-TWireWriteCommandBatchReader::TWireWriteCommandBatchReader(
-    TSharedRef data,
-    std::unique_ptr<NTableClient::IWireProtocolReader> reader,
-    NTableClient::TSchemaData schemaData)
-    : Data_(std::move(data))
-    , SchemaData_(std::move(schemaData))
-    , Reader_(std::move(reader))
-{
-    CurrentBatchStartingPosition_ = Reader_->GetCurrent();
-}
-
-const TWireWriteCommand& TWireWriteCommandBatchReader::NextCommand(bool IsVersionedWriteUnversioned)
-{
-    YT_ASSERT(!IsFinished());
-    LastCommandPosition_ = Reader_->GetCurrent();
-    CurrentBatch_.push_back(Reader_->ReadWriteCommand(SchemaData_, /*captureValues*/ false, IsVersionedWriteUnversioned));
-    return CurrentBatch_.back();
-}
-
-bool TWireWriteCommandBatchReader::IsFinished() const
-{
-    return Reader_->IsFinished();
-}
-
-void TWireWriteCommandBatchReader::RollbackLastCommand()
-{
-    YT_VERIFY(!CurrentBatch_.empty());
-    YT_VERIFY(LastCommandPosition_.has_value());
-    CurrentBatch_.pop_back();
-    Reader_->SetCurrent(*LastCommandPosition_);
-    LastCommandPosition_.reset();
-}
-
-TWireWriteCommandsBatch TWireWriteCommandBatchReader::FinishBatch()
-{
-    YT_VERIFY(!IsBatchEmpty());
-    auto batchData = Reader_->Slice(CurrentBatchStartingPosition_, Reader_->GetCurrent());
-    CurrentBatchStartingPosition_ = Reader_->GetCurrent();
-    return TWireWriteCommandsBatch(
-        std::move(CurrentBatch_),
-        Reader_->GetRowBuffer(),
-        std::move(batchData));
-}
-
-bool TWireWriteCommandBatchReader::IsBatchEmpty() const
-{
-    return Reader_->GetCurrent() == CurrentBatchStartingPosition_;
-}
-
-TWireWriteCommandsAsReader::TWireWriteCommandsAsReader(const TWireWriteCommands& commands)
-    : Commands_(commands)
-{ }
-
-const TWireWriteCommand& TWireWriteCommandsAsReader::NextCommand(bool /*IsVersionedWriteUnversioned*/)
-{
-    return Commands_[CurrentIndex_++];
-}
-
-bool TWireWriteCommandsAsReader::IsFinished() const
-{
-    return CurrentIndex_ == Commands_.size();
-}
-
-void TWireWriteCommandsAsReader::RollbackLastCommand()
-{
-    YT_ABORT();
-}
-
-TTransactionWriteRecord::TTransactionWriteRecord(
-    TTabletId tabletId,
-    TWireWriteCommandsBatch writeCommands,
-    int rowCount,
-    i64 dataWeight,
-    const TSyncReplicaIdList& syncReplicaIds,
-    const std::optional<NTableClient::THunkChunksInfo>& hunkChunksInfo)
-    : TabletId(tabletId)
-    , WriteCommands(std::move(writeCommands))
-    , RowCount(rowCount)
-    , DataWeight(dataWeight)
-    , SyncReplicaIds(syncReplicaIds)
-    , HunkChunksInfo(hunkChunksInfo)
-{ }
-
-void TTransactionWriteRecord::Save(TSaveContext& context) const
-{
-    using NYT::Save;
-    Save(context, TabletId);
-    Save(context, WriteCommands.Data_);
-    Save(context, RowCount);
-    Save(context, DataWeight);
-    Save(context, SyncReplicaIds);
-    Save(context, HunkChunksInfo);
-}
-
-void TTransactionWriteRecord::Load(TLoadContext& context)
-{
-    using NYT::Load;
-    Load(context, TabletId);
-
-    Load(context, WriteCommands.Data_);
-    WriteCommands.RowBuffer_ = New<TRowBuffer>();
-    auto reader = CreateWireProtocolReader(WriteCommands.Data_, WriteCommands.RowBuffer_);
-    WriteCommands.Commands_ = ParseWriteCommands(
-        context.CurrentTabletWriteManagerSchemaData,
-        reader.get(),
-        context.CurrentTabletVersionedWriteIsUnversioned);
-
-    Load(context, RowCount);
-    Load(context, DataWeight);
-    Load(context, SyncReplicaIds);
-    Load(context, HunkChunksInfo);
-}
-
-i64 TTransactionWriteRecord::GetByteSize() const
-{
-    return WriteCommands.Data_.Size() + WriteCommands.Commands().capacity() * sizeof(TWireWriteCommands);
-}
-
-i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog)
-{
-    i64 result = 0;
-    for (const auto& entry : writeLog) {
-        result += entry.RowCount;
-    }
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TEnumeratingWriteLogReader
-{
-public:
-    struct TEnumeratedWireWriteCommand
-    {
-        const TWireWriteCommand& Command;
-        TOpaqueWriteLogIndex WriteLogIndex;
-    };
-
-    explicit TEnumeratingWriteLogReader(const TTransactionIndexedWriteLog& writeLog)
-        : WriteLogEnd_(writeLog.End())
-        , WriteLogIterator_(writeLog.Begin())
-        , WriteLogBatch_(WriteLogIterator_->WriteCommands.Commands())
-    { }
-
-    TEnumeratedWireWriteCommand NextCommand()
-    {
-        while (WriteLogBatch_.empty()) {
-            ++WriteLogIterator_;
-            ++CommandBatchIndex_;
-            CommandIndexInBatch_ = 0;
-            YT_VERIFY(WriteLogIterator_ != WriteLogEnd_);
-            WriteLogBatch_ = WriteLogIterator_->WriteCommands.Commands();
-        }
-
-        const auto& command = WriteLogBatch_.front();
-        WriteLogBatch_ = WriteLogBatch_.subspan(1);
-        ++CommandIndexInBatch_;
-
-        return {
-            .Command = command,
-            .WriteLogIndex = TOpaqueWriteLogIndex{
-                .CommandBatchIndex = CommandBatchIndex_,
-                .CommandIndexInBatch = CommandIndexInBatch_ - 1,
-            },
-        };
-    }
-
-private:
-    const TTransactionIndexedWriteLog::TIterator WriteLogEnd_;
-
-    TTransactionIndexedWriteLog::TIterator WriteLogIterator_;
-    std::span<const TWireWriteCommand> WriteLogBatch_;
-
-    int CommandBatchIndex_ = 0;
-    int CommandIndexInBatch_ = 0;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -268,7 +67,7 @@ public:
 
     TWriteContext TransientWriteRows(
         TTransaction* transaction,
-        IWireWriteCommandReader* reader,
+        IWireWriteCommandsReader* reader,
         EAtomicity atomicity,
         bool versioned,
         int rowCount,
@@ -372,7 +171,7 @@ public:
         };
         const auto& storeManager = Tablet_->GetStoreManager();
 
-        auto wrapper = TWireWriteCommandsAsReader(writeRecord.WriteCommands.Commands());
+        auto wrapper = TWireWriteCommandsReaderAdapter(writeRecord.WriteCommands.Commands());
         YT_VERIFY(storeManager->ExecuteWrites(&wrapper, &context));
         YT_VERIFY(writeRecord.RowCount == context.RowCount);
 
@@ -424,6 +223,8 @@ public:
         PrepareLocklessRows(transaction, persistent);
 
         if (!persistent) {
+            auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
+            InsertPreparedTransactionToBarrier(transaction, transientWriteState.Get());
             return;
         }
 
@@ -434,9 +235,7 @@ public:
             persistentWriteState->LockedWriteLog.Freeze();
         }
 
-        // NB: This only makes sense for persistently prepared transactions since only these participate in 2PC
-        // and may cause issues with committed rows not being visible.
-        InsertPreparedTransactionToBarrier(transaction, persistentWriteState);
+        InsertPreparedTransactionToBarrier(transaction, persistentWriteState.Get());
 
         if (IsReplicatorWrite(transaction) &&
             Tablet_->GetBackupCheckpointTimestamp() &&
@@ -472,6 +271,21 @@ public:
 
         auto codicilGuard = MakeCodicilGuard();
 
+        const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+        if (auto delay = mountConfig->Testing.SyncDelayInWriteTransactionCommit) {
+            YT_LOG_DEBUG("Started sleeping in transaction commit "
+                "(%v, TransactionId: %v)",
+                Tablet_->GetLoggingTag(),
+                transaction->GetId());
+
+            Sleep(delay);
+
+            YT_LOG_DEBUG("Finished sleeping in transaction commit "
+                "(%v, TransactionId: %v)",
+                Tablet_->GetLoggingTag(),
+                transaction->GetId());
+        }
+
         // Fast path.
         if (!HasWriteState(transaction->GetId())) {
             return;
@@ -485,6 +299,16 @@ public:
         auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
 
         YT_VERIFY(transientWriteState->PrelockedRows.empty());
+
+        // Persist transient cookie.
+        // In 1PC prepare is transient and so is the cookie from the barrier insertion.
+        // Commit is the first persistent action after that prepare where we can persist this cookie.
+        //
+        // In replay persistent prepared barrier cookie will stay invalid.
+        // However in StartEpoch all relevant cookies will be recreated.
+        if (persistentWriteState->PreparedBarrierCookie == InvalidAsyncBarrierCookie) {
+            persistentWriteState->PreparedBarrierCookie = transientWriteState->PreparedBarrierCookie;
+        }
 
         auto updateProfileCounters = [&] (const TTransactionWriteLog& log) {
             for (const auto& record : log) {
@@ -543,9 +367,26 @@ public:
             if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
                 YT_VERIFY(Tablet_->IsPhysicallySorted());
 
+                auto partCountBefore = transaction->GetPartsLeftToPerRowSerialize();
+
                 StartSerializingLockedRows(transaction, /*onAfterSnapshotLoaded=*/false);
 
-                transaction->PerRowSerializingTabletIds().insert(Tablet_->GetId());
+                auto partsAddedInTablet = transaction->GetPartsLeftToPerRowSerialize() - partCountBefore;
+                YT_ASSERT(partsAddedInTablet >= 0);
+
+                // COMPAT(ponasenko-rs)
+                if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
+                    reign >= ETabletReign::PerRowSequencerFixes)
+                {
+                    // All parts related to current tablet can be already serialized.
+                    if (partsAddedInTablet > 0) {
+                        transaction->PerRowSerializingTabletIds().insert(Tablet_->GetId());
+                    } else {
+                        OnTransactionFinished(transaction);
+                    }
+                } else {
+                    transaction->PerRowSerializingTabletIds().insert(Tablet_->GetId());
+                }
             } else {
                 transaction->CoarseSerializingTabletIds().insert(Tablet_->GetId());
             }
@@ -611,6 +452,7 @@ public:
         OnTransactionFinished(transaction);
     }
 
+    // TODO(ponasenko-rs): Remove notion of lockIndex from tablet write manager.
     void OnTransactionPartCommitted(
         TTransaction* transaction,
         const TSortedDynamicRowRef& rowRef,
@@ -623,7 +465,7 @@ public:
         const auto& batchIt = writeLog[writeLogIndex.CommandBatchIndex];
         const auto& command = batchIt.WriteCommands.Commands()[writeLogIndex.CommandIndexInBatch];
 
-        rowRef.StoreManager->CommitLockGroup(
+        rowRef.StoreManager->CommitPerRowsSerializedLockGroup(
             transaction,
             command,
             rowRef,
@@ -765,6 +607,18 @@ public:
         return !TransactionIdToPersistentWriteState_.empty();
     }
 
+    THashSet<TTransactionId> GetAffectingTransactionIds() const override
+    {
+        THashSet<TTransactionId> result;
+        for (const auto& [transactionId, _] : TransactionIdToTransientWriteState_) {
+            result.insert(transactionId);
+        }
+        for (const auto& [transactionId, _] : TransactionIdToPersistentWriteState_) {
+            result.insert(transactionId);
+        }
+        return result;
+    }
+
     void StartEpoch() override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -774,11 +628,15 @@ public:
             return;
         }
 
+        auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
+            ? GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId())
+            : TTransactionExternalizationToken{};
+
         const auto& transactionManager = Host_->GetTransactionManager();
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
-            if (writeState->RowsPrepared) {
-                auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
-                InsertPreparedTransactionToBarrier(transaction, writeState);
+            auto* transaction = transactionManager->GetPersistentTransaction(transactionId, externalizationToken);
+            if (transaction->WasDefinitelyPrepared()) {
+                InsertPreparedTransactionToBarrier(transaction, writeState.Get());
             }
         }
     }
@@ -861,9 +719,13 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        auto externalizationToken = Tablet_->SmoothMovementData().GetRole() == ESmoothMovementRole::Target
+            ? GetSiblingAvenueEndpointId(Tablet_->SmoothMovementData().GetSiblingAvenueEndpointId())
+            : TTransactionExternalizationToken{};
+
         const auto& transactionManager = Host_->GetTransactionManager();
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
-            auto* transaction = transactionManager->GetPersistentTransaction(transactionId);
+            auto* transaction = transactionManager->GetPersistentTransaction(transactionId, externalizationToken);
 
             if (writeState->RowsPrepared && Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
                 writeState->LockedWriteLog.Freeze();
@@ -892,7 +754,7 @@ public:
             if (writeState->SomeRowsCommitted && Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
                 transaction->IncrementPartsLeftToPerRowSerialize();
 
-                // Lock groups that were already serialized before the snapshot saving were saved to the snapshot as part of TSortedDynamicStore.
+                // Lock groups that were already serialized before the snapshot saving were persisted to the snapshot as part of TSortedDynamicStore.
                 // StartSerializingLockedRows at this point is needed to recalculate prepare sets and serializing heaps.
                 // Some heaps will be drained during OnAfterSnapshotLoaded but its values already in edit lists so edit list modifications will be skipped.
                 StartSerializingLockedRows(transaction, /*onAfterSnapshotLoaded=*/true);
@@ -920,16 +782,20 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    struct TTransactionWriteStateBase
+    {
+        // NB: Not persisted. Only valid during an epoch.
+        TAsyncBarrierCookie PreparedBarrierCookie = InvalidAsyncBarrierCookie;
+    };
+
     struct TTransactionPersistentWriteState final
+        : public TTransactionWriteStateBase
     {
         TTransactionWriteLog LocklessWriteLog;
         TTransactionIndexedWriteLog LockedWriteLog;
 
         bool RowsPrepared = false;
         bool SomeRowsCommitted = false;
-
-        // NB: Not persisted. Only valid during an epoch.
-        TAsyncBarrierCookie PreparedBarrierCookie = InvalidAsyncBarrierCookie;
 
         void Save(TSaveContext& context) const
         {
@@ -973,6 +839,7 @@ private:
     using TTransactionPersistentWriteStatePtr = TIntrusivePtr<TTransactionPersistentWriteState>;
 
     struct TTransactionTransientWriteState final
+        : public TTransactionWriteStateBase
     {
         TRingQueue<TSortedDynamicRowRef> PrelockedRows;
         std::vector<TSortedDynamicRowRef> LockedRows;
@@ -1038,7 +905,7 @@ private:
             FindTransactionPersistentWriteState(transactionId);
     }
 
-    void InsertPreparedTransactionToBarrier(TTransaction* transaction, const TTransactionPersistentWriteStatePtr& writeState)
+    void InsertPreparedTransactionToBarrier(TTransaction* transaction, TTransactionWriteStateBase* writeState)
     {
         if (!Tablet_->IsPhysicallyOrdered()) {
             return;
@@ -1210,7 +1077,7 @@ private:
             context.CommitTimestamp = commitTimestamp;
 
             const auto& storeManager = Tablet_->GetStoreManager();
-            auto wrapper = TWireWriteCommandsAsReader(record.WriteCommands.Commands());
+            auto wrapper = TWireWriteCommandsReaderAdapter(record.WriteCommands.Commands());
             YT_VERIFY(storeManager->ExecuteWrites(&wrapper, &context));
             YT_VERIFY(context.RowCount == record.RowCount);
 
@@ -1389,7 +1256,7 @@ private:
         context.Phase = EWritePhase::Lock;
 
         const auto& storeManager = Tablet_->GetStoreManager();
-        auto wrapper = TWireWriteCommandsAsReader(writeRecord.WriteCommands.Commands());
+        auto wrapper = TWireWriteCommandsReaderAdapter(writeRecord.WriteCommands.Commands());
         YT_VERIFY(storeManager->ExecuteWrites(&wrapper, &context));
 
         if (context.HasSharedWriteLocks) {

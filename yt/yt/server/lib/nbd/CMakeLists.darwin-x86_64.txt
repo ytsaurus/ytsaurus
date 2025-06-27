@@ -34,6 +34,7 @@ target_link_libraries(server-lib-nbd PUBLIC
 )
 
 target_sources(server-lib-nbd PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/block_device.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/chunk_block_device.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/nbd/chunk_handler.cpp

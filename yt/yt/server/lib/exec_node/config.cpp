@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/profiling/solomon/config.h>
 
+#include <yt/yt/server/lib/signature/instance_config.h>
+
 #include <yt/yt/core/misc/config.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -417,6 +419,11 @@ void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
         "use_profiling_tags_from_scheduler",
         &TThis::UseProfilingTagsFromScheduler)
         .Default(false);
+
+    registrar.Parameter(
+        "request_new_agent_delay",
+        &TThis::RequestNewAgentDelay)
+        .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -531,6 +538,11 @@ void TGpuManagerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("default_nvidia_driver_capabilities", &TThis::DefaultNvidiaDriverCapabilities)
         .Default();
+
+    registrar.Parameter("enable_network_service_level", &TThis::EnableNetworkServiceLevel)
+        .Default(false);
+    registrar.Parameter("apply_network_service_level_timeout", &TThis::ApplyNetworkServiceLevelTimeout)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -628,23 +640,10 @@ void TAllocationConfig::Register(TRegistrar registrar)
 
 void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("operation_info_request_backoff_strategy", &TThis::OperationInfoRequestBackoffStrategy)
-        .Default({
-            .Backoff = TDuration::Seconds(5),
-            .BackoffJitter = 0.1,
-        });
-
     // Make it greater than interrupt preemption timeout.
     registrar.Parameter("waiting_for_resources_timeout", &TThis::WaitingForResourcesTimeout)
         .Alias("waiting_jobs_timeout")
         .Default(TDuration::Seconds(30));
-
-    // COMPAT(arkady-e1ppa): This option can be set to false when
-    // sched and CA are updated to the fitting version of 24.1
-    // which has protocol version 28 in controller_agent_tracker_serive_proxy.h.
-    // Remove when everyone is 24.2.
-    registrar.Parameter("disable_legacy_allocation_preparation", &TThis::DisableLegacyAllocationPreparation)
-        .Default(false);
 
     registrar.Parameter("cpu_overdraft_timeout", &TThis::CpuOverdraftTimeout)
         .Default(TDuration::Minutes(10));
@@ -855,6 +854,12 @@ void TExecNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("job_proxy_log_manager", &TThis::JobProxyLogManager);
+
+    registrar.Parameter("signature_generation", &TThis::SignatureGeneration)
+        .Optional();
+
+    registrar.Parameter("signature_validation", &TThis::SignatureValidation)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

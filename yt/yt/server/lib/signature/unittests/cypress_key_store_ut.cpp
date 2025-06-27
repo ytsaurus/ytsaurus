@@ -60,7 +60,7 @@ struct TCypressKeyReaderTest
 
     TCypressKeyReaderTest()
     {
-        Config->CypressReadOptions->ReadFrom = EMasterChannelKind::LocalCache;
+        Config->CypressReadOptions->ReadFrom = EMasterChannelKind::ClientSideCache;
     }
 };
 
@@ -72,7 +72,7 @@ TEST_F(TCypressKeyReaderTest, FindKey)
     auto simpleKeyInfo = New<TKeyInfo>(key, Meta);
     EXPECT_CALL(*Client, GetNode(
         "//sys/public_keys/by_owner/test/4-3-2-1",
-        Field("ReadFrom", &TGetNodeOptions::ReadFrom, EMasterChannelKind::LocalCache)))
+        Field("ReadFrom", &TGetNodeOptions::ReadFrom, EMasterChannelKind::ClientSideCache)))
         .WillOnce(Return(MakeFuture(ConvertToYsonString(simpleKeyInfo))));
 
     auto reader = CreateCypressKeyReader(Config, Client);

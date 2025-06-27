@@ -102,7 +102,7 @@ void GetReadRangesInfo(
             inferredDataSource,
             rowBuffer);
 
-        THashMap<TString, std::vector<TDataSource>> groupsByAddress;
+        THashMap<std::string, std::vector<TDataSource>> groupsByAddress;
         for (const auto& split : allSplits) {
             const auto& address = split.second;
             groupsByAddress[address].push_back(split.first);

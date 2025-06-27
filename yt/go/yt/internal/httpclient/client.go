@@ -15,12 +15,12 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/opentracing/opentracing-go"
-	"golang.org/x/xerrors"
 
 	"go.ytsaurus.tech/library/go/blockcodecs"
 	_ "go.ytsaurus.tech/library/go/blockcodecs/all"
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
+	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal"
@@ -553,7 +553,10 @@ func (c *httpClient) doWriteRow(ctx context.Context, call *internal.Call) (w yt.
 		return
 	}
 
-	w = newTableWriter(ww, cancelFunc)
+	w, err = newTableWriter(ww, call.Format, cancelFunc)
+	if err != nil {
+		err = xerrors.Errorf("failed to create table writer: %w", err)
+	}
 	return
 }
 
@@ -574,7 +577,10 @@ func (c *httpClient) doReadRow(ctx context.Context, call *internal.Call) (r yt.T
 		return
 	}
 
-	tr := newTableReader(rr)
+	tr, err := newTableReader(rr, call.Format, call.TableSchema)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to create table reader: %w", err)
+	}
 
 	if rspParams != nil {
 		if err := tr.setRspParams(rspParams); err != nil {

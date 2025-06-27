@@ -33,6 +33,7 @@ using NTabletNode::TTableMountConfigPtr;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(ILsmBackend)
+DECLARE_REFCOUNTED_STRUCT(TLsmTabletNodeConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTablet)
 

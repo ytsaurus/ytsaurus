@@ -3,10 +3,17 @@
 #include "public.h"
 
 #include <yt/yt/core/ypath/public.h>
-#include <yt/yt/core/yson/public.h>
+
 #include <yt/yt/core/ytree/public.h>
 
+#include <yt/yt/core/yson/public.h>
+#include <yt/yt/core/yson/protobuf_interop_options.h>
+
 namespace NYT::NOrm::NAttributes {
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::string RandomString(int length, TStringBuf charset);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,12 +25,14 @@ const NYson::TProtobufMessageType* GetMessageTypeByYPath(
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
-    const TWireString& wireStringPayload);
+    const TWireString& wireStringPayload,
+    const NYson::TProtobufParserOptions& options = {});
 
 NYTree::INodePtr ConvertProtobufToNode(
     const NYson::TProtobufMessageType* rootType,
     const NYPath::TYPath& path,
-    const TString& payload);
+    const TString& payload,
+    const NYson::TProtobufParserOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

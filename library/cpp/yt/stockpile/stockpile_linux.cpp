@@ -96,7 +96,7 @@ private:
         auto returnCode = ::madvise(nullptr, bufferSize, MADV_STOCKPILE);
         YT_LOG_DEBUG_IF(returnCode != 0, "System call \"madvise\" failed: %v", strerror(errno));
 
-        Sleep(period);
+        RestlessSleep(period);
     }
 
     void RunWithCappedLoad(i64 bufferSize, TDuration period)
@@ -108,7 +108,7 @@ private:
 
         auto duration = CpuDurationToDuration(GetApproximateCpuInstant() - started);
         if (duration < period) {
-            Sleep(period - duration);
+            RestlessSleep(period - duration);
         }
     }
 
@@ -118,7 +118,7 @@ private:
     {
         int result = ::madvise(nullptr, adjustedBufferSize, MADV_STOCKPILE);
         if (result == 0) {
-            Sleep(Options_.Period);
+            RestlessSleep(Options_.Period);
             return {Options_.BufferSize, Options_.Period};
         }
 
@@ -130,18 +130,26 @@ private:
                     adjustedBufferSize = adjustedBufferSize / 2;
                 } else {
                     // Unless there is not even a single reclaimable page.
-                    Sleep(Options_.Period);
+                    RestlessSleep(Options_.Period);
                 }
                 return {adjustedBufferSize, Options_.Period};
 
             case EAGAIN:
             case EINTR:
-                Sleep(adjustedPeriod);
+                RestlessSleep(adjustedPeriod);
                 return {Options_.BufferSize, adjustedPeriod + Options_.Period};
 
             default:
-                Sleep(Options_.Period);
+                RestlessSleep(Options_.Period);
                 return {Options_.BufferSize, Options_.Period};
+        }
+    }
+
+    void RestlessSleep(TDuration duration)
+    {
+        auto deadline = Now() + duration;
+        while (Now() < deadline && Run_.load()) {
+            Sleep(TStockpileOptions::PeriodQuantum);
         }
     }
 };

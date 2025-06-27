@@ -3,6 +3,8 @@
 #include <yt/yt/client/scheduler/operation_id_or_alias.h>
 #include <yt/yt/client/scheduler/spec_patch.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
@@ -20,7 +22,7 @@ TOperationId TClient::DoStartOperation(
     SetTransactionId(req, options, true);
     SetMutationId(req, options);
     req->set_type(ToProto(type));
-    req->set_spec(spec.ToString());
+    req->set_spec(ToProto(spec));
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
@@ -86,7 +88,7 @@ void TClient::DoUpdateOperationParameters(
 {
     auto req = SchedulerOperationProxy_->UpdateOperationParameters();
     ToProto(req, operationIdOrAlias);
-    req->set_parameters(parameters.ToString());
+    req->set_parameters(ToProto(parameters));
 
     WaitFor(req->Invoke())
         .ThrowOnError();

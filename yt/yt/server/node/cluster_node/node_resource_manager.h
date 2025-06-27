@@ -123,6 +123,7 @@ bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
 
 TError VerifyDominates(const TJobResources& lhs, const TJobResources& rhs, TStringBuf failMessage);
 TError VerifyEquals(const TJobResources& lhs, const TJobResources& rhs, TStringBuf failMessage);
+TError VerifyNonNegative(const TJobResources& resources, TStringBuf failMessage);
 
 TJobResources Max(const TJobResources& a, const TJobResources& b);
 TJobResources Min(const TJobResources& a, const TJobResources& b);

@@ -68,7 +68,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TableServerLogger;
+constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -164,7 +164,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto schemaMode = combinedAttributes->GetAndRemove<ETableSchemaMode>("schema_mode", ETableSchemaMode::Weak);
 
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
-    const auto* effectiveTableSchema = tableManager->ProcessSchemaFromAttributes(
+    auto effectiveTableSchema = tableManager->ProcessSchemaFromAttributes(
         tableSchema,
         schemaId,
         dynamic,
@@ -243,7 +243,7 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
         if (node->IsNative()) {
             if (effectiveTableSchema) {
-                tableManager->GetOrCreateNativeMasterTableSchema(*effectiveTableSchema, node);
+                tableManager->GetOrCreateNativeMasterTableSchema(effectiveTableSchema, node);
             } else {
                 auto* emptySchema = tableManager->GetEmptyMasterTableSchema();
                 tableManager->SetTableSchema(node, emptySchema);
@@ -422,7 +422,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
                 refCounter);
         }
 
-        table->MutableSecondaryIndices().clear();
+        if (!table->SecondaryIndices().empty()) {
+            table->MutableSecondaryIndices().clear();
+        }
     }
 
     if (!table->IsExternal() &&
@@ -615,7 +617,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
 template<class TImpl>
 bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const std::string& key) const
 {
-    static const THashSet<TString> SupportedInheritableAttributes{
+    static const THashSet<std::string> SupportedInheritableAttributes{
         EInternedAttributeKey::Atomicity.Unintern(),
         EInternedAttributeKey::CommitOrdering.Unintern(),
         EInternedAttributeKey::OptimizeFor.Unintern(),
@@ -634,7 +636,8 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const std
 template <class TImpl>
 std::optional<std::vector<std::string>> TTableNodeTypeHandlerBase<TImpl>::DoListColumns(TImpl* node) const
 {
-    auto schema = node->GetSchema()->AsHeavyTableSchema();
+    const auto& tableManager = GetBootstrap()->GetTableManager();
+    auto schema = tableManager->GetHeavyTableSchemaSync(node->GetSchema());
 
     std::vector<std::string> result;
     result.reserve(schema->Columns().size());

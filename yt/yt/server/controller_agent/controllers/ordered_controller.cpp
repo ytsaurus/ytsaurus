@@ -51,6 +51,8 @@
 
 #include <yt/yt/core/phoenix/type_decl.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <util/generic/cast.h>
@@ -140,6 +142,11 @@ protected:
             return ChunkPool_;
         }
 
+        IOrderedChunkPoolPtr GetOrderedChunkPool() const
+        {
+            return ChunkPool_;
+        }
+
         i64 GetTotalOutputRowCount() const
         {
             return TotalOutputRowCount_;
@@ -153,9 +160,9 @@ protected:
                 TotalOutputRowCount_ += jobSummary.TotalOutputDataStatistics->row_count();
             }
 
-            TChunkStripeKey key = 0;
+            TChunkStripeKey key;
             if (Controller_->OrderedOutputRequired_) {
-                key = TOutputOrder::TEntry(joblet->OutputCookie);
+                key = TChunkStripeKey(joblet->OutputCookie);
             }
 
             RegisterOutput(jobSummary, joblet->ChunkListIds, joblet, key, /*processEmptyStripes*/ true);
@@ -166,7 +173,7 @@ protected:
     private:
         TOrderedControllerBase* Controller_;
 
-        IPersistentChunkPoolPtr ChunkPool_;
+        IOrderedChunkPoolPtr ChunkPool_;
 
         i64 TotalOutputRowCount_ = 0;
 
@@ -242,9 +249,10 @@ protected:
             TTask::OnChunkTeleported(teleportChunk, tag);
 
             if (Controller_->OrderedOutputRequired_) {
-                Controller_->RegisterTeleportChunk(teleportChunk, /*key*/ TOutputOrder::TEntry(teleportChunk), /*tableIndex*/ 0);
+                auto cookie = std::any_cast<int>(tag);
+                Controller_->RegisterTeleportChunk(teleportChunk, /*key*/ TChunkStripeKey(cookie), /*tableIndex*/ 0);
             } else {
-                Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, /*tableIndex*/ 0);
+                Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ TChunkStripeKey(), /*tableIndex*/ 0);
             }
         }
 
@@ -303,7 +311,7 @@ protected:
 
     virtual bool IsTeleportationSupported() const = 0;
 
-    virtual i64 GetMinTeleportChunkSize() = 0;
+    virtual i64 GetMinTeleportChunkSize() const = 0;
 
     virtual void ValidateInputDataSlice(const TLegacyDataSlicePtr& /*dataSlice*/)
     { }
@@ -332,7 +340,7 @@ protected:
 
     void CalculateSizes()
     {
-        switch (OperationType) {
+        switch (OperationType_) {
             case EOperationType::Merge:
             case EOperationType::Erase:
             case EOperationType::Map:
@@ -341,10 +349,10 @@ protected:
                     Options_,
                     Logger,
                     OutputTables_.size(),
-                    DataWeightRatio,
-                    TotalEstimatedInputChunkCount,
-                    PrimaryInputDataWeight,
-                    PrimaryInputCompressedDataSize);
+                    EstimatedInputStatistics_->DataWeightRatio,
+                    EstimatedInputStatistics_->ChunkCount,
+                    EstimatedInputStatistics_->PrimaryDataWeight,
+                    EstimatedInputStatistics_->PrimaryCompressedDataSize);
                 break;
 
             default:
@@ -404,7 +412,7 @@ protected:
     void InitTeleportableInputTables()
     {
         if (IsTeleportationSupported()) {
-            const auto& inputTables = InputManager->GetInputTables();
+            const auto& inputTables = InputManager_->GetInputTables();
             for (int index = 0; index < std::ssize(inputTables); ++index) {
                 if (inputTables[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
                     inputTables[index]->Teleportable = CheckTableSchemaCompatibility(
@@ -416,9 +424,23 @@ protected:
         }
     }
 
-    TOutputOrderPtr GetOutputOrder() const override
+    bool IsOrderedOutputRequired() const override
     {
-        return OrderedTask_->GetChunkPoolOutput()->GetOutputOrder();
+        // NB(coteeq): If output table is sorted, we will sort chunk trees
+        // by boundary keys, not by output order.
+        return true;
+    }
+
+    std::vector<TChunkTreeId> GetOutputChunkTreesInOrder(const TOutputTablePtr& table) const override
+    {
+        std::vector<std::pair<TOutputCookie, TChunkTreeId>> cookieAndTreeIdList;
+        cookieAndTreeIdList.reserve(table->OutputChunkTreeIds.size());
+        for (const auto& [key, treeId] : table->OutputChunkTreeIds) {
+            YT_VERIFY(key.IsOutputCookie());
+            cookieAndTreeIdList.emplace_back(key.AsOutputCookie(), treeId);
+        }
+
+        return OrderedTask_->GetOrderedChunkPool()->ArrangeOutputChunkTrees(cookieAndTreeIdList);
     }
 
     void CustomMaterialize() override
@@ -447,14 +469,13 @@ protected:
         FinishPreparation();
     }
 
-    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions()
+    virtual TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const
     {
         TOrderedChunkPoolOptions chunkPoolOptions;
-        chunkPoolOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        chunkPoolOptions.MaxTotalSliceCount = Config_->MaxTotalSliceCount;
         chunkPoolOptions.EnablePeriodicYielder = true;
         chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
-        chunkPoolOptions.BuildOutputOrder = OrderedOutputRequired_;
         chunkPoolOptions.ShouldSliceByRowIndices = true;
         chunkPoolOptions.UseNewSlicingImplementation = GetSpec()->UseNewSlicingImplementationInOrderedPool;
         chunkPoolOptions.Logger = Logger().WithTag("Name: Root");
@@ -518,7 +539,7 @@ public:
     TOrderedMergeController(
         TOrderedMergeOperationSpecPtr spec,
         TControllerAgentConfigPtr config,
-        TSimpleOperationOptionsPtr options,
+        TOrderedMergeOperationOptionsPtr options,
         IOperationControllerHostPtr host,
         TOperation* operation)
         : TOrderedControllerBase(
@@ -528,10 +549,12 @@ public:
             host,
             operation)
         , Spec_(spec)
+        , Options_(std::move(options))
     { }
 
 private:
     TOrderedMergeOperationSpecPtr Spec_;
+    TOrderedMergeOperationOptionsPtr Options_;
 
     bool IsRowCountPreserved() const override
     {
@@ -540,7 +563,7 @@ private:
             !Spec_->JobIO->TableReader->SamplingRate;
     }
 
-    i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() const override
     {
         if (Spec_->ForceTransform || Spec_->InputQuery) {
             return std::numeric_limits<i64>::max() / 4;
@@ -562,7 +585,7 @@ private:
     {
         if (Spec_->InputQuery) {
             if (Spec_->InputQueryOptions->UseSystemColumns) {
-                InputManager->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
+                InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
             }
             ParseInputQuery(
                 *Spec_->InputQuery,
@@ -591,7 +614,7 @@ private:
     {
         JobSpecTemplate_.set_type(ToProto(EJobType::OrderedMerge));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO))));
 
         if (Spec_->InputQuery) {
             WriteInputQueryToJobSpec(jobSpecExt);
@@ -599,11 +622,11 @@ private:
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ToProto(ConvertToYsonString(JobIOConfig_)));
     }
 
     bool IsTeleportationSupported() const override
@@ -619,7 +642,7 @@ private:
 
         auto inferFromInput = [&] {
             if (Spec_->InputQuery) {
-                table->TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
+                table->TableUploadOptions.TableSchema = InputQuery_->Query->GetTableSchema();
             } else {
                 InferSchemaFromInputOrdered();
             }
@@ -679,16 +702,23 @@ private:
         return TConfigurator<TOrderedMergeOperationSpec>();
     }
 
+    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const override
+    {
+        auto options = TOrderedControllerBase::GetOrderedChunkPoolOptions();
+        options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
+        return options;
+    }
+
     void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables() || InputHasDynamicStores();
             if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
-                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != OrderedTask_->GetTotalOutputRowCount(),
+                YT_LOG_ERROR_IF(EstimatedInputStatistics_->RowCount != OrderedTask_->GetTotalOutputRowCount(),
                     "Input/output row count mismatch in ordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
-                    TotalEstimatedInputRowCount,
+                    EstimatedInputStatistics_->RowCount,
                     OrderedTask_->GetTotalOutputRowCount());
-                YT_VERIFY(TotalEstimatedInputRowCount == OrderedTask_->GetTotalOutputRowCount());
+                YT_VERIFY(EstimatedInputStatistics_->RowCount == OrderedTask_->GetTotalOutputRowCount());
             }
         }
 
@@ -756,7 +786,7 @@ private:
         return Spec_->Mapper;
     }
 
-    i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() const override
     {
         return std::numeric_limits<i64>::max() / 4;
     }
@@ -768,7 +798,7 @@ private:
 
     TCpuResource GetCpuLimit() const override
     {
-        return TCpuResource(Spec_->Mapper->CpuLimit);
+        return TCpuResource(TOperationControllerBase::GetCpuLimit(Spec_->Mapper));
     }
 
     void BuildBriefSpec(TFluentMap fluent) const override
@@ -780,7 +810,7 @@ private:
             .EndMap();
     }
 
-    void CustomizeJoblet(const TJobletPtr& joblet) override
+    void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& /*allocation*/) override
     {
         joblet->StartRowIndex = StartRowIndex_;
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
@@ -825,11 +855,11 @@ private:
     {
         JobSpecTemplate_.set_type(ToProto(EJobType::OrderedMap));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO))));
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
@@ -838,7 +868,7 @@ private:
             WriteInputQueryToJobSpec(jobSpecExt);
         }
 
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ToProto(ConvertToYsonString(JobIOConfig_)));
 
         InitUserJobSpecTemplate(
             jobSpecExt->mutable_user_job_spec(),
@@ -856,7 +886,7 @@ private:
     {
         if (Spec_->InputQuery) {
             if (Spec_->InputQueryOptions->UseSystemColumns) {
-                InputManager->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
+                InputManager_->AdjustSchemas(ControlAttributesToColumnOptions(*Spec_->JobIO->ControlAttributes));
             }
             ParseInputQuery(
                 *Spec_->InputQuery,
@@ -905,6 +935,13 @@ private:
     TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
         return TConfigurator<TMapOperationSpec>();
+    }
+
+    TOrderedChunkPoolOptions GetOrderedChunkPoolOptions() const override
+    {
+        auto options = TOrderedControllerBase::GetOrderedChunkPoolOptions();
+        options.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
+        return options;
     }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedMapController, 0x3be901ca);
@@ -985,7 +1022,7 @@ private:
         return false;
     }
 
-    i64 GetMinTeleportChunkSize() override
+    i64 GetMinTeleportChunkSize() const override
     {
         if (!Spec_->CombineChunks) {
             return 0;
@@ -1009,8 +1046,8 @@ private:
     {
         TOrderedControllerBase::CustomPrepare();
 
-        auto& path = InputManager->GetInputTables()[0]->Path;
-        auto ranges = path.GetNewRanges(InputManager->GetInputTables()[0]->Comparator, InputManager->GetInputTables()[0]->Schema->GetKeyColumnTypes());
+        auto& path = InputManager_->GetInputTables()[0]->Path;
+        auto ranges = path.GetNewRanges(InputManager_->GetInputTables()[0]->Comparator, InputManager_->GetInputTables()[0]->Schema->GetKeyColumnTypes());
         if (ranges.size() > 1) {
             THROW_ERROR_EXCEPTION("Erase operation does not support tables with multiple ranges");
         }
@@ -1068,9 +1105,9 @@ private:
                 if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInputOrdered();
                 } else {
-                    if (InputManager->GetInputTables()[0]->SchemaMode == ETableSchemaMode::Strong) {
+                    if (InputManager_->GetInputTables()[0]->SchemaMode == ETableSchemaMode::Strong) {
                         const auto& [compatibility, error] = CheckTableSchemaCompatibility(
-                            *InputManager->GetInputTables()[0]->Schema,
+                            *InputManager_->GetInputTables()[0]->Schema,
                             *table->TableUploadOptions.TableSchema.Get(),
                             {.IgnoreStableNamesDifference = true});
 
@@ -1097,16 +1134,16 @@ private:
     {
         JobSpecTemplate_.set_type(ToProto(EJobType::OrderedMerge));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO))));
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ToProto(ConvertToYsonString(JobIOConfig_)));
 
         auto* mergejobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         const auto& table = OutputTables_[0];

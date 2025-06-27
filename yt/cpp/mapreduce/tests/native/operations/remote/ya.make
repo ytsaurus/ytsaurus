@@ -11,6 +11,7 @@ PEERDIR(
     yt/cpp/mapreduce/tests/yt_unittest_lib
     yt/cpp/mapreduce/tests/gtest_main
     yt/cpp/mapreduce/tests/native/proto_lib
+    library/cpp/yt/string
 )
 
 SET(YT_CLUSTER_NAMES first,second,third)

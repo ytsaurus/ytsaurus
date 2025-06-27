@@ -11,6 +11,11 @@ import (
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/ytqueue"
 )
 
+const (
+	DefaultTextFileLineLimit = 16 * 1024 * 1024
+	DefaultQueueBatchSize    = 16 * 1024 * 1024
+)
+
 type Config struct {
 	app.Config `yaml:",inline"`
 
@@ -18,12 +23,42 @@ type Config struct {
 	JSONLogs    []JSONLogConfig `yaml:"json_logs"`
 }
 
+func (c *Config) SetDefaults() {
+	for i := range c.JSONLogs {
+		c.JSONLogs[i].SetDefaults()
+	}
+}
+
 type JSONLogConfig struct {
 	timbertruck.StreamConfig `yaml:",inline"`
+
+	// QueueBatchSize is the buffer size at which a flush to the output is triggered.
+	// It must be greater than or equal to TextFileLineLimit.
+	//
+	// Default value is 16777216 (16 MiB).
+	QueueBatchSize int `yaml:"queue_batch_size"`
+
+	// TextFileLineLimit specifies the maximum allowed length of a line in the text file.
+	// Lines longer than this value will be truncated.
+	//
+	// Default value is 16777216 (16 MiB).
+	TextFileLineLimit int `yaml:"text_file_line_limit"`
 
 	LogbrokerTopic string `yaml:"logbroker_topic"`
 
 	YtQueue []ytqueue.Config `yaml:"yt_queue"`
+}
+
+func (c *JSONLogConfig) SetDefaults() {
+	if c.TextFileLineLimit == 0 {
+		c.TextFileLineLimit = DefaultTextFileLineLimit
+	}
+	if c.QueueBatchSize == 0 {
+		c.QueueBatchSize = DefaultQueueBatchSize
+	}
+	if c.QueueBatchSize < c.TextFileLineLimit {
+		panic(fmt.Sprintf("queueBatchSize (%d) MUST BE >= textFileLineLimit (%d)", c.QueueBatchSize, c.TextFileLineLimit))
+	}
 }
 
 func sessionID(hostname, filepath string) string {
@@ -57,6 +92,7 @@ func newOutput(config *Config, logConfig JSONLogConfig, task timbertruck.TaskArg
 				SessionID:        sessionID,
 				Token:            ytToken,
 				Logger:           task.Controller.Logger(),
+				BatchSize:        logConfig.QueueBatchSize,
 			}
 
 			var ytOutput pipelines.Output[pipelines.Row]
@@ -84,6 +120,7 @@ func main() {
 			panic(err)
 		}
 	}()
+	config.SetDefaults()
 
 	for _, jsonLogConfig := range config.JSONLogs {
 		app.AddStream(jsonLogConfig.StreamConfig, func(task timbertruck.TaskArgs) (p *pipelines.Pipeline, err error) {
@@ -91,7 +128,11 @@ func main() {
 			if err != nil {
 				return
 			}
-			p, err = ytlog.NewJSONLogPipeline(task, output, ytlog.JSONLogPipelineOptions{})
+			p, err = ytlog.NewJSONLogPipeline(task, output, ytlog.JSONLogPipelineOptions{
+				BaseLogPipelineOptions: ytlog.BaseLogPipelineOptions{
+					QueueBatchSize:    jsonLogConfig.QueueBatchSize,
+					TextFileLineLimit: jsonLogConfig.TextFileLineLimit,
+				}})
 			return
 		})
 	}

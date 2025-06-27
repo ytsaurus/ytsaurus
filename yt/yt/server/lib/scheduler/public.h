@@ -109,6 +109,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((UnavailableNetworkBandwidthToClusters)       (40))
     ((WriteBufferMemoryOverrun)                    (41))
     ((Unknown)                                     (42))
+    ((SpecifiedCpuLimitIsTooSmall)                 (43))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EOperationAlertType, Unknown);
@@ -193,8 +194,7 @@ DEFINE_ENUM(EOperationManagementAction,
     (Resume)
     (Abort)
     (Complete)
-    // TODO(ignat): YT-23056: support more sophisticated checks for UpdateOperationParameters.
-    // (UpdateParameters)
+    (UpdateParameters)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,6 +253,10 @@ extern const TString CommittedAttribute;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TNetworkPriority = i8;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const TString DefaultTreeAttributeName;
 extern const TString TreeConfigAttributeName;
 extern const TString IdAttributeName;
@@ -264,6 +268,10 @@ extern const TString LastMeteringLogTimePath;
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const TString ProfilingPoolTreeKey{"tree"};
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline const TString InfinibandClusterNameKey{"infiniband_cluster_tag"};
 
 ////////////////////////////////////////////////////////////////////////////////
 

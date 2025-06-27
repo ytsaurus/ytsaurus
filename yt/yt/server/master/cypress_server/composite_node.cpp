@@ -9,6 +9,7 @@
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
+#include <yt/yt/server/master/chunk_server/config.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -74,12 +75,8 @@ void TCompositeCypressNode::TAttributes<Transient>::Persist(const NCellMaster::T
     Persist(context, Media);
     Persist(context, TabletCellBundle);
     Persist(context, ChaosCellBundle);
-
-    // COMPAT(kivedernikov)
-    if (!context.IsLoad() || context.GetVersion() >= EMasterReign::HunkMedia) {
-        Persist(context, HunkMedia);
-        Persist(context, HunkPrimaryMediumIndex);
-    }
+    Persist(context, HunkMedia);
+    Persist(context, HunkPrimaryMediumIndex);
 }
 
 template <bool Transient>
@@ -163,13 +160,18 @@ void TCompositeCypressNode::Load(NCellMaster::TLoadContext& context)
 
 bool TCompositeCypressNode::HasInheritableAttributes() const
 {
-    for (auto* node = this; node; node = node->GetOriginator()->As<TCompositeCypressNode>()) {
+    auto* node = this;
+    for (;;) {
         if (node->Attributes_) {
             YT_ASSERT(!node->Attributes_->AreEmpty());
             return true;
         }
+        auto* originator = node->GetOriginator();
+        if (!originator) {
+            break;
+        }
+        node = originator->As<TCompositeCypressNode>();
     }
-
     return false;
 }
 

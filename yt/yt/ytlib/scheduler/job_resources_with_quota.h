@@ -39,15 +39,15 @@ struct TDiskQuota
 TDiskQuota CreateDiskQuota(i32 mediumIndex, i64 diskSpace);
 TDiskQuota CreateDiskQuotaWithoutMedium(i64 diskSpace);
 
-TDiskQuota  operator -  (const TDiskQuota& quota);
+TDiskQuota  operator - (const TDiskQuota& quota);
 
-TDiskQuota  operator +  (const TDiskQuota& lhs, const TDiskQuota& rhs);
+TDiskQuota  operator + (const TDiskQuota& lhs, const TDiskQuota& rhs);
 TDiskQuota& operator += (TDiskQuota& lhs, const TDiskQuota& rhs);
 
-TDiskQuota  operator -  (const TDiskQuota& lhs, const TDiskQuota& rhs);
+TDiskQuota  operator - (const TDiskQuota& lhs, const TDiskQuota& rhs);
 TDiskQuota& operator -= (TDiskQuota& lhs, const TDiskQuota& rhs);
 
-bool operator==(const TDiskQuota& lhs, const TDiskQuota& rhs);
+bool operator == (const TDiskQuota& lhs, const TDiskQuota& rhs);
 
 TDiskQuota Max(const TDiskQuota& lhs, const TDiskQuota& rhs);
 
@@ -68,8 +68,8 @@ public:
     TJobResourcesWithQuota(TJobResourcesWithQuota&&) noexcept = default;
     TJobResourcesWithQuota(const TJobResourcesWithQuota&) = default;
 
-    TJobResourcesWithQuota& operator=(TJobResourcesWithQuota&&) noexcept = default;
-    TJobResourcesWithQuota& operator=(const TJobResourcesWithQuota&) = default;
+    TJobResourcesWithQuota& operator = (TJobResourcesWithQuota&&) noexcept = default;
+    TJobResourcesWithQuota& operator = (const TJobResourcesWithQuota&) = default;
 
     static TJobResourcesWithQuota Infinite();
 
@@ -79,10 +79,10 @@ public:
     void Persist(const TStreamPersistenceContext& context);
 };
 
-TJobResourcesWithQuota  operator +  (const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
+TJobResourcesWithQuota  operator + (const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
 TJobResourcesWithQuota& operator += (TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
 
-TJobResourcesWithQuota  operator -  (const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
+TJobResourcesWithQuota  operator - (const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
 TJobResourcesWithQuota& operator -= (TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
 
 TJobResourcesWithQuota Max(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
@@ -90,6 +90,8 @@ TJobResourcesWithQuota Max(const TJobResourcesWithQuota& lhs, const TJobResource
 using TJobResourcesWithQuotaList = TCompactVector<TJobResourcesWithQuota, 8>;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool Dominates(const TDiskQuota& lhs, const TDiskQuota& rhs);
 
 bool Dominates(const TJobResourcesWithQuota& lhs, const TJobResourcesWithQuota& rhs);
 

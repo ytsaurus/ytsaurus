@@ -64,7 +64,7 @@ void TModifyRowsTest::WriteSimpleRow(
 {
     Keys_.insert(key);
 
-    const std::vector<TString> names = {"key", "value"};
+    const std::vector<std::string> names = {"key", "value"};
     auto rowString = MakeRowString(key, value);
 
     auto preparedRow = PrepareUnversionedRow(names, rowString);

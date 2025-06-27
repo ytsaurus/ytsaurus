@@ -9,7 +9,7 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkClientLogger;
+constinit const auto Logger = ChunkClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -36,7 +36,7 @@ public:
         }
 
         for (const auto& block : blocks) {
-            auto error = block.ValidateChecksum();
+            auto error = block.CheckChecksum();
             YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Block checksum mismatch during memory block reading");
         }
 
@@ -57,7 +57,7 @@ public:
             Blocks_.begin() + std::min(static_cast<size_t>(blockCount), Blocks_.size() - firstBlockIndex));
 
         for (const auto& block : blocks) {
-            auto error = block.ValidateChecksum();
+            auto error = block.CheckChecksum();
             YT_LOG_FATAL_UNLESS(error.IsOK(), error, "Block checksum mismatch during memory block reading");
         }
 

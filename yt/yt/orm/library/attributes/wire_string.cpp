@@ -138,7 +138,7 @@ void UnpackRepeatedFieldImpl(TWireString& target, TWireStringPart packedPart, TR
 {
     TCodedInputStream stream(packedPart);
     TValueType buffer;
-    while(std::invoke(readNext, stream, &buffer)) {
+    while (std::invoke(readNext, stream, &buffer)) {
         target.push_back(stream.Checkpoint());
     }
 }
@@ -356,7 +356,7 @@ THashMap<int, TWireString> TWireString::Unpack(
 }
 
 // TProtoVisitorTraits implementation for TUnpackedWireString.
-template<>
+template <>
 struct TProtoVisitorTraits<TUnpackedWireString>
 {
     using TMessageParam = const TUnpackedWireString&;
@@ -1010,8 +1010,7 @@ std::vector<std::string> ConvertToWireString(
                     THROW_ERROR_EXCEPTION(
                         "Encountered protobuf element of unexpected type %Qv in yson-map to wire string conversion",
                         NYson::GetProtobufElementTypeName(element));
-                }
-            );
+                });
         }
         case NYTree::ENodeType::List: {
             const auto& repeatedElement = NYson::GetProtobufElementOrThrow<NYson::TProtobufRepeatedElement>(element);

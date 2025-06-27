@@ -177,4 +177,34 @@ DEFINE_REFCOUNTED_TYPE(TGentleLoaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THugePageManagerConfig
+    : public NYTree::TYsonStruct
+{
+    bool Enabled;
+    int PagesPerBlob;
+
+    REGISTER_YSON_STRUCT(THugePageManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THugePageManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct THugePageManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<bool> Enabled;
+    std::optional<int> PagesPerBlob;
+
+    REGISTER_YSON_STRUCT(THugePageManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THugePageManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NIO

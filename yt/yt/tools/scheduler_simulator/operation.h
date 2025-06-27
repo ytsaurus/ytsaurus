@@ -11,8 +11,7 @@ namespace NYT::NSchedulerSimulator {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation
-    : public TRefCounted
-    , public NScheduler::IOperationStrategyHost
+    : public NScheduler::IOperationStrategyHost
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(ISimulatorOperationControllerPtr, Controller);
@@ -27,7 +26,8 @@ public:
     NScheduler::EOperationState GetState() const override;
     std::optional<NScheduler::EUnschedulableReason> CheckUnschedulable(const std::optional<TString>& treeId) const override;
     TInstant GetStartTime() const override;
-    TString GetAuthenticatedUser() const override;
+    std::string GetAuthenticatedUser() const override;
+    std::optional<std::string> GetTitle() const override;
 
     std::optional<int> FindSlotIndex(const TString& treeId) const override;
     void SetSlotIndex(const TString& treeId, int index) override;
@@ -57,13 +57,13 @@ public:
     const NScheduler::TOperationOptionsPtr& GetOperationOptions() const override;
 
 private:
-    std::atomic<bool> Completing_ = {false};
+    std::atomic<bool> Completing_ = false;
 
     const NScheduler::TOperationId Id_;
     const NScheduler::EOperationType Type_;
     const NYson::TYsonString SpecString_;
     const NYson::TYsonString TrimmedAnnotations_;
-    const TString AuthenticatedUser_;
+    const std::string AuthenticatedUser_;
     const TInstant StartTime_;
     const NScheduler::TOperationRuntimeParametersPtr RuntimeParameters_;
     NScheduler::EOperationState State_ = NScheduler::EOperationState::Running;

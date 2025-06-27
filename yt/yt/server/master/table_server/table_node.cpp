@@ -82,7 +82,7 @@ DEFINE_ENUM(ECompatChunkFormat,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TableServerLogger;
+constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,6 +106,8 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, CommitOrdering);
     Save(context, UpstreamReplicaId);
     Save(context, LastCommitTimestamp);
+    Save(context, RetainedTimestamp);
+    Save(context, UnflushedTimestamp);
     Save(context, ForcedCompactionRevision);
     Save(context, ForcedStoreCompactionRevision);
     Save(context, ForcedHunkCompactionRevision);
@@ -136,6 +138,8 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, IndexTo);
     Save(context, TreatAsQueueProducer);
     Save(context, SerializationType);
+    Save(context, ReplicationCollocation);
+    Save(context, CustomRuntimeData);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -145,6 +149,13 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, CommitOrdering);
     Load(context, UpstreamReplicaId);
     Load(context, LastCommitTimestamp);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
+        Load(context, RetainedTimestamp);
+        Load(context, UnflushedTimestamp);
+    }
+
     Load(context, ForcedCompactionRevision);
     Load(context, ForcedStoreCompactionRevision);
     Load(context, ForcedHunkCompactionRevision);
@@ -171,32 +182,28 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, IsVitalConsumer);
     Load(context, *MountConfigStorage);
     Load(context, HunkStorage);
-
-    // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndex) {
-        Load(context, SecondaryIndices);
-        Load(context, IndexTo);
-    }
+    Load(context, SecondaryIndices);
+    Load(context, IndexTo);
 
     // COMPAT(ponasenko-rs)
-    // DropLegacyClusterNodeMap is the start of 24.2 reigns.
-    if (context.GetVersion() >= EMasterReign::TabletSharedWriteLocks &&
-        context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag &&
-        (context.GetVersion() >= EMasterReign::DropLegacyClusterNodeMap || context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag_24_1))
-    {
+    if (context.GetVersion() < EMasterReign::RemoveEnableSharedWriteLocksFlag) {
         Load<bool>(context);
     }
 
     // COMPAT(apachee)
-    if ((context.GetVersion() >= EMasterReign::QueueProducers_24_1 && context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap) ||
-        context.GetVersion() >= EMasterReign::QueueProducers)
-    {
+    if (context.GetVersion() >= EMasterReign::QueueProducers) {
         Load(context, TreatAsQueueProducer);
     }
 
     // COMPAT(ponasenko-rs)
     if (context.GetVersion() >= EMasterReign::TabletTransactionSerializationType) {
         Load(context, SerializationType);
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
+        Load(context, ReplicationCollocation);
+        Load(context, CustomRuntimeData);
     }
 }
 
@@ -271,10 +278,10 @@ const TTableNode* TTableNode::GetTrunkNode() const
     return TTabletOwnerBase::GetTrunkNode()->As<TTableNode>();
 }
 
-void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
+void TTableNode::BeginUpload(const TBeginUploadContext &context)
 {
+    const auto& tableManager = context.Bootstrap->GetTableManager();
     if (IsDynamic()) {
-        // NB: EndUpload may (and eventually will) stop sending schema info.
         auto contextMode = context.SchemaMode;
         auto* contextSchema = context.TableSchema;
         if ((contextMode && SchemaMode_ != contextMode) ||
@@ -286,8 +293,8 @@ void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
                 GetTransaction()->GetId(),
                 SchemaMode_,
                 context.SchemaMode,
-                GetSchema()->AsCompactTableSchema(),
-                context.TableSchema->AsCompactTableSchema());
+                tableManager->GetHeavyTableSchemaSync(GetSchema()),
+                tableManager->GetHeavyTableSchemaSync(context.TableSchema));
         }
     }
 
@@ -295,26 +302,14 @@ void TTableNode::ParseCommonUploadContext(const TCommonUploadContext& context)
         SchemaMode_ = *context.SchemaMode;
     }
 
-    if (context.TableSchema) {
-        const auto& tableManager = context.Bootstrap->GetTableManager();
-        tableManager->SetTableSchema(this, context.TableSchema);
-    }
-}
-
-void TTableNode::BeginUpload(const TBeginUploadContext &context)
-{
-    ParseCommonUploadContext(context);
-    YT_VERIFY(context.TableSchema);
+    YT_LOG_ALERT_AND_THROW_UNLESS(context.TableSchema, "Schema is missing in begin upload context");
+    tableManager->SetTableSchema(this, context.TableSchema);
 
     TTabletOwnerBase::BeginUpload(context);
 }
 
 void TTableNode::EndUpload(const TEndUploadContext &context)
 {
-    // COMPAT(h0pless): Change this to check that schema has not changed during upload when
-    // clients will send table schema options during begin upload.
-    ParseCommonUploadContext(context);
-
     if (context.OptimizeFor) {
         OptimizeFor_.Set(*context.OptimizeFor);
     }
@@ -383,10 +378,6 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, OptimizeFor_);
     Save(context, ChunkFormat_);
     Save(context, HunkErasureCodec_);
-    Save(context, RetainedTimestamp_);
-    Save(context, UnflushedTimestamp_);
-    Save(context, ReplicationCollocation_);
-    Save(context, CustomRuntimeData_);
     TUniquePtrSerializer<>::Save(context, DynamicTableAttributes_);
 }
 
@@ -423,13 +414,21 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         }
     }
     Load(context, HunkErasureCodec_);
-    Load(context, RetainedTimestamp_);
-    Load(context, UnflushedTimestamp_);
-    Load(context, ReplicationCollocation_);
 
-    // COMPAT(gryzlov-ad)
-    if (context.GetVersion() >= EMasterReign::AddTableNodeCustomRuntimeData) {
-        Load(context, CustomRuntimeData_);
+    // COMPAT(ifsmirnov)
+    TTimestamp retainedTimestamp;
+    TTimestamp unflushedTimestamp;
+    TTableCollocationRawPtr replicationCollocation;
+    TYsonString customRuntimeData;
+    if (context.GetVersion() < EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
+        Load(context, retainedTimestamp);
+        Load(context, unflushedTimestamp);
+        Load(context, replicationCollocation);
+
+        // COMPAT(gryzlov-ad)
+        if (context.GetVersion() >= EMasterReign::AddTableNodeCustomRuntimeData) {
+            Load(context, customRuntimeData);
+        }
     }
 
     // COMPAT(gritukan): Use TUniquePtrSerializer.
@@ -440,10 +439,22 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         DynamicTableAttributes_.reset();
     }
 
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() < EMasterReign::MoveRetainedTimestampAndOthersToExtraAttributes) {
+        SetRetainedTimestamp(retainedTimestamp);
+        SetUnflushedTimestamp(unflushedTimestamp);
+        SetReplicationCollocation(replicationCollocation);
+
+        // COMPAT(gryzlov-ad)
+        if (context.GetVersion() >= EMasterReign::AddTableNodeCustomRuntimeData) {
+            if (customRuntimeData) {
+                MutableCustomRuntimeData() = std::move(customRuntimeData);
+            }
+        }
+    }
+
     // COMPAT(apachee): Remove user attributes conflicting with new producer attributes.
-    // DropLegacyClusterNodeMap is the start of 24.2 reigns.
-    if (context.GetVersion() < EMasterReign::QueueProducers_24_1
-        || (context.GetVersion() >= EMasterReign::DropLegacyClusterNodeMap && context.GetVersion() < EMasterReign::QueueProducers)) {
+    if (context.GetVersion() < EMasterReign::QueueProducers) {
         if (Attributes_) {
             static constexpr std::array producerRelatedAttributes = {
                 EInternedAttributeKey::TreatAsQueueProducer,
@@ -508,16 +519,18 @@ TTimestamp TTableNode::GetCurrentUnflushedTimestamp(
     TTimestamp latestTimestamp) const
 {
     // COMPAT(savrus) Consider saved value only for non-trunk nodes.
-    return !IsTrunk() && UnflushedTimestamp_ != NullTimestamp
-        ? UnflushedTimestamp_
+    auto unflushedTimestamp = GetUnflushedTimestamp();
+    return !IsTrunk() && unflushedTimestamp != NullTimestamp
+        ? unflushedTimestamp
         : CalculateUnflushedTimestamp(latestTimestamp);
 }
 
 TTimestamp TTableNode::GetCurrentRetainedTimestamp() const
 {
     // COMPAT(savrus) Consider saved value only for non-trunk nodes.
-    return !IsTrunk() && RetainedTimestamp_ != NullTimestamp
-        ? RetainedTimestamp_
+    auto retainedTimestamp = GetRetainedTimestamp();
+    return !IsTrunk() && retainedTimestamp != NullTimestamp
+        ? retainedTimestamp
         : CalculateRetainedTimestamp();
 }
 
@@ -751,7 +764,8 @@ void TTableNode::ValidateReshard(
             }
 
             // Validate pivot keys against table schema.
-            auto heavySchema = GetSchema()->AsHeavyTableSchema();
+            const auto& tableManager = bootstrap->GetTableManager();
+            auto heavySchema = tableManager->GetHeavyTableSchemaSync(GetSchema());
             for (const auto& pivotKey : pivotKeys) {
                 ValidatePivotKey(pivotKey, *heavySchema);
             }

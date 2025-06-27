@@ -28,3 +28,15 @@ def alter_replication_card(
     set_param(params, "collocation_options", collocation_options)
 
     return make_request("alter_replication_card", params, client=client)
+
+
+def ping_chaos_lease(
+        chaos_lease_id,
+        client=None):
+    """Ping chaos lease.
+
+    :param str chaos_lease_id: chaos lease id.
+    """
+    params = {"chaos_lease_id": chaos_lease_id}
+
+    return make_request("ping_chaos_lease", params, client=client)

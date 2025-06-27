@@ -5,6 +5,7 @@
 #include <yt/yt/orm/library/attributes/helpers.h>
 
 #include <yt/yt/library/query/base/ast_visitors.h>
+#include <yt/yt/library/query/base/functions.h>
 
 #include <library/cpp/yt/assert/assert.h>
 #include <library/cpp/yt/misc/variant.h>
@@ -513,13 +514,78 @@ private:
     using TBaseAstVisitor<std::optional<int>, TGroupByOptimizer>::Visit;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TPushDownGroupByApplicabilityChecker
+    : public TAstVisitor<TPushDownGroupByApplicabilityChecker>
+{
+public:
+    using TBase = TAstVisitor<TPushDownGroupByApplicabilityChecker>;
+
+    explicit TPushDownGroupByApplicabilityChecker(TStringBuf joinedTable)
+        : JoinedTable_(joinedTable)
+    { }
+
+    void OnReference(TReferenceExpressionPtr referenceExpr)
+    {
+        IsApplicable_ &= AggregationFunctionsDepth_ > 0 && (referenceExpr->Reference.TableName == JoinedTable_);
+    }
+
+    void OnFunction(TFunctionExpressionPtr functionExpr)
+    {
+        const auto& functionName = functionExpr->FunctionName;
+        bool isAggregate = Functions_->GetFunction(functionName)->IsAggregate();
+
+        if (!isAggregate) {
+            TBase::OnFunction(functionExpr);
+            return;
+        }
+
+        if (!IsAggregationFunctionAllowed(functionName)) {
+            IsApplicable_ = false;
+            return;
+        }
+
+        if (IsIdempotentAggregationFunction(functionName)) {
+            return;
+        }
+
+        AggregationFunctionsDepth_++;
+        TBase::OnFunction(functionExpr);
+        AggregationFunctionsDepth_--;
+    }
+
+    bool Check(TExpressionPtr expression)
+    {
+        IsApplicable_ = true;
+        Visit(expression);
+        return IsApplicable_;
+    }
+
+private:
+    const NQueryClient::TConstTypeInferrerMapPtr Functions_ = NQueryClient::GetBuiltinTypeInferrers();
+    bool IsApplicable_ = true;
+    int AggregationFunctionsDepth_ = 0;
+    TStringBuf JoinedTable_;
+
+    static bool IsAggregationFunctionAllowed(TStringBuf function)
+    {
+        return function == "first" || function == "min" || function == "max" || function == "sum";
+    }
+
+    static bool IsIdempotentAggregationFunction(TStringBuf function)
+    {
+        return function == "first" || function == "min" || function == "max";
+    }
+};
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TryOptimizeJoin(TQuery* query)
 {
-    THROW_ERROR_EXCEPTION_UNLESS(query, "TryOptimizeJoin() received a nullptr query");
+    YT_VERIFY(query);
     TJoinOptimizer optimizer(query);
     return optimizer.Run();
 }
@@ -535,6 +601,53 @@ bool TryOptimizeGroupByWithUniquePrefix(
     }
     return TGroupByOptimizer(TReference(prefixReferences[0], tableName))
         .Run(filterExpression);
+}
+
+bool TryHintPushDownGroupBy(NQueryClient::NAst::TQuery* query)
+{
+    YT_VERIFY(query);
+
+    if (query->Joins.size() != 1) {
+        return false;
+    }
+    if (!query->GroupExprs) {
+        return false;
+    }
+
+    auto* join = std::get_if<TJoin>(&query->Joins[0]);
+
+    if (join == nullptr || !join->Table.Alias.has_value()) {
+        return false;
+    }
+
+    TPushDownGroupByApplicabilityChecker checker(*join->Table.Alias);
+
+    if (query->SelectExprs) {
+        for (auto* expression : *query->SelectExprs) {
+            if (!checker.Check(expression)) {
+                return false;
+            }
+        }
+    }
+
+    for (const auto& orderExpression : query->OrderExpressions) {
+        for (auto* expression : orderExpression.Expressions) {
+            if (!checker.Check(expression)) {
+                return false;
+            }
+        }
+    }
+
+    if (query->HavingPredicate) {
+        for (auto* expression : *query->HavingPredicate) {
+            if (!checker.Check(expression)) {
+                return false;
+            }
+        }
+    }
+
+    join->Table.Hint->PushDownGroupBy = true;
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

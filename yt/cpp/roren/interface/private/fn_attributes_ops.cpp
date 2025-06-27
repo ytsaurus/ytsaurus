@@ -12,6 +12,7 @@ void TFnAttributesOps::Merge(TFnAttributes& destination, const TFnAttributes& so
     for (const auto& resourceFile : source.ResourceFileList_) {
         destination.ResourceFileList_.push_back(resourceFile);
     }
+    destination.TimerIds_.insert(source.TimerIds_.begin(), source.TimerIds_.end());
 }
 
 bool TFnAttributesOps::GetIsPure(const TFnAttributes& attributes)
@@ -32,6 +33,16 @@ bool TFnAttributesOps::GetIsMove(const TFnAttributes& attributes)
 const std::vector<TString> TFnAttributesOps::GetResourceFileList(const TFnAttributes& attributes)
 {
     return attributes.ResourceFileList_;
+}
+
+void TFnAttributesOps::SetTimerIds(TFnAttributes& attributes, decltype(TFnAttributes::TimerIds_) timerIds)
+{
+    attributes.TimerIds_ = std::move(timerIds);
+}
+
+decltype(TFnAttributes::TimerIds_) TFnAttributesOps::GetTimerIds(const TFnAttributes& attributes)
+{
+    return attributes.TimerIds_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

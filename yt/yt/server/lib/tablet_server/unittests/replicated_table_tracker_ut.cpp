@@ -46,7 +46,7 @@ static const std::string Cluster2 = "ReplicaCluster2";
 static const TYPath TablePath1 = "//tmp/replica_table_1";
 static const TYPath TablePath2 = "//tmp/replica_table_2";
 
-static const TString BundleName = "default";
+static const std::string BundleName = "default";
 
 using TStrictMockClient = StrictMock<TMockClient>;
 using TStrictMockClientPtr = TIntrusivePtr<TStrictMockClient>;

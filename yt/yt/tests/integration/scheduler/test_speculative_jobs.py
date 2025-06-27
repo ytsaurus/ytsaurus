@@ -255,7 +255,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
             "map_operation_options": {
                 "job_splitter": {
                     "min_job_time": 500,
-                    "min_total_data_size": 1000 ** 3,  # makes jobs unsplittable
+                    "min_total_data_weight": 1000 ** 3,  # makes jobs unsplittable
                     "update_period": 100,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
@@ -312,7 +312,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT; cat"),
             spec={
                 "job_io": {"buffer_row_count": 1},
-                "data_weight_per_job": 1 * 10 ** 7,
+                "job_count": 3,
             },
         )
         wait_breakpoint(job_count=6)
@@ -333,7 +333,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
             command=with_breakpoint("BREAKPOINT; cat"),
             spec={
                 "job_io": {"buffer_row_count": 1},
-                "data_weight_per_job": 1 * 10 ** 7,
+                "job_count": 3,
                 "max_speculative_job_count_per_task": 1,
             },
         )

@@ -41,6 +41,7 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   server-lib-exec_node
   server-lib-rpc_proxy
   server-lib-shell
+  server-lib-shuffle_server
   server-lib-user_job
   yt-server-tools
   yt-library-sparse_coredump
@@ -48,6 +49,7 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   library-profiling-solomon
   library-tracing-jaeger
   yt-library-server_program
+  yt-library-signals
 )
 
 target_sources(yt-server-job_proxy PRIVATE
@@ -64,10 +66,12 @@ target_sources(yt-server-job_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/merge_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/partition_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/partition_sort_job.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/remote_copy_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/shallow_merge_job.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/signature_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/simple_sort_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/sorted_merge_job.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/job_proxy/stderr_writer.cpp

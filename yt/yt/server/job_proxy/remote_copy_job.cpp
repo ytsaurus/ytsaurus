@@ -77,7 +77,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = JobProxyLogger;
+constinit const auto Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,7 +302,6 @@ public:
     TStatistics GetStatistics() const override
     {
         return {
-            .ChunkReaderStatistics = ReadBlocksOptions_.ClientOptions.ChunkReaderStatistics,
             .ChunkWriterStatistics = {WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics},
             .TotalInputStatistics = {
                 .DataStatistics = DataStatistics_,
@@ -781,13 +780,13 @@ private:
             erasedPartIndices,
             repairPartIndices);
 
-        TChunkReplicaWithMediumList repairSeedReplicas;
+        TChunkReplicaList repairSeedReplicas;
         repairSeedReplicas.reserve(repairPartIndices.size());
         for (auto repairPartIndex : repairPartIndices) {
             auto writtenReplicas = (*partWriters)[repairPartIndex]->GetWrittenChunkReplicasInfo().Replicas;
             YT_VERIFY(writtenReplicas.size() == 1);
             auto writtenReplica = writtenReplicas.front();
-            repairSeedReplicas.emplace_back(writtenReplica.GetNodeId(), repairPartIndex, writtenReplica.GetMediumIndex());
+            repairSeedReplicas.emplace_back(writtenReplica.GetNodeId(), repairPartIndex);
         }
 
         TChunkReplicaWithMediumList erasedTargetReplicas;
@@ -799,7 +798,7 @@ private:
         auto repairPartReaders = CreateErasurePartReaders(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
-            Host_->GetChunkReaderHost(),
+            Host_->GetChunkReaderHost()->CreateHostForCluster(NScheduler::LocalClusterName),
             outputSessionId.ChunkId,
             std::move(repairSeedReplicas),
             repairPartIndices,
@@ -872,8 +871,6 @@ private:
         auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
         auto inputReplicas = GetReplicasFromChunkSpec(inputChunkSpec);
 
-        TDeferredChunkMetaPtr chunkMeta;
-
         YT_VERIFY(!inputChunkSpec.use_proxying_data_node_service());
 
         auto reader = CreateReplicationReader(
@@ -883,7 +880,7 @@ private:
             inputChunkId,
             std::move(inputReplicas));
 
-        chunkMeta = GetChunkMeta(inputChunkId, {reader});
+        auto chunkMeta = GetChunkMeta(inputChunkId, {reader});
         ReplaceHunkChunkIds(chunkMeta);
         ReplaceCompressionDictionaryIds(chunkMeta, inputChunkId);
 
@@ -1139,26 +1136,16 @@ private:
             clusterName = FromProto<TClusterName>(RemoteCopyJobSpecExt_.remote_cluster_name());
         }
 
-        auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
-            auto thisLocked = weakThis.Lock();
-            if (!thisLocked) {
-                return IThroughputThrottlerPtr();
-            }
-
-            return Host_->GetInBandwidthThrottler(clusterName);
-        });
-
         return New<TChunkReaderHost>(
             RemoteClient_,
             Host_->LocalDescriptor(),
             Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            bandwidthThrottlerFactory(clusterName),
+            Host_->GetInBandwidthThrottler(clusterName),
             Host_->GetOutRpsThrottler(),
             /*mediumThrottler*/ GetUnlimitedThrottler(),
-            Host_->GetTrafficMeter(),
-            std::move(bandwidthThrottlerFactory));
+            Host_->GetTrafficMeter());
     }
 
     void ReplaceHunkChunkIds(const TDeferredChunkMetaPtr& chunkMeta)

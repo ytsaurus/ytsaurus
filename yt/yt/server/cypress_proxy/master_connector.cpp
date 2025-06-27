@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/sequoia_client/sequoia_reign.h>
+
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/net/address.h>
@@ -25,6 +27,7 @@ namespace NYT::NCypressProxy {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NHydra;
 using namespace NNet;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
@@ -33,7 +36,7 @@ using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto Logger = CypressProxyLogger();
+constinit const auto Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,18 +63,30 @@ public:
         Executor_->ScheduleOutOfBand();
     }
 
-    bool IsRegistered() override
+    bool IsUp() const override
     {
         return RegistrationError_.Read([] (const TError& error) {
-            return error.IsOK();
+            return
+                error.IsOK() ||
+                error.GetCode() == NSequoiaClient::EErrorCode::InvalidSequoiaReign;
         });
     }
 
-    void ValidateRegistration() override
+    void ValidateRegistration() const override
     {
         RegistrationError_.Read([] (const TError& error) {
             error.ThrowOnError();
         });
+    }
+
+    TReign GetMasterReign() const override
+    {
+        return MasterReign_.Load();
+    }
+
+    int GetMaxCopiableSubtreeSize() const override
+    {
+        return MaxCopiableSubtreeSize_.Load();
     }
 
 private:
@@ -80,18 +95,14 @@ private:
     const TPeriodicExecutorPtr Executor_;
 
     TAtomicObject<TError> RegistrationError_;
-
-    // NB: when master is in read-only mode heartbeats should not be sent to
-    // leader since there is no active leader.
-    bool RequireLeader_ = true;
+    TAtomicObject<TReign> MasterReign_;
+    TAtomicObject<int> MaxCopiableSubtreeSize_;
 
     void Heartbeat()
     {
         auto connection = Bootstrap_->GetNativeConnection();
         auto channel = connection->GetMasterChannelOrThrow(
-            RequireLeader_
-                ? EMasterChannelKind::Leader
-                : EMasterChannelKind::Follower,
+            EMasterChannelKind::Follower,
             PrimaryMasterCellTagSentinel);
         auto proxy = TCypressProxyTrackerServiceProxy(std::move(channel));
         auto request = proxy.Heartbeat();
@@ -99,34 +110,35 @@ private:
         request->set_sequoia_reign(ToProto(GetCurrentSequoiaReign()));
         request->set_version(GetVersion());
 
-        auto error = WaitFor(request->Invoke());
-
-        if (!error.IsOK()) {
-            if (error.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
-                YT_LOG_ALERT(error, "Failed to send heartbeat; retrying");
+        auto rspOrError = WaitFor(request->Invoke());
+        if (!rspOrError.IsOK()) {
+            if (rspOrError.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
+                YT_LOG_ALERT(rspOrError, "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
+                    GetCurrentSequoiaReign(),
+                    GetVersion());
             } else {
-                // TODO(kvk1920): Consider to not log "master in read-only mode"
-                // many times.
-                YT_LOG_ERROR(error, "Failed to send heartbeat; retrying");
+                YT_LOG_ERROR(rspOrError, "Failed to send heartbeat (CurrentSequoiaReign: %v, Version: %v)",
+                    GetCurrentSequoiaReign(),
+                    GetVersion());
             }
 
-            // Cypress proxies should remain available during master restart and
-            // read-only mode.
-            if (auto readOnly = error.FindMatching(NHydra::EErrorCode::ReadOnly); IsRetriableError(error) || readOnly) {
-                // Fallback to mutation-less protocol.
-                RequireLeader_ = !readOnly;
-                return;
-            }
+            auto error = WrapCypressProxyRegistrationError(std::move(rspOrError));
 
-            error = WrapCypressProxyRegistrationError(std::move(error));
-        } else if (!IsRegistered()) {
-            YT_LOG_DEBUG("Cypress proxy registered at primary master");
+            RegistrationError_.Store(std::move(error));
+            MasterReign_.Store(0);
+            MaxCopiableSubtreeSize_.Store(0);
+
+            return;
         }
 
-        // By default require leader to update last seen time.
-        RequireLeader_ = true;
+        auto rsp = rspOrError.Value();
+        auto reign = rsp->master_reign();
+        MasterReign_.Store(reign);
+        MaxCopiableSubtreeSize_.Store(rsp->limits().max_copiable_subtree_size());
 
-        RegistrationError_.Store(std::move(error));
+        if (!RegistrationError_.Exchange(TError{}).IsOK()) {
+            YT_LOG_DEBUG("Cypress proxy registered at primary master (MasterReign: %v)", reign);
+        }
     }
 };
 

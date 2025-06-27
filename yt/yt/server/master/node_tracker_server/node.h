@@ -129,7 +129,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
     DEFINE_BYVAL_RW_PROPERTY(NYson::TYsonString, Annotations);
-    DEFINE_BYVAL_RW_PROPERTY(TString, Version);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, Version);
 
     DEFINE_BYREF_RO_PROPERTY(THashSet<ENodeFlavor>, Flavors);
 
@@ -184,7 +184,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TExecNodeStatistics, ExecNodeStatistics);
     void SetExecNodeStatistics(NNodeTrackerClient::NProto::TExecNodeStatistics&& statistics);
 
-    DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, JobProxyVersion);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<std::string>, JobProxyVersion);
 
     // Chunk Manager stuff.
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TDataNodeStatistics, DataNodeStatistics);
@@ -269,6 +269,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TSequenceNumberMap, AwaitingHeartbeatChunkIds);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TChunkId>, RemovalJobScheduledChunkIds);
 
+    DEFINE_BYREF_RW_PROPERTY(TMediumMap<i64>, MediumToWriteSessionCountLimit);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, WriteSessionLimit);
+
+
 public:
     explicit TNode(NObjectServer::TObjectId objectId);
 
@@ -294,7 +298,7 @@ public:
      */
     TDataCenter* GetDataCenter() const;
 
-    bool HasTag(const std::optional<TString>& tag) const;
+    bool HasTag(const std::optional<std::string>& tag) const;
 
     //! Prepares per-cell state map.
     //! Inserts new entries into the map, fills missing ones with ENodeState::Offline value.
@@ -304,8 +308,8 @@ public:
         const THashSet<NObjectClient::TCellTag>& dynamicallyPropagatedMastersCellTags,
         bool allowMasterCellRemoval);
 
-    //! Recomputes node IO weights from statistics.
-    void RecomputeIOWeights(const NChunkServer::IChunkManagerPtr& chunkManager);
+    //! Recomputes node IO weights and write session count limits from statistics.
+    void RecomputeMediumStatistics(const NChunkServer::IChunkManagerPtr& chunkManager);
 
     //! Gets the local state by dereferencing local descriptor pointer.
     ENodeState GetLocalState() const;
@@ -367,12 +371,15 @@ public:
     void AddSessionHint(int mediumIndex, NChunkClient::ESessionType sessionType);
 
     int GetTotalSessionCount() const;
+    int GetTotalHintedSessionCount(int chunkHostMasterCellCount) const;
 
     int GetCellarSize(NCellarClient::ECellarType) const;
 
     // Returns true iff the node has at least one location belonging to the
     // specified medium.
     bool HasMedium(int mediumIndex) const;
+
+    int GetHintedSessionCount(int mediumIndex, int chunkHostMasterCellCount) const;
 
     //! Returns null if there's no storage of specified medium on this node.
     std::optional<double> GetFillFactor(int mediumIndex) const;
@@ -449,8 +456,6 @@ private:
     void ValidateReliabilityTransition(
         ECellAggregatedStateReliability currentReliability,
         ECellAggregatedStateReliability newReliability) const;
-
-    int GetHintedSessionCount(int mediumIndex, int chunkHostMasterCellCount) const;
 
     void ComputeAggregatedState();
     void ComputeDefaultAddress();

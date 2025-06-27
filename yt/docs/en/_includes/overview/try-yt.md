@@ -30,14 +30,14 @@ Regardless of the installation method, the required system components will be de
       - If you're using Linux x86_64, install [Docker Engine](https://docs.docker.com/engine/install/ubuntu/).
       - If you're using MacOS, install either [Docker Desktop](https://docs.docker.com/desktop/setup/install/mac-install/) or [Podman](https://podman.io/docs/installation). Make sure that you have [Rosetta 2](https://support.apple.com/en-us/102527) installed and enabled.
 
-  1. Download the [run_local_cluster.sh](https://github.com/ytsaurus/ytsaurus/tree/main/yt/docker/local) script for deploying the cluster, and set execution permissions:
+  2. Download the [run_local_cluster.sh](https://github.com/ytsaurus/ytsaurus/tree/main/yt/docker/local) script for deploying the cluster, and set execution permissions:
      ```bash
      mkdir ~/yt-local && cd ~/yt-local
      curl -s https://raw.githubusercontent.com/ytsaurus/ytsaurus/main/yt/docker/local/run_local_cluster.sh > run_local_cluster.sh
      chmod +x run_local_cluster.sh
      ```
 
-  1. Run the script to deploy the cluster:
+  3. Run the script to deploy the cluster:
      ```bash
      ./run_local_cluster.sh
      ```
@@ -51,7 +51,7 @@ Regardless of the installation method, the required system components will be de
      - `localhost:8001` is the web interface address. You can open it in your browser.
      - `localhost:8000` is the cluster's backend address. You'll need to [specify](#set-vars) it as the proxy address to access the cluster via the CLI.
 
-  1. To make sure everything works correctly, run the following command:
+  4. To make sure everything works correctly, run the following command:
      ```bash
      $ docker ps | grep yt
      CONTAINER ID   IMAGE                           COMMAND                  CREATED         STATUS         PORTS              NAMES
@@ -93,7 +93,7 @@ Regardless of the installation method, the required system components will be de
 
        {% endcut %}
 
-  1. Done! Now {{product-name}} is deployed and ready for use. You may proceed to the next step. After you finish working with the examples, remember to [delete](#stop-cluster) the cluster.
+  5. Done! Now {{product-name}} is deployed and ready for use. You may proceed to the next step. After you finish working with the examples, remember to [delete](#stop-cluster) the cluster.
 
 - Minikube
 
@@ -102,7 +102,7 @@ Regardless of the installation method, the required system components will be de
   {% note warning "Resource requirements" %}
 
   To successfully deploy {{product-name}} on a Kubernetes cluster, the host machine must have:
-  - At least 4 CPU cores.
+  - At least four CPU cores.
   - At least 8 GB of RAM.
   - At least 30 GB of disk space.
 
@@ -411,7 +411,7 @@ $ yt read-table //home/input_table --format json
 {"id":1,"text":"World!"}
 ```
 
-Another way to read a table is by running a [SELECT](../../yql/syntax/select.md) query in the web interface. To do this, go to the **Queries** tab and enter the following query:
+Another way to read a table is by running a [SELECT](../../yql/syntax/select/index.md) query in the web interface. To do this, go to the **Queries** tab and enter the following query:
 
 ```sql
 SELECT * FROM `//home/input_table`;
@@ -604,9 +604,10 @@ For more information about using the web interface, watch the [introductory webi
 
 {% endcut %}
 
+
 ## Troubleshooting
 
-If you're having trouble getting something to work, don't hesitate to ask your questions in our {% if lang == "ru" %}[community Telegram chat](https://t.me/ytsaurus_ru){% else %}[community Telegram chat](https://t.me/ytsaurus){% endif %}. We'll do our best to help you.
+If you're having trouble getting something to work, don't hesitate to ask your questions in our [community Telegram chat]({{community-tg}}). We'll do our best to help you.
 
 To share your suggestions or comments on the documentation, [create an issue](https://github.com/ytsaurus/ytsaurus/issues) in the project's GitHub repository. Your feedback is always welcome; it helps us make the documentation more informative.
 

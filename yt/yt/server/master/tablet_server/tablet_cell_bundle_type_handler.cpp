@@ -42,7 +42,7 @@ public:
         auto options = attributes->GetAndRemove<TTabletCellOptionsPtr>("options");
         auto holder = TPoolAllocator::New<TTabletCellBundle>(id);
         holder->ResourceUsage().Initialize(Bootstrap_);
-        holder->ResourceLimits().TabletCount = DefaultTabletCountLimit;
+        holder->ResourceLimits().SetTabletCount(DefaultTabletCountLimit);
         return DoCreateObject(std::move(holder), attributes, std::move(options));
     }
 

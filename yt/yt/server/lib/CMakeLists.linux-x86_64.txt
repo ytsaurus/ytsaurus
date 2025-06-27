@@ -56,10 +56,10 @@ add_subdirectory(sequoia)
 add_subdirectory(user_job)
 add_subdirectory(logging)
 add_subdirectory(shell)
+add_subdirectory(shuffle_server)
 add_subdirectory(chaos_cache)
 add_subdirectory(alert_manager)
 add_subdirectory(state_checker)
-add_subdirectory(shuffle_server)
 
 add_library(ytserver INTERFACE)
 

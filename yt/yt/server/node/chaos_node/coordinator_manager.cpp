@@ -404,7 +404,6 @@ private:
                 << TErrorAttribute("shortcut_era", it->second.Era)
                 << TErrorAttribute("replication_card_era", era);
         }
-        InsertOrCrash(it->second.AliveTransactions, transaction->GetId());
 
         auto chaosLeaseIds = FromProto<std::vector<TChaosLeaseId>>(request->prerequisite_ids());
         for (const auto& chaosLeaseId : chaosLeaseIds) {
@@ -419,6 +418,8 @@ private:
                     << TErrorAttribute("shortcut_state", it->second.State);
             }
         }
+
+        InsertOrCrash(it->second.AliveTransactions, transaction->GetId());
 
         for (const auto& chaosLeaseId : chaosLeaseIds) {
             auto it = GetIteratorOrCrash(Shortcuts_, chaosLeaseId);

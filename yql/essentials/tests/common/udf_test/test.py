@@ -15,7 +15,6 @@ project_path = yatest.common.context.project_path
 SOURCE_PATH = yql_utils.yql_source_path((project_path + '/cases').replace('\\', '/'))
 DATA_PATH = yatest.common.output_path('cases')
 ASTDIFF_PATH = yql_utils.yql_binary_path(os.getenv('YQL_ASTDIFF_PATH') or 'yql/essentials/tools/astdiff/astdiff')
-DEFAULT_LANG_VER = '2025.01'
 
 
 def pytest_generate_tests(metafunc):
@@ -79,14 +78,17 @@ def test(case):
     if yql_utils.get_param('TARGET_PLATFORM') and xfail:
         pytest.skip('xfail is not supported on non-default target platform')
     langver = yql_utils.get_langver(cfg)
-    if langver is None:
-        langver = DEFAULT_LANG_VER
+    envs = yql_utils.get_envs(cfg)
+    if not langver:
+        langver = "unknown"
+    # no default version, because UDFs may have different release cycles
 
     extra_env = dict(os.environ)
     extra_env["YQL_UDF_RESOLVER"] = "1"
     extra_env["YQL_ARCADIA_BINARY_PATH"] = os.path.expandvars(yatest.common.build_path('.'))
     extra_env["YQL_ARCADIA_SOURCE_PATH"] = os.path.expandvars(yatest.common.source_path('.'))
     extra_env["Y_NO_AVX_IN_DOT_PRODUCT"] = "1"
+    extra_env.update(envs)
 
     # this breaks tests using V0 syntax
     if "YA_TEST_RUNNER" in extra_env:

@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/api/native/transaction.h>
 
-#include <library/cpp/yt/logging/logger.h>
-
 #include <library/cpp/yt/memory/shared_range.h>
 
 namespace NYT::NSequoiaClient {
@@ -124,11 +122,10 @@ namespace NDetail {
 TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr client,
     ESequoiaTransactionType type,
-    NApi::NNative::IClientPtr nativeRootClient,
-    NApi::NNative::IClientPtr groundRootClient,
-    const std::vector<NObjectClient::TTransactionId>& cypressPrerequisiteTransactionIds,
-    const NApi::TTransactionStartOptions& options,
-    const TSequoiaTransactionSequencingOptions& sequencingOptions);
+    NApi::NNative::IClientPtr localClient,
+    NApi::NNative::IClientPtr groundClient,
+    const NApi::TTransactionStartOptions& transactionStartOptions,
+    const TSequoiaTransactionOptions& sequoiaTransactionOptions);
 
 } // namespace NDetail
 

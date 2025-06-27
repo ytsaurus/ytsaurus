@@ -16,14 +16,12 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkStripe::TChunkStripe(bool foreign, bool solid)
+TChunkStripe::TChunkStripe(bool foreign)
     : Foreign(foreign)
-    , Solid(solid)
 { }
 
-TChunkStripe::TChunkStripe(TLegacyDataSlicePtr dataSlice, bool foreign, bool solid)
+TChunkStripe::TChunkStripe(TLegacyDataSlicePtr dataSlice, bool foreign)
     : Foreign(foreign)
-    , Solid(solid)
 {
     DataSlices.emplace_back(std::move(dataSlice));
 }
@@ -81,7 +79,12 @@ void TChunkStripe::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, DataSlices);
     PHOENIX_REGISTER_FIELD(2, WaitingChunkCount);
     PHOENIX_REGISTER_FIELD(3, Foreign);
-    PHOENIX_REGISTER_FIELD(4, Solid);
+    // COMPAT(apollo1321): Remove in 25.3.
+    registrar
+        .template VirtualField<4>("Solid", [] (TThis* /*this_*/, auto& context) {
+            Load<bool>(context);
+        })
+        .BeforeVersion(ESnapshotVersion::DropSolidFromChunkStripe)();
     PHOENIX_REGISTER_FIELD(5, ChunkListId);
     PHOENIX_REGISTER_FIELD(6, BoundaryKeys);
     PHOENIX_REGISTER_FIELD(7, PartitionTag);

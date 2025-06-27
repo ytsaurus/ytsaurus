@@ -98,8 +98,11 @@ select  store.s_store_name
      cross join store cross join
      (select ca_zip
      from (
-     select * from $bla1 bla1 left semi join $bla2 bla2 using (ca_zip)
-      )A2) V1
+      select
+        bla1.ca_zip as ca_zip
+      from any $bla1 bla1
+      join any $bla2 bla2 on Pickle(bla1.ca_zip) == Pickle(bla2.ca_zip)
+     ) A2) V1
  where ss_sold_date_sk = d_date_sk
   and ss_store_sk = s_store_sk
   and d_qoy = 2 and d_year = 1998

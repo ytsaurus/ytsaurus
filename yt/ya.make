@@ -17,7 +17,6 @@ RECURSE(
     cron
 )
 
-
 IF (NOT OPENSOURCE)
     # Yandex-specific parts of YT.
     RECURSE(

@@ -1,12 +1,12 @@
 #include "error_manager.h"
+
 #include "bootstrap.h"
+#include "config.h"
 #include "tablet.h"
 #include "tablet_snapshot_store.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/core/concurrency/fls.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -30,6 +30,10 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constinit const auto Logger = TabletNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -38,7 +42,7 @@ NConcurrency::TFlsSlot<TErrorManagerContext> Context;
 
 struct TDeduplicationKey
 {
-    TString TabletCellBundle;
+    std::string TabletCellBundle;
     NTableClient::TTableId TableId;
     NTabletClient::TTabletId TabletId;
     std::string Method;
@@ -71,6 +75,14 @@ using TDeduplicationCache = TSyncExpiringCache<TDeduplicationKey, std::monostate
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+TErrorManagerContext::TErrorManagerContext(const TTabletSnapshotPtr& tabletSnapshot)
+    : TabletCellBundle(tabletSnapshot->TabletCellBundle)
+    , TablePath(tabletSnapshot->TablePath)
+    , TableId(tabletSnapshot->TableId)
+    , TabletId(tabletSnapshot->TabletId)
+{ }
+
 TErrorManagerContext::operator bool() const
 {
     return TabletCellBundle && TablePath && TableId && TabletId;
@@ -88,16 +100,6 @@ void SetErrorManagerContext(TErrorManagerContext context)
 {
     YT_ASSERT(context);
     *Context = std::move(context);
-}
-
-void SetErrorManagerContextFromTabletSnapshot(const TTabletSnapshotPtr& tabletSnapshot)
-{
-    SetErrorManagerContext({
-        .TabletCellBundle = tabletSnapshot->TabletCellBundle,
-        .TablePath = tabletSnapshot->TablePath,
-        .TableId = tabletSnapshot->TableId,
-        .TabletId = tabletSnapshot->TabletId,
-    });
 }
 
 void ResetErrorManagerContext()
@@ -151,15 +153,21 @@ public:
         DeduplicationCache_->SetExpirationTimeout(config->DeduplicationCacheTimeout);
     }
 
-    void HandleError(const TError& error, const TString& method) override
+    void HandleError(const TError& error, const std::string& method, TErrorManagerContext context) override
     {
-        auto context = *Context;
+        if (!context) {
+            context = *Context;
+        }
 
         if (!context) {
             ExtractContext(error, &context);
-            if (!context) {
-                return;
-            }
+        }
+
+        if (!context) {
+            YT_LOG_WARNING("No error manager context for error handling (Error: %Qv, Method: %v)",
+                error.GetMessage(),
+                method);
+            return;
         }
 
         TDeduplicationKey deduplicationKey(context, method, error.GetMessage());
@@ -212,7 +220,7 @@ private:
         const auto& attributes = error.Attributes();
 
         if (!context->TabletCellBundle) {
-            context->TabletCellBundle = attributes.Find<TString>("tablet_cell_bundle");
+            context->TabletCellBundle = attributes.Find<std::string>("tablet_cell_bundle");
         }
         if (!context->TablePath) {
             context->TablePath = attributes.Find<TYPath>("table_path");

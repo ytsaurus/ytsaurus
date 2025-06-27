@@ -12,7 +12,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NTableClient;
 
-static constexpr auto& Logger = CategoryRegistryLogger;
+constinit const auto Logger = CategoryRegistryLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

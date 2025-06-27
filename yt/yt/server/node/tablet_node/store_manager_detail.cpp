@@ -1,13 +1,15 @@
 #include "store_manager_detail.h"
+
+#include "config.h"
+#include "hunk_chunk.h"
+#include "in_memory_manager.h"
 #include "private.h"
+#include "serialize.h"
+#include "store.h"
+#include "structured_logger.h"
 #include "tablet.h"
 #include "tablet_slot.h"
-#include "store.h"
-#include "hunk_chunk.h"
-#include "structured_logger.h"
-#include "in_memory_manager.h"
 #include "transaction.h"
-#include "serialize.h"
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -173,33 +175,40 @@ void TStoreManagerBase::UnscheduleRotation()
     RotationScheduled_ = false;
 }
 
-void TStoreManagerBase::AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint)
+void TStoreManagerBase::AddStore(
+    IStorePtr store,
+    bool useInterceptedChunkData,
+    bool onFlush,
+    TPartitionId partitionIdHint)
 {
     Tablet_->AddStore(store, onFlush, partitionIdHint);
-
-    if (onMount) {
-        // After mount preload will be performed in StartEpoch
-        return;
-    }
 
     if (store->IsChunk()) {
         auto chunkStore = store->AsChunk();
         if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
-            auto chunkData = InMemoryManager_->EvictInterceptedChunkData(chunkStore->GetId());
-            if (!TryPreloadStoreFromInterceptedData(chunkStore, chunkData)) {
-                Tablet_->PreloadStoreIds().push_back(store->GetId());
+            bool shouldSchedulePreload = true;
+
+            if (useInterceptedChunkData) {
+                auto chunkData = InMemoryManager_->EvictInterceptedChunkData(chunkStore->GetId());
+                if (TryPreloadStoreFromInterceptedData(chunkStore, chunkData)) {
+                    shouldSchedulePreload = false;
+                }
+            }
+
+            if (shouldSchedulePreload) {
                 YT_LOG_INFO("Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
+                Tablet_->PreloadStoreIds().push_back(store->GetId());
             }
         }
     }
 }
 
-void TStoreManagerBase::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
+void TStoreManagerBase::BulkAddStores(TRange<IStorePtr> stores)
 {
     TBulkInsertProfiler bulkInsertProfiler(Tablet_);
     for (auto store : stores) {
         bulkInsertProfiler.Update(store);
-        AddStore(std::move(store), onMount, /*onFlush*/ false);
+        AddStore(std::move(store), /*useInterceptedChunkData*/ false, /*onFlush*/ false);
     }
 }
 
@@ -463,7 +472,7 @@ void TStoreManagerBase::Mount(
             storeId,
             descriptor);
         store->Initialize();
-        AddStore(store->AsChunk(), /*onMount*/ true, /*onFlush*/ false);
+        AddStore(store->AsChunk(), /*useInterceptedChunkData*/ false, /*onFlush*/ false);
 
         if (auto chunkStore = store->AsChunk()) {
             for (const auto& ref : chunkStore->HunkChunkRefs()) {
@@ -518,6 +527,12 @@ void TStoreManagerBase::PopulateReplicateTabletContentRequest(
     if (const auto& activeStore = Tablet_->GetActiveStore()) {
         ToProto(request->mutable_active_store_id(), activeStore->GetId());
     }
+
+    for (const auto& policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
+        ToProto(
+            request->add_compression_dictionaries_by_policy(),
+            Tablet_->GetCompressionDictionaryId(policy));
+    }
 }
 
 void TStoreManagerBase::LoadReplicatedContent(
@@ -554,13 +569,29 @@ void TStoreManagerBase::LoadReplicatedContent(
             }
 
             store->Initialize();
-            AddStore(store, /*onMount*/ false, /*onFlush*/ false, partitionId);
+            AddStore(store, /*useInterceptedChunkData*/ false, /*onFlush*/ false, partitionId);
 
             if (store->IsChunk()) {
                 for (const auto& ref : store->AsChunk()->HunkChunkRefs()) {
                     Tablet_->UpdateHunkChunkRef(ref, +1);
                 }
             }
+        }
+    }
+
+    // TODO(ifsmirnov): reign promotion is a nuisance for smooth movement, YT-25347.
+    // This may be technically incorrect with respect to the persistent state
+    // if the size of the enum changes, but still, this is not very important part
+    // of the state and snapshot validation alerts should be the worst consequence.
+    {
+        const auto& policies = TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues();
+        int policyCount = std::min<int>(
+            request->compression_dictionaries_by_policy().size(),
+            ssize(policies));
+        for (int index = 0; index < policyCount; ++index) {
+            Tablet_->AttachCompressionDictionary(
+                policies[index],
+                FromProto<TChunkId>(request->compression_dictionaries_by_policy()[index]));
         }
     }
 
@@ -652,7 +683,7 @@ bool TStoreManagerBase::IsOverflowRotationNeeded() const
     return
         activeStore->GetRowCount() >= threshold * mountConfig->MaxDynamicStoreRowCount ||
         activeStore->GetValueCount() >= threshold * mountConfig->MaxDynamicStoreValueCount ||
-        activeStore->GetTimestampCount() >= threshold * mountConfig->MaxDynamicStoreTimestampCount ||
+        activeStore->GetTimestampCount() >= threshold * activeStore->ClampMaxDynamicStoreTimestampCount(mountConfig->MaxDynamicStoreTimestampCount) ||
         activeStore->GetPoolSize() >= threshold * mountConfig->MaxDynamicStorePoolSize;
 }
 
@@ -678,11 +709,14 @@ TError TStoreManagerBase::CheckOverflow() const
             << TErrorAttribute("value_count_limit", mountConfig->MaxDynamicStoreValueCount);
     }
 
-    if (activeStore->GetTimestampCount() >= mountConfig->MaxDynamicStoreTimestampCount) {
+    auto clampedMaxDynamicStoreTimestampCount = activeStore->ClampMaxDynamicStoreTimestampCount(mountConfig->MaxDynamicStoreTimestampCount);
+
+    if (activeStore->GetTimestampCount() >= clampedMaxDynamicStoreTimestampCount) {
         return TError("Dynamic store timestamp count limit reached")
             << TErrorAttribute("store_id", activeStore->GetId())
             << TErrorAttribute("timestamp_count", activeStore->GetTimestampCount())
-            << TErrorAttribute("timestamp_count_limit", mountConfig->MaxDynamicStoreTimestampCount);
+            << TErrorAttribute("timestamp_count_limit", clampedMaxDynamicStoreTimestampCount)
+            << TErrorAttribute("config_timestamp_count_limit", mountConfig->MaxDynamicStoreTimestampCount);
     }
 
     if (activeStore->GetPoolSize() >= mountConfig->MaxDynamicStorePoolSize) {
@@ -804,7 +838,7 @@ void TStoreManagerBase::UpdateInMemoryMode()
             auto chunkStore = store->AsChunk();
             chunkStore->SetInMemoryMode(mode);
             if (chunkStore->GetPreloadState() == EStorePreloadState::Scheduled) {
-                chunkStore->UpdatePreloadAttempt(false);
+                chunkStore->UpdatePreloadAttempt(/*isBackoff*/ false);
                 Tablet_->PreloadStoreIds().push_back(store->GetId());
                 YT_LOG_INFO("Scheduled preload of in-memory store (StoreId: %v)", store->GetId());
             }
@@ -845,4 +879,3 @@ void TStoreManagerBase::ResetLastPeriodicRotationTime()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

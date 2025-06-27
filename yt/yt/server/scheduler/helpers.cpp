@@ -196,7 +196,7 @@ TJobResources ComputeAvailableResources(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(IOperationStrategyHost* operation, const TString& treeId)
+TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(const IOperationStrategyHostPtr& operation, const TString& treeId)
 {
     return GetOrCrash(operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree, treeId);
 }
@@ -346,9 +346,13 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"user_job/gpu/cumulative_load", "Time during which GPU load was non-zero", "ms"},
         {"user_job/gpu/cumulative_memory_mb_sec", "Integral of GPU memory usage", "sec * MB"},
         {"user_job/gpu/cumulative_power", "Integral of GPU power usage", "ms * power"},
-        {"user_job/gpu/cumulative_clocks_sm", "Integral of GPU frequency usage", "ms * frequency"},
+        {"user_job/gpu/cumulative_sm_clocks", "Integral of GPU frequency usage", "ms * frequency"},
         {"user_job/gpu/cumulative_tensor_activity", "Time during which GPU tensor (HMMA) pipe was active", "ms"},
         {"user_job/gpu/cumulative_dram_activity", "Time during which GPU memory interface was active sending or receiving data", "ms"},
+        {"user_job/gpu/cumulative_sw_thermal_slowdown", "Time during which the GPU experienced software thermal slowdown", "ms"},
+        {"user_job/gpu/cumulative_hw_thermal_slowdown", "Time during which the GPU experienced hardware thermal slowdown", "ms"},
+        {"user_job/gpu/cumulative_hw_power_brake_slowdown", "Time during which the GPU experienced hardware power brake slowdown", "ms"},
+        {"user_job/gpu/cumulative_hw_slowdown", "Time during which the GPU experienced hardware slowdown", "ms"},
         {"user_job/gpu/max_memory_used", "Maximum registered GPU memory usage", "bytes"},
         {"user_job/gpu/memory_total", "Total available GPU memory", "bytes"},
 

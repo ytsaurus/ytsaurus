@@ -5,8 +5,8 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 SRCS(
     helpers.cpp
     lsm_backend.cpp
-    partition_balancer.cpp
     partition.cpp
+    partition_balancer.cpp
     store.cpp
     store_compactor.cpp
     store_rotator.cpp

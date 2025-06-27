@@ -30,6 +30,7 @@ struct TYqlPluginOptions
     NYson::TYsonString Libraries;
 
     TString YTTokenPath;
+    TString UIOrigin;
 
     THolder<TLogBackend> LogBackend;
 

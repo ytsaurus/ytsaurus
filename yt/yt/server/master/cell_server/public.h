@@ -86,6 +86,7 @@ YT_DEFINE_ERROR_ENUM(
     ((NodeFilterMismatch)           (1404))
     ((CellDidNotAppearWithinTimeout)(1405))
     ((MasterCellNotReady)           (1406))
+    ((CompactSchemaParseError)      (1407))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

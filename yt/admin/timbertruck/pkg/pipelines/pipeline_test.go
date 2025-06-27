@@ -2,6 +2,7 @@ package pipelines_test
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path"
 	"testing"
@@ -22,7 +23,7 @@ func TestSimpleFilePipeline(t *testing.T) {
 	err := os.WriteFile(testFile, []byte(testData), 0644)
 	require.NoError(t, err)
 
-	p, lineBytesStream, err := pipelines.NewTextPipeline(testFile, pipelines.FilePosition{}, pipelines.TextPipelineOptions{
+	p, lineBytesStream, err := pipelines.NewTextPipeline(slog.Default(), testFile, pipelines.FilePosition{}, pipelines.TextPipelineOptions{
 		LineLimit:   128,
 		BufferLimit: 1024,
 	})

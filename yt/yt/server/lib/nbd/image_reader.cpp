@@ -47,11 +47,13 @@ public:
 
     TFuture<TSharedRef> Read(
         i64 offset,
-        i64 length) override
+        i64 length,
+        const TReadOptions& options) override
     {
         return Reader_->Read(
             offset,
-            length);
+            length,
+            options);
     }
 
     i64 GetSize() const override
@@ -124,7 +126,8 @@ public:
 
     TFuture<TSharedRef> Read(
         i64 offset,
-        i64 length) override
+        i64 length,
+        const TReadOptions& options) override
     {
         if (offset < 0 ||
             length < 0 ||
@@ -186,7 +189,8 @@ public:
 
             auto readFuture = part.Reader->Read(
                 beginWithinPart,
-                sizeWithinPart);
+                sizeWithinPart,
+                options);
             readFutures.push_back(std::move(readFuture));
 
             length -= sizeWithinPart;

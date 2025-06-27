@@ -53,6 +53,8 @@
 
 #include <yt/yt/core/utilex/random.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 namespace NYT::NScheduler {
@@ -268,7 +270,7 @@ public:
                 ValidateYson(operationYson, GetYsonNestingLevelLimit());
 
                 auto req = TYPathProxy::Set(GetOperationPath(operationId));
-                req->set_value(operationYson.ToString());
+                req->set_value(ToProto(operationYson));
                 req->set_recursive(true);
                 req->set_force(true);
                 GenerateMutationId(req);
@@ -449,7 +451,7 @@ public:
             auto* subrequest = req->add_subrequests();
             subrequest->set_attribute(attribute);
             ValidateYson(value, GetYsonNestingLevelLimit());
-            subrequest->set_value(value.ToString());
+            subrequest->set_value(ToProto(value));
         }
         batchReq->AddRequest(req);
 
@@ -570,7 +572,7 @@ public:
 
         auto* attribute = req->mutable_node_attributes()->add_attributes();
         attribute->set_key("value");
-        attribute->set_value(ConvertToYsonStringNestingLimited(persistentStrategyState).ToString());
+        attribute->set_value(ToProto(ConvertToYsonStringNestingLimited(persistentStrategyState)));
 
         GenerateMutationId(req);
         batchReq->AddRequest(req);
@@ -589,7 +591,7 @@ public:
         auto batchReq = StartObjectBatchRequest();
 
         auto req = TYPathProxy::Set(LastMeteringLogTimePath);
-        req->set_value(ConvertToYsonStringNestingLimited(time).ToString());
+        req->set_value(ToProto(ConvertToYsonStringNestingLimited(time)));
         GenerateMutationId(req);
         batchReq->AddRequest(req);
 
@@ -694,8 +696,8 @@ private:
     TCancelableContextPtr CancelableContext_;
     TEnumIndexedArray<EControlQueue, IInvokerPtr> CancelableControlInvokers_;
 
-    std::atomic<EMasterConnectorState> State_ = {EMasterConnectorState::Disconnected};
-    std::atomic<TInstant> ConnectionTime_ = {};
+    std::atomic<EMasterConnectorState> State_ = EMasterConnectorState::Disconnected;
+    std::atomic<TInstant> ConnectionTime_;
 
     ITransactionPtr LockTransaction_;
 
@@ -940,7 +942,7 @@ private:
             }
             {
                 auto req = TCypressYPathProxy::Set(path + "/@annotations");
-                req->set_value(Owner_->ConvertToYsonStringNestingLimited(Owner_->Bootstrap_->GetConfig()->CypressAnnotations).ToString());
+                req->set_value(ToProto(Owner_->ConvertToYsonStringNestingLimited(Owner_->Bootstrap_->GetConfig()->CypressAnnotations)));
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
@@ -995,19 +997,19 @@ private:
             auto addresses = Owner_->Bootstrap_->GetLocalAddresses();
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@addresses");
-                req->set_value(Owner_->ConvertToYsonStringNestingLimited(addresses).ToString());
+                req->set_value(ToProto(Owner_->ConvertToYsonStringNestingLimited(addresses)));
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/orchid&/@remote_addresses");
-                req->set_value(Owner_->ConvertToYsonStringNestingLimited(addresses).ToString());
+                req->set_value(ToProto(Owner_->ConvertToYsonStringNestingLimited(addresses)));
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
             {
                 auto req = TYPathProxy::Set("//sys/scheduler/@connection_time");
-                req->set_value(Owner_->ConvertToYsonStringNestingLimited(TInstant::Now()).ToString());
+                req->set_value(ToProto(Owner_->ConvertToYsonStringNestingLimited(TInstant::Now())));
                 GenerateMutationId(req);
                 batchReq->AddRequest(req);
             }
@@ -1857,56 +1859,56 @@ private:
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_attribute("suspended");
-                req->set_value(ConvertToYsonStringNestingLimited(operation->GetSuspended()).ToString());
+                req->set_value(ToProto(ConvertToYsonStringNestingLimited(operation->GetSuspended())));
             }
 
             // Set events.
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_attribute("events");
-                req->set_value(ConvertToYsonStringNestingLimited(operation->Events()).ToString());
+                req->set_value(ToProto(ConvertToYsonStringNestingLimited(operation->Events())));
             }
 
             // Set result.
             if (operation->IsFinishedState()) {
                 auto req = multisetReq->add_subrequests();
                 req->set_attribute("result");
-                req->set_value(ConvertToYsonStringNestingLimited(operation->BuildResultString()).ToString());
+                req->set_value(ToProto(ConvertToYsonStringNestingLimited(operation->BuildResultString())));
             }
 
             // Set end time, if given.
             if (operation->GetFinishTime()) {
                 auto req = multisetReq->add_subrequests();
                 req->set_attribute("finish_time");
-                req->set_value(ConvertToYsonStringNestingLimited(*operation->GetFinishTime()).ToString());
+                req->set_value(ToProto(ConvertToYsonStringNestingLimited(*operation->GetFinishTime())));
             }
 
             // Set state.
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_attribute("state");
-                req->set_value(ConvertToYsonStringNestingLimited(operation->GetState()).ToString());
+                req->set_value(ToProto(ConvertToYsonStringNestingLimited(operation->GetState())));
             }
 
             // Set alerts.
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_attribute("alerts");
-                req->set_value(ConvertToYsonStringNestingLimited(operation->BuildAlertsString()).ToString());
+                req->set_value(ToProto(ConvertToYsonStringNestingLimited(operation->BuildAlertsString())));
             }
 
             // Set scheduling attributes per pool tree.
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_attribute("scheduling_attributes_per_pool_tree");
-                req->set_value(ConvertToYsonStringNestingLimited(operation->GetSchedulingAttributesPerPoolTree()).ToString());
+                req->set_value(ToProto(ConvertToYsonStringNestingLimited(operation->GetSchedulingAttributesPerPoolTree())));
             }
 
             // COMPAT(omgronny): Set slot index per pool tree.
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_attribute("slot_index_per_pool_tree");
-                req->set_value(ConvertToYsonStringNestingLimited(operation->GetSlotIndices()).ToString());
+                req->set_value(ToProto(ConvertToYsonStringNestingLimited(operation->GetSlotIndices())));
             }
 
             // Set runtime parameters.
@@ -1917,7 +1919,7 @@ private:
                 auto valueYson = BuildYsonStringFluently()
                     .Value(operation->GetRuntimeParameters(), /*serializeHeavy*/ !enableHeavyRuntimeParameters);
                 ValidateYson(valueYson, GetYsonNestingLevelLimit());
-                req->set_value(valueYson.ToString());
+                req->set_value(ToProto(valueYson));
 
                 if (enableHeavyRuntimeParameters) {
                     auto reqHeavy = multisetReq->add_subrequests();
@@ -1927,7 +1929,7 @@ private:
                             SerializeHeavyRuntimeParameters(fluent, *operation->GetRuntimeParameters());
                         });
                     ValidateYson(valueYson, GetYsonNestingLevelLimit());
-                    reqHeavy->set_value(valueYson.ToString());
+                    reqHeavy->set_value(ToProto(valueYson));
                 }
             }
 
@@ -1936,7 +1938,7 @@ private:
                 YT_VERIFY(operation->CumulativeSpecPatch());
                 auto req = multisetReq->add_subrequests();
                 req->set_attribute("cumulative_spec_patch");
-                req->set_value(ConvertToYsonStringNestingLimited(operation->CumulativeSpecPatch()).ToString());
+                req->set_value(ToProto(ConvertToYsonStringNestingLimited(operation->CumulativeSpecPatch())));
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");
@@ -2152,7 +2154,7 @@ private:
 
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
         auto req = TYPathProxy::Set("//sys/scheduler/@alerts");
-        req->set_value(ConvertToYsonStringNestingLimited(alerts).ToString());
+        req->set_value(ToProto(ConvertToYsonStringNestingLimited(alerts)));
 
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
@@ -2174,7 +2176,7 @@ private:
         YT_VERIFY(LockTransaction_);
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
         auto req = TYPathProxy::Set(FromObjectId(LockTransaction_->GetId()) + "/@timeout");
-        req->set_value(ConvertToYsonStringNestingLimited(timeout.MilliSeconds()).ToString());
+        req->set_value(ToProto(ConvertToYsonStringNestingLimited(timeout.MilliSeconds())));
         auto rspOrError = WaitFor(proxy.Execute(req));
 
         if (!rspOrError.IsOK()) {

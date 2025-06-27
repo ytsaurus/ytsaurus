@@ -97,7 +97,7 @@ TSchemafulDsvFormatConfigPtr GetSchemafulDsvConfig()
     return config;
 }
 
-void BenchmarkConsume(const std::vector<TString>& keys, const std::vector<TString>& values, NYson::IYsonConsumer* consumer)
+void BenchmarkConsume(const std::vector<std::string>& keys, const std::vector<TString>& values, NYson::IYsonConsumer* consumer)
 {
     NProfiling::TWallTimer timer;
     {
@@ -243,7 +243,7 @@ int main(int argc, char** argv)
         }
     } else if (action == "write") {
         // ToDo(psushin): migrate write test to schemaless_writer interface.
-        std::vector<TString> keys;
+        std::vector<std::string> keys;
         if (format == "yamr") {
             auto config = GetYamrConfig();
             keys.push_back(config->Value);

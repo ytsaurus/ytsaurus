@@ -17,6 +17,7 @@ struct ITablePuller
 {
     virtual void Enable() = 0;
     virtual void Disable() = 0;
+    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITablePuller)
@@ -29,7 +30,8 @@ ITablePullerPtr CreateTablePuller(
     ITabletSnapshotStorePtr tabletSnapshotStore,
     IInvokerPtr workerInvoker,
     NConcurrency::IThroughputThrottlerPtr nodeInThrottler,
-    IMemoryUsageTrackerPtr memoryTracker);
+    IMemoryUsageTrackerPtr memoryTracker,
+    IErrorManagerPtr errorManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

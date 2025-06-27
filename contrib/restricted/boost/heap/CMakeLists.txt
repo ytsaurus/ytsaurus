@@ -28,9 +28,7 @@ target_include_directories(restricted-boost-heap INTERFACE
 target_link_libraries(restricted-boost-heap INTERFACE
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
-  restricted-boost-array
   restricted-boost-assert
-  restricted-boost-bind
   restricted-boost-concept_check
   restricted-boost-config
   restricted-boost-core
@@ -39,6 +37,5 @@ target_link_libraries(restricted-boost-heap INTERFACE
   restricted-boost-parameter
   restricted-boost-static_assert
   restricted-boost-throw_exception
-  restricted-boost-type_traits
 )
 

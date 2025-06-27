@@ -1508,7 +1508,12 @@ TEST_F(TSortedMergingReaderTest, SortedJoiningReaderStressTest)
     constexpr int JoinColumnCount = 1;
     constexpr int ValuesRange = 50;
     constexpr int MaxRowsPerRead = 4;
+
+#if defined(_asan_enabled_)
+    constexpr int Iterations = 5000;
+#else
     constexpr int Iterations = 15000;
+#endif
 
     for (int iteration = 0; iteration < Iterations; ++iteration) {
         std::vector<ESortOrder> sortOrders;

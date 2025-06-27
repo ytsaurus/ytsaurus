@@ -207,11 +207,6 @@ public:
         return DataSliceCounter_;
     }
 
-    TOutputOrderPtr GetOutputOrder() const override
-    {
-        return nullptr;
-    }
-
     i64 GetLocality(TNodeId /*nodeId*/) const override
     {
         return 0;
@@ -340,7 +335,6 @@ public:
     void AddPoolOutput(IPersistentChunkPoolOutputPtr pool, int poolIndex) override
     {
         YT_VERIFY(pool);
-        YT_VERIFY(!pool->GetOutputOrder());
 
         if (poolIndex >= std::ssize(UnderlyingPools_)) {
             UnderlyingPools_.resize(poolIndex + 1);
@@ -366,7 +360,7 @@ public:
         OnUnderlyingPoolBlockedJobCountChanged(poolIndex);
     }
 
-protected:
+private:
     std::vector<IPersistentChunkPoolOutputPtr> UnderlyingPools_;
 
     //! Number of uncompleted pools.

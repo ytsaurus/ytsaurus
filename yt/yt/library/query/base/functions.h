@@ -14,105 +14,53 @@ namespace NYT::NQueryClient {
 struct ITypeInferrer
     : public virtual TRefCounted
 {
-    template <class TDerived>
-    const TDerived* As() const
-    {
-        return dynamic_cast<const TDerived*>(this);
-    }
+    virtual bool IsAggregate() const = 0;
 
-    template <class TDerived>
-    TDerived* As()
-    {
-        return dynamic_cast<TDerived*>(this);
-    }
+    virtual int GetNormalizedConstraints(
+        std::vector<TTypeSet>* typeConstraints,
+        std::vector<int>* formalArguments,
+        std::optional<std::pair<int, bool>>* repeatedType) const = 0;
+
+    virtual std::pair<int, int> GetNormalizedConstraints(
+        std::vector<TTypeSet>* typeConstraints,
+        std::vector<int>* argumentConstraintIndexes) const = 0;
+
+    virtual std::vector<TTypeId> InferTypes(
+        TTypingCtx* typingCtx,
+        TRange<TLogicalTypePtr> argumentTypes,
+        TStringBuf name) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITypeInferrer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFunctionTypeInferrer
-    : public ITypeInferrer
-{
-public:
-    TFunctionTypeInferrer(
-        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
-        std::vector<TType> argumentTypes,
-        TType repeatedArgumentType,
-        TType resultType);
+ITypeInferrerPtr CreateFunctionTypeInferrer(
+    TType resultType,
+    std::vector<TType> argumentTypes,
+    std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints = {},
+    TType repeatedArgumentType = EValueType::Null);
 
-    TFunctionTypeInferrer(
-        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
-        std::vector<TType> argumentTypes,
-        TType resultType);
+ITypeInferrerPtr CreateAggregateTypeInferrer(
+    TType resultType,
+    std::vector<TType> argumentTypes,
+    TType stateType,
+    std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints = {});
 
-    TFunctionTypeInferrer(
-        std::vector<TType> argumentTypes,
-        TType resultType);
+ITypeInferrerPtr CreateAggregateTypeInferrer(
+    TType resultType,
+    TType argumentType,
+    TType stateType,
+    std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints = {});
 
-    int GetNormalizedConstraints(
-        std::vector<TTypeSet>* typeConstraints,
-        std::vector<int>* formalArguments,
-        std::optional<std::pair<int, bool>>* repeatedType) const;
+////////////////////////////////////////////////////////////////////////////////
 
-    std::vector<TTypeId> InferTypes(TTypingCtx* typingCtx, TRange<TLogicalTypePtr> argumentTypes, TStringBuf name) const;
-
-private:
-    const std::unordered_map<TTypeParameter, TUnionType> TypeParameterConstraints_;
-    const std::vector<TType> ArgumentTypes_;
-    const TType RepeatedArgumentType_;
-    const TType ResultType_;
-
-    TTypingCtx::TFunctionSignature GetSignature(TTypingCtx* typingCtx, int argumentCount) const;
-};
-
-class TAggregateFunctionTypeInferrer
-    : public ITypeInferrer
-{
-public:
-    TAggregateFunctionTypeInferrer() = default;
-
-    TAggregateFunctionTypeInferrer(
-        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
-        std::vector<TType> argumentTypes,
-        TType stateType,
-        TType resultType);
-
-    TAggregateFunctionTypeInferrer(
-        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
-        TType argumentType,
-        TType stateType,
-        TType resultType)
-        : TAggregateFunctionTypeInferrer(
-            std::move(typeParameterConstraints),
-            std::vector<TType>{argumentType},
-            stateType,
-            resultType)
-    { }
-
-    std::pair<int, int> GetNormalizedConstraints(
-        std::vector<TTypeSet>* typeConstraints,
-        std::vector<int>* argumentConstraintIndexes) const;
-
-    virtual std::vector<TTypeId> InferTypes(TTypingCtx* typingCtx, TRange<TLogicalTypePtr> argumentTypes, TStringBuf name) const;
-
-private:
-    const std::unordered_map<TTypeParameter, TUnionType> TypeParameterConstraints_;
-    const std::vector<TType> ArgumentTypes_;
-    const TType StateType_;
-    const TType ResultType_;
-
-    TTypingCtx::TFunctionSignature GetSignature(TTypingCtx* typingCtx) const;
-};
-
-class TArrayAggTypeInferrer
-    : public TAggregateFunctionTypeInferrer
-{
-public:
-    using TAggregateFunctionTypeInferrer::TAggregateFunctionTypeInferrer;
-
-    std::vector<TTypeId> InferTypes(TTypingCtx* typingCtx, TRange<TLogicalTypePtr> argumentTypes, TStringBuf /*name*/) const override;
-};
+ITypeInferrerPtr CreateArrayAggTypeInferrer();
+ITypeInferrerPtr CreateDummyTypeInferrer(
+    std::string name,
+    bool aggregate,
+    bool supportedInV1,
+    bool supportedInV2);
 
 ////////////////////////////////////////////////////////////////////////////////
 

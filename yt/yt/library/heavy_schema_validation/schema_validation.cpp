@@ -283,11 +283,11 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
             }
 
             auto typeInferrer = GetBuiltinTypeInferrers()->GetFunction(aggregateName);
-            if (auto descriptor = typeInferrer->As<TAggregateFunctionTypeInferrer>()) {
+            if (typeInferrer->IsAggregate()) {
                 std::vector<TTypeSet> typeConstraints;
                 std::vector<int> argumentIndexes;
 
-                auto [_, resultIndex] = descriptor->GetNormalizedConstraints(
+                auto [_, resultIndex] = typeInferrer->GetNormalizedConstraints(
                     &typeConstraints,
                     &argumentIndexes);
                 auto& resultConstraint = typeConstraints[resultIndex];

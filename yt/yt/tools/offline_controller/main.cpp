@@ -309,6 +309,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const TOperationEventReporterPtr& GetOperationEventReporter() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override
     {
         return MediumDirectory_;
@@ -399,6 +404,7 @@ IOperationControllerPtr CreateOperationController(const TOfflineOperation& offli
     operationDescriptor.set_spec(offlineOperation.Spec);
     operationDescriptor.set_acl("[]");
     operationDescriptor.set_operation_type(ToProto(offlineOperation.Type));
+    operationDescriptor.set_experiment_assignments("[]");
 
     auto operation = New<TOperation>(operationDescriptor);
 
@@ -406,6 +412,7 @@ IOperationControllerPtr CreateOperationController(const TOfflineOperation& offli
     operation->SetHost(operationControllerHost);
 
     auto controllerAgentFakeConfig = New<TControllerAgentConfig>();
+    controllerAgentFakeConfig->Load(GetEphemeralNodeFactory()->CreateMap());
     auto operationController = CreateControllerForOperation(controllerAgentFakeConfig, operation.Get());
 
     TOperationSnapshot operationSnapshot;

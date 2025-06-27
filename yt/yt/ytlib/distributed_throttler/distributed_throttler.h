@@ -16,10 +16,6 @@ namespace NYT::NDistributedThrottler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TThrottlerId = TString;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TThrottlerUsage
 {
     double Rate = 0.0;
@@ -45,7 +41,7 @@ struct IDistributedThrottlerFactory
     : public virtual TRefCounted
 {
     virtual NConcurrency::IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
-        const TString& throttlerId,
+        const TThrottlerId& throttlerId,
         NConcurrency::TThroughputThrottlerConfigPtr throttlerConfig,
         TDuration throttleRpcTimeout = DefaultThrottleRpcTimeout) = 0;
 
@@ -53,6 +49,13 @@ struct IDistributedThrottlerFactory
 
     //! Only the leader has non-empty throttler usages collected over all members.
     virtual TIntrusivePtr<const TThrottlerToGlobalUsage> TryGetThrottlerToGlobalUsage() const = 0;
+
+    //! It is possible to provide throttler total limits from the outside. It is
+    //! vital for leader since leader may not know total limits for some throttlers
+    //! and thus skip them during member limits computations. It is important to
+    //! update total limits on all nodes since leader can change any time.
+    virtual void UpdateTotalLimits(
+        THashMap<TThrottlerId, std::optional<double>> throttlerIdToTotalLimit) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedThrottlerFactory)
@@ -65,7 +68,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     NDiscoveryClient::TGroupId groupId,
     NDiscoveryClient::TMemberId memberId,
     NRpc::IServerPtr rpcServer,
-    TString address,
+    std::string address,
     NLogging::TLogger logger,
     NRpc::IAuthenticatorPtr authenticator,
     NProfiling::TProfiler profiler = {});

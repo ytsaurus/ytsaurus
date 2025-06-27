@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/rpc/service_detail.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NShuffleServer {
 
 using namespace NApi;
@@ -53,7 +55,7 @@ public:
     {
         auto parentTransactionId = FromProto<TTransactionId>(request->parent_transaction_id());
         int partitionCount = request->partition_count();
-        auto account = request->account();
+        const auto& account = request->account();
 
         context->SetRequestInfo(
             "ParentTransaction: %v, Account: %v, PartitionCount: %v",
@@ -81,7 +83,7 @@ public:
             ? request->medium()
             : DefaultStoreMediumName;
 
-        response->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
+        response->set_shuffle_handle(ToProto(ConvertToYsonString(shuffleHandle)));
 
         context->SetResponseInfo("TransactionId: %v", shuffleHandle->TransactionId);
 
@@ -92,16 +94,25 @@ public:
     {
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
+        auto writerIndex = request->has_writer_index() ? std::optional<int>(request->writer_index()) : std::nullopt;
+        bool overwriteExistingWriterData = request->overwrite_existing_writer_data();
+
+        YT_VERIFY(!overwriteExistingWriterData || writerIndex.has_value());
+
         context->SetRequestInfo(
-            "ShuffleHandle: %v, ChunkCount: %v",
+            "ShuffleHandle: %v, ChunkCount: %v, MapperId: %v, OverwriteExistingWriterData: %v",
             shuffleHandle,
-            request->chunk_specs_size());
+            request->chunk_specs_size(),
+            writerIndex,
+            overwriteExistingWriterData);
 
         auto chunks = FromProto<std::vector<TInputChunkPtr>>(request->chunk_specs());
 
         WaitFor(ShuffleManager_->RegisterChunks(
             shuffleHandle->TransactionId,
-            chunks))
+            chunks,
+            writerIndex,
+            overwriteExistingWriterData))
             .ThrowOnError();
 
         context->Reply();
@@ -111,14 +122,25 @@ public:
     {
         auto shuffleHandle = ConvertTo<TShuffleHandlePtr>(TYsonString(request->shuffle_handle()));
 
+        std::optional<std::pair<int, int>> writerIndexRange;
+        if (request->has_writer_index_range()) {
+            YT_VERIFY(request->writer_index_range().has_begin() && request->writer_index_range().has_end());
+
+            writerIndexRange = std::pair(request->writer_index_range().begin(), request->writer_index_range().end());
+            YT_VERIFY(writerIndexRange->first >= 0);
+            YT_VERIFY(writerIndexRange->first <= writerIndexRange->second);
+        }
+
         context->SetRequestInfo(
-            "ShuffleHandle: %v, PartitionIndex: %v",
+            "ShuffleHandle: %v, PartitionIndex: %v, WriterIndexRange: %v",
             shuffleHandle,
-            request->partition_index());
+            request->partition_index(),
+            writerIndexRange);
 
         auto chunks = WaitFor(ShuffleManager_->FetchChunks(
             shuffleHandle->TransactionId,
-            request->partition_index()))
+            request->partition_index(),
+            writerIndexRange))
             .ValueOrThrow();
 
         for (const auto& chunk : chunks) {

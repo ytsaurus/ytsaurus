@@ -39,7 +39,7 @@ TDiskHealthChecker::TDiskHealthChecker(
     Logger.AddTag("Path: %v", Path_);
 }
 
-void TDiskHealthChecker::OnConfigChanged(const TDiskHealthCheckerConfigPtr& newConfig)
+void TDiskHealthChecker::Reconfigure(const TDiskHealthCheckerConfigPtr& newConfig)
 {
     Config_.Store(newConfig);
 }

@@ -34,7 +34,7 @@ using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SecurityServerLogger;
+constinit const auto Logger = SecurityServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -197,11 +197,11 @@ const TDynamicSecurityManagerConfigPtr& TRequestTracker::GetDynamicConfig()
 
 void TRequestTracker::OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/)
 {
-    ReconfigureUserThrottlers();
+    ReconfigureAllUserRequestRateThrottlers();
     DistributedThrottlerEnabled_ = GetDynamicConfig()->EnableDistributedThrottler;
 }
 
-void TRequestTracker::ReconfigureUserThrottlers()
+void TRequestTracker::ReconfigureAllUserRequestRateThrottlers()
 {
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     for (auto [userId, user] : securityManager->Users()) {
@@ -221,7 +221,7 @@ void TRequestTracker::OnUpdateAlivePeerCount()
     if (peerCount != AlivePeerCount_) {
         AlivePeerCount_ = peerCount;
         if (!GetDynamicConfig()->EnableDistributedThrottler) {
-            ReconfigureUserThrottlers();
+            ReconfigureAllUserRequestRateThrottlers();
         }
     }
 }

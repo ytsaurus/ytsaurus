@@ -55,13 +55,13 @@ struct TExternalCGInfo
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
-    const std::vector<std::pair<TString, TString>>& functionNames,
+    const std::vector<std::pair<NYPath::TYPath, std::string>>& functionNames,
     const NApi::NNative::IClientPtr& client);
 
 void AppendUdfDescriptors(
     const TTypeInferrerMapPtr& typeInferrers,
     const TExternalCGInfoPtr& cgInfo,
-    const std::vector<TString>& functionNames,
+    const std::vector<std::string>& functionNames,
     const std::vector<TExternalFunctionSpec>& externalFunctionSpecs);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,8 +70,8 @@ struct IFunctionRegistry
     : public virtual TRefCounted
 {
     virtual TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(
-        const TString& udfRegistryPath,
-        const std::vector<TString>& names) = 0;
+        const NYPath::TYPath& udfRegistryPath,
+        const std::vector<std::string>& names) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

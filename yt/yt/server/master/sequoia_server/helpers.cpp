@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include <yt/yt/client/sequoia_client/public.h>
+
 namespace NYT::NSequoiaServer {
 
 using namespace NSequoiaClient;

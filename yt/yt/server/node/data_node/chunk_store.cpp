@@ -36,7 +36,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = DataNodeLogger;
+constinit const auto Logger = DataNodeLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,9 +102,14 @@ public:
         }
     }
 
-    const TFairShareHierarchicalSchedulerPtr<std::string> GetFairShareHierarchicalScheduler() override
+    const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() override
     {
         return Bootstrap_->GetFairShareHierarchicalScheduler();
+    }
+
+    const NIO::IHugePageManagerPtr& GetHugePageManager() override
+    {
+        return Bootstrap_->GetHugePageManager();
     }
 
 private:
@@ -994,6 +999,7 @@ void TChunkStore::OnProfiling()
         }
 
         auto& performanceCounters = location->GetPerformanceCounters();
+        performanceCounters.IOWeight.Update(location->GetIOWeight());
         performanceCounters.AvailableSpace.Update(location->GetAvailableSpace());
         performanceCounters.UsedSpace.Update(location->GetUsedSpace());
         performanceCounters.ChunkCount.Update(location->GetChunkCount());

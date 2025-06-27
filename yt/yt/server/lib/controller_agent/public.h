@@ -28,6 +28,8 @@ struct TFailedJobSummary;
 struct TRunningJobSummary;
 struct TAbortedAllocationSummary;
 struct TFinishedAllocationSummary;
+struct TIncarnationSwitchInfo;
+struct TIncarnationSwitchData;
 
 DECLARE_REFCOUNTED_CLASS(TLegacyProgressCounter)
 DECLARE_REFCOUNTED_CLASS(TProgressCounter)

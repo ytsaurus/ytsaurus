@@ -345,7 +345,7 @@ TFuture<void> TBlobSession::DoStart()
 
     PendingBlockLocationMemoryGuard_ = Location_->AcquireLocationMemory(
         UseProbePutBlocks_,
-        {},
+        /*memoryGuard*/ {},
         EIODirection::Write,
         Options_.WorkloadDescriptor,
         /*delta*/ 0);
@@ -561,7 +561,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
         }
     } else {
         THROW_ERROR_EXCEPTION_IF(ProbePutBlocksRequestSupplier_->GetCurrentApprovedMemory() < cumulativeBlockSize,
-            TError(NChunkClient::EErrorCode::WriteThrottlingActive, "Memory for PutBlocks have to be acquired in probe put blocks"));
+            TError(NChunkClient::EErrorCode::WriteThrottlingActive, "Memory for PutBlocks has to be acquired in probe put blocks"));
     }
 
     auto totalSize = GetByteSize(blocks);
@@ -714,7 +714,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
                 // Track memory per location - without memory tracker.
                 locationMemoryGuards.push_back(Location_->AcquireLocationMemory(
                     /*useLegacyUsedMemory*/ true,
-                    {},
+                    /*memoryGuard*/ {},
                     EIODirection::Write,
                     Options_.WorkloadDescriptor,
                     blockSize));
@@ -789,7 +789,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
 
         slot.LocationMemoryGuard = std::move(locationMemoryGuards[WindowIndex_ - startBlockIndex]);
 
-        if (auto error = slot.Block.ValidateChecksum(); !error.IsOK()) {
+        if (auto error = slot.Block.CheckChecksum(); !error.IsOK()) {
             auto blockId = TBlockId(GetChunkId(), WindowIndex_);
             SetFailed(error << TErrorAttribute("block_id", ToString(blockId)), /*fatal*/ false);
             return MakeFuture<NIO::TIOCounters>(Error_);
@@ -895,10 +895,10 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
 
     const auto& throttler = Bootstrap_->GetOutThrottler(Options_.WorkloadDescriptor);
     auto netIsThrottling = !throttler->TryAcquire(requestSize);
-    TFuture<void> throttleFuture = VoidFuture;
+    auto throttleFuture = VoidFuture;
     if (netIsThrottling) {
         if (instantReplyOnThrottling) {
-            return MakeFuture<TSendBlocksResult>(TSendBlocksResult{.NetThrottling = true, .TargetNodePutBlocksResult = nullptr});
+            return MakeFuture<TSendBlocksResult>(TSendBlocksResult{.NetThrottling = true});
         } else {
             throttleFuture = throttler->Throttle(requestSize);
         }
@@ -908,7 +908,7 @@ TFuture<TBlobSession::TSendBlocksResult> TBlobSession::DoSendBlocks(
         .Apply(BIND([=] {
             return req->Invoke();
         }))
-        .Apply(BIND([&] (const TDataNodeServiceProxy::TRspPutBlocksPtr& rsp) {
+        .ApplyUnique(BIND([] (TDataNodeServiceProxy::TRspPutBlocksPtr&& rsp) {
             return TSendBlocksResult{.NetThrottling = false, .TargetNodePutBlocksResult = std::move(rsp)};
         }));
 }

@@ -142,7 +142,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         wait(lambda: get(pools_path + "/fake_pool/usage_ratio") >= 0.999)
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
         op2 = map(
             track=False,
             command="cat",
@@ -197,7 +197,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         assert get(pools_path + "/fake_pool/usage_ratio") >= 0.999
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
 
         # Ensure that all three jobs have started.
         events_on_fs().wait_breakpoint(timeout=datetime.timedelta(1000), job_count=3)
@@ -271,27 +271,28 @@ class TestSchedulerPreemption(YTEnvSetup):
         assert op.get_job_count("running") == 1
 
     @authors("ignat")
-    def test_min_share_ratio(self):
-        create_pool("test_min_share_ratio_pool", attributes={"min_share_resources": {"cpu": 3}})
+    def test_strong_guarantee_share(self):
+        create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": 3}})
 
-        def get_operation_min_share_ratio(op):
-            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/min_share_ratio", 0.0)
+        def get_operation_strong_guarantee_dominant_share(op):
+            strong_guarantee = op.get_runtime_progress("scheduling_info_per_pool_tree/default/strong_guarantee_share", {})
+            return max(list(strong_guarantee.values()) + [0.0])
 
-        min_share_settings = [{"cpu": 3}, {"cpu": 1, "user_slots": 6}]
+        string_guarantee_settings = [{"cpu": 3}, {"cpu": 1, "user_slots": 6}]
 
-        for min_share_spec in min_share_settings:
+        for string_guarantee_resources in string_guarantee_settings:
             reset_events_on_fs()
             op = run_test_vanilla(
                 with_breakpoint("BREAKPOINT"),
                 spec={
-                    "pool": "test_min_share_ratio_pool",
-                    "min_share_resources": min_share_spec,
+                    "pool": "test_pool",
+                    "strong_guarantee_resources": string_guarantee_resources,
                 },
                 job_count=3,
             )
             wait_breakpoint()
 
-            wait(lambda: get_operation_min_share_ratio(op) == 1.0)
+            wait(lambda: get_operation_strong_guarantee_dominant_share(op) == 1.0)
 
             release_breakpoint()
             op.track()
@@ -381,7 +382,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     def test_preemptor_event_log(self):
         set("//sys/pool_trees/default/@config/max_ephemeral_pools_per_user", 2)
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("pool1", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
 
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out0")
@@ -433,7 +434,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         })
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("pool1", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
         create_pool("pool2")
 
         command = """(trap "sleep 15; exit 0" SIGINT; BREAKPOINT)"""
@@ -473,7 +474,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         })
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("pool1", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
         create_pool("pool2")
 
         command = """(trap "sleep 10; exit 0" SIGINT; BREAKPOINT)"""
@@ -510,7 +511,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
         create_pool("pool1", attributes={
-            "min_share_resources": {"cpu": total_cpu_limit},
+            "strong_guarantee_resources": {"cpu": total_cpu_limit},
             "waiting_for_resources_on_node_timeout": 10000,
             "resource_limits": {"user_slots": 0},
         })
@@ -558,7 +559,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         update_scheduler_config("running_allocations_update_period", 100)
 
         total_cpu_limit = int(get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu"))
-        create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("pool1", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
         create_pool("pool2")
 
         command = """(trap "sleep 115; exit 0" SIGINT; BREAKPOINT)"""
@@ -1433,13 +1434,13 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
             wait(lambda: self._get_node_group_tag(i % 2) in get(scheduler_orchid_node_path(node) + "/tags"))
 
     def _get_starvation_status(self, op):
-        return op.get_runtime_progress("scheduling_info_per_pool_tree/default/starvation_status")
+        return get(scheduler_orchid_operation_path(op.id, "default") + "/starvation_status", default=None)
 
     def _get_fair_share_ratio(self, op):
-        return op.get_runtime_progress("scheduling_info_per_pool_tree/default/fair_share_ratio", 0.0)
+        return get(scheduler_orchid_operation_path(op.id, "default") + "/detailed_dominant_fair_share/total", default=0.0)
 
     def _get_usage_ratio(self, op):
-        return op.get_runtime_progress("scheduling_info_per_pool_tree/default/usage_ratio", 0.0)
+        return get(scheduler_orchid_operation_path(op.id, "default") + "/usage_ratio", default=0.0)
 
     def _get_node_group_tag(self, group_index):
         return "group{}".format(group_index)
@@ -1605,25 +1606,25 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
         def get_usage_ratio(op_id):
             return get(scheduler_orchid_operation_path(op_id) + "/usage_ratio", default=0.0)
 
-        create_pool("honest_pool", attributes={"min_share_resources": {"cpu": 15}})
+        create_pool("honest_pool", attributes={"strong_guarantee_resources": {"cpu": 15}})
         create_pool(
             "honest_subpool_big",
             parent_name="honest_pool",
             attributes={
-                "min_share_resources": {"cpu": 10},
+                "strong_guarantee_resources": {"cpu": 10},
                 "allow_aggressive_preemption": False,
             },
         )
         create_pool(
             "honest_subpool_small",
             parent_name="honest_pool",
-            attributes={"min_share_resources": {"cpu": 5}},
+            attributes={"strong_guarantee_resources": {"cpu": 5}},
         )
         create_pool("dishonest_pool")
         create_pool(
             "special_pool",
             attributes={
-                "min_share_resources": {"cpu": 10},
+                "strong_guarantee_resources": {"cpu": 10},
                 "enable_aggressive_starvation": True,
             },
         )
@@ -1659,25 +1660,25 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
         create_pool(
             "honest_pool",
             attributes={
-                "min_share_resources": {"cpu": 15},
+                "strong_guarantee_resources": {"cpu": 15},
                 "allow_aggressive_preemption": False,
             },
         )
         create_pool(
             "honest_subpool_big",
             parent_name="honest_pool",
-            attributes={"min_share_resources": {"cpu": 10}},
+            attributes={"strong_guarantee_resources": {"cpu": 10}},
         )
         create_pool(
             "honest_subpool_small",
             parent_name="honest_pool",
-            attributes={"min_share_resources": {"cpu": 5}},
+            attributes={"strong_guarantee_resources": {"cpu": 5}},
         )
         create_pool("dishonest_pool")
         create_pool(
             "special_pool",
             attributes={
-                "min_share_resources": {"cpu": 10},
+                "strong_guarantee_resources": {"cpu": 10},
                 "enable_aggressive_starvation": True,
             },
         )

@@ -15,12 +15,6 @@ import numpy as np
 
 from pandas._libs import missing as libmissing
 from pandas._libs.hashtable import object_hash
-from pandas._typing import (
-    DtypeObj,
-    Shape,
-    npt,
-    type_t,
-)
 from pandas.errors import AbstractMethodError
 
 from pandas.core.dtypes.generic import (
@@ -30,6 +24,14 @@ from pandas.core.dtypes.generic import (
 )
 
 if TYPE_CHECKING:
+    from pandas._typing import (
+        DtypeObj,
+        Self,
+        Shape,
+        npt,
+        type_t,
+    )
+
     from pandas.core.arrays import ExtensionArray
 
     # To parameterize on same ExtensionDtype
@@ -80,17 +82,22 @@ class ExtensionDtype:
     ``__eq__`` or ``__hash__``, the default implementations here will not
     work.
 
+    Examples
+    --------
+
     For interaction with Apache Arrow (pyarrow), a ``__from_arrow__`` method
     can be implemented: this method receives a pyarrow Array or ChunkedArray
     as only argument and is expected to return the appropriate pandas
-    ExtensionArray for this dtype and the passed values::
+    ExtensionArray for this dtype and the passed values:
 
-        class ExtensionDtype:
-
-            def __from_arrow__(
-                self, array: Union[pyarrow.Array, pyarrow.ChunkedArray]
-            ) -> ExtensionArray:
-                ...
+    >>> import pyarrow
+    >>> from pandas.api.extensions import ExtensionArray
+    >>> class ExtensionDtype:
+    ...     def __from_arrow__(
+    ...         self,
+    ...         array: pyarrow.Array | pyarrow.ChunkedArray
+    ...     ) -> ExtensionArray:
+    ...         ...
 
     This class does not inherit from 'abc.ABCMeta' for performance reasons.
     Methods and properties required by the interface raise
@@ -209,7 +216,7 @@ class ExtensionDtype:
         """
         raise AbstractMethodError(cls)
 
-    def empty(self, shape: Shape) -> type_t[ExtensionArray]:
+    def empty(self, shape: Shape) -> ExtensionArray:
         """
         Construct an ExtensionArray of this dtype with the given shape.
 
@@ -227,9 +234,7 @@ class ExtensionDtype:
         return cls._empty(shape, dtype=self)
 
     @classmethod
-    def construct_from_string(
-        cls: type_t[ExtensionDtypeT], string: str
-    ) -> ExtensionDtypeT:
+    def construct_from_string(cls, string: str) -> Self:
         r"""
         Construct this type from a string.
 
@@ -261,6 +266,7 @@ class ExtensionDtype:
         For extension dtypes with arguments the following may be an
         adequate implementation.
 
+        >>> import re
         >>> @classmethod
         ... def construct_from_string(cls, string):
         ...     pattern = re.compile(r"^my_type\[(?P<arg_name>.+)\]$")
@@ -390,6 +396,16 @@ class ExtensionDtype:
         """
         return True
 
+    @property
+    def _is_immutable(self) -> bool:
+        """
+        Can arrays with this dtype be modified with __setitem__? If not, return
+        True.
+
+        Immutable arrays are expected to raise TypeError on __setitem__ calls.
+        """
+        return False
+
 
 class StorageExtensionDtype(ExtensionDtype):
     """ExtensionDtype that may be backed by more than one implementation."""
@@ -397,7 +413,7 @@ class StorageExtensionDtype(ExtensionDtype):
     name: str
     _metadata = ("storage",)
 
-    def __init__(self, storage=None) -> None:
+    def __init__(self, storage: str | None = None) -> None:
         self.storage = storage
 
     def __repr__(self) -> str:

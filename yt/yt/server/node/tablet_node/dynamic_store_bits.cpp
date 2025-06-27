@@ -34,32 +34,32 @@ bool TLockDescriptor::HasUnpreparedSharedWriteTransaction(TTransaction* transact
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSortedDynamicRowKeyEq::TSortedDynamicRowKeyEq(const TSortedDynamicRowKeyComparer* rowKeyComparer)
+TSortedDynamicRowKeyEqualTo::TSortedDynamicRowKeyEqualTo(const TSortedDynamicRowKeyComparer* rowKeyComparer)
     : RowKeyComparer_(rowKeyComparer)
 { }
 
-bool TSortedDynamicRowKeyEq::operator()(
+bool TSortedDynamicRowKeyEqualTo::operator()(
     const TSchemafulSortedDynamicRow& lhsSchemafulRow,
     const TLegacyOwningKey& rhsOwningKey) const
 {
     return (*RowKeyComparer_)(lhsSchemafulRow.Row, rhsOwningKey.Elements()) == 0;
 }
 
-bool TSortedDynamicRowKeyEq::operator()(
+bool TSortedDynamicRowKeyEqualTo::operator()(
     const TLegacyOwningKey& lhsOwningKey,
     const TLegacyOwningKey& rhsOwningKey) const
 {
     return (*RowKeyComparer_)(lhsOwningKey, rhsOwningKey) == 0;
 }
 
-bool TSortedDynamicRowKeyEq::operator()(
+bool TSortedDynamicRowKeyEqualTo::operator()(
     const TLegacyOwningKey& lhsOwningKey,
     const TSchemafulSortedDynamicRow& rhsSchemafulRow) const
 {
     return (*RowKeyComparer_)(lhsOwningKey.Elements(), rhsSchemafulRow.Row) == 0;
 }
 
-bool TSortedDynamicRowKeyEq::operator()(
+bool TSortedDynamicRowKeyEqualTo::operator()(
     const TSchemafulSortedDynamicRow& lhsSchemafulRow,
     const TSchemafulSortedDynamicRow& rhsSchemafulRow) const
 {

@@ -8,7 +8,7 @@ namespace NSQLComplete {
 
     namespace {
 
-        void SetPrefix(TString& name, const TStringBuf delimeter, const TNamespaced& namespaced) {
+        void SetPrefix(TString& name, TStringBuf delimeter, const TNamespaced& namespaced) {
             if (namespaced.Namespace.empty()) {
                 return;
             }
@@ -17,7 +17,7 @@ namespace NSQLComplete {
             name.prepend(namespaced.Namespace);
         }
 
-        void FixPrefix(TString& name, const TStringBuf delimeter, const TNamespaced& namespaced) {
+        void FixPrefix(TString& name, TStringBuf delimeter, const TNamespaced& namespaced) {
             if (namespaced.Namespace.empty()) {
                 return;
             }
@@ -34,6 +34,8 @@ namespace NSQLComplete {
                 SetPrefix(name.Indentifier, ".", *Pragma);
             } else if constexpr (std::is_same_v<T, TFunctionName>) {
                 SetPrefix(name.Indentifier, "::", *Function);
+            } else if constexpr (std::is_same_v<T, TClusterName>) {
+                SetPrefix(name.Indentifier, ":", *Cluster);
             }
             return name;
         }, std::move(unqualified));
@@ -46,6 +48,8 @@ namespace NSQLComplete {
                 FixPrefix(name.Indentifier, ".", *Pragma);
             } else if constexpr (std::is_same_v<T, TFunctionName>) {
                 FixPrefix(name.Indentifier, "::", *Function);
+            } else if constexpr (std::is_same_v<T, TClusterName>) {
+                FixPrefix(name.Indentifier, ":", *Cluster);
             }
             return name;
         }, std::move(qualified));

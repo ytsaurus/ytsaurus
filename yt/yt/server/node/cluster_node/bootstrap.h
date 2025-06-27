@@ -88,6 +88,8 @@ struct IBootstrapBase
 
     virtual const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() const = 0;
 
+    virtual const NIO::IHugePageManagerPtr& GetHugePageManager() const = 0;
+
     // Config stuff.
     virtual const TClusterNodeBootstrapConfigPtr& GetConfig() const = 0;
     virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
@@ -112,7 +114,7 @@ struct IBootstrapBase
     virtual NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const = 0;
     virtual std::vector<std::string> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const = 0;
 
-    virtual void ResetAndRegisterAtMaster() = 0;
+    virtual void ResetAndRegisterAtMaster(ERegistrationReason reason) = 0;
 
     virtual bool IsConnected() const = 0;
     virtual NNodeTrackerClient::TNodeId GetNodeId() const = 0;
@@ -266,6 +268,8 @@ public:
 
     const TFairShareHierarchicalSchedulerPtr<std::string>& GetFairShareHierarchicalScheduler() const override;
 
+    const NIO::IHugePageManagerPtr& GetHugePageManager() const override;
+
     const TClusterNodeBootstrapConfigPtr& GetConfig() const override;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override;
     const NCellarNode::TBundleDynamicConfigManagerPtr& GetBundleDynamicConfigManager() const override;
@@ -287,7 +291,7 @@ public:
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const override;
     std::vector<std::string> GetMasterAddressesOrThrow(NObjectClient::TCellTag cellTag) const override;
 
-    void ResetAndRegisterAtMaster() override;
+    void ResetAndRegisterAtMaster(ERegistrationReason reason) override;
 
     bool IsConnected() const override;
     NNodeTrackerClient::TNodeId GetNodeId() const override;

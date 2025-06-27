@@ -2,6 +2,7 @@
 
 #include "private.h"
 #include "master_table_schema.h"
+#include "table_manager.h"
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
@@ -11,6 +12,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
@@ -18,6 +21,8 @@ using namespace NObjectServer;
 using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
+
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,7 +45,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::Value);
     }
 
-    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         const auto* schema = GetThisImpl();
 
@@ -78,13 +83,15 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         const auto* schema = GetThisImpl();
 
         switch (key) {
-            case EInternedAttributeKey::Value:
-                return schema->AsYsonAsync();
+            case EInternedAttributeKey::Value: {
+                const auto& tableManager = Bootstrap_->GetTableManager();
+                return tableManager->GetYsonTableSchemaAsync(schema);
+            }
 
             default:
                 break;
@@ -95,9 +102,12 @@ private:
 
     void GetSelf(TReqGet* /*request*/, TRspGet* response, const TCtxGetPtr& context) override
     {
-        GetThisImpl()->AsYsonAsync().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+        const auto* schema = GetThisImpl();
+
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        tableManager->GetYsonTableSchemaAsync(schema).Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
-                response->set_value(resultOrError.Value().ToString());
+                response->set_value(ToProto(resultOrError.Value()));
                 context->Reply();
             } else {
                 context->Reply(resultOrError);

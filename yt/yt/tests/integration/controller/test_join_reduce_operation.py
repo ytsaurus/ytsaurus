@@ -5,8 +5,6 @@ from yt_commands import (
     get, insert_rows, write_file, read_table, write_table, join_reduce, reduce, sync_create_cells, sync_mount_table,
     sync_unmount_table, raises_yt_error, assert_statistics, sorted_dicts)
 
-from yt_helpers import skip_if_old
-
 import yt_error_codes
 
 import yt.yson as yson
@@ -43,7 +41,7 @@ class TestSchedulerJoinReduceBase(YTEnvSetup):
             "join_reduce_operation_options": {
                 "job_splitter": {
                     "min_job_time": 5000,
-                    "min_total_data_size": 1024,
+                    "min_total_data_weight": 1024,
                     "update_period": 100,
                     "candidate_percentile": 0.8,
                     "max_jobs_per_split": 3,
@@ -1703,31 +1701,27 @@ echo {v = 2} >&7
             {"key": "1", "value": "6"},
         ]
 
+    @staticmethod
+    def _make_table(path, sort_order, rows):
+        if sort_order == "descending":
+            rows = rows[::-1]
+        create("table", path)
+        write_table(
+            path,
+            rows,
+            sorted_by=[
+                {"name": "key", "type": "string", "sort_order": sort_order},
+            ]
+        )
+
     @authors("galtsev")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     @pytest.mark.parametrize("operation", ["reduce", "join_reduce"])
     def test_join_reduce_multiple_ranges(self, sort_order, operation):
-        skip_if_old(self.Env, (24, 2), "older versions do not support foreign tables with multiple ranges")
-
         if sort_order == "descending":
             self.skip_if_legacy_sorted_pool()
 
-        if isinstance(self, TestSchedulerJoinReduceCommandsNewSortedPool) and sort_order == "ascending":
-            pytest.xfail("New sorted pool does not work properly yet")
-
-        def write(path, rows):
-            if sort_order == "descending":
-                rows = rows[::-1]
-            write_table(
-                path,
-                rows,
-                sorted_by=[
-                    {"name": "key", "type": "string", "sort_order": sort_order},
-                ]
-            )
-
-        create("table", "//tmp/in")
-        write("//tmp/in", [
+        self._make_table("//tmp/in", sort_order, [
             {"key": "0_main"},
             {"key": "1_main_foreign"},
             {"key": "2_main_range"},
@@ -1736,8 +1730,7 @@ echo {v = 2} >&7
             {"key": "b_main_foreign_intersecting_ranges"},
         ])
 
-        create("table", "//tmp/in_foreign")
-        write("//tmp/in_foreign", [
+        self._make_table("//tmp/in_foreign", sort_order, [
             {"key": "1_main_foreign"},
             {"key": "3_main_foreign_range"},
             {"key": "4_foreign"},
@@ -1834,6 +1827,113 @@ echo {v = 2} >&7
                 {"key": "1_main_foreign", "@table_index": "0"},
                 {"key": "0_main", "@table_index": "0"},
             ]
+
+        assert rows == expected
+
+        assert get("//tmp/out/@sorted")
+
+    @authors("galtsev")
+    def test_attach_foreign_slice_to_singleton_slice(self):
+        sort_order = "ascending"
+
+        self._make_table("//tmp/in", sort_order, [
+            {"key": "a"},
+            {"key": "d"},
+            {"key": "e"},
+        ])
+
+        self._make_table("//tmp/in_foreign_1", sort_order, [
+            {"key": "b"},
+            {"key": "d"},
+        ])
+
+        self._make_table("//tmp/in_foreign_2", sort_order, [
+            {"key": "e"},
+        ])
+
+        create("table", "//tmp/out")
+
+        join_reduce(
+            in_=[
+                "//tmp/in",
+                "<foreign=true>//tmp/in_foreign_1",
+                "<foreign=true>//tmp/in_foreign_2",
+            ],
+            out=[f"<sorted_by=[{{name=key; sort_order={sort_order}}}]>//tmp/out"],
+            join_by=[{"name": "key", "sort_order": sort_order}],
+            command="cat",
+            spec={
+                "reducer": {"format": yson.loads(b"<line_prefix=tskv; enable_table_index=true>dsv")},
+                "data_size_per_job": 1,
+            },
+        )
+
+        rows = read_table("//tmp/out")
+
+        expected = [
+            {"key": "a", "@table_index": "0"},
+            {"key": "d", "@table_index": "0"},
+            {"key": "d", "@table_index": "1"},
+            {"key": "e", "@table_index": "0"},
+            {"key": "e", "@table_index": "2"},
+        ]
+
+        assert rows == expected
+
+        assert get("//tmp/out/@sorted")
+
+    @authors("galtsev")
+    def test_no_empty_jobs(self):
+        sort_order = "ascending"
+
+        self._make_table("//tmp/in", sort_order, [
+            {"key": "a"},
+            {"key": "b"},
+            {"key": "e"},
+        ])
+
+        self._make_table("//tmp/in_foreign_1", sort_order, [
+            {"key": "b"},
+            {"key": "c"},
+        ])
+
+        self._make_table("//tmp/in_foreign_2", sort_order, [
+            {"key": "d"},
+            {"key": "e"},
+        ])
+
+        self._make_table("//tmp/in_foreign_3", sort_order, [
+            {"key": "d"},
+            {"key": "f"},
+        ])
+
+        create("table", "//tmp/out")
+
+        join_reduce(
+            in_=[
+                "//tmp/in",
+                "<foreign=true>//tmp/in_foreign_1",
+                "<foreign=true>//tmp/in_foreign_2",
+                "<foreign=true>//tmp/in_foreign_3",
+            ],
+            out=[f"<sorted_by=[{{name=key; sort_order={sort_order}}}]>//tmp/out"],
+            join_by=[{"name": "key", "sort_order": sort_order}],
+            command="tee input; if [ ! -s input ]; then exit 1; fi",
+            spec={
+                "reducer": {"format": yson.loads(b"<line_prefix=tskv; enable_table_index=true>dsv")},
+                "data_size_per_job": 1,
+            },
+        )
+
+        rows = read_table("//tmp/out")
+
+        expected = [
+            {"key": "a", "@table_index": "0"},
+            {"key": "b", "@table_index": "0"},
+            {"key": "b", "@table_index": "1"},
+            {"key": "e", "@table_index": "0"},
+            {"key": "e", "@table_index": "2"},
+        ]
 
         assert rows == expected
 

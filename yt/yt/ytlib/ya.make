@@ -16,6 +16,7 @@ SRCS(
     api/native/bundle_controller_client_impl.cpp
     api/native/cell_commit_session.cpp
     api/native/chaos_helpers.cpp
+    api/native/chaos_lease.cpp
     api/native/chaos_lease_type_handler.cpp
     api/native/chaos_replicated_table_type_handler.cpp
     api/native/chaos_table_replica_type_handler.cpp
@@ -115,6 +116,8 @@ SRCS(
     chaos_client/master_cache_channel.cpp
     chaos_client/native_replication_card_cache_detail.cpp
     chaos_client/replication_card_channel_factory.cpp
+    chaos_client/replication_card_updates_batcher.cpp
+    chaos_client/replication_card_updates_batcher_serialization.cpp
     chaos_client/replication_cards_watcher.cpp
     chaos_client/replication_cards_watcher_client.cpp
 
@@ -210,12 +213,12 @@ SRCS(
     chunk_pools/chunk_pool_factory.cpp
     chunk_pools/chunk_stripe_key.cpp
     chunk_pools/chunk_stripe.cpp
-    chunk_pools/output_order.cpp
 
     controller_agent/helpers.cpp
     controller_agent/persistence.cpp
     controller_agent/public.cpp
     controller_agent/serialize.cpp
+    controller_agent/structs.cpp
 
     controller_agent/proto/controller_agent_descriptor.proto
     controller_agent/proto/controller_agent_service.proto
@@ -369,7 +372,7 @@ SRCS(
     queue_client/queue_consumer_init.cpp
     queue_client/dynamic_state.cpp
     queue_client/helpers.cpp
-    queue_client/producer_init.cpp
+    queue_client/queue_producer_init.cpp
     queue_client/registration_manager.cpp
 
     replicated_table_tracker_client/proto/replicated_table_tracker_client.proto
@@ -400,11 +403,12 @@ SRCS(
 
     sequoia_client/client.cpp
     sequoia_client/helpers.cpp
-    sequoia_client/public.cpp
     sequoia_client/record_helpers.cpp
+    sequoia_client/sequoia_reign.cpp
     sequoia_client/table_descriptor.cpp
     sequoia_client/transaction.cpp
     sequoia_client/write_set.cpp
+    sequoia_client/ypath_detail.cpp
 
     sequoia_client/proto/transaction_client.proto
 
@@ -657,6 +661,10 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
+    scheduler/records/operation_events.yaml
+)
+
+GENERATE_YT_RECORD(
     scheduler/records/ordered_by_start_time.yaml
     OUTPUT_INCLUDES
         yt/yt/core/yson/string.h
@@ -695,6 +703,7 @@ GENERATE_YT_RECORD(
     OUTPUT_INCLUDES
         yt/yt/client/queue_client/public.h
         yt/yt/core/yson/string.h
+        yt/yt/ytlib/queue_client/config.h
 )
 
 GENERATE_YT_RECORD(
@@ -738,7 +747,7 @@ ADDINCL(
 PEERDIR(
     contrib/libs/re2
     contrib/libs/protobuf
-    contrib/libs/yajl
+    contrib/deprecated/yajl
     library/cpp/erasure
     library/cpp/iterator
     library/cpp/yt/backtrace/symbolizers/dwarf

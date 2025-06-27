@@ -34,7 +34,7 @@ static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "TabletBalancer");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const std::vector<TString> DefaultPerformanceCountersKeys{
+const std::vector<std::string> DefaultPerformanceCountersKeys{
     #define XX(name, Name) #name,
     ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
     #undef XX
@@ -98,7 +98,6 @@ std::vector<TReshardDescriptor> ReshardBundleParameterized(
     auto resharder = CreateParameterizedResharder(
         bundle,
         DefaultPerformanceCountersKeys,
-        /*performanceCountersTableSchema*/ nullptr,
         config,
         group,
         Logger());
@@ -212,12 +211,11 @@ TTabletActionBatch Balance(
                 .MoveDescriptors = ReassignTabletsParameterized(
                     bundle,
                     DefaultPerformanceCountersKeys,
-                    /*performanceCountersTableSchema*/ nullptr,
                     config,
                     group,
                     /*metricTracker*/ nullptr,
                     Logger())
-                };
+            };
         }
 
         case EBalancingMode::Reshard: {
@@ -234,7 +232,13 @@ TTabletActionBatch Balance(
                     bundle,
                     /*movableTables*/ std::nullopt,
                     Logger())
-                };
+            };
+        }
+
+        case EBalancingMode::ReplicaMove: {
+            // TODO(alexelexa): Call replica balancing properly.
+            // Right now, there is no way to do it without fetching performance counters and schema from statistics table.
+            YT_ABORT();
         }
     }
 }

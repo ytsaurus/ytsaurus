@@ -18,11 +18,13 @@ public:
         EIOEngineType defaultEngineType,
         NYTree::INodePtr defaultIOConfig,
         TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue,
+        IHugePageManagerPtr hugePageManager,
         TString locationId,
         NProfiling::TProfiler profiler,
         NLogging::TLogger logger)
         : LocationId_(std::move(locationId))
         , FairShareQueue_(std::move(fairShareQueue))
+        , HugePageManager_(std::move(hugePageManager))
         , Profiler_(std::move(profiler))
         , Logger(std::move(logger))
     {
@@ -142,7 +144,8 @@ public:
                     LocationId_,
                     Profiler_,
                     Logger,
-                    FairShareQueue_);
+                    FairShareQueue_,
+                    HugePageManager_);
                 entry.Initialized.store(true);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error creating %Qlv IO engine",
@@ -223,6 +226,7 @@ public:
 private:
     const TString LocationId_;
     const TFairShareHierarchicalSlotQueuePtr<std::string> FairShareQueue_ = nullptr;
+    const IHugePageManagerPtr HugePageManager_ = nullptr;
     const NProfiling::TProfiler Profiler_;
     const NLogging::TLogger Logger;
 
@@ -262,6 +266,7 @@ IDynamicIOEnginePtr CreateDynamicIOEngine(
     EIOEngineType defaultEngineType,
     NYTree::INodePtr ioConfig,
     TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue,
+    IHugePageManagerPtr hugePageManager,
     TString locationId,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
@@ -270,6 +275,7 @@ IDynamicIOEnginePtr CreateDynamicIOEngine(
         defaultEngineType,
         std::move(ioConfig),
         std::move(fairShareQueue),
+        std::move(hugePageManager),
         std::move(locationId),
         std::move(profiler),
         std::move(logger));

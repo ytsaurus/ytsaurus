@@ -184,7 +184,8 @@ std::pair<TJoinClausePtr, TGroupClausePtr> MakeGroupAndJoinClauses(
             aggregate.ResultType));
     }
 
-    TPurityChecker isConstant({});
+    auto emptySchema = TTableSchema();
+    TPurityChecker isConstant(emptySchema);
 
     while (groupItems.size() > 1) {
         auto it = std::find_if(groupItems.begin(), groupItems.end(), [&] (const TNamedItem& item) {

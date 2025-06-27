@@ -8,6 +8,48 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.30**" %}
+
+**Release date:** 2025-06-16
+
+
+## Features
+  * Introduce `list_operation_events` command
+
+
+{% endcut %}
+
+
+{% cut "**0.13.29**" %}
+
+**Release date:** 2025-06-02
+
+
+## Features
+  * Add `annotate_with_types` to `yson_to_json` function
+  * Improve proxy banned warning message
+
+## Fixes
+  * Remove `YtSequoiaRetriableError`
+  * Fix handling errors in `write_table` with enabled framing
+
+
+{% endcut %}
+
+
+{% cut "**0.13.28**" %}
+
+**Release date:** 2025-04-30
+
+
+## Features
+
+- Turn on `redirect_stdout_to_stderr` by default
+- Add password strength validation in `set_user_password` request
+
+{% endcut %}
+
+
 {% cut "**0.13.27**" %}
 
 **Release date:** 2025-04-18

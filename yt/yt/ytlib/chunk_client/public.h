@@ -248,6 +248,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkReaderMemoryManager)
 DECLARE_REFCOUNTED_STRUCT(IChunkReplicaCache)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkReaderHost)
+DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderHost)
 
 struct TChunkReaderMemoryManagerOptions;
 

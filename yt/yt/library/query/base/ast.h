@@ -258,7 +258,7 @@ struct TAliasExpression
 struct TFunctionExpression
     : public TExpression
 {
-    TString FunctionName;
+    std::string FunctionName;
     TExpressionList Arguments;
 
     TFunctionExpression(
@@ -543,7 +543,7 @@ struct TQuery
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TAliasMap = THashMap<TString, TExpressionPtr>;
+using TAliasMap = THashMap<std::string, TExpressionPtr>;
 
 struct TAstHead
     : public TObjectsHolder

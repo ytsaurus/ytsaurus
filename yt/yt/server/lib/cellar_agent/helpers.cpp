@@ -10,6 +10,7 @@ namespace NYT::NCellarAgent {
 
 using namespace NObjectClient;
 using namespace NCellarClient;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,21 +42,23 @@ ECellarType GetCellarTypeFromCellBundleId(TObjectId id)
     }
 }
 
-const TString& GetCellCypressPathPrefix(TCellId id)
+const TYPath& GetCellarTypeCypressPathPrefix(ECellarType type)
 {
-    switch (TypeFromId(id)) {
-        case EObjectType::TabletCell:
+    switch (type) {
+        case ECellarType::Tablet:
             return TabletCellCypressPrefix;
 
-        case EObjectType::ChaosCell:
+        case ECellarType::Chaos:
             return ChaosCellCypressPrefix;
-
-        default:
-            YT_ABORT();
     }
 }
 
-const TString& GetCellHydraPersistenceCypressPathPrefix(TCellId id)
+const TYPath& GetCellCypressPathPrefix(TCellId id)
+{
+    return GetCellarTypeCypressPathPrefix(GetCellarTypeFromCellId(id));
+}
+
+const TYPath& GetCellHydraPersistenceCypressPathPrefix(TCellId id)
 {
     switch (TypeFromId(id)) {
         case EObjectType::TabletCell:
@@ -69,12 +72,12 @@ const TString& GetCellHydraPersistenceCypressPathPrefix(TCellId id)
     }
 }
 
-NYPath::TYPath GetCellPath(NElection::TCellId id)
+TYPath GetCellPath(NElection::TCellId id)
 {
     return Format("%v/%v", GetCellCypressPathPrefix(id), id);
 }
 
-NYPath::TYPath GetCellHydraPersistencePath(NElection::TCellId id)
+TYPath GetCellHydraPersistencePath(NElection::TCellId id)
 {
     return Format("%v/%v", GetCellHydraPersistenceCypressPathPrefix(id), id);
 }

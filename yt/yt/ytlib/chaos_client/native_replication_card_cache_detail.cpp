@@ -237,6 +237,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(osidorkin) Use better cache that is aware of era.
 TReplicationCardCache::TReplicationCardCache(
     TReplicationCardCacheConfigPtr config,
     NNative::IConnectionPtr connection,

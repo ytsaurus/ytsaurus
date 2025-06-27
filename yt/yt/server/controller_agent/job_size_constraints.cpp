@@ -25,6 +25,21 @@ static constexpr i64 InfiniteCount = std::numeric_limits<i64>::max() / 4;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! When neither data_size_per_job nor job_count are specified,
+//! we need to get a hint about job size from another source.
+DEFINE_ENUM(EDataSizePerMergeJobHint,
+    //! Use the value from T${OperationType}OperationOptions
+    //! from the dynamic config. Useful when DesiredChunkSize is meaningless
+    //! (for example, when remote_copying files).
+    (OperationOptions)
+    //! Try to optimize writer's memory using
+    //! #TMultiChunkWriterConfig::DesiredChunkSize.
+    (DesiredChunkSize)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 class TJobSizeConstraintsBase
     : public IJobSizeConstraints
 {
@@ -63,21 +78,14 @@ public:
     {
         YT_VERIFY(ForeignInputDataWeight_ >= 0);
 
-        if (GetSamplingRateImpl()) {
+        if (GetSamplingRate()) {
             InitializeSampling();
         }
     }
 
-    // NB: Helper method to avoid calling virtual method from constructor.
-    // Even though it should be technically fine in this case.
-    std::optional<double> GetSamplingRateImpl() const
-    {
-        return SamplingConfig_ ? SamplingConfig_->SamplingRate : std::nullopt;
-    }
-
     std::optional<double> GetSamplingRate() const override
     {
-        return GetSamplingRateImpl();
+        return SamplingConfig_ ? SamplingConfig_->SamplingRate : std::nullopt;
     }
 
     i64 GetSamplingDataWeightPerJob() const override
@@ -155,10 +163,10 @@ public:
 
     i64 GetInputSliceRowCount() const override
     {
-        if (JobCount_ == 0) {
+        if (GetJobCount() == 0) {
             return 1;
         }
-        return std::max<i64>(DivCeil(InputRowCount_, JobCount_), 1);
+        return std::max<i64>(InputRowCount_ / GetJobCount(), 1);
     }
 
     std::optional<i64> GetBatchRowCount() const override
@@ -168,7 +176,7 @@ public:
 
     int GetJobCount() const override
     {
-        return JobCount_;
+        return std::max(JobCountByDataWeight_, JobCountByCompressedDataSize_);
     }
 
     bool ForceAllowJobInterruption() const override
@@ -199,16 +207,14 @@ protected:
     i64 PrimaryInputCompressedDataSize_ = -1;
     i64 ForeignInputDataWeight_ = -1;
     i64 InputChunkCount_ = -1;
-    i64 JobCount_ = -1;
     i64 InputRowCount_ = -1;
     int MergeInputTableCount_ = -1;
     int MergePrimaryInputTableCount_ = -1;
-    TSerializableLogger Logger;
 
-    i64 GetSortedOperationInputSliceDataWeight() const
-    {
-        return TJobSizeConstraintsBase::GetInputSliceDataWeight();
-    }
+    i64 JobCountByDataWeight_ = -1;
+    i64 JobCountByCompressedDataSize_ = -1;
+
+    TSerializableLogger Logger;
 
 private:
     i64 InitialInputDataWeight_ = -1;
@@ -270,7 +276,7 @@ void TJobSizeConstraintsBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(6, InitialInputDataWeight_);
     PHOENIX_REGISTER_FIELD(7, InitialPrimaryInputDataWeight_);
     PHOENIX_REGISTER_FIELD(8, InputChunkCount_);
-    PHOENIX_REGISTER_FIELD(9, JobCount_);
+    PHOENIX_REGISTER_FIELD(9, JobCountByDataWeight_);
     PHOENIX_REGISTER_FIELD(10, InputRowCount_);
     PHOENIX_REGISTER_FIELD(11, Logger);
     PHOENIX_REGISTER_FIELD(12, MergeInputTableCount_);
@@ -282,6 +288,11 @@ void TJobSizeConstraintsBase::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::MaxCompressedDataSizePerJob));
     PHOENIX_REGISTER_FIELD(18, PrimaryInputCompressedDataSize_,
         .SinceVersion(ESnapshotVersion::MaxCompressedDataSizePerJob));
+    PHOENIX_REGISTER_FIELD(19, JobCountByCompressedDataSize_,
+        .SinceVersion(ESnapshotVersion::CompressedDataSizePerJob)
+        .WhenMissing([] (TThis* this_, auto& /*context*/) {
+            this_->JobCountByCompressedDataSize_ = 1;
+        }));
 }
 
 PHOENIX_DEFINE_TYPE(TJobSizeConstraintsBase);
@@ -307,8 +318,7 @@ public:
         i64 foreignInputDataWeight,
         i64 foreignInputCompressedDataSize,
         int inputTableCount,
-        int primaryInputTableCount,
-        bool sortedOperation)
+        int primaryInputTableCount)
         : TJobSizeConstraintsBase(
             primaryInputDataWeight + foreignInputDataWeight,
             primaryInputCompressedDataSize + foreignInputCompressedDataSize,
@@ -324,48 +334,33 @@ public:
             spec->Sampling)
         , Spec_(spec)
         , Options_(options)
-        , SortedOperation_(sortedOperation)
     {
-        if (Spec_->JobCount) {
-            JobCount_ = *Spec_->JobCount;
-        } else if (PrimaryInputDataWeight_ > 0) {
-            i64 dataWeightPerJob = Spec_->DataWeightPerJob.value_or(Options_->DataWeightPerJob);
-
-            if (dataWeightRatio < 1) {
-                // This means that uncompressed data size is larger than data weight,
-                // which may happen for very sparse data.
-                dataWeightPerJob = std::max(static_cast<i64>(dataWeightPerJob * dataWeightRatio), (i64)1);
+        i64 dataWeightPerJob = [&] {
+            if (Spec_->DataWeightPerJob.has_value() || !Spec_->CompressedDataSizePerJob.has_value()) {
+                i64 dataWeightPerJob = Spec_->DataWeightPerJob.value_or(Options_->DataWeightPerJob);
+                if (dataWeightRatio < 1) {
+                    // This means that uncompressed data size is larger than data weight,
+                    // which may happen for very sparse data.
+                    dataWeightPerJob = std::max(static_cast<i64>(dataWeightPerJob * dataWeightRatio), (i64)1);
+                }
+                return dataWeightPerJob;
             }
+            return Spec_->MaxDataWeightPerJob;
+        }();
 
-            if (IsSmallForeignRatio()) {
-                // Since foreign tables are quite small, we use primary table to estimate job count.
-                JobCount_ = std::max({
-                    DivCeil(PrimaryInputDataWeight_, dataWeightPerJob),
-                    DivCeil(InputDataWeight_, DivCeil<i64>(Spec_->MaxDataWeightPerJob, 2)),
-                    DivCeil(PrimaryInputCompressedDataSize_, GetMaxCompressedDataSizePerJob())});
-            } else {
-                JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
-                // TODO(apollo1321): Add JobCount estimation by CompressedDataSize and write tests on this, YT-10317.
-            }
-        } else {
-            JobCount_ = 0;
-        }
+        JobCountByDataWeight_ = ComputeJobCount(
+            dataWeightPerJob,
+            Spec_->MaxDataWeightPerJob,
+            PrimaryInputDataWeight_,
+            InputDataWeight_,
+            outputTableCount);
 
-        i64 maxJobCount = Options_->MaxJobCount;
-
-        if (Spec_->MaxJobCount) {
-            maxJobCount = std::min(maxJobCount, static_cast<i64>(*Spec_->MaxJobCount));
-        }
-
-        JobCount_ = std::min(JobCount_, maxJobCount);
-        JobCount_ = std::min(JobCount_, InputRowCount_);
-
-        if (JobCount_ * outputTableCount > Options_->MaxOutputTablesTimesJobsCount) {
-            // ToDo(psushin): register alert if explicit job count or data size per job were given.
-            JobCount_ = DivCeil(Options_->MaxOutputTablesTimesJobsCount, outputTableCount);
-        }
-
-        YT_VERIFY(JobCount_ >= 0);
+        JobCountByCompressedDataSize_ = ComputeJobCount(
+            Spec_->CompressedDataSizePerJob.value_or(InfiniteSize),
+            Spec_->MaxCompressedDataSizePerJob,
+            PrimaryInputCompressedDataSize_,
+            InputCompressedDataSize_,
+            outputTableCount);
     }
 
     bool CanAdjustDataWeightPerJob() const override
@@ -394,23 +389,18 @@ public:
 
     i64 GetDataWeightPerJob() const override
     {
-        if (JobCount_ == 0) {
-            return 1;
-        } else if (IsSmallForeignRatio()) {
-            return std::min(
-                DivCeil(InputDataWeight_, JobCount_),
-                // We don't want to have much more that primary data weight per job, since that is
-                // what we calculated given data_weight_per_job.
-                2 * GetPrimaryDataWeightPerJob());
-        } else {
-            return DivCeil(InputDataWeight_, JobCount_);
-        }
+        return GetSizePerJob(JobCountByDataWeight_, PrimaryInputDataWeight_, InputDataWeight_, GetPrimaryDataWeightPerJob());
+    }
+
+    i64 GetCompressedDataSizePerJob() const override
+    {
+        return GetSizePerJob(JobCountByCompressedDataSize_, PrimaryInputCompressedDataSize_, InputCompressedDataSize_, GetPrimaryCompressedDataSizePerJob());
     }
 
     i64 GetPrimaryDataWeightPerJob() const override
     {
-        return JobCount_ > 0
-            ? std::max<i64>(1, DivCeil(PrimaryInputDataWeight_, JobCount_))
+        return JobCountByDataWeight_ > 0
+            ? std::max<i64>(1, DivCeil(PrimaryInputDataWeight_, JobCountByDataWeight_))
             : 1;
     }
 
@@ -424,35 +414,91 @@ public:
             : 1);
     }
 
-    i64 GetInputSliceDataWeight() const override
+    i64 GetMaxCompressedDataSizePerJob() const override
     {
-        if (!SortedOperation_ || GetSamplingRate()) {
-            return TJobSizeConstraintsBase::GetInputSliceDataWeight();
-        }
-
-        return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
+        return Spec_->MaxCompressedDataSizePerJob;
     }
 
 private:
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
-    bool SortedOperation_;
 
-    double GetForeignDataRatio() const
+    i64 GetPrimaryCompressedDataSizePerJob() const
     {
-        if (PrimaryInputDataWeight_ > 0) {
-            return (InputDataWeight_ - PrimaryInputDataWeight_) / static_cast<double>(PrimaryInputDataWeight_);
+        return JobCountByCompressedDataSize_ > 0
+            ? std::max<i64>(1, DivCeil(PrimaryInputCompressedDataSize_, JobCountByCompressedDataSize_))
+            : 1;
+    }
+
+    i64 GetSizePerJob(i64 jobCount, i64 primaryInputSize, i64 inputSize, i64 primarySizePerJob) const
+    {
+        if (jobCount == 0) {
+            return 1;
+        } else if (IsSmallForeignRatio(primaryInputSize, inputSize)) {
+            return std::min(
+                DivCeil(inputSize, jobCount),
+                // We don't want to have much more that primary data weight per job, since that is
+                // what we calculated given data_weight_per_job.
+                2 * primarySizePerJob);
+        } else {
+            return DivCeil(inputSize, jobCount);
+        }
+    }
+
+    i64 ComputeJobCount(
+        i64 sizePerJob,
+        i64 maxSizePerJob,
+        i64 primaryInputSize,
+        i64 inputSize,
+        int outputTableCount) const
+    {
+        i64 jobCount = 0;
+        if (Spec_->JobCount) {
+            jobCount = *Spec_->JobCount;
+        } else if (primaryInputSize > 0) {
+            if (IsSmallForeignRatio(primaryInputSize, inputSize)) {
+                // Since foreign tables are quite small, we use primary table to estimate job count.
+                jobCount = std::max(
+                    DivCeil(primaryInputSize, sizePerJob),
+                    DivCeil(inputSize, DivCeil<i64>(maxSizePerJob, 2)));
+            } else {
+                jobCount = DivCeil(inputSize, sizePerJob);
+            }
+        }
+
+        i64 maxJobCount = Options_->MaxJobCount;
+
+        if (Spec_->MaxJobCount) {
+            maxJobCount = std::min(maxJobCount, static_cast<i64>(*Spec_->MaxJobCount));
+        }
+
+        jobCount = std::min({jobCount, maxJobCount, InputRowCount_});
+
+        if (jobCount * outputTableCount > Options_->MaxOutputTablesTimesJobsCount) {
+            // ToDo(psushin): register alert if explicit job count or data size per job were given.
+            jobCount = DivCeil(Options_->MaxOutputTablesTimesJobsCount, outputTableCount);
+        }
+
+        YT_VERIFY(jobCount >= 0);
+
+        return jobCount;
+    }
+
+    static double GetForeignDataRatio(i64 primaryInputSize, i64 inputSize)
+    {
+        if (primaryInputSize > 0) {
+            return (inputSize - primaryInputSize) / static_cast<double>(primaryInputSize);
         } else {
             return 0;
         }
     }
 
-    bool IsSmallForeignRatio() const
+    static bool IsSmallForeignRatio(i64 primaryInputSize, i64 inputSize)
     {
         // ToDo(psushin): make configurable.
         constexpr double SmallForeignRatio = 0.2;
 
-        return GetForeignDataRatio() < SmallForeignRatio;
+        return GetForeignDataRatio(primaryInputSize, inputSize) < SmallForeignRatio;
     }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TUserJobSizeConstraints, 0xb45cfe0d);
@@ -464,7 +510,13 @@ void TUserJobSizeConstraints::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(1, Spec_);
     PHOENIX_REGISTER_FIELD(2, Options_);
-    PHOENIX_REGISTER_FIELD(3, SortedOperation_);
+
+    registrar
+        .template VirtualField<3>("SortedOperation_", [] (TThis* /*this_*/, auto& context) {
+            bool sortedOperation;
+            NYT::Load(context, sortedOperation);
+        })
+        .BeforeVersion(ESnapshotVersion::DropUnusedFieldInJobSizeConstraints)();
 }
 
 PHOENIX_DEFINE_TYPE(TUserJobSizeConstraints);
@@ -508,49 +560,8 @@ public:
         , Spec_(spec)
         , Options_(options)
     {
-        if (Spec_->JobCount) {
-            JobCount_ = *Spec_->JobCount;
-        } else if (Spec_->DataWeightPerJob) {
-            i64 dataWeightPerJob = *Spec_->DataWeightPerJob;
-            if (dataWeightRatio < 1.0 / 2) {
-                // This means that uncompressed data size is larger than 2x data weight,
-                // which may happen for very sparse data. Than, adjust data weight accordingly.
-                dataWeightPerJob = std::max(static_cast<i64>(dataWeightPerJob * dataWeightRatio * 2), (i64)1);
-            }
-            JobCount_ = std::max(
-                DivCeil(InputDataWeight_, dataWeightPerJob),
-                DivCeil(InputCompressedDataSize_, GetMaxCompressedDataSizePerJob()));
-        } else {
-            i64 dataWeightPerJob;
-            switch (dataSizeHint) {
-                case EDataSizePerMergeJobHint::DesiredChunkSize:
-                    dataWeightPerJob = Spec_->JobIO->TableWriter->DesiredChunkSize / compressionRatio;
-                    break;
-                case EDataSizePerMergeJobHint::OperationOptions:
-                    dataWeightPerJob = Options_->DataWeightPerJob;
-                    break;
-                default:
-                    YT_ABORT();
-            }
-
-            if (dataWeightPerJob / dataWeightRatio > Options_->DataWeightPerJob) {
-                // This means that compression ration w.r.t data weight is very small,
-                // so we would like to limit uncompressed data size per job.
-                dataWeightPerJob = Options_->DataWeightPerJob * dataWeightRatio;
-            }
-            JobCount_ = std::max(
-                DivCeil(InputDataWeight_, dataWeightPerJob),
-                DivCeil(InputCompressedDataSize_, GetMaxCompressedDataSizePerJob()));
-        }
-
-        i64 maxJobCount = Options_->MaxJobCount;
-        if (Spec_->MaxJobCount) {
-            maxJobCount = std::min(maxJobCount, static_cast<i64>(*Spec_->MaxJobCount));
-        }
-        JobCount_ = std::min(JobCount_, maxJobCount);
-
-        YT_VERIFY(JobCount_ >= 0);
-        YT_VERIFY(JobCount_ != 0 || InputDataWeight_ == 0);
+        JobCountByDataWeight_ = ComputeJobCount(ComputeDataWeightPerJob(dataWeightRatio, compressionRatio, dataSizeHint), InputDataWeight_);
+        JobCountByCompressedDataSize_ = ComputeJobCount(Spec_->CompressedDataSizePerJob.value_or(InfiniteSize), InputCompressedDataSize_);
     }
 
     bool CanAdjustDataWeightPerJob() const override
@@ -572,11 +583,11 @@ public:
 
     i64 GetDataWeightPerJob() const override
     {
-        auto dataWeightPerJob = JobCount_ > 0
-            ? DivCeil(InputDataWeight_, JobCount_)
+        i64 dataWeightPerJob = JobCountByDataWeight_ > 0
+            ? DivCeil(InputDataWeight_, JobCountByDataWeight_)
             : 1;
 
-        return std::min(dataWeightPerJob, DivCeil<i64>(GetMaxDataWeightPerJob(), 2));
+        return std::min(dataWeightPerJob, DivCeil<i64>(TJobSizeConstraintsBase::GetMaxDataWeightPerJob(), 2));
     }
 
     i64 GetPrimaryDataWeightPerJob() const override
@@ -586,9 +597,25 @@ public:
 
     i64 GetMaxDataSlicesPerJob() const override
     {
-        return std::max<i64>(Options_->MaxDataSlicesPerJob, Spec_->JobCount && *Spec_->JobCount > 0
-            ? DivCeil<i64>(InputChunkCount_, *Spec_->JobCount)
-            : 1);
+        return std::max<i64>(
+            Options_->MaxDataSlicesPerJob,
+            Spec_->JobCount && *Spec_->JobCount > 0
+                ? DivCeil<i64>(InputChunkCount_, *Spec_->JobCount)
+                : 1);
+    }
+
+    i64 GetCompressedDataSizePerJob() const override
+    {
+        i64 compressedDataSizePerJob = JobCountByCompressedDataSize_ > 0
+            ? DivCeil(InputCompressedDataSize_, JobCountByCompressedDataSize_)
+            : 1;
+
+        return std::min(compressedDataSizePerJob, DivCeil<i64>(GetMaxCompressedDataSizePerJob(), 2));
+    }
+
+    i64 GetMaxCompressedDataSizePerJob() const override
+    {
+        return Spec_->MaxCompressedDataSizePerJob;
     }
 
     i64 GetInputSliceRowCount() const override
@@ -596,18 +623,67 @@ public:
         return std::numeric_limits<i64>::max() / 4;
     }
 
-    i64 GetInputSliceDataWeight() const override
-    {
-        if (GetSamplingRate()) {
-            return TJobSizeConstraintsBase::GetInputSliceDataWeight();
-        }
-
-        return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
-    }
-
 private:
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
+
+    i64 ComputeDataWeightPerJob(double dataWeightRatio, double compressionRatio, EDataSizePerMergeJobHint dataSizeHint) const
+    {
+        if (Spec_->DataWeightPerJob) {
+            i64 dataWeightPerJob = *Spec_->DataWeightPerJob;
+            if (dataWeightRatio < 1.0 / 2) {
+                // This means that uncompressed data size is larger than 2x data weight,
+                // which may happen for very sparse data. Than, adjust data weight accordingly.
+                dataWeightPerJob = std::max(static_cast<i64>(dataWeightPerJob * dataWeightRatio * 2), (i64)1);
+            }
+            return dataWeightPerJob;
+        }
+
+        if (Spec_->CompressedDataSizePerJob) {
+            return Spec_->MaxCompressedDataSizePerJob;
+        }
+
+        i64 dataWeightPerJob;
+        switch (dataSizeHint) {
+            case EDataSizePerMergeJobHint::DesiredChunkSize:
+                dataWeightPerJob = Spec_->JobIO->TableWriter->DesiredChunkSize / compressionRatio;
+                break;
+            case EDataSizePerMergeJobHint::OperationOptions:
+                dataWeightPerJob = Options_->DataWeightPerJob;
+                break;
+            default:
+                YT_ABORT();
+        }
+
+        if (dataWeightPerJob / dataWeightRatio > Options_->DataWeightPerJob) {
+            // This means that compression ration w.r.t data weight is very small,
+            // so we would like to limit uncompressed data size per job.
+            dataWeightPerJob = Options_->DataWeightPerJob * dataWeightRatio;
+        }
+
+        return dataWeightPerJob;
+    }
+
+    i64 ComputeJobCount(i64 sizePerJob, i64 inputSize) const
+    {
+        i64 jobCount;
+        if (Spec_->JobCount) {
+            jobCount = *Spec_->JobCount;
+        } else {
+            jobCount = DivCeil(inputSize, sizePerJob);
+        }
+
+        i64 maxJobCount = Options_->MaxJobCount;
+        if (Spec_->MaxJobCount) {
+            maxJobCount = std::min(maxJobCount, static_cast<i64>(*Spec_->MaxJobCount));
+        }
+        jobCount = std::min(jobCount, maxJobCount);
+
+        YT_VERIFY(jobCount >= 0);
+        YT_VERIFY(jobCount != 0 || inputSize == 0);
+
+        return jobCount;
+    }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TMergeJobSizeConstraints, 0x3f1caf80);
 };
@@ -649,9 +725,11 @@ public:
         , Spec_(spec)
         , Options_(options)
     {
-        JobCount_ = DivCeil(InputDataWeight_, Spec_->DataWeightPerShuffleJob);
-        YT_VERIFY(JobCount_ >= 0);
-        YT_VERIFY(JobCount_ != 0 || InputDataWeight_ == 0);
+        JobCountByDataWeight_ = DivCeil(InputDataWeight_, Spec_->DataWeightPerShuffleJob);
+        YT_VERIFY(JobCountByDataWeight_ >= 0);
+        YT_VERIFY(JobCountByDataWeight_ != 0 || InputDataWeight_ == 0);
+
+        JobCountByCompressedDataSize_ = 0;
     }
 
     bool CanAdjustDataWeightPerJob() const override
@@ -666,9 +744,19 @@ public:
 
     i64 GetDataWeightPerJob() const override
     {
-        return JobCount_ > 0
-            ? DivCeil(InputDataWeight_, JobCount_)
+        return JobCountByDataWeight_ > 0
+            ? DivCeil(InputDataWeight_, JobCountByDataWeight_)
             : 1;
+    }
+
+    i64 GetCompressedDataSizePerJob() const override
+    {
+        return InfiniteSize;
+    }
+
+    i64 GetMaxCompressedDataSizePerJob() const override
+    {
+        return InfiniteSize;
     }
 
     i64 GetPrimaryDataWeightPerJob() const override
@@ -738,10 +826,10 @@ public:
         , Options_(options)
     {
         if (Spec_->PartitionJobCount) {
-            JobCount_ = *Spec_->PartitionJobCount;
+            JobCountByDataWeight_ = *Spec_->PartitionJobCount;
         } else if (Spec_->DataWeightPerPartitionJob) {
             i64 dataWeightPerJob = *Spec_->DataWeightPerPartitionJob;
-            JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
+            JobCountByDataWeight_ = DivCeil(InputDataWeight_, dataWeightPerJob);
         } else {
             // Rationale and details are on the wiki.
             // https://wiki.yandex-team.ru/yt/design/partitioncount/
@@ -758,25 +846,33 @@ public:
                 return static_cast<i64>(partitionJobDataWeight);
             }();
 
-            JobCount_ = DivCeil(InputDataWeight_, std::max<i64>(partitionJobDataWeight, 1));
+            JobCountByDataWeight_ = DivCeil(InputDataWeight_, std::max<i64>(partitionJobDataWeight, 1));
         }
 
-        YT_VERIFY(JobCount_ >= 0);
-        YT_VERIFY(JobCount_ != 0 || InputDataWeight_ == 0);
+        YT_VERIFY(JobCountByDataWeight_ >= 0);
+        YT_VERIFY(JobCountByDataWeight_ != 0 || InputDataWeight_ == 0);
 
-        if (JobCount_ > 0 && inputUncompressedDataSize / JobCount_ > Spec_->MaxDataWeightPerJob) {
+        if (JobCountByDataWeight_ > 0 && inputUncompressedDataSize / JobCountByDataWeight_ > Spec_->MaxDataWeightPerJob) {
+            // NB(apollo1321): There are no tests for this scenario.
             // Sometimes (but rarely) data weight can be smaller than data size. Let's protect from
             // unreasonable huge jobs.
-            JobCount_ = DivCeil(inputUncompressedDataSize, 2 * Spec_->MaxDataWeightPerJob);
+            JobCountByDataWeight_ = DivCeil(inputUncompressedDataSize, 2 * Spec_->MaxDataWeightPerJob);
         }
 
-        JobCount_ = std::min(JobCount_, static_cast<i64>(Options_->MaxPartitionJobCount));
-        JobCount_ = std::min(JobCount_, InputRowCount_);
+        JobCountByDataWeight_ = std::min({JobCountByDataWeight_, static_cast<i64>(Options_->MaxPartitionJobCount), InputRowCount_});
+        JobCountByCompressedDataSize_ = 0;
     }
 
     bool CanAdjustDataWeightPerJob() const override
     {
-        return !Spec_->DataWeightPerPartitionJob && !Spec_->PartitionJobCount;
+        if (Spec_->PartitionJobCount) {
+            return false;
+        }
+        if (Spec_->DataWeightPerPartitionJob) {
+            return Spec_->ForceJobSizeAdjuster;
+        }
+
+        return true;
     }
 
     bool IsExplicitJobCount() const override
@@ -786,8 +882,8 @@ public:
 
     i64 GetDataWeightPerJob() const override
     {
-        return JobCount_ > 0
-            ? DivCeil(InputDataWeight_, JobCount_)
+        return JobCountByDataWeight_ > 0
+            ? DivCeil(InputDataWeight_, JobCountByDataWeight_)
             : 1;
     }
 
@@ -799,6 +895,16 @@ public:
     i64 GetMaxDataSlicesPerJob() const override
     {
         return Options_->MaxDataSlicesPerJob;
+    }
+
+    i64 GetCompressedDataSizePerJob() const override
+    {
+        return InfiniteSize;
+    }
+
+    i64 GetMaxCompressedDataSizePerJob() const override
+    {
+        return InfiniteSize;
     }
 
 private:
@@ -835,8 +941,7 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     i64 foreignInputDataWeight,
     i64 foreignInputCompressedDataSize,
     int inputTableCount,
-    int primaryInputTableCount,
-    bool sortedOperation)
+    int primaryInputTableCount)
 {
     return New<TUserJobSizeConstraints>(
         spec,
@@ -851,8 +956,7 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
         foreignInputDataWeight,
         foreignInputCompressedDataSize,
         inputTableCount,
-        primaryInputTableCount,
-        sortedOperation);
+        primaryInputTableCount);
 }
 
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
@@ -865,8 +969,7 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     double dataWeightRatio,
     double compressionRatio,
     int mergeInputTableCount,
-    int mergePrimaryInputTableCount,
-    EDataSizePerMergeJobHint dataSizeHint)
+    int mergePrimaryInputTableCount)
 {
     return New<TMergeJobSizeConstraints>(
         spec,
@@ -879,7 +982,7 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
         compressionRatio,
         mergeInputTableCount,
         mergePrimaryInputTableCount,
-        dataSizeHint);
+        EDataSizePerMergeJobHint::DesiredChunkSize);
 }
 
 IJobSizeConstraintsPtr CreateRemoteCopyJobSizeConstraints(
@@ -957,11 +1060,12 @@ IJobSizeConstraintsPtr CreatePartitionBoundSortedJobSizeConstraints(
     i64 dataWeightPerJob = std::max(minDataWeightPerJob, spec->DataWeightPerSortedJob.value_or(spec->DataWeightPerShuffleJob));
 
     return CreateExplicitJobSizeConstraints(
-        /*canAdjustDataSizePerJob*/ false,
+        /*canAdjustDataSizePerJob*/ spec->ForceJobSizeAdjuster,
         /*isExplicitJobCount*/ false,
         /*jobCount*/ 0,
         /*dataWeightPerJob*/ dataWeightPerJob,
         /*primaryDataWeightPerJob*/ dataWeightPerJob,
+        /*compressedDataSizePerJob*/ InfiniteSize,
         options->MaxDataSlicesPerJob,
         spec->MaxDataWeightPerJob,
         spec->MaxPrimaryDataWeightPerJob,

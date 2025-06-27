@@ -1,6 +1,6 @@
 // package spec defines specification of YT operation.
 //
-// See https://wiki.yandex-team.ru/yt/userdoc/operations/
+// See https://ytsaurus.tech/docs/en/user-guide/data-processing/operations/overview
 package spec
 
 import (

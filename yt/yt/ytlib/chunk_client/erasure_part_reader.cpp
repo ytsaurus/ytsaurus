@@ -40,7 +40,7 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    TChunkReplicaWithMediumList replicas,
+    TChunkReplicaList replicas,
     const TPartIndexList& partIndexList,
     EUnavailablePartPolicy unavailablePartPolicy)
 {
@@ -73,7 +73,7 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
                 ++jt;
             }
 
-            TChunkReplicaWithMediumList partReplicas(it, jt);
+            TChunkReplicaList partReplicas(it, jt);
             auto partChunkId = ErasurePartIdFromChunkId(chunkId, it->GetReplicaIndex());
             auto reader = CreateReplicationReader(
                 partConfig,
@@ -105,7 +105,7 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateAllErasurePartReaders(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    TChunkReplicaWithMediumList seedReplicas,
+    TChunkReplicaList seedReplicas,
     const ICodec* codec,
     EUnavailablePartPolicy unavailablePartPolicy)
 {

@@ -54,6 +54,8 @@
 
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NControllerAgent {
@@ -82,7 +84,7 @@ using NNodeTrackerClient::GetDefaultAddress;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ControllerAgentLogger;
+constinit const auto Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -492,7 +494,7 @@ private:
         }
         {
             auto req = TCypressYPathProxy::Set(path + "/@annotations");
-            req->set_value(ConvertToYsonStringNestingLimited(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
+            req->set_value(ToProto(ConvertToYsonStringNestingLimited(Bootstrap_->GetConfig()->CypressAnnotations)));
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -509,13 +511,13 @@ private:
         }
         {
             auto req = TYPathProxy::Set(path + "/@connection_time");
-            req->set_value(ConvertToYsonStringNestingLimited(TInstant::Now()).ToString());
+            req->set_value(ToProto(ConvertToYsonStringNestingLimited(TInstant::Now())));
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
         {
             auto req = TYPathProxy::Set(path + "/@tags");
-            req->set_value(ConvertToYsonStringNestingLimited(GetTags()).ToString());
+            req->set_value(ToProto(ConvertToYsonStringNestingLimited(GetTags())));
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -658,13 +660,13 @@ private:
         // Update controller agent address.
         {
             auto req = TYPathProxy::Set(operationPath + "/@controller_agent_address");
-            req->set_value(ConvertToYsonStringNestingLimited(GetDefaultAddress(Bootstrap_->GetLocalAddresses())).ToString());
+            req->set_value(ToProto(ConvertToYsonStringNestingLimited(GetDefaultAddress(Bootstrap_->GetLocalAddresses()))));
             batchReq->AddRequest(req, "set_controller_agent_address");
         }
         // Initialize info about operation's failed jobs.
         if (isCleanOperationStart) {
             auto req = TYPathProxy::Set(operationPath + "/@has_failed_jobs");
-            req->set_value(ConvertToYsonStringNestingLimited(false).ToString());
+            req->set_value(ToProto(ConvertToYsonStringNestingLimited(false)));
             batchReq->AddRequest(req, "set_has_failed_jobs");
         }
         // Update controller agent orchid, it should point to this controller agent.
@@ -770,7 +772,7 @@ private:
 
             auto path = GetOperationPath(operationId) + "/@controller_features";
             auto req = TYPathProxy::Set(path);
-            req->set_value(featureYson.ToString());
+            req->set_value(ToProto(featureYson));
 
             WaitFor(proxy.Execute(req))
                 .ThrowOnError();
@@ -881,11 +883,11 @@ private:
 
                 auto progressReq = multisetReq->add_subrequests();
                 progressReq->set_attribute("progress");
-                progressReq->set_value(progress.ToString());
+                progressReq->set_value(ToProto(progress));
 
                 auto briefProgressReq = multisetReq->add_subrequests();
                 briefProgressReq->set_attribute("brief_progress");
-                briefProgressReq->set_value(briefProgress.ToString());
+                briefProgressReq->set_value(ToProto(briefProgress));
             }
         }
 
@@ -895,7 +897,7 @@ private:
             bool operationHasFailedJobs = controller->GetFailedJobCount() > 0;
             auto hasFailedJobsReq = multisetReq->add_subrequests();
             hasFailedJobsReq->set_attribute("has_failed_jobs");
-            hasFailedJobsReq->set_value(ConvertToYsonStringNestingLimited(operationHasFailedJobs).ToString());
+            hasFailedJobsReq->set_value(ToProto(ConvertToYsonStringNestingLimited(operationHasFailedJobs)));
         }
 
         if (hasSubrequests) {
@@ -1251,7 +1253,7 @@ private:
         for (auto [mediumIndex, diskSpace] : diskQuota.DiskSpacePerMedium) {
             auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
             auto req = TYPathProxy::Set(Format("#%v/@resource_usage/disk_space_per_medium/%v", leaseId, mediumDescriptor->Name));
-            req->set_value(ConvertToYsonStringNestingLimited(diskSpace).ToString());
+            req->set_value(ToProto(ConvertToYsonStringNestingLimited(diskSpace)));
             GenerateMutationId(req);
             batchReq->AddRequest(req);
         }
@@ -1439,7 +1441,7 @@ private:
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
 
-        THashMap<TOperationId, std::pair<TTransactionId, TString>> transactions;
+        THashMap<TOperationId, std::pair<TTransactionId, std::string>> transactions;
         for (const auto& [operationId, operation] : controllerAgent->GetOperations()) {
             auto [transaction, medium] = operation->GetController()->GetIntermediateMediumTransaction();
             if (transaction) {
@@ -1566,7 +1568,7 @@ private:
 
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
         auto req = TYPathProxy::Set(GetInstancePath() + "/@alerts");
-        req->set_value(ConvertToYsonStringNestingLimited(alerts).ToString());
+        req->set_value(ToProto(ConvertToYsonStringNestingLimited(alerts)));
         req->set_recursive(true);
 
         auto rspOrError = WaitFor(proxy.Execute(req));

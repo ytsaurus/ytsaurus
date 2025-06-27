@@ -133,10 +133,6 @@ void TMultiReaderManagerBase::OpenNextReaders()
         return;
     }
 
-    if (CreatingReader_) {
-        return;
-    }
-
     if (!ReaderFactories_[PrefetchIndex_]->CanCreateReader() &&
         ActiveReaderCount_ > 0 &&
         !Options_->KeepInMemory)
@@ -189,11 +185,6 @@ void TMultiReaderManagerBase::OnReaderCreated(
 {
     if (CompletionError_.IsSet()) {
         return;
-    }
-
-    {
-        auto guard = Guard(PrefetchLock_);
-        CreatingReader_ = false;
     }
 
     OpenNextReaders();

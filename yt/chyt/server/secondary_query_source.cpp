@@ -40,6 +40,113 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReaderFactory
+{
+public:
+    TReaderFactory(
+        TStorageContext* storageContext,
+        const TSubquerySpec& subquerySpec,
+        TReadPlanWithFilterPtr readPlan,
+        const TClientChunkReadOptions& chunkReadOptions,
+        std::optional<TCallback<TSecondaryQueryReadDescriptors()>> readTaskCallback = std::nullopt)
+    : DataSourceDirectory_(subquerySpec.DataSourceDirectory)
+    , ChunkReaderHost_(CreateSingleSourceMultiChunkReaderHost(
+        TChunkReaderHost::FromClient(storageContext->QueryContext->Client())))
+    , ChunkReadOptions_(chunkReadOptions)
+    , ReadTaskCallback_(std::move(readTaskCallback))
+    {
+        auto* queryContext = storageContext->QueryContext;
+
+        ReaderMemoryManager_ = queryContext->Host->GetMultiReaderMemoryManager()->CreateMultiReaderMemoryManager(
+            queryContext->Host->GetConfig()->ReaderMemoryRequirement,
+            {{"user", queryContext->User}});
+
+        TableReaderConfig_ = CloneYsonStruct(storageContext->Settings->TableReader);
+        TableReaderConfig_->SamplingMode = subquerySpec.TableReaderConfig->SamplingMode;
+        TableReaderConfig_->SamplingRate = subquerySpec.TableReaderConfig->SamplingRate;
+        TableReaderConfig_->SamplingSeed = subquerySpec.TableReaderConfig->SamplingSeed;
+
+        NameTable_ = New<TNameTable>();
+        for (const auto& step : readPlan->Steps) {
+            for (const auto& column : step.Columns) {
+                NameTable_->RegisterNameOrThrow(column.Name());
+            }
+        }
+    }
+
+    ISchemalessMultiChunkReaderPtr CreateReader(const std::vector<TDataSliceDescriptor>& dataSliceDescriptors)
+    {
+        return CreateSchemalessParallelMultiReader(
+            TableReaderConfig_,
+            New<TTableReaderOptions>(),
+            ChunkReaderHost_,
+            DataSourceDirectory_,
+            AdjustDataSlices(dataSliceDescriptors),
+            std::nullopt,
+            NameTable_,
+            ChunkReadOptions_,
+            TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
+            TColumnFilter(NameTable_->GetSize()),
+            /*partitionTag*/ std::nullopt,
+            ReaderMemoryManager_);
+    }
+
+    ISchemalessMultiChunkReaderPtr CreateReader()
+    {
+        if (!ReadTaskCallback_.has_value()) {
+            return nullptr;
+        }
+
+        auto nextTask = ReadTaskCallback_->Run();
+        return nextTask.empty() ? nullptr : CreateReader(nextTask);
+    }
+
+private:
+    NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory_;
+    TMultiChunkReaderHostPtr ChunkReaderHost_;
+    TClientChunkReadOptions ChunkReadOptions_;
+    TTableReaderConfigPtr TableReaderConfig_;
+    NChunkClient::IMultiReaderMemoryManagerPtr ReaderMemoryManager_;
+    TNameTablePtr NameTable_;
+    std::optional<TCallback<TSecondaryQueryReadDescriptors()>> ReadTaskCallback_;
+
+    std::vector<TDataSliceDescriptor> AdjustDataSlices(std::vector<TDataSliceDescriptor> dataSliceDescriptors)
+    {
+        THashMap<int, std::vector<TDataSliceDescriptor>> dataSourceIdToSliceDescriptors;
+        for (auto& descriptor : dataSliceDescriptors) {
+            auto& allDataSourceDescriptors = dataSourceIdToSliceDescriptors[descriptor.GetDataSourceIndex()];
+
+            // For SchemalessMergingMultiChunkReader all data source's chunk specs
+            // should be stored in single descriptor.
+            const auto& dataSource = DataSourceDirectory_->DataSources()[descriptor.GetDataSourceIndex()];
+            if (dataSource.GetType() == EDataSourceType::VersionedTable) {
+                if (allDataSourceDescriptors.empty()) {
+                    allDataSourceDescriptors.emplace_back(std::move(descriptor));
+                } else {
+                    for (const auto& chunkSpec : descriptor.ChunkSpecs) {
+                        allDataSourceDescriptors.front().ChunkSpecs.emplace_back(std::move(chunkSpec));
+                    }
+                    descriptor.ChunkSpecs.clear();
+                }
+
+            } else {
+                allDataSourceDescriptors.emplace_back(std::move(descriptor));
+            }
+        }
+
+        std::vector<TDataSliceDescriptor> newDataSliceDescriptors;
+        for (auto& [_, descriptors] : dataSourceIdToSliceDescriptors) {
+            for (auto& descriptor : descriptors) {
+                newDataSliceDescriptors.emplace_back(std::move(descriptor));
+            }
+        }
+
+        return newDataSliceDescriptors;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSecondaryQuerySource
     : public DB::ISource
 {
@@ -52,11 +159,13 @@ public:
         TQuerySettingsPtr settings,
         TLogger logger,
         TChunkReaderStatisticsPtr chunkReaderStatistics,
-        TCallback<void(const TStatistics&)> statisticsCallback)
+        TCallback<void(const TStatistics&)> statisticsCallback,
+        std::shared_ptr<TReaderFactory> readerFactory = nullptr)
         : DB::ISource(
             DeriveHeaderBlockFromReadPlan(readPlan, settings->Composite),
             /*enable_auto_progress*/ false)
-        , Reader_(std::move(reader))
+        , CurrentReader_(std::move(reader))
+        , ReaderFactory_(std::move(readerFactory))
         , ReadPlan_(std::move(readPlan))
         , TraceContext_(std::move(traceContext))
         , Host_(host)
@@ -92,7 +201,8 @@ public:
     }
 
 private:
-    ISchemalessMultiChunkReaderPtr Reader_;
+    ISchemalessMultiChunkReaderPtr CurrentReader_;
+    std::shared_ptr<TReaderFactory> ReaderFactory_;
     const TReadPlanWithFilterPtr ReadPlan_;
     TTraceContextPtr TraceContext_;
     THost* const Host_;
@@ -106,7 +216,7 @@ private:
     TDuration ColumnarConversionCpuTime_;
     TDuration NonColumnarConversionCpuTime_;
     TDuration ConversionSyncWaitTime_;
-
+    TDuration TotalGenerateTime_;
     TDuration WaitReadyEventTime_;
 
     TWallTimer IdleTimer_ = TWallTimer(/*start*/ false);
@@ -121,13 +231,21 @@ private:
 private:
     void Initialize()
     {
-        auto nameTable = Reader_->GetNameTable();
+        if (!CurrentReader_) {
+            YT_VERIFY(ReaderFactory_);
+            CurrentReader_ = ReaderFactory_->CreateReader();
+        }
+        YT_VERIFY(CurrentReader_);
+
+        auto nameTable = CurrentReader_->GetNameTable();
         Converters_.reserve(ReadPlan_->Steps.size());
         for (const auto& step : ReadPlan_->Steps) {
             Converters_.emplace_back(step.Columns, nameTable, Settings_->Composite);
         }
 
         Statistics_.AddSample("/secondary_query_source/step_count"_SP, ReadPlan_->Steps.size());
+
+        YT_LOG_DEBUG("Secondary query source was initialized");
 
         IdleTimer_.Start();
     }
@@ -150,21 +268,27 @@ private:
         TWallTimer totalWallTimer;
         YT_LOG_TRACE("Started reading ClickHouse block");
 
+        TRowBatchReadOptions options{
+            // .MaxRowsPerRead = 100 * 1000,
+            // .MaxDataWeightPerRead = 160_MB,
+            .Columnar = Settings_->EnableColumnarRead,
+        };
+
         i64 readRows = 0;
         DB::Block resultBlock;
-        while (resultBlock.rows() == 0) {
-            TRowBatchReadOptions options{
-                // .MaxRowsPerRead = 100 * 1000,
-                // .MaxDataWeightPerRead = 160_MB,
-                .Columnar = Settings_->EnableColumnarRead,
-            };
-            auto batch = Reader_->Read(options);
+        while (CurrentReader_ && resultBlock.rows() == 0) {
+            YT_LOG_TRACE("Started reading loop iteration");
+            auto batch = CurrentReader_->Read(options);
             if (!batch) {
-                return {};
+                if (!ReaderFactory_) {
+                    break;
+                }
+                CurrentReader_ = ReaderFactory_->CreateReader();
+                continue;
             }
             if (batch->IsEmpty()) {
                 NProfiling::TWallTimer wallTimer;
-                WaitFor(Reader_->GetReadyEvent())
+                WaitFor(CurrentReader_->GetReadyEvent())
                     .ThrowOnError();
 
                 auto elapsed = wallTimer.GetElapsedTime();
@@ -216,6 +340,11 @@ private:
         }
 
         auto totalElapsed = totalWallTimer.GetElapsedTime();
+        if (totalElapsed > TDuration::Seconds(5)) {
+            YT_LOG_DEBUG("Generate call took significant time (WallTime: %v)", totalElapsed);
+        }
+
+        TotalGenerateTime_ += totalElapsed;
         YT_LOG_TRACE("Finished reading ClickHouse block (WallTime: %v)", totalElapsed);
 
         // Report the query progress, including rows that were filtered out.
@@ -261,8 +390,9 @@ private:
         }
 
         YT_LOG_DEBUG(
-            "Secondary query source timing statistics (ColumnarConversionCpuTime: %v, NonColumnarConversionCpuTime: %v, "
+            "Secondary query source timing statistics (TotalGenerateTime: %v, ColumnarConversionCpuTime: %v, NonColumnarConversionCpuTime: %v, "
             "ConversionSyncWaitTime: %v, IdleTime: %v, ReadCount: %v)",
+            TotalGenerateTime_,
             ColumnarConversionCpuTime_,
             NonColumnarConversionCpuTime_,
             ConversionSyncWaitTime_,
@@ -270,9 +400,9 @@ private:
             ReadCount_);
 
         if (TraceContext_ && TraceContext_->IsRecorded()) {
-            TraceContext_->AddTag("chyt.reader.data_statistics", Reader_->GetDataStatistics());
-            TraceContext_->AddTag("chyt.reader.codec_statistics", Reader_->GetDecompressionStatistics());
-            TraceContext_->AddTag("chyt.reader.timing_statistics", Reader_->GetTimingStatistics());
+            TraceContext_->AddTag("chyt.reader.data_statistics", CurrentReader_->GetDataStatistics());
+            TraceContext_->AddTag("chyt.reader.codec_statistics", CurrentReader_->GetDecompressionStatistics());
+            TraceContext_->AddTag("chyt.reader.timing_statistics", CurrentReader_->GetTimingStatistics());
             TraceContext_->AddTag("chyt.reader.idle_time", IdleTimer_.GetElapsedTime());
             if (ColumnarConversionCpuTime_ != TDuration::Zero()) {
                 TraceContext_->AddTag("chyt.reader.columnar_conversion_cpu_time", ColumnarConversionCpuTime_);
@@ -368,68 +498,12 @@ ISchemalessMultiChunkReaderPtr CreateSourceReader(
     const TClientChunkReadOptions& chunkReadOptions,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors)
 {
-    auto* queryContext = storageContext->QueryContext;
-
-    auto readerMemoryManager = queryContext->Host->GetMultiReaderMemoryManager()->CreateMultiReaderMemoryManager(
-        queryContext->Host->GetConfig()->ReaderMemoryRequirement,
-        {{"user", queryContext->User}});
-
-    auto tableReaderConfig = CloneYsonStruct(storageContext->Settings->TableReader);
-    tableReaderConfig->SamplingMode = subquerySpec.TableReaderConfig->SamplingMode;
-    tableReaderConfig->SamplingRate = subquerySpec.TableReaderConfig->SamplingRate;
-    tableReaderConfig->SamplingSeed = subquerySpec.TableReaderConfig->SamplingSeed;
-
-    auto chunkReaderHost = TChunkReaderHost::FromClient(queryContext->Client());
-
-    THashMap<int, std::vector<TDataSliceDescriptor>> dataSourceIdToSliceDescriptors;
-
-    for (const auto& descriptor : dataSliceDescriptors) {
-        auto& allDataSourceDescriptors = dataSourceIdToSliceDescriptors[descriptor.GetDataSourceIndex()];
-
-        // For SchemalessMergingMultiChunkReader all data source's chunk specs
-        // should be stored in single descriptor.
-        const auto& dataSource = subquerySpec.DataSourceDirectory->DataSources()[descriptor.GetDataSourceIndex()];
-        if (dataSource.GetType() == EDataSourceType::VersionedTable) {
-            if (allDataSourceDescriptors.empty()) {
-                allDataSourceDescriptors.emplace_back(descriptor);
-            } else {
-                for (const auto& chunkSpec : descriptor.ChunkSpecs) {
-                    allDataSourceDescriptors.front().ChunkSpecs.emplace_back(chunkSpec);
-                }
-            }
-
-        } else {
-            allDataSourceDescriptors.emplace_back(descriptor);
-        }
-    }
-
-    std::vector<TDataSliceDescriptor> newDataSliceDescriptors;
-    for (auto& [_, descriptors] : dataSourceIdToSliceDescriptors) {
-        for (auto& descriptor : descriptors) {
-            newDataSliceDescriptors.emplace_back(std::move(descriptor));
-        }
-    }
-
-    auto nameTable = New<TNameTable>();
-    for (const auto& step : readPlan->Steps) {
-        for (const auto& column : step.Columns) {
-            nameTable->RegisterNameOrThrow(column.Name());
-        }
-    }
-
-    return CreateSchemalessParallelMultiReader(
-        std::move(tableReaderConfig),
-        New<TTableReaderOptions>(),
-        std::move(chunkReaderHost),
-        subquerySpec.DataSourceDirectory,
-        newDataSliceDescriptors,
-        std::nullopt,
-        nameTable,
-        chunkReadOptions,
-        TReaderInterruptionOptions::InterruptibleWithEmptyKey(),
-        TColumnFilter(nameTable->GetSize()),
-        /*partitionTag*/ std::nullopt,
-        /*multiReaderMemoryManager*/ readerMemoryManager);
+    auto readerFactory = std::make_shared<TReaderFactory>(
+        storageContext,
+        subquerySpec,
+        readPlan,
+        chunkReadOptions);
+    return readerFactory->CreateReader(dataSliceDescriptors);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -494,7 +568,7 @@ DB::SourcePtr CreateSecondaryQuerySource(
         YT_LOG_DEBUG("Input stream factory handled breakpoint (Breakpoint: %v)", *breakpointFilename);
     }
 
-    return CreateSecondaryQuerySource(
+    return std::make_shared<TSecondaryQuerySource>(
         std::move(reader),
         std::move(readPlan),
         sourceTraceContext,

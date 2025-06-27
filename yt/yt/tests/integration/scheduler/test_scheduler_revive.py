@@ -32,6 +32,8 @@ import time
 from datetime import timedelta
 from io import BytesIO
 
+import builtins
+
 ##################################################################
 
 
@@ -794,9 +796,11 @@ class OperationReviveBase(YTEnvSetup):
         self._create_table("//tmp/t_out")
 
     def _wait_for_state(self, op, state):
+        assert isinstance(state, str)
         wait(lambda: op.get_state() == state)
 
     def _wait_for_states(self, op, states):
+        assert isinstance(states, tuple) or isinstance(states, builtins.set)
         wait(lambda: op.get_state() in states)
 
     @authors("ignat")
@@ -1156,20 +1160,56 @@ class TestSchedulerReviveForVanilla(OperationReviveBase):
         return vanilla(spec=spec, **kwargs)
 
 
+@authors("kvk1920")
 class TestSchedulerReviveForMapMirroredTx(TestSchedulerReviveForMap):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
 
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
+
+@authors("kvk1920")
+class TestSchedulerReviveForMapSysOperationsRootstock(TestSchedulerReviveForMapMirroredTx):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_TEST_PARTITIONS = 13
+    ENABLE_TMP_PORTAL = True
+    ENABLE_SYS_OPERATIONS_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 4
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["sequoia_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["chunk_host"]},
+    }
+
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        "response_keeper": {
+            "enable": True,
+        },
+    }
+
+
+@authors("kvk1920")
+class TestSchedulerReviveForMapSequoia(TestSchedulerReviveForMapSysOperationsRootstock):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    ENABLE_TMP_ROOTSTOCK = True
+
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        "object_service": {
+            "allow_bypass_master_resolve": True,
+        },
+        "response_keeper": {
+            "enable": True,
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["sequoia_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["chunk_host"]},
     }
 
 

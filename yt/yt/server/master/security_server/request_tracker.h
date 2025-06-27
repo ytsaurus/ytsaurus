@@ -47,6 +47,7 @@ public:
         TUserRequestLimitsConfigPtr config);
 
     void ReconfigureUserRequestRateThrottlers(TUser* user);
+    void ReconfigureAllUserRequestRateThrottlers();
 
     void SetUserRequestQueueSizeLimit(
         TUser* user,
@@ -70,7 +71,6 @@ private:
 
     const TDynamicSecurityManagerConfigPtr& GetDynamicConfig();
     void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
-    void ReconfigureUserThrottlers();
     void OnUpdateAlivePeerCount();
 };
 

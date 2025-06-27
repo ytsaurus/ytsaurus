@@ -98,8 +98,8 @@ struct TChaosTabletData
 {
     std::atomic<ui64> ReplicationRound = 0;
     NThreading::TAtomicObject<THashMap<TTabletId, i64>> CurrentReplicationRowIndexes;
-    TTransactionId PreparedWritePulledRowsTransactionId;
-    TTransactionId PreparedAdvanceReplicationProgressTransactionId;
+    NThreading::TAtomicObject<TTransactionId> PreparedWritePulledRowsTransactionId;
+    NThreading::TAtomicObject<TTransactionId> PreparedAdvanceReplicationProgressTransactionId;
     std::atomic<bool> IsTrimInProgress = false;
 };
 
@@ -141,16 +141,15 @@ struct TTabletErrors
 
 struct TRuntimeSmoothMovementData
 {
-    std::atomic<bool> IsActiveServant;
-
-    // The following fields are filled only at the source servant when it becomes non-active.
-    // They are needed to redirect clients to the target servant. Note that target->source
-    // redirection never happens.
+    std::atomic<ESmoothMovementRole> Role;
+    std::atomic<bool> IsActiveServant = true;
     NThreading::TAtomicObject<TCellId> SiblingServantCellId;
     std::atomic<NHydra::TRevision> SiblingServantMountRevision;
 
     // Will be set when the target servant becomes active.
     TFuture<void> TargetActivationFuture;
+
+    void Reset();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -163,6 +162,7 @@ struct TRuntimeTabletData
     std::atomic<i64> TotalRowCount = 0;
     std::atomic<i64> TrimmedRowCount = 0;
     std::atomic<i64> DelayedLocklessRowCount = 0;
+    std::atomic<i64> OrderedDynamicStoreRotateEpoch = 0;
     std::atomic<TTimestamp> LastCommitTimestamp = NullTimestamp;
     std::atomic<TTimestamp> LastWriteTimestamp = NullTimestamp;
     std::atomic<TTimestamp> UnflushedTimestamp = MinTimestamp;
@@ -202,8 +202,7 @@ struct TCompressionDictionaryInfo
     TInstant RebuildBackoffTime;
     bool BuildingInProgress = false;
 
-    void Save(TSaveContext& context) const;
-    void Load(TLoadContext& context);
+    void Persist(const TPersistenceContext& context);
 };
 
 using TCompressionDictionaryInfos = TEnumIndexedArray<
@@ -258,6 +257,10 @@ struct TTabletSnapshot
     int PreloadCompletedStoreCount = 0;
     int PreloadFailedStoreCount = 0;
 
+    i64 OrderedDynamicStoreRotateEpoch = 0;
+
+    NTransactionClient::ECommitOrdering CommitOrdering;
+
     TSortedDynamicRowKeyComparer RowKeyComparer;
 
     NQueryClient::TColumnEvaluatorPtr ColumnEvaluator;
@@ -294,7 +297,7 @@ struct TTabletSnapshot
     TCompressionDictionaryInfos CompressionDictionaryInfos;
     NTableClient::IDictionaryCompressionFactoryPtr DictionaryCompressionFactory;
 
-    TString TabletCellBundle;
+    std::string TabletCellBundle;
 
     NYson::TYsonString CustomRuntimeData;
 
@@ -345,7 +348,7 @@ struct ITabletContext
     virtual ~ITabletContext() = default;
 
     virtual NObjectClient::TCellId GetCellId() const = 0;
-    virtual const TString& GetTabletCellBundleName() const = 0;
+    virtual const std::string& GetTabletCellBundleName() const = 0;
     virtual NHydra::EPeerState GetAutomatonState() const = 0;
     virtual int GetAutomatonTerm() const = 0;
     virtual IInvokerPtr GetControlInvoker() const = 0;
@@ -431,6 +434,8 @@ public:
 
     NTabletClient::ETableReplicaStatus GetStatus() const;
     void RecomputeReplicaStatus();
+
+    void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
 private:
     const TRuntimeTableReplicaDataPtr RuntimeData_ = New<TRuntimeTableReplicaData>();
@@ -827,7 +832,7 @@ public:
 
     const std::string& GetLoggingTag() const;
 
-    std::optional<TString> GetPoolTagByMemoryCategory(EMemoryCategory category) const;
+    std::optional<std::string> GetPoolTagByMemoryCategory(EMemoryCategory category) const;
 
     int GetEdenStoreCount() const;
 
@@ -876,12 +881,18 @@ public:
     void SetCompressionDictionaryRebuildBackoffTime(
         NTableClient::EDictionaryCompressionPolicy policy,
         TInstant backoffTime);
+    NChunkClient::TChunkId GetCompressionDictionaryId(
+        NTableClient::EDictionaryCompressionPolicy policy) const;
 
     void InitializeTargetServantActivationFuture();
 
     i64 GetTotalDataWeight();
 
     bool IsVersionedWriteUnversioned() const;
+
+    TPreloadStatistics ComputePreloadStatistics() const;
+
+    void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
 private:
     struct TTabletSizeMetrics

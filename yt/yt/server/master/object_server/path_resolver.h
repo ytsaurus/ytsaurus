@@ -46,7 +46,7 @@ public:
         NTransactionServer::TTransaction* Transaction = nullptr;
     };
 
-    struct TRemoteObjectPayload
+    struct TRemoteObjectRedirectPayload
     {
         NObjectClient::TObjectId ObjectId;
         int ResolveDepth = 0;
@@ -63,7 +63,7 @@ public:
 
     using TResolvePayload = std::variant<
         TLocalObjectPayload,
-        TRemoteObjectPayload,
+        TRemoteObjectRedirectPayload,
         TSequoiaRedirectPayload,
         TMissingObjectPayload
     >;
@@ -72,8 +72,8 @@ public:
     {
         NYPath::TYPath UnresolvedPathSuffix;
         TResolvePayload Payload;
-        bool CanCacheResolve;
-        int ResolveDepth;
+        bool CanCacheResolve = false;
+        int ResolveDepth = 0;
     };
 
     TResolveResult Resolve(const TPathResolverOptions& options = {});
@@ -99,6 +99,13 @@ private:
     bool IsBackupMethod() noexcept;
     void MaybeApplyNativeTransactionExternalizationCompat(TObjectId objectId);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TPathResolver::TResolvePayload& payload,
+    TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

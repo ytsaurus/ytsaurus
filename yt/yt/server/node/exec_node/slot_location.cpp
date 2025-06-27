@@ -103,7 +103,7 @@ void TSlotLocation::UpdateHealthCheckerConfig(const NServer::TDiskHealthCheckerD
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    HealthChecker_->OnConfigChanged(Config_->DiskHealthChecker->ApplyDynamic(*config));
+    HealthChecker_->Reconfigure(Config_->DiskHealthChecker->ApplyDynamic(*config));
 }
 
 TFuture<void> TSlotLocation::Initialize()
@@ -650,7 +650,6 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
                         },
                         /*tags*/ {
                             {FormatIOTag(EAggregateIOTag::Direction), "write"},
-                            // TODO(babenko): switch to std::string
                             {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
                             {FormatIOTag(EAggregateIOTag::LocationType), "slot"},
                             {FormatIOTag(ERawIOTag::SlotIndex), ToString(slotIndex)},
@@ -808,7 +807,7 @@ TDiskStatistics TSlotLocation::GetDiskStatistics(int slotIndex) const
     return it == DiskStatisticsPerSlot_.end() ? TDiskStatistics{} : it->second;
 }
 
-TString TSlotLocation::GetMediumName() const
+std::string TSlotLocation::GetMediumName() const
 {
     return Config_->MediumName;
 }

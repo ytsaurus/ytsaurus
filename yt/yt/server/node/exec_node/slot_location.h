@@ -90,7 +90,7 @@ public:
 
     TDiskStatistics GetDiskStatistics(int slotIndex) const;
 
-    TString GetMediumName() const;
+    std::string GetMediumName() const;
 
     NChunkClient::TMediumDescriptor GetMediumDescriptor() const;
     void SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor);

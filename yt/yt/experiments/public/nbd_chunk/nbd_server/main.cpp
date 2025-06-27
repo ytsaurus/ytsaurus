@@ -9,6 +9,9 @@
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/config.h>
 
+#include <yt/yt/core/logging/log_manager.h>
+#include <yt/yt/core/logging/config.h>
+
 #include <yt/yt/core/rpc/bus/channel.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -62,6 +65,8 @@ public:
 protected:
     void DoRun() override
     {
+        //NLogging::TLogManager::Get()->Configure(NLogging::TLogManagerConfig::CreateStderrLogger(NLogging::ELogLevel::Debug));
+
         auto config = NYTree::ConvertTo<NNbd::TConfigPtr>(NYson::TYsonString(TFileInput(ConfigPath_).ReadAll()));
 
         auto poller = NConcurrency::CreateThreadPoolPoller(config->ThreadCount, "Poller");
@@ -85,6 +90,7 @@ protected:
                 NConcurrency::GetUnlimitedThrottler(),
                 threadPool->GetInvoker(),
                 std::move(channel),
+                /*sessionId*/ NChunkClient::TSessionId(),
                 logger);
 
             NConcurrency::WaitFor(device->Initialize()).ThrowOnError();

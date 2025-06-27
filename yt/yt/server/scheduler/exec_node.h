@@ -152,7 +152,7 @@ public:
     TExecNodeDescriptorPtr BuildExecDescriptor() const;
 
     //! Set the node's IO weight.
-    void SetIOWeights(const THashMap<TString, double>& mediumToWeight);
+    void SetIOWeights(const THashMap<std::string, double>& mediumToWeight);
 
     void SetTags(TBooleanFormulaTags tags);
 

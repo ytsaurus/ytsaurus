@@ -112,7 +112,7 @@ private:
 
     TFairShareStrategySchedulingSegmentsConfigPtr Config_;
 
-    std::optional<TInstant> UnsatisfiedSince_;
+    std::optional<TInstant> ImbalancedSince_;
     ESegmentedSchedulingMode PreviousMode_ = ESegmentedSchedulingMode::Disabled;
 
     NProfiling::TBufferedProducerPtr SensorProducer_;
@@ -158,7 +158,10 @@ private:
     void ApplySpecifiedSegments(TUpdateSchedulingSegmentsContext* context) const;
     void CheckAndRebalanceSegments(TUpdateSchedulingSegmentsContext* context);
 
-    std::pair<TSchedulingSegmentMap<bool>, bool> FindUnsatisfiedSegments(const TUpdateSchedulingSegmentsContext* context) const;
+    bool CheckSegmentBalance(
+        const TUpdateSchedulingSegmentsContext* context,
+        TSchedulingSegmentMap<bool> *segmentUnsatisfied,
+        TSchedulingSegmentMap<bool> *segmentOversatisfied) const;
     void DoRebalanceSegments(TUpdateSchedulingSegmentsContext* context) const;
     void GetMovableNodes(
         TUpdateSchedulingSegmentsContext* context,
@@ -181,6 +184,8 @@ private:
         NYTree::TFluentMap fluent) const;
 
     void BuildPersistentState(TUpdateSchedulingSegmentsContext* context) const;
+
+    std::optional<TNetworkPriority> GetNetworkPriority(double operationDemand, double moduleCapacity) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

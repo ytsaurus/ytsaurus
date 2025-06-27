@@ -99,7 +99,7 @@ using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 static const int TableArtifactBufferRowCount = 10000;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,9 +291,6 @@ struct TArtifactMetaHeader
     static constexpr ui64 ExpectedVersion = 4;
 };
 
-constexpr ui64 TArtifactMetaHeader::ExpectedSignature;
-constexpr ui64 TArtifactMetaHeader::ExpectedVersion;
-
 struct TArtifactReaderMetaBufferTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -309,7 +306,7 @@ public:
         : TAsyncSlruCacheBase(
             TSlruCacheConfig::CreateWithCapacity(config->GetCacheCapacity()),
             ExecNodeProfiler().WithPrefix("/chunk_cache"))
-        , Config_(config)
+        , Config_(std::move(config))
         , Bootstrap_(bootstrap)
         , ArtifactCacheReaderConfig_(New<TArtifactCacheReaderConfig>())
     { }
@@ -321,15 +318,16 @@ public:
         YT_LOG_INFO("Initializing chunk cache");
 
         Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(
-            BIND(&TChunkCache::TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+            BIND_NO_PROPAGATE(&TChunkCache::TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
         std::vector<TFuture<void>> futures;
+        futures.reserve(size(Config_->CacheLocations));
         for (int index = 0; index < std::ssize(Config_->CacheLocations); ++index) {
             auto locationConfig = Config_->CacheLocations[index];
 
             auto location = New<TCacheLocation>(
                 "cache" + ToString(index),
-                locationConfig,
+                std::move(locationConfig),
                 Bootstrap_->GetDynamicConfigManager(),
                 TChunkContext::Create(Bootstrap_),
                 CreateChunkStoreHost(Bootstrap_),
@@ -340,29 +338,16 @@ public:
                     .AsyncVia(location->GetAuxPoolInvoker())
                     .Run(location));
 
-            Locations_.push_back(location);
+            Locations_.push_back(std::move(location));
         }
 
-        WaitFor(AllSucceeded(futures))
+        WaitFor(AllSucceeded(std::move(futures)))
             .ThrowOnError();
 
-        if (!Locations_.empty()) {
-            const auto& mediumName = Locations_.front()->GetMediumName();
-            for (const auto& location : Locations_) {
-                if (location->GetMediumName() != mediumName) {
-                    THROW_ERROR_EXCEPTION(
-                        "Locations %v and %v are configured with distinct media (%Qv != %Qv), "
-                        "but multiple cache media on one host are not supported yet",
-                        Locations_.front()->GetId(),
-                        location->GetId(),
-                        mediumName,
-                        location->GetMediumName());
+        ValidateLocations();
 
-                }
-            }
-        }
-
-        YT_LOG_INFO("Chunk cache initialized (ChunkCount: %v)",
+        YT_LOG_INFO(
+            "Chunk cache initialized (ChunkCount: %v)",
             GetSize());
 
         RunBackgroundValidation();
@@ -392,7 +377,9 @@ public:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto chunks = GetAll();
-        return std::vector<IChunkPtr>(chunks.begin(), chunks.end());
+        return std::vector<IChunkPtr>(
+            std::make_move_iterator(chunks.begin()),
+            std::make_move_iterator(chunks.end()));
     }
 
     TFuture<IChunkPtr> DownloadArtifact(
@@ -413,7 +400,8 @@ public:
             artifactDownloadOptions,
             /*bypassArtifactCache*/ false);
 
-        auto Logger = ExecNodeLogger().WithTag("Key: %v, ReadSessionId: %v",
+        auto Logger = ExecNodeLogger().WithTag(
+            "Key: %v, ReadSessionId: %v",
             key,
             chunkReadOptions.ReadSessionId);
 
@@ -500,6 +488,7 @@ private:
     IBootstrap* const Bootstrap_;
 
     TAtomicIntrusivePtr<TArtifactCacheReaderConfig> ArtifactCacheReaderConfig_;
+    TCacheLocationDynamicConfigPtr CacheLocationConfig_;
 
     //! Describes a registered but not yet validated chunk.
     struct TRegisteredChunkDescriptor
@@ -511,6 +500,24 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RegisteredChunkMapLock_);
     THashMap<TArtifactKey, TRegisteredChunkDescriptor> RegisteredChunkMap_;
 
+    void ValidateLocations() const
+    {
+        if (!Locations_.empty()) {
+            const auto& mediumName = Locations_.front()->GetMediumName();
+            for (const auto& location : Locations_) {
+                if (location->GetMediumName() != mediumName) {
+                    THROW_ERROR_EXCEPTION(
+                        "Locations %v and %v are configured with distinct media (%Qv != %Qv), "
+                        "but multiple cache media on one host are not supported yet",
+                        Locations_.front()->GetId(),
+                        location->GetId(),
+                        mediumName,
+                        location->GetMediumName());
+
+                }
+            }
+        }
+    }
 
     void InitializeLocation(const TCacheLocationPtr& location)
     {
@@ -531,9 +538,40 @@ private:
         location->Start();
     }
 
+    void ReconfigureLocations(const NDataNode::TCacheLocationDynamicConfigPtr& config)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        CacheLocationConfig_ = config;
+
+        for (const auto& location : Locations_) {
+            ReconfigureLocation(location);
+        }
+
+        ValidateLocations();
+    }
+
+    void ReconfigureLocation(const TCacheLocationPtr& location)
+    {
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+        auto cacheLocation = DynamicPointerCast<TCacheLocation>(location);
+        if (!cacheLocation) {
+            return;
+        }
+
+        if (!CacheLocationConfig_) {
+            return;
+        }
+
+        const auto& staticLocationConfig = cacheLocation->GetStaticConfig();
+        auto locationConfig = staticLocationConfig->ApplyDynamic(CacheLocationConfig_);
+        cacheLocation->Reconfigure(locationConfig);
+    }
+
     void RunBackgroundValidation()
     {
-        Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND([this_ = MakeStrong(this), this] {
+        Bootstrap_->GetStorageHeavyInvoker()->Invoke(BIND_NO_PROPAGATE([this_ = MakeStrong(this), this] {
             // Delay start of background validation to populate chunk cache with useful artifacts.
             TDelayedExecutor::WaitForDuration(Config_->BackgroundArtifactValidationDelay);
 
@@ -640,12 +678,12 @@ private:
         auto chunkId = descriptor.Descriptor.Id;
         const auto& location = descriptor.Location;
 
-        Logger = Logger().WithTag("ChunkId: %v", chunkId);
+        Logger = std::move(Logger).WithTag("ChunkId: %v", chunkId);
 
         if (!CanPrepareSingleChunk(key)) {
             YT_LOG_INFO("Skipping validation for multi-chunk artifact");
             auto chunk = CreateChunk(location, key, descriptor.Descriptor);
-            cookie.EndInsert(chunk);
+            cookie.EndInsert(std::move(chunk));
             return;
         }
 
@@ -702,7 +740,7 @@ private:
             auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
 
             try {
-                TFile dataFile(dataFileName, OpenExisting|RdOnly|CloseOnExec);
+                TFile dataFile(dataFileName, OpenExisting | RdOnly | CloseOnExec);
                 if (dataFile.GetLength() != miscExt.compressed_data_size()) {
                     THROW_ERROR_EXCEPTION("Chunk length mismatch")
                         << TErrorAttribute("chunk_id", chunkId)
@@ -717,7 +755,7 @@ private:
             YT_LOG_INFO("Chunk validation completed");
 
             auto chunk = CreateChunk(location, key, descriptor.Descriptor);
-            cookie.EndInsert(chunk);
+            cookie.EndInsert(std::move(chunk));
         } catch (const std::exception& ex) {
             YT_LOG_INFO(ex, "Chunk is corrupted");
 
@@ -731,7 +769,6 @@ private:
                 Logger);
         }
     }
-
 
     void OnChunkCreated(
         const TCacheLocationPtr& location,
@@ -753,7 +790,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Cached chunk object destroyed (ChunkId: %v, LocationId: %v)",
+        YT_LOG_DEBUG(
+            "Cached chunk object destroyed (ChunkId: %v, LocationId: %v)",
             descriptor.Id,
             location->GetId());
 
@@ -783,7 +821,7 @@ private:
             descriptor,
             meta,
             key,
-            BIND(&TImpl::OnChunkDestroyed, MakeStrong(this), location, descriptor));
+            BIND_NO_PROPAGATE(&TImpl::OnChunkDestroyed, MakeStrong(this), location, descriptor));
         OnChunkCreated(location, descriptor);
         lockedChunkGuard.Release();
         return chunk;
@@ -854,7 +892,8 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        YT_LOG_DEBUG("Chunk object removed from cache (ChunkId: %v, LocationId: %v)",
+        YT_LOG_DEBUG(
+            "Chunk object removed from cache (ChunkId: %v, LocationId: %v)",
             chunk->GetId(),
             chunk->GetLocation()->GetId());
 
@@ -1011,7 +1050,7 @@ private:
                 remoteReaderOptions,
                 std::move(chunkReaderHost),
                 chunkId,
-                seedReplicas);
+                std::move(seedReplicas));
 
             auto fileName = location->GetChunkPath(chunkId);
             auto chunkWriter = New<TChunkFileWriter>(
@@ -1192,13 +1231,13 @@ private:
             trafficMeter);
         auto reader = CreateFileMultiChunkReader(
             GetArtifactCacheReaderConfig(),
-            readerOptions,
+            std::move(readerOptions),
             std::move(chunkReaderHost),
             chunkReadOptions,
             chunkSpecs,
             FromProto<NChunkClient::TDataSource>(key.data_source()));
 
-        return [=] (IOutputStream* output) {
+        return [reader = std::move(reader), key, throttler] (IOutputStream* output) {
             TBlock block;
             while (reader->ReadBlock(&block)) {
                 if (block.Data.Empty()) {
@@ -1245,7 +1284,7 @@ private:
                 chunkId,
                 std::move(lockedChunkGuard),
                 producer);
-            cookie.EndInsert(chunk);
+            cookie.EndInsert(std::move(chunk));
         } catch (const std::exception& ex) {
             auto error = TError("Error downloading table artifact into cache")
                 << ex;
@@ -1334,8 +1373,8 @@ private:
             trafficMeter);
         auto reader = CreateSchemalessSequentialMultiReader(
             GetArtifactCacheReaderConfig(),
-            readerOptions,
-            std::move(chunkReaderHost),
+            std::move(readerOptions),
+            CreateSingleSourceMultiChunkReaderHost(std::move(chunkReaderHost)),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             /*hintKeys*/ std::nullopt,
@@ -1349,7 +1388,15 @@ private:
         auto columns = dataSource.Columns();
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
 
-        return [=] (IOutputStream* output) {
+        return [
+            reader = std::move(reader),
+            schema = std::move(schema),
+            columns = std::move(columns),
+            format,
+            nameTable,
+            key,
+            throttler
+        ] (IOutputStream* output) {
             auto writer = CreateStaticTableWriterForFormat(
                 format,
                 nameTable,
@@ -1386,7 +1433,8 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
-        YT_LOG_INFO("Producing artifact file (ChunkId: %v, Location: %v)",
+        YT_LOG_INFO(
+            "Producing artifact file (ChunkId: %v, Location: %v)",
             chunkId,
             location->GetId());
 
@@ -1544,6 +1592,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ArtifactCacheReaderConfig_.Store(newNodeConfig->DataNode->ArtifactCacheReader);
+
+        ReconfigureLocations(newNodeConfig->DataNode->CacheLocation);
     }
 };
 

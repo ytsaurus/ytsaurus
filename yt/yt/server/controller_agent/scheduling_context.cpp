@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
@@ -55,7 +57,7 @@ void TSchedulingContext::FormatCommonPart(TStringBuilderBase& builder) const
     builder.AppendFormat(
         "AllocationId: %v, NodeAddress: %v, PoolPath: %v",
         AllocationId_,
-        NodeDescriptor_.Address,
+        NNodeTrackerClient::GetDefaultAddress(NodeDescriptor_.Addresses),
         PoolPath_);
 }
 
@@ -125,16 +127,16 @@ TString TAllocationSchedulingContext::GetResourcesString(const NChunkClient::TMe
 
 TJobSchedulingContext::TJobSchedulingContext(
     TAllocationId allocationId,
-    const NScheduler::TJobResourcesWithQuota& resources,
+    NScheduler::TDiskQuota diskQuota,
     TJobNodeDescriptor nodeDescriptor,
     std::optional<TString> poolPath)
     : TSchedulingContext(allocationId, std::move(nodeDescriptor), std::move(poolPath))
-    , Resources_(resources)
+    , DiskQuota_(std::move(diskQuota))
 { }
 
 bool TJobSchedulingContext::CanSatisfyDemand(const NScheduler::TJobResourcesWithQuota& demand) const
 {
-    return Dominates(Resources_, demand);
+    return Dominates(DiskQuota_, demand.DiskQuota());
 }
 
 // COMPAT(pogorelov)
@@ -154,8 +156,8 @@ TString TJobSchedulingContext::ToString(const NChunkClient::TMediumDirectoryPtr&
     FormatCommonPart(builder);
 
     builder.AppendFormat(
-        ", AvailableResources: %v",
-        Resources_);
+        ", DiskQuota: %v",
+        DiskQuota_);
 
     builder.AppendChar('}');
 
@@ -170,8 +172,8 @@ TString TJobSchedulingContext::GetResourcesString(const NChunkClient::TMediumDir
     builder.AppendChar('{');
 
     builder.AppendFormat(
-        "ResourceLimits: %v",
-        Resources_);
+        "DiskQuota: %v",
+        DiskQuota_);
 
     builder.AppendChar('}');
 

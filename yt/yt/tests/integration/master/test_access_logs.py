@@ -52,10 +52,11 @@ class TestAccessLog(YTEnvSetup):
         if cell_tag_to_directory is None:
             cell_tag_to_directory = self.CELL_TAG_TO_DIRECTORIES
         written_logs = []
-        for master_tag, directory in cell_tag_to_directory.items():
+        for cell_tag, directory in cell_tag_to_directory.items():
+            cell_index = self.master_cell_index_from_cell_tag(cell_tag)
             for idx in range(1, self.NUM_MASTERS):
-                path = os.path.join(self.path_to_run, "logs/master-{}-{}.access.json.log".format(master_tag, idx))
-                barrier_record = "{}-{}".format(master_tag, generate_timestamp())
+                path = os.path.join(self.path_to_run, "logs/master-{}-{}.access.json.log".format(cell_index, idx))
+                barrier_record = "{}-{}".format(cell_tag, generate_timestamp())
                 create("table", "{}/{}".format(directory, barrier_record))
                 wait(lambda: self._is_node_in_logs(barrier_record, path, directory), iter=120, sleep_backoff=1.0, timeout=120)
                 written_logs.extend([line_json for line_json in self._log_lines(path, directory)])
@@ -84,7 +85,7 @@ class TestAccessLog(YTEnvSetup):
                            written_logs), "Entry {} is present in access log".format(log)
 
     @classmethod
-    def modify_master_config(cls, multidaemon_config, config, tag, peer_index, cluster_index):
+    def modify_master_config(cls, multidaemon_config, config, cell_index, cell_tag, peer_index, cluster_index):
         if "logging" in config:
             config["logging"]["flush_period"] = 100
             config["logging"]["rules"].append(
@@ -97,7 +98,7 @@ class TestAccessLog(YTEnvSetup):
             )
             config["logging"]["writers"]["access"] = {
                 "type": "file",
-                "file_name": os.path.join(cls.path_to_run, f"logs/master-{tag}-{peer_index}.access.json.log"),
+                "file_name": os.path.join(cls.path_to_run, f"logs/master-{cell_index}-{peer_index}.access.json.log"),
                 "accepted_message_format": "structured",
             }
 
@@ -105,14 +106,14 @@ class TestAccessLog(YTEnvSetup):
         multidaemon_config["logging"]["rules"].append(
             {
                 "min_level": "debug",
-                "writers": [f"access-{tag}-{peer_index}"],
+                "writers": [f"access-{cell_index}-{peer_index}"],
                 "include_categories": ["Access"],
                 "message_format": "structured",
             }
         )
-        multidaemon_config["logging"]["writers"][f"access-{tag}-{peer_index}"] = {
+        multidaemon_config["logging"]["writers"][f"access-{cell_tag}-{peer_index}"] = {
             "type": "file",
-            "file_name": os.path.join(cls.path_to_run, f"logs/master-{tag}-{peer_index}.access.json.log"),
+            "file_name": os.path.join(cls.path_to_run, f"logs/master-{cell_index}-{peer_index}.access.json.log"),
             "accepted_message_format": "structured",
         }
 

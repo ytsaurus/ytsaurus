@@ -665,7 +665,8 @@ TListOperationsResult TRpcRawClient::ListOperations(const TListOperationsOptions
         result.PoolCounts = std::move(*listOperationsResult.PoolCounts);
     }
     if (listOperationsResult.UserCounts) {
-        result.UserCounts = std::move(*listOperationsResult.UserCounts);
+        // TODO(babenko): migrate to std::string
+        result.UserCounts = {listOperationsResult.UserCounts->begin(), listOperationsResult.UserCounts->end()};
     }
     if (listOperationsResult.StateCounts) {
         result.StateCounts.ConstructInPlace();

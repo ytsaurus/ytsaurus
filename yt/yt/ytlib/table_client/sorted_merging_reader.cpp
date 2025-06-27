@@ -18,7 +18,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TableClientLogger;
+constinit const auto Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -438,7 +438,7 @@ public:
         LastReadRowStreamIndexes_.clear();
         LastReadRowStreamIndexes_.reserve(options.MaxRowsPerRead);
 
-        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 
@@ -604,7 +604,7 @@ public:
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 

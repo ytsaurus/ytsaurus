@@ -3,6 +3,7 @@
 #include <contrib/ydb/core/tx/columnshard/columnshard_impl.h>
 #include <contrib/ydb/core/tx/columnshard/columnshard_private_events.h>
 #include <contrib/ydb/core/tx/conveyor/usage/service.h>
+#include <contrib/ydb/core/tx/conveyor_composite/usage/service.h>
 
 namespace NKikimr::NOlap::NWritingPortions {
 
@@ -71,10 +72,10 @@ void TWriteAggregation::Flush(const ui64 tabletId) {
         Context.GetWritingCounters()->OnAggregationWrite(Units.size(), SumSize);
         std::shared_ptr<NConveyor::ITask> task =
             std::make_shared<TBuildPackSlicesTask>(std::move(Units), Context, PathId, tabletId, ModificationType);
-        NConveyor::TInsertServiceOperator::SendTaskToExecute(task);
+        NConveyorComposite::TInsertServiceOperator::SendTaskToExecute(task);
         Units.clear();
         SumSize = 0;
     }
 }
 
-}   // namespace NKikimr::NColumnShard::NWritingPortions
+}   // namespace NKikimr::NOlap::NWritingPortions

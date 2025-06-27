@@ -133,6 +133,16 @@ void TFairShareStrategyOperationControllerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TModuleShareAndNetworkPriority::Register(TRegistrar registrar)
+{
+    registrar.Parameter("module_share", &TThis::ModuleShare)
+        .InRange(0.0, 1.0);
+
+    registrar.Parameter("network_priority", &TThis::NetworkPriority)
+        .InRange(MinNetworkPriority, MaxNetworkPriority);
+}
+////////////////////////////////////////////////////////////////////////////////
+
 void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("mode", &TThis::Mode)
@@ -187,12 +197,31 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Parameter("priority_module_assignment_timeout", &TThis::PriorityModuleAssignmentTimeout)
         .Default(TDuration::Minutes(15));
 
+    registrar.Parameter("module_oversatisfaction_threshold", &TThis::ModuleOversatisfactionThreshold)
+        .Default();
+
+    registrar.Parameter("force_incompatible_segment_preemption", &TThis::ForceIncompatibleSegmentPreemption)
+        .Default(false);
+
+    registrar.Parameter("module_share_to_network_priority", &TThis::ModuleShareToNetworkPriority)
+        .Default();
+
     registrar.Postprocessor([&] (TFairShareStrategySchedulingSegmentsConfig* config) {
         for (const auto& schedulingSegmentModule : config->DataCenters) {
             ValidateDataCenterName(schedulingSegmentModule);
         }
         for (const auto& schedulingSegmentModule : config->InfinibandClusters) {
             ValidateInfinibandClusterName(schedulingSegmentModule);
+        }
+
+        double previousModuleShare = 0.0;
+        for (const auto& entry : config->ModuleShareToNetworkPriority) {
+            if (entry.ModuleShare <= previousModuleShare && entry.ModuleShare > 0) {
+                THROW_ERROR_EXCEPTION("Module shares must be in strictly ascending order")
+                    << TErrorAttribute("module", entry.ModuleShare)
+                    << TErrorAttribute("previous_module", previousModuleShare);
+            }
+            previousModuleShare = entry.ModuleShare;
         }
     });
 
@@ -440,7 +469,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("infer_weight_from_guarantees_share_multiplier", &TThis::InferWeightFromGuaranteesShareMultiplier)
         .Alias("infer_weight_from_strong_guarantee_share_multiplier")
-        .Alias("infer_weight_from_min_share_ratio_multiplier")
         .Default()
         .GreaterThanOrEqual(1.0);
 
@@ -609,10 +637,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_guarantee_priority_scheduling", &TThis::EnableGuaranteePriorityScheduling)
         .Default(false);
 
-    // COMPAT(eshcherbin): drop in future major versions.
-    registrar.Parameter("enable_fast_child_function_summation_in_fifo_pools", &TThis::EnableFastChildFunctionSummationInFifoPools)
-        .Default(true);
-
     registrar.Parameter("min_job_resource_limits", &TThis::MinJobResourceLimits)
         .DefaultNew();
 
@@ -774,7 +798,7 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("ephemeral_pool_name_regex", &TThis::EphemeralPoolNameRegex)
-        .Default("[-_a-z0-9:A-Z]+");
+        .Default("[-_\\.a-z0-9:A-Z]+");
 
     registrar.Parameter("require_specified_operation_pools_existence", &TThis::RequireSpecifiedOperationPoolsExistence)
         .Default(false);
@@ -1264,7 +1288,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(58);
+        .Default(60);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();

@@ -44,6 +44,7 @@ struct TRunnableContainerSpec
 
     std::optional<i64> ThreadLimit;
 
+    std::optional<TString> NetworkInterface;
     std::optional<TString> HostName;
     std::vector<NYT::NNet::TIP6Address> IPAddresses;
     bool EnableNat64 = false;

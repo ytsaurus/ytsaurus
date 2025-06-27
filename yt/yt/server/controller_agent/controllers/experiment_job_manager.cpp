@@ -113,17 +113,12 @@ TMtnJobExperiment::TMtnJobExperiment()
 TMtnJobExperiment::TMtnJobExperiment(
     const NApi::NNative::IClientPtr& client,
     const std::string& authenticatedUser,
-    TString networkProject,
+    const std::string& networkProjectName,
     NLogging::TLogger logger)
-    : NetworkProject_(networkProject)
+    : NetworkProjectName_(networkProjectName)
+    , NetworkProject_(GetNetworkProject(client, authenticatedUser, NetworkProjectName_))
     , Logger(logger)
-{
-    auto networkProjectAttributes = GetNetworkProject(client, authenticatedUser, networkProject);
-
-    ProjectId_ = networkProjectAttributes->Get<ui32>("project_id");
-    EnableNat64_ = networkProjectAttributes->Get<bool>("enable_nat64", false);
-    DisableNetwork_ = networkProjectAttributes->Get<bool>("disable_network", false);
-}
+{ }
 
 bool TMtnJobExperiment::IsEnabled(
     const TOperationSpecBasePtr& operationSpec,
@@ -144,14 +139,17 @@ void TMtnJobExperiment::PatchUserJobSpec(
     YT_LOG_DEBUG("Switching the job to the probing network project "
         "(JobId: %v, NetworkProject: %v, NetworkProjectId: %v, EnableNat64: %v, DisableNetwork: %v)",
         joblet->JobId,
-        NetworkProject_,
-        ProjectId_,
-        EnableNat64_,
-        DisableNetwork_);
+        NetworkProjectName_,
+        NetworkProject_.Id,
+        NetworkProject_.EnableNat64,
+        NetworkProject_.DisableNetwork);
 
-    jobSpec->set_network_project_id(ProjectId_);
-    jobSpec->set_enable_nat64(EnableNat64_);
-    jobSpec->set_disable_network(DisableNetwork_);
+    ToProto(jobSpec->mutable_network_project(), NetworkProject_);
+
+    // COMPAT(ignat)
+    jobSpec->set_network_project_id(NetworkProject_.Id);
+    jobSpec->set_enable_nat64(NetworkProject_.EnableNat64);
+    jobSpec->set_disable_network(NetworkProject_.DisableNetwork);
 }
 
 EOperationAlertType TMtnJobExperiment::GetAlertType() const
@@ -170,12 +168,9 @@ TError TMtnJobExperiment::GetAlert(const TOperationSpecBasePtr& operationSpec) c
 
 void TMtnJobExperiment::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, NetworkProject_);
-    PHOENIX_REGISTER_FIELD(2, ProjectId_);
-    PHOENIX_REGISTER_FIELD(3, EnableNat64_);
-    PHOENIX_REGISTER_FIELD(4, DisableNetwork_);
-
-    PHOENIX_REGISTER_FIELD(5, Logger);
+    PHOENIX_REGISTER_FIELD(1, NetworkProjectName_);
+    PHOENIX_REGISTER_FIELD(2, NetworkProject_);
+    PHOENIX_REGISTER_FIELD(3, Logger);
 }
 
 PHOENIX_DEFINE_TYPE(TMtnJobExperiment);

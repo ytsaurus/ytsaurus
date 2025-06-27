@@ -56,7 +56,7 @@ func NewParseLineTransform(logger *slog.Logger) pipelines.Transform[[]byte, Pars
 	return pipelines.NewFuncTransform(func(ctx context.Context, meta pipelines.RowMeta, line []byte, emit pipelines.EmitFunc[ParsedLine]) {
 		result, err := ParseLine(line)
 		if err != nil {
-			logger.Warn("Detected broken line", "offset", meta.Begin.LogicalOffset)
+			logger.Warn("Detected broken line", "offset", meta.Begin)
 		} else {
 			emit(ctx, meta, result)
 		}
@@ -139,7 +139,7 @@ func NewTskvTransform(bufferLimit int, cluster string, tskvFormat string) pipeli
 func NewValidateJSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, []byte] {
 	return pipelines.NewFuncTransform(func(ctx context.Context, meta pipelines.RowMeta, in []byte, emit pipelines.EmitFunc[[]byte]) {
 		if !json.Valid(in) {
-			logger.Warn("found invalid json", "offset", meta.Begin.LogicalOffset)
+			logger.Warn("found invalid json", "offset", meta.Begin)
 			return
 		}
 		emit(ctx, meta, in)
@@ -150,7 +150,7 @@ func NewValidateJSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, [
 func NewValidateYSONTransform(logger *slog.Logger) pipelines.Transform[[]byte, []byte] {
 	return pipelines.NewFuncTransform(func(ctx context.Context, meta pipelines.RowMeta, in []byte, emit pipelines.EmitFunc[[]byte]) {
 		if err := yson.ValidListFragment(in); err != nil {
-			logger.Warn("found invalid yson", "offset", meta.Begin.LogicalOffset)
+			logger.Warn("found invalid yson", "offset", meta.Begin)
 			return
 		}
 		emit(ctx, meta, in)

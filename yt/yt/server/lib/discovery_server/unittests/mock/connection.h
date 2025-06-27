@@ -200,22 +200,22 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NQueueClient::TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(const TString& /*stage*/) const override
+    std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(TStringBuf /*stage*/) const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    std::pair<NApi::NNative::IClientPtr, TString> GetQueryTrackerStage(const TString& /*stage*/) override
+    std::pair<NApi::NNative::IClientPtr, NYPath::TYPath> GetQueryTrackerStage(TStringBuf /*stage*/) override
     {
         YT_UNIMPLEMENTED();
     }
 
-    NRpc::IChannelPtr GetQueryTrackerChannelOrThrow(const TString& /*stage*/) override
+    NRpc::IChannelPtr GetQueryTrackerChannelOrThrow(TStringBuf /*stage*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -279,6 +279,11 @@ public:
     }
 
     NApi::NNative::IClientPtr CreateNativeClient(const NApi::TClientOptions& /*options*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override
     {
         YT_UNIMPLEMENTED();
     }
@@ -403,6 +408,16 @@ public:
     }
 
     NRpc::IChannelPtr CreateChannelByAddress(const std::string& /*address*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    NSignature::ISignatureGeneratorPtr GetSignatureGenerator() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    void SetSignatureGenerator(NSignature::ISignatureGeneratorPtr /*generator*/) override
     {
         YT_UNIMPLEMENTED();
     }

@@ -34,7 +34,7 @@ using namespace NHiveClient;
 using namespace NSecurityClient;
 using namespace NLogging;
 
-static constexpr auto& Logger = YqlAgentLogger;
+constinit const auto Logger = YqlAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,6 +239,7 @@ public:
             .OperationAttributes = ConvertToYsonString(Config_->OperationAttributes),
             .Libraries = ConvertToYsonString(Config_->Libraries),
             .YTTokenPath = Config_->YTTokenPath,
+            .UIOrigin = Config_->UIOrigin,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
         };

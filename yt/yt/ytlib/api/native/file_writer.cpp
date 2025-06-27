@@ -68,7 +68,8 @@ public:
     TFileWriter(
         IClientPtr client,
         const TRichYPath& path,
-        const TFileWriterOptions& options)
+        const TFileWriterOptions& options,
+        IMemoryUsageTrackerPtr memoryUsageTracker)
         : Client_(client)
         , Path_(path)
         , Options_(options)
@@ -76,6 +77,7 @@ public:
         , Logger(ApiLogger().WithTag("Path: %v, TransactionId: %v",
             Path_.GetPath(),
             Options_.TransactionId))
+        , MemoryUsageTracker_(std::move(memoryUsageTracker))
     { }
 
     TFuture<void> Open() override
@@ -129,7 +131,7 @@ private:
     TObjectId ObjectId_;
 
     const NLogging::TLogger Logger;
-
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     void DoOpen()
     {
@@ -203,12 +205,13 @@ private:
             auto attributesErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec");
 
             writerOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
-            writerOptions->MediumName = attributes->Get<TString>("primary_medium");
-            writerOptions->Account = attributes->Get<TString>("account");
+            writerOptions->MediumName = attributes->Get<std::string>("primary_medium");
+            writerOptions->Account = attributes->Get<std::string>("account");
             writerOptions->CompressionCodec = Path_.GetCompressionCodec().value_or(attributesCompressionCodec);
             writerOptions->ErasureCodec = Path_.GetErasureCodec().value_or(attributesErasureCodec);
             // COMPAT(gritukan)
             writerOptions->EnableStripedErasure = attributes->Get<bool>("enable_striped_erasure", false);
+            writerOptions->MemoryUsageTracker = MemoryUsageTracker_;
 
             YT_LOG_INFO("Extended file attributes received (Account: %v)",
                 writerOptions->Account);
@@ -395,9 +398,10 @@ private:
 IFileWriterPtr CreateFileWriter(
     IClientPtr client,
     const TRichYPath& path,
-    const TFileWriterOptions& options)
+    const TFileWriterOptions& options,
+    IMemoryUsageTrackerPtr memoryUsageTracker)
 {
-    return New<TFileWriter>(client, path, options);
+    return New<TFileWriter>(client, path, options, std::move(memoryUsageTracker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -36,10 +36,10 @@ public:
     // TODO(babenko): this could also be a store id.
     DEFINE_BYVAL_RW_PROPERTY(TChunkId, ChunkId);
 
-    // TODO(babenko): store replicas with media.
-    using TInputChunkReplicas = std::array<TChunkReplica, MaxInputChunkReplicaCount>;
-    DEFINE_BYREF_RO_PROPERTY(TInputChunkReplicas, Replicas);
+protected:
+    std::array<TChunkReplica, MaxInputChunkReplicaCount> RawReplicas_;
 
+public:
     DEFINE_BYVAL_RW_PROPERTY(int, TableIndex, -1);
     DEFINE_BYVAL_RO_PROPERTY(NErasure::ECodec, ErasureCodec, NErasure::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(i64, TableRowIndex);
@@ -79,16 +79,19 @@ public:
     TInputChunkBase(TInputChunkBase&& other) = default;
     explicit TInputChunkBase(const NProto::TChunkSpec& chunkSpec);
 
-    // TODO(babenko): this currently always returns GenericMediumIndex.
-    TChunkReplicaWithMediumList GetReplicaList() const;
-    // TODO(babenko): this currently just drops medium indices.
-    void SetReplicaList(const TChunkReplicaWithMediumList& replicas);
+    TChunkReplicaList GetReplicas() const;
+    void SetReplicas(const TChunkReplicaList& replicas);
+
+    TChunkId EncodeReplica(NNodeTrackerClient::TNodeId nodeId) const;
 
     bool IsDynamicStore() const;
     bool IsSortedDynamicStore() const;
     bool IsOrderedDynamicStore() const;
     bool IsFile() const;
     bool IsHunk() const;
+    bool IsRowCountMeaningless() const;
+
+    bool IsUnavailable(EChunkAvailabilityPolicy policy) const;
 
 private:
     void CheckOffsets();
@@ -189,12 +192,6 @@ DEFINE_REFCOUNTED_TYPE(TInputChunk)
 void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);
 void FromProto(TInputChunkPtr* inputChunk, const NProto::TChunkSpec& chunkSpec);
 void FormatValue(TStringBuilderBase* builder, const TInputChunkPtr& inputChunk, TStringBuf spec);
-
-////////////////////////////////////////////////////////////////////////////////
-
-bool IsUnavailable(const TInputChunkPtr& inputChunk, EChunkAvailabilityPolicy policy);
-
-TChunkId EncodeChunkId(const TInputChunkPtr& inputChunk, NNodeTrackerClient::TNodeId nodeId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

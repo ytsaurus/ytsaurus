@@ -88,7 +88,7 @@ Two methods of writing:
 
 ### Entity (`entity`) { #entity }
 
-Entity is an atomic scalar value with no content of its own. There are various scenarios in which this type can be useful. For example, entity often means null. In addition, when a `get` request is made to a [Cypress](../../../user-guide/storage/cypress.md) subtree, [files](../../../user-guide/storage/objects.md#files) and [tables](../../../user-guide/storage/objects.md#tables) are returned as entities (actual data is stored in the [attributes](#attributes) of that node).
+Entity is an atomic scalar value with no content of its own. There are various scenarios in which this type can be useful. For example, entity often means null. In addition, when a `get` request is made to a [Cypress](../../../user-guide/storage/cypress.md) subtree, [files](../../../user-guide/storage/objects.md#files) and [tables](../../../user-guide/storage/objects.md#tables) are returned as entities (actual data is stored in the [attributes](../../../user-guide/storage/yson.md#attributes) of that node).
 
 Lexically, entity is encoded by the `#` symbol.
 

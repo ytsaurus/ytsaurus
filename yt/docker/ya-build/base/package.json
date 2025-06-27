@@ -5,6 +5,13 @@
         "description": "Base ytsaurus parts for building images. ytserver-all, python binaries, certs, Dockerfile, credits",
         "version": "{revision}",
     },
+    "include": [
+        "yt/docker/ya-build/base/build-server-linux-x86_64.json",
+        "yt/docker/ya-build/base/build-python-linux-x86_64.json",
+        "yt/docker/ya-build/base/data-common.json",
+        "yt/docker/ya-build/base/data-server.json",
+        "yt/docker/ya-build/base/data-python.json",
+    ],
     "params": {
         "format": "docker",
         "docker_target": "base-exec",
@@ -12,144 +19,4 @@
             "PYTHON_BUILD_BASE": "build-ytsaurus-python-binaries",
         },
     },
-    "build": {
-        "build_server_binaries": {
-            "targets": [
-                "yt/yt/server/all",
-            ],
-            "build_type": "profile",
-            "thinlto": true,
-            "target-platforms": [
-                "default-linux-x86_64",
-            ],
-            "flags": [
-                {
-                    "name": "NO_STRIP",
-                    "value": "yes",
-                },
-            ],
-        },
-        "build_python_binaries": {
-            "targets": [
-                "yt/yt/python/yson_shared",
-                "yt/yt/python/driver/native_shared",
-                "yt/yt/python/driver/rpc_shared",
-            ],
-            "build_type": "release",
-            "thinlto": true,
-            "target-platforms": [
-                "default-linux-x86_64",
-            ],
-            "flags": [
-                {
-                    "name": "USE_ARCADIA_PYTHON",
-                    "value": "no",
-                },
-                {
-                    "name": "USE_LOCAL_PYTHON",
-                    "value": "yes",
-                },
-                {
-                    "name": "PYTHON_BIN",
-                    "value": "python3",
-                },
-                {
-                    "name": "PYTHON_CONFIG",
-                    "value": "python3-config",
-                },
-                {
-                    "name": "STRIP",
-                    "value": "yes",
-                },
-            ],
-        },
-    },
-    "data": [
-        {
-            "source": {
-                "type": "ARCADIA",
-                "path": "yt/docker/ytsaurus/Dockerfile",
-            },
-            "destination": {
-                "path": "/Dockerfile",
-            },
-        },
-        {
-            "source": {
-                "type": "ARCADIA",
-                "path": "certs/cacert.pem",
-            },
-            "destination": {
-                "path": "/certs/cacert.pem",
-            },
-        },
-        {
-            "source": {
-                "type": "ARCADIA",
-                "path": "yt/python",
-            },
-            "destination": {
-                "path": "/yt/python",
-            },
-        },
-        {
-            "source": {
-                "type": "ARCADIA",
-                "path": "yt/yt/python",
-            },
-            "destination": {
-                "path": "/yt/yt/python",
-            },
-        },
-        {
-            "source": {
-                "type": "ARCADIA",
-                "path": "yt/docker/ytsaurus/credits/ytsaurus/ytserver-all.CREDITS",
-            },
-            "destination": {
-                "path": "/credits/ytserver-all.CREDITS",
-            },
-        },
-        {
-            "source": {
-                "type": "BUILD_OUTPUT",
-                "build_key": "build_server_binaries",
-                "path": "yt/yt/server/all/ytserver-all",
-            },
-            "destination": {
-                "path": "/",
-            },
-        },
-        {
-            "source": {
-                "type": "BUILD_OUTPUT",
-                "build_key": "build_python_binaries",
-                "path": "yt/yt/python/yson_shared/yson_lib.so",
-            },
-            "destination": {
-                "path": "/artifacts/libyson_lib.so",
-            },
-        },
-        {
-            "source": {
-                "type": "BUILD_OUTPUT",
-                "build_key": "build_python_binaries",
-                "path": "yt/yt/python/driver/native_shared/driver_lib.so",
-            },
-            "destination": {
-                "path": "/artifacts/libdriver_lib.so",
-            },
-        },
-        {
-            "source": {
-                "type": "BUILD_OUTPUT",
-                "build_key": "build_python_binaries",
-                "path": "yt/yt/python/driver/rpc_shared/driver_rpc_lib.so",
-            },
-            "destination": {
-                "path": "/artifacts/libdriver_rpc_lib.so",
-            },
-        },
-    ],
 }
-

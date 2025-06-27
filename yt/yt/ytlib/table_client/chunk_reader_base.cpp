@@ -98,11 +98,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
 
 bool TChunkReaderBase::BeginRead()
 {
-    if (!ReadyEvent().IsSet()) {
-        return false;
-    }
-
-    if (!ReadyEvent().Get().IsOK()) {
+    if (!IsReadyEventSetAndOK()) {
         return false;
     }
 
@@ -321,7 +317,7 @@ bool TChunkReaderBase::IsFetchingCompleted() const
 
 std::vector<TChunkId> TChunkReaderBase::GetFailedChunkIds() const
 {
-    if (ReadyEvent().IsSet() && !ReadyEvent().Get().IsOK()) {
+    if (auto readyEvent = ReadyEvent(); readyEvent.IsSet() && !readyEvent.Get().IsOK()) {
         return std::vector<TChunkId>(1, UnderlyingReader_->GetChunkId());
     } else {
         return std::vector<TChunkId>();

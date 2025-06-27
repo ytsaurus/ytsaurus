@@ -29,7 +29,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TableServerLogger;
+constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,11 +70,11 @@ public:
             ESecondaryIndexKind::FullSync);
         auto tableId = attributes->GetAndRemove<TTableId>(EInternedAttributeKey::TableId.Unintern());
         auto indexTableId = attributes->GetAndRemove<TTableId>(EInternedAttributeKey::IndexTableId.Unintern());
-        auto predicate = attributes->FindAndRemove<TString>(EInternedAttributeKey::Predicate.Unintern());
+        auto predicate = attributes->FindAndRemove<std::string>(EInternedAttributeKey::Predicate.Unintern());
 
-        std::optional<TString> unfoldedColumn;
+        std::optional<std::string> unfoldedColumn;
         if (kind == ESecondaryIndexKind::Unfolding) {
-            unfoldedColumn = attributes->GetAndRemove<TString>(EInternedAttributeKey::UnfoldedColumn.Unintern());
+            unfoldedColumn = attributes->GetAndRemove<std::string>(EInternedAttributeKey::UnfoldedColumn.Unintern());
         }
 
         auto evaluatedColumns = attributes->FindAndRemove<TTableSchemaPtr>(

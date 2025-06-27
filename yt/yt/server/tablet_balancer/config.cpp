@@ -1,4 +1,5 @@
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 
@@ -105,6 +106,11 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("action_manager", &TThis::ActionManager)
         .DefaultNew();
 
+    registrar.Parameter("clusters_for_bundle_health_check", &TThis::ClustersForBundleHealthCheck)
+        .Default();
+    registrar.Parameter("max_unhealthy_bundles_on_replica_cluster", &TThis::MaxUnhealthyBundlesOnReplicaCluster)
+        .Default(5);
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->Schedule.IsEmpty()) {
             THROW_ERROR_EXCEPTION("Schedule cannot be empty");
@@ -137,7 +143,7 @@ void TTabletBalancerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("cluster_user", &TThis::ClusterUser)
         .Default(NSecurityClient::TabletBalancerUserName);
     registrar.Parameter("root_path", &TThis::RootPath)
-        .Default("//sys/tablet_balancer");
+        .Default(DefaultTabletBalancerRootPath);
     registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)

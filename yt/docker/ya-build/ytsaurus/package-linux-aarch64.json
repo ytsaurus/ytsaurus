@@ -1,0 +1,24 @@
+{
+    "meta": {
+        "name": "ytsaurus",
+        "maintainer": "YT team",
+        "description": "Core YTsaurus image built with yt client libraries from source files",
+        "version": "local-{revision}",
+    },
+    "include": [
+        "yt/docker/ya-build/base/build-server-linux-aarch64.json",
+        "yt/docker/ya-build/base/build-python-linux-aarch64.json",
+        "yt/docker/ya-build/base/data-common.json",
+        "yt/docker/ya-build/base/data-server.json",
+        "yt/docker/ya-build/base/data-python.json",
+    ],
+    "params": {
+        "format": "docker",
+        "docker_target": "ytsaurus",
+        "docker_build_arg": {
+            "PYTHON_BUILD_BASE": "build-ytsaurus-python-binaries",
+            "SERVER_IMAGE_BASE": "base-server-crio",
+        },
+        "docker_platform" : "linux/arm64",
+    },
+}

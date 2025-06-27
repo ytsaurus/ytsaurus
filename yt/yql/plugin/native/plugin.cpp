@@ -60,6 +60,7 @@
 
 #include <yt/cpp/mapreduce/interface/logging/logger.h>
 
+#include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/yson/protobuf_interop.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
@@ -427,6 +428,8 @@ public:
             } else if (!NYT::TConfig::Get()->Token.empty()) {
                 YqlAgentToken_ = NYT::TConfig::Get()->Token;
             }
+
+            UIOrigin_ = options.UIOrigin;
             // do not use token from .yt/token or env in queries
             NYT::TConfig::Get()->Token = {};
         } catch (const std::exception& ex) {
@@ -583,6 +586,11 @@ public:
         sqlSettings.V0Behavior = NSQLTranslation::EV0Behavior::Disable;
         if (DqManager_) {
             sqlSettings.DqDefaultAuto = NSQLTranslation::ISqlFeaturePolicy::MakeAlwaysAllow();
+        }
+
+        if (UIOrigin_) {
+            program->SetOperationId(ToString(queryId));
+            program->SetOperationUrl(NFS::CombinePaths({UIOrigin_, sqlSettings.DefaultCluster, "queries", ToString(queryId)}));
         }
 
         if (!program->ParseSql(sqlSettings)) {
@@ -791,6 +799,7 @@ private:
     THashMap<TString, TString> Modules_;
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
+    TString UIOrigin_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;

@@ -209,8 +209,8 @@ protected:
         WriteSegment(columnWriter, {std::nullopt, 1.0, 2.0, 3.0, 4.0});
         // Segment 2 - 1 value.
         WriteSegment(columnWriter, {5.0});
-        // Segment 3 - 4 values.
-        WriteSegment(columnWriter, {6.0, 7.0, 8.0, 9.0});
+        // Segment 3 - 8 values.
+        WriteSegment(columnWriter, {6.0, 7.0, 8.0, 9.0, std::nan("0x100"), std::nan("0x0"), std::nan("0x10"), std::nan("0x0")});
     }
 
     std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
@@ -263,6 +263,23 @@ TEST_P(TUnversionedFloatingPointSegmentTest, GetEqualRange)
     EXPECT_EQ(std::pair(8L, 8L), reader->GetEqualRange(MakeValue(7.5), 7, 8));
     EXPECT_EQ(std::pair(0L, 0L), reader->GetEqualRange(MakeValue(std::nullopt), 0, 0));
     EXPECT_EQ(std::pair(8L, 8L), reader->GetEqualRange(MakeValue(7.5), 2, 9));
+}
+
+TEST_P(TUnversionedFloatingPointSegmentTest, GetEqualRangeWithNaNs)
+{
+    auto reader = CreateColumnReader();
+
+    EXPECT_EQ(std::pair(0L, 1L), reader->GetEqualRange(MakeValue(std::nullopt), 0, 14));
+    EXPECT_EQ(std::pair(8L, 8L), reader->GetEqualRange(MakeValue(7.5), 0, 14));
+    EXPECT_EQ(std::pair(9L, 10L), reader->GetEqualRange(MakeValue(9), 0, 14));
+
+    auto absentNaN = MakeValue(std::nan("0x7"));
+    auto presentNaN = MakeValue(std::nan("0x0"));
+    for (auto nan : {absentNaN, presentNaN}) {
+        for (auto lowerLimit : {0, 10}) {
+            EXPECT_EQ(std::pair(10L, 14L), reader->GetEqualRange(nan, lowerLimit, 14));
+        }
+    }
 }
 
 TEST_P(TUnversionedFloatingPointSegmentTest, ReadValues)

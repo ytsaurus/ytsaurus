@@ -35,15 +35,17 @@ target_include_directories(contrib-libs-curl PUBLIC
 target_include_directories(contrib-libs-curl PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/c-ares/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/curl/lib
+  ${PROJECT_SOURCE_DIR}/contrib/libs/libssh2/include
   ${PROJECT_SOURCE_DIR}/contrib/libs/ngtcp2/crypto/includes
   ${PROJECT_SOURCE_DIR}/contrib/libs/zstd/include
 )
 
 target_link_libraries(contrib-libs-curl PUBLIC
   linux-headers-generic::linux-headers-generic
-  libs-brotli-dec
-  libs-brotli-enc
+  brotli-c-dec
+  brotli-c-enc
   contrib-libs-libc_compat
+  contrib-libs-libssh2
   contrib-libs-nghttp2
   contrib-libs-nghttp3
   contrib-libs-ngtcp2

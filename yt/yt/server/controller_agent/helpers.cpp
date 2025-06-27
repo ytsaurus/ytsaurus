@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <algorithm>
 
 namespace NYT::NControllerAgent {
@@ -142,7 +144,7 @@ void BuildFileSpec(
                 descriptor->set_file_name(file.FileName);
                 break;
             case EObjectType::Table:
-                descriptor->set_format(file.Format.ToString());
+                descriptor->set_format(ToProto(file.Format));
                 break;
             default:
                 YT_ABORT();
@@ -190,7 +192,7 @@ TString GetIntermediatePath(int streamIndex)
 }
 
 TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
-    const TString& intermediateAccount,
+    const std::string& intermediateAccount,
     const std::vector<NTableClient::TTableSchemaPtr>& schemas)
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
@@ -217,7 +219,7 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory(
     return dataSourceDirectory;
 }
 
-TDataSink BuildIntermediateDataSink(const TString& intermediateAccount)
+TDataSink BuildIntermediateDataSink(const std::string& intermediateAccount)
 {
     TDataSink dataSink;
     dataSink.SetPath(GetIntermediatePath(0));
@@ -225,7 +227,7 @@ TDataSink BuildIntermediateDataSink(const TString& intermediateAccount)
     return dataSink;
 }
 
-TDataSinkDirectoryPtr BuildIntermediateDataSinkDirectory(const TString& intermediateAccount)
+TDataSinkDirectoryPtr BuildIntermediateDataSinkDirectory(const std::string& intermediateAccount)
 {
     auto dataSinkDirectory = New<TDataSinkDirectory>();
     dataSinkDirectory->DataSinks().emplace_back(BuildIntermediateDataSink(intermediateAccount));
@@ -459,7 +461,6 @@ std::unique_ptr<TPartitionTreeSkeleton> BuildPartitionTreeSkeleton(int partition
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 TDiskQuota CreateDiskQuota(
     const TDiskRequestConfigPtr& diskRequestConfig,

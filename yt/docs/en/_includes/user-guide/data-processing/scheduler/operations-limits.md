@@ -15,7 +15,7 @@ Some operations may be non-`schedulable` for much of their duration. For example
 
 For an operation to be considered lightweight, it must meet several conditions:
 
-- The operation must be of the [Vanilla](../../../user-guide/data-processing/operations/vanilla.md) type.
+- The operation must be of the [Vanilla](../../../../user-guide/data-processing/operations/vanilla.md) type.
 - The pool where the operation is running must be configured in `FIFO` mode.
 - The pool must allow lightweight operations. This is controlled by the `enable_lightweight_operations` setting, which can be set by the {{product-name}} cluster administrator.
 

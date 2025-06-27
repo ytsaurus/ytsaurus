@@ -25,7 +25,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = HiveClientLogger;
+constinit const auto Logger = HiveClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -115,6 +115,7 @@ void TClusterDirectory::Clear()
     CellTagToCluster_.clear();
     NameToCluster_.clear();
     ClusterTvmIds_.clear();
+    YT_LOG_DEBUG("Cluster directory cleared");
 }
 
 void TClusterDirectory::UpdateCluster(const std::string& name, const INodePtr& nativeConnectionConfig)

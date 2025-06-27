@@ -12,15 +12,18 @@ class TCriImageCacheEntry
     , private TIntrusiveListItem<TCriImageCacheEntry>
 {
 public:
-    TCriImageCacheEntry(TCriImageDescriptor imageId, TCriImageDescriptor imageName, i64 imageSize);
-    TCriImageCacheEntry(TCriImageDescriptor imageAlias, TCriImageCacheEntryPtr entry);
+    // Image entry identified by Id.
+    TCriImageCacheEntry(TCriImageDescriptor image, i64 imageSize);
+
+    // Alias image entry identified by Image name with tag or digest.
+    TCriImageCacheEntry(TCriImageDescriptor image, TCriImageCacheEntryPtr parent);
+
     ~TCriImageCacheEntry();
 
     bool IsAlias() const;
     bool HasAliases() const;
 
-    DEFINE_BYREF_RO_PROPERTY_NO_INIT(TCriImageDescriptor, ImageName);
-    DEFINE_BYREF_RO_PROPERTY_NO_INIT(TCriImageDescriptor, ImageId);
+    DEFINE_BYREF_RO_PROPERTY_NO_INIT(TCriImageDescriptor, Image);
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT(i64, ImageSize);
     DEFINE_BYREF_RO_PROPERTY_NO_INIT(TCriImageCacheEntryPtr, Parent);
 

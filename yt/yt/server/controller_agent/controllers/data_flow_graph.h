@@ -132,7 +132,7 @@ struct TOutputStreamDescriptorBase
     NChunkPools::TInputChunkMappingPtr ChunkMapping;
     bool RequiresRecoveryInfo = false;
     NTableClient::TTableWriterOptionsPtr TableWriterOptions;
-    TString SlowMedium;
+    std::string SlowMedium;
     NTableClient::TTableUploadOptions TableUploadOptions;
     NYson::TYsonString TableWriterConfig;
     NTransactionClient::TTimestamp Timestamp;

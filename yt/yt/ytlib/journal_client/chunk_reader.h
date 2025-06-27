@@ -24,7 +24,7 @@ NChunkClient::IChunkReaderPtr CreateChunkReader(
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     NChunkClient::TChunkId chunkId,
     NErasure::ECodec codecId,
-    NChunkClient::TChunkReplicaWithMediumList replicas);
+    NChunkClient::TChunkReplicaList replicas);
 
 ////////////////////////////////////////////////////////////////////////////////
 

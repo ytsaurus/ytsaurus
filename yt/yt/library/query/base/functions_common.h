@@ -22,9 +22,9 @@ DEFINE_ENUM(ECallingConvention,
 );
 
 DEFINE_ENUM(ETypeTag,
-    ((ConcreteType) (0))
-    ((TypeParameter) (1))
-    ((UnionType)    (2))
+    ((ConcreteType)     (0))
+    ((TypeParameter)    (1))
+    ((UnionType)        (2))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

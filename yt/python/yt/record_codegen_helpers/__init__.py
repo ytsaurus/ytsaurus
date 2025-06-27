@@ -19,7 +19,6 @@ class Field:
 @dataclass
 class RecordType:
     type_name: str
-    sorted: Optional[bool]
     fields: List[Field]
     table_name: Optional[str]
     table_group: Optional[str]
@@ -27,6 +26,7 @@ class RecordType:
     record_verbatim: Optional[str]
     key_verbatim: Optional[str]
     descriptor_verbatim: Optional[str]
+    sorted: bool = True
 
 
 @dataclass

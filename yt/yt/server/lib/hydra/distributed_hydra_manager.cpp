@@ -369,6 +369,15 @@ public:
         return VoidFuture;
     }
 
+    bool CanBuildSnapshot() const
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        const auto& epochContext = ControlEpochContext_;
+        const auto& leaderCommitter = epochContext->LeaderCommitter;
+        return leaderCommitter->CanBuildSnapshot() && !epochContext->EnteringReadOnlyMode;
+    }
+
     TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -402,15 +411,17 @@ public:
                 "Cannot build a snapshot in read-only mode"));
         }
 
-        if (!leaderCommitter->CanBuildSnapshot()) {
+        if (!CanBuildSnapshot()) {
             return MakeFuture<int>(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Snapshot is already being built"));
         }
 
         if (setReadOnly) {
-            WaitFor(CommitMutation(MakeSystemMutationRequest(EnterReadOnlyMutationType)))
-                .ThrowOnError();
+            epochContext->EnteringReadOnlyMode = true;
+            auto result = WaitFor(CommitMutation(MakeSystemMutationRequest(EnterReadOnlyMutationType)));
+            epochContext->EnteringReadOnlyMode = false;
+            result.ThrowOnError();
         }
 
         return leaderCommitter->BuildSnapshot(waitForSnapshotCompletion, setReadOnly);
@@ -2209,7 +2220,7 @@ private:
                     mutationCount,
                     mutationSize);
                 // If committer cannot build snapshot, then snapshot is already being built and it is ok.
-                if (leaderCommitter->CanBuildSnapshot()) {
+                if (CanBuildSnapshot()) {
                     YT_UNUSED_FUTURE(leaderCommitter->BuildSnapshot(
                         /*waitForSnapshotCompletion*/ false,
                         /*setReadOnly*/ false));

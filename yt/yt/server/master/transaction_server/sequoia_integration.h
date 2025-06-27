@@ -17,7 +17,9 @@ TFuture<TSharedRefArray> AbortCypressTransactionInSequoia(
     NCellMaster::TBootstrap* bootstrap,
     TTransactionId transactionId,
     bool force,
-    NRpc::TAuthenticationIdentity authenticationIdentity);
+    NRpc::TAuthenticationIdentity authenticationIdentity,
+    NRpc::TMutationId mutationId,
+    bool retry);
 
 TFuture<TSharedRefArray> AbortExpiredCypressTransactionInSequoia(
     NCellMaster::TBootstrap* bootstrap,
@@ -28,7 +30,15 @@ TFuture<TSharedRefArray> CommitCypressTransactionInSequoia(
     TTransactionId transactionId,
     std::vector<TTransactionId> prerequisiteTransactionIds,
     TTimestamp commitTimestamp,
-    NRpc::TAuthenticationIdentity authenticationIdentity);
+    NRpc::TAuthenticationIdentity authenticationIdentity,
+    NRpc::TMutationId mutationId,
+    bool retry);
+
+TFuture<TSharedRefArray> FinishNonAliveCypressTransactionInSequoia(
+    NCellMaster::TBootstrap* bootstrap,
+    TTransactionId transactionId,
+    NRpc::TMutationId mutationId,
+    bool retry);
 
 //! Replicates given Cypress transactions from coordinator to this cell.
 TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(

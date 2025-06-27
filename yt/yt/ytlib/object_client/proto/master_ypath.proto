@@ -144,24 +144,34 @@ message TRspRemoveMaintenance
 
 message TReqMaterializeCopyPrerequisites
 {
-    message TSchemaIdToSchema
+    message TSchemaDescriptor
     {
         required NYT.NProto.TGuid schema_id = 1;
         required NYT.NTableClient.NProto.TTableSchemaExt schema = 2;
+        repeated NYT.NProto.TGuid node_ids = 3;
     }
 
-    repeated TSchemaIdToSchema schema_id_to_schema_mapping = 1;
+    repeated TSchemaDescriptor schema_descriptors = 1;
+    required bool sequoia_destination = 2;
+    repeated NYT.NProto.TGuid schemaless_node_ids = 3;
 }
 
 message TRspMaterializeCopyPrerequisites
 {
-    message TUpdatedSchemaIdMapping
+    message TOldToNewSchemaIdEntry
     {
         required NYT.NProto.TGuid old_schema_id = 1;
         required NYT.NProto.TGuid new_schema_id = 2;
     }
 
-    repeated TUpdatedSchemaIdMapping updated_schema_id_mapping = 1;
+    message TNodeIdToCellTagEntry
+    {
+        required NYT.NProto.TGuid node_id = 1;
+        required uint32 cell_tag = 2;
+    }
+
+    repeated TOldToNewSchemaIdEntry old_to_new_schema_id = 1;
+    repeated TNodeIdToCellTagEntry node_id_to_cell_tag = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,12 +183,12 @@ message TReqMaterializeNode
     required int32 mode = 2; // ENodeCloneMode
     required int32 version = 3; // EMasterReign
 
-    // Used when turning map_node -> scion / portal or vice versa.
+    // Used when turning map_node -> scion/portal or vice versa.
     optional NYT.NProto.TGuid existing_node_id = 4;
 
     optional NYT.NYTree.NProto.TAttributeDictionary inherited_attributes_override = 5;
 
-    // If empty - preserve account of the source node.
+    // If null, source node account is preserved.
     optional NYT.NProto.TGuid new_account_id = 6;
 
     optional bool preserve_creation_time = 7 [default = false];
@@ -187,7 +197,11 @@ message TReqMaterializeNode
     optional bool preserve_owner = 10 [default = false];
 
     optional bool pessimistic_quota_check = 11 [default = true];
-    optional bool enable_cross_cell_copying = 12 [default = true];
+
+    // NB: If false, nodes are materialized as Cypress nodes.
+    required bool sequoia_destination = 12;
+
+    optional uint32 cell_tag_hint = 13;
 }
 
 message TRspMaterializeNode

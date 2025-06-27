@@ -151,6 +151,8 @@ struct TYqlPluginConfig
 
     TString YTTokenPath;
 
+    TString UIOrigin;
+
     //! Path to libyqlplugin.so. Ignored when built with -DYQL_NATIVE=yes.
     std::optional<TString> YqlPluginSharedLibrary;
 

@@ -1,8 +1,9 @@
 #include "compression_dictionary_manager.h"
 
 #include "bootstrap.h"
-#include "tablet.h"
+#include "config.h"
 #include "hint_manager.h"
+#include "tablet.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -688,6 +689,7 @@ private:
             chunkReadOptions,
             TNameTable::FromSchemaStable(*tabletSnapshot->PhysicalSchema),
             tabletSnapshot->ChunkFragmentReader,
+            /*suitableForCaching*/ true,
             Logger)
             .SubscribeUnique(BIND(
                 [=, cookie = std::move(cookie)] (TErrorOr<TRowDigestedDictionary>&& digestedDictionaryOrError) mutable

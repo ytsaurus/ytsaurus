@@ -18,7 +18,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CypressProxyLogger;
+constinit const auto Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +30,8 @@ public:
         TUserDirectorySynchronizerConfigPtr config,
         NApi::IClientPtr client,
         TUserDirectoryPtr userDirectory,
-        IInvokerPtr invoker)
+        IInvokerPtr invoker,
+        EMasterChannelKind readFrom)
     : Config_(std::move(config))
     , Client_(std::move(client))
     , UserDirectory_(std::move(userDirectory))
@@ -38,6 +39,7 @@ public:
         invoker,
         BIND(&TUserDirectorySynchronizer::OnSync, MakeStrong(this)),
         TPeriodicExecutorOptions{Config_->SyncPeriod, Config_->SyncSplay}))
+    , ReadFrom_(readFrom)
     { }
 
     void Start() override
@@ -79,8 +81,8 @@ private:
     const TUserDirectorySynchronizerConfigPtr Config_;
     NApi::IClientPtr Client_;
     const TWeakPtr<TUserDirectory> UserDirectory_;
-
     const TPeriodicExecutorPtr SyncExecutor_;
+    const EMasterChannelKind ReadFrom_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     bool Started_ = false;
@@ -119,7 +121,7 @@ private:
             YT_LOG_DEBUG("Started synchronizing user directory");
 
             TGetClusterMetaOptions options;
-            options.ReadFrom = EMasterChannelKind::Cache;
+            options.ReadFrom = ReadFrom_;
             options.PopulateUserDirectory = true;
 
             auto meta = WaitFor(Client_->GetClusterMeta(options))
@@ -146,18 +148,19 @@ private:
         }
     }
 
-    void RenewSyncPromises()
+    void RenewSyncPromise(TPromise<void>& syncPromise)
     {
-        auto recentSyncPromise = NewPromise<void>();
-        auto nextSyncPromise = NewPromise<void>();
+        auto newSyncPromise = NewPromise<void>();
 
         auto guard = Guard(SpinLock_);
-        std::swap(nextSyncPromise, NextSyncPromise_);
-        std::swap(recentSyncPromise, RecentSyncPromise_);
+        std::swap(syncPromise, newSyncPromise);
     }
 
     void OnSync()
     {
+        auto nextSyncPromise = NextSyncPromise_;
+        RenewSyncPromise(NextSyncPromise_);
+
         TError error;
         try {
             DoSync();
@@ -168,12 +171,10 @@ private:
             YT_LOG_DEBUG(error);
         }
 
-        auto nextSyncPromise = NextSyncPromise_;
-
         if (!RecentSyncPromise_.IsSet()) {
             RecentSyncPromise_.Set(error);
         }
-        RenewSyncPromises();
+        RenewSyncPromise(RecentSyncPromise_);
         nextSyncPromise.Set(error);
         RecentSyncPromise_.Set(error);
     }
@@ -185,13 +186,15 @@ IUserDirectorySynchronizerPtr CreateUserDirectorySynchronizer(
     TUserDirectorySynchronizerConfigPtr config,
     NApi::IClientPtr client,
     TUserDirectoryPtr userDirectory,
-    IInvokerPtr invoker)
+    IInvokerPtr invoker,
+    EMasterChannelKind readFrom)
 {
     return New<TUserDirectorySynchronizer>(
         std::move(config),
         std::move(client),
         std::move(userDirectory),
-        std::move(invoker));
+        std::move(invoker),
+        readFrom);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

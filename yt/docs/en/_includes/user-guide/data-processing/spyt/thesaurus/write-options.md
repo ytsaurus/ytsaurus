@@ -28,7 +28,7 @@ spark.write.optimize_for("lookup").yt("//sys/spark/examples/test_data")
 
 ## Schema v3
 
-Write tables with schema in [type_v3](../../../../../user-guide/storage/data-types.md) instead of type_v1. It can be enabled via [Spark configuration](../cluster/configuration.md) or write option.
+Write tables with schema in [type_v3](../../../../../user-guide/storage/data-types.md) instead of type_v1. It can be enabled via [Spark configuration](../../../../../user-guide/data-processing/spyt/cluster/configuration.md) or write option.
 
 Python example:
 ```python

@@ -24,6 +24,7 @@ TBriefJobInfo::TBriefJobInfo(
     const TJobResources& additionalResourceUsage,
     const TJobResources& initialResourceDemand,
     const std::vector<int>& jobPorts,
+    std::optional<int> jobProxyRpcServerPort,
     const TJobEvents& jobEvents,
     const NControllerAgent::TCoreInfos& jobCoreInfos,
     const TExecAttributes& jobExecAttributes,
@@ -44,6 +45,7 @@ TBriefJobInfo::TBriefJobInfo(
     , AdditionalResourceUsage_(additionalResourceUsage)
     , InitialResourceDemand_(initialResourceDemand)
     , JobPorts_(jobPorts)
+    , JobProxyRpcServerPort_(jobProxyRpcServerPort)
     , JobEvents_(jobEvents)
     , JobCoreInfos_(jobCoreInfos)
     , JobExecAttributes_(jobExecAttributes)
@@ -68,6 +70,7 @@ void TBriefJobInfo::BuildOrchid(TFluentMap fluent) const
         .Item("additional_resource_usage").Value(AdditionalResourceUsage_)
         .Item("initial_resource_demand").Value(InitialResourceDemand_)
         .Item("job_ports").Value(JobPorts_)
+        .OptionalItem("job_proxy_rpc_server_port", JobProxyRpcServerPort_)
         .Item("events").Value(JobEvents_)
         .Item("core_infos").Value(JobCoreInfos_)
         .Item("exec_attributes").Value(JobExecAttributes_)

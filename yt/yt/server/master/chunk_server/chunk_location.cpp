@@ -6,10 +6,13 @@
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
+#include <yt/yt/ytlib/node_tracker_client/helpers.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NCellMaster;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +33,16 @@ bool TChunkLocation::TReplicaEqual::operator()(const TChunkPtrWithReplicaInfo& l
 int TChunkLocation::GetEffectiveMediumIndex() const
 {
     return Statistics_.medium_index();
+}
+
+TChunkLocationIndex TChunkLocation::GetIndex() const
+{
+    return ChunkLocationIndexFromObjectId(Id_);
+}
+
+void TChunkLocation::SetId(NObjectServer::TObjectId id)
+{
+    Id_ = id;
 }
 
 void TChunkLocation::ReserveReplicas(int sizeHint)

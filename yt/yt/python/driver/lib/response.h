@@ -43,14 +43,14 @@ public:
     static void OnAfterPythonFinalize();
 
 private:
-    std::atomic<bool> Initialized_ = {false};
-    std::atomic<bool> Destroyed_ = {false};
+    std::atomic<bool> Initialized_ = false;
+    std::atomic<bool> Destroyed_ = false;
 
     std::unique_ptr<IInputStream> InputStream_;
     std::unique_ptr<IOutputStream> OutputStream_;
     TBlobOutput ResponseParametersBlobOutput_;
     std::unique_ptr<NYson::IFlushableYsonConsumer> ResponseParametersYsonWriter_;
-    std::atomic<bool> ResponseParametersFinished_ = {false};
+    std::atomic<bool> ResponseParametersFinished_ = false;
 
     static NThreading::TSpinLock DestructionSpinLock_;
     static std::atomic<bool> ShuttingDown_;

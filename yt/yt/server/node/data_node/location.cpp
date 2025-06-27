@@ -11,6 +11,8 @@
 #include "master_connector.h"
 #include "medium_updater.h"
 
+#include <yt/yt/orm/library/query/expression_evaluator.h>
+
 #include <yt/yt/server/node/data_node/session.h>
 
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -139,6 +141,7 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
         });
     }
 
+    IOWeight = profiler.Gauge("/io_weight");
     UsedSpace = profiler.Gauge("/used_space");
     AvailableSpace = profiler.Gauge("/available_space");
     ChunkCount = profiler.Gauge("/chunk_count");
@@ -392,6 +395,8 @@ TChunkLocation::TChunkLocation(
         ChunkStoreHost_->GetFairShareHierarchicalScheduler(),
         Profiler_.WithPrefix("/fair_share_hierarchical_queue"));
 
+    HugePageManager_ = ChunkStoreHost_->GetHugePageManager();
+
     auto probePutblocksProfiler = Profiler_.WithPrefix("/probe_writes");
     probePutblocksProfiler.AddFuncGauge("/queue_size", MakeStrong(this), [this] {
         return GetRequestedQueueSize();
@@ -410,6 +415,7 @@ TChunkLocation::TChunkLocation(
         StaticConfig_->IOEngineType,
         StaticConfig_->IOConfig,
         IOFairShareQueue_,
+        HugePageManager_,
         Id_,
         Profiler_,
         DataNodeLogger().WithTag("LocationId: %v", Id_));
@@ -550,7 +556,7 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 
     UpdateIOWeightEvaluator(config->IOWeightFormula);
 
-    HealthChecker_->OnConfigChanged(config->DiskHealthChecker);
+    HealthChecker_->Reconfigure(config->DiskHealthChecker);
 
     TDiskLocation::Reconfigure(config);
 
@@ -588,7 +594,7 @@ const TString& TChunkLocation::GetDiskFamily() const
     return StaticConfig_->DiskFamily;
 }
 
-TString TChunkLocation::GetMediumName() const
+std::string TChunkLocation::GetMediumName() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -634,11 +640,11 @@ double TChunkLocation::GetIOWeight() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto guard = Guard(IOWeightEvaluatorSpinLock_);
+    auto evaluator = IOWeightEvaluator_.Acquire();
 
-    if (IOWeightEvaluator_) {
-        auto value = GetIOWeight(IOWeightEvaluator_);
-        return value.ValueOrThrow();
+    if (evaluator) {
+        auto value = EvaluateIOWeight(evaluator);
+        return value.ValueOrDefault(1.);
     } else {
         return StaticConfig_->IOWeight;
     }
@@ -899,7 +905,7 @@ i64 TChunkLocation::GetRequestedMemory() const
 
     i64 result = 0;
 
-    for (auto supplier : ProbePutBlocksRequests_) {
+    for (const auto& supplier : ProbePutBlocksRequests_) {
         if (!supplier->IsCanceled()) {
             result += supplier->GetMaxRequestedMemory();
         }
@@ -915,13 +921,18 @@ i64 TChunkLocation::GetRequestedQueueSize() const
     return ProbePutBlocksRequests_.size();
 }
 
-void TChunkLocation::PushProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier)
+TError TChunkLocation::GetLocationDisableError() const
+{
+    return LocationDisabledAlert_.Load();
+}
+
+void TChunkLocation::PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier)
 {
     auto guard = Guard(ProbePutBlocksRequestsLock_);
 
     if (!ContainsProbePutBlocksRequestSupplier(supplier)) {
         ProbePutBlocksRequests_.push_back(supplier);
-        EmplaceOrCrash(ProbePutBlocksSuppliers_, supplier->GetSessionId());
+        EmplaceOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
     }
 
     DoCheckProbePutBlocksRequests();
@@ -932,11 +943,11 @@ void TChunkLocation::PushProbePutBlocksRequestSupplier(TProbePutBlocksRequestSup
     }
 }
 
-bool TChunkLocation::ContainsProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier) const
+bool TChunkLocation::ContainsProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier) const
 {
     YT_ASSERT_SPINLOCK_AFFINITY(ProbePutBlocksRequestsLock_);
 
-    return ProbePutBlocksSuppliers_.contains(supplier->GetSessionId());
+    return ProbePutBlocksSessionIds_.contains(supplier->GetSessionId());
 }
 
 void TChunkLocation::CheckProbePutBlocksRequests()
@@ -954,14 +965,14 @@ void TChunkLocation::DoCheckProbePutBlocksRequests()
         auto& supplier = *supplierIt;
         if (supplier->IsCanceled()) {
             ProbePutBlocksRequests_.erase(supplierIt);
-            EraseOrCrash(ProbePutBlocksSuppliers_, supplier->GetSessionId());
+            EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
             continue;
         }
 
-        auto request = supplier->GetMinRequest();
+        auto request = supplier->TryGetMinRequest();
         if (!request.has_value()) {
             ProbePutBlocksRequests_.erase(supplierIt);
-            EraseOrCrash(ProbePutBlocksSuppliers_, supplier->GetSessionId());
+            EraseOrCrash(ProbePutBlocksSessionIds_, supplier->GetSessionId());
             continue;
         }
 
@@ -1139,7 +1150,7 @@ void TChunkLocation::UpdateUsedMemory(
         delta);
 }
 
-TErrorOr<double> TChunkLocation::GetIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const
+TErrorOr<double> TChunkLocation::EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const
 {
     auto rowBuffer = New<NTableClient::TRowBuffer>();
     auto value = evaluator->Evaluate(
@@ -1152,7 +1163,7 @@ TErrorOr<double> TChunkLocation::GetIOWeight(const NOrm::NQuery::IExpressionEval
     if (value.IsOK() && value.Value().Type == NTableClient::EValueType::Double) {
         return value.Value().Data.Double;
     } else {
-        return TError("Failed to evaluate IO weight evaluator");
+        return TError("Failure in evaluation of IO weight formula") << value;
     }
 }
 
@@ -1160,17 +1171,13 @@ void TChunkLocation::UpdateIOWeightEvaluator(const std::optional<std::string>& f
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    if (formula.has_value()) {
+    if (formula) {
         auto evaluator = NOrm::NQuery::CreateOrmExpressionEvaluator(*formula, {"/stat"});
-        GetIOWeight(evaluator).ThrowOnError();
+        EvaluateIOWeight(evaluator).ThrowOnError();
 
-        {
-            auto guard = Guard(IOWeightEvaluatorSpinLock_);
-            IOWeightEvaluator_ = std::move(evaluator);
-        }
+        IOWeightEvaluator_ = std::move(evaluator);
     } else {
-        auto guard = Guard(IOWeightEvaluatorSpinLock_);
-        IOWeightEvaluator_ = nullptr;
+        IOWeightEvaluator_.Reset();
     }
 }
 
@@ -1702,10 +1709,6 @@ void TChunkLocation::MarkUninitializedLocationDisabled(const TError& error)
     }
     ChunkCount_.store(0);
 
-    Profiler_
-        .WithTag("error_code", ToString(static_cast<int>(error.GetNonTrivialCode())))
-        .AddFuncGauge("/disabled", MakeStrong(this), [] { return 1.0; });
-
     ChangeState(ELocationState::Disabled, ELocationState::Disabling);
 }
 
@@ -1902,12 +1905,14 @@ class TStoreLocation::TIOStatisticsProvider
 {
 public:
     TIOStatisticsProvider(
+        TWeakPtr<TStoreLocation> storeLocation,
         TStoreLocationConfigPtr config,
         NIO::IIOEnginePtr ioEngine,
         TClusterNodeDynamicConfigManagerPtr dynamicConfigManager,
         NProfiling::TProfiler profiler,
         TLogger logger)
         : MaxWriteRateByDwpd_(config->MaxWriteRateByDwpd)
+        , StoreLocation_(storeLocation)
         , IOEngine_(std::move(ioEngine))
         , Logger(std::move(logger))
         , LastUpdateTime_(TInstant::Now())
@@ -1944,6 +1949,7 @@ public:
 
 private:
     const i64 MaxWriteRateByDwpd_;
+    const TWeakPtr<TStoreLocation> StoreLocation_;
     const NIO::IIOEnginePtr IOEngine_;
     const TLogger Logger;
 
@@ -2052,6 +2058,20 @@ private:
             }
         }
 
+        if (auto storeLocation = StoreLocation_.Lock()) {
+            writer->AddGauge(
+                "/alive",
+                storeLocation->IsEnabled());
+
+            if (!storeLocation->IsEnabled()) {
+                writer->PushTag(TTag{"error_code", ToString(static_cast<int>(storeLocation->GetLocationDisableError().GetNonTrivialCode()))});
+                writer->AddGauge(
+                    "/disabled",
+                    !storeLocation->IsEnabled());
+                writer->PopTag();
+            }
+        }
+
         writer->AddGauge(
             "/disk/max_write_rate_by_dwpd",
             MaxWriteRateByDwpd_);
@@ -2087,6 +2107,7 @@ TStoreLocation::TStoreLocation(
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
         config->TrashCheckPeriod))
     , IOStatisticsProvider_(New<TIOStatisticsProvider>(
+        MakeWeak(this),
         config,
         GetIOEngine(),
         DynamicConfigManager_,

@@ -26,6 +26,12 @@ log_file: /yt/disk2/hume-data/master-logs/timbertruck.debug.log
 error_log_file: /yt/disk2/hume-data/master-logs/timbertruck.error.log
 
 # OPTIONAL.
+# LoggerBufferSize is the buffer size in bytes for the timbertruck logger.
+#
+# Default value is 32768 (32 KiB).
+logger_buffer_size: 16384
+
+# OPTIONAL.
 # LogrotatingTimeout defines the interval before reopening the log file, e.g., "5s" for 5 seconds, "10m" for 10 minutes.
 reopen_log_file_interval: 16m
 

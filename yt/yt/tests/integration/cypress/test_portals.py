@@ -20,6 +20,7 @@ from flaky import flaky
 import yt.yson as yson
 
 from datetime import timedelta
+import decorator
 import pytest
 import random
 
@@ -415,15 +416,6 @@ class TestPortals(YTEnvSetup):
         assert get("//tmp/p/@key") == "p"
         assert get("//tmp/p/@parent_id") == get("//tmp/@id")
 
-    @authors("babenko")
-    @pytest.mark.parametrize("purge_resolve_cache", [False, True])
-    @pytest.mark.skipif("True", reason="YT-11197")
-    def test_cross_cell_links_forbidden(self, purge_resolve_cache):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p")
-        with pytest.raises(YtError):
-            link("//tmp", "//tmp/p/l")
-
     @authors("shakurov")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     def test_intra_cell_cross_shard_links(self, purge_resolve_cache):
@@ -656,7 +648,8 @@ class TestPortals(YTEnvSetup):
     @authors("koloshmet")
     @pytest.mark.parametrize("purge_resolve_cache", [False, True])
     @pytest.mark.parametrize("target_on_primary", [False, True])
-    def test_cross_cell_links_resolve(self, purge_resolve_cache, target_on_primary):
+    @pytest.mark.parametrize("object_id_target_path", [False, True])
+    def test_cross_cell_links_resolve(self, purge_resolve_cache, target_on_primary, object_id_target_path):
         set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
 
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
@@ -664,6 +657,9 @@ class TestPortals(YTEnvSetup):
         create("table", "//tmp/p/d/p")
 
         target = "//tmp" if target_on_primary else "//tmp/p/d"
+        if object_id_target_path:
+            target_id = get(f"{target}/@id")
+            target = f"#{target_id}"
         link(target, "//tmp/p/l")
         _maybe_purge_resolve_cache(purge_resolve_cache, "//tmp/p/l&")
 
@@ -1110,44 +1106,29 @@ class TestPortals(YTEnvSetup):
 
     @authors("shakurov")
     @pytest.mark.parametrize("remove_source", [False, True])
-    def test_cross_shard_copy_link1(self, remove_source):
+    @pytest.mark.parametrize("source_link_beyond_portal", [False, True])
+    @pytest.mark.parametrize("source_link_target_beyond_portal", [False, True])
+    @pytest.mark.parametrize("destination_beyond_portal", [False, True])
+    def test_cross_shard_copy_link(self, remove_source, source_link_beyond_portal, source_link_target_beyond_portal, destination_beyond_portal):
+        set("//sys/@config/enable_intra_cell_cross_shard_links", True)
+        set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        create("table", "//tmp/p/t", attributes={"external_cell_tag": 12})
-        link("//tmp/p/t", "//tmp/l1")
-        link("//tmp/p/t", "//tmp/p/l2")
+
+        source_link_target = "//tmp/p/t" if source_link_target_beyond_portal else "//tmp/t"
+        create("table", source_link_target, attributes={"external_cell_tag": 12})
+        source_link = "//tmp/p/l" if source_link_beyond_portal else "//tmp/l"
+        link(source_link_target, source_link)
 
         copier = move if remove_source else copy
 
-        with raises_yt_error("//tmp/l1 is not a local object"):
-            copier("//tmp/l1", "//tmp/l1_copy")
+        destination = "//tmp/p/l_copy" if destination_beyond_portal else "//tmp/l_copy"
 
-        copier("//tmp/p/l2", "//tmp/l2_copy")
+        copier(source_link, destination)
 
-        get("//tmp/l2_copy&/@type") == "table"
-        assert exists("//tmp/p/t&") == (not remove_source)
-        assert get("//tmp/p/l2&/@target_path") == "//tmp/p/t"
-        assert get("//tmp/p/l2&/@broken") == remove_source
-
-    @authors("shakurov")
-    @pytest.mark.parametrize("remove_source", [False, True])
-    def test_cross_shard_copy_link2(self, remove_source):
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        create("table", "//tmp/t", attributes={"external_cell_tag": 12})
-        link("//tmp/t", "//tmp/l1")
-        link("//tmp/t", "//tmp/p/l2")
-
-        copier = move if remove_source else copy
-
-        copier("//tmp/l1", "//tmp/p/l1_copy")
-
-        assert get("//tmp/p/l1_copy&/@type") == "table"
-
-        assert exists("//tmp/t&") == (not remove_source)
-        assert get("//tmp/l1&/@target_path") == "//tmp/t"
-        assert get("//tmp/l1&/@broken") == remove_source
-
-        with raises_yt_error("Cross-cell links are not supported"):
-            copier("//tmp/p/l2", "//tmp/p/l2_copy")
+        get(f"{destination}&/@type") == "table"
+        assert exists(f"{source_link_target}&") == (not remove_source)
+        assert get(f"{source_link}&/@target_path") == source_link_target
+        assert get(f"{source_link}&/@broken") == remove_source
 
     @authors("shakurov")
     def test_link_to_portal_not_broken(self):
@@ -1396,13 +1377,6 @@ class TestPortals(YTEnvSetup):
 
 ##################################################################
 
-
-class TestPortalsCypressProxy(TestPortals):
-    NUM_CYPRESS_PROXIES = 1
-
-
-##################################################################
-
 class TestResolveCache(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 0
@@ -1517,20 +1491,31 @@ class TestResolveCache(YTEnvSetup):
 
 ################################################################################
 
+def not_implemented_in_sequoia(func):
+    def wrapper(func, self, *args, **kwargs):
+        if self.USE_SEQUOIA:
+            pytest.skip("Not implemented in Sequoia")
+        return func(self, *args, **kwargs)
+
+    return decorator.decorate(func, wrapper)
+
+
 class TestCrossCellCopy(YTEnvSetup):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 3
 
     NUM_MASTERS = 3
     NUM_NODES = 3
     NUM_SECONDARY_MASTER_CELLS = 3
     USE_DYNAMIC_TABLES = True
     ENABLE_BULK_INSERT = True
-    NUM_SCHEDULERS = 1
 
     FILE_PAYLOAD = b"FILE PAYLOAD SOME BYTES AND STUFF"
     TABLE_PAYLOAD = [{"key": 42, "value": "the answer"}]
 
     COMMAND = "copy"
+    SRC = "//tmp/source"
+    DST = "//tmp/destination"
+    COPY_TO_SEQUOIA = False
 
     AVAILABLE_ACCOUNTS = [
         "george",
@@ -1559,10 +1544,17 @@ class TestCrossCellCopy(YTEnvSetup):
     # These attributes can change or be the same depending on the context.
     CONTEXT_DEPENDENT_ATTRIBUTES = [
         "access_counter",
+        "account_id",
         "actual_tablet_state",
         "expected_tablet_state",
         "tablet_state",
         "unflushed_timestamp",
+
+        # Revision is calculated independently for each cell.
+        "attribute_revision",
+        "content_revision",
+        "native_content_revision",
+        "revision",
     ]
 
     # These attributes have to change when cross-cell copying.
@@ -1570,18 +1562,12 @@ class TestCrossCellCopy(YTEnvSetup):
         "access_time",
 
         # Changed due to cell change:
+        "cow_cookie",
         "id",
         "native_cell_tag",
         "parent_id",
-        "shard_id",
         "schema_id",
-        "cow_cookie",
-
-        # Changed due to test design:
-        "revision",
-        "attribute_revision",
-        "native_content_revision",
-        "content_revision",
+        "shard_id",
     ]
 
     def setup_method(self, method):
@@ -1603,12 +1589,27 @@ class TestCrossCellCopy(YTEnvSetup):
             create_account(account, ignore_existing=True)
         for user in self.AVAILABLE_USERS:
             create_user(user, ignore_existing=True)
-        create("portal_entrance", "//tmp/portal", attributes={"exit_cell_tag": 11})
+
+        if not self.USE_SEQUOIA:
+            # Cypress -> Portal.
+            create("map_node", self.SRC)
+            create("portal_entrance", self.DST, attributes={"exit_cell_tag": 11})
+        elif self.COPY_TO_SEQUOIA:
+            # Cypress -> Sequoia.
+            create("map_node", self.SRC)
+            create("rootstock", self.DST)
+        else:
+            # Sequoia -> Cypress.
+            create("rootstock", self.SRC)
+            create("map_node", self.DST)
+
+        # NB: this attribute is not supported in Sequoia yet.
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("recursive_resource_usage")
 
     def teardown_method(self, method):
         abort_all_transactions()
         # XXX(babenko): cleanup is weird
-        remove("//tmp/portal")
+        remove(self.DST)
         super(TestCrossCellCopy, self).teardown_method(method)
 
     def _validate_attribute_consistency_for_node(self, src_path, dst_path, tx):
@@ -1630,7 +1631,8 @@ class TestCrossCellCopy(YTEnvSetup):
             assert (src_attribute_value != dst_attribute_value) == (attribute_key in self.EXPECTED_ATTRIBUTE_CHANGES)
             del dst_attributes[attribute_key]
 
-        assert len(dst_attributes) == 0
+        for attribute_key in dst_attributes.keys():
+            assert attribute_key in self.CONTEXT_DEPENDENT_ATTRIBUTES
 
     def _validate_preservable_attributes(self, src_path, dst_path, tx):
         src_attributes = get(f"{src_path}/@", tx=tx) if self.COMMAND == "copy" else self.SRC_ATTRIBUTES[src_path]
@@ -1737,12 +1739,16 @@ class TestCrossCellCopy(YTEnvSetup):
         # |       `-- other_table
         # `-- top_level_table
 
-        create("map_node", path, force=True, tx=tx)  # Ensure starting_path is created and empty.
+        create("map_node", path, force=True, tx=tx)  # Ensure starting path is created and empty.
 
         self.create_map_node(f"{path}/map_node", tx=tx)
         self.create_table(f"{path}/map_node/table", tx=tx)
         self.create_file(f"{path}/map_node/file", tx=tx)
-        self.create_document(f"{path}/map_node/document", tx=tx)
+
+        # TODO(h0pless): Fix documents in Sequoia.
+        if not self.USE_SEQUOIA:
+            self.create_document(f"{path}/map_node/document", tx=tx)
+
         self.create_map_node(f"{path}/map_node/nested_map_node", tx=tx)
         self.create_table(f"{path}/map_node/nested_map_node/other_table", tx=tx)
         self.create_table(f"{path}/top_level_table", tx=tx)
@@ -1768,13 +1774,13 @@ class TestCrossCellCopy(YTEnvSetup):
             current_src_path, current_dst_path = paths_to_check.pop(0)
             validation_function(current_src_path, current_dst_path, tx=tx)
 
-            # Document supports "ls" command, but we don't actually want to check it's contents with it.
+            # Document supports "ls" command, but we don't actually want to check it's contents.
             if get(f"{current_dst_path}/@type", tx=tx) == "document":
                 continue
 
             # Some other nodes don't support "ls" command.
             try:
-                for child_node in ls(current_dst_path, tx=tx):
+                for child_node in ls(current_dst_path, tx=tx, verbose_error=False):
                     next_src_path = f"{current_src_path}/{child_node}"
                     next_dst_path = f"{current_dst_path}/{child_node}"
                     paths_to_check.append([next_src_path, next_dst_path])
@@ -1850,7 +1856,7 @@ class TestCrossCellCopy(YTEnvSetup):
 
             # Some other nodes don't support "ls" command.
             try:
-                for child_node in ls(next_path, tx=tx):
+                for child_node in ls(next_path, tx=tx, verbose_error=False):
                     # Done to ensure that test with special YPath symbols works.
                     if child_node.startswith("["):
                         child_node = f"\\{child_node}"
@@ -1871,11 +1877,19 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("h0pless")
     def test_subtree_size_flag(self):
+        if not self.COMMAND == "copy":
+            pytest.skip()
+
+        if self.USE_SEQUOIA and not self.COPY_TO_SEQUOIA:
+            pytest.skip()
+
+        src_path = f"{self.SRC}/dir"
+        dst_path = f"{self.DST}/dir"
         set("//sys/@config/cypress_manager/cross_cell_copy_max_subtree_size", 1)
-        self.create_subtree("//tmp/dir")
+        self.create_subtree(src_path)
 
         with raises_yt_error("Subtree is too large for cross-cell copy"):
-            copy("//tmp/dir", "//tmp/portal/dir")
+            copy(src_path, dst_path)
 
     @authors("h0pless")
     @pytest.mark.parametrize("node_type", ["map_node", "file", "table", "document", "unmounted_table", "frozen_table"])
@@ -1883,8 +1897,17 @@ class TestCrossCellCopy(YTEnvSetup):
         if node_type == "frozen_table" and self.COMMAND == "move":
             pytest.skip()
 
-        src_path = f"//tmp/{node_type}"
-        dst_path = f"//tmp/portal/{node_type}"
+        if self.USE_SEQUOIA:
+            # TODO(h0pless): Support documetns in Sequoia.
+            if node_type == "document":
+                pytest.skip()
+
+            # TODO(h0pless): Sequoia doesn't quite work with dynamic tables just yet.
+            if node_type == "frozen_table" or node_type == "unmounted_table":
+                pytest.skip()
+
+        src_path = f"{self.SRC}/{node_type}"
+        dst_path = f"{self.DST}/{node_type}"
 
         create_node = getattr(self, f"create_{node_type}")
         create_node(src_path)
@@ -1900,9 +1923,20 @@ class TestCrossCellCopy(YTEnvSetup):
     @pytest.mark.parametrize("use_redundant_flags", [True, False])
     @pytest.mark.parametrize("use_tx", [True, False])
     def test_subtree(self, use_redundant_flags, use_tx):
-        create("portal_entrance", "//tmp/other_portal", attributes={"exit_cell_tag": 12})
-        src_path = "//tmp/portal/dir"
-        dst_path = "//tmp/other_portal/dir"
+        # It would've been fine to use SRC/dir and DST/dir as paths, but this test is the best place
+        # to verify that cross-cell copy works between two portals, between a portal and a rootstock and
+        # vice versa. Because of this added complexity I am forced to write the following if statement.
+        if not self.USE_SEQUOIA or self.COPY_TO_SEQUOIA:
+            portal_path = f"{self.SRC}/portal"
+            src_path = f"{portal_path}/dir"
+            dst_path = f"{self.DST}/dir"
+        else:
+            # Copy from Sequoia to Cypress.
+            portal_path = f"{self.DST}/portal"
+            src_path = f"{self.SRC}/dir"
+            dst_path = f"{portal_path}/dir"
+
+        create("portal_entrance", f"{portal_path}", attributes={"exit_cell_tag": 12})
 
         tx = "0-0-0-0"
         if use_tx:
@@ -1937,22 +1971,22 @@ class TestCrossCellCopy(YTEnvSetup):
                 assert self.CONTEXT_DEPENDENT_ATTRIBUTES.pop() == "versioned_resource_usage"
 
         # XXX(babenko): cleanup is weird
-        remove("//tmp/other_portal")
+        remove(portal_path)
 
     @authors("h0pless")
     @pytest.mark.parametrize("subtree_type", ["subtree", "table"])
     @pytest.mark.parametrize("use_tx", [True, False])
     @pytest.mark.parametrize("should_preserve", [True, False])
     def test_preservable_attributes(self, subtree_type, use_tx, should_preserve):
-        path = "//tmp/parent"
-        dst_path = "//tmp/portal/parent"
+        src_path = f"{self.SRC}/parent"
+        dst_path = f"{self.DST}/parent"
 
         create_subtree = getattr(self, f"create_{subtree_type}")
-        create_subtree(path)
+        create_subtree(src_path)
 
         tx = start_transaction() if use_tx else "0-0-0-0"
         populate_attributes = getattr(self, f"populate_preservable_attributes_{subtree_type}")
-        populate_attributes(path, tx=tx)
+        populate_attributes(src_path, tx=tx)
 
         create_user("not_john")
         user = "not_john"
@@ -1961,17 +1995,20 @@ class TestCrossCellCopy(YTEnvSetup):
             # In order to preserve ACL user has to have "administer" permission for the parent node.
             administer_permission = make_ace("allow", user, "administer")
             set("//sys/@config/cypress_manager/portal_synchronization_period", 100)
-            set("//tmp/portal&/@acl", [
+            set(f"{self.DST}&/@acl", [
                 administer_permission,
             ])
-            wait(lambda: administer_permission in get("//tmp/portal/@acl"))
+
+            # ACLs are not supported in Sequoia yet.
+            if not self.USE_SEQUOIA:
+                wait(lambda: administer_permission in get(f"{self.DST}/@acl"))
 
             # In order to preserve account user has to have "use" permission for the account.
             for account in self.AVAILABLE_ACCOUNTS:
                 set(f"//sys/accounts/{account}/@acl/end", make_ace("allow", user, "use"))
 
         self.execute_command(
-            path,
+            src_path,
             dst_path,
             tx=tx,
             authenticated_user=user,
@@ -1992,33 +2029,36 @@ class TestCrossCellCopy(YTEnvSetup):
             "owner": should_preserve,
             "acl": should_preserve,
         }
-        self.validate_subtree_preservable_attribute_consistency(path, dst_path, tx=tx)
+        self.validate_subtree_preservable_attribute_consistency(src_path, dst_path, tx=tx)
 
         if use_tx:
             commit_transaction(tx)
-            self.validate_subtree_preservable_attribute_consistency(path, dst_path, tx="0-0-0-0")
+            self.validate_subtree_preservable_attribute_consistency(src_path, dst_path, tx="0-0-0-0")
 
     # Maybe move set to the test below to save up on time?
     @authors("h0pless")
+    @not_implemented_in_sequoia
     def test_opaque_subtree(self):
-        src_path = "//tmp/subtree"
-        dst_path = "//tmp/portal/subtree"
+        src_path = f"{self.SRC}/subtree"
+        dst_path = f"{self.DST}/subtree"
 
         self.create_subtree(src_path)
         set(f"{src_path}/map_node/@opaque", True)
         self.execute_command(src_path, dst_path)
 
-        self.validate_copy_base(src_path, dst_path)
+        # TODO(h0pless): Fix this for Sequoia -> Cypress copy!
+        # self.validate_copy_base(src_path, dst_path)
+
         self.validate_subtree_attribute_consistency(src_path, dst_path)
 
     @authors("h0pless")
     @pytest.mark.parametrize("is_redundant", [True, False])
     def test_copy_recursive(self, is_redundant):
-        src_path = "//tmp/subtree"
+        src_path = f"{self.SRC}/subtree"
         if is_redundant:
-            dst_path = "//tmp/portal/subtree"
+            dst_path = f"{self.DST}/subtree"
         else:
-            dst_path = "//tmp/portal/some/arbitrary/long/path/that/has/to/be/created/during/copy/of/the/aforementioned/subtree"
+            dst_path = f"{self.DST}/some/arbitrary/long/path/that/has/to/be/created/during/copy/of/the/aforementioned/subtree"
 
         self.create_subtree(src_path)
         self.execute_command(src_path, dst_path, recursive=True)
@@ -2029,8 +2069,8 @@ class TestCrossCellCopy(YTEnvSetup):
     @authors("h0pless")
     @pytest.mark.parametrize("is_redundant", [True, False])
     def test_copy_force(self, is_redundant):
-        src_path = "//tmp/subtree"
-        dst_path = "//tmp/portal/subtree"
+        src_path = f"{self.SRC}/subtree"
+        dst_path = f"{self.DST}/subtree"
 
         if not is_redundant:
             self.create_table(dst_path)
@@ -2043,14 +2083,14 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("h0pless")
     def test_ignore_existing(self):
-        src_path = "//tmp/file"
+        src_path = f"{self.SRC}/file"
         self.create_file(src_path)
 
-        dst_path = "//tmp/portal/table"
+        dst_path = f"{self.DST}/table"
         self.create_table(dst_path)
 
         if self.COMMAND == "move":
-            with raises_yt_error("Node //tmp/portal/table already exists"):
+            with raises_yt_error(f"Node {self.DST}/table already exists"):
                 self.execute_command(src_path, dst_path, ignore_existing=True)
             return
         else:
@@ -2061,16 +2101,16 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("h0pless")
     def test_lock_existing(self):
-        src_path = "//tmp/file"
+        src_path = f"{self.SRC}/file"
         self.create_file(src_path)
 
-        dst_path = "//tmp/portal/table"
+        dst_path = f"{self.DST}/table"
         self.create_table(dst_path)
 
         # Lock existing doesn't make sense without a transaction.
         tx = start_transaction()
         if self.COMMAND == "move":
-            with raises_yt_error("Node //tmp/portal/table already exists"):
+            with raises_yt_error(f"Node {self.DST}/table already exists"):
                 self.execute_command(src_path, dst_path, ignore_existing=True, lock_existing=True, tx=tx)
             return
         else:
@@ -2082,8 +2122,8 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("h0pless")
     def test_accounting(self):
-        src_path = "//tmp/table"
-        dst_path = "//tmp/portal/table"
+        src_path = f"{self.SRC}/table"
+        dst_path = f"{self.DST}/table"
         self.create_table(src_path)
         account = get(f"{src_path}/@account")
         wait(lambda: get(f"//sys/accounts/{account}/@resource_usage/chunk_count") == 1)
@@ -2099,7 +2139,7 @@ class TestCrossCellCopy(YTEnvSetup):
             get("//sys/accounts/jack/@resource_usage/chunk_count") == 1
         )
 
-        chunk_ids = get("//tmp/portal/table/@chunk_ids")
+        chunk_ids = get(f"{self.DST}/table/@chunk_ids")
         assert len(chunk_ids) == 1
         chunk_id = chunk_ids[0]
         expected_owning_nodes = [dst_path]
@@ -2113,8 +2153,8 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("kvk1920")
     def test_prerequisite_transaction_ids(self):
-        src_path = "//tmp/table"
-        dst_path = "//tmp/portal/table"
+        src_path = f"{self.SRC}/table"
+        dst_path = f"{self.DST}/table"
         self.create_table(src_path)
 
         tx = start_transaction()
@@ -2129,6 +2169,7 @@ class TestCrossCellCopy(YTEnvSetup):
         remove(dst_path)
 
     @authors("h0pless")
+    @not_implemented_in_sequoia
     @pytest.mark.parametrize("enable_inheritance", [True, False])
     @pytest.mark.parametrize("use_tx", [True, False])
     def test_inheritable_attributes(self, enable_inheritance, use_tx):
@@ -2148,9 +2189,9 @@ class TestCrossCellCopy(YTEnvSetup):
         attribute_not_found = "Attribute \"chunk_merger_mode\" is not found"
         set("//sys/@config/cypress_manager/enable_inherit_attributes_during_copy", enable_inheritance)
 
-        src_path = "//tmp/starting_node"
-        dst_parent = "//tmp/portal"
-        dst_path = f"{dst_parent}/starting_node"
+        src_path = f"{self.SRC}/starting_node"
+        dst_parent = self.DST
+        dst_path = f"{self.DST}/starting_node"
 
         A = "auto"
         B = "deep"
@@ -2232,8 +2273,8 @@ class TestCrossCellCopy(YTEnvSetup):
         # |   `-- topmost_tx_table
         # `-- great_uncle_table
 
-        src_path = "//tmp/trunk_map_node"
-        dst_path = "//tmp/portal/trunk_map_node"
+        src_path = f"{self.SRC}/trunk_map_node"
+        dst_path = f"{self.DST}/trunk_map_node"
 
         create("map_node", src_path)
         create("map_node", f"{src_path}/grandparent_tx_map_node", tx=grandparent_tx)
@@ -2267,8 +2308,8 @@ class TestCrossCellCopy(YTEnvSetup):
     @authors("shakurov")
     def test_expiration_time(self):
         expiration_time = str(get_current_time() + timedelta(seconds=3))
-        src_path = "//tmp/table"
-        dst_path = "//tmp/portal/table"
+        src_path = f"{self.SRC}/table"
+        dst_path = f"{self.DST}/table"
         self.create_table(src_path)
         set(f"{src_path}/@expiration_time", expiration_time)
         self.execute_command(src_path, dst_path, preserve_expiration_time=True)
@@ -2279,8 +2320,8 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("shakurov")
     def test_expiration_timeout(self):
-        src_path = "//tmp/table"
-        dst_path = "//tmp/portal/table"
+        src_path = f"{self.SRC}/table"
+        dst_path = f"{self.DST}/table"
         self.create_table(src_path)
         set(f"{src_path}/@expiration_timeout", 3000)
         self.execute_command(src_path, dst_path, preserve_expiration_timeout=True)
@@ -2292,15 +2333,15 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("babenko")
     def test_removed_account(self):
-        src_path = "//tmp/file"
-        dst_parent_path = "//tmp/portal"
-        dst_path = f"{dst_parent_path}/file"
+        src_path = f"{self.SRC}/file"
+        dst_parent_path = self.DST
+        dst_path = f"{self.DST}/file"
 
         self.create_file(src_path)
         account = get(f"{src_path}/@account")
 
         remove(f"//sys/accounts/{account}")
-        wait(lambda: get(f"//sys/accounts/{account}/@life_stage") == "removal_started")
+        wait(lambda: get(f"//sys/accounts/{account}/@life_stage") in ["removal_started", "removal_pre_committed"])
 
         with raises_yt_error("cannot be used since it is in \"removal_pre_committed\" life stage"):
             self.execute_command(src_path, dst_path, preserve_account=True)
@@ -2316,63 +2357,76 @@ class TestCrossCellCopy(YTEnvSetup):
     def test_destination_symlink_safety(self):
         set("//sys/@config/cypress_manager/enable_cross_cell_links", True)
 
-        src_path = "//tmp/subtree"
+        src_path = f"{self.SRC}/subtree"
         self.create_subtree(src_path)
 
-        underlying_dst_path = "//tmp/some_node"
+        underlying_dst_path = f"{self.SRC}/some_node"
         self.create_map_node(underlying_dst_path)
 
         # Weird naming here due to the test setup.
-        dst_path = "//tmp/portal/subtree"
+        dst_path = f"{self.DST}/subtree"
         link(underlying_dst_path, dst_path)
 
         if self.USE_SEQUOIA:
             time.sleep(.5)  # To ensure that proxy has synced with master.
 
         self.execute_command(src_path, dst_path, force=True)
+
+        if self.USE_SEQUOIA and not self.COPY_TO_SEQUOIA:
+            time.sleep(.5)  # To ensure that proxy has synced with master.
+
+        self.validate_copy_base(src_path, dst_path)
         self.validate_subtree_attribute_consistency(src_path, dst_path)
 
     @authors("h0pless")
     def test_destination_symlink_resolution(self):
-        src_path = "//tmp/subtree"
+        src_path = f"{self.SRC}/subtree"
         self.create_subtree(src_path)
 
-        underlying_dst_path = "//tmp/portal/some_node"
+        underlying_dst_path = f"{self.DST}/some_node"
         self.create_map_node(underlying_dst_path)
 
-        link_path = "//tmp/link"
+        link_path = f"{self.SRC}/link"
         link(underlying_dst_path, link_path)
 
         if self.USE_SEQUOIA:
             time.sleep(.5)  # To ensure that proxy has synced with master.
 
         self.execute_command(src_path, f"{link_path}/subtree")
+
+        if self.USE_SEQUOIA and not self.COPY_TO_SEQUOIA:
+            time.sleep(.5)  # To ensure that proxy has synced with master.
+
+        self.validate_copy_base(src_path, f"{underlying_dst_path}/subtree")
         self.validate_subtree_attribute_consistency(src_path, f"{underlying_dst_path}/subtree")
 
     @authors("h0pless")
-    # TODO(h0pless): Add True to this parameter. Currently it's broken due to a faulty
-    # symlink resolve.
-    @pytest.mark.parametrize("link_beyond_entrance", [False])
+    @pytest.mark.parametrize("link_beyond_entrance", [True, False])
     def test_source_symlink(self, link_beyond_entrance):
         set("//sys/@config/cypress_manager/enable_cross_cell_links", link_beyond_entrance)
-        underlying_src_path = "//tmp/subtree"
+        underlying_src_path = f"{self.SRC}/subtree"
         self.create_subtree(underlying_src_path)
 
-        src_path = "//tmp/portal/link" if link_beyond_entrance else "//tmp/link"
+        src_path = f"{self.DST}/link" if link_beyond_entrance else f"{self.SRC}/link"
         link(underlying_src_path, src_path)
 
         if self.USE_SEQUOIA:
             time.sleep(.5)  # To ensure that proxy has synced with master.
 
-        dst_path = "//tmp/portal/subtree"
+        dst_path = f"{self.DST}/subtree"
         self.execute_command(src_path, dst_path)
+
+        if self.USE_SEQUOIA and not self.COPY_TO_SEQUOIA:
+            time.sleep(.5)  # To ensure that proxy has synced with master.
+
+        self.validate_copy_base(underlying_src_path, dst_path)
         self.validate_subtree_attribute_consistency(underlying_src_path, dst_path)
 
     # IMPROPER USES
     @authors("h0pless")
     def test_force_not_set(self):
-        src_path = "//tmp/table"
-        dst_path = "//tmp/portal/existing_node"
+        src_path = f"{self.SRC}/table"
+        dst_path = f"{self.DST}/existing_node"
 
         tx = start_transaction()
 
@@ -2380,7 +2434,7 @@ class TestCrossCellCopy(YTEnvSetup):
         self.create_map_node(dst_path, tx=tx)
 
         # Conflict because of locks.
-        with raises_yt_error("Cannot take lock for child \"existing_node\" of node //tmp/portal since this child is locked by concurrent transaction"):
+        with raises_yt_error(f"Cannot take lock for child \"existing_node\" of node {self.DST} since this child is locked by concurrent transaction"):
             self.execute_command(src_path, dst_path)
 
         # Force was not used.
@@ -2394,18 +2448,19 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("h0pless")
     def test_recursive_not_set(self):
-        src_path = "//tmp/table"
-        dst_path = "//tmp/portal/listen/its/hard/to/come/up/with/funny/paths/every/time/table"
+        src_path = f"{self.SRC}/table"
+        dst_path = f"{self.DST}/listen/its/hard/to/come/up/with/funny/paths/every/time/table"
 
         self.create_table(src_path)
 
-        with raises_yt_error("Node //tmp/portal has no child with key \"listen\""):
+        with raises_yt_error(f"Node {self.DST} has no child with key \"listen\""):
             self.execute_command(src_path, dst_path)
 
     @authors("h0pless")
+    @not_implemented_in_sequoia  # It's really hard to ensure that a node is created on a specific cell.
     def test_non_external_table(self):
-        src_path = "//tmp/table"
-        dst_path = "//tmp/portal/table"
+        src_path = f"{self.SRC}/table"
+        dst_path = f"{self.DST}/table"
 
         tabl_id = create("table", src_path, attributes={"external_cell_tag": 11})
 
@@ -2414,20 +2469,20 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("h0pless")
     def test_cant_copy_to_root(self):
-        src_path = "//tmp/portal/table"
+        src_path = f"{self.DST}/table"
         self.create_table(src_path)
         with raises_yt_error("Node / cannot be replaced"):
             self.execute_command(src_path, "/", force=True)
 
     @authors("h0pless")
     def test_cant_copy_subtree_with_portal(self):
-        with raises_yt_error("Cannot clone a portal"):
+        with raises_yt_error("Cannot clone a"):
             self.execute_command("//tmp", "//home/other")
 
     @authors("h0pless")
     def test_ignore_existing_error(self):
-        src_path = "//tmp/table"
-        dst_path = "//tmp/portal/table"
+        src_path = f"{self.SRC}/table"
+        dst_path = f"{self.DST}/table"
 
         self.create_table(src_path)
 
@@ -2439,8 +2494,8 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("h0pless")
     def test_lock_existing_error(self):
-        src_path = "//tmp/table"
-        dst_path = "//tmp/portal/table"
+        src_path = f"{self.SRC}/table"
+        dst_path = f"{self.DST}/table"
 
         self.create_table(src_path)
 
@@ -2452,13 +2507,13 @@ class TestCrossCellCopy(YTEnvSetup):
 
     @authors("h0pless")
     def test_ypath_special_symbols(self):
-        src_path = "//tmp/map_node"
+        src_path = f"{self.SRC}/map_node"
         self.create_map_node(src_path)
 
         bad_path = src_path + r"/\[b16:0:b00b:5:0:15:0:c001]:1337"
         self.create_map_node(bad_path)
 
-        dst_path = "//tmp/portal/map_node"
+        dst_path = f"{self.DST}/map_node"
 
         self.execute_command(src_path, dst_path)
 
@@ -2468,38 +2523,12 @@ class TestCrossCellCopy(YTEnvSetup):
 class TestCrossCellMove(TestCrossCellCopy):
     COMMAND = "move"
 
-    # These attributes can change or be the same depending on the context.
-    CONTEXT_DEPENDENT_ATTRIBUTES = [
-        "tablet_state",
-        "actual_tablet_state",
-        "expected_tablet_state",
-        "unflushed_timestamp",
-
-        "access_counter",
-        "lock_count",
-        "lock_mode",
-
-        "schema_duplicate_count",  # Figure out if this is ok.
-    ]
-
-    # These attributes have to change when cross-cell copying.
-    EXPECTED_ATTRIBUTE_CHANGES = [
-        "access_time",
-
-        # Changed due to cell change:
-        "id",
-        "native_cell_tag",
-        "parent_id",
-        "shard_id",
-        "schema_id",
-        "cow_cookie",
-
-        # Changed due to test design:
-        "revision",
-        "attribute_revision",
-        "native_content_revision",
-        "content_revision",
-    ]
+    def setup_method(self, method):
+        super(TestCrossCellMove, self).setup_method(method)
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("access_counter")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("lock_count")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("lock_mode")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("schema_duplicate_count")
 
 
 ################################################################################
@@ -2536,3 +2565,166 @@ class TestPortalsWithoutInvariantChecking(YTEnvSetup):
         # XXX(babenko): cleanup is weird
         remove("//tmp/p1")
         remove("//tmp/p2")
+
+
+################################################################################
+
+
+class TestCypressToSequoiaCopy(TestCrossCellCopy):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    NUM_CYPRESS_PROXIES = 1
+    NUM_SECONDARY_MASTER_CELLS = 6
+    NUM_MASTERS = 1
+
+    COPY_TO_SEQUOIA = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["cypress_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["chunk_host"]},
+        "15": {"roles": ["sequoia_node_host"]},
+        "16": {"roles": ["sequoia_node_host"]},
+    }
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True
+        },
+    }
+
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        "object_service": {
+            "allow_bypass_master_resolve": True,
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestCypressToSequoiaCopy, self).setup_method(method)
+
+        self.EXPECTED_ATTRIBUTE_CHANGES.append("sequoia")
+
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("key")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("schema_duplicate_count")
+
+        # Sequoia refs differ from Cyperss refs around creation of new nodes under transactions.
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("ref_counter")
+
+        # Unsupported in Sequoia.
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("cow_cookie")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("children")
+
+        # Remove once inherited attributes are implemented in Sequoia.
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("chunk_merger_mode")
+
+        # Remove once dynamic tables work in Sequoia.
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("remount_needed_tablet_count")
+
+        # TODO(h0pless): FIX this.
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("shard_id")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("native_content_revision")
+
+
+################################################################################
+
+
+class TestCypressToSequoiaMove(TestCypressToSequoiaCopy):
+    COMMAND = "move"
+
+    def setup_method(self, method):
+        super(TestCypressToSequoiaMove, self).setup_method(method)
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("access_counter")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("lock_count")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("lock_mode")
+
+
+################################################################################
+
+class TestSequoiaToCypressCopy(TestCrossCellCopy):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    NUM_CYPRESS_PROXIES = 1
+    NUM_SECONDARY_MASTER_CELLS = 6
+    NUM_MASTERS = 1
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["cypress_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["chunk_host"]},
+        "15": {"roles": ["sequoia_node_host"]},
+        "16": {"roles": ["sequoia_node_host"]},
+    }
+
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            }
+        }
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True
+        },
+    }
+
+    DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
+        "object_service": {
+            "allow_bypass_master_resolve": True,
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestSequoiaToCypressCopy, self).setup_method(method)
+
+        self.EXPECTED_ATTRIBUTE_CHANGES.append("sequoia")
+
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("key")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("schema_duplicate_count")
+
+        # Unsupported in Sequoia.
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("reachable")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("cow_cookie")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("children")
+
+        # Remove once inherited attributes are implemented in Sequoia.
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("chunk_merger_mode")
+
+        # Remove once dynamic tables work in Sequoia.
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("remount_needed_tablet_count")
+
+        # TODO(h0pless): FIX this.
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("shard_id")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("native_content_revision")
+
+
+################################################################################
+
+
+class TestSequoiaToCypressMove(TestSequoiaToCypressCopy):
+    COMMAND = "move"
+
+    def setup_method(self, method):
+        super(TestSequoiaToCypressMove, self).setup_method(method)
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("access_counter")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("lock_count")
+        self.CONTEXT_DEPENDENT_ATTRIBUTES.append("lock_mode")

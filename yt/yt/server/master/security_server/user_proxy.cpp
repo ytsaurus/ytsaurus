@@ -296,10 +296,8 @@ private:
                             continue;
                         }
 
-                        auto proxy = CreateObjectServiceReadProxy(
-                            Bootstrap_->GetRootClient(),
-                            EMasterChannelKind::Follower,
-                            portalCellTag);
+                        auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
+                            multicellManager->GetMasterChannelOrThrow(portalCellTag, NHydra::EPeerKind::Follower));
                         asyncResults.push_back(proxy.Execute(TYPathProxy::Get(user->GetObjectPath() + "/@last_seen_time")));
                     }
                 }
@@ -503,4 +501,3 @@ IObjectProxyPtr CreateUserProxy(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
-

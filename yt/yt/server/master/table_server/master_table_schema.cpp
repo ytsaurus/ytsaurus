@@ -20,7 +20,7 @@ using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NYson;
 
-static constexpr auto& Logger = TableServerLogger;
+constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,25 +54,21 @@ void TMasterTableSchema::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
 
-    TCompactTableSchema tableSchema;
     if (context.GetVersion() >= EMasterReign::MasterCompactTableSchema) {
-        Load(context, tableSchema);
+        CompactTableSchema_ = New<TCompactTableSchema>();
+        Load(context, *CompactTableSchema_);
     } else {
-        tableSchema = TCompactTableSchema(Load<TTableSchema>(context));
+        CompactTableSchema_ = New<TCompactTableSchema>(Load<TTableSchema>(context));
     }
 
     if (IsObjectAlive(this)) {
-        const auto& tableManager = context.GetBootstrap()->GetTableManager();
-
         if (IsNative()) {
-            SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, std::move(tableSchema)));
+            const auto& tableManager = context.GetBootstrap()->GetTableManager();
+            SetNativeTableSchemaToObjectMapIterator(tableManager->RegisterNativeSchema(this, CompactTableSchema_));
         } else {
             // Imported schemas require no registration because reverse
             // index for imported schemas is not necessary.
-            CompactTableSchema_ = New<TCompactTableSchema>(std::move(tableSchema));
         }
-    } else {
-        CompactTableSchema_ = New<TCompactTableSchema>(std::move(tableSchema));
     }
 
     Load(context, CellTagToExportCount_);
@@ -84,50 +80,6 @@ const TCompactTableSchemaPtr& TMasterTableSchema::AsCompactTableSchema(bool cras
     YT_VERIFY(IsObjectAlive(this) || !crashOnZombie);
 
     return CompactTableSchema_;
-}
-
-TTableSchemaPtr TMasterTableSchema::AsHeavyTableSchema(bool crashOnZombie) const
-{
-    YT_VERIFY(IsObjectAlive(this) || !crashOnZombie);
-
-    return CompactTableSchema_->AsHeavyTableSchema();
-}
-
-const TFuture<TYsonString>& TMasterTableSchema::AsYsonAsync() const
-{
-    {
-        // NB: Can be called from local read threads.
-        auto readerGuard = ReaderGuard(MemoizedYsonLock_);
-        if (MemoizedYson_) {
-            return MemoizedYson_;
-        }
-    }
-
-    auto writerGuard = WriterGuard(MemoizedYsonLock_);
-    if (MemoizedYson_) {
-        return MemoizedYson_;
-    }
-
-    MemoizedYson_ = BIND([schema = AsHeavyTableSchema()] {
-        return ConvertToYsonString(*schema);
-    })
-        .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
-        .Run();
-
-    return MemoizedYson_;
-}
-
-TYsonString TMasterTableSchema::AsYsonSync() const
-{
-    // It's quite likely that this schema has already been serialized. And even
-    // if it hasn't, it's wise to start the serialization.
-    const auto& asyncYson = AsYsonAsync();
-    if (auto optionalYsonOrError = asyncYson.TryGet()) {
-        return optionalYsonOrError->ValueOrThrow();
-    }
-
-    // There's no escape - serialize it right here and now.
-    return ConvertToYsonString(*AsHeavyTableSchema());
 }
 
 bool TMasterTableSchema::RefBy(TAccount* account, int delta)

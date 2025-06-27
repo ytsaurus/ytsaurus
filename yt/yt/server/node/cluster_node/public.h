@@ -52,6 +52,17 @@ YT_DEFINE_ERROR_ENUM(
     ((UnrecognizedConfigOption)              (2500))
 );
 
+DEFINE_ENUM(ERegistrationReason,
+    // Node was started for the first time.
+    (NodeStart)
+    // Node failed to report heartbeat.
+    (HeartbeatFailure)
+    // Node failed to register at primary master.
+    (RegistrationFailure)
+    // Master aborted node lease transaction.
+    (LeaseTransactionAborted)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClusterNode

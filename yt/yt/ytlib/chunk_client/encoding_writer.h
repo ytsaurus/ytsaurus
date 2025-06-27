@@ -64,9 +64,9 @@ private:
     const IInvokerPtr CompressionInvoker_;
     const TCallback<void(const TErrorOr<TBlock>&)> WritePendingBlockCallback_;
 
-    std::atomic<double> CompressionRatio_ = {0};
-    std::atomic<i64> UncompressedSize_ = {0};
-    std::atomic<i64> CompressedSize_ = {0};
+    std::atomic<double> CompressionRatio_ = 0;
+    std::atomic<i64> UncompressedSize_ = 0;
+    std::atomic<i64> CompressedSize_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CodecTimeLock_);
     NChunkClient::TCodecDuration CodecTime_;

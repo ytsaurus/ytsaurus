@@ -1240,7 +1240,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         }
 
         case EExpressionKind::Function: {
-            auto result = New<TFunctionExpression>(GetWireType(type));
+            auto result = New<TFunctionExpression>(type);
             const auto& ext = serialized.GetExtension(NProto::TFunctionExpression::function_expression);
             result->FunctionName = ext.function_name();
             FromProto(&result->Arguments, ext.arguments());

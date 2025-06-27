@@ -19,6 +19,7 @@ struct TQueryAgentConfig
     int LookupThreadPoolSize;
     int FetchThreadPoolSize;
     int TableRowFetchThreadPoolSize;
+    int PullRowsThreadPoolSize;
     int MaxSubsplitsPerTablet;
     int MaxSubqueries;
     int MaxQueryRetries;
@@ -32,6 +33,7 @@ struct TQueryAgentConfig
     bool AccountUserBackendOutTraffic;
     bool UseQueryPoolForLookups;
     bool UseQueryPoolForInMemoryLookups;
+    bool UseDedicatedPoolForPullRows;
 
     i64 MaxPullQueueResponseDataWeight;
     i64 PullRowsReadDataWeightLimit;
@@ -51,6 +53,7 @@ struct TQueryAgentDynamicConfig
 {
     std::optional<int> QueryThreadPoolSize;
     std::optional<int> LookupThreadPoolSize;
+    std::optional<int> PullRowsThreadPoolSize;
     std::optional<int> FetchThreadPoolSize;
     std::optional<int> TableRowFetchThreadPoolSize;
 
@@ -61,6 +64,7 @@ struct TQueryAgentDynamicConfig
     std::optional<bool> AccountUserBackendOutTraffic;
     std::optional<bool> UseQueryPoolForLookups;
     std::optional<bool> UseQueryPoolForInMemoryLookups;
+    std::optional<bool> UseDedicatedPoolForPullRows;
 
     REGISTER_YSON_STRUCT(TQueryAgentDynamicConfig);
 

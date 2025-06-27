@@ -148,6 +148,8 @@ struct IHiveManager
 
     //! This is intended to be used in tests to simulate bad connection.
     virtual void FreezeEdges(std::vector<THiveEdge> edgesToFreeze) = 0;
+
+    virtual void OnProfiling(const std::function<bool(TCellId)>& cellIdFilter) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IHiveManager)

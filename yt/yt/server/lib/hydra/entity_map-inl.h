@@ -193,20 +193,19 @@ bool TReadOnlyEntityMap<TValue>::empty() const
 struct TDynamicEntityDataTag
 { };
 
-template <class TValue, class TTraits>
-TEntityMap<TValue, TTraits>::TEntityMap(const TTraits& traits)
-    : Traits_(traits)
-    , DynamicDataPool_(TDynamicEntityDataTag())
+template <class TValue>
+TMutableEntityMap<TValue>::TMutableEntityMap()
+    : DynamicDataPool_(TDynamicEntityDataTag())
 { }
 
-template <class TValue, class TTraits>
-TEntityMap<TValue, TTraits>::~TEntityMap()
+template <class TValue>
+TMutableEntityMap<TValue>::~TMutableEntityMap()
 {
     DoClear();
 }
 
-template <class TValue, class TTraits>
-TValue* TEntityMap<TValue, TTraits>::Insert(const TKey& key, std::unique_ptr<TValue> valueHolder)
+template <class TValue>
+TValue* TMutableEntityMap<TValue>::Insert(const TKey& key, std::unique_ptr<TValue> valueHolder)
 {
     YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
@@ -219,16 +218,16 @@ TValue* TEntityMap<TValue, TTraits>::Insert(const TKey& key, std::unique_ptr<TVa
     return value;
 }
 
-template <class TValue, class TTraits>
-void TEntityMap<TValue, TTraits>::Remove(const TKey& key)
+template <class TValue>
+void TMutableEntityMap<TValue>::Remove(const TKey& key)
 {
     YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
     YT_VERIFY(TryRemove(key));
 }
 
-template <class TValue, class TTraits>
-bool TEntityMap<TValue, TTraits>::TryRemove(const TKey& key)
+template <class TValue>
+bool TMutableEntityMap<TValue>::TryRemove(const TKey& key)
 {
     YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
@@ -244,8 +243,8 @@ bool TEntityMap<TValue, TTraits>::TryRemove(const TKey& key)
     return true;
 }
 
-template <class TValue, class TTraits>
-std::unique_ptr<TValue> TEntityMap<TValue, TTraits>::Release(const TKey& key)
+template <class TValue>
+std::unique_ptr<TValue> TMutableEntityMap<TValue>::Release(const TKey& key)
 {
     YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
@@ -258,16 +257,16 @@ std::unique_ptr<TValue> TEntityMap<TValue, TTraits>::Release(const TKey& key)
     return std::unique_ptr<TValue>(value);
 }
 
-template <class TValue, class TTraits>
-void TEntityMap<TValue, TTraits>::Clear()
+template <class TValue>
+void TMutableEntityMap<TValue>::Clear()
 {
     YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
     DoClear();
 }
 
-template <class TValue, class TTraits>
-void TEntityMap<TValue, TTraits>::DoClear()
+template <class TValue>
+void TMutableEntityMap<TValue>::DoClear()
 {
     for (const auto& [key, entity] : this->Map_) {
         FreeDynamicData(entity->GetDynamicData());
@@ -277,6 +276,43 @@ void TEntityMap<TValue, TTraits>::DoClear()
     DynamicDataPool_.Clear();
     FirstSpareDynamicData_ = nullptr;
 }
+
+template <class TValue>
+auto TMutableEntityMap<TValue>::AllocateDynamicData() -> TDynamicData*
+{
+    TDynamicData* data;
+    if (FirstSpareDynamicData_) {
+        data = reinterpret_cast<TDynamicData*>(FirstSpareDynamicData_);
+        FirstSpareDynamicData_ = FirstSpareDynamicData_->Next;
+    } else {
+        data = reinterpret_cast<TDynamicData*>(DynamicDataPool_.AllocateAligned(
+            std::max(sizeof(TDynamicData), sizeof(TSpareEntityDynamicData))));
+    }
+    new(data) TDynamicData();
+    return data;
+}
+
+template <class TValue>
+void TMutableEntityMap<TValue>::FreeDynamicData(TDynamicData* data)
+{
+    data->TDynamicData::~TDynamicData();
+    auto* spareData = reinterpret_cast<TSpareEntityDynamicData*>(data);
+    spareData->Next  = FirstSpareDynamicData_;
+    FirstSpareDynamicData_ = spareData;
+}
+
+template <class TValue>
+std::string TMutableEntityMap<TValue>::GetTypeName()
+{
+    return CppDemangle(typeid(TValue).name());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TValue, class TTraits>
+TEntityMap<TValue, TTraits>::TEntityMap(const TTraits& traits)
+    : Traits_(traits)
+{ }
 
 template <class TValue, class TTraits>
 template <class TContext>
@@ -450,9 +486,9 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 {
     YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
-    Clear();
+    this->Clear();
 
-    TStreamLoadContextScopeGuard scopeGuard(context, Format("keys:%v", GetTypeName()));
+    TStreamLoadContextScopeGuard scopeGuard(context, Format("keys:%v", this->GetTypeName()));
 
     size_t size;
     auto value = TSizeSerializer::Load(context);
@@ -482,7 +518,7 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 
             auto serializationKey = context.RegisterRawEntity(value.get());
 
-            value->SetDynamicData(AllocateDynamicData());
+            value->SetDynamicData(this->AllocateDynamicData());
 
             YT_VERIFY(this->Map_.emplace(key, value.release()).second);
 
@@ -504,7 +540,7 @@ void TEntityMap<TValue, TTraits>::LoadValues(TContext& context, std::optional<in
         LoadValues_.clear();
     });
 
-    TStreamLoadContextScopeGuard mapScopeGuard(context, Format("values:%v", GetTypeName()));
+    TStreamLoadContextScopeGuard mapScopeGuard(context, Format("values:%v", this->GetTypeName()));
 
     SERIALIZATION_DUMP_WRITE(context, "values[%v]", LoadKeys_.size());
 
@@ -622,36 +658,6 @@ void TEntityMap<TValue, TTraits>::LoadValuesParallel(TContext& context)
     do {
         startMoreBatches();
     } while (waitForBatch());
-}
-
-template <class TValue, class TTraits>
-auto TEntityMap<TValue, TTraits>::AllocateDynamicData() -> TDynamicData*
-{
-    TDynamicData* data;
-    if (FirstSpareDynamicData_) {
-        data = reinterpret_cast<TDynamicData*>(FirstSpareDynamicData_);
-        FirstSpareDynamicData_ = FirstSpareDynamicData_->Next;
-    } else {
-        data = reinterpret_cast<TDynamicData*>(DynamicDataPool_.AllocateAligned(
-            std::max(sizeof(TDynamicData), sizeof(TSpareEntityDynamicData))));
-    }
-    new(data) TDynamicData();
-    return data;
-}
-
-template <class TValue, class TTraits>
-void TEntityMap<TValue, TTraits>::FreeDynamicData(TDynamicData* data)
-{
-    data->TDynamicData::~TDynamicData();
-    auto* spareData = reinterpret_cast<TSpareEntityDynamicData*>(data);
-    spareData->Next  = FirstSpareDynamicData_;
-    FirstSpareDynamicData_ = spareData;
-}
-
-template <class TValue, class TTraits>
-std::string TEntityMap<TValue, TTraits>::GetTypeName()
-{
-    return CppDemangle(typeid(TValue).name());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

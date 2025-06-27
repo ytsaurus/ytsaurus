@@ -28,6 +28,7 @@
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/random.h>
 #include <yt/yt/core/misc/fs.h>
 
@@ -42,8 +43,6 @@
 #include <yt/yt/core/rpc/local_server.h>
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/service_detail.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 namespace NYT::NChunkClient {
 
@@ -82,11 +81,11 @@ public:
 
     template <class TContext, class TResponse>
     bool ReplyWithThrottle(
-        const TIntrusivePtr<TContext> context,
+        const TIntrusivePtr<TContext>& context,
         TResponse* response)
     {
         ReplyWithFatalError();
-        if (EnablePartiallyThrottle_.load() && (Generator_.Generate<unsigned long>() % 3 == 0)) {
+        if (EnablePartialThrottling_.load() && (Generator_.Generate<unsigned long>() % 3 == 0)) {
             response->set_net_throttling(true);
             context->Reply();
             return true;
@@ -198,7 +197,7 @@ public:
 
     void SetPartiallyThrottle(bool enablePartiallyThrottle)
     {
-        EnablePartiallyThrottle_.store(enablePartiallyThrottle);
+        EnablePartialThrottling_.store(enablePartiallyThrottle);
     }
 
     void SetChunkMeta(
@@ -213,7 +212,7 @@ private:
     THashMap<TChunkId, NProto::TChunkMeta> ChunkMetas_;
 
     std::atomic<bool> EnablePartiallyResponse_ = false;
-    std::atomic<bool> EnablePartiallyThrottle_ = false;
+    std::atomic<bool> EnablePartialThrottling_ = false;
     std::atomic<bool> HasFatalError_ = false;
     TRandomGenerator Generator_{42};
 
@@ -358,13 +357,13 @@ TEST_P(TReplicationReaderTest, ReadTest)
 
     THashMap<std::string, IServicePtr> addressToService;
 
-    auto chunkId = TGuid::Create();
+    auto chunkId = TChunkId::Create();
 
     TRandomGenerator generator(42);
     auto blocks = CreateBlocks(blockCount, &generator);
 
-    TChunkReplicaWithMediumList replicaList;
-    int nodeToBans = testCase.PartiallyBanns ? nodeCount / 3 : 0;
+    TChunkReplicaList replicas;
+    int nodesToBan = testCase.PartiallyBanns ? nodeCount / 3 : 0;
 
     for (int index = 0; index < nodeCount; ++index) {
         // TODO(babenko): switch to std::string
@@ -378,12 +377,12 @@ TEST_P(TReplicationReaderTest, ReadTest)
         service->SetChunkBlocks(chunkId, blocks);
         service->SetPartiallyThrottle(testCase.PartiallyThrottling);
 
-        if (nodeToBans) {
-            nodeToBans--;
+        if (nodesToBan > 0) {
+            nodesToBan--;
             service->SetFatalError();
         }
 
-        replicaList.push_back(TChunkReplicaWithMedium(NNodeTrackerClient::TNodeId(index), index, AllMediaIndex));
+        replicas.emplace_back(NNodeTrackerClient::TNodeId(index), index);
     }
 
     auto options = New<TRemoteReaderOptions>();
@@ -412,7 +411,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
         std::move(options),
         std::move(readerHost),
         chunkId,
-        std::move(replicaList));
+        std::move(replicas));
 
     i64 minBytesToRead = 0;
     i64 maxBytesToRead = 0;

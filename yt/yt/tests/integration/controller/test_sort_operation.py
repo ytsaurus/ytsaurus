@@ -2656,6 +2656,18 @@ class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
 
 
 @pytest.mark.enabled_multidaemon
+class TestSchedulerSortCommandsWithOldSlicing(TestSchedulerSortCommands):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerSortCommands, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

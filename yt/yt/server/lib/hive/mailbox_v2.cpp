@@ -221,6 +221,10 @@ TCellMailboxRuntimeData::TCellMailboxRuntimeData(
         std::move(persistentState))
     , SyncBatcher(std::move(synchronizationBatcher))
     , SyncTimeGauge(profiler.WithTag("source_cell_id", ToString(EndpointId)).TimeGauge("/cell_sync_time"))
+    , OutcomingMessageQueueSizeGauge(profiler
+        .WithTag("target_cell_id", ToString(EndpointId))
+        .WithTag("target_cell_tag", ToString(CellTagFromId(EndpointId)))
+        .Gauge("/outcoming_messages_queue_size"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

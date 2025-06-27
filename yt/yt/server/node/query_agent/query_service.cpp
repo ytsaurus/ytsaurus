@@ -19,7 +19,6 @@
 #include <yt/yt/server/node/tablet_node/error_reporting_service_base.h>
 #include <yt/yt/server/node/tablet_node/lookup.h>
 #include <yt/yt/server/node/tablet_node/master_connector.h>
-#include <yt/yt/server/node/tablet_node/overload_controlling_service_base.h>
 #include <yt/yt/server/node/tablet_node/security_manager.h>
 #include <yt/yt/server/node/tablet_node/store.h>
 #include <yt/yt/server/node/tablet_node/replication_log.h>
@@ -85,6 +84,7 @@
 
 #include <yt/yt/core/misc/tls_cache.h>
 
+#include <yt/yt/core/rpc/overload_controlling_service_base.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
@@ -120,6 +120,7 @@ static constexpr i64 MaxRowsPerRemoteDynamicStoreRead = 1024;
 
 static const std::string DefaultQLExecutionPoolName = "default";
 static const std::string DefaultQLExecutionTag = "default";
+static const std::string DefaultPullRowsTag = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -179,7 +180,9 @@ public:
         NTabletNode::IBootstrap* bootstrap)
         : TErrorReportingServiceBase(
             bootstrap,
-            bootstrap,
+            // TOverloadControllingServiceBase:
+            bootstrap->GetOverloadController(),
+            // TServiceBase:
             bootstrap->GetQueryPoolInvoker(
                 DefaultQLExecutionPoolName,
                 DefaultQLExecutionTag),
@@ -221,7 +224,7 @@ public:
             .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullRows)
             .SetCancelable(true)
-            .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
+            .SetInvokerProvider(BIND(&TQueryService::GetPullRowsInvoker, Unretained(this)))
             .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
             .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
@@ -278,6 +281,7 @@ private:
     std::atomic<bool> AccountUserBackendOutTraffic_;
     std::atomic<bool> UseQueryPoolForLookups_;
     std::atomic<bool> UseQueryPoolForInMemoryLookups_;
+    std::atomic<bool> UseDedicatedPoolForPullRows_;
 
     NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/count");
     NProfiling::TCounter TabletErrorSizeCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/byte_size");
@@ -301,14 +305,14 @@ private:
     {
         const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         auto inMemoryMode = FromProto<EInMemoryMode>(ext.in_memory_mode());
+        auto definitelyNotInMemory = (inMemoryMode == EInMemoryMode::None) || (ext.has_has_hunk_columns() && ext.has_hunk_columns());
+        auto definitelyInMemory = (inMemoryMode != EInMemoryMode::None) && (ext.has_has_hunk_columns() && !ext.has_hunk_columns());
 
         auto useQueryPoolForLookups = UseQueryPoolForLookups_.load();
         auto useQueryPoolForInMemoryLookups = UseQueryPoolForInMemoryLookups_.load();
 
-        if ((inMemoryMode == EInMemoryMode::None &&
-            useQueryPoolForLookups) ||
-            (inMemoryMode != EInMemoryMode::None &&
-            useQueryPoolForInMemoryLookups))
+        if ((definitelyNotInMemory && useQueryPoolForLookups) ||
+            (definitelyInMemory && useQueryPoolForInMemoryLookups))
         {
             std::string tag;
             std::string poolName;
@@ -327,6 +331,27 @@ private:
             }
 
             return Bootstrap_->GetQueryPoolInvoker(poolName, tag);
+        } else {
+            return Bootstrap_->GetTabletLookupPoolInvoker();
+        }
+    }
+
+    IInvokerPtr GetPullRowsInvoker(const NRpc::NProto::TRequestHeader& requestHeader)
+    {
+        if (UseDedicatedPoolForPullRows_.load()) {
+            std::string tag;
+            if (requestHeader.HasExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext)) {
+                const auto& executeExt = requestHeader.GetExtension(
+                    NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
+
+                tag = executeExt.has_execution_tag()
+                    ? executeExt.execution_tag()
+                    : DefaultPullRowsTag;
+            } else {
+                tag = DefaultPullRowsTag;
+            }
+
+            return Bootstrap_->GetPullRowsInvoker(tag);
         } else {
             return Bootstrap_->GetTabletLookupPoolInvoker();
         }
@@ -660,7 +685,7 @@ private:
             [&] {
                 auto tabletSnapshot = snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, mountRevision);
 
-                SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+                SetErrorManagerContext(tabletSnapshot);
 
                 if (tabletSnapshot->UpstreamReplicaId != upstreamReplicaId) {
                     THROW_ERROR_EXCEPTION(
@@ -807,7 +832,7 @@ private:
 
             auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
-            SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+            SetErrorManagerContext(tabletSnapshot);
 
             auto* protoTabletInfo = response->add_tablets();
             ToProto(protoTabletInfo->mutable_tablet_id(), tabletId);
@@ -874,7 +899,7 @@ private:
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
-        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+        SetErrorManagerContext(tabletSnapshot);
 
         if (tabletSnapshot->IsPreallocatedDynamicStoreId(storeId)) {
             YT_LOG_DEBUG("Dynamic store is not created yet, sending nothing (TabletId: %v, StoreId: %v, "
@@ -1125,6 +1150,7 @@ private:
         chunkSpec->set_row_count_override(miscExt.row_count());
         chunkSpec->set_data_weight_override(miscExt.data_weight());
         chunkSpec->set_compressed_data_size_override(miscExt.compressed_data_size());
+        chunkSpec->set_uncompressed_data_size_override(miscExt.uncompressed_data_size());
 
         *chunkSpec->mutable_chunk_meta() = chunkMeta;
         if (!fetchAllMetaExtensions) {
@@ -1153,6 +1179,7 @@ private:
         // For dynamic stores it is more or less the same.
         chunkSpec->set_data_weight_override(dynamicStore->GetUncompressedDataSize());
         chunkSpec->set_compressed_data_size_override(dynamicStore->GetCompressedDataSize());
+        chunkSpec->set_uncompressed_data_size_override(dynamicStore->GetUncompressedDataSize());
 
         auto localNodeId = Bootstrap_->GetNodeId();
         TChunkReplicaWithMedium replica(localNodeId, GenericChunkReplicaIndex, GenericMediumIndex);
@@ -1260,7 +1287,7 @@ private:
                     continue;
                 }
 
-                SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+                SetErrorManagerContext(tabletSnapshot);
 
                 if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
                     THROW_ERROR_EXCEPTION("Fetching tablet stores for ordered tablets is not implemented");
@@ -1420,7 +1447,7 @@ private:
             ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, FromProto<NHydra::TRevision>(request->mount_revision()))
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
-        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+        SetErrorManagerContext(tabletSnapshot);
 
         snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
         snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
@@ -1676,7 +1703,7 @@ private:
             ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, *mountRevision)
             : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
-        SetErrorManagerContextFromTabletSnapshot(tabletSnapshot);
+        SetErrorManagerContext(tabletSnapshot);
 
         snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
         snapshotStore->ValidateBundleNotBanned(tabletSnapshot);
@@ -1764,6 +1791,8 @@ private:
             newConfig->QueryAgent->UseQueryPoolForLookups.value_or(Config_->UseQueryPoolForLookups));
         UseQueryPoolForInMemoryLookups_.store(
             newConfig->QueryAgent->UseQueryPoolForInMemoryLookups.value_or(Config_->UseQueryPoolForInMemoryLookups));
+        UseDedicatedPoolForPullRows_.store(
+            newConfig->QueryAgent->UseDedicatedPoolForPullRows.value_or(Config_->UseDedicatedPoolForPullRows));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CreateDistributedSession)

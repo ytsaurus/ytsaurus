@@ -47,7 +47,7 @@ private:
 
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
-        auto* poolTree = Bootstrap_->GetSchedulerPoolManager()->FindPoolTreeObjectByName(TString(key));
+        auto* poolTree = Bootstrap_->GetSchedulerPoolManager()->FindPoolTreeObjectByName(key);
         if (!IsObjectAlive(poolTree)) {
             return nullptr;
         }

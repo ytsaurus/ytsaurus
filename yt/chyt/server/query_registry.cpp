@@ -30,7 +30,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
 
-static constexpr auto& Logger = ClickHouseYtLogger;
+constinit const auto Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -469,7 +469,8 @@ public:
             .Run();
     }
 
-    TFuture<std::vector<TQueryId>> GetAdditionalQueryIds(TQueryId queryId) const {
+    TFuture<std::vector<TQueryId>> GetAdditionalQueryIds(TQueryId queryId) const
+    {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return BIND(&TImpl::DoGetAdditionalQueryIds, MakeStrong(this), queryId)
@@ -669,7 +670,8 @@ TFuture<std::optional<TQueryProgressValues>> TQueryRegistry::GetQueryProgress(TQ
     return Impl_->GetQueryProgress(queryId);
 }
 
-TFuture<std::vector<TQueryId>> TQueryRegistry::GetAdditionalQueryIds(TQueryId queryId) const {
+TFuture<std::vector<TQueryId>> TQueryRegistry::GetAdditionalQueryIds(TQueryId queryId) const
+{
     return Impl_->GetAdditionalQueryIds(queryId);
 }
 

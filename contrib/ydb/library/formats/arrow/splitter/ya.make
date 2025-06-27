@@ -11,4 +11,6 @@ PEERDIR(
     contrib/ydb/library/conclusion
 )
 
+GENERATE_ENUM_SERIALIZATION(stats.h)
+
 END()

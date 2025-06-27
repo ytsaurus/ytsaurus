@@ -849,7 +849,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         auto objectId = attributes.Get<TObjectId>("id");
         auto nodeId = NodeIdFromObjectId(objectId);
         auto newState = attributes.Get<NNodeTrackerClient::ENodeState>("state");
-        auto ioWeights = attributes.Get<THashMap<TString, double>>("io_weights", {});
+        auto ioWeights = attributes.Get<THashMap<std::string, double>>("io_weights", {});
         auto annotationsYson = attributes.FindYson("annotations");
         auto schedulingOptionsYson = attributes.FindYson("scheduling_options");
 
@@ -1705,7 +1705,11 @@ void TNodeShard::ProcessHeartbeatAllocations(
     HeartbeatCount_.Increment();
 
     if (shouldLogOngoingAllocations) {
-        LogOngoingAllocationsOnHeartbeat(strategyProxy, CpuInstantToInstant(now), ongoingAllocationsByState);
+        LogOngoingAllocationsOnHeartbeat(
+            strategyProxy,
+            CpuInstantToInstant(now),
+            ongoingAllocationsByState,
+            node);
     }
 
     if (checkMissingAllocations) {
@@ -1759,7 +1763,8 @@ void TNodeShard::FillNodeProfilingTags(
 void TNodeShard::LogOngoingAllocationsOnHeartbeat(
     const INodeHeartbeatStrategyProxyPtr& strategyProxy,
     TInstant now,
-    const TStateToAllocationList& ongoingAllocationsByState) const
+    const TStateToAllocationList& ongoingAllocationsByState,
+    const TExecNodePtr& node) const
 {
     for (auto allocationState : TEnumTraits<EAllocationState>::GetDomainValues()) {
         const auto& allocations = ongoingAllocationsByState[allocationState];
@@ -1775,9 +1780,10 @@ void TNodeShard::LogOngoingAllocationsOnHeartbeat(
             delimitedAttributesBuilder);
 
         YT_LOG_DEBUG(
-            "Allocations are %lv (%v)",
+            "Allocations are %lv (%v, NodeAddress: %v)",
             allocationState,
-            attributesBuilder.Flush());
+            attributesBuilder.Flush(),
+            node->GetDefaultAddress());
     }
 }
 
@@ -2139,6 +2145,9 @@ void TNodeShard::ProcessScheduledAndPreemptedAllocations(
         auto* startInfo = response->add_allocations_to_start();
         ToProto(startInfo->mutable_allocation_id(), allocation->GetId());
         ToProto(startInfo->mutable_operation_id(), allocation->GetOperationId());
+
+        YT_OPTIONAL_SET_PROTO(startInfo, network_priority, allocation->GetNetworkPriority());
+
         *startInfo->mutable_resource_limits() = ToNodeResources(allocation->ResourceUsage());
 
         ToProto(startInfo->mutable_allocation_attributes(), allocation->AllocationAttributes());

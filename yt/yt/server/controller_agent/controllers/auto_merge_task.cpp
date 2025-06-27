@@ -159,6 +159,7 @@ TAutoMergeTask::TAutoMergeTask(
             /*jobCount*/ 1,
             /*dataWeightPerJob*/ dataWeightPerJob,
             /*primaryDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
+            /*compressedDataSizePerJob*/ std::numeric_limits<i64>::max() / 4,
             /*maxDataSlicesPerJob*/ maxChunksPerJob,
             /*maxDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
             /*primaryMaxDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
@@ -171,12 +172,12 @@ TAutoMergeTask::TAutoMergeTask(
 
         TUnorderedChunkPoolOptions options;
         options.RowBuffer = TaskHost_->GetRowBuffer();
-        options.Mode = EUnorderedChunkPoolMode::AutoMerge;
         options.JobSizeConstraints = std::move(autoMergeJobSizeConstraints);
         options.MinTeleportChunkSize = maxChunkSize;
         options.MinTeleportChunkDataWeight = maxChunkDataWeight;
         options.Logger = Logger().WithTag("Name: %v(%v)", GetTitle(), poolIndex);
         options.SingleChunkTeleportStrategy = TaskHost_->GetSpec()->AutoMerge->SingleChunkTeleportStrategy;
+        options.UseNewSlicingImplementation = true;
 
         auto unorderedPool = CreateUnorderedChunkPool(
             std::move(options),
@@ -450,7 +451,7 @@ void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any ta
     TTask::OnChunkTeleported(teleportChunk, tag);
 
     auto poolIndex = std::any_cast<int>(tag);
-    TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, GetTableIndex(poolIndex));
+    TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ TChunkStripeKey(), GetTableIndex(poolIndex));
 
     --CurrentChunkCounts_[poolIndex];
     TaskHost_->GetAutoMergeDirector()->AccountMergeInputChunks(-1);

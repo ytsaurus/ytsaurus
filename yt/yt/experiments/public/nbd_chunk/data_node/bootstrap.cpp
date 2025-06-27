@@ -296,7 +296,7 @@ public:
         return {};
     }
 
-    void ResetAndRegisterAtMaster() override
+    void ResetAndRegisterAtMaster(ERegistrationReason /*reason*/) override
     {
         return;
     }
@@ -431,6 +431,11 @@ public:
         return FairShareHierarchicalScheduler_;
     }
 
+    const NIO::IHugePageManagerPtr& GetHugePageManager() const override
+    {
+        return HugePageManager_;
+    }
+
     bool NeedDataNodeBootstrap() const override
     {
         return false;
@@ -533,6 +538,7 @@ private:
     NDataNode::IJobControllerPtr JobController_;
     INodeMemoryTrackerPtr NodeMemoryUsageTracker_;
     TFairShareHierarchicalSchedulerPtr<std::string> FairShareHierarchicalScheduler_;
+    NIO::IHugePageManagerPtr HugePageManager_;
     NConcurrency::IThroughputThrottlerPtr DefaultInThrottler_;
     NClusterNode::TNodeResourceManagerPtr NodeResourceManager_;
     NConcurrency::IThroughputThrottlerPtr DefaultOutThrottler_;

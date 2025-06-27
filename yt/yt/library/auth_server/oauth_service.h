@@ -14,8 +14,8 @@ namespace NYT::NAuth {
 
 struct TOAuthUserInfoResult
 {
-    TString Subject;
-    TString Login;
+    std::string Subject;
+    std::string Login;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,7 +23,7 @@ struct TOAuthUserInfoResult
 struct IOAuthService
     : public virtual TRefCounted
 {
-    virtual TFuture<TOAuthUserInfoResult> GetUserInfo(const TString& accessToken) = 0;
+    virtual TFuture<TOAuthUserInfoResult> GetUserInfo(const std::string& accessToken) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOAuthService)

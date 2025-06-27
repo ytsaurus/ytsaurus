@@ -129,6 +129,7 @@ DEFINE_ENUM(EAllocationPreemptionReason,
     (GracefulPreemption)
     (ResourceOvercommit)
     (ResourceLimitsViolated)
+    (IncompatibleSchedulingSegment)
 );
 
 DEFINE_ENUM(EGpuSchedulingLogEventType,
@@ -170,14 +171,12 @@ YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SchedulerProfiler, "/scheduler");
 
 static constexpr int MaxNodesWithoutPoolTreeToAlert = 10;
 
-inline const TString EventLogPoolTreeKey{"tree_id"};
+inline const std::string EventLogPoolTreeKey{"tree_id"};
 
-inline const NLogging::TLogger StrategyLogger{"Strategy"};
-inline const NLogging::TLogger NodeShardLogger{"NodeShard"};
+YT_DEFINE_GLOBAL(const NLogging::TLogger, StrategyLogger, "Strategy");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, NodeShardLogger, "NodeShard");
 
 inline constexpr char DefaultOperationTag[] = "default";
-
-inline const TString InfinibandClusterNameKey{"infiniband_cluster_tag"};
 
 constexpr int UndefinedSchedulingIndex = -1;
 

@@ -16,6 +16,7 @@ import yt.packages.requests as requests
 import yt.yson as yson
 
 import pytest
+import itertools
 import time
 import threading
 import random
@@ -409,6 +410,28 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             result = clique.make_query('select key1, key2, sum(value) from "//tmp/t" group by key1, key2')
             assert result == [{"key1": "dream", "key2": "theater", "sum(value)": total}]
+
+    @authors("a-dyu")
+    def test_having_group_by_null(self):
+        with Clique(1) as clique:
+            create(
+                "table",
+                "//tmp/t",
+                attributes={
+                    "schema": [
+                        {"name": "key1", "type": "string"},
+                        {"name": "key2", "type": "string"},
+                    ]
+                },
+            )
+            for i in range(5):
+                write_table(
+                    "<append=%true>//tmp/t",
+                    [{"key1": str(i), "key2": str(i * i)} for i in range(5)],
+                )
+
+            result = clique.make_query("select k, count(*) from '//tmp/t' group by null as k having k is not null")
+            assert result == []
 
     @authors("max42")
     @pytest.mark.parametrize("instance_count", [1, 2])
@@ -1985,40 +2008,36 @@ class TestClickHouseNoCache(ClickHouseTestBase):
 
 class TestCustomSettings(ClickHouseTestBase):
     @authors("max42")
-    def test_simple(self):
+    @pytest.mark.parametrize("throw_exception_in_distributor, throw_exception_in_subquery",
+                             itertools.product([None, False, True], [None, False, True]))
+    def test_simple(self, throw_exception_in_distributor, throw_exception_in_subquery):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 1}])
         with Clique(1) as clique:
-            for throw_exception_in_distributor in (None, False, True):
-                for throw_exception_in_subquery in (None, False, True):
-                    settings = {}
-                    if throw_exception_in_distributor is not None:
-                        settings["chyt.testing.throw_exception_in_distributor"] = int(
-                            throw_exception_in_distributor
-                        )
-                    if throw_exception_in_subquery is not None:
-                        settings["chyt.testing.throw_exception_in_subquery"] = int(throw_exception_in_subquery)
-                    if throw_exception_in_subquery is not None:
-                        assert clique.make_query(
-                            "select CAST(getSetting('chyt.testing.throw_exception_in_subquery') as Int64) as v",
-                            settings=settings,
-                        ) == [{"v": int(throw_exception_in_subquery)}]
-                    if throw_exception_in_distributor is not None:
-                        assert clique.make_query(
-                            "select CAST(getSetting('chyt.testing.throw_exception_in_distributor') as Int64) as v",
-                            settings=settings,
-                        ) == [{"v": int(throw_exception_in_distributor)}]
-                    if not bool(throw_exception_in_distributor) and not bool(
-                            throw_exception_in_subquery
-                    ):
-                        assert clique.make_query("select * from `//tmp/t`", settings=settings) == [{"a": 1}]
-                    else:
-                        if bool(throw_exception_in_distributor):
-                            error_substr = "Testing exception in distributor"
-                        else:
-                            error_substr = "Testing exception in subquery"
-                        with raises_yt_error(error_substr):
-                            clique.make_query("select * from `//tmp/t`", settings=settings)
+            settings = {}
+            if throw_exception_in_distributor is not None:
+                settings["chyt.testing.throw_exception_in_distributor"] = int(throw_exception_in_distributor)
+            if throw_exception_in_subquery is not None:
+                settings["chyt.testing.throw_exception_in_subquery"] = int(throw_exception_in_subquery)
+            if throw_exception_in_subquery is not None:
+                assert clique.make_query(
+                    "select CAST(getSetting('chyt.testing.throw_exception_in_subquery') as Int64) as v",
+                    settings=settings,
+                ) == [{"v": int(throw_exception_in_subquery)}]
+            if throw_exception_in_distributor is not None:
+                assert clique.make_query(
+                    "select CAST(getSetting('chyt.testing.throw_exception_in_distributor') as Int64) as v",
+                    settings=settings,
+                ) == [{"v": int(throw_exception_in_distributor)}]
+            if not bool(throw_exception_in_distributor) and not bool(throw_exception_in_subquery):
+                assert clique.make_query("select * from `//tmp/t`", settings=settings) == [{"a": 1}]
+            else:
+                if bool(throw_exception_in_distributor):
+                    error_substr = "Testing exception in distributor"
+                else:
+                    error_substr = "Testing exception in subquery"
+                with raises_yt_error(error_substr):
+                    clique.make_query("select * from `//tmp/t`", settings=settings)
 
     @authors("max42")
     def test_defaults(self):
@@ -2075,3 +2094,44 @@ class TestCustomSettings(ClickHouseTestBase):
             ])
             assert get_schema_from_description(clique.make_query("describe `//tmp/t2`")) == \
                    [{"name": "b", "type": "Bool"}]
+
+
+class TestClickHouseWithMasterCache(ClickHouseTestBase):
+    USE_MASTER_CACHE = True
+
+    @authors("a-dyu")
+    def test_create_and_drop_with_read_from_cache(self):
+        patch = {
+            "yt": {
+                "table_attribute_cache": {
+                    "master_read_options": {
+                        "read_from": "cache",
+                    }
+                },
+            },
+        }
+        with Clique(2, config_patch=patch) as clique:
+            instances = clique.get_active_instances()
+            assert len(instances) == 2
+
+            clique.make_query("create table `//tmp/t0`(a Int64) engine=YtTable()")
+            for instance in instances:
+                assert clique.make_direct_query(instance, 'exists "//tmp/t0"') == [{"result": 1}]
+
+            clique.make_query('drop table "//tmp/t0"')
+            for instance in instances:
+                assert clique.make_direct_query(instance, 'exists "//tmp/t0"') == [{"result": 0}]
+
+            clique.make_query("create table `//tmp/t0`(a Int64) engine=YtTable()")
+            for instance in instances:
+                assert clique.make_direct_query(instance, 'exists "//tmp/t0"') == [{"result": 1}]
+
+            clique.make_query("create table `//tmp/t1` engine=YtTable() as select * from `//tmp/t0`")
+            for instance in instances:
+                assert clique.make_direct_query(instance, 'exists "//tmp/t1"') == [{"result": 1}]
+
+            settings = {"parallel_distributed_insert_select": 1}
+            clique.make_query("create table `//tmp/t2` engine=YtTable() as select * from `//tmp/t0`",
+                              settings=settings)
+            for instance in instances:
+                assert clique.make_direct_query(instance, 'exists "//tmp/t2"') == [{"result": 1}]

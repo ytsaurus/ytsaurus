@@ -9,14 +9,13 @@
 
 #include <yt/yt/server/node/tablet_node/automaton.h>
 #include <yt/yt/server/node/tablet_node/bootstrap.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/mutation_forwarder.h>
 #include <yt/yt/server/node/tablet_node/serialize.h>
 #include <yt/yt/server/node/tablet_node/tablet.h>
 #include <yt/yt/server/node/tablet_node/tablet_slot.h>
 #include <yt/yt/server/node/tablet_node/transaction.h>
 #include <yt/yt/server/node/tablet_node/transaction_manager.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -328,7 +327,7 @@ protected:
             struct TTag {};
             auto data = MergeRefsToRef<TTag>(wireData);
 
-            auto reader = TWireWriteCommandBatchReader(
+            auto reader = TWireWriteCommandsBatchingReader(
                 data,
                 CreateWireProtocolReader(data),
                 tabletSnapshot->TableSchemaData);
@@ -426,7 +425,7 @@ protected:
             TAuthenticationIdentity identity(ReplicatorUserName);
             TCurrentAuthenticationIdentityGuard guard(&identity);
 
-            auto reader = TWireWriteCommandBatchReader(
+            auto reader = TWireWriteCommandsBatchingReader(
                 data,
                 CreateWireProtocolReader(data),
                 tabletSnapshot->TableSchemaData);

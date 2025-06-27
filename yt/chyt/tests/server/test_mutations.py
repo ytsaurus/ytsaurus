@@ -14,6 +14,8 @@ import random
 
 
 class TestMutations(ClickHouseTestBase):
+    NUM_TEST_PARTITIONS = 4
+
     @authors("max42")
     def test_insert_values(self):
         create(
@@ -282,6 +284,17 @@ class TestMutations(ClickHouseTestBase):
             assert_items_equal(read_table("//tmp/t_out", verbose=False), rows + rows)
             assert get("//tmp/t_out/@chunk_count") == 10
 
+            write_table("//tmp/t_out", [])
+
+            distributed_multithread_settings = {
+                "parallel_distributed_insert_select": 1,
+                "max_insert_threads": 2
+            }
+            clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`",
+                              settings=distributed_multithread_settings)
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
+            assert get("//tmp/t_out/@chunk_count") == 5
+
             clique.make_query("insert into `<append=%false>//tmp/t_out` select * from `//tmp/t_in`",
                               settings={"parallel_distributed_insert_select": 1})
             assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
@@ -312,6 +325,90 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query("insert into `<append=%false>//tmp/t_out` select 1 union all select 2 union all select 3")
             assert_items_equal(read_table("//tmp/t_out", verbose=False), [{"a": 1}, {"a": 2}, {"a": 3}])
             assert get("//tmp/t_out/@chunk_count") == 1
+
+    @authors("a-dyu")
+    def test_multithread_insert_select(self):
+        create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        rows = [{"a": i} for i in range(100)]
+        write_table("//tmp/t_in", rows, verbose=False)
+        create("table", "//tmp/t_out", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        create("table", "//tmp/t_in_sorted", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
+        write_table("//tmp/t_in_sorted", rows, verbose=False)
+        create("table", "//tmp/t_out_sorted", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t_out_dynamic", attributes={"dynamic": True, "schema": [{"name": "a", "type": "int64"}]})
+        threads_count = 4
+        config_patch = {
+            "clickhouse": {
+                "settings": {
+                    "max_threads": threads_count,
+                    "max_insert_threads": threads_count,
+                    "min_insert_block_size_rows" : 16
+                }
+            }
+        }
+        with Clique(1, config_patch=config_patch) as clique:
+            # Parallel write is forbidden for dynamic tables.
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `//tmp/t_out_dynamic` select * from `//tmp/t_in`")
+
+            clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`",
+                              settings={"max_insert_threads": 1})
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
+            assert get("//tmp/t_out/@chunk_count") == 1
+
+            write_table("//tmp/t_out", [])
+
+            clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`")
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
+            assert get("//tmp/t_out/@chunk_count") == threads_count
+
+            clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in`")
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows + rows)
+            assert get("//tmp/t_out/@chunk_count") == threads_count * 2
+
+            # Parallel overwrite insert is forbidden.
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `<append=%false>//tmp/t_out` select * from `//tmp/t_in`")
+
+            clique.make_query("insert into `<append=%false>//tmp/t_out` select * from `//tmp/t_in`",
+                              settings={"max_insert_threads": 1})
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
+            assert get("//tmp/t_out/@chunk_count") == 1
+
+            clique.make_query("insert into `<append=%false>//tmp/t_in` select * from `//tmp/t_in`",
+                              settings={"max_insert_threads": 1})
+            assert_items_equal(read_table("//tmp/t_in", verbose=False), rows)
+            assert get("//tmp/t_in/@chunk_count") == 1
+
+            write_table("//tmp/t_out", [])
+
+            clique.make_query("insert into `//tmp/t_out` select sum(a) from `//tmp/t_in`")
+            aggregated_rows = read_table("//tmp/t_out")
+            assert sum(row["a"] for row in aggregated_rows) == sum([row["a"] for row in rows])
+
+            # Parallel insert is forbidden for sorted tables.
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `//tmp/t_out_sorted` select * from `//tmp/t_in_sorted`")
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("insert into `//tmp/t_out_sorted` select * from `//tmp/t_in` order by a")
+
+            write_table("//tmp/t_out", [])
+
+            # You can still insert ordered data into not sorted tables, but insert order is not guaranteed.
+            clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in` order by a")
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
+            assert get("//tmp/t_out/@chunk_count") == threads_count
+
+            write_table("//tmp/t_out", [])
+
+            clique.make_query("insert into `//tmp/t_out` select * from `//tmp/t_in_sorted`")
+            assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
+            assert get("//tmp/t_out/@chunk_count") == threads_count
+
+            clique.make_query('create table "//tmp/new_table" engine=YtTable() as (select * from "//tmp/t_in")')
+            assert_items_equal(read_table("//tmp/new_table", verbose=False), rows)
+            assert get("//tmp/t_out/@chunk_count") == threads_count
 
     @authors("gudqeit")
     def test_distributed_insert_error(self):

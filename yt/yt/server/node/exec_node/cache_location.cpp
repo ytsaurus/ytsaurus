@@ -68,6 +68,7 @@ TCacheLocation::TCacheLocation(
         nullptr,
         std::move(chunkContext),
         std::move(chunkStoreHost))
+    , StaticConfig_(config)
     , InThrottler_(CreateNamedReconfigurableThroughputThrottler(
         config->InThrottler,
         "InThrottler",
@@ -76,7 +77,22 @@ TCacheLocation::TCacheLocation(
     , ChunkCache_(std::move(chunkCache))
 { }
 
-const IThroughputThrottlerPtr& TCacheLocation::GetInThrottler() const
+const NDataNode::TCacheLocationConfigPtr& TCacheLocation::GetStaticConfig() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return StaticConfig_;
+}
+
+void TCacheLocation::Reconfigure(NDataNode::TCacheLocationConfigPtr config)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    TChunkLocation::Reconfigure(config);
+    InThrottler_->Reconfigure(config->InThrottler);
+}
+
+IThroughputThrottlerPtr TCacheLocation::GetInThrottler() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

@@ -40,7 +40,7 @@ df.write
 
 ## transaction
 
-Reading from a [transaction](../../../../../user-guide/storage/transactions.md). For more details, see [Reading and writing within a transaction](../read-transaction.md).
+Reading from a [transaction](../../../../../user-guide/storage/transactions.md). For more details, see [Reading and writing within a transaction](../../../../../user-guide/data-processing/spyt/read-transaction.md).
 
 Scala example:
 
@@ -52,7 +52,7 @@ transaction.commit().get(10, TimeUnit.SECONDS)
 
 ## Schema v3
 
-Read tables with schema in [type_v3](../../../../../user-guide/storage/data-types.md) instead of type_v1. It can be enabled in [Spark configuration](../cluster/configuration.md) or write option.
+Read tables with schema in [type_v3](../../../../../user-guide/storage/data-types.md) instead of type_v1. It can be enabled in [Spark configuration](../../../../../user-guide/data-processing/spyt/cluster/configuration.md) or write option.
 
 Python example:
 ```python

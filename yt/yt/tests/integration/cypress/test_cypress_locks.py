@@ -25,6 +25,7 @@ class TestCypressLocks(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
     NUM_TEST_PARTITIONS = 4
+    NUM_CYPRESS_PROXIES = 2
 
     def _in_sequoia(self):
         return isinstance(self, TestCypressLocksSequoia)
@@ -1678,28 +1679,12 @@ class TestCypressLocksShardedTx(TestCypressLocksMulticell):
     }
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestCypressLocksShardedTxCTxS(TestCypressLocksShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
+class TestCypressLocksMirroredTx(TestCypressLocksShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 8
 
     _SUPRESSED_MESSAGES = [
@@ -1730,14 +1715,7 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
         },
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
     DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        },
         "cell_master": {
             "logging": {
                 "suppressed_messages": _SUPRESSED_MESSAGES,
@@ -1753,7 +1731,6 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
 class TestCypressLocksSequoia(TestCypressLocksMirroredTx):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 12
     NUM_SECONDARY_MASTER_CELLS = 4
 

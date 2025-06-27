@@ -76,55 +76,6 @@ DEFINE_REFCOUNTED_TYPE(IQueueController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAggregatedQueueExportsProgress
-{
-    bool HasExports = false;
-    THashMap<i64, i64> TabletIndexToRowCount;
-
-    void MergeWith(const TAggregatedQueueExportsProgress& rhs)
-    {
-        if (!HasExports) {
-            *this = rhs;
-            return;
-        }
-        if (!rhs.HasExports) {
-            return;
-        }
-        for (auto& [tabletIndex, rowCount] : TabletIndexToRowCount) {
-            if (auto it = rhs.TabletIndexToRowCount.find(tabletIndex); it != rhs.TabletIndexToRowCount.end()) {
-                rowCount = std::min(rowCount, it->second);
-            } else {
-                rowCount = 0;
-            }
-        }
-    }
-};
-
-TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<TString, TQueueExportProgressPtr>& queueExportsProgress)
-{
-    if (queueExportsProgress.empty()) {
-        return {
-            .HasExports = false,
-        };
-    }
-
-    TAggregatedQueueExportsProgress progress{
-        .HasExports = true,
-    };
-    for (const auto& [_, exportProgress] : queueExportsProgress) {
-        for (const auto& [tabletIndex, tabletExportProgress] : exportProgress->Tablets) {
-            if (auto tabletIt = progress.TabletIndexToRowCount.find(tabletIndex); tabletIt != progress.TabletIndexToRowCount.end()) {
-                tabletIt->second = std::min(tabletIt->second, tabletExportProgress->RowCount);
-            } else {
-                progress.TabletIndexToRowCount[tabletIndex] = tabletExportProgress->RowCount;
-            }
-        }
-    }
-    return progress;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TQueueSnapshotBuildSession final
 {
 public:
@@ -335,6 +286,8 @@ private:
                 if (partitionSnapshot->CumulativeDataWeight) {
                     partitionSnapshot->WriteRate.DataWeight.Update(*partitionSnapshot->CumulativeDataWeight);
                 }
+            } else if (partitionSnapshot->CumulativeDataWeight) {
+                partitionSnapshot->WriteRate.DataWeight.Update(partitionSnapshot->WriteRate.DataWeight.Count);
             }
 
             partitionSnapshot->AvailableDataWeight = OptionalSub(
@@ -553,8 +506,8 @@ private:
             auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), static_cast<TRichYPath>(QueueRow_.Load().Ref));
             if (it != config->DelayedObjects.end()) {
                 // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
-                YT_LOG_WARNING("This pass is delayed since queue is present in \"delayed_objects\" field of dynamic config (DelayDuration: %v)", config->ControllerDelayDuration);
-                TDelayedExecutor::WaitForDuration(config->ControllerDelayDuration);
+                YT_LOG_WARNING("This pass is delayed since queue is present in \"delayed_objects\" field of dynamic config (Delay: %v)", config->ControllerDelay);
+                TDelayedExecutor::WaitForDuration(config->ControllerDelay);
             }
         }
 
@@ -665,7 +618,12 @@ private:
             QueueExports_ = TQueueExportsMappingOrError();
             return;
         }
-        if (auto staticExportConfigError = CheckStaticExportConfig(*staticExportConfig, nextQueueSnapshot->Row.ObjectType); !staticExportConfigError.IsOK()) {
+
+        auto staticExportConfigError = CheckStaticExportConfig(
+            *staticExportConfig,
+            nextQueueSnapshot->Row.ObjectType,
+            queueExporterConfig.Implementation);
+        if (!staticExportConfigError.IsOK()) {
             QueueExports_ = staticExportConfigError;
             QueueExportsAlertCollector_->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportMisconfiguration,
@@ -704,8 +662,7 @@ private:
             }
         }
         for (const auto& name : unusedExportNames) {
-            auto it = queueExports.find(name);
-            YT_VERIFY(it != queueExports.end());
+            auto it = GetIteratorOrCrash(queueExports, name);
             it->second->Stop();
 
             queueExports.erase(it);
@@ -717,7 +674,10 @@ private:
         }
     }
 
-    TError CheckStaticExportConfig(const THashMap<TString, TQueueStaticExportConfigPtr>& configs, std::optional<EObjectType> objectType) const
+    TError CheckStaticExportConfig(
+        const THashMap<TString, TQueueStaticExportConfigPtr>& configs,
+        std::optional<EObjectType> objectType,
+        EQueueExporterImplementation queueExporterImplementation) const
     {
         if (!objectType) {
             return TError("Cannot check \"static_export_config\", because object type is not known");
@@ -729,6 +689,11 @@ private:
         THashSet<TYPath> directories;
         THashSet<TYPath> duplicateDirectories;
         for (const auto& [_, config] : configs) {
+            if (queueExporterImplementation == EQueueExporterImplementation::Old && !config->ExportPeriod) {
+                YT_LOG_DEBUG("Old queue exporter implementation is being constructed with no export period set");
+                return TError("Queue exporter configuration requires an \"export_period\" parameter");
+            }
+
             if (auto [_, inserted] = directories.insert(config->ExportDirectory); !inserted) {
                 YT_LOG_DEBUG("There are duplicate export directories in queue static export config (Value: %v)", config->ExportDirectory);
                 duplicateDirectories.insert(config->ExportDirectory);

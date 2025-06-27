@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
+#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
+
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -28,7 +30,7 @@ namespace NYT::NCypressProxy {
 
 void SetNode(
     NCypressClient::TVersionedNodeId nodeId,
-    NSequoiaClient::TYPathBuf path,
+    NYPath::TYPathBuf path,
     const NYson::TYsonString& value,
     bool force,
     const NApi::TSuppressableAccessTrackingOptions& options,
@@ -36,7 +38,7 @@ void SetNode(
 
 void MultisetNodeAttributes(
     NCypressClient::TVersionedNodeId nodeId,
-    NSequoiaClient::TYPathBuf path,
+    NYPath::TYPathBuf path,
     const std::vector<TMultisetAttributesSubrequest>& subrequests,
     bool force,
     const NApi::TSuppressableAccessTrackingOptions& options,
@@ -45,30 +47,44 @@ void MultisetNodeAttributes(
 void CreateNode(
     NCypressClient::TVersionedNodeId nodeId,
     NCypressClient::TNodeId parentId,
-    NSequoiaClient::TAbsoluteYPathBuf path,
+    NSequoiaClient::TAbsolutePathBuf path,
     const NYTree::IAttributeDictionary* explicitAttributes,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 NCypressClient::TNodeId CopyNode(
     const NSequoiaClient::NRecords::TNodeIdToPath& sourceNode,
-    NSequoiaClient::TAbsoluteYPathBuf destinationNodePath,
+    NSequoiaClient::TAbsolutePathBuf destinationNodePath,
     NCypressClient::TNodeId destinationParentId,
     NCypressClient::TTransactionId cypressTransactionId,
     const TCopyOptions& options,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
+void MaterializeNodeOnMaster(
+    NCypressClient::TVersionedNodeId nodeId,
+    NObjectClient::NProto::TReqMaterializeNode* originalRequest,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
+
+void MaterializeNodeInSequoia(
+    NCypressClient::TVersionedNodeId nodeId,
+    NCypressClient::TNodeId parentId,
+    NSequoiaClient::TAbsolutePathBuf path,
+    bool preserveAcl,
+    bool preserveModificationTime,
+    const TProgenitorTransactionCache& progenitorTransactionCache,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
+
 //! Removes node but not detaches it from its parent.
 void RemoveNode(
     NCypressClient::TVersionedNodeId nodeId,
-    NSequoiaClient::TAbsoluteYPathBuf path,
+    NSequoiaClient::TAbsolutePathBuf path,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 void RemoveNodeAttribute(
     NCypressClient::TVersionedNodeId nodeId,
-    NSequoiaClient::TYPathBuf path,
+    NYPath::TYPathBuf path,
     bool force,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
@@ -88,7 +104,7 @@ void DetachChild(
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
-NCypressClient::TLockId LockNodeInMaster(
+NCypressClient::TLockId ExplicitlyLockNodeInMaster(
     NCypressClient::TVersionedNodeId nodeId,
     NCypressClient::ELockMode lockMode,
     const std::optional<std::string>& childKey,
@@ -97,14 +113,21 @@ NCypressClient::TLockId LockNodeInMaster(
     bool waitable,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
+void ImplicitlyLockNodeInMaster(
+    NCypressClient::TVersionedNodeId nodeId,
+    NCypressClient::ELockMode lockMode,
+    const std::optional<std::string>& childKey,
+    const std::optional<std::string>& attributeKey,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
+
 void UnlockNodeInMaster(
     NCypressClient::TVersionedNodeId nodeId,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 void CreateSnapshotLockInSequoia(
     NCypressClient::TVersionedNodeId nodeId,
-    NSequoiaClient::TAbsoluteYPathBuf path,
-    std::optional<NSequoiaClient::TAbsoluteYPathBuf> targetPath,
+    NSequoiaClient::TAbsolutePathBuf path,
+    std::optional<NYPath::TYPath> targetPath,
     const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 void RemoveSnapshotLockFromSequoia(

@@ -1036,7 +1036,7 @@ void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
                 operationElement->GetId(),
                 operationState->SchedulingSegment,
                 NodeSchedulingSegment_,
-                SchedulingContext_->GetNodeDescriptor()->Address,
+                NNodeTrackerClient::GetDefaultAddress(SchedulingContext_->GetNodeDescriptor()->Addresses),
                 SchedulingContext_->GetNodeDescriptor()->DataCenter);
 
             forcefullyPreemptibleAllocations->insert(allocation.Get());
@@ -1192,7 +1192,8 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
                 targetOperationPreemptionPriority);
             if (forcefullyPreemptibleAllocations.contains(allocation.Get())) {
                 preemptionReasonBuilder.AppendString(
-                    "; this allocation was forcefully preemptible, because its node was moved to other scheduling segment");
+                    "; this allocation was forcefully preemptible, because its node was "
+                    "moved to another scheduling segment or the operation was preempted from module");
             }
             if (conditionallyPreemptibleAllocations.contains(allocationInfo)) {
                 preemptionReasonBuilder.AppendString("; this allocation was conditionally preemptible");
@@ -1221,11 +1222,6 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
     // This is one of the reasons why we advise against specified resource limits.
     for (; currentAllocationIndex < std::ssize(preemptibleAllocations); ++currentAllocationIndex) {
         const auto& allocationInfo = preemptibleAllocations[currentAllocationIndex];
-        if (conditionallyPreemptibleAllocations.contains(allocationInfo)) {
-            // Only unconditionally preemptible allocations can be preempted to recover violated resource limits.
-            continue;
-        }
-
         const auto& [allocation, _, operationElement] = allocationInfo;
         if (!IsAllocationKnown(operationElement, allocation->GetId())) {
             // Allocation may have been terminated concurrently with scheduling, e.g. operation aborted by user request. See: YT-16429, YT-17913.
@@ -1234,6 +1230,19 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
                 allocation->GetId(),
                 allocation->GetOperationId());
 
+            continue;
+        }
+
+        const auto& treeConfig = TreeSnapshot_->TreeConfig();
+        if (treeConfig->SchedulingSegments->ForceIncompatibleSegmentPreemption && forcefullyPreemptibleAllocations.contains(allocation.Get())) {
+            allocation->SetPreemptionReason(
+                "Preempted because node was moved to another scheduling segment or the operation was preempted from module");
+            PreemptAllocation(allocation, operationElement, EAllocationPreemptionReason::IncompatibleSchedulingSegment);
+            continue;
+        }
+
+        if (conditionallyPreemptibleAllocations.contains(allocationInfo)) {
+            // Only unconditionally preemptible allocations can be preempted to recover violated resource limits.
             continue;
         }
 
@@ -1258,7 +1267,7 @@ void TScheduleAllocationsContext::PreemptAllocationsAfterScheduling(
             FormatResources(SchedulingContext_->ResourceLimits()),
             FormatResources(SchedulingContext_->ResourceUsage()),
             SchedulingContext_->GetNodeDescriptor()->Id,
-            SchedulingContext_->GetNodeDescriptor()->Address);
+            NNodeTrackerClient::GetDefaultAddress(SchedulingContext_->GetNodeDescriptor()->Addresses));
     }
 }
 
@@ -1269,7 +1278,7 @@ void TScheduleAllocationsContext::AbortAllocationsSinceResourcesOvercommit() con
         FormatResources(SchedulingContext_->ResourceLimits()),
         FormatResources(SchedulingContext_->ResourceUsage()),
         SchedulingContext_->GetNodeDescriptor()->Id,
-        SchedulingContext_->GetNodeDescriptor()->Address);
+        NNodeTrackerClient::GetDefaultAddress(SchedulingContext_->GetNodeDescriptor()->Addresses));
 
     auto allocationInfos = CollectRunningAllocationsWithPreemptionInfo(SchedulingContext_, TreeSnapshot_);
     SortAllocationsWithPreemptionInfo(&allocationInfos);
@@ -1287,7 +1296,7 @@ void TScheduleAllocationsContext::AbortAllocationsSinceResourcesOvercommit() con
                 allocationInfo.Allocation->GetId(),
                 allocationInfo.OperationElement->GetId(),
                 allocationInfo.PreemptionStatus,
-                SchedulingContext_->GetNodeDescriptor()->Address);
+                NNodeTrackerClient::GetDefaultAddress(SchedulingContext_->GetNodeDescriptor()->Addresses));
 
             allocationInfo.Allocation->SetPreemptionReason("Preempted due to node resource ovecommit");
             PreemptAllocation(allocationInfo.Allocation, allocationInfo.OperationElement, EAllocationPreemptionReason::ResourceOvercommit);
@@ -1722,7 +1731,7 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
             FormatResources(SchedulingContext_->GetConditionalDiscountForOperation(element->GetTreeIndex())),
             FormatResources(element->AggregatedMinNeededAllocationResources()),
             element->GroupedNeededResources(),
-            SchedulingContext_->GetNodeDescriptor()->Address);
+            NNodeTrackerClient::GetDefaultAddress(SchedulingContext_->GetNodeDescriptor()->Addresses));
 
         OnMinNeededResourcesUnsatisfied(
             element,
@@ -1821,6 +1830,8 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
         return false;
     }
 
+    const auto& operationState = TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationState(element);
+
     SchedulingContext_->StartAllocation(
         element->GetTreeId(),
         element->GetOperationId(),
@@ -1829,7 +1840,8 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
         startDescriptor,
         element->Spec()->PreemptionMode,
         schedulingIndex,
-        GetStageType());
+        GetStageType(),
+        operationState->NetworkPriority);
 
     UpdateOperationResourceUsage(element);
 
@@ -2400,7 +2412,7 @@ void TScheduleAllocationsContext::LogStageStatistics()
         StageState_->TotalHeapElementCount,
         StageState_->DeactivationReasons,
         SchedulingContext_->CanStartMoreAllocations(),
-        SchedulingContext_->GetNodeDescriptor()->Address,
+        NNodeTrackerClient::GetDefaultAddress(SchedulingContext_->GetNodeDescriptor()->Addresses),
         NodeSchedulingSegment_,
         StageState_->MaxSchedulingIndex);
 }
@@ -2523,7 +2535,7 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
     if (!nodeState) {
         YT_LOG_DEBUG("Skipping scheduling heartbeat because node is not registered in tree (NodeId: %v, NodeAddress: %v)",
             nodeId,
-            schedulingContext->GetNodeDescriptor()->Address);
+            NNodeTrackerClient::GetDefaultAddress(schedulingContext->GetNodeDescriptor()->Addresses));
 
         return;
     }
@@ -2558,7 +2570,7 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
             ? "enabled"
             : "disabled",
         nodeState->Descriptor->Id,
-        nodeState->Descriptor->Address);
+        NNodeTrackerClient::GetDefaultAddress(nodeState->Descriptor->Addresses));
 
     nodeState->SpecifiedSchedulingSegment = [&] () -> std::optional<ESchedulingSegment> {
         const auto& schedulingOptions = nodeState->Descriptor->SchedulingOptions;
@@ -2572,7 +2584,7 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Failed to parse specified scheduling segment (NodeId: %v, NodeAddress: %v)",
                 nodeState->Descriptor->Id,
-                nodeState->Descriptor->Address);
+                NNodeTrackerClient::GetDefaultAddress(nodeState->Descriptor->Addresses));
 
             return {};
         }
@@ -3498,6 +3510,8 @@ void TFairShareTreeAllocationScheduler::RunPreemptiveSchedulingStage(
     context->PrepareForScheduling();
 
     std::vector<TAllocationWithPreemptionInfo> unconditionallyPreemptibleAllocations;
+    // TODO(eshcherbin): Refactor so that attributes like conditionality or forcefulness are placed in a single struct.
+    // Or, even better, remove both conditional and forceful preemption altogether.
     TNonOwningAllocationSet forcefullyPreemptibleAllocations;
     context->AnalyzePreemptibleAllocations(
         parameters.TargetOperationPreemptionPriority,
@@ -3593,29 +3607,29 @@ std::optional<TPersistentOperationSchedulingSegmentState> TFairShareTreeAllocati
 
 void TFairShareTreeAllocationScheduler::UpdateSsdPriorityPreemptionMedia()
 {
-    THashSet<int> media;
-    std::vector<TString> unknownNames;
+    THashSet<int> mediaIndexes;
+    std::vector<std::string> unknownMediaNames;
     for (const auto& mediumName : Config_->SsdPriorityPreemption->MediumNames) {
         if (auto mediumIndex = StrategyHost_->FindMediumIndexByName(mediumName)) {
-            media.insert(*mediumIndex);
+            mediaIndexes.insert(*mediumIndex);
         } else {
-            unknownNames.push_back(mediumName);
+            unknownMediaNames.push_back(mediumName);
         }
     }
 
-    if (unknownNames.empty()) {
-        if (SsdPriorityPreemptionMedia_ != media) {
+    if (unknownMediaNames.empty()) {
+        if (SsdPriorityPreemptionMedia_ != mediaIndexes) {
             YT_LOG_INFO("Updated SSD priority preemption media (OldSsdPriorityPreemptionMedia: %v, NewSsdPriorityPreemptionMedia: %v)",
                 SsdPriorityPreemptionMedia_,
-                media);
+                mediaIndexes);
 
-            SsdPriorityPreemptionMedia_.emplace(std::move(media));
+            SsdPriorityPreemptionMedia_.emplace(std::move(mediaIndexes));
 
             StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdateSsdPriorityPreemptionMedia, TError());
         }
     } else {
         auto error = TError("Config contains unknown SSD priority preemption media")
-            << TErrorAttribute("unknown_medium_names", std::move(unknownNames));
+            << TErrorAttribute("unknown_medium_names", std::move(unknownMediaNames));
         StrategyHost_->SetSchedulerAlert(ESchedulerAlertType::UpdateSsdPriorityPreemptionMedia, error);
     }
 }
@@ -4016,6 +4030,7 @@ void TFairShareTreeAllocationScheduler::ApplyOperationSchedulingSegmentsChanges(
         operationState->SchedulingSegmentModule = changedOperationState->SchedulingSegmentModule;
         operationState->FailingToScheduleAtModuleSince = changedOperationState->FailingToScheduleAtModuleSince;
         operationState->FailingToAssignToModuleSince = changedOperationState->FailingToAssignToModuleSince;
+        operationState->NetworkPriority = changedOperationState->NetworkPriority;
     }
 }
 

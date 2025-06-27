@@ -34,7 +34,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = BundleControllerLogger;
+constinit const auto Logger = BundleControllerLogger;
 static const TYPath TabletCellBundlesPath("//sys/tablet_cell_bundles");
 static const TYPath ChaosCellBundlesPath("//sys/chaos_cell_bundles");
 
@@ -154,16 +154,16 @@ public:
         YT_VERIFY(!PeriodicExecutor_);
         PeriodicExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
-            BIND(&TBundleController::ScanBundles, MakeWeak(this), /*dryRun*/ false),
+            BIND(&TBundleController::ScanBundles, MakeWeak(this), /*dryRun*/ false, /*ignoreGlobalDisabledSwitch*/ false),
             Config_->BundleScanPeriod);
         PeriodicExecutor_->Start();
     }
 
-    void ExecuteDryRunIteration() override
+    void ExecuteIteration(bool dryRun) override
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        ScanBundles(/*dryRun*/ true);
+        ScanBundles(dryRun, /*ignoreGlobalDisabledSwitch*/ true);
     }
 
 private:
@@ -211,33 +211,35 @@ private:
     THashMap<std::string, TBundleAlertCounters> BundleAlerts_;
     ICellDowntimeTrackerPtr CellDowntimeTracker_;
 
+    // Bundles on which last iteration has failed and which should be skipped
+    // on the next iteration.
     THashSet<std::string> BundleJail_;
 
-    void ScanBundles(bool dryRun)
+    void ScanBundles(bool dryRun, bool ignoreGlobalDisabledSwitch)
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        if (!dryRun && !IsLeader()) {
+        if (!dryRun && !IsLeader() && !ignoreGlobalDisabledSwitch) {
             ClearState();
 
-            YT_LOG_DEBUG("Bundle Controller is not leading");
+            YT_LOG_DEBUG("Bundle controller is not leading");
             return;
         }
 
-        ScanTabletCellBundles(dryRun);
-        ScanChaosCellBundles(dryRun);
+        ScanTabletCellBundles(dryRun, ignoreGlobalDisabledSwitch);
+        ScanChaosCellBundles(dryRun, ignoreGlobalDisabledSwitch);
     }
 
-    void ScanTabletCellBundles(bool dryRun)
+    void ScanTabletCellBundles(bool dryRun, bool ignoreGlobalDisabledSwitch)
     {
         try {
             YT_PROFILE_TIMING("/bundle_controller/scan_bundles") {
-                if (!dryRun) {
+                if (!dryRun && !ignoreGlobalDisabledSwitch) {
                     LinkOrchidService();
                     LinkBundleControllerService();
                 }
 
-                DoScanTabletBundles(dryRun);
+                DoScanTabletBundles(dryRun, ignoreGlobalDisabledSwitch);
                 SuccessfulScanBundleCounter_.Increment();
                 OrchidScanBundleCounter_->Successful += 1;
             }
@@ -250,9 +252,9 @@ private:
 
             for (const auto& bundle : BundleJail_) {
                 RegisterAlert({
-                    .Id = "bundle_moved_to_jail",
+                    .Id = "bundle_iteration_failed",
                     .BundleName = bundle,
-                    .Description = "Bundle moved to jail",
+                    .Description = "Last bundle iteration failed",
                 });
             }
 
@@ -261,10 +263,15 @@ private:
         }
     }
 
-    void ScanChaosCellBundles(bool dryRun)
+    void ScanChaosCellBundles(bool dryRun, bool ignoreGlobalDisabledSwitch)
     {
         if (dryRun) {
             YT_LOG_DEBUG("Dry run for chaos bundles is not supported");
+            return;
+        }
+
+        if (ignoreGlobalDisabledSwitch) {
+            YT_LOG_DEBUG("Force enabling bundle controller is not supported for chaos bundles");
             return;
         }
 
@@ -390,7 +397,7 @@ private:
         return result;
     }
 
-    void DoScanTabletBundles(bool dryRun)
+    void DoScanTabletBundles(bool dryRun, bool ignoreGlobalDisabledSwitch)
     {
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -408,7 +415,7 @@ private:
             return;
         }
 
-        if (!inputState.SysConfig || !inputState.SysConfig->DisableBundleController) {
+        if (!inputState.SysConfig || !inputState.SysConfig->DisableBundleController || ignoreGlobalDisabledSwitch) {
             Mutate(transaction, mutations);
         } else {
             YT_LOG_WARNING("Bundle controller is disabled");
@@ -1092,7 +1099,7 @@ private:
         sensors->ExternallyDecommissionedNodeCount = zoneProfiler.Gauge("/externally_decommissioned_node_count");
         sensors->FreeSpareProxyCount = zoneProfiler.Gauge("/free_spare_proxy_count");
         sensors->ScheduledForMaintenanceSpareProxyCount = zoneProfiler.Gauge("/scheduled_for_maintenance_spare_proxy_count");
-        sensors->RequiredSpareNodeCount = zoneProfiler.Gauge("/required_spare_nodes_count");
+        sensors->RequiredSpareNodeCount = zoneProfiler.Gauge("/required_spare_node_count");
 
         ZoneSensors_[zoneName] = sensors;
         return sensors;
@@ -1102,7 +1109,7 @@ private:
     {
         TTransactionStartOptions transactionOptions;
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", "Bundle Controller bundles scan");
+        attributes->Set("title", "Bundle controller bundles scan");
         transactionOptions.Attributes = std::move(attributes);
         transactionOptions.Timeout = Config_->BundleScanTransactionTimeout;
 
@@ -1164,7 +1171,7 @@ private:
 
         inputState.SysConfig = GetSystemConfig(transaction);
 
-        YT_LOG_DEBUG("Bundle Controller input state loaded "
+        YT_LOG_DEBUG("Bundle controller input state loaded "
             "(ZoneCount: %v, BundleCount: %v, BundleStateCount: %v, TabletNodeCount: %v, TabletCellCount: %v, "
             "NodeAllocationRequestCount: %v, NodeDeallocationRequestCount: %v, RpcProxyCount: %v, SystemAccounts: %v)",
             inputState.Zones.size(),

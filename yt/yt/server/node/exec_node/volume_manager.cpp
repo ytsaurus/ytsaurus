@@ -2,6 +2,7 @@
 
 #include "bootstrap.h"
 #include "chunk_cache.h"
+#include "job_controller.h"
 #include "helpers.h"
 #include "private.h"
 
@@ -20,6 +21,7 @@
 #include <yt/yt/server/lib/nbd/file_system_block_device.h>
 #include <yt/yt/server/lib/nbd/image_reader.h>
 #include <yt/yt/server/lib/nbd/chunk_block_device.h>
+#include <yt/yt/server/lib/nbd/chunk_handler.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
@@ -35,6 +37,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/data_node_nbd_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 
@@ -57,6 +61,8 @@
 #include <yt/yt/client/formats/public.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/client/scheduler/public.h>
 
 #include <yt/yt/core/bus/tcp/client.h>
 
@@ -95,6 +101,7 @@ using namespace NDataNode;
 using namespace NLogging;
 using namespace NObjectClient;
 using namespace NProfiling;
+using namespace NScheduler;
 using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
@@ -106,7 +113,7 @@ using NControllerAgent::ELayerFilesystem;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 static const TString MountSuffix = "mount";
@@ -350,13 +357,26 @@ struct TCreateNbdVolumeOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPrepareNbdVolumeOptions
+{
+    TJobId JobId;
+
+    TArtifactKey ArtifactKey;
+    IImageReaderPtr ImageReader;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPrepareNbdRootVolumeOptions
 {
+    TJobId JobId;
+
     i64 Size;
     int MediumIndex;
     EFilesystemType Filesystem;
     TString ExportId;
-    std::string DataNodeAddress;
+    IChannelPtr DataNodeChannel;
+    TSessionId SessionId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -486,8 +506,8 @@ public:
 
             DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE([
                 healthChecker = HealthChecker_, healthCheckerConfig] (const NClusterNode::TClusterNodeDynamicConfigPtr& /*oldConfig*/,
-                    const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) {
-                    healthChecker->OnConfigChanged(healthCheckerConfig->ApplyDynamic(*newConfig->ExecNode->VolumeManager->DiskHealthChecker));
+                        const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) {
+                        healthChecker->Reconfigure(healthCheckerConfig->ApplyDynamic(*newConfig->ExecNode->VolumeManager->DiskHealthChecker));
                 }));
         }
     }
@@ -647,6 +667,8 @@ public:
         UsedSpace_ = 0;
         Volumes_.clear();
         Layers_.clear();
+
+        VolumesReleaseEvent_.TrySet();
 
         PerformanceCounters_ = {};
     }
@@ -995,6 +1017,7 @@ private:
             CreateAlways | WrOnly | Seq | CloseOnExec);
         metaFile.Write(&header, sizeof(header));
         metaFile.Write(metaBlob.Begin(), metaBlob.Size());
+        metaFile.FlushData();
         metaFile.Close();
 
         NFS::Rename(temporaryLayerMetaFileName, layerMetaFileName);
@@ -1386,7 +1409,7 @@ private:
                         << TErrorAttribute("first_root_volume", placePath)
                         << TErrorAttribute("second_root_volume", overlayData.GetPath());
                 }
-                placePath = overlayData.GetPath();
+                placePath = "//" + overlayData.GetPath();
             }
         }
 
@@ -1528,7 +1551,7 @@ private:
                 YT_VERIFY(Volumes_.erase(volumeId));
 
                 if (Volumes_.empty()) {
-                    VolumesReleaseEvent_.Set();
+                    VolumesReleaseEvent_.TrySet();
                 }
             }
         } catch (const std::exception& ex) {
@@ -1623,14 +1646,18 @@ public:
 
     ~TLayer()
     {
-        YT_LOG_INFO("Layer is destroyed (LayerId: %v, LayerPath: %v)",
+        auto removalNeeded = IsLayerRemovalNeeded_;
+        YT_LOG_INFO("Layer is destroyed (LayerId: %v, LayerPath: %v, RemovalNeeded: %v)",
             LayerMeta_.Id,
-            LayerMeta_.Path);
+            LayerMeta_.Path,
+            removalNeeded);
 
-        Location_->RemoveLayer(LayerMeta_.Id)
-            .Subscribe(BIND([layerId = LayerMeta_.Id] (const TError& result) {
-                YT_LOG_ERROR_IF(!result.IsOK(), result, "Failed to remove layer (LayerId: %v)", layerId);
-            }));
+        if (removalNeeded) {
+            Location_->RemoveLayer(LayerMeta_.Id)
+                .Subscribe(BIND([layerId = LayerMeta_.Id] (const TError& result) {
+                    YT_LOG_ERROR_IF(!result.IsOK(), result, "Failed to remove layer (LayerId: %v)", layerId);
+                }));
+        }
     }
 
     const TString& GetCypressPath() const
@@ -1663,10 +1690,23 @@ public:
         return HitCount_.load();
     }
 
+    void SetLayerRemovalNotNeeded()
+    {
+        IsLayerRemovalNeeded_ = false;
+    }
+
 private:
     const TLayerMeta LayerMeta_;
     const TLayerLocationPtr Location_;
     std::atomic<int> HitCount_;
+
+    // If the slot manager is disabled, the layers that are currently in the layer cache
+    // do not need to be removed from the porto. If you delete them, firstly, in this
+    // case they will need to be re-imported into the porto, and secondly, then there
+    // may be a problem when inserting the same layers when starting a new volume manager.
+    // Namely, a layer object that is already in the new cache may be deleted from the old cache,
+    // in which case the layer object in the new cache will be corrupted.
+    bool IsLayerRemovalNeeded_ = true;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLayer)
@@ -2212,7 +2252,7 @@ public:
                 if (cookie.IsActive()) {
                     cookie.EndInsert(layer);
                 } else {
-                    YT_LOG_DEBUG("Failed to insert cached porto layer (LayerId: %v, ArtifactPath: %v)",
+                    YT_LOG_DEBUG("Failed to insert cached Porto layer (LayerId: %v, ArtifactPath: %v)",
                         layerMeta.Id,
                         layerMeta.artifact_key().data_source().path());
                 }
@@ -2876,26 +2916,27 @@ public:
 
     TFuture<IVolumePtr> PrepareVolume(
         const std::vector<TArtifactKey>& artifactKeys,
-        const TArtifactDownloadOptions& downloadOptions,
-        const TUserSandboxOptions& options) override
+        const TVolumePreparationOptions& options) override
     {
         YT_VERIFY(!artifactKeys.empty());
 
         auto tag = TGuid::Create();
 
+        const auto& userSandboxOptions = options.UserSandboxOptions;
+
         YT_LOG_DEBUG("Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v, HasSandboxRootVolumeData: %v)",
             tag,
             artifactKeys.size(),
-            options.VirtualSandboxData.has_value(),
-            options.SandboxNbdRootVolumeData.has_value());
+            userSandboxOptions.VirtualSandboxData.has_value(),
+            userSandboxOptions.SandboxNbdRootVolumeData.has_value());
 
         if (DynamicConfigManager_->GetConfig()->ExecNode->VolumeManager->ThrowOnPrepareVolume) {
             auto error = TError(NExecNode::EErrorCode::RootVolumePreparationFailed, "Throw on prepare volume");
             YT_LOG_DEBUG(error, "Prepare volume (Tag: %v, ArtifactCount: %v, HasVirtualSandbox: %v, HasSandboxRootVolumeData: %v)",
                 tag,
                 artifactKeys.size(),
-                options.VirtualSandboxData.has_value(),
-                options.SandboxNbdRootVolumeData.has_value());
+                userSandboxOptions.VirtualSandboxData.has_value(),
+                userSandboxOptions.SandboxNbdRootVolumeData.has_value());
             THROW_ERROR(error);
         }
 
@@ -2908,27 +2949,30 @@ public:
                     artifactKey);
                 overlayDataFutures.push_back(PrepareNbdVolume(
                     tag,
-                    artifactKey,
-                    std::move(reader)));
+                    TPrepareNbdVolumeOptions{
+                        options.JobId,
+                        artifactKey,
+                        std::move(reader),
+                    }));
             } else if (FromProto<ELayerFilesystem>(artifactKey.filesystem()) == ELayerFilesystem::SquashFS) {
                 overlayDataFutures.push_back(PrepareSquashFSVolume(
                     tag,
                     artifactKey,
-                    downloadOptions));
+                    options.ArtifactDownloadOptions));
             } else {
                 overlayDataFutures.push_back(PrepareLayer(
                     tag,
                     artifactKey,
-                    downloadOptions));
+                    options.ArtifactDownloadOptions));
             }
         }
 
-        if (options.VirtualSandboxData) {
+        if (userSandboxOptions.VirtualSandboxData) {
             TArtifactKey virtualArtifactKey;
 
             virtualArtifactKey.set_access_method(ToProto(NControllerAgent::ELayerAccessMethod::Nbd));
             virtualArtifactKey.set_filesystem(ToProto(NControllerAgent::ELayerFilesystem::SquashFS));
-            virtualArtifactKey.set_nbd_export_id(options.VirtualSandboxData->NbdExportId);
+            virtualArtifactKey.set_nbd_export_id(userSandboxOptions.VirtualSandboxData->NbdExportId);
 
             NChunkClient::NProto::TDataSource* dataSource = virtualArtifactKey.mutable_data_source();
             dataSource->set_type(ToProto(NChunkClient::EDataSourceType::File));
@@ -2936,31 +2980,55 @@ public:
 
             overlayDataFutures.push_back(PrepareNbdVolume(
                 tag,
-                virtualArtifactKey,
-                options.VirtualSandboxData->Reader));
+                TPrepareNbdVolumeOptions{
+                    options.JobId,
+                    virtualArtifactKey,
+                    userSandboxOptions.VirtualSandboxData->Reader,
+                }));
         }
 
-        if (options.SandboxNbdRootVolumeData) {
-            std::string nbdDiskDataNodeAddress;
-            if (options.SandboxNbdRootVolumeData->NbdDiskDataNodeAddress) {
-                nbdDiskDataNodeAddress = *options.SandboxNbdRootVolumeData->NbdDiskDataNodeAddress;
-            } else {
-                // TODO: Get data node address from master.
-            }
+        if (userSandboxOptions.SandboxNbdRootVolumeData) {
+            auto future = PrepareNbdSession(*userSandboxOptions.SandboxNbdRootVolumeData).Apply(BIND(
+                [
+                    this,
+                    this_ = MakeStrong(this),
+                    tag = tag,
+                    jobId = options.JobId,
+                    data = *userSandboxOptions.SandboxNbdRootVolumeData
+                ] (const TErrorOr<std::optional<std::tuple<IChannelPtr, TSessionId>>>& rspOrError) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
 
-            if (nbdDiskDataNodeAddress.empty()) {
-                THROW_ERROR_EXCEPTION("NBD disk data node address is not specified");
-            }
+                    const auto& response = rspOrError.Value();
+                    if (!response) {
+                        THROW_ERROR_EXCEPTION("Could not find suitable data node to host NBD disk")
+                            << TErrorAttribute("medium_index", data.MediumIndex)
+                            << TErrorAttribute("size", data.Size)
+                            << TErrorAttribute("fs_type", data.FsType);
+                    }
 
-            overlayDataFutures.push_back(PrepareNbdRootVolume(
-                tag,
-                {
-                    .Size = options.SandboxNbdRootVolumeData->NbdDiskSize,
-                    .MediumIndex = options.SandboxNbdRootVolumeData->NbdDiskMediumIndex,
-                    .Filesystem = options.SandboxNbdRootVolumeData->NbdDiskFsType,
-                    .ExportId = options.SandboxNbdRootVolumeData->NbdExportId,
-                    .DataNodeAddress = nbdDiskDataNodeAddress,
-                }));
+                    const auto& [channel, sessionId] = *response;
+
+                    YT_LOG_DEBUG("Prepared NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, ExportId: %v)",
+                        sessionId,
+                        data.MediumIndex,
+                        data.Size,
+                        data.FsType,
+                        data.ExportId);
+
+                    return PrepareNbdRootVolume(
+                        tag,
+                        TPrepareNbdRootVolumeOptions{
+                            .JobId = jobId,
+                            .Size = data.Size,
+                            .MediumIndex = data.MediumIndex,
+                            .Filesystem = data.FsType,
+                            .ExportId = data.ExportId,
+                            .DataNodeChannel = channel,
+                            .SessionId = sessionId,
+                        });
+            }));
+
+            overlayDataFutures.push_back(std::move(future));
         }
 
         // ToDo(psushin): choose proper invoker.
@@ -2974,7 +3042,7 @@ public:
                     tag,
                     std::move(tagSet),
                     std::move(volumeCreateTimeGuard),
-                    options,
+                    userSandboxOptions,
                     overlayDataArray);
             }).AsyncVia(GetCurrentInvoker()))
             .ToImmediatelyCancelable()
@@ -2993,6 +3061,13 @@ public:
         }
     }
 
+    void MarkLayersAsNotRemovable() const override
+    {
+        for (const auto& layer : LayerCache_->GetAll()) {
+            layer->SetLayerRemovalNotNeeded();
+        }
+    }
+
 private:
     IBootstrap* const Bootstrap_;
     const TDataNodeConfigPtr Config_;
@@ -3008,14 +3083,34 @@ private:
         LayerCache_->BuildOrchid(fluent);
     }
 
+    TClosure MakeJobInterrupter(TJobId jobId)
+    {
+        return BIND_NO_PROPAGATE([
+                this,
+                this_ = MakeStrong(this),
+                jobId,
+                jobInterrupted = std::make_unique<std::atomic<bool>>(false)
+            ] () mutable {
+                // Interrupt job only once.
+                if (!jobInterrupted->exchange(true)) {
+                    Bootstrap_->GetJobController()->InterruptJob(
+                        jobId,
+                        EInterruptionReason::NbdDeviceStopping,
+                        TDuration::Zero());
+                }
+            });
+    }
+
     //! Create NBD exports (devices) prior to creating NBD volumes.
     TFuture<void> PrepareNbdExport(
         TGuid tag,
-        NProfiling::TTagSet tagSet,
-        const TArtifactKey& layer,
-        IImageReaderPtr reader)
+        TTagSet tagSet,
+        const TPrepareNbdVolumeOptions& options)
     {
         auto future = VoidFuture;
+
+        const auto& layer = options.ArtifactKey;
+
         try {
             THROW_ERROR_EXCEPTION_IF(!layer.has_filesystem(),
                 "NBD layer %v does not have filesystem",
@@ -3046,9 +3141,13 @@ private:
             auto device = CreateFileSystemBlockDevice(
                 layer.nbd_export_id(),
                 std::move(config),
-                std::move(reader),
+                options.ImageReader,
                 nbdServer->GetInvoker(),
                 nbdServer->GetLogger());
+
+            if (options.JobId) {
+                device->SubscribeShouldStopUsingDevice(MakeJobInterrupter(options.JobId));
+            }
 
             auto initializeFuture = device->Initialize();
             nbdServer->RegisterDevice(layer.nbd_export_id(), std::move(device));
@@ -3074,8 +3173,7 @@ private:
     TFuture<void> PrepareNbdRootExport(
         TGuid tag,
         TTagSet tagSet,
-        TPrepareNbdRootVolumeOptions options,
-        IChannelPtr dataNodeChannel)
+        const TPrepareNbdRootVolumeOptions& options)
     {
         auto future = VoidFuture;
         try {
@@ -3103,8 +3201,13 @@ private:
                 Bootstrap_->GetDefaultInThrottler(),
                 Bootstrap_->GetDefaultOutThrottler(),
                 nbdServer->GetInvoker(),
-                std::move(dataNodeChannel),
+                options.DataNodeChannel,
+                options.SessionId,
                 nbdServer->GetLogger());
+
+            if (options.JobId) {
+                device->SubscribeShouldStopUsingDevice(MakeJobInterrupter(options.JobId));
+            }
 
             auto initializeFuture = device->Initialize();
             nbdServer->RegisterDevice(options.ExportId, std::move(device));
@@ -3182,10 +3285,10 @@ private:
     //! Create NBD volume.
     TFuture<TOverlayData> PrepareNbdVolume(
         TGuid tag,
-        const TArtifactKey& artifactKey,
-        IImageReaderPtr reader)
+        const TPrepareNbdVolumeOptions& options)
     {
-        YT_VERIFY(reader);
+        YT_VERIFY(options.ImageReader);
+        const auto& artifactKey = options.ArtifactKey;
 
         YT_LOG_DEBUG("Prepare NBD volume (Tag: %v, ExportId: %v, Path: %v)",
             tag,
@@ -3200,7 +3303,7 @@ private:
         TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
-        return PrepareNbdExport(tag, tagSet, artifactKey, reader)
+        return PrepareNbdExport(tag, tagSet, options)
             .Apply(BIND(
                 &TPortoVolumeManager::CreateNbdVolume,
                 MakeStrong(this),
@@ -3245,24 +3348,20 @@ private:
     //! Create NBD root export (device) prior to creating NBD root volume.
     TFuture<TOverlayData> PrepareNbdRootVolume(
         TGuid tag,
-        TPrepareNbdRootVolumeOptions options)
+        const TPrepareNbdRootVolumeOptions& options)
     {
-        YT_LOG_DEBUG("Prepare NBD root volume (Tag: %v, ExportId: %v, VolumeSize: %v, VolumeMediumIndex: %v, VolumeFilesystem: %v, DataNodeAddress: %v)",
+        YT_LOG_DEBUG("Prepare NBD root volume (Tag: %v, ExportId: %v, VolumeSize: %v, VolumeMediumIndex: %v, VolumeFilesystem: %v)",
             tag,
             options.ExportId,
             options.Size,
             options.MediumIndex,
-            options.Filesystem,
-            options.DataNodeAddress);
-
-        // Create channel to data node.
-        auto dataNodeChannel = Bootstrap_->GetConnection()->GetChannelFactory()->CreateChannel(options.DataNodeAddress);
+            options.Filesystem);
 
         auto tagSet = NProfiling::TTagSet({{"type", "nbd"}});
         TVolumeProfilerCounters::Get()->GetCounter(tagSet, "/created").Increment(1);
         TEventTimerGuard volumeCreateTimeGuard(TVolumeProfilerCounters::Get()->GetTimer(tagSet, "/create_time"));
 
-        return PrepareNbdRootExport(tag, tagSet, options, std::move(dataNodeChannel))
+        return PrepareNbdRootExport(tag, tagSet, options)
             .Apply(BIND(
                 &TPortoVolumeManager::CreateNbdVolume,
                 MakeStrong(this),
@@ -3534,6 +3633,150 @@ private:
         if (LayerCache_) {
             LayerCache_->PopulateAlerts(alerts);
         }
+    }
+
+    TFuture<std::vector<std::string>> FindDataNodesWithMedium(const TSessionId& sessionId, const TSandboxNbdRootVolumeData& data)
+    {
+        if (data.DataNodeAddress) {
+            return MakeFuture<std::vector<std::string>>({*data.DataNodeAddress});
+        }
+
+        // Create AllocateWriteTargets request.
+        auto cellTag = Bootstrap_->GetConnection()->GetRandomMasterCellTagWithRoleOrThrow(NCellMasterClient::EMasterCellRole::ChunkHost);
+        auto channel = Bootstrap_->GetMasterChannel(std::move(cellTag));
+        TChunkServiceProxy proxy(channel);
+        auto req = proxy.AllocateWriteTargets();
+        req->SetTimeout(data.MasterRpcTimeout);
+        auto* subrequest = req->add_subrequests();
+        ToProto(subrequest->mutable_session_id(), sessionId);
+        subrequest->set_min_target_count(data.MinDataNodeCount);
+        subrequest->set_desired_target_count(data.MaxDataNodeCount);
+        subrequest->set_is_nbd_chunk(true);
+
+        // Invoke AllocateWriteTargets request and process response.
+        return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this), mediumIndex = data.MediumIndex] (const TErrorOr<TChunkServiceProxy::TRspAllocateWriteTargetsPtr>& rspOrError) {
+            if (!rspOrError.IsOK()) {
+                THROW_ERROR_EXCEPTION("Failed to find suitable data nodes")
+                    << TErrorAttribute("medium_index", mediumIndex)
+                    << TErrorAttribute("error", rspOrError);
+            }
+
+            const auto& rsp = rspOrError.Value();
+            const auto& subresponse = rsp->subresponses(0);
+            if (subresponse.has_error()) {
+                THROW_ERROR_EXCEPTION("Failed to find suitable data nodes")
+                    << TErrorAttribute("medium_index", mediumIndex)
+                    << TErrorAttribute("error", FromProto<TError>(subresponse.error()));
+            }
+
+            // TODO(yuryalekseev): nodeDirectory->MergeFrom(response->node_directory()); ?
+
+            auto replicas = FromProto<TChunkReplicaWithMediumList>(subresponse.replicas());
+            std::vector<std::string> result;
+            result.reserve(replicas.size());
+            for (auto replica : replicas) {
+                auto desc = Bootstrap_->GetConnection()->GetNodeDirectory()->FindDescriptor(replica.GetNodeId());
+                if (!desc) {
+                    continue;
+                }
+
+                result.push_back(desc->GetDefaultAddress());
+            }
+
+            return result;
+        }));
+    }
+
+    //! Open NBD session on data node that can host NBD disk.
+    std::optional<std::tuple<IChannelPtr, TSessionId>> TryOpenNbdSession(
+        TSessionId sessionId,
+        std::vector<std::string> addresses,
+        TSandboxNbdRootVolumeData data)
+    {
+        YT_LOG_DEBUG("Trying to open NBD session on any suitable data node (SessionId: %v, DataNodeAddresses: %v, MediumIndex: %v, Size: %v, FsType: %v, DataNodeRpcTimeout: %v)",
+            sessionId,
+            addresses,
+            data.MediumIndex,
+            data.Size,
+            data.FsType,
+            data.DataNodeRpcTimeout);
+
+        for (const auto& address : addresses) {
+            auto channel = Bootstrap_->GetConnection()->GetChannelFactory()->CreateChannel(address);
+            if (!channel) {
+                YT_LOG_DEBUG("Failed to create channel to data node (Address: %v)",
+                    address);
+                continue;
+            }
+
+            TDataNodeNbdServiceProxy proxy(channel);
+            auto req = proxy.OpenSession();
+            req->SetTimeout(data.DataNodeRpcTimeout);
+            ToProto(req->mutable_session_id(), sessionId);
+            req->set_size(data.Size);
+            req->set_fs_type(ToProto(data.FsType));
+
+            auto rspOrError = WaitFor(req->Invoke());
+
+            if (!rspOrError.IsOK()) {
+                YT_LOG_INFO(rspOrError, "Failed to open NBD session, skip data node (Address: %v)",
+                    address);
+                continue;
+            }
+
+            YT_LOG_INFO("Opened NBD session (SessionId: %v, DataNodeAddress: %v, MediumIndex: %v, Size: %v, FsType: %v)",
+                sessionId,
+                address,
+                data.MediumIndex,
+                data.Size,
+                data.FsType);
+
+            return std::make_tuple(std::move(channel), sessionId);
+        }
+
+        return std::nullopt;
+    }
+
+    //! Find data node suitable to host NBD disk and open NBD session.
+    TFuture<std::optional<std::tuple<IChannelPtr, TSessionId>>> PrepareNbdSession(
+        const TSandboxNbdRootVolumeData& data)
+    {
+        auto sessionId = GenerateSessionId(data.MediumIndex);
+
+        YT_LOG_DEBUG("Prepare NBD session (SessionId: %v, MediumIndex: %v, Size: %v, FsType: %v, ExportId: %v)",
+            sessionId,
+            data.MediumIndex,
+            data.Size,
+            data.FsType,
+            data.ExportId);
+
+        return FindDataNodesWithMedium(sessionId, data).Apply(BIND(
+            [
+                this,
+                this_ = MakeStrong(this),
+                sessionId = sessionId,
+                data = data
+            ] (const TErrorOr<std::vector<std::string>>& rspOrError) mutable {
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
+
+                auto dataNodeAddresses = rspOrError.Value();
+                if (dataNodeAddresses.empty()) {
+                    THROW_ERROR_EXCEPTION("No data node address suitable for NBD disk has been found")
+                        << TErrorAttribute("medium_index", data.MediumIndex)
+                        << TErrorAttribute("size", data.Size)
+                        << TErrorAttribute("fs_type", data.FsType);
+                }
+
+                return BIND(
+                    &TPortoVolumeManager::TryOpenNbdSession,
+                        MakeStrong(this),
+                        sessionId,
+                        Passed(std::move(dataNodeAddresses)),
+                        Passed(std::move(data)))
+                    // TODO(yuryalekseev): use more appropriate invoker.
+                    .AsyncVia(ControlInvoker_)
+                    .Run();
+        }));
     }
 };
 

@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/scheduler/pool_ypath_proxy.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
@@ -33,7 +35,7 @@ void TClient::DoTransferPoolResources(
     auto req = TSchedulerPoolYPathProxy::TransferPoolResources(GetPoolTreePath(poolTree));
     req->set_src_pool(srcPool);
     req->set_dst_pool(dstPool);
-    req->set_resource_delta(ConvertToYsonString(resourceDelta).ToString());
+    req->set_resource_delta(ToProto(ConvertToYsonString(resourceDelta)));
     SetMutationId(req, options);
 
     batchReq->AddRequest(req);

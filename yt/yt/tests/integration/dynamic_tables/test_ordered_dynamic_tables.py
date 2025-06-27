@@ -708,7 +708,15 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert list(read_table(path)) == [{"a": 0}, {"a": 1}]
 
         trim_rows("//tmp/t", 0, 1)
-        wait(lambda: list(read_table(path)) == [{"a": 1}, {"a": 2}])
+
+        # read_table may fail because the chunk to be read is removed.
+        # We avoid taking snapshot lock here not to modify chunk list structure.
+        def _read_with_retries():
+            try:
+                return list(read_table(path))
+            except YtError:
+                return None
+        wait(lambda: _read_with_retries() == [{"a": 1}, {"a": 2}])
 
         tx = start_transaction(timeout=60000)
         lock("//tmp/t", mode="snapshot", tx=tx)

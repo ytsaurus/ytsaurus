@@ -37,6 +37,7 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     IChunkReaderPtr underlyingReader,
     TRange<ESortOrder> sortOrders,
     int commonKeyPrefix,
+    bool unpackAny,
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
     std::function<void(int)> onRowsSkipped,
@@ -48,6 +49,7 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     , ChunkReadOptions_(chunkReadOptions)
     , SortOrders_(sortOrders.begin(), sortOrders.end())
     , CommonKeyPrefix_(commonKeyPrefix)
+    , UnpackAny_(unpackAny)
     , Sampler_(Config_->SamplingRate, std::random_device()())
     , OnRowsSkipped_(onRowsSkipped)
     , TraceContext_(CreateTraceContextFromCurrent("ChunkReader"))
@@ -103,7 +105,7 @@ bool TColumnarChunkReaderBase::IsFetchingCompleted() const
 
 std::vector<TChunkId> TColumnarChunkReaderBase::GetFailedChunkIds() const
 {
-    if (ReadyEvent().IsSet() && !ReadyEvent().Get().IsOK()) {
+    if (auto readyEvent = ReadyEvent(); readyEvent.IsSet() && !readyEvent.Get().IsOK()) {
         return { UnderlyingReader_->GetChunkId() };
     } else {
         return std::vector<TChunkId>();

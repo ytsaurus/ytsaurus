@@ -16,6 +16,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -33,14 +35,14 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto FakeTransactionId = MakeWellKnownId(EObjectType::Transaction, TCellTag(1));
-static const TString FakeAccount = "fake-account";
+static const std::string FakeAccount = "fake-account";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ICellarOccupantPtr CreateFakeOccupant(
     IBootstrapBase* bootstrap,
     TCellId cellId,
-    TString tabletCellBundle,
+    std::string tabletCellBundle,
     NApi::TClusterTag clockClusterTag)
 {
     const auto& cellarManager = bootstrap
@@ -59,7 +61,7 @@ ICellarOccupantPtr CreateFakeOccupant(
         TCreateCellSlotInfo protoInfo;
         ToProto(protoInfo.mutable_cell_id(), cellId);
         protoInfo.set_peer_id(0);
-        protoInfo.set_options(ConvertToYsonString(*options).ToString());
+        protoInfo.set_options(ToProto(ConvertToYsonString(*options)));
         protoInfo.set_cell_bundle(tabletCellBundle);
 
         cellar->CreateOccupant(protoInfo);

@@ -1,11 +1,14 @@
 #include "path_resolver.h"
 
 #include "helpers.h"
+#include "private.h"
 #include "sequoia_session.h"
 
 #include <yt/yt/client/cypress_client/public.h>
 
 #include <yt/yt/client/object_client/helpers.h>
+
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
 #include <library/cpp/yt/misc/variant.h>
 
@@ -18,12 +21,13 @@ using namespace NSequoiaClient;
 using namespace NYPath;
 using namespace NYTree;
 
-using TYPath = NSequoiaClient::TYPath;
-using TYPathBuf = NSequoiaClient::TYPathBuf;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +46,7 @@ constexpr int TypicalTokenCount = 16;
 class TPathPrefixes
 {
 public:
-    using TPrefixes = TCompactVector<TAbsoluteYPathBuf, TypicalTokenCount>;
+    using TPrefixes = TCompactVector<TAbsolutePathBuf, TypicalTokenCount>;
     DEFINE_BYREF_RO_PROPERTY(TPrefixes, Prefixes);
 
     // NB: Suffix may contain leading ampersand.
@@ -50,48 +54,68 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TSuffixes, Suffixes);
 
 public:
-    void PushBack(TAbsoluteYPathBuf prefix, TYPathBuf suffix)
+    //! This function is used to obtain path prefixes to fetch them from
+    //! the Sequoia table.
+    static TPathPrefixes CollectPrefixes(const TYPath& path)
     {
-        Prefixes_.push_back(prefix);
-        Suffixes_.push_back(suffix);
-    }
-};
+        TPathPrefixes prefixes;
 
-//! This function is used to obtain path prefixes to fetch them from Sequoia
-//! table.
-TPathPrefixes CollectPathPrefixes(const TAbsoluteYPath& path)
-{
-    TPathPrefixes prefixes;
+        TCompactVector<size_t, TypicalTokenCount> prefixLengths;
 
-    TTokenizer tokenizer(path.Underlying());
-    // Skipping root designator.
-    tokenizer.Advance();
-    YT_VERIFY(tokenizer.Skip(ETokenType::Slash));
+        TStringBuilder builder;
+        builder.Reserve(path.size());
 
-    // Root designator is a prefix too.
-    prefixes.PushBack(TAbsoluteYPathBuf(tokenizer.GetPrefix()), TYPathBuf(tokenizer.GetInput()));
-    YT_VERIFY(prefixes.Prefixes()[0].Underlying() == "/");
-
-    while (tokenizer.Skip(ETokenType::Slash)) {
-        if (tokenizer.GetType() != ETokenType::Literal) {
-            break;
-        }
-
+        TTokenizer tokenizer(path);
         tokenizer.Advance();
 
-        // NB: partially tokenized path: parsed_prefix + current_token + suffix
-        // tokenizer.GetPrefix(): parsed_prefix
-        // tokenizer.GetInput(): current_token + suffix
-        prefixes.PushBack(TAbsoluteYPathBuf(tokenizer.GetPrefix()), TYPathBuf(tokenizer.GetInput()));
+        auto recordPrefixAndSuffix = [&] {
+            // NB: partially tokenized path: parsed_prefix + current_token + suffix
+            // tokenizer.GetSuffix(): suffix
+            prefixLengths.push_back(builder.GetLength());
+            prefixes.Suffixes_.push_back(tokenizer.GetSuffix());
+        };
 
-        // NB: We'll deal with it later. Of course, logically "&" should rather
-        // be a part of "resolved prefix" than "unresolved suffix", but here we
-        // are collecting path prefixes to resolve them via Sequoia tables.
-        tokenizer.Skip(ETokenType::Ampersand);
+        tokenizer.Expect(ETokenType::Slash);
+        builder.AppendChar(TAbsolutePath::Separator);
+        recordPrefixAndSuffix(); // Root designator is a prefix too.
+        tokenizer.Advance();
+
+        while (tokenizer.Skip(ETokenType::Slash)) {
+            if (tokenizer.GetType() != ETokenType::Literal) {
+                break;
+            }
+
+            builder.AppendChar(TAbsolutePath::Separator);
+            builder.AppendString(tokenizer.GetToken());
+            recordPrefixAndSuffix();
+            tokenizer.Advance();
+
+            // NB: We'll deal with it later. Of course, logically "&" should rather
+            // be a part of "resolved prefix" than "unresolved suffix", but here we
+            // are collecting path prefixes to resolve them via Sequoia tables.
+            tokenizer.Skip(ETokenType::Ampersand);
+        }
+
+        YT_VERIFY(prefixLengths.size() == prefixes.Suffixes_.size());
+
+        prefixes.PrefixHolder_ = TRealPath(builder.Flush());
+
+        for (auto prefixLength : prefixLengths) {
+            prefixes.Prefixes_.push_back(
+                TAbsolutePathBuf::UnsafeMakeCanonicalPath(
+                    TYPathBuf(prefixes.PrefixHolder_.Underlying().data(), prefixLength)
+                )
+            );
+        }
+
+        YT_VERIFY(prefixes.Prefixes_.size() == prefixes.Suffixes_.size());
+
+        return prefixes;
     }
 
-    return prefixes;
-}
+private:
+    TRealPath PrefixHolder_;
+};
 
 bool StartsWithAmpersand(TYPathBuf pathSuffix)
 {
@@ -99,14 +123,14 @@ bool StartsWithAmpersand(TYPathBuf pathSuffix)
     // be probably implemented more optimally via straightforward checking of
     // first byte. The reason to not do it is unnecessary abstraction layer...
     // TODO(kvk1920): think of it.
-    TTokenizer tokenizer(pathSuffix.Underlying());
+    TTokenizer tokenizer(pathSuffix);
     tokenizer.Advance();
     return tokenizer.GetType() == ETokenType::Ampersand;
 }
 
-bool ShouldFollowLink(TYPathBuf unresolvedSuffix, TStringBuf method)
+bool ShouldFollowLink(TYPathBuf unresolvedSuffix, bool pathIsAdditional, TStringBuf method)
 {
-    TTokenizer tokenizer(unresolvedSuffix.Underlying());
+    TTokenizer tokenizer(unresolvedSuffix);
     tokenizer.Advance();
 
     if (tokenizer.GetType() == ETokenType::Ampersand) {
@@ -123,12 +147,21 @@ bool ShouldFollowLink(TYPathBuf unresolvedSuffix, TStringBuf method)
     // actions leading to data loss. E.g., it's better to remove link instead
     // of table pointed by link.
 
+    YT_LOG_ALERT_IF(pathIsAdditional && method != "Copy",
+        "Attempting to resolve path as additional for an unexpected method (Method: %v)",
+        method);
+
+    if (method == "Copy" && pathIsAdditional) {
+        return true;
+    }
+
     static const TStringBuf MethodsWithoutRedirection[] = {
         "Remove",
         "Create",
         "Set",
         "Copy",
-        "LockCopySource",
+        "LockCopyDestination",
+        "AssembleTreeCopy",
     };
 
     return std::end(MethodsWithoutRedirection) == std::find(
@@ -141,7 +174,7 @@ bool ShouldFollowLink(TYPathBuf unresolvedSuffix, TStringBuf method)
 
 struct TForwardToMaster
 {
-    TAbsoluteYPath Path;
+    TYPath Path;
 };
 
 struct TResolveHere
@@ -152,7 +185,7 @@ struct TResolveHere
 struct TResolveThere
 {
     TSequoiaResolveIterationResult Result;
-    TAbsoluteYPath RewrittenTargetPath;
+    TYPath RewrittenTargetPath;
 };
 
 using TResolveIterationResult = std::variant<
@@ -162,10 +195,11 @@ using TResolveIterationResult = std::variant<
 
 TResolveIterationResult ResolveByPath(
     const TSequoiaSessionPtr& session,
-    TAbsoluteYPath path,
-    TStringBuf method)
+    TStringBuf method,
+    TYPath path,
+    bool pathIsAdditional)
 {
-    auto prefixesToResolve = CollectPathPrefixes(path);
+    auto prefixesToResolve = TPathPrefixes::CollectPrefixes(path);
     auto nodeIds = session->FindNodeIds(prefixesToResolve.Prefixes());
     YT_VERIFY(prefixesToResolve.Prefixes().size() == nodeIds.size());
 
@@ -181,7 +215,7 @@ TResolveIterationResult ResolveByPath(
     }
 
     TNodeId resolvedId = NullObjectId;
-    std::optional<TAbsoluteYPathBuf> resolvedPath;
+    std::optional<TAbsolutePathBuf> resolvedPath;
     TNodeId resolvedParentId = NullObjectId;
     std::optional<TYPathBuf> unresolvedSuffix;
 
@@ -197,7 +231,7 @@ TResolveIterationResult ResolveByPath(
 
         auto nodeType = TypeFromId(nodeId);
         if ((nodeType == EObjectType::Scion && StartsWithAmpersand(suffix)) ||
-            (nodeType == EObjectType::Link && !ShouldFollowLink(suffix, method)))
+            (nodeType == EObjectType::Link && !ShouldFollowLink(suffix, pathIsAdditional, method)))
         {
             return TForwardToMaster{std::move(path)};
         }
@@ -207,7 +241,7 @@ TResolveIterationResult ResolveByPath(
         resolvedPath = prefix;
         unresolvedSuffix = suffix;
 
-        if (IsLinkType(nodeType) && ShouldFollowLink(suffix, method)) {
+        if (IsLinkType(nodeType) && ShouldFollowLink(suffix, pathIsAdditional, method)) {
             // Failure here means that Sequoia resolve tables are inconsistent.
             auto targetPath = session->GetLinkTargetPath(nodeId);
             targetPath += *unresolvedSuffix;
@@ -225,21 +259,24 @@ TResolveIterationResult ResolveByPath(
     return TResolveHere{{
         .Id = resolvedId,
         .Path = *resolvedPath,
-        .UnresolvedSuffix = *unresolvedSuffix,
+        .UnresolvedSuffix = TYPath(*unresolvedSuffix),
         .ParentId = resolvedParentId,
     }};
 }
 
 TResolveIterationResult ResolveByObjectId(
     const TSequoiaSessionPtr& session,
-    TAbsoluteYPathBuf path,
     TStringBuf method,
+    TYPath path,
+    bool pathIsAdditional,
     TObjectId rootDesignator,
-    TYPathBuf pathSuffix)
+    ptrdiff_t suffixOffset)
 {
     if (!ShouldBeResolvedInSequoia(rootDesignator)) {
-        return TForwardToMaster{path};
+        return TForwardToMaster{std::move(path)};
     }
+
+    auto pathSuffix = TYPathBuf(path, suffixOffset);
 
     // If path starts with "#<object-id>" we try to find it in
     // "node_id_to_path" Sequoia table. After that we replace object ID with
@@ -249,7 +286,7 @@ TResolveIterationResult ResolveByObjectId(
         // |pathSuffix|) in the next step. But in case of ampersand absence we
         // can do path rewriting here. Note that we don't need to distinguish
         // regular and snapshot nodes here.
-        if (IsLinkType(TypeFromId(rootDesignator)) && ShouldFollowLink(pathSuffix, method)) {
+        if (IsLinkType(TypeFromId(rootDesignator)) && ShouldFollowLink(pathSuffix, pathIsAdditional, method)) {
             auto targetPath = session->GetLinkTargetPath(rootDesignator);
             targetPath += pathSuffix;
 
@@ -266,23 +303,23 @@ TResolveIterationResult ResolveByObjectId(
             return TResolveHere{{
                 .Id = rootDesignator,
                 .Path = std::move(resolvedNode->Path),
-                .UnresolvedSuffix = pathSuffix,
+                .UnresolvedSuffix = TYPath(pathSuffix),
                 // Snapshot locks of scions are forbidden so to use null parent
                 // ID is sufficient to distinguish snapshot from regular node.
                 .ParentId = NullObjectId,
             }};
         }
 
-        auto rewrittenPath = std::move(resolvedNode->Path);
+        auto rewrittenPath = std::move(resolvedNode->Path).Underlying();
         rewrittenPath += pathSuffix;
-        return ResolveByPath(session, std::move(rewrittenPath), method);
+        return ResolveByPath(session, method, std::move(rewrittenPath), pathIsAdditional);
     }
 
     // NB: of course, we could respond just after resolve in Sequoia tables.
     // But while we don't have any way to bypass Sequoia resolve we use "exists"
     // verb in tests to check object existence in master.
     // TODO(kvk1920): design some way to bypass Sequoia resolve.
-    if (method == "Exists") {
+    if (method == "Exists" || method == "Get") {
         return TForwardToMaster{std::move(path)};
     }
 
@@ -300,16 +337,18 @@ TResolveIterationResult ResolveByObjectId(
 //! Returns raw path if it should be resolved by master.
 TResolveIterationResult RunResolveIteration(
     const TSequoiaSessionPtr& session,
-    TAbsoluteYPath path,
-    TStringBuf method)
+    TStringBuf method,
+    TYPath path,
+    bool pathIsAdditional)
 {
-    auto [rootDesignator, pathSuffix] = path.GetRootDesignator();
+    auto [rootDesignator, pathSuffix] = GetRootDesignator(path);
     return Visit(rootDesignator,
         [&] (TObjectId id) {
-            return ResolveByObjectId(session, path, method, id, pathSuffix);
+            auto suffixOffset = pathSuffix.data() - path.data();
+            return ResolveByObjectId(session, method, std::move(path), pathIsAdditional, id, suffixOffset);
         },
         [&] (TSlashRootDesignatorTag /*tag*/) {
-            return ResolveByPath(session, path, method);
+            return ResolveByPath(session, method, std::move(path), pathIsAdditional);
         });
 }
 
@@ -326,35 +365,40 @@ bool TSequoiaResolveResult::IsSnapshot() const noexcept
 
 TResolveResult ResolvePath(
     const TSequoiaSessionPtr& session,
-    TRawYPath rawPath,
+    TYPath path,
+    bool pathIsAdditional,
+    TStringBuf service,
     TStringBuf method,
     std::vector<TSequoiaResolveIterationResult>* history)
 {
-    auto tokenizer = TTokenizer(rawPath.Underlying());
+    auto tokenizer = TTokenizer(path);
     tokenizer.Advance();
     auto firstTokenType = tokenizer.GetType();
+
+    if (service == TMasterYPathProxy::GetDescriptor().ServiceName) {
+        return TMasterResolveResult{};
+    }
 
     // Paths starting with '&#...' are used for accessing replicated
     // transactions and have to be resolved by master.
     // Empty paths are also special and must be forwarded.
     if (firstTokenType == ETokenType::Ampersand || firstTokenType == ETokenType::EndOfStream) {
-        return TCypressResolveResult{std::move(rawPath)};
+        return TCypressResolveResult{std::move(path)};
     }
 
     if (history) {
         history->clear();
     }
 
-    auto path = TAbsoluteYPath(std::move(rawPath));
     for (int resolutionDepth = 0; ; ++resolutionDepth) {
-        ValidateYPathResolutionDepth(path.Underlying(), resolutionDepth);
+        ValidateYPathResolutionDepth(path, resolutionDepth);
 
-        auto iterationResult = RunResolveIteration(session, std::move(path), method);
+        auto iterationResult = RunResolveIteration(session, method, std::move(path), pathIsAdditional);
         static_assert(std::variant_size<decltype(iterationResult)>() == 3);
 
         if (auto* forwardToMaster = std::get_if<TForwardToMaster>(&iterationResult)) {
             return TCypressResolveResult{
-                .Path = std::move(forwardToMaster->Path).ToRawYPath(),
+                .Path = std::move(forwardToMaster->Path),
             };
         } else if (auto* resolvedHere = std::get_if<TResolveHere>(&iterationResult)) {
             return std::move(resolvedHere->Result);

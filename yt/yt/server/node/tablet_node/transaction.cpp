@@ -29,10 +29,6 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransaction::TTransaction(TTransactionId id)
-    : TTransactionBase(id)
-{ }
-
 void TTransaction::Save(TSaveContext& context) const
 {
     TTransactionBase::Save(context);
@@ -47,6 +43,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, GetPersistentPrepareTimestamp());
     Save(context, CommitTimestamp_);
     Save(context, PrepareRevision_);
+    Save(context, SerializationStatus_);
     Save(context, PersistentAffectedTabletIds_);
     Save(context, CoarseSerializingTabletIds_);
     Save(context, PersistentPrepareSignature_);
@@ -74,8 +71,19 @@ void TTransaction::Load(TLoadContext& context)
     SetPersistentState(Load<ETransactionState>(context));
     Load(context, StartTimestamp_);
     Load(context, PrepareTimestamp_);
+
     Load(context, CommitTimestamp_);
     Load(context, PrepareRevision_);
+
+    // COMPAT(ponasenko-rs)
+    if (context.GetVersion() >= ETabletReign::PersistSerializationStatus) {
+        Load(context, SerializationStatus_);
+    } else {
+        // Compatibility break with enabled per-row sequencer however such tables do not exist.
+        if (GetPersistentState() == ETransactionState::Committed) {
+             SerializationStatus_ |= ESerializationStatus::PerRowFinished;
+        }
+    }
 
     Load(context, PersistentAffectedTabletIds_);
     Load(context, CoarseSerializingTabletIds_);
@@ -134,6 +142,28 @@ TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
             return NullTimestamp;
         default:
             return PrepareTimestamp_;
+    }
+}
+
+bool TTransaction::WasDefinitelyPrepared() const
+{
+    switch (GetPersistentState()) {
+        // Before prepare.
+        case ETransactionState::Active:
+            return false;
+        // After prepare.
+        case ETransactionState::PersistentCommitPrepared:
+        case ETransactionState::CommitPending:
+        case ETransactionState::Committed:
+        case ETransactionState::Serialized:
+            return true;
+        // Abort may happen with or without prepare.
+        case ETransactionState::Aborted:
+            return false;
+        // Transient state will never be returned by GetPersistentState.
+        case ETransactionState::TransientCommitPrepared:
+        case ETransactionState::TransientAbortPrepared:
+            YT_ABORT();
     }
 }
 
@@ -216,4 +246,3 @@ TExternalizedTransaction::TExternalizedTransaction(TExternalizedTransactionId id
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

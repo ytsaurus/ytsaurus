@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/misc/property.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +57,8 @@ public:
     bool IsDangling() const;
 
     void PopulateAddHunkChunkDescriptor(NProto::TAddHunkChunkDescriptor* descriptor) const;
+
+    void BuildOrchidYson(bool opaque, NYTree::TFluentAny fluent) const;
 
 private:
     TLockingState LockingState_;

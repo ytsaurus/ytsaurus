@@ -12,6 +12,8 @@
 
 #include <yt/yt/client/tablet_client/config.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NYPath;
@@ -124,7 +126,7 @@ private:
     std::string GetClusterName()
     {
         TGetNodeOptions options;
-        options.ReadFrom = EMasterChannelKind::LocalCache;
+        options.ReadFrom = EMasterChannelKind::ClientSideCache;
         auto yson = WaitFor(Client_->GetNode("//sys/@cluster_name", options))
             .ValueOrThrow();
         return ConvertTo<TString>(yson);
@@ -134,7 +136,7 @@ private:
     T GetAttributeOrThrow(
         const ITransactionPtr& transaction,
         const TYPath& path,
-        const TString& attributeKey,
+        const std::string& attributeKey,
         const TString& errorMessage)
     {
         TGetNodeOptions options;
@@ -152,9 +154,9 @@ private:
         return *optionalAttributeValue;
     }
 
-    TString GetChaosCellBundle(const ITransactionPtr& transaction, TTableId tableId)
+    std::string GetChaosCellBundle(const ITransactionPtr& transaction, TTableId tableId)
     {
-        return GetAttributeOrThrow<TString>(
+        return GetAttributeOrThrow<std::string>(
             transaction,
             FromObjectId(tableId),
             "chaos_cell_bundle",
@@ -187,7 +189,7 @@ private:
         request.set_table_path(tablePath);
         request.set_table_cluster_name(tableClusterName);
         if (replicatedTableOptions) {
-            request.set_replicated_table_options(ConvertToYsonString(replicatedTableOptions).ToString());
+            request.set_replicated_table_options(ToProto(ConvertToYsonString(replicatedTableOptions)));
         }
 
         const auto& connection = Client_->GetNativeConnection();

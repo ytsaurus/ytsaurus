@@ -108,7 +108,8 @@ public:
         , Profiler_(HiveServerProfiler()
             .WithGlobal()
             .WithSparse()
-            .WithTag("cell_id", ToString(selfCellId)))
+            .WithTag("cell_id", ToString(selfCellId))
+            .WithTag("cell_tag", ToString(CellTagFromId(selfCellId))))
         , LogicalTimeRegistry_(New<TLogicalTimeRegistry>(
             Config_->LogicalTimeRegistry,
             AutomatonInvoker_,
@@ -275,6 +276,28 @@ public:
             YT_LOG_INFO("Freezing Hive edges (Edges: %v)",
                 edgesToFreeze);
         });
+    }
+
+    void OnProfiling(const std::function<bool(TCellId)>& cellIdFilter) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        for (const auto& [id, mailbox] : CellMailboxMap_) {
+            if (!cellIdFilter(id)) {
+                continue;
+            }
+
+            const auto& mailboxRuntimeData = mailbox->GetRuntimeData();
+            if (!mailboxRuntimeData) {
+                continue;
+            }
+
+            auto outcomingMessageQueueSize = mailboxRuntimeData
+                ->PersistentState
+                ->GetOutcomingMessageIdRange()
+                .GetCount();
+            mailboxRuntimeData->OutcomingMessageQueueSizeGauge.Update(outcomingMessageQueueSize);
+        }
     }
 
     bool TryRemoveCellMailbox(TCellId cellId) override

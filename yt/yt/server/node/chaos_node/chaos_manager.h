@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
+#include <yt/yt/server/lib/transaction_supervisor/transaction_lease_tracker.h>
+
 #include <yt/yt/ytlib/chaos_client/proto/chaos_node_service.pb.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -51,6 +53,15 @@ struct IChaosManager
         NChaosClient::NProto::TReqUpdateTableReplicaProgress,
         NChaosClient::NProto::TRspUpdateTableReplicaProgress
     >>;
+    using TCtxUpdateTableProgressPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqUpdateTableProgress,
+        NChaosClient::NProto::TRspUpdateTableProgress
+    >>;
+
+    using TCtxUpdateMultipleTableProgressesPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqUpdateMultipleTableProgresses,
+        NChaosClient::NProto::TRspUpdateMultipleTableProgresses
+    >>;
     using TCtxAlterReplicationCardPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
         NChaosClient::NProto::TReqAlterReplicationCard,
         NChaosClient::NProto::TRspAlterReplicationCard
@@ -75,6 +86,10 @@ struct IChaosManager
         NChaosClient::NProto::TReqRemoveChaosLease,
         NChaosClient::NProto::TRspRemoveChaosLease
     >>;
+    using TCtxPingChaosLeasePtr = TIntrusivePtr<NRpc::TTypedServiceContext<
+        NChaosClient::NProto::TReqPingChaosLease,
+        NChaosClient::NProto::TRspPingChaosLease
+    >>;
     using TCtxForsakeCoordinatorPtr = TIntrusivePtr<NRpc::TTypedServiceContext<
         NChaosClient::NProto::TReqForsakeCoordinator,
         NChaosClient::NProto::TRspForsakeCoordinator
@@ -87,6 +102,8 @@ struct IChaosManager
     virtual void RemoveTableReplica(const TCtxRemoveTableReplicaPtr& context) = 0;
     virtual void AlterTableReplica(const TCtxAlterTableReplicaPtr& context) = 0;
     virtual void UpdateTableReplicaProgress(const TCtxUpdateTableReplicaProgressPtr& context) = 0;
+    virtual void UpdateTableProgress(const TCtxUpdateTableProgressPtr& context) = 0;
+    virtual void UpdateMultipleTableProgresses(const TCtxUpdateMultipleTableProgressesPtr& context) = 0;
     virtual void AlterReplicationCard(const TCtxAlterReplicationCardPtr& context) = 0;
     virtual void MigrateReplicationCards(const TCtxMigrateReplicationCardsPtr& context) = 0;
     virtual void ResumeChaosCell(const TCtxResumeChaosCellPtr& context) = 0;
@@ -94,6 +111,7 @@ struct IChaosManager
     virtual void CreateReplicationCardCollocation(const TCtxCreateReplicationCardCollocationPtr& context) = 0;
     virtual void CreateChaosLease(const TCtxCreateChaosLeasePtr& context) = 0;
     virtual void RemoveChaosLease(const TCtxRemoveChaosLeasePtr& context) = 0;
+    virtual void PingChaosLease(const TCtxPingChaosLeasePtr& context) = 0;
 
     virtual void ForsakeCoordinator(const TCtxForsakeCoordinatorPtr& context) = 0;
 
@@ -117,6 +135,8 @@ struct IChaosManager
 
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(ChaosLease, TChaosLease);
     virtual TChaosLease* GetChaosLeaseOrThrow(TChaosLeaseId chaosLeaseId) = 0;
+
+    virtual NTransactionSupervisor::ITransactionLeaseTrackerPtr GetChaosLeaseTracker() const = 0;
 
     virtual TChaosObjectBase* FindChaosObject(TChaosObjectId chaosObjectId) = 0;
 };

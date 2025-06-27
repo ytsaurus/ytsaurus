@@ -22,22 +22,25 @@ TFuture<NTransactionClient::TTransactionId> StartCypressTransaction(
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
-//! Aborts Cypress transaction when abort is requested by user.
+//! Aborts Cypress transaction when abort is requested by user. Returns
+//! serialized |TRspAbortTransaction|.
 /*!
  *  NB: modifies #request.
  */
-TFuture<void> AbortCypressTransaction(
+TFuture<TSharedRefArray> AbortCypressTransaction(
     NSequoiaClient::ISequoiaClientPtr sequoiaClient,
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
     NCypressClient::TTransactionId transactionId,
     bool force,
     NRpc::TAuthenticationIdentity authenticationIdentity,
+    NRpc::TMutationId mutationId,
+    bool retry,
     IInvokerPtr invoker,
     NLogging::TLogger logger);
 
 //! Aborts expired Cypress transaction. Similar to |AbortCypressTransaction()|,
 //! but log message is different.
-TFuture<void> AbortExpiredCypressTransaction(
+TFuture<TSharedRefArray> AbortExpiredCypressTransaction(
     NSequoiaClient::ISequoiaClientPtr sequoiaClient,
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
     NTransactionClient::TTransactionId transactionId,
@@ -52,16 +55,34 @@ TFuture<void> AbortExpiredCypressTransaction(
  *  needs some timestamp before tx's commit but after every action under the
  *  given Cypress tx.
  *
+ *  Returns serialized |TRspCommitTransaction|.
+ *
  *  NB: modifies #request.
  */
-TFuture<void> CommitCypressTransaction(
+TFuture<TSharedRefArray> CommitCypressTransaction(
     NSequoiaClient::ISequoiaClientPtr sequoiaClient,
     NObjectClient::TCellId cypressTransactionCoordinatorCellId,
     NTransactionClient::TTransactionId transactionId,
     std::vector<NTransactionClient::TTransactionId> prerequisiteTransactionIds,
+    NObjectClient::TCellTag primaryCellTag,
     NTransactionClient::TTimestamp commitTimestamp,
     NRpc::TAuthenticationIdentity authenticationIdentity,
+    NRpc::TMutationId mutationId,
+    bool retry,
     IInvokerPtr invoker,
+    NLogging::TLogger logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Even if transaction is not alive from master point of view it still
+//! necessary to check Sequoia response keeper to handle commit/abort request.
+//! Returns either kept response message or response message with "no such
+//! transaction" error.
+TFuture<TSharedRefArray> FinishNonAliveCypressTransaction(
+    NSequoiaClient::ISequoiaClientPtr sequoiaClient,
+    NTransactionClient::TTransactionId transactionId,
+    NRpc::TMutationId mutationId,
+    bool retry,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

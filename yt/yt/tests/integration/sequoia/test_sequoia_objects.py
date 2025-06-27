@@ -6,16 +6,21 @@ from yt_env_setup import (
 )
 
 from yt_sequoia_helpers import (
-    select_rows_from_ground, lookup_rows_in_ground, mangle_sequoia_path, get_ground_driver
+    select_rows_from_ground, lookup_rows_in_ground, mangle_sequoia_path,
+    get_ground_driver,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
 
 from yt_commands import (
-    authors, commit_transaction, create, get, get_cell_tag, raises_yt_error, remove, get_singular_chunk_id, write_table, read_table, wait,
-    exists, create_domestic_medium, ls, set, get_account_disk_space_limit, set_account_disk_space_limit,
-    link, build_master_snapshots, start_transaction, abort_transaction, get_active_primary_master_leader_address,
-    sync_mount_table, sync_unmount_table, sync_compact_table, set_nodes_banned, set_node_banned)
+    authors, commit_transaction, create, get, get_cell_tag, raises_yt_error,
+    remove, get_singular_chunk_id, write_table, read_table, wait, exists,
+    create_domestic_medium, ls, set, link, build_master_snapshots,
+    start_transaction, abort_transaction, sync_mount_table, sync_unmount_table,
+    sync_compact_table, set_nodes_banned, set_node_banned,
+    get_account_disk_space_limit, set_account_disk_space_limit,
+    get_active_primary_master_leader_address, gc_collect,
+)
 
 from yt.wrapper import yson
 
@@ -46,8 +51,8 @@ class TestSequoiaReplicas(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     USE_SEQUOIA = True
     NUM_SECONDARY_MASTER_CELLS = 0
-
     NUM_NODES = 9
+    NUM_TEST_PARTITIONS = 2
 
     TABLE_MEDIUM_1 = "table_medium_1"
     TABLE_MEDIUM_2 = "table_medium_2"
@@ -74,6 +79,9 @@ class TestSequoiaReplicas(YTEnvSetup):
             }
         }
     }
+
+    # It doesn't works with table unmounts.
+    ENABLE_GROUND_TABLE_MOUNT_CACHE = False
 
     def _is_purgatory_empty(self):
         total_purgatory_size = 0
@@ -534,7 +542,6 @@ class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
 class TestSequoiaQueues(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     USE_SEQUOIA = True
-    NUM_CYPRESS_PROXIES = 1
 
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
@@ -632,26 +639,14 @@ class TestSequoiaQueues(YTEnvSetup):
         assert len(get_row('//tmp/m2')) == 0
 
 
-class TestSequoiaPrerequisites(YTEnvSetup):
+class TestSequoiaObjects(YTEnvSetup):
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 3
-
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            },
-        },
-    }
 
     MASTER_CELL_DESCRIPTORS = {
-        "10": {"roles": ["sequoia_node_host"]},
+        "10": {"roles": ["cypress_node_host"]},
         # Master cell with tag 11 is reserved for portals.
         "12": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
         "13": {"roles": ["sequoia_node_host", "chunk_host", "transaction_coordinator"]},
@@ -669,20 +664,22 @@ class TestSequoiaPrerequisites(YTEnvSetup):
         },
     }
 
-    @authors("cherepashka")
-    def test_read_with_prerequisite_transactions_is_forbidden(self):
+    @authors("kvk1920")
+    @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
+    def test_read_with_prerequisites(self, finish_tx):
         tx = start_transaction()
+        t = create("table", "//tmp/t")
 
-        with raises_yt_error("Read requests with prerequisites are forbidden"):
-            get("//tmp/@id", prerequisite_transaction_ids=[tx])
-        with raises_yt_error("Read requests with prerequisites are forbidden"):
-            exists("//tmp", prerequisite_transaction_ids=[tx])
-        with raises_yt_error("Read requests with prerequisites are forbidden"):
-            ls("//tmp", prerequisite_transaction_ids=[tx])
+        assert get("//tmp/t/@id", prerequisite_transaction_ids=[tx]) == t
 
-        commit_transaction(tx)
+        finish_tx(tx)
+        gc_collect()
+        assert not exists(f"//sys/transactions/{tx}")
 
-    @authors("cherepashka")
+        with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
+            get("//tmp/t/@id", prerequisite_transaction_ids=[tx])
+
+    @authors("cherepashka", "kvk1920")
     @pytest.mark.parametrize("finish_tx", [commit_transaction, abort_transaction])
     def test_write_with_prerequisites(self, finish_tx):
         tx = start_transaction()
@@ -691,7 +688,15 @@ class TestSequoiaPrerequisites(YTEnvSetup):
         commit_transaction(tx2, prerequisite_transaction_ids=[tx])
 
         finish_tx(tx)
+        gc_collect()
         assert not exists(f"//sys/transactions/{tx}")
+
+        with raises_yt_error(f"Prerequisite check failed: transaction {tx} is missing in Sequoia"):
+            create("table", "//tmp/t", prerequisite_transaction_ids=[tx])
+
+        tx3 = start_transaction()
+        with raises_yt_error(f"No such transaction {tx}"):
+            commit_transaction(tx3, prerequisite_transaction_ids=[tx])
 
     @authors("cherepashka")
     def test_commited_prerequisite_tx(self):

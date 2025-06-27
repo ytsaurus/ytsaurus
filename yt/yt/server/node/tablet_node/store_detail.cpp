@@ -1,16 +1,18 @@
+#include "store_detail.h"
+
 #include "automaton.h"
 #include "bootstrap.h"
+#include "config.h"
 #include "hint_manager.h"
+#include "hunk_chunk.h"
 #include "in_memory_manager.h"
 #include "private.h"
-#include "store_detail.h"
+#include "serialize.h"
 #include "store_manager.h"
 #include "tablet.h"
 #include "tablet_profiling.h"
-#include "hunk_chunk.h"
 #include "tablet_snapshot_store.h"
 #include "versioned_chunk_meta_manager.h"
-#include "serialize.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -508,7 +510,19 @@ void TStoreBase::Load(TLoadContext& context)
     TStoreBase::SetStoreState(Load<EStoreState>(context));
 }
 
-void TStoreBase::BuildOrchidYson(TFluentMap fluent)
+void TStoreBase::BuildOrchidYson(bool opaque, TFluentAny fluent)
+{
+    fluent
+        .DoAttributesIf(opaque, [] (auto fluent) {
+            fluent
+                .Item("opaque").Value(true);
+        })
+        .BeginMap()
+            .Do(BIND(&TStoreBase::DoBuildOrchidYson, Unretained(this)))
+        .EndMap();
+}
+
+void TStoreBase::DoBuildOrchidYson(TFluentMap fluent)
 {
     fluent
         .Item("store_state").Value(StoreState_)
@@ -677,9 +691,9 @@ i64 TDynamicStoreBase::GetPoolCapacity() const
     return RowBuffer_->GetCapacity();
 }
 
-void TDynamicStoreBase::BuildOrchidYson(TFluentMap fluent)
+void TDynamicStoreBase::DoBuildOrchidYson(TFluentMap fluent)
 {
-    TStoreBase::BuildOrchidYson(fluent);
+    TStoreBase::DoBuildOrchidYson(fluent);
 
     fluent
         .Item("flush_state").Value(GetFlushState())
@@ -982,9 +996,9 @@ void TChunkStoreBase::AsyncLoad(TLoadContext& context)
     Load(context, *ChunkMeta_);
 }
 
-void TChunkStoreBase::BuildOrchidYson(TFluentMap fluent)
+void TChunkStoreBase::DoBuildOrchidYson(TFluentMap fluent)
 {
-    TStoreBase::BuildOrchidYson(fluent);
+    TStoreBase::DoBuildOrchidYson(fluent);
 
     auto backingStore = GetBackingStore();
     fluent
@@ -1000,7 +1014,7 @@ void TChunkStoreBase::BuildOrchidYson(TFluentMap fluent)
                 .Item("backing_store").DoMap([&] (auto fluent) {
                     fluent
                         .Item(ToString(backingStore->GetId()))
-                        .DoMap(BIND(&IStore::BuildOrchidYson, backingStore));
+                        .Do(BIND(&IStore::BuildOrchidYson, backingStore, /*opaque*/ false));
                 });
         })
         .Item("hunk_chunk_refs").Value(HunkChunkRefs_);

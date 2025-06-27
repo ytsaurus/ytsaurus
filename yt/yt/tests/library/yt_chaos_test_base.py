@@ -1,9 +1,12 @@
 from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_commands import (
-    print_debug, wait, get_driver, get, set, ls, exists, create, sync_create_cells, sync_mount_table, alter_table, insert_rows, pull_rows,
+    print_debug, wait, get_driver, get, set, ls, exists, create, alter_table, insert_rows, pull_rows,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
+    create_tablet_cell, wait_for_cells, mount_table, wait_for_tablet_state,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id, migrate_replication_cards)
+
+import yt_error_codes
 
 from yt.common import YtError
 import yt.yson as yson
@@ -20,6 +23,16 @@ class ChaosTestBase(DynamicTablesBase):
     NUM_MASTER_CACHES = 1
     NUM_NODES = 4
     NUM_CHAOS_NODES = 1
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "tablet_node": {
+                "replication_card_updates_batcher": {
+                    "enable": True,
+                }
+            }
+        }
+    }
 
     def _get_drivers(self):
         return [get_driver(cluster=cluster_name) for cluster_name in self.get_cluster_names()]
@@ -129,14 +142,23 @@ class ChaosTestBase(DynamicTablesBase):
         return [self._create_chaos_table_replica(replica, replication_card_id=replication_card_id, table_path=table_path) for replica in replicas]
 
     def _prepare_replica_tables(self, replicas, replica_ids, create_tablet_cells=True, mount_tables=True):
+        created_cells = []
+        created_tables = []
         for replica, replica_id in zip(replicas, replica_ids):
             path = replica["replica_path"]
             driver = get_driver(cluster=replica["cluster_name"])
             alter_table(path, upstream_replica_id=replica_id, driver=driver)
+            created_tables.append((path, driver))
             if create_tablet_cells and len(ls("//sys/tablet_cells", driver=driver)) == 0:
-                sync_create_cells(1, driver=driver)
-            if mount_tables:
-                sync_mount_table(path, driver=driver)
+                cell_id = create_tablet_cell(driver=driver)
+                created_cells.append((cell_id, driver))
+        for cell_id, driver in created_cells:
+            wait_for_cells([cell_id], driver=driver)
+        if mount_tables:
+            for path, driver in created_tables:
+                mount_table(path, driver=driver)
+            for path, driver in created_tables:
+                wait_for_tablet_state(path, "mounted", driver=driver)
 
     def _create_replica_tables(self, replicas, replica_ids,
                                create_tablet_cells=True,
@@ -206,7 +228,7 @@ class ChaosTestBase(DynamicTablesBase):
                 _get_orchid_path(cell_id, driver=origin_driver),
                 card_id
             )
-            wait(lambda: get(migration_path, driver=origin_driver) == "migrated")
+            wait(lambda: get(migration_path, driver=origin_driver, default="migrated") == "migrated")
 
         for card_id in card_ids:
             migrated_card_path = "{0}/chaos_manager/replication_cards/{1}".format(
@@ -476,3 +498,11 @@ class ChaosTestBase(DynamicTablesBase):
                 check_func(error)
                 for error in errors[0]["inner_errors"]
             )
+
+    def _chaos_lease_exists(self, lease_id):
+        try:
+            return exists(f"#{lease_id}")
+        except YtError as err:
+            if err.contains_code(yt_error_codes.ChaosLeaseNotKnown):
+                return False
+            raise err

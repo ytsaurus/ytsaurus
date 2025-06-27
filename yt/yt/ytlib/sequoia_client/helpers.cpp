@@ -12,35 +12,89 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf path)
+TMangledSequoiaPath MangleSequoiaPath(const TRealPath& path)
 {
-    YT_VERIFY(!path.empty());
-    YT_VERIFY(path == "/" || path.back() != '/');
-    return TMangledSequoiaPath(NYPath::TYPath(path) + "/");
+    TString mangledPath;
+    mangledPath.reserve(path.Underlying().size());
+
+    TTokenizer tokenizer(path.Underlying());
+    tokenizer.Advance();
+
+    tokenizer.Expect(ETokenType::Slash);
+    mangledPath += tokenizer.GetToken();
+    tokenizer.Advance();
+
+    for (; tokenizer.Skip(ETokenType::Slash); tokenizer.Advance()) {
+        tokenizer.Expect(ETokenType::Literal);
+        mangledPath += MangledPathSeparator;
+        mangledPath += tokenizer.GetLiteralValue();
+    }
+
+    tokenizer.Expect(ETokenType::EndOfStream);
+
+    mangledPath += MangledPathSeparator;
+
+    return TMangledSequoiaPath(std::move(mangledPath));
 }
 
-NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
+TRealPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath)
 {
-    YT_VERIFY(!mangledPath.Underlying().empty());
-    YT_VERIFY(mangledPath.Underlying().back() == '/');
-    return mangledPath.Underlying().substr(0, mangledPath.Underlying().size() - 1);
+    const auto& rawMangledPath = mangledPath.Underlying();
+    YT_VERIFY(rawMangledPath.StartsWith("/"));
+    YT_VERIFY(rawMangledPath.EndsWith(MangledPathSeparator));
+
+    constexpr int ExpectedSystemCharacterMaxCount = 5;
+
+    NYPath::TYPath path;
+    path.reserve(rawMangledPath.size() + ExpectedSystemCharacterMaxCount);
+
+    for (int from = 0, to = 0; to < ssize(rawMangledPath); ++to) {
+        if (rawMangledPath[to] != MangledPathSeparator) {
+            continue;
+        }
+
+        auto interval = TStringBuf(rawMangledPath, from, to - from);
+        if (from == 0) {
+            path += interval;
+        } else {
+            path += "/";
+            path += ToYPathLiteral(interval);
+        }
+        from = to + 1;
+    }
+
+    return TRealPath(std::move(path));
 }
 
-TMangledSequoiaPath MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(const TMangledSequoiaPath& prefix)
+TString ToStringLiteral(TYPathBuf key)
 {
-    return TMangledSequoiaPath(prefix.Underlying() + '\xFF');
-}
+    if (key.empty()) {
+        return {};
+    }
 
-TString ToStringLiteral(TStringBuf key)
-{
-    TStringBuilder builder;
     TTokenizer tokenizer(key);
     tokenizer.Advance();
     tokenizer.Expect(ETokenType::Literal);
     auto literal = tokenizer.GetLiteralValue();
     tokenizer.Advance();
     tokenizer.Expect(ETokenType::EndOfStream);
+
     return literal;
+}
+
+inline bool IsForbiddenYPathSymbol(char ch)
+{
+    return ch == MangledPathSeparator;
+}
+
+TYPath ValidateAndMakeYPath(TRawYPath&& path)
+{
+    for (auto ch : path.Underlying()) {
+        if (IsForbiddenYPathSymbol(ch)) {
+            THROW_ERROR_EXCEPTION("Path contains a forbidden symbol %x", ch);
+        }
+    }
+    return std::move(path.Underlying());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,22 +105,34 @@ bool IsRetriableSequoiaError(const TError& error)
         return false;
     }
 
-    return AnyOf(RetriableSequoiaErrorCodes, [&] (auto errorCode) {
-        return error.FindMatching(errorCode);
-    });
+    if (error.FindMatching(EErrorCode::TransactionActionFailedOnMasterCell)) {
+        return false;
+    }
+
+    // TODO(shakurov): don't treat dynamic table error as retriable if error is
+    // not related to ground cluster.
+
+    if (error.FindMatching([] (const TError& error) {
+            return std::ranges::find(RetriableSequoiaErrorCodes, error.GetCode()) != std::end(RetriableSequoiaErrorCodes);
+        }))
+    {
+        return true;
+    }
+
+    return error
+        .FindMatching(NTransactionClient::EErrorCode::ParticipantFailedToPrepare)
+        .has_value();
 }
 
 bool IsRetriableSequoiaReplicasError(
     const TError& error,
-    const std::vector<TErrorCode>& retriableErrorCodes)
+    const std::vector<TErrorCode>& /*retriableErrorCodes*/)
 {
     if (error.IsOK()) {
         return false;
     }
 
-    return AnyOf(retriableErrorCodes, [&] (auto errorCode) {
-        return error.FindMatching(errorCode);
-    });
+    return !error.FindMatching(EErrorCode::TransactionActionFailedOnMasterCell);
 }
 
 void ThrowOnSequoiaReplicasError(
@@ -88,7 +154,8 @@ bool IsMethodShouldBeHandledByMaster(const std::string& method)
         method == "Fetch" ||
         method == "BeginUpload" ||
         method == "GetUploadParams" ||
-        method == "EndUpload";
+        method == "EndUpload" ||
+        method == "GetMountInfo";
 }
 
 ////////////////////////////////////////////////////////////////////////////////

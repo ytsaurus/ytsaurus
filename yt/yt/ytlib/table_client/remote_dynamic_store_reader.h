@@ -72,4 +72,4 @@ ISchemalessChunkReaderPtr CreateRetryingRemoteOrderedDynamicStoreReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT:NTabletClient
+} // namespace NYT:NTableClient

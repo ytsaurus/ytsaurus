@@ -366,6 +366,7 @@ TEST_P(TIOEngineTest, ChangeDynamicConfig)
         {
             uring_thread_count = %v;
             read_thread_count = %v;
+            enable_slicing = %v;
             simulated_max_bytes_per_write = 512;
         })";
 
@@ -388,9 +389,11 @@ TEST_P(TIOEngineTest, ChangeDynamicConfig)
             Sleep(RandomDuration(TDuration::MilliSeconds(10)));
 
             auto readThreadCount = RandomNumber<ui32>(7) + 1;
+            auto enableSlicing = RandomNumber<bool>();
             auto config = Format(ConfigTemplate,
                 readThreadCount,
-                readThreadCount);
+                readThreadCount,
+                enableSlicing);
 
             engine->Reconfigure(NYTree::ConvertTo<NYTree::INodePtr>(
                 NYson::TYsonString(config)));
@@ -443,20 +446,112 @@ TEST_P(TIOEngineTest, DirectIOAligned)
     };
 
     read({
-        {.Offset=16_KB, .Size=32_KB},
-        {.Offset=0, .Size=4_KB},
-        {.Offset=4_KB, .Size=32_KB},
-        {.Offset=S-4_KB, .Size=4_KB},
+        {.Offset = 16_KB, .Size = 32_KB},
+        {.Offset = 0, .Size = 4_KB},
+        {.Offset = 4_KB, .Size = 32_KB},
+        {.Offset = S-4_KB, .Size = 4_KB},
     });
 
     read({
-        {.Offset=0, .Size=S},
+        {.Offset = 0, .Size = S},
     });
 
     read({
-        {.Offset=0, .Size=1_MB},
-        {.Offset=2_MB, .Size=2_MB},
+        {.Offset = 0, .Size = 1_MB},
+        {.Offset = 2_MB, .Size = 2_MB},
     });
+}
+
+TEST_P(TIOEngineTest, DirectIOUnaligned)
+{
+    auto engine = CreateIOEngine();
+
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+
+    constexpr auto S = 4_MB + 1;
+    auto data = GenerateRandomBlob(S);
+
+    WriteFile(fileName, data);
+
+    auto file = engine->Open({fileName, RdOnly | DirectAligned})
+        .Get()
+        .ValueOrThrow();
+
+    auto read = [&] (std::vector<TReadRequest> requests) {
+        for (auto& request : requests) {
+            request.Handle = file;
+        }
+        auto result = engine->Read(requests, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
+            .Get()
+            .ValueOrThrow();
+
+        EXPECT_TRUE(result.OutputBuffers.size() == requests.size());
+        for (int index = 0; index < std::ssize(requests); ++index) {
+            const auto& request = requests[index];
+            EXPECT_TRUE(TRef::AreBitwiseEqual(
+                result.OutputBuffers[index],
+                data.Slice(request.Offset, request.Offset + request.Size)));
+        }
+    };
+
+    read({
+        {.Offset = 16_KB - 1, .Size = 32_KB + 1},
+        {.Offset = 1, .Size = 4_KB},
+        {.Offset = 4_KB - 1, .Size = 32_KB - 1},
+        {.Offset = S - 4_KB - 1, .Size = 4_KB + 1},
+    });
+
+    read({
+        {.Offset = 0, .Size = S},
+    });
+
+    read({
+        {.Offset = 0, .Size = 1_MB - 1},
+        {.Offset = 2_MB + 1, .Size = 2_MB - 1},
+    });
+}
+
+TEST_P(TIOEngineTest, DirectIOUnalignedRandomized)
+{
+    auto engine = CreateIOEngine();
+    auto fileName = GenerateRandomFileName("IOEngine");
+    TTempFile tempFile(fileName);
+
+    constexpr i64 S = 4_MB + 1;
+    auto data = GenerateRandomBlob(S);
+    WriteFile(fileName, data);
+
+    auto file = engine->Open({fileName, RdOnly | DirectAligned})
+        .Get()
+        .ValueOrThrow();
+
+    std::mt19937_64 rng(std::random_device{}());
+    std::uniform_int_distribution<i64> offsetDist(0, S);
+    std::uniform_int_distribution<i64> sizeDist(1, 4);
+    const int TestIterations = 100;
+
+    for (int i = 0; i < TestIterations; ++i) {
+        i64 offset = AlignDown<i64>(offsetDist(rng), 512);
+        i64 size = AlignUp<i64>(sizeDist(rng), 512);
+        bool validRequest = offset + size <= S;
+
+        SCOPED_TRACE(Format("Iteration %v: Offset=%v Size=%v Valid=%v", i, offset, size, validRequest));
+
+        try {
+            auto result = engine->Read({{file, offset, size}}, EWorkloadCategory::Idle, {}, {}, UseDedicatedAllocations())
+                .Get()
+                .ValueOrThrow();
+
+            EXPECT_TRUE(validRequest) << "Expected error due to reading beyond EOF";
+            ASSERT_EQ(result.OutputBuffers.size(), static_cast<size_t>(1));
+            auto buffer = result.OutputBuffers[0];
+            EXPECT_EQ(buffer.Size(), static_cast<size_t>(size));
+            EXPECT_TRUE(TRef::AreBitwiseEqual(buffer, data.Slice(offset, offset + size)));
+        } catch (const TErrorException& ex) {
+            EXPECT_FALSE(validRequest) << "Unexpected error: " << ex.what();
+        }
+    }
 }
 
 const char DefaultConfig[] =
@@ -465,10 +560,12 @@ const char DefaultConfig[] =
 
 const char CustomConfig[] =
     "{"
+    "    max_bytes_per_read = 4099;"
     "    simulated_max_bytes_per_read = 4096;"
     "    simulated_max_bytes_per_write = 4096;"
     "    large_unaligned_direct_io_read_size = 16384;"
     "    flush_after_write = true;"
+    "    enable_slicing = true;"
     "}";
 
 bool AllocatorBehaviourCollocate(false);

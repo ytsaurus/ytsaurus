@@ -165,6 +165,26 @@ def list_operations(user=None, state=None, type=None, filter=None, pool_tree=Non
         timeout=timeout)
 
 
+def list_operation_events(operation_id, event_type=None, format=None, client=None):
+    """List events of given operation.
+
+    :param str operation_id: operation id.
+    :param str event_type: event type.
+    """
+
+    params = {"operation_id": operation_id}
+    set_param(params, "event_type", event_type)
+
+    timeout = get_config(client)["operation_info_commands_timeout"]
+
+    return make_formatted_request(
+        "list_operation_events",
+        params=params,
+        format=format,
+        client=client,
+        timeout=timeout)
+
+
 def iterate_operations(user=None, state=None, type=None, filter=None, pool_tree=None, pool=None, with_failed_jobs=None,
                        from_time=None, to_time=None, cursor_direction="past", limit_per_request=100,
                        include_archive=None, attributes=None, format=None, client=None):
@@ -765,7 +785,7 @@ class Operation(object):
         if get_config(self.client)["operation_tracker"]["log_job_statistics"]:
             statistics = self.get_job_statistics()
             if statistics:
-                logger.info("Job statistics:\n" + yson.dumps(self.get_job_statistics(), yson_format="pretty"))
+                logger.info("Job statistics:\n" + yson.dumps(statistics, yson_format="pretty"))
 
         stderr_level = logging.getLevelName(get_config(self.client)["operation_tracker"]["stderr_logging_level"])
         if logger.LOGGER.isEnabledFor(stderr_level):

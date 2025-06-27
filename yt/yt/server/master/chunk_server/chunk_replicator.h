@@ -35,6 +35,20 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+
+DEFINE_ENUM(EMisscheduleReason,
+    ((None)                       (0))
+    ((RefreshNotActual)           (1))
+    ((ErrorFetchingReplicas)      (2))
+    ((MissingMedium)              (3))
+    ((NoPullTargetNode)           (4))
+    ((NoTargetNodes)              (5))
+    ((NoTargetReplicas)           (6))
+    ((InsufficientTargetReplicas) (7))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkReplicator
     : public IJobController
     , public NIncumbentServer::TShardedIncumbentBase
@@ -230,7 +244,7 @@ private:
 
     std::vector<TChunkId> ChunkIdsPendingEndorsementRegistration_;
 
-    TEnumIndexedArray<EJobType, i64> MisscheduledJobs_;
+    TEnumIndexedArray<EJobType, TEnumIndexedArray<EMisscheduleReason, i64>> MisscheduledJobs_;
 
     std::optional<bool> ReplicatorEnabled_;
     bool RefreshEnabled_ = true;
@@ -252,21 +266,17 @@ private:
     void ScheduleRemovalJobs(IJobSchedulingContext* context);
     void ScheduleRepairJobs(IJobSchedulingContext* context);
 
-    bool TryScheduleReplicationJob(
+    EMisscheduleReason TryScheduleReplicationJob(
         IJobSchedulingContext* context,
         TChunkPtrWithReplicaIndex chunkWithIndex,
         TDomesticMedium* targetMedium,
         TNodeId targetNodeId,
-        const TChunkLocationPtrWithReplicaInfoList& replicas);
-    bool TryScheduleBalancingJob(
-        IJobSchedulingContext* context,
-        TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
-        double maxFillCoeff);
-    bool TryScheduleRemovalJob(
+    const TChunkLocationPtrWithReplicaInfoList& replicas);
+    EMisscheduleReason TryScheduleRemovalJob(
         IJobSchedulingContext* context,
         const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes,
         TChunkLocation* location);
-    bool TryScheduleRepairJob(
+    EMisscheduleReason TryScheduleRepairJob(
         IJobSchedulingContext* context,
         EChunkRepairQueue repairQueue,
         TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,

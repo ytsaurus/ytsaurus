@@ -16,6 +16,7 @@ SYSTEM_TRANSACTION_TITLE_SUBSTRINGS = [
     "Lock for changelog store",
     "Upload to //sys/",
     "Prerequisite for cell",
+    "Sequoia transaction",
 ]
 
 

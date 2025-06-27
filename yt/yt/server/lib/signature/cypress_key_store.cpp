@@ -40,12 +40,19 @@ public:
     {
         auto keyNodePath = MakeCypressKeyPath(Config_->Path, ownerId, keyId);
 
+        YT_LOG_DEBUG("Looking for public key in Cypress (OwnerId: %v, KeyId: %v, Path: %v)", ownerId, keyId, keyNodePath);
+
         TGetNodeOptions options;
         static_cast<TMasterReadOptions&>(options) = *Config_->CypressReadOptions;
         auto result = Client_->GetNode(keyNodePath, options);
 
-        return result.ApplyUnique(BIND([] (TYsonString&& str) mutable {
-            return ConvertTo<TKeyInfoPtr>(std::move(str));
+        return result.ApplyUnique(BIND([] (TYsonString&& str) {
+            auto keyInfo = ConvertTo<TKeyInfoPtr>(std::move(str));
+            auto [ownerId, keyId] = std::visit([] (const auto& meta) {
+                return std::pair(meta.OwnerId, meta.KeyId);
+            }, keyInfo->Meta());
+            YT_LOG_DEBUG("Found public key in Cypress (OwnerId: %v, KeyId: %v)", ownerId, keyId);
+            return std::move(keyInfo);
         }));
     }
 

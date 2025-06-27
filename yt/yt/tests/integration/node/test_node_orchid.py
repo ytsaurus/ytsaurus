@@ -6,6 +6,10 @@ from yt_commands import (
     get_allocation_id_from_job_id, create, write_table, map,
     update_nodes_dynamic_config)
 
+from yt_helpers import skip_if_delivery_fenced_pipe_writer_not_supported
+
+import pytest
+
 
 class TestJobControllerOrchid(YTEnvSetup):
     NUM_MASTERS = 1
@@ -85,8 +89,18 @@ class TestJobControllerOrchid(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-    @authors("arkady-e1ppa")
-    def test_job_proxy_orchid_2(self):
+    @authors("pogorelov", "arkady-e1ppa")
+    @pytest.mark.parametrize(
+        "use_new_delivery_fenced_connection", [
+            False,
+            True,
+        ]
+    )
+    def test_job_proxy_orchid_2(self, use_new_delivery_fenced_connection):
+        skip_if_delivery_fenced_pipe_writer_not_supported(use_new_delivery_fenced_connection)
+
+        update_nodes_dynamic_config(value=use_new_delivery_fenced_connection, path="exec_node/job_controller/job_proxy/use_new_delivery_fenced_connection")
+
         input_table = "//tmp/in"
         output_table = "//tmp/out"
 
@@ -115,12 +129,14 @@ class TestJobControllerOrchid(YTEnvSetup):
             track=False,
             in_=input_table,
             out=output_table,
-            command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
+            command=with_breakpoint("""read row; echo $row; read row; echo $row;BREAKPOINT; cat"""),
             spec={
                 "job_count": 1,
+                "mapper": {"format": "json"},
                 "job_io": {
                     "buffer_row_count": 1,
                     "use_adaptive_buffer_row_count": True,
+                    "use_delivery_fenced_pipe_writer": True,
                 },
                 "max_failed_job_count": 1,
             },

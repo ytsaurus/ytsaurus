@@ -31,6 +31,10 @@ struct TGpuInfo
     double PcieTxByteRate = 0.0;
     double TensorActivityRate = 0.0;
     double DramActivityRate = 0.0;
+    bool IsSWThermalSlowdown = false;
+    bool IsHWThermalSlowdown = false;
+    bool IsHWPowerBrakeSlowdown = false;
+    bool IsHWSlowdown = false;
 
     struct
     {
@@ -47,17 +51,23 @@ void Serialize(const TGpuInfo& gpuInfo, NYson::IYsonConsumer* consumer);
 struct TRdmaDeviceInfo
 {
     TString Name;
+    TString DeviceId;
     double RxByteRate = 0.0;
     double TxByteRate = 0.0;
 };
 
+void Serialize(const TRdmaDeviceInfo& gpuInfo, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO: Rename it to something more appropriate since it now has a modification method.
 struct IGpuInfoProvider
     : public TRefCounted
 {
     virtual std::vector<TGpuInfo> GetGpuInfos(TDuration timeout) const = 0;
     virtual std::vector<TRdmaDeviceInfo> GetRdmaDeviceInfos(TDuration timeout) const = 0;
+
+    virtual void ApplyNetworkServiceLevel(const std::vector<TString>& deviceIds, TNetworkPriority networkServiceLevel, TDuration timeout) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IGpuInfoProvider)

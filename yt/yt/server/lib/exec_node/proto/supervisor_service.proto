@@ -2,6 +2,7 @@ package NYT.NExecNode.NProto;
 
 import "yt/ytlib/controller_agent/proto/job.proto";
 
+import "yt_proto/yt/client/misc/proto/signature.proto";
 import "yt_proto/yt/client/misc/proto/workload.proto";
 
 import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
@@ -21,6 +22,7 @@ message TRspGetJobSpec
     required NControllerAgent.NProto.TJobSpec job_spec = 1;
     required TJobProxyResources resource_usage = 2;
     repeated int32 ports = 3;
+    optional int32 job_proxy_rpc_server_port = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,6 +188,34 @@ message TJobProxyResources
     required int64 memory = 1;
     required double cpu = 2;
     required int32 network = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGenerateSignature
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required bytes payload = 2;
+}
+
+message TRspGenerateSignature
+{
+    // NB(pavook): if needed, we can minimize this to just raw signature bytes,
+    // but this will suffice for now.
+    required NSignature.NProto.TSignature signature = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqValidateSignature
+{
+    required NYT.NProto.TGuid job_id = 1;
+    required NSignature.NProto.TSignature signature = 2;
+}
+
+message TRspValidateSignature
+{
+    required bool valid = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

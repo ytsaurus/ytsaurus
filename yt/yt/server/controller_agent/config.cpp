@@ -28,6 +28,7 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NChunkPools;
 using namespace NStatisticPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,6 +302,8 @@ void TSuspiciousJobsOptions::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("max_orchid_entry_count_per_type", &TThis::MaxOrchidEntryCountPerType)
         .Default(100);
+    registrar.Parameter("min_required_cpu_limit", &TThis::MinRequiredCpuLimit)
+        .Default(NScheduler::TCpuResource(0.1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -339,6 +342,8 @@ void TGpuCheckOptions::Register(TRegistrar registrar)
     registrar.Parameter("binary_path", &TThis::BinaryPath)
         .Default();
     registrar.Parameter("binary_args", &TThis::BinaryArgs)
+        .Default();
+    registrar.Parameter("network_project", &TThis::NetworkProject)
         .Default();
 }
 
@@ -406,6 +411,10 @@ void TOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("set_container_cpu_limit", &TThis::SetContainerCpuLimit)
         .Default(false);
 
+    registrar.Parameter("min_cpu_limit", &TThis::MinCpuLimit)
+        .Default(0.0)
+        .GreaterThanOrEqual(0.0);
+
     registrar.Parameter("set_slot_container_memory_limit", &TThis::SetSlotContainerMemoryLimit)
         .Default(false);
 
@@ -456,34 +465,54 @@ void TSimpleOperationOptions::Register(TRegistrar registrar)
         .Alias("data_size_per_job")
         .Default(256_MB)
         .GreaterThan(0);
+
+    registrar.Parameter("job_size_adjuster", &TThis::JobSizeAdjuster)
+        // TODO(coteeq): DefaultNew when non-map job_size_adjuster will be stable.
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TMapOperationOptions::Register(TRegistrar registrar)
 {
-    registrar.Parameter("job_size_adjuster", &TThis::JobSizeAdjuster)
-        .DefaultNew();
-
     registrar.Preprocessor([&] (TMapOperationOptions* options) {
         options->DataWeightPerJob = 128_MB;
+        options->JobSizeAdjuster = New<TJobSizeAdjusterConfig>();
     });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUnorderedMergeOperationOptions::Register(TRegistrar /*registrar*/)
-{ }
+void TUnorderedMergeOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([&] (TUnorderedMergeOperationOptions* options) {
+        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
+        options->DataWeightPerJob = 20_GB;
+        options->MaxDataSlicesPerJob = 10'000;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOrderedMergeOperationOptions::Register(TRegistrar /*registrar*/)
-{ }
+void TOrderedMergeOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([&] (TOrderedMergeOperationOptions* options) {
+        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
+        options->DataWeightPerJob = 20_GB;
+        options->MaxDataSlicesPerJob = 10'000;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSortedMergeOperationOptions::Register(TRegistrar /*registrar*/)
-{ }
+void TSortedMergeOperationOptions::Register(TRegistrar registrar)
+{
+    registrar.Preprocessor([&] (TSortedMergeOperationOptions* options) {
+        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
+        options->DataWeightPerJob = 20_GB;
+        options->MaxDataSlicesPerJob = 10'000;
+    });
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -546,6 +575,9 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
     registrar.Parameter("partition_job_size_adjuster", &TThis::PartitionJobSizeAdjuster)
         .DefaultNew();
 
+    registrar.Parameter("sorted_merge_job_size_adjuster", &TThis::SortedMergeJobSizeAdjuster)
+        .DefaultNew();
+
     registrar.Parameter("data_balancer", &TThis::DataBalancer)
         .DefaultNew();
 
@@ -576,11 +608,8 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TGangManagerConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("enabled", &TThis::Enabled)
-        .Default(true);
-}
+void TGangManagerConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -739,6 +768,20 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRemoteOperationsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("allowed_users", &TThis::AllowedUsers)
+        .Default();
+    registrar.Parameter("allowed_for_everyone", &TThis::AllowedForEveryone)
+        .Default(false);
+    registrar.Parameter("max_total_data_weight", &TThis::MaxTotalDataWeight)
+        .Default();
+    registrar.Parameter("networks", &TThis::Networks)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TControllerAgentConfig::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -780,6 +823,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("enable_snapshot_loading", &TThis::EnableSnapshotLoading)
+        .Default(true);
+    registrar.Parameter("enable_snapshot_phoenix_schema_during_snapshot_loading", &TThis::EnableSnapshotPhoenixSchemaDuringSnapshotLoading)
         .Default(true);
     registrar.Parameter("enable_snapshot_loading_disabled_alert", &TThis::EnableSnapshotLoadingDisabledAlert)
         .Default(true);
@@ -982,28 +1027,28 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_options", &TThis::OperationOptions)
         .Default(NYTree::GetEphemeralNodeFactory()->CreateMap());
 
-    registrar.Parameter("map_operation_options", &TThis::MapOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("reduce_operation_options", &TThis::ReduceOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("join_reduce_operation_options", &TThis::JoinReduceOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("erase_operation_options", &TThis::EraseOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("ordered_merge_operation_options", &TThis::OrderedMergeOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("unordered_merge_operation_options", &TThis::UnorderedMergeOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("sorted_merge_operation_options", &TThis::SortedMergeOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("map_reduce_operation_options", &TThis::MapReduceOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("sort_operation_options", &TThis::SortOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("remote_copy_operation_options", &TThis::RemoteCopyOperationOptions)
-        .DefaultNew();
-    registrar.Parameter("vanilla_operation_options", &TThis::VanillaOperationOptions)
-        .DefaultNew();
+    registrar.Parameter("map_operation_options", &TThis::MapOperationOptionsNode)
+        .Default();
+    registrar.Parameter("reduce_operation_options", &TThis::ReduceOperationOptionsNode)
+        .Default();
+    registrar.Parameter("join_reduce_operation_options", &TThis::JoinReduceOperationOptionsNode)
+        .Default();
+    registrar.Parameter("erase_operation_options", &TThis::EraseOperationOptionsNode)
+        .Default();
+    registrar.Parameter("ordered_merge_operation_options", &TThis::OrderedMergeOperationOptionsNode)
+        .Default();
+    registrar.Parameter("unordered_merge_operation_options", &TThis::UnorderedMergeOperationOptionsNode)
+        .Default();
+    registrar.Parameter("sorted_merge_operation_options", &TThis::SortedMergeOperationOptionsNode)
+        .Default();
+    registrar.Parameter("map_reduce_operation_options", &TThis::MapReduceOperationOptionsNode)
+        .Default();
+    registrar.Parameter("sort_operation_options", &TThis::SortOperationOptionsNode)
+        .Default();
+    registrar.Parameter("remote_copy_operation_options", &TThis::RemoteCopyOperationOptionsNode)
+        .Default();
+    registrar.Parameter("vanilla_operation_options", &TThis::VanillaOperationOptionsNode)
+        .Default();
 
     registrar.Parameter("environment", &TThis::Environment)
         .Default({
@@ -1051,6 +1096,10 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     //! By default we disable job size adjustment for partition maps,
     //! since it may lead to partition data skew between nodes.
     registrar.Parameter("enable_partition_map_job_size_adjustment", &TThis::EnablePartitionMapJobSizeAdjustment)
+        .Default(false);
+    registrar.Parameter("enable_ordered_partition_map_job_size_adjustment", &TThis::EnableOrderedPartitionMapJobSizeAdjustment)
+        .Default(false);
+    registrar.Parameter("enable_sorted_merge_in_sort_job_size_adjustment", &TThis::EnableSortedMergeInSortJobSizeAdjustment)
         .Default(false);
 
     registrar.Parameter("user_job_memory_digest_precision", &TThis::UserJobMemoryDigestPrecision)
@@ -1225,7 +1274,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_hunks_remote_copy", &TThis::EnableHunksRemoteCopy)
         .Default(true);
     registrar.Parameter("enable_compression_dictionary_remote_copy", &TThis::EnableCompressionDictionaryRemoteCopy)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("default_enable_porto", &TThis::DefaultEnablePorto)
         .Default(NScheduler::EEnablePorto::None);
@@ -1272,7 +1321,7 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_columnar_statistics_early_finish", &TThis::EnableColumnarStatisticsEarlyFinish)
         .Default(true);
     registrar.Parameter("enable_table_column_renaming", &TThis::EnableTableColumnRenaming)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("footprint_memory", &TThis::FootprintMemory)
         .Default();
@@ -1325,8 +1374,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_job_aborts_until_operation_failure", &TThis::MaxJobAbortsUntilOperationFailure)
         .Default(THashMap<EAbortReason, int>({{EAbortReason::RootVolumePreparationFailed, 1000}, {EAbortReason::NbdErrors, 10}}));
 
-    registrar.Parameter("job_id_unequal_to_allocation_id", &TThis::JobIdUnequalToAllocationId)
-        .Default(false);
+    registrar.Parameter("remote_operations", &TThis::RemoteOperations)
+        .Default();
 
     registrar.Parameter("enable_merge_schemas_during_schema_infer", &TThis::EnableMergeSchemasDuringSchemaInfer)
         .Default(false);
@@ -1347,18 +1396,14 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("register_lockable_dynamic_tables", &TThis::RegisterLockableDynamicTables)
         .Default(false);
 
+    registrar.Parameter("allow_bulk_insert_under_user_transaction", &TThis::AllowBulkInsertUnderUserTransaction)
+        .Default(false);
+
+    registrar.Parameter("operation_events_reporter", &TThis::OperationEventsReporter)
+        .DefaultNew();
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->ChunkLocationThrottler->Limit = 10'000;
-
-        // Value in options is an upper bound hint on uncompressed data size for merge jobs.
-        config->OrderedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        config->OrderedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
-
-        config->SortedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        config->SortedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
-
-        config->UnorderedMergeOperationOptions->DataWeightPerJob = 20_GB;
-        config->UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10'000;
 
         config->OperationOptions->AsMap()->AddChild("controller_building_job_spec_count_limit", NYTree::ConvertToNode(100));
         config->OperationOptions->AsMap()->AddChild("controller_total_building_job_spec_slice_count_limit", NYTree::ConvertToNode(200'000));
@@ -1372,17 +1417,17 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     });
 
     registrar.Postprocessor([&] (TControllerAgentConfig* config) {
-        UpdateOptions(&config->MapOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->ReduceOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->JoinReduceOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->EraseOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->OrderedMergeOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->UnorderedMergeOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->SortedMergeOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->MapReduceOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->SortOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->RemoteCopyOperationOptions, config->OperationOptions);
-        UpdateOptions(&config->VanillaOperationOptions, config->OperationOptions);
+        BuildOptions(&config->MapOperationOptions, config->MapOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->ReduceOperationOptions, config->ReduceOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->JoinReduceOperationOptions, config->JoinReduceOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->EraseOperationOptions, config->EraseOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->OrderedMergeOperationOptions, config->OrderedMergeOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->UnorderedMergeOperationOptions, config->UnorderedMergeOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->SortedMergeOperationOptions, config->SortedMergeOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->MapReduceOperationOptions, config->MapReduceOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->SortOperationOptions, config->SortOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->RemoteCopyOperationOptions, config->RemoteCopyOperationOptionsNode, config->OperationOptions);
+        BuildOptions(&config->VanillaOperationOptions, config->VanillaOperationOptionsNode, config->OperationOptions);
 
         THashSet<TString> customJobMetricsProfilingNames;
         for (const auto& customJobMetricDescription : config->CustomJobMetrics) {

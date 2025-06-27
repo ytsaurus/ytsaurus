@@ -77,6 +77,25 @@ TRef TImmutableChunkMeta::GetExtensionData(const TExtensionDescriptor& descripto
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateFromProto(const NChunkClient::NProto::TChunkMeta& protoMeta)
+{
+    // NB: FromProto should throw on unknown values, so manual checks is just to be safe (and future-proofed).
+    if (FromProto<EChunkType>(protoMeta.type()) == EChunkType::Unknown) {
+        THROW_ERROR TError("Unknown chunk type encountered while deserializing chunk meta")
+            << TErrorAttribute("chunk_type", protoMeta.type());
+    }
+
+    // NB: FromProto should throw on unknown values, so manual checks is just to be safe (and future-proofed).
+    if (FromProto<EChunkFormat>(protoMeta.format()) == EChunkFormat::Unknown) {
+        THROW_ERROR TError("Unknown chunk format encountered while deserializing chunk meta")
+            << TErrorAttribute("chunk_format", protoMeta.format());
+    }
+
+    // TODO(babenko): right now this doesn't throw (which is good) but doesn't do
+    // what it should either. See below.
+    Y_UNUSED(FromProto<EChunkFeatures>(protoMeta.features()));
+}
+
 void FromProto(
     TImmutableChunkMetaPtr* meta,
     const NChunkClient::NProto::TChunkMeta& protoMeta)
@@ -90,6 +109,8 @@ void FromProto(
     *meta = TImmutableChunkMetaPtr(rawMeta);
     rawMeta->Type_ = FromProto<EChunkType>(protoMeta.type());
     rawMeta->Format_ = FromProto<EChunkFormat>(protoMeta.format());
+    // TODO(babenko): right now this converts anything unknown to
+    // EChunkFeatures::Unknown which is not what should be done.
     rawMeta->Features_ = FromProto<EChunkFeatures>(protoMeta.features());
 
     rawMeta->ExtensionDescriptors_.reserve(protoMeta.extensions().extensions().size());

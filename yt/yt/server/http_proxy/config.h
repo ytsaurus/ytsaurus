@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/cypress_registrar/public.h>
 
+#include <yt/yt/server/lib/security_server/public.h>
+
 #include <yt/yt/server/lib/signature/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -182,8 +184,8 @@ DEFINE_REFCOUNTED_TYPE(TMemoryLimitRatiosConfig)
 struct TMemoryLimitsConfig
     : public NYTree::TYsonStruct
 {
-    std::optional<i32> Total;
-    std::optional<i32> HeavyRequest;
+    std::optional<i64> Total;
+    std::optional<i64> HeavyRequest;
 
     REGISTER_YSON_STRUCT(TMemoryLimitsConfig);
 
@@ -204,6 +206,9 @@ struct TApiConfig
 
     bool ForceTracing;
 
+    TDuration CpuUpdatePeriod;
+    NSecurityServer::TUserAccessValidatorDynamicConfigPtr UserAccessValidator;
+
     TApiTestingOptionsPtr TestingOptions;
 
     REGISTER_YSON_STRUCT(TApiConfig);
@@ -223,6 +228,8 @@ struct TApiDynamicConfig
     THashMap<NFormats::EFormatType, NServer::TFormatConfigPtr> Formats;
 
     bool EnableAllocationTags;
+
+    NSecurityServer::TUserAccessValidatorDynamicConfigPtr UserAccessValidator;
 
     std::optional<double> DefaultUserMemoryLimitRatio;
     THashMap<std::string, TMemoryLimitRatiosConfigPtr> RoleToMemoryLimitRatios;

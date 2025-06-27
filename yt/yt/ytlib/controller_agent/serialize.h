@@ -55,6 +55,18 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DropSupportLocality)                   (301715))
     ((PrepareGpuCheckFSDuration)             (301716))
     ((DropShouldSlicePrimaryTableByKeys)     (301717))
+    ((NewUnorderedChunkPoolSlicing)          (301718))
+    // 25.2 starts here
+    ((BumpTo_25_2)                           (301800))
+    ((CompressedDataSizePerJob)              (301801))
+    ((DropSolidFromChunkStripe)              (301802))
+    ((GangRanks)                             (301803))
+    ((ChunkStripeKeyNoIndex)                 (301804))
+    ((OrderedAndSortedJobSizeAdjuster)       (301805))
+    ((RemoveAddressFromJob)                  (301806))
+    ((IntroduceInputStatistics)              (301807))
+    ((DropUnusedFieldInJobSizeConstraints)   (301808))
+    ((DropOutputOrder)                       (301809))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
