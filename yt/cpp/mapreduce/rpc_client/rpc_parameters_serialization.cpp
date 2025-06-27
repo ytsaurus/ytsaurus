@@ -803,6 +803,34 @@ NApi::TFileReaderOptions SerializeOptionsForReadFile(
     return result;
 }
 
+NApi::TFileWriterOptions SerializeOptionsForWriteFile(
+    const TTransactionId& transactionId,
+    const TFileWriterOptions& options)
+{
+    NApi::TFileWriterOptions result;
+    SetTransactionId(&result, transactionId);
+    if (options.ComputeMD5_) {
+        result.ComputeMD5 = *options.ComputeMD5_;
+    }
+    result.Config = ConvertTo<NApi::TFileWriterConfigPtr>(
+        NYson::TYsonString(NodeToYsonString(*options.Config_.OrElse(TNode::CreateMap()), NYson::EYsonFormat::Binary)));
+    if (const auto& writerOptions = options.WriterOptions_) {
+        if (writerOptions->EnableEarlyFinish_) {
+            result.Config->EnableEarlyFinish = *writerOptions->EnableEarlyFinish_;
+        }
+        if (writerOptions->UploadReplicationFactor_) {
+            result.Config->UploadReplicationFactor = *writerOptions->UploadReplicationFactor_;
+        }
+        if (writerOptions->MinUploadReplicationFactor_) {
+            result.Config->MinUploadReplicationFactor = *writerOptions->UploadReplicationFactor_;
+        }
+        if (writerOptions->DesiredChunkSize_) {
+            result.Config->DesiredChunkSize = *writerOptions->DesiredChunkSize_;
+        }
+    }
+    return result;
+}
+
 NApi::TGetFileFromCacheOptions SerializeOptionsForGetFileFromCache(
     const TTransactionId& transactionId,
     const TYPath& cachePath,
