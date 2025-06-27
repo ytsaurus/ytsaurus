@@ -36,7 +36,6 @@ struct TSignatureValidatorTest
     TStubKeyStorePtr Store;
     TKeyId KeyId;
     TKeyPairPtr Key;
-    TSignatureValidatorConfigPtr Config;
     TSignatureValidatorPtr Validator;
     std::string Payload = "MyImportantData";
 
@@ -50,8 +49,7 @@ struct TSignatureValidatorTest
                 .CreatedAt = Now(),
                 .ValidAfter = Now() - 10h,
                 .ExpiresAt = Now() + 10h}))
-        , Config(New<TSignatureValidatorConfig>())
-        , Validator(New<TSignatureValidator>(Config, Store))
+        , Validator(New<TSignatureValidator>(Store))
     { }
 
     TSignatureHeader SimpleHeader(

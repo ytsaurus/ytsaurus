@@ -26,11 +26,6 @@ void TSignatureGeneratorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSignatureValidatorConfig::Register(TRegistrar /*registrar*/)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TKeyRotatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("key_rotation_interval", &TThis::KeyRotationInterval)
@@ -86,8 +81,6 @@ void TCypressKeyWriterConfig::Register(TRegistrar registrar)
 void TSignatureValidationConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cypress_key_reader", &TThis::CypressKeyReader);
-
-    registrar.Parameter("validator", &TThis::Validator);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
