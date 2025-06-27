@@ -435,7 +435,7 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
-    def modify_master_config(cls, multidaemon_config, config, tag, peer_index, cluster_index):
+    def modify_master_config(cls, multidaemon_config, config, cell_index, cell_tag, peer_index, cluster_index):
         pass
 
     @classmethod
@@ -566,6 +566,25 @@ class YTEnvSetup(object):
         update_inplace(config, cls.DELTA_DRIVER_LOGGING_CONFIG)
 
     @classmethod
+    def master_cell_tag_from_cell_index(cls, cell_index, cluster_index=0):
+        return (cluster_index + 1) * 10 + cell_index
+
+    @classmethod
+    def master_cell_index_from_cell_tag(cls, cell_tag, cluster_index=0):
+        return cell_tag - (cluster_index + 1) * 10
+
+    @classmethod
+    def has_ground(cls, cluster_index=0):
+        return cls.get_param("USE_SEQUOIA", cluster_index) and not cls._is_ground_cluster(cluster_index)
+
+    @classmethod
+    def clock_cluster_tag(cls, cluster_index=0):
+        if cls.has_ground(cluster_index):
+            return (cluster_index + cls.get_ground_index_offset() + 1) * 10
+        else:
+            return cls.master_cell_tag_from_cell_index(0, cluster_index)
+
+    @classmethod
     def create_yt_cluster_instance(cls, index, path):
         modify_configs_func = functools.partial(cls.apply_config_patches, cluster_index=index, cluster_path=path)
         modify_dynamic_configs_func = functools.partial(cls.apply_node_dynamic_config_patches, cluster_index=index)
@@ -590,9 +609,8 @@ class YTEnvSetup(object):
         elif index == 0 or not cls.get_param("USE_PRIMARY_CLOCKS", index):
             clock_count = cls.get_param("NUM_CLOCKS", index)
 
-        has_ground = cls.get_param("USE_SEQUOIA", index) and not cls._is_ground_cluster(index)
-        primary_cell_tag = (index + 1) * 10
-        clock_cluster_tag = (index + cls.get_ground_index_offset() + 1) * 10 if has_ground else primary_cell_tag
+        primary_cell_tag = cls.master_cell_tag_from_cell_index(0, index)
+        clock_cluster_tag = cls.clock_cluster_tag(index)
 
         if cls.USE_SLOT_USER_ID is None:
             use_slot_user_id = cls.USE_PORTO
@@ -680,7 +698,7 @@ class YTEnvSetup(object):
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
             primary_cell_tag=primary_cell_tag,
-            has_ground=has_ground,
+            has_ground=cls.has_ground(index),
             clock_cluster_tag=clock_cluster_tag,
             enable_structured_logging=True,
             enable_log_compression=cls.ENABLE_LOG_COMPRESSION,
@@ -1134,7 +1152,7 @@ class YTEnvSetup(object):
                 configs["master"][cell_tag][peer_index] = cls.update_timestamp_provider_config(cluster_index, config)
                 configs["master"][cell_tag][peer_index] = cls.update_sequoia_connection_config(cluster_index, config)
                 configs["master"][cell_tag][peer_index] = cls.update_transaction_supervisor_config(cluster_index, config)
-                cls.modify_master_config(configs["multi"], configs["master"][cell_tag][peer_index], cell_tag, peer_index, cluster_index)
+                cls.modify_master_config(configs["multi"], configs["master"][cell_tag][peer_index], cell_index, cell_tag, peer_index, cluster_index)
 
                 configs["multi"]["daemons"][f"master_{cell_index}_{peer_index}"]["config"] = configs["master"][cell_tag][peer_index]
 
