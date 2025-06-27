@@ -16,7 +16,7 @@ from yt_dashboard_generator.taggable import NotEquals, SystemFields
 
 from yt_dashboard_generator.backends.monitoring import MonitoringLabelDashboardParameter, MonitoringExpr, PlainMonitoringExpr
 
-DataNode = ProjectSensor("dat_node*|node*", "yt-data-node.*")
+DataNode = ProjectSensor("dat_node*", "yt-data-node.*")
 
 
 def _build_sensor(name, sensor, hidden=False):
