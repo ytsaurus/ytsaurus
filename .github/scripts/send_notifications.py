@@ -97,6 +97,7 @@ def _get_prev_conclusion(repo, workflow_name, ref):
 
 
 def _get_workflow_state(prev_conclusion, current_conclusion):
+    print(prev_conclusion, current_conclusion)
     state_to_alert = {
         (CONCLUSION_SUCCESS, CONCLUSION_FAILURE): "failed ❌",
         (CONCLUSION_FAILURE, CONCLUSION_SUCCESS): "fixed ✅",
