@@ -628,6 +628,7 @@ private:
         const NNative::TConnectionOptions& options)
     {
         auto isRetriableError = BIND_NO_PROPAGATE([options] (const TError& error) {
+            // TODO(kvk1920): YT-25518.
             const auto* effectiveError = &error;
             if (error.GetCode() == NObjectClient::EErrorCode::ForwardedRequestFailed &&
                 !error.InnerErrors().empty())
