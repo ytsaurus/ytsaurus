@@ -1380,13 +1380,15 @@ public:
                 return error;
             }
 
-            YT_LOG_DEBUG(
-                "Unregistering operation from trees due to job resource limits restrictions violations "
-                "(OperationId: %v, Trees: %v)",
-                operationId,
-                treeIdsToUnregister);
+            if (!treeIdsToUnregister.empty()) {
+                YT_LOG_DEBUG(
+                    "Unregistering operation from trees due to job resource limits restrictions violations "
+                    "(OperationId: %v, Trees: %v)",
+                    operationId,
+                    treeIdsToUnregister);
 
-            unregisterFromTrees(std::move(treeIdsToUnregister));
+                unregisterFromTrees(std::move(treeIdsToUnregister));
+            }
         }
 
         if (scheduleInSingleTree) {
