@@ -4598,6 +4598,45 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
 
         self.remove_export_destination(export_dir)
 
+    # Check export progress merging for automatic trim.
+    @authors("apachee")
+    def test_yt_25456_fix(self):
+        _, queue_id = self._create_queue("//tmp/q")
+        # 1 second export period.
+        fast_export_dir = "//tmp/fast_export"
+        self._create_export_destination(fast_export_dir, queue_id)
+        # INF seconds export period
+        frozen_export_dir = "//tmp/frozen_export"
+        self._create_export_destination(frozen_export_dir, queue_id)
+
+        set("//tmp/q/@auto_trim_config", {"enable": True})
+        inf_period = 10 ** 15
+        set("//tmp/q/@static_export_config", {
+            "fast": {
+                "export_directory": fast_export_dir,
+                "export_period": 1000,
+            },
+            "frozen": {
+                "export_directory": frozen_export_dir,
+                "export_period": inf_period,
+            },
+        })
+
+        self._wait_for_component_passes()
+
+        insert_rows("//tmp/q", [{"data": "test"}])
+        self._flush_table("//tmp/q")
+
+        wait(lambda: len(ls(fast_export_dir)) == 1)
+
+        time.sleep(15)
+
+        self._wait_for_row_count("//tmp/q", 0, 1)
+
+        remove("//tmp/q/@static_export_config/frozen")
+
+        self._wait_for_row_count("//tmp/q", 0, 0)
+
     # COMPAT(apachee): Ensure old implementation is actually used.
     @authors("apachee")
     def test_use_old_queue_exporter_impl(self):

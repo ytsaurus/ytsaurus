@@ -76,55 +76,6 @@ DEFINE_REFCOUNTED_TYPE(IQueueController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAggregatedQueueExportsProgress
-{
-    bool HasExports = false;
-    THashMap<i64, i64> TabletIndexToRowCount;
-
-    void MergeWith(const TAggregatedQueueExportsProgress& rhs)
-    {
-        if (!HasExports) {
-            *this = rhs;
-            return;
-        }
-        if (!rhs.HasExports) {
-            return;
-        }
-        for (auto& [tabletIndex, rowCount] : TabletIndexToRowCount) {
-            if (auto it = rhs.TabletIndexToRowCount.find(tabletIndex); it != rhs.TabletIndexToRowCount.end()) {
-                rowCount = std::min(rowCount, it->second);
-            } else {
-                rowCount = 0;
-            }
-        }
-    }
-};
-
-TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<TString, TQueueExportProgressPtr>& queueExportsProgress)
-{
-    if (queueExportsProgress.empty()) {
-        return {
-            .HasExports = false,
-        };
-    }
-
-    TAggregatedQueueExportsProgress progress{
-        .HasExports = true,
-    };
-    for (const auto& [_, exportProgress] : queueExportsProgress) {
-        for (const auto& [tabletIndex, tabletExportProgress] : exportProgress->Tablets) {
-            if (auto tabletIt = progress.TabletIndexToRowCount.find(tabletIndex); tabletIt != progress.TabletIndexToRowCount.end()) {
-                tabletIt->second = std::min(tabletIt->second, tabletExportProgress->RowCount);
-            } else {
-                progress.TabletIndexToRowCount[tabletIndex] = tabletExportProgress->RowCount;
-            }
-        }
-    }
-    return progress;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TQueueSnapshotBuildSession final
 {
 public:
