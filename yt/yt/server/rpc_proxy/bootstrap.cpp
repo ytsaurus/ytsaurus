@@ -205,9 +205,7 @@ void TBootstrap::DoInitialize()
         CypressKeyReader_ = CreateCypressKeyReader(
             Config_->SignatureValidation->CypressKeyReader,
             RootClient_);
-        SignatureValidator_ = New<TSignatureValidator>(
-            Config_->SignatureValidation->Validator,
-            CypressKeyReader_);
+        SignatureValidator_ = New<TSignatureValidator>(CypressKeyReader_);
     }
 
     if (Config_->SignatureGeneration) {

@@ -14,12 +14,11 @@ class TSignatureValidator
     : public ISignatureValidator
 {
 public:
-    TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr keyReader);
+    explicit TSignatureValidator(IKeyStoreReaderPtr keyReader);
 
     TFuture<bool> Validate(const TSignaturePtr& signature) const final;
 
 private:
-    const TSignatureValidatorConfigPtr Config_;
     const IKeyStoreReaderPtr KeyReader_;
 };
 

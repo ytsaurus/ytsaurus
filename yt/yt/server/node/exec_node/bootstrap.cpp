@@ -182,9 +182,7 @@ public:
             auto cypressKeyReader = CreateCypressKeyReader(
                 signatureValidationConfig->CypressKeyReader,
                 GetClient());
-            SignatureValidator_ = New<TSignatureValidator>(
-                signatureValidationConfig->Validator,
-                std::move(cypressKeyReader));
+            SignatureValidator_ = New<TSignatureValidator>(std::move(cypressKeyReader));
         } else {
             // NB(pavook): we cannot do any meaningful signature operations safely.
             SignatureValidator_ = CreateAlwaysThrowingSignatureValidator();
