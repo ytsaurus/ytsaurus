@@ -37,6 +37,7 @@ struct TSequoiaTransactionOptions
     std::optional<TSequoiaTransactionRequestPriorities> RequestPriorities = std::nullopt;
     std::vector<NObjectClient::TTransactionId> CypressPrerequisiteTransactionIds = {};
     bool SequenceTabletCommitSessions = false;
+    bool EnableVerboseLogging = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
