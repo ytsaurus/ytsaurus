@@ -33,7 +33,7 @@
 #include <yt/yt/server/lib/nbd/server.h>
 
 #include <yt/yt/server/lib/signature/cypress_key_store.h>
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_rotator.h>
 #include <yt/yt/server/lib/signature/signature_generator.h>
 #include <yt/yt/server/lib/signature/signature_validator.h>

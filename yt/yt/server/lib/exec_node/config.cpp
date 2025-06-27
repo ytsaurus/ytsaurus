@@ -4,7 +4,7 @@
 
 #include <yt/yt/library/profiling/solomon/config.h>
 
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/config.h>
 
 #include <yt/yt/core/misc/config.h>
 

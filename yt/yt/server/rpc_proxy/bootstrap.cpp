@@ -11,7 +11,7 @@
 #include <yt/yt/server/lib/rpc_proxy/profilers.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_rotator.h>
 #include <yt/yt/server/lib/signature/signature_generator.h>
 #include <yt/yt/server/lib/signature/signature_validator.h>
