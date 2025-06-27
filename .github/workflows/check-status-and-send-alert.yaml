@@ -2,10 +2,6 @@ name: Send Telegram Status
 
 on:
   workflow_call:
-    inputs:
-      current_job_conclusion:
-        required: true
-        type: string
     secrets:
       GH_PERSONAL_ACCESS_TOKEN:
         required: true
@@ -31,6 +27,14 @@ jobs:
         run: |
           pip install PyGithub==2.6.1
 
+      - name: Save conclusion (failure)
+        if: failure()
+        run: echo "CURRENT_JOB_CONCLUSION=failure" >> $GITHUB_ENV
+
+      - name: Save conclusion (success)
+        if: success()
+        run: echo "CURRENT_JOB_CONCLUSION=success" >> $GITHUB_ENV
+
       - name: Send telegram status report
         id: send-telegram-status-report
         run: |
@@ -41,7 +45,7 @@ jobs:
                   --ref "${{ github.ref_name }}" \
                   --tg-token "${{ secrets.TELEGRAM_TOKEN }}" \
                   --tg-chat-id ${{ secrets.TELEGRAM_CHAT_ID }} \
-                  --current-job-conclusion ${{ inputs.current_job_conclusion }} \
+                  --current-job-conclusion $CURRENT_JOB_CONCLUSION \
                   --current-job-id ${{ github.run_id }} \
                   --commit-message "${{ github.event.head_commit.message }}" \
                   --git-server-url "${{ github.api_url }}"
