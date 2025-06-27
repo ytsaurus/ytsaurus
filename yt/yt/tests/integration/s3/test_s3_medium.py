@@ -748,21 +748,36 @@ class TestS3Medium(YTEnvSetup):
 
         bucket = self.S3_MEDIA[0]["bucket"]
 
-        columns = {
-            key: [row[key] for row in modified_data]
-            for key in modified_data[0]
-        }
-        table = pa.Table.from_pydict(columns)
-
         # TODO(achulkov2): Test with compression.
         # TODO(achulkov2): Test with row groups of different sizes.
         buffer = BytesIO()
-        pq.write_table(table, buffer, row_group_size=row_count // row_group_count)
+        pq.write_table(pa.Table.from_pydict({
+            key: [row[key] for row in modified_data]
+            for key in modified_data[0]
+        }), buffer, row_group_size=row_count // row_group_count)
         buffer.seek(0)
         self.S3_CLIENT.put_object(Bucket=bucket, Key="foo.parquet", Body=buffer)
+
+        buffer = BytesIO()
+        pq.write_table(pa.Table.from_pydict({
+            key: [row[key] for row in data]
+            for key in data[0]
+        }), buffer, row_group_size=row_count // row_group_count, compression="gzip")
+        buffer.seek(0)
+        self.S3_CLIENT.put_object(Bucket=bucket, Key="bar.parquet", Body=buffer)
+
         create("table", "//tmp/imported", attributes={"primary_medium": self.get_s3_medium_name()})
+
+        import_table("//tmp/imported", s3_keys=["foo.parquet", "bar.parquet"])
+        rows = read_table("//tmp/imported")
+        assert (rows == modified_data + data) or (rows == data + modified_data)
+
         import_table("//tmp/imported", s3_keys=["foo.parquet"])
         assert read_table("//tmp/imported") == modified_data
+
+        import_table("<append=%true>//tmp/imported", s3_keys=["bar.parquet"])
+        rows = read_table("//tmp/imported")
+        assert (rows == modified_data + data) or (rows == data + modified_data)
 
         map(
             command="cat",
