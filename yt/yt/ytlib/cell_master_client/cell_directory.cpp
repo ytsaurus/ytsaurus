@@ -635,6 +635,10 @@ private:
                 effectiveError = &error.InnerErrors().front();
             }
 
+            if (effectiveError->GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
+                return true;
+            }
+
             if (options.RetryRequestQueueSizeLimitExceeded &&
                 effectiveError->GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
             {
