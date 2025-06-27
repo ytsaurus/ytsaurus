@@ -961,7 +961,10 @@ private:
             ->StartTransaction(
                 TransactionType,
                 options,
-                /*sequoiaTransactionOptions*/ {.SequenceTabletCommitSessions = true})
+                {
+                    .SequenceTabletCommitSessions = true,
+                    .EnableVerboseLogging = true,
+                })
             .ApplyUnique(
                 BIND(&TSequoiaMutation::OnSequoiaTransactionStarted, MakeStrong(this))
                     .AsyncVia(Invoker_));
