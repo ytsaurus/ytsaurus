@@ -89,7 +89,7 @@ def _get_prev_conclusion(repo, workflow_name, ref):
         return
 
     runs = current_workflow.get_runs(branch=ref, status="completed")
-    if not runs:
+    if not runs or runs.totalCount == 0:
         print("No one runs with such filter")
         return
 
