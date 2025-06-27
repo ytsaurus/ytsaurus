@@ -4,7 +4,6 @@
 Many application functions that on the one hand are too specific to become part of the YQL core, and on the other hand might be useful to a wide range of users, are available through built-in C++ libraries.
 
 
-
 Embedded C++ libraries are linked using UDFs in C++.
 
 * [Clickhouse](clickhouse.md)
@@ -16,6 +15,7 @@ Embedded C++ libraries are linked using UDFs in C++.
 * [Math](math.md)
 * [Pcre](pcre.md)
 * [Pire](pire.md)
+* [Protobuf](protobuf.md)
 * [Re2](re2.md)
 * [Streaming](streaming.md)
 * [String](string.md)
