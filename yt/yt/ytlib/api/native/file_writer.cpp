@@ -1,4 +1,3 @@
-#include "file_builder.h"
 #include "file_writer.h"
 #include "private.h"
 #include "client.h"
@@ -7,7 +6,6 @@
 #include "connection.h"
 #include "private.h"
 
-#include <yt/yt/client/api/file_builder.h>
 #include <yt/yt/client/api/file_writer.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
@@ -63,7 +61,8 @@ using namespace NHiveClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFileWriter
-    : public IFileWriter
+    : public TTransactionListener
+    , public IFileWriter
 {
 public:
     TFileWriter(
@@ -89,10 +88,10 @@ public:
     TFuture<void> Write(const TSharedRef& data) override
     {
         try {
-            FileBuilder_->ValidateAborted();
+            ValidateAborted();
 
-            if (Options_.ComputeMD5 && FileBuilder_->MD5Hasher) {
-                FileBuilder_->MD5Hasher->Append(data);
+            if (Options_.ComputeMD5 && MD5Hasher_) {
+                MD5Hasher_->Append(data);
             }
 
             if (Writer_->Write(data)) {
@@ -118,22 +117,199 @@ private:
     const TFileWriterOptions Options_;
     const TFileWriterConfigPtr Config_;
 
+    NApi::ITransactionPtr Transaction_;
     NApi::ITransactionPtr UploadTransaction_;
+
+    std::optional<TMD5Hasher> MD5Hasher_;
 
     IFileMultiChunkWriterPtr Writer_;
 
+    TCellTag NativeCellTag_ = InvalidCellTag;
+    TCellTag ExternalCellTag_ = InvalidCellTag;
+    TObjectId ObjectId_;
+
     const NLogging::TLogger Logger;
 
-    TFileBuilderPtr FileBuilder_ = nullptr;
 
     void DoOpen()
     {
-        FileBuilder_ = New<TFileBuilder>(Client_, Path_, Options_);
+        if (Path_.GetAppend() && Path_.GetCompressionCodec()) {
+            THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"compression_codec\" are not compatible")
+                << TErrorAttribute("path", Path_);
+        }
+
+        if (Path_.GetAppend() && Path_.GetErasureCodec()) {
+            THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"erasure_codec\" are not compatible")
+                << TErrorAttribute("path", Path_);
+        }
+
+        if (Options_.TransactionId) {
+            Transaction_ = Client_->AttachTransaction(Options_.TransactionId);
+            StartListenTransaction(Transaction_);
+        }
+
+        auto writerOptions = New<TMultiChunkWriterOptions>();
+
+        TUserObject userObject(Path_);
+
+        GetUserObjectBasicAttributes(
+            Client_,
+            {&userObject},
+            Options_.TransactionId,
+            Logger,
+            EPermission::Write);
+
+        ObjectId_ = userObject.ObjectId;
+        NativeCellTag_ = CellTagFromId(ObjectId_);
+        ExternalCellTag_ = userObject.ExternalCellTag;
+
+        if (userObject.Type != EObjectType::File) {
+            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
+                Path_.GetPath(),
+                EObjectType::File,
+                userObject.Type);
+        }
+
+        auto objectIdPath = FromObjectId(ObjectId_);
+
+        {
+            YT_LOG_INFO("Requesting extended file attributes");
+
+            auto proxy = CreateObjectServiceReadProxy(
+                Client_,
+                EMasterChannelKind::Follower,
+                NativeCellTag_);
+            auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
+            AddCellTagToSyncWith(req, ObjectId_);
+            SetTransactionId(req, Transaction_);
+            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                "account",
+                "compression_codec",
+                "erasure_codec",
+                "primary_medium",
+                "replication_factor",
+                "enable_striped_erasure",
+            });
+
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                rspOrError,
+                "Error requesting extended attributes of file %v",
+                Path_.GetPath());
+
+            auto rsp = rspOrError.Value();
+            auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+            auto attributesCompressionCodec = attributes->Get<NCompression::ECodec>("compression_codec");
+            auto attributesErasureCodec = attributes->Get<NErasure::ECodec>("erasure_codec");
+
+            writerOptions->ReplicationFactor = attributes->Get<int>("replication_factor");
+            writerOptions->MediumName = attributes->Get<TString>("primary_medium");
+            writerOptions->Account = attributes->Get<TString>("account");
+            writerOptions->CompressionCodec = Path_.GetCompressionCodec().value_or(attributesCompressionCodec);
+            writerOptions->ErasureCodec = Path_.GetErasureCodec().value_or(attributesErasureCodec);
+            // COMPAT(gritukan)
+            writerOptions->EnableStripedErasure = attributes->Get<bool>("enable_striped_erasure", false);
+
+            YT_LOG_INFO("Extended file attributes received (Account: %v)",
+                writerOptions->Account);
+        }
+
+        {
+            YT_LOG_INFO("Starting file upload");
+
+            auto proxy = CreateObjectServiceWriteProxy(
+                Client_,
+                NativeCellTag_);
+            auto batchReq = proxy.ExecuteBatch();
+
+            {
+                auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
+                for (const auto& id : Options_.PrerequisiteTransactionIds) {
+                    auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+                    ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
+                }
+            }
+
+            {
+                bool append = Path_.GetAppend();
+                auto req = TFileYPathProxy::BeginUpload(objectIdPath);
+                auto updateMode = append ? EUpdateMode::Append : EUpdateMode::Overwrite;
+                req->set_update_mode(ToProto(updateMode));
+                auto lockMode = (append && !Options_.ComputeMD5) ? ELockMode::Shared : ELockMode::Exclusive;
+                req->set_lock_mode(ToProto(lockMode));
+                req->set_upload_transaction_title(Format("Upload to %v", Path_.GetPath()));
+                req->set_upload_transaction_timeout(ToProto(Client_->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
+                GenerateMutationId(req);
+                SetTransactionId(req, Transaction_);
+                batchReq->AddRequest(req, "begin_upload");
+            }
+
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                GetCumulativeError(batchRspOrError),
+                "Error starting upload to file %v",
+                Path_.GetPath());
+            const auto& batchRsp = batchRspOrError.Value();
+
+            {
+                auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspBeginUpload>("begin_upload").Value();
+                auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
+
+                UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, TTransactionAttachOptions{
+                    .AutoAbort = true,
+                    .PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod,
+                    .PingAncestors = Options_.PingAncestors
+                });
+                StartListenTransaction(UploadTransaction_);
+
+                YT_LOG_INFO("File upload started (UploadTransactionId: %v)",
+                    uploadTransactionId);
+            }
+        }
+
+        TChunkListId chunkListId;
+
+        {
+            YT_LOG_INFO("Requesting file upload parameters");
+
+            auto proxy = CreateObjectServiceReadProxy(
+                Client_,
+                EMasterChannelKind::Follower,
+                ExternalCellTag_);
+            auto req = TFileYPathProxy::GetUploadParams(objectIdPath);
+            SetTransactionId(req, UploadTransaction_);
+
+            auto rspOrError = WaitFor(proxy.Execute(req));
+            THROW_ERROR_EXCEPTION_IF_FAILED(
+                rspOrError,
+                "Error requesting upload parameters for file %v",
+                Path_.GetPath());
+
+            const auto& rsp = rspOrError.Value();
+            chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
+
+            if (Options_.ComputeMD5) {
+                if (Path_.GetAppend()) {
+                    FromProto(&MD5Hasher_, rsp->md5_hasher());
+                    if (!MD5Hasher_) {
+                        THROW_ERROR_EXCEPTION(
+                            "Non-empty file %v has no computed MD5 hash thus "
+                            "cannot append data and update the hash simultaneously",
+                            Path_.GetPath());
+                    }
+                } else {
+                    MD5Hasher_.emplace();
+                }
+            }
+
+            YT_LOG_INFO("File upload parameters received (ChunkListId: %v)",
+                chunkListId);
+        }
 
         NChunkClient::TDataSink dataSink;
         dataSink.SetPath(Path_.GetPath());
-        dataSink.SetObjectId(FileBuilder_->ObjectId);
-        dataSink.SetAccount(FileBuilder_->WriterOptions->Account);
+        dataSink.SetObjectId(userObject.ObjectId);
+        dataSink.SetAccount(writerOptions->Account);
 
         auto throttler = Options_.Throttler
             ? Options_.Throttler
@@ -141,11 +317,11 @@ private:
 
         Writer_ = CreateFileMultiChunkWriter(
             Config_,
-            FileBuilder_->WriterOptions,
+            writerOptions,
             Client_,
-            FileBuilder_->ExternalCellTag,
+            ExternalCellTag_,
             UploadTransaction_->GetId(),
-            FileBuilder_->ChunkListId,
+            chunkListId,
             dataSink,
             /*writeBlocksOptions*/ {},
             /*trafficMetter*/ nullptr,
@@ -156,7 +332,7 @@ private:
 
     void DoClose()
     {
-        FileBuilder_->ValidateAborted();
+        ValidateAborted();
 
         YT_LOG_INFO("Closing file");
 
@@ -164,10 +340,55 @@ private:
             auto result = WaitFor(Writer_->Close());
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to close file writer");
         }
-        auto objectIdPath = FromObjectId(FileBuilder_->ObjectId);
-        auto req = TFileYPathProxy::EndUpload(objectIdPath);
-        *req->mutable_statistics() = Writer_->GetDataStatistics();
-        FileBuilder_->Close(req);
+
+        auto objectIdPath = FromObjectId(ObjectId_);
+
+        auto proxy = CreateObjectServiceWriteProxy(
+            Client_,
+            NativeCellTag_);
+        auto batchReq = proxy.ExecuteBatch();
+
+        {
+            auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
+            for (const auto& id : Options_.PrerequisiteTransactionIds) {
+                auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+                ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
+            }
+        }
+
+        StopListenTransaction(UploadTransaction_);
+
+        {
+            auto req = TFileYPathProxy::EndUpload(objectIdPath);
+            *req->mutable_statistics() = Writer_->GetDataStatistics();
+            ToProto(req->mutable_md5_hasher(), MD5Hasher_);
+
+            if (auto compressionCodec = Path_.GetCompressionCodec()) {
+                req->set_compression_codec(ToProto(*compressionCodec));
+            }
+
+            if (auto erasureCodec = Path_.GetErasureCodec()) {
+                req->set_erasure_codec(ToProto(*erasureCodec));
+            }
+
+            if (auto securityTags = Path_.GetSecurityTags()) {
+                ToProto(req->mutable_security_tags()->mutable_items(), *securityTags);
+            }
+
+            SetTransactionId(req, UploadTransaction_);
+            GenerateMutationId(req);
+            batchReq->AddRequest(req, "end_upload");
+        }
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            GetCumulativeError(batchRspOrError),
+            "Error finishing upload to file %v",
+            Path_.GetPath());
+
+        UploadTransaction_->Detach();
+
+        YT_LOG_INFO("File closed");
     }
 };
 

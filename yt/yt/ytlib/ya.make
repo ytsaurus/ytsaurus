@@ -45,7 +45,6 @@ SRCS(
     api/native/connection.cpp
     api/native/queue_consumer_type_handler.cpp
     api/native/default_type_handler.cpp
-    api/native/file_builder.cpp
     api/native/file_reader.cpp
     api/native/file_writer.cpp
     api/native/helpers.cpp
