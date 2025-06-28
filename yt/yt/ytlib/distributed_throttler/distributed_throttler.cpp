@@ -427,17 +427,27 @@ public:
 
     void UpdateTotalLimits(THashMap<TThrottlerId, std::optional<double>> throttlerIdToTotalLimit)
     {
-        UpdateTotalLimitsExplicitly_ = true;
+        UpdateTotalLimitsExplicitlySet_ = true;
 
-        // Clear old total limits.
-        for (auto& shard : ThrottlerShards_) {
-            auto guard = WriterGuard(shard.TotalLimitsLock);
-            shard.ThrottlerIdToTotalLimit.clear();
+        std::vector<std::vector<TThrottlerId>> throttlerIdsByShard(ShardCount_);
+        for (const auto& [throttlerId, _] : throttlerIdToTotalLimit) {
+            throttlerIdsByShard[GetShardIndex(throttlerId)].push_back(throttlerId);
         }
 
-        // Set new total limits.
-        for (auto& [throttlerId, totalLimit] : throttlerIdToTotalLimit) {
-            SetTotalLimit(throttlerId, std::move(totalLimit));
+        for (int i = 0; i < ShardCount_; ++i) {
+            auto& shard = ThrottlerShards_[i];
+            auto guard = WriterGuard(shard.TotalLimitsLock);
+            // Clear old total limits.
+            shard.ThrottlerIdToTotalLimit.clear();
+
+            // Set new total limits.
+            for (const auto& throttlerId : throttlerIdsByShard[i]) {
+                auto& limit = shard.ThrottlerIdToTotalLimit[throttlerId];
+                limit = throttlerIdToTotalLimit[throttlerId];
+                YT_LOG_DEBUG("Setting throttler total limit (ThrottlerId: %v, Limit: %v)",
+                    throttlerId,
+                    limit);
+            }
         }
     }
 
@@ -602,7 +612,7 @@ private:
     };
     std::vector<TThrottlerShard> ThrottlerShards_;
 
-    std::atomic<bool> UpdateTotalLimitsExplicitly_ = false;
+    std::atomic<bool> UpdateTotalLimitsExplicitlySet_ = false;
 
     DECLARE_RPC_SERVICE_METHOD(NDistributedThrottler::NProto, Heartbeat)
     {
@@ -886,7 +896,7 @@ private:
                 continue;
             }
 
-            if (!UpdateTotalLimitsExplicitly_) {
+            if (!UpdateTotalLimitsExplicitlySet_) {
                 auto guard = WriterGuard(throttlerShard.TotalLimitsLock);
                 for (const auto& deadThrottlerId : deadThrottlersIds) {
                     throttlerShard.ThrottlerIdToTotalLimit.erase(deadThrottlerId);
