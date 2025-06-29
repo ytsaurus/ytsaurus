@@ -670,11 +670,15 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 else None
             )
 
-        def get_v_ts(i):
-            return select_rows(
-                f"[$timestamp:v{i}] as t from [{input}] where k = {eq_timestamp_rows_count}",
-                versioned_read_options=versioned_read_options,
-            )[0]["t"]
+        input_row_eq_timestamp = select_rows(
+            f"* from [{input}] where k = {eq_timestamp_rows_count}",
+            versioned_read_options=versioned_read_options,
+        )[0]
+
+        input_v_ts = {}
+
+        for i in range(1, 4):
+            input_v_ts[i] = input_row_eq_timestamp[f"$timestamp:v{i}"]
 
         def check_single_ts(i):
             output = create_output_table(default_schema)
@@ -687,7 +691,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 )
 
                 row = select_rows(
-                    f"k from [{output}] where [$timestamp:v{i}] = {get_v_ts(i)}",
+                    f"k from [{output}] where [$timestamp:v{i}] = {input_v_ts[i]}",
                     versioned_read_options=versioned_read_options,
                 )
                 assert len(row) == 1
@@ -702,6 +706,16 @@ class TestMapOnDynamicTables(YTEnvSetup):
         def chunk_view_timestamp_checker(input_query, input_schema_columns, no_ts_column):
             output = create_output_table(default_schema)
 
+            column_ts = f"$timestamp:{no_ts_column}"
+
+            def get_query(path):
+                return f"[{column_ts}] from [{path}] where k = {eq_timestamp_rows_count}"
+
+            input_row = select_rows(
+                get_query(input),
+                versioned_read_options=versioned_read_options,
+            )
+
             def checker(operation, **args):
                 operation(
                     in_=f"{operation_read_options}{input}",
@@ -711,16 +725,6 @@ class TestMapOnDynamicTables(YTEnvSetup):
                         "input_schema": get_input_schema(input_schema_columns),
                     },
                     **args,
-                )
-
-                column_ts = f"$timestamp:{no_ts_column}"
-
-                def get_query(path):
-                    return f"[{column_ts}] from [{path}] where k = {eq_timestamp_rows_count}"
-
-                input_row = select_rows(
-                    get_query(input),
-                    versioned_read_options=versioned_read_options,
                 )
 
                 rows = select_rows(
@@ -755,6 +759,14 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
             output = create_output_table(output_schema)
 
+            def get_rows(path, key_column):
+                return select_rows(
+                    f'* from [{path}] where {key_column} = {eq_timestamp_rows_count}',
+                    versioned_read_options=versioned_read_options,
+                )
+
+            input_rows = get_rows(input, input_schema_columns[0])
+
             def checker(operation, **args):
                 operation(
                     in_=f"{operation_read_options}{input}",
@@ -772,13 +784,6 @@ class TestMapOnDynamicTables(YTEnvSetup):
                     input_columns.append(i)
                     output_columns.append(o)
 
-                def get_rows(path, key_column):
-                    return select_rows(
-                        f'* from [{path}] where {key_column} = {eq_timestamp_rows_count}',
-                        versioned_read_options=versioned_read_options,
-                    )
-
-                input_rows = get_rows(input, input_schema_columns[0])
                 output_rows = get_rows(output, output_schema_columns[0])
 
                 assert len(input_rows) == len(output_rows) == 1
