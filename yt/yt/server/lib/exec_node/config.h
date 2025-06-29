@@ -675,6 +675,10 @@ struct TJobProxyConfig
 
     NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
 
+    NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
+
+    NBus::TBusClientConfigPtr SupervisorConnection;
+
     TDuration SupervisorRpcTimeout;
 
     TDuration JobProxyHeartbeatPeriod;
@@ -696,6 +700,9 @@ struct TJobProxyConfig
 
     //! Enables job abort on violated memory reserve.
     bool AlwaysAbortOnMemoryReserveOverdraft;
+
+    //! Defines environment variables for job proxy, and export to user job.
+    std::vector<NJobProxy::TEnvironmentVariableConfigPtr> EnvironmentVariables;
 
     //! Forward variables from job proxy environment to user job.
     bool ForwardAllEnvironmentVariables;
