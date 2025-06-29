@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend
+from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove, exists, create_user,
@@ -943,6 +943,15 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     NUM_TEST_PARTITIONS = 6
+
+    @authors("kvk1920")
+    def test_expiration_during_ground_unavailability(self):
+        tx = start_transaction(timeout=10000)
+        start_time = datetime.now()
+        with Restarter(self.ground_envs[0], NODES_SERVICE):
+            sleep(12 - (datetime.now() - start_time).total_seconds())
+            assert exists(f"#{tx}")
+        wait(lambda: not exists(f"#{tx}"))
 
 
 @pytest.mark.enabled_multidaemon

@@ -3433,25 +3433,30 @@ private:
                 this_ = MakeStrong(this),
                 automatonInvoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)
             ] (const TError& error) {
-                if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
-                    if (IsLeader()) {
-                        // Poor man's retry.
-                        // TODO(kvk1920): implement transaction abort tracker
-                        // and use it here.
-                        // NB: We don't need parent id here since it is used
-                        // only to ping ancestors.
-                        LeaseTracker_->UnregisterTransaction(transactionId);
-                        LeaseTracker_->RegisterTransaction(
-                            transactionId,
-                            /*parentId*/ {},
-                            /*timeout*/ TDuration::MilliSeconds(250),
-                            /*deadline*/ std::nullopt,
-                            BIND(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
-                                .Via(automatonInvoker));
-                    }
-                } else if (!error.IsOK()) {
-                    YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
-                        transactionId);
+                if (error.IsOK()) {
+                    return;
+                }
+
+                // TODO(kvk1920): replace with YT_LOG_ALERT when all errors from
+                // Ground will become retriable.
+                YT_LOG_WARNING_IF(error.GetCode() != NSequoiaClient::EErrorCode::SequoiaRetriableError,
+                    error,
+                    "Non-retriable error during expired transaction abort");
+
+                if (IsLeader()) {
+                    // Poor man's retry.
+                    // TODO(kvk1920): implement transaction abort tracker
+                    // and use it here.
+                    // NB: We don't need parent id here since it is used
+                    // only to ping ancestors.
+                    LeaseTracker_->UnregisterTransaction(transactionId);
+                    LeaseTracker_->RegisterTransaction(
+                        transactionId,
+                        /*parentId*/ {},
+                        /*timeout*/ TDuration::MilliSeconds(250),
+                        /*deadline*/ std::nullopt,
+                        BIND(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
+                            .Via(automatonInvoker));
                 }
             }));
     }
