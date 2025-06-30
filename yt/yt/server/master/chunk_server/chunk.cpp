@@ -18,6 +18,9 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
+#include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
+
 #include <yt/yt/ytlib/journal_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>

@@ -30,6 +30,7 @@ namespace NProto {
 
 class TReqCreateForeignObject;
 class TReqRemoveForeignObject;
+class TReqDestroyObjects;
 
 } // namespace NProto
 

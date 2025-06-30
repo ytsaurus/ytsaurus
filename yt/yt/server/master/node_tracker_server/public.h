@@ -19,6 +19,7 @@ namespace NYT::NNodeTrackerServer {
 namespace NProto {
 
 class TReqRemoveNode;
+class TNodeStatistics;
 
 using TReqRegisterNode = NNodeTrackerClient::NProto::TReqRegisterNode;
 

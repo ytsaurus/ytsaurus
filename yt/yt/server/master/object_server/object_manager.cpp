@@ -27,6 +27,8 @@
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 #include <yt/yt/server/master/cypress_server/resolve_cache.h>
 
+#include <yt/yt/server/master/object_server/proto/object_manager.pb.h>
+
 #include <yt/yt/server/master/security_server/group.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>

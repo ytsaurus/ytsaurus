@@ -15,8 +15,6 @@
 
 #include <yt/yt/server/master/chunk_server/public.h>
 
-#include <yt/yt/server/lib/security_server/proto/security_manager.pb.h>
-
 #include <yt/yt/server/master/table_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>

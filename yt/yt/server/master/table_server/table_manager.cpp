@@ -30,6 +30,8 @@
 #include <yt/yt/server/master/object_server/object_manager.h>
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
+#include <yt/yt/server/master/tablet_server/config.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
@@ -62,7 +64,6 @@ using namespace NChunkServer;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressServer;
-using namespace NCypressServer::NProto;
 using namespace NHydra;
 using namespace NLogging;
 using namespace NObjectClient;

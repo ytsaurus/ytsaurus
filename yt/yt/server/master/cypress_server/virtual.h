@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/master/object_server/public.h>
 
+#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
+
 #include <yt/yt/core/ytree/ypath_detail.h>
 #include <yt/yt/core/ytree/system_attribute_provider.h>
 #include <yt/yt/core/ytree/virtual.h>

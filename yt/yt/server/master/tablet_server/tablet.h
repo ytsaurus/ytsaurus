@@ -16,11 +16,7 @@
 
 #include <yt/yt/server/lib/tablet_node/public.h>
 
-#include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
-
 #include <yt/yt/server/lib/tablet_node/performance_counters.h>
-
-#include <yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h>
 
 #include <yt/yt/ytlib/tablet_client/backup.h>
 

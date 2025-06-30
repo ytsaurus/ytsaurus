@@ -4,8 +4,6 @@
 #include "table_replica.h"
 #include "tablet_action.h"
 
-#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
-
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/server/master/table_server/table_node.h>
@@ -16,7 +14,11 @@
 #include <yt/yt/server/master/chunk_server/medium_base.h>
 #include <yt/yt/server/master/chunk_server/dynamic_store.h>
 
+#include <yt/yt/server/lib/tablet_server/proto/backup_manager.pb.h>
+
 #include <yt/yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
@@ -38,7 +40,6 @@ using namespace NYTree;
 using namespace NYson;
 
 using NYT::FromProto;
-using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
