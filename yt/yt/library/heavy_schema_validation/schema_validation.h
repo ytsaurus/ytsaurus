@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/client/table_client/public.h>
+#include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NTableClient {
 
@@ -24,7 +24,8 @@ void ValidateTableSchemaUpdateInternal(
     TSchemaUpdateEnabledFeatures enabledFeatures,
     bool isTableDynamic = false,
     bool isTableEmpty = false,
-    bool allowAlterKeyColumnToAny = false);
+    bool allowAlterKeyColumnToAny = false,
+    const TSchemaValidationOptions& options = {});
 
 void ValidateTableSchemaUpdate(
     const TTableSchema& oldSchema,
@@ -37,7 +38,8 @@ void ValidateTableSchemaUpdate(
 //! stuff which is missing in yt/client).
 void ValidateTableSchemaHeavy(
     const TTableSchema& schema,
-    bool isTableDynamic);
+    bool isTableDynamic,
+    const TSchemaValidationOptions& options = {});
 
 //! Validates computed columns.
 //!

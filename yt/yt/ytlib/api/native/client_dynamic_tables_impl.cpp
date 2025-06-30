@@ -984,7 +984,9 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateSorted();
 
-    auto schema = options.VersionedReadOptions.ReadMode == NTableClient::EVersionedIOMode::LatestTimestamp
+    bool isTimestampedLookup = options.VersionedReadOptions.ReadMode == NTableClient::EVersionedIOMode::LatestTimestamp;
+
+    auto schema = isTimestampedLookup
         ? ToLatestTimestampSchema(tableInfo->Schemas[ETableSchemaKind::Primary])
         : tableInfo->Schemas[ETableSchemaKind::Primary];
 
@@ -1000,8 +1002,10 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             *options.FallbackTableSchema,
             *schema,
             GetSchemaUpdateEnabledFeatures(),
-            true,
-            false);
+            /*isTableDynamic*/ true,
+            /*isTableEmpty*/ false,
+            /*allowAlterKeyColumnToAny*/ false,
+            {.AllowTimestampColumns = isTimestampedLookup});
     }
 
     auto idMapping = BuildColumnIdMapping(*schema, nameTable);
