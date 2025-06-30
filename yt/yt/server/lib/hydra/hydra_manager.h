@@ -209,6 +209,13 @@ struct IHydraManager
      */
     virtual bool GetReadOnly() const = 0;
 
+    //! Returns the current time according to the logical Hydra clock. Said clock
+    //! only ticks forward when quorum is accepting mutations.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual TInstant GetLogicalTime() const = 0;
+
     virtual bool IsDiscombobulated() const = 0;
 
     virtual i64 GetSequenceNumber() const = 0;

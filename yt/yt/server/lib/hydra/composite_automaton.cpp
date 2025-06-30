@@ -477,9 +477,8 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
         WaitTimeObserved_.Fire(waitTime);
     }
 
-    if (mutationType.empty()) {
-        YT_LOG_DEBUG("Skipping heartbeat mutation (Version: %v)",
-            version);
+    if (mutationType == NHydra::HeartbeatMutationType) {
+        YT_LOG_DEBUG("Skipping heartbeat mutation (Version: %v)", version);
     } else {
         NProfiling::TWallTimer timer;
 
