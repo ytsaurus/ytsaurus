@@ -555,28 +555,16 @@ class TestStatisticsReporter(TestStatisticsReporterBase, TestSortedDynamicTables
             for _ in range(480):
                 executor.submit(select_rows, "max(value) from [//tmp/t] where value = \"bbb\" group by 1")
 
-        cpu_time_by_tablet_id = {tablet_id : 0.0 for tablet_id in tablet_ids}
+        def _check_greater_second_tablet_load():
+            response = lookup_rows(statistics_path, [{"table_id": table_id, "tablet_id": tablet_id} for tablet_id in tablet_ids])
+            if len(response) != len(tablet_ids):
+                return False
 
-        def _check_select_cpu_time_stable(tablet_id):
-            old_cpu_time = cpu_time_by_tablet_id[tablet_id]
-            cpu_time_by_tablet_id[tablet_id] = self._get_counter(
-                statistics_path,
-                table_id,
-                tablet_id,
-                "select_cpu_time",
-                "count")
+            def _get_cpu(index):
+                return response[index]["select_cpu_time"]["count"]
+            return _get_cpu(1) > ((_get_cpu(0) + _get_cpu(2)) / 2) * 1.3
 
-            return cpu_time_by_tablet_id[tablet_id] == old_cpu_time
-
-        for tablet_id in tablet_ids:
-            wait(lambda: _check_select_cpu_time_stable(tablet_id))
-
-        a_cpu = cpu_time_by_tablet_id[tablet_ids[0]]
-        b_cpu = cpu_time_by_tablet_id[tablet_ids[1]]
-        c_cpu = cpu_time_by_tablet_id[tablet_ids[2]]
-
-        # CPU usage of the second tablet must be substantially higher
-        assert b_cpu > ((a_cpu + c_cpu) / 2) * 1.3
+        wait(_check_greater_second_tablet_load)
 
     @authors("akozhikhov")
     def test_hunks_performance_counters_1(self):
