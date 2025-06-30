@@ -79,6 +79,7 @@ class QueryTracker(YTServerComponentBase, YTComponent):
             },
         }
         self.client.set(f"//sys/clusters/{self.env.id}/query_tracker", query_tracker_config)
+        self.client.set("//sys/@cluster_connection/query_tracker", query_tracker_config)
 
         logger.info("Query tracker started")
 

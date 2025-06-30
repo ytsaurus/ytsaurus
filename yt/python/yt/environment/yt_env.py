@@ -696,6 +696,7 @@ class YTInstance(object):
                 self._wait_for_dynamic_config_update(queue_agent_dynamic_config, client, instance_type="queue_agents/instances")
             # TODO(nadya73): update kafka proxy dynamic config
             self._write_environment_info_to_file()
+
             logger.info("Environment started")
         except (YtError, KeyboardInterrupt) as err:
             logger.exception("Failed to start environment")
