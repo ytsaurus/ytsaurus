@@ -779,7 +779,8 @@ public:
                     action->GetId());
             }
             if (tablet->GetState() != ETabletState::Mounted && tablet->GetState() != ETabletState::Frozen) {
-                THROW_ERROR_EXCEPTION("Tablet %v is in state %Qlv",
+                THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::TabletIsInIntermediateState,
+                    "Tablet %v is in state %Qlv",
                     tablet->GetId(),
                     tablet->GetState());
             }
