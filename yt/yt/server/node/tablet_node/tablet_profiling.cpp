@@ -57,6 +57,7 @@ TKeyFilterCounters::TKeyFilterCounters(const TProfiler& profiler)
 TLookupCounters::TLookupCounters(
     const TProfiler& profiler,
     const TProfiler& mediumProfiler,
+    const TProfiler& mediumHistogramProfiler,
     const TTableSchemaPtr& schema)
     : CacheHits(profiler.Counter("/lookup/cache_hits"))
     , CacheOutdated(profiler.Counter("/lookup/cache_outdated"))
@@ -78,7 +79,7 @@ TLookupCounters::TLookupCounters(
     , RetryCount(profiler.Counter("/lookup/retry_count"))
     , ChunkReaderStatisticsCounters(
         mediumProfiler.WithPrefix("/lookup/chunk_reader_statistics"),
-        mediumProfiler.WithPrefix("/lookup/medium_statistics"))
+        mediumHistogramProfiler.WithPrefix("/lookup/medium_statistics"))
     , HunkChunkReaderCounters(mediumProfiler.WithPrefix("/lookup/hunks"), schema)
     , KeyFilterCounters(profiler.WithPrefix("/lookup/key_filter"))
 { }
@@ -94,6 +95,7 @@ TRangeFilterCounters::TRangeFilterCounters(const TProfiler& profiler)
 TSelectRowsCounters::TSelectRowsCounters(
     const NProfiling::TProfiler& profiler,
     const NProfiling::TProfiler& mediumProfiler,
+    const NProfiling::TProfiler& mediumHistogramProfiler,
     const NTableClient::TTableSchemaPtr& schema)
     : RowCount(profiler.Counter("/select/row_count"))
     , MissingRowCount(profiler.Counter("/select/missing_row_count"))
@@ -113,7 +115,7 @@ TSelectRowsCounters::TSelectRowsCounters(
     , KeyFilterCounters(profiler.WithPrefix("/select/key_filter"))
     , ChunkReaderStatisticsCounters(
         mediumProfiler.WithPrefix("/select/chunk_reader_statistics"),
-        mediumProfiler.WithPrefix("/select/medium_statistics"))
+        mediumHistogramProfiler.WithPrefix("/select/medium_statistics"))
     , HunkChunkReaderCounters(mediumProfiler.WithPrefix("/select/hunks"), schema)
     , CacheHits(profiler.Counter("/select/cache_hits"))
     , CacheOutdated(profiler.Counter("/select/cache_outdated"))
@@ -605,11 +607,15 @@ public:
         TTagSet tableTagSet;
         tableTagSet.AddRequiredTag({"tablet_cell_bundle", bundle});
 
+        TTagSet mediumTagSet = tableTagSet;
         TTagSet diskTagSet = tableTagSet;
 
         switch (profilingMode) {
             case EDynamicTableProfilingMode::Path:
                 tableTagSet.AddTag({"table_path", tablePath}, -1);
+
+                mediumTagSet = tableTagSet;
+                mediumTagSet.AddTagWithChild({"medium", medium}, -1);
 
                 diskTagSet = tableTagSet;
                 diskTagSet.AddTagWithChild({"account", account}, -1);
@@ -619,6 +625,9 @@ public:
             case EDynamicTableProfilingMode::Tag:
                 tableTagSet.AddTag({"table_tag", tableTag}, -1);
 
+                mediumTagSet = tableTagSet;
+                mediumTagSet.AddTagWithChild({"medium", medium}, -1);
+
                 diskTagSet = tableTagSet;
                 diskTagSet.AddTagWithChild({"account", account}, -1);
                 diskTagSet.AddTagWithChild({"medium", medium}, -2);
@@ -627,6 +636,9 @@ public:
             case EDynamicTableProfilingMode::PathLetters:
                 tableTagSet.AddTag({"table_path", HideDigits(tablePath)}, -1);
 
+                mediumTagSet = tableTagSet;
+                mediumTagSet.AddTagWithChild({"medium", medium}, -1);
+
                 diskTagSet = tableTagSet;
                 diskTagSet.AddTagWithChild({"account", account}, -1);
                 diskTagSet.AddTagWithChild({"medium", medium}, -2);
@@ -634,6 +646,8 @@ public:
 
             case EDynamicTableProfilingMode::Disabled:
             default:
+                mediumTagSet.AddTag({"medium", medium});
+
                 diskTagSet.AddTag({"account", account});
                 diskTagSet.AddTag({"medium", medium});
                 break;
@@ -651,10 +665,15 @@ public:
 
         auto mediumProfiler = TabletNodeProfiler()
             .WithHot()
+            .WithSparse()
+            .WithTags(mediumTagSet);
+
+        auto mediumHistogramProfiler = TabletNodeProfiler()
+            .WithHot()
             .WithTag("tablet_cell_bundle", bundle)
             .WithTag("medium", medium);
 
-        p = New<TTableProfiler>(tableProfiler, diskProfiler, mediumProfiler, schema);
+        p = New<TTableProfiler>(tableProfiler, diskProfiler, mediumProfiler, mediumHistogramProfiler, schema);
         profiler = p;
         return p;
     }
@@ -718,6 +737,7 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
     const std::optional<std::string>& userTag,
     const TProfiler& tabletProfiler,
     const TProfiler& mediumProfiler,
+    const TProfiler& mediumHistogramProfiler,
     const TTableSchemaPtr& schema)
 {
     if (disabled) {
@@ -727,9 +747,17 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
 
     return Counters.FindOrInsert(userTag, [&] {
         if (userTag) {
-            return TCounter(tabletProfiler.WithTag("user", *userTag), mediumProfiler, schema);
+            return TCounter(
+                tabletProfiler.WithTag("user", *userTag),
+                mediumProfiler.WithTag("user", *userTag),
+                mediumHistogramProfiler,
+                schema);
         } else {
-            return TCounter(tabletProfiler, mediumProfiler, schema);
+            return TCounter(
+                tabletProfiler,
+                mediumProfiler,
+                mediumHistogramProfiler,
+                schema);
         }
     }).first;
 }
@@ -739,10 +767,12 @@ TTableProfiler::TTableProfiler(
     const TProfiler& profiler,
     const TProfiler& diskProfiler,
     const TProfiler& mediumProfiler,
+    const TProfiler& mediumHistogramProfiler,
     TTableSchemaPtr schema)
     : Disabled_(false)
     , Profiler_(profiler)
     , MediumProfiler_(mediumProfiler)
+    , MediumHistogramProfiler_(mediumHistogramProfiler)
     , Schema_(std::move(schema))
 {
     for (auto method : TEnumTraits<EChunkWriteProfilingMethod>::GetDomainValues()) {
@@ -797,7 +827,7 @@ TTabletCounters TTableProfiler::GetTabletCounters()
 
 TLookupCounters* TTableProfiler::GetLookupCounters(const std::optional<std::string>& userTag)
 {
-    return LookupCounters_.Get(Disabled_, userTag, Profiler_, MediumProfiler_, Schema_);
+    return LookupCounters_.Get(Disabled_, userTag, Profiler_, MediumProfiler_, MediumHistogramProfiler_, Schema_);
 }
 
 TWriteCounters* TTableProfiler::GetWriteCounters(const std::optional<std::string>& userTag)
@@ -812,7 +842,7 @@ TCommitCounters* TTableProfiler::GetCommitCounters(const std::optional<std::stri
 
 TSelectRowsCounters* TTableProfiler::GetSelectRowsCounters(const std::optional<std::string>& userTag)
 {
-    return SelectRowsCounters_.Get(Disabled_, userTag, Profiler_, MediumProfiler_, Schema_);
+    return SelectRowsCounters_.Get(Disabled_, userTag, Profiler_, MediumProfiler_, MediumHistogramProfiler_, Schema_);
 }
 
 TRemoteDynamicStoreReadCounters* TTableProfiler::GetRemoteDynamicStoreReadCounters(const std::optional<std::string>& userTag)
