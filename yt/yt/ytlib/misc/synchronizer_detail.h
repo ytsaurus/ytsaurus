@@ -19,7 +19,7 @@ public:
     void Start();
     void Stop();
 
-    TFuture<void> Sync(bool immediately = false);
+    TFuture<void> Sync(bool force = false);
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);

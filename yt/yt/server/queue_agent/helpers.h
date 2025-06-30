@@ -127,6 +127,25 @@ TString TrimProfilingTagValue(const TString& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::string EnumValueToPluralForm(EObjectKind value, bool lowercase);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAggregatedQueueExportsProgress
+{
+    bool HasExports = false;
+    THashMap<i64, i64> TabletIndexToRowCount;
+
+    static TAggregatedQueueExportsProgress FromQueueExportProrgess(const TQueueExportProgressPtr& queueExportProgress);
+    void MergeWith(const TAggregatedQueueExportsProgress& rhs);
+
+    bool operator==(const TAggregatedQueueExportsProgress& rhs) const = default;
+};
+
+TAggregatedQueueExportsProgress AggregateQueueExports(const THashMap<TString, TQueueExportProgressPtr>& queueExportsProgress);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueueAgent
 
 #define HELPERS_INL_H_

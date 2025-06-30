@@ -12,12 +12,13 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/periodic_yielder.h>
+
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/profiling/timing.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 namespace NYT::NChunkClient {
 
@@ -401,6 +402,8 @@ void TBlockFetcher::DecompressBlocks(
 {
     YT_VERIFY(windowIndexes.size() == compressedBlocks.size());
 
+    TPeriodicYielder yielder(TDuration::MilliSeconds(30));
+
     std::vector<int> windowIndexesToRelease;
     for (int i = 0; i < std::ssize(compressedBlocks); ++i) {
         auto& compressedBlock = compressedBlocks[i];
@@ -440,6 +443,8 @@ void TBlockFetcher::DecompressBlocks(
                 uncompressedBlock.Size(),
                 Codec_->GetId());
         }
+
+        yielder.TryYield();
 
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlockSize;

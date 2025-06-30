@@ -148,7 +148,6 @@ private:
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
 
-    NSignature::ISignatureGeneratorPtr SignatureGenerator_;
     NSignature::ISignatureValidatorPtr SignatureValidator_;
     NSignature::TKeyRotatorPtr SignatureKeyRotator_;
 
@@ -165,7 +164,7 @@ private:
         const TProxyDynamicConfigPtr& /*oldConfig*/,
         const TProxyDynamicConfigPtr& newConfig);
 
-    void ReconfigureMemoryLimits(const TProxyMemoryLimitsConfigPtr& memoryLimits);
+    void ReconfigureMemoryLimits(const TMemoryLimitsConfigPtr& memoryLimits);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBootstrap)

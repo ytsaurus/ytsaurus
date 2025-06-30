@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 import yt.yson as yson
-from yt.wrapper import YtClient, config, ypath_join
+from yt.wrapper import YtClient, config, ypath_split
 
 from yt.environment.init_cluster import get_default_resource_limits
 
@@ -51,17 +51,20 @@ def set_table_ttl(client, table, ttl=None, auto_compaction_period=None, forbid_o
         client.remount_table(table)
 
 
-def table_init_callback(client, tables_path):
+def table_init_callback(client, table_path):
     one_day = 1000 * 3600 * 24
     one_week = one_day * 7
     one_month = one_day * 30
     two_years = one_month * 12 * 2
-    for name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids"]:
-        table = ypath_join(tables_path, name)
-        set_table_ttl(client, table, ttl=one_week, auto_compaction_period=one_day, forbid_obsolete_rows=True)
-    for name in ["ordered_by_id", "ordered_by_start_time"]:
-        table = ypath_join(tables_path, name)
-        set_table_ttl(client, table, ttl=two_years, auto_compaction_period=one_month, forbid_obsolete_rows=True)
+
+    _, table_name = ypath_split(table_path)
+    if not client.exists(table_path):
+        return
+
+    if table_name in ["jobs", "stderrs", "job_specs", "fail_contexts", "operation_ids"]:
+        set_table_ttl(client, table_path, ttl=one_week, auto_compaction_period=one_day, forbid_obsolete_rows=True)
+    if table_name in ["ordered_by_id", "ordered_by_start_time", "operation_events"]:
+        set_table_ttl(client, table_path, ttl=two_years, auto_compaction_period=one_month, forbid_obsolete_rows=True)
 
 
 def update_tablet_cell_bundle(client, tablet_cell_bundle):
@@ -860,6 +863,87 @@ TRANSFORMS[58] = [
             })),
 ]
 
+TRANSFORMS[59] = [
+    Conversion(
+        "operation_events",
+        table_info=TableInfo(
+            [
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("event_type", "string"),
+                ("timestamp", "uint64"),
+            ], [
+                ("incarnation", "string"),
+                ("incarnation_switch_reason", "string"),
+                ("incarnation_switch_info", "any"),
+            ],
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+]
+
+TRANSFORMS[60] = [
+    Conversion(
+        "jobs",
+        table_info=TableInfo(
+            [
+                ("job_id_partition_hash", "uint64", "farm_hash(job_id_hi, job_id_lo) % {}".format(JOB_TABLE_PARTITION_COUNT)),
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("interruption_info", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64"),
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("has_spec", "boolean"),
+                ("has_fail_context", "boolean"),
+                ("fail_context_size", "uint64"),
+                ("events", "any"),
+                ("transient_state", "string"),
+                ("update_time", "int64"),
+                ("core_infos", "any"),
+                ("job_competition_id", "string"),
+                ("has_competitors", "boolean"),
+                ("exec_attributes", "any"),
+                ("task_name", "string"),
+                ("statistics_lz4", "string"),
+                ("brief_statistics", "any"),
+                ("pool_tree", "string"),
+                ("monitoring_descriptor", "string"),
+                ("probing_job_competition_id", "string"),
+                ("has_probing_competitors", "boolean"),
+                ("job_cookie", "int64"),
+                ("controller_state", "string"),
+                ("archive_features", "any"),
+                ("$ttl", "uint64"),
+                ("operation_incarnation", "string"),
+                ("allocation_id_hi", "uint64"),
+                ("allocation_id_lo", "uint64"),
+                ("addresses", "any"),
+                ("controller_start_time", "int64"),
+                ("controller_finish_time", "int64"),
+                ("gang_rank", "int64")
+            ],
+            default_lock="operations_cleaner",
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+]
 
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
 

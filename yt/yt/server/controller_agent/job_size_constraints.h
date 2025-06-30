@@ -10,20 +10,6 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! When neither data_size_per_job nor job_count are specified,
-//! we need to get a hint about job size from another source.
-DEFINE_ENUM(EDataSizePerMergeJobHint,
-    //! Use the value from T${OperationType}OperationOptions
-    //! from the dynamic config. Useful when DesiredChunkSize is meaningless
-    //! (for example, when remote_copying files).
-    (OperationOptions)
-    //! Try to optimize writer's memory using
-    //! #TMultiChunkWriterConfig::DesiredChunkSize.
-    (DesiredChunkSize)
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Fits for operations with user code.
 IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,
@@ -38,8 +24,7 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     i64 foreignInputDataWeight = 0,
     i64 foreignInputCompressedDataSize = 0,
     int inputTableCount = 1,
-    int primaryInputTableCount = 1,
-    bool sortedOperation = false);
+    int primaryInputTableCount = 1);
 
 //! Fits for system operations like merge or erase.
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
@@ -52,8 +37,7 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     double dataWeightRatio,
     double compressionRatio,
     int inputTableCount = 1,
-    int primaryInputTableCount = 1,
-    EDataSizePerMergeJobHint dataSizeHint = EDataSizePerMergeJobHint::DesiredChunkSize);
+    int primaryInputTableCount = 1);
 
 IJobSizeConstraintsPtr CreateRemoteCopyJobSizeConstraints(
     const NScheduler::TSimpleOperationSpecBasePtr& spec,

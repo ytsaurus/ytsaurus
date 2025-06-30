@@ -74,6 +74,7 @@ TInputTransactionManager::TInputTransactionManager(
     const std::vector<TRichYPath>& filesAndTables,
     bool forceStartLocalTransaction,
     TTransactionId userTransactionId,
+    const std::string& authenticatedUser,
     TControllerAgentConfigPtr config,
     TLogger logger)
     : OperationId_(operationId)
@@ -96,6 +97,7 @@ TInputTransactionManager::TInputTransactionManager(
     for (const auto& path : filesAndTables) {
         ParentToTransaction_[GetTransactionParentFromPath(path)] = nullptr;
         auto clusterName = ClusterResolver_->GetClusterName(path);
+        ValidateRemoteOperationsAllowed(clusterName, authenticatedUser, path);
         createClient(clusterName);
     }
 
@@ -336,6 +338,37 @@ TError TInputTransactionManager::ValidateSchedulerTransactions(
     }
 
     return TError();
+}
+
+void TInputTransactionManager::ValidateRemoteOperationsAllowed(
+    const NScheduler::TClusterName& clusterName,
+    const std::string& authenticatedUser,
+    const NYPath::TRichYPath& path) const
+{
+    if (IsLocal(clusterName)) {
+        return;
+    }
+
+    if (!ControllerConfig_->RemoteOperations.contains(clusterName)) {
+        THROW_ERROR_EXCEPTION(
+            "Cluster %Qv is not allowed to be an input remote cluster",
+            clusterName)
+            << TErrorAttribute("input_table_path", path);
+    }
+
+    const auto& clusterConfig = ControllerConfig_->RemoteOperations[clusterName];
+
+    if (clusterConfig->AllowedForEveryone) {
+        return;
+    }
+
+    if (!clusterConfig->AllowedUsers.contains(authenticatedUser)) {
+        THROW_ERROR_EXCEPTION(
+            "User %Qv is not allowed to start operations reading from cluster %Qv",
+            authenticatedUser,
+            clusterName)
+            << TErrorAttribute("input_table_path", path);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

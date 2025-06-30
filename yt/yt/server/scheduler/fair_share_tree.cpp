@@ -40,6 +40,8 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/library/vector_hdrf/fair_share_update.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
@@ -55,6 +57,8 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NProfiling;
 using namespace NControllerAgent;
+
+using NYT::ToProto;
 
 using NVectorHdrf::TFairShareUpdateExecutor;
 using NVectorHdrf::TFairShareUpdateOptions;
@@ -184,11 +188,11 @@ private:
 
 
 TFairShareStrategyOperationState::TFairShareStrategyOperationState(
-    IOperationStrategyHost* host,
+    IOperationStrategyHostPtr host,
     const TFairShareStrategyOperationControllerConfigPtr& config,
     const std::vector<IInvokerPtr>& nodeShardInvokers)
-    : Host_(host)
-    , Controller_(New<TFairShareStrategyOperationController>(host, config, nodeShardInvokers))
+    : Host_(std::move(host))
+    , Controller_(New<TFairShareStrategyOperationController>(Host_, config, nodeShardInvokers))
 { }
 
 TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const
@@ -896,7 +900,7 @@ public:
         return {LastPoolsNodeUpdateError_, true};
     }
 
-    TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    TError ValidateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -943,6 +947,15 @@ public:
         return BIND(&TFairShareTree::DoValidateOperationPoolsCanBeUsed, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
             .Run(operation, poolName);
+    }
+
+    TFuture<void> ValidateOperationPoolPermissions(TOperationId operationId, const std::string& user, NYTree::EPermissionSet permissions) const override
+    {
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        return BIND(&TFairShareTree::DoValidateOperationPoolPermissions, MakeStrong(this))
+            .AsyncVia(GetCurrentInvoker())
+            .Run(operationId, user, permissions);
     }
 
     void EnsureOperationPoolExistence(const TString& poolName) const override
@@ -1315,7 +1328,7 @@ private:
 
     std::optional<TInstant> LastFairShareUpdateTime_;
 
-    THashMap<TString, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
+    THashMap<std::string, THashSet<TString>> UserToEphemeralPoolsInDefaultPool_;
 
     THashMap<TString, THashSet<int>> PoolToSpareSlotIndices_;
     THashMap<TString, int> PoolToMinUnusedSlotIndex_;
@@ -1453,7 +1466,7 @@ private:
                 .EndAttributes()
                 .List(result);
 
-            response->set_value(ysonString.ToString());
+            response->set_value(ToProto(ysonString));
             context->Reply();
         }
 
@@ -1758,7 +1771,6 @@ private:
                             .MainResource = config->MainResource,
                             .IntegralPoolCapacitySaturationPeriod = config->IntegralGuarantees->PoolCapacitySaturationPeriod,
                             .IntegralSmoothPeriod = config->IntegralGuarantees->SmoothPeriod,
-                            .EnableFastChildFunctionSummationInFifoPools = config->EnableFastChildFunctionSummationInFifoPools,
                         },
                         fairShareUpdateResult.ResourceLimits,
                         now,
@@ -1974,7 +1986,7 @@ private:
             parent->GetId());
     }
 
-    TSchedulerPoolElementPtr GetOrCreatePool(const TPoolName& poolName, TString userName)
+    TSchedulerPoolElementPtr GetOrCreatePool(const TPoolName& poolName, std::string userName)
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2290,7 +2302,7 @@ private:
         return RootElement_;
     }
 
-    void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    void ActualizeEphemeralPoolParents(const THashMap<std::string, TString>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -2516,6 +2528,27 @@ private:
             pool->GetId(),
             operation->GetAuthenticatedUser(),
             EPermission::Use);
+    }
+
+    void DoValidateOperationPoolPermissions(TOperationId operationId, const std::string& user, NYTree::EPermissionSet permissions) const
+    {
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        auto* pool = GetOperationElement(operationId)->GetParent();
+        while (pool->IsDefaultConfigured()) {
+            pool = pool->GetParent();
+        }
+
+        for (auto permission : TEnumTraits<EPermission>::GetDomainValues()) {
+            if (Any(permission & permissions)) {
+                StrategyHost_->ValidatePoolPermission(
+                    TreeId_,
+                    pool->GetObjectId(),
+                    pool->GetId(),
+                    user,
+                    permission);
+            }
+        }
     }
 
     int GetPoolCount() const
@@ -3324,6 +3357,9 @@ private:
             .Item("unschedulable_reason").Value(element->GetUnschedulableReason())
             .Item("allocation_preemption_timeout").Value(element->GetEffectiveAllocationPreemptionTimeout())
             .Item("allocation_graceful_preemption_timeout").Value(element->GetEffectiveAllocationGracefulPreemptionTimeout())
+            .Item("user").Value(element->GetUserName())
+            .Item("type").Value(element->GetOperationType())
+            .Item("title").Value(element->GetTitle())
             .Do(BIND(&TFairShareTreeAllocationScheduler::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
             .Do(BIND(&TFairShareTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldsFilter{}));
     }

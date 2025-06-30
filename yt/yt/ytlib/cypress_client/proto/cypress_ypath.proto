@@ -91,6 +91,7 @@ message TReqLockCopyDestination
     required bool lock_existing = 3 [default = false];
     required bool inplace = 4 [default = false];
     required bool preserve_acl = 5 [default = false];
+    optional bool recursive = 6 [default = false];
 }
 
 message TRspLockCopyDestination
@@ -99,6 +100,7 @@ message TRspLockCopyDestination
     optional NYT.NProto.TGuid account_id = 2;
     optional NYT.NYTree.NProto.TAttributeDictionary effective_inheritable_attributes = 3;
     optional NYT.NProto.TGuid existing_node_id = 4;
+    optional bool sequoia_destination = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,6 +184,9 @@ message TReqAssembleTreeCopy
     optional bool ignore_existing = 8 [default = false];
     optional bool lock_existing = 9 [default = false];
     optional bool pessimistic_quota_check = 10 [default = true];
+
+    // NB: If false, nodes are materialized as Cypress nodes.
+    required bool sequoia_destination = 11;
 }
 
 message TRspAssembleTreeCopy

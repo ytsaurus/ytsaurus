@@ -8,14 +8,13 @@ namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TProto>
+template <class TProto, class TState>
 void ITransactionManager::RegisterTransactionActionHandlers(
-    NTransactionSupervisor::TTypedTransactionActionDescriptor<TTransaction, TProto> descriptor)
+    TTypedTransactionActionDescriptor<TProto, TState> descriptor)
 {
-    DoRegisterTransactionActionHandlers(
-        NTransactionSupervisor::TTransactionActionDescriptor<TTransaction>(std::move(descriptor)));
+    RegisterTransactionActionHandlers(TTypeErasedTransactionActionDescriptor(std::move(descriptor)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NTransactionServer

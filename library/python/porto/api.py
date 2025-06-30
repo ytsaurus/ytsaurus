@@ -4,6 +4,7 @@ import threading
 import warnings
 import re
 
+import library.cpp.porto.proto.error_codes_pb2 as error_codes
 import library.cpp.porto.proto.rpc_pb2 as rpc
 from . import exceptions
 from .container import Container
@@ -209,7 +210,7 @@ class PortoApi(object):
                 self.sock = None
                 raise exceptions.SocketError("Socket error: {}".format(e))
 
-        if response.error != rpc.Success:
+        if response.error != error_codes.Success:
             raise exceptions.PortoException.Create(response.error, response.errorMsg)
 
         return response
@@ -225,7 +226,7 @@ class PortoApi(object):
 
         self._sendall(self._encode_request(request))
         response = self._recv_response()
-        if response.error != rpc.Success:
+        if response.error != error_codes.Success:
             raise exceptions.PortoException.Create(response.error, response.errorMsg)
 
     def Connect(self, timeout=None):

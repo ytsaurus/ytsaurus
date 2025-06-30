@@ -36,7 +36,7 @@ NScheduler::EOperationState TOperation::GetState() const
 
 const NScheduler::TOperationOptionsPtr& TOperation::GetOperationOptions() const
 {
-    static auto stub = New<NScheduler::TOperationOptions>();
+    static const auto stub = New<NScheduler::TOperationOptions>();
     return stub;
 }
 
@@ -65,9 +65,14 @@ TInstant TOperation::GetStartTime() const
     return StartTime_;
 }
 
-TString TOperation::GetAuthenticatedUser() const
+std::string TOperation::GetAuthenticatedUser() const
 {
     return AuthenticatedUser_;
+}
+
+std::optional<std::string> TOperation::GetTitle() const
+{
+    return std::nullopt;
 }
 
 void TOperation::SetSlotIndex(const TString& treeId, int value)

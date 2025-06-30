@@ -23,8 +23,6 @@
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
-#include <yt/yt/server/lib/tablet_node/config.h>
-
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -41,6 +39,7 @@
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_tracker_service_proxy.h>
+
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <yt/yt/client/api/transaction.h>
@@ -50,6 +49,8 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/utilex/random.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <yt/yt/build/build.h>
 
@@ -136,7 +137,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        ResetAndRegisterAtMaster(/*firstTime*/ true);
+        ResetAndRegisterAtMaster(ERegistrationReason::NodeStart);
     }
 
     TNodeTrackerServiceProxy::TReqHeartbeatPtr BuildHeartbeatRequest(TCellTag cellTag)
@@ -236,18 +237,18 @@ public:
         return MasterConnectionInvoker_;
     }
 
-    void ResetAndRegisterAtMaster(bool firstTime) override
+    void ResetAndRegisterAtMaster(ERegistrationReason reason) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Reset();
 
-        auto delay = firstTime
+        auto delay = reason == ERegistrationReason::NodeStart
             ? TDuration::Zero()
             : *Config_->RegisterRetryPeriod + RandomDuration(*Config_->RegisterRetrySplay);
 
         TDelayedExecutor::Submit(
-            BIND(&TMasterConnector::RegisterAtMaster, MakeStrong(this)),
+            BIND(&TMasterConnector::RegisterAtMaster, MakeStrong(this), reason),
             delay,
             MasterConnectionInvoker_);
     }
@@ -465,7 +466,7 @@ private:
 
         YT_LOG_WARNING(error, "Master transaction lease aborted");
 
-        ResetAndRegisterAtMaster(/*firstTime*/ false);
+        ResetAndRegisterAtMaster(ERegistrationReason::LeaseTransactionAborted);
     }
 
     void Reset()
@@ -486,12 +487,15 @@ private:
         RegisteredAtPrimary_.store(false);
     }
 
-    void RegisterAtMaster()
+    void RegisterAtMaster(ERegistrationReason reason)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         try {
-            StartLeaseTransaction();
+            // Lease could be aborted between reregistrations.
+            if (!LeaseTransaction_ || reason != ERegistrationReason::RegistrationFailure) {
+                StartLeaseTransaction();
+            }
             RegisterAtPrimaryMaster();
             // NB: InitMedia waiting for medium directory synchronization so we want to call it as late as possible.
             InitMedia();
@@ -500,11 +504,17 @@ private:
             }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Error registering at primary master");
-            ResetAndRegisterAtMaster(/*firstTime*/ false);
+            ResetAndRegisterAtMaster(ERegistrationReason::RegistrationFailure);
             return;
         }
 
-        MasterConnected_.Fire(GetNodeId());
+        if (Bootstrap_->GetConfig()->DelayMasterCellDirectoryStart) {
+            auto syncResultOrError = WaitFor(Bootstrap_->GetConnection()->GetMasterCellDirectorySynchronizer()->NextSync());
+            YT_LOG_WARNING_UNLESS(
+                syncResultOrError.IsOK(),
+                syncResultOrError,
+                "Failed to sync master cell directory");
+        }
         RegisteredAtPrimary_.store(true);
 
         YT_LOG_INFO("Successfully registered at primary master (NodeId: %v, KnownMasterCellTags: %v)",
@@ -512,6 +522,7 @@ private:
             GetMasterCellTags());
 
         StartNodeHeartbeats();
+        MasterConnected_.Fire(GetNodeId());
     }
 
     void InitMedia()
@@ -553,12 +564,13 @@ private:
 
         LeaseTransaction_->SubscribeAborted(
             BIND(&TMasterConnector::OnLeaseTransactionAborted, MakeWeak(this))
-                .Via(MasterConnectionInvoker_));
+                .Via(Bootstrap_->GetControlInvoker()));
     }
 
     void RegisterAtPrimaryMaster()
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
+        YT_VERIFY(LeaseTransaction_);
 
         auto masterChannel = GetMasterChannel(PrimaryMasterCellTagSentinel);
         TNodeTrackerServiceProxy proxy(std::move(masterChannel));
@@ -590,7 +602,7 @@ private:
             req->add_flavors(static_cast<int>(flavor));
         }
 
-        req->set_cypress_annotations(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations).ToString());
+        req->set_cypress_annotations(ToProto(ConvertToYsonString(Bootstrap_->GetConfig()->CypressAnnotations)));
         req->set_build_version(GetVersion());
 
         req->set_exec_node_is_not_data_node(Bootstrap_->GetConfig()->ExecNodeIsNotDataNode);
@@ -617,9 +629,6 @@ private:
             // COMPAT(kvk1920)
             req->set_location_directory_supported(true);
         }
-
-        auto tableMountConfig = New<NTabletNode::TTableMountConfig>();
-        ToProto(req->mutable_table_mount_config_keys(), tableMountConfig->GetRegisteredKeys());
 
         YT_LOG_INFO("Registering at primary master");
 
@@ -671,7 +680,7 @@ private:
         YT_LOG_INFO("Cell directory synchronized");
 
         YT_LOG_INFO("Synchronizing cluster directory");
-        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync())
+        WaitFor(connection->GetClusterDirectorySynchronizer()->Sync(/*force*/ true))
             .ThrowOnError();
         YT_LOG_INFO("Cluster directory synchronized");
 

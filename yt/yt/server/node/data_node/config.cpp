@@ -103,6 +103,8 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
     UpdateYsonStructField(EnableUncategorizedThrottler, dynamicConfig.EnableUncategorizedThrottler);
     UpdateYsonStructField(UncategorizedThrottler, dynamicConfig.UncategorizedThrottler);
 
+    UpdateYsonStructField(DiskHealthChecker, DiskHealthChecker->ApplyDynamic(*dynamicConfig.DiskHealthChecker));
+
     UpdateYsonStructField(CoalescedReadMaxGapSize, dynamicConfig.CoalescedReadMaxGapSize);
 
     UpdateYsonStructField(LegacyWriteMemoryLimit, dynamicConfig.LegacyWriteMemoryLimit);
@@ -123,6 +125,8 @@ void TChunkLocationConfig::ApplyDynamicInplace(const TChunkLocationDynamicConfig
     UpdateYsonStructField(SessionCountLimit, dynamicConfig.SessionCountLimit);
 
     UpdateYsonStructField(MemoryLimitFractionForStartingNewSessions, dynamicConfig.MemoryLimitFractionForStartingNewSessions);
+
+    UpdateYsonStructField(IOWeightFormula, dynamicConfig.IOWeightFormula);
 }
 
 void TChunkLocationConfig::Register(TRegistrar registrar)
@@ -138,6 +142,9 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("uncategorized_throttler", &TThis::UncategorizedThrottler)
+        .DefaultNew();
+
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
         .DefaultNew();
 
     registrar.Parameter("io_engine_type", &TThis::IOEngineType)
@@ -160,6 +167,9 @@ void TChunkLocationConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0.0)
         .LessThanOrEqual(1.0)
         .Default(0.9);
+
+    registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)
+        .Optional();
 
     registrar.Parameter("throttle_duration", &TThis::ThrottleDuration)
         .Default(TDuration::Seconds(30));
@@ -206,6 +216,10 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("uncategorized_throttler", &TThis::UncategorizedThrottler)
         .Optional();
+
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
+
     registrar.Parameter("coalesced_read_max_gap_size", &TThis::CoalescedReadMaxGapSize)
         .GreaterThanOrEqual(0)
         .Optional();
@@ -223,6 +237,9 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("session_count_limit", &TThis::SessionCountLimit)
         .Optional();
 
+    registrar.Parameter("io_weight_formula", &TThis::IOWeightFormula)
+        .Optional();
+
     registrar.Postprocessor([] (TThis* config) {
         config->LegacyWriteMemoryLimit = config->WriteMemoryLimit;
     });
@@ -230,8 +247,8 @@ void TChunkLocationDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStoreLocationConfigPtr TStoreLocationConfig::ApplyDynamic
-    (const TStoreLocationDynamicConfigPtr& dynamicConfig) const
+TStoreLocationConfigPtr TStoreLocationConfig::ApplyDynamic(
+    const TStoreLocationDynamicConfigPtr& dynamicConfig) const
 {
     auto config = CloneYsonStruct(MakeStrong(this));
     config->ApplyDynamicInplace(*dynamicConfig);
@@ -321,6 +338,23 @@ void TStoreLocationDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCacheLocationConfigPtr TCacheLocationConfig::ApplyDynamic(
+    const TCacheLocationDynamicConfigPtr& dynamicConfig) const
+{
+    auto config = CloneYsonStruct(MakeStrong(this));
+    config->ApplyDynamicInplace(*dynamicConfig);
+    config->Postprocess();
+    return config;
+}
+
+void TCacheLocationConfig::ApplyDynamicInplace(
+    const TCacheLocationDynamicConfig& dynamicConfig)
+{
+    TChunkLocationConfig::ApplyDynamicInplace(dynamicConfig);
+
+    UpdateYsonStructField(InThrottler, dynamicConfig.InThrottler);
+}
+
 void TCacheLocationConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("in_throttler", &TThis::InThrottler)
@@ -328,6 +362,14 @@ void TCacheLocationConfig::Register(TRegistrar registrar)
 
     registrar.BaseClassParameter("medium_name", &TThis::MediumName)
         .Default(NChunkClient::DefaultCacheMediumName);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCacheLocationDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("in_throttler", &TThis::InThrottler)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -379,6 +421,9 @@ void TLayerLocationConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("resides_on_tmpfs", &TThis::ResidesOnTmpfs)
         .Default(false);
+
+    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -496,6 +541,8 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(60));
     registrar.Parameter("full_heartbeat_timeout", &TThis::FullHeartbeatTimeout)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("location_full_heartbeat_timeout", &TThis::LocationFullHeartbeatTimeout)
+        .Default(TDuration::Seconds(60));
     registrar.Parameter("job_heartbeat_period", &TThis::JobHeartbeatPeriod)
         .Default();
     registrar.Parameter("job_heartbeat_period_splay", &TThis::JobHeartbeatPeriodSplay)
@@ -508,6 +555,8 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("location_uuid_to_disable_during_full_heartbeat", &TThis::LocationUuidToDisableDuringFullHeartbeat)
         .Default();
+    registrar.Parameter("full_heartbeat_session_retrying_channel", &TThis::FullHeartbeatSessionRetryingChannel)
+        .DefaultNew();
     registrar.Parameter("full_heartbeat_session_sleep_duration", &TThis::FullHeartbeatSessionSleepDuration)
         .Default();
 }
@@ -631,6 +680,18 @@ void TReplicateChunkJobDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_block_cache", &TThis::UseBlockCache)
         .Default(true);
+
+    registrar.Parameter("replication_range_size", &TThis::ReplicationRangeSize)
+        .Optional();
+
+    registrar.Parameter("enable_replication_job_throttling", &TThis::EnableReplicationJobThrottling)
+        .Default(false);
+
+    registrar.Parameter("throttling_sleep_time", &TThis::ThrottlingSleepTime)
+        .Default(TDuration::Seconds(5));
+
+    registrar.Parameter("throttling_sleep_deadline", &TThis::ThrottlingSleepDeadline)
+        .Default(TDuration::Minutes(5));
 
     registrar.Preprocessor([] (TThis* config) {
         // Disable target allocation from master.
@@ -883,9 +944,6 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("announce_chunk_replica_rps_out_throttler", &TThis::AnnounceChunkReplicaRpsOutThrottler)
         .DefaultNew();
 
-    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
-        .DefaultNew();
-
     registrar.Parameter("publish_disabled_locations", &TThis::PublishDisabledLocations)
         .Default(true);
 
@@ -978,6 +1036,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
             // This is not a mistake!
             config->MasterConnector->JobHeartbeatPeriod = config->IncrementalHeartbeatPeriod;
         }
+
+        THROW_ERROR_EXCEPTION_UNLESS(config->LeaseTransactionPingPeriod < config->LeaseTransactionTimeout,
+            "Lease transaction ping period must be less than lease transaction timeout");
     });
 }
 
@@ -1018,8 +1079,6 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("announce_chunk_replica_rps_out_throttler", &TThis::AnnounceChunkReplicaRpsOutThrottler)
         .Optional();
 
-    registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
-        .DefaultNew();
     registrar.Parameter("chunk_meta_cache", &TThis::ChunkMetaCache)
         .DefaultNew();
     registrar.Parameter("blocks_ext_cache", &TThis::BlocksExtCache)
@@ -1106,6 +1165,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("store_location_config_per_medium", &TThis::StoreLocationConfigPerMedium)
         .Default();
+
+    registrar.Parameter("cache_location", &TThis::CacheLocation)
+        .DefaultNew();
 
     registrar.Parameter("net_out_throttling_limit", &TThis::NetOutThrottlingLimit)
         .Default();

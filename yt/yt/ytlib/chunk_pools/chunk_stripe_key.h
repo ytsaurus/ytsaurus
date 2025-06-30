@@ -1,7 +1,6 @@
 #pragma once
 
 #include "private.h"
-#include "output_order.h"
 
 #include <yt/yt/client/table_client/key.h>
 
@@ -25,31 +24,34 @@ struct TBoundaryKeys
 class TChunkStripeKey
 {
 public:
-    TChunkStripeKey(int index);
-    TChunkStripeKey(TBoundaryKeys boundaryKeys);
-    TChunkStripeKey(NChunkPools::TOutputOrder::TEntry entry);
-    //! Used only for persistence.
     TChunkStripeKey();
+    explicit TChunkStripeKey(TBoundaryKeys boundaryKeys);
+    explicit TChunkStripeKey(TOutputCookie cookie);
 
-    bool IsIndex() const;
     bool IsBoundaryKeys() const;
-    bool IsOutputOrderEntry() const;
+    bool IsOutputCookie() const;
 
     explicit operator bool() const;
-
-    int& AsIndex();
-    int AsIndex() const;
 
     TBoundaryKeys& AsBoundaryKeys();
     const TBoundaryKeys& AsBoundaryKeys() const;
 
-    NChunkPools::TOutputOrder::TEntry& AsOutputOrderEntry();
-    const NChunkPools::TOutputOrder::TEntry& AsOutputOrderEntry() const;
+    TOutputCookie AsOutputCookie() const;
 
     bool operator ==(const TChunkStripeKey& other) const;
 
 private:
-    std::variant<int, TBoundaryKeys, NChunkPools::TOutputOrder::TEntry> Key_;
+    struct TUninitialized
+    {
+        bool operator ==(const TUninitialized& uninitializedTag) const = default;
+        void Persist(const auto& /*context*/);
+    };
+
+    std::variant<
+        TUninitialized,
+        TBoundaryKeys,
+        TOutputCookie
+    > Key_;
 
     PHOENIX_DECLARE_TYPE(TChunkStripeKey, 0x60a2ecee);
 };

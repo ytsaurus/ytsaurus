@@ -14,6 +14,7 @@ SRCS(
     interned_attributes.cpp
     job_report.cpp
     job_reporter.cpp
+    operation_events_reporter.cpp
     job_table_schema.cpp
     private.cpp
     profiling_helpers.cpp

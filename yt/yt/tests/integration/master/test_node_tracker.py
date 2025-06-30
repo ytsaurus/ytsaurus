@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 
 from yt_commands import (
-    authors, print_debug, raises_yt_error, wait, execute_command, get_driver, build_snapshot,
+    abort_transaction, authors, print_debug, raises_yt_error, wait, execute_command, get_driver, build_snapshot,
     exists, ls, get, set, create, remove,
     write_table, update_nodes_dynamic_config,
     create_rack, create_data_center, vanilla,
@@ -13,6 +13,7 @@ import yt_error_codes
 
 from yt.common import YtError
 
+import builtins
 import pytest
 
 from time import sleep
@@ -538,6 +539,14 @@ class TestNodesThrottling(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_NODES = 3
 
+    @classmethod
+    def get_node_count(self, state="online"):
+        node_count = 0
+        for node in ls("//sys/cluster_nodes", attributes=["state"]):
+            if node.attributes["state"] == state:
+                node_count += 1
+        return node_count
+
     @authors("cherepashka")
     def test_data_nodes_per_chunk_replica_throttling(self):
         create("table", "//tmp/t")
@@ -553,22 +562,104 @@ class TestNodesThrottling(YTEnvSetup):
         set("//sys/@config/hydra_manager/mutation_flush_period", 1000)  # 1 sec
         self.Env.start_nodes(sync=False)
 
-        def get_online_nodes_count():
-            node_count = 0
-            for node in ls("//sys/cluster_nodes", attributes=["state"]):
-                if node.attributes["state"] == "online":
-                    node_count += 1
-            return node_count
-
         # Need to wait until nodes start registering at master.
-        wait(lambda: get_online_nodes_count() == 1)
+        wait(lambda: TestNodesThrottling.get_node_count() == 1)
 
         # Now nodes have registered and have sent full heartbeats to master.
         # Heartbeat mutations will be scheduled sequentially due to throttling.
         # Since flush of mutations occurs with 1 second period, we need to wait a while before the next heartbeat mutation is scheduled and applied.
 
         time.sleep(2)
-        assert get_online_nodes_count() == 2
+        assert TestNodesThrottling.get_node_count() == 2
 
         time.sleep(2)
-        assert get_online_nodes_count() == 3
+        assert TestNodesThrottling.get_node_count() == 3
+
+    @authors("cherepashka")
+    def test_registration_lease_reuse(self):
+        def gather_active_lease_transaction_ids():
+            lease_tx = builtins.set()
+            for node in ls("//sys/cluster_nodes", attributes=["lease_transaction_id"]):
+                lease_tx.add(node.attributes["lease_transaction_id"])
+            return lease_tx
+
+        data_node_group = "data-node"
+        # Set registration throttling to force nodes fail simultaneous reregistration requests.
+        set("//sys/@config/node_tracker/node_groups", {
+            data_node_group: {
+                "node_tag_filter": data_node_group,
+                "max_concurrent_node_registrations": 1,
+            }
+        })
+
+        for node in ls("//sys/cluster_nodes"):
+            set(f"//sys/cluster_nodes/{node}/@user_tags", [data_node_group])
+            assert sorted(get(f"//sys/cluster_nodes/{node}/@node_groups")) == sorted([data_node_group, "default"])
+
+        old_lease_txs = gather_active_lease_transaction_ids()
+
+        # Restart nodes to trigger reregistration.
+        with Restarter(self.Env, NODES_SERVICE, sync=False):
+            pass
+
+        # Wait for nodes to start registration process.
+        wait(lambda: self.get_node_count("registered") > 0)
+        assert TestNodesThrottling.get_node_count() != self.NUM_NODES
+
+        # Gather leases issued during throttled registration.
+        lease_txs = builtins.set()
+        while len(lease_txs) < self.NUM_NODES:
+            for tx in ls("//sys/transactions", attributes=["title"]):
+                title = tx.attributes.get("title", "")
+                if "Lease for node" in title:
+                    lease_txs.add(str(tx))
+
+        # Nodes are still reregistering.
+        assert self.get_node_count("registered") > 0
+        assert TestNodesThrottling.get_node_count() != self.NUM_NODES
+
+        # Wait for nodes to become online.
+        wait(lambda: self.get_node_count() == self.NUM_NODES)
+
+        active_lease_txs = gather_active_lease_transaction_ids()
+        for tx in lease_txs:
+            assert tx in active_lease_txs
+            assert exists(f"//sys/transactions/{tx}")
+            assert tx not in old_lease_txs
+
+    @authors("cherepashka")
+    def test_abort_lease_during_registration(self):
+        data_node_group = "data-node"
+        # Set registration throttling to force nodes fail simultaneous reregistration requests.
+        set("//sys/@config/node_tracker/node_groups", {
+            data_node_group: {
+                "node_tag_filter": data_node_group,
+                "max_concurrent_node_registrations": 1,
+            }
+        })
+
+        for node in ls("//sys/cluster_nodes"):
+            set(f"//sys/cluster_nodes/{node}/@user_tags", [data_node_group])
+            assert sorted(get(f"//sys/cluster_nodes/{node}/@node_groups")) == sorted([data_node_group, "default"])
+
+        # Restart nodes to trigger reregistration.
+        with Restarter(self.Env, NODES_SERVICE, sync=False):
+            pass
+
+        # Wait for nodes to start registration process.
+        wait(lambda: self.get_node_count("registered") > 0)
+        assert TestNodesThrottling.get_node_count() != self.NUM_NODES
+
+        # Gather leases issued during throttled registration.
+        lease_txs = builtins.set()
+        while len(lease_txs) < self.NUM_NODES:
+            for tx in ls("//sys/transactions", attributes=["title"]):
+                title = tx.attributes.get("title", "")
+                if "Lease for node" in title:
+                    lease_txs.add(str(tx))
+        # Abort all transactions.
+        for lease_tx in lease_txs:
+            abort_transaction(lease_tx)
+
+        # Wait for nodes to become online, nothing should crash.
+        wait(lambda: self.get_node_count() == self.NUM_NODES)

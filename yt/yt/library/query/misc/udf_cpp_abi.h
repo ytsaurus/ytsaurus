@@ -5,6 +5,7 @@
 
 struct TExpressionContext;
 struct TUnversionedValue;
+struct TFunctionContext;
 
 namespace NYT::NQueryClient::NUdf {
 

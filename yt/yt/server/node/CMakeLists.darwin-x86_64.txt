@@ -192,9 +192,11 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/compaction_hint_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/compression_dictionary_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/compression_dictionary_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/distributed_throttler_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/dynamic_store_bits.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/error_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/failing_on_rotation_reader.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hedging_manager_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hint_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/hunk_chunk.cpp
@@ -223,6 +225,7 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/relative_replication_throttler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/replicated_store_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/replication_log.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/revision_provider.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/row_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/row_digest_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/security_manager.cpp
@@ -261,8 +264,8 @@ target_sources(yt-server-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/transaction.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/transaction_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_controller.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/overload_controlling_service_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/write_commands.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/write_log.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/data_node/artifact.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/exec_node/volume.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/in_memory_service.pb.h

@@ -1,11 +1,11 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove, exists, create_user,
     create_group, add_member, remove_member, start_transaction, abort_transaction,
     commit_transaction, ping_transaction, lock, write_file, write_table,
     get_transactions, get_topmost_transactions, gc_collect, get_driver,
-    raises_yt_error, read_table)
+    raises_yt_error, read_table, generate_uuid)
 
 from yt_sequoia_helpers import select_cypress_transaction_replicas
 
@@ -499,6 +499,27 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists("//sys/transactions/" + tx_a)
         assert not exists("//sys/transactions/" + tx_b)
 
+    @authors("kvk1920")
+    def test_prerequisite_transaction_expiration(self):
+        tx_a = start_transaction(timeout=6000)
+        start_time = datetime.now()
+        tx_b = start_transaction()
+        commit_transaction(tx_b, prerequisite_transaction_ids=[tx_a])
+
+        # NB: if transaction commit is failed it's aborted. Mirrored
+        # transactions are aborted asynchronously.
+        if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
+            wait(lambda: not exists(f"#{tx_b}"))
+        else:
+            gc_collect()
+            assert not exists(f"#{tx_b}")
+
+        assert exists(f"#{tx_a}")
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        sleep(7 - elapsed_time)
+        gc_collect()
+        assert not exists(f"#{tx_a}")
+
     @authors("shakurov")
     def test_prerequisite_tx_read_requests(self):
         good_tx = start_transaction()
@@ -618,6 +639,18 @@ class TestMasterTransactions(YTEnvSetup):
             get("#a-b-c-d")
         with pytest.raises(YtError):
             get("#a-b-c-d/@")
+
+    @authors("kvk1920")
+    # RPC driver doesn't support setting request's mutation ID.
+    @skip_if_rpc_driver_backend
+    def test_response_keeper(self):
+        tx = start_transaction()
+        mutation_id = generate_uuid()
+        rsp1 = commit_transaction(tx, mutation_id=mutation_id)
+        with raises_yt_error("Duplicate request is not marked"):
+            commit_transaction(tx, mutation_id=mutation_id)
+        rsp2 = commit_transaction(tx, mutation_id=mutation_id, retry=True)
+        assert rsp1 == rsp2
 
 
 @pytest.mark.enabled_multidaemon
@@ -903,39 +936,22 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         wait(lambda: tx not in ls("//sys/foreign_transactions", driver=get_driver(3)))
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestMasterTransactionsCTxS(TestMasterTransactionsShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestMasterTransactionsMirroredTx(TestMasterTransactionsCTxS):
+class TestMasterTransactionsMirroredTx(TestMasterTransactionsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 6
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        }
-    }
+    @authors("kvk1920")
+    def test_expiration_during_ground_unavailability(self):
+        tx = start_transaction(timeout=10000)
+        start_time = datetime.now()
+        with Restarter(self.ground_envs[0], NODES_SERVICE):
+            sleep(12 - (datetime.now() - start_time).total_seconds())
+            assert exists(f"#{tx}")
+        wait(lambda: not exists(f"#{tx}"))
 
 
 @pytest.mark.enabled_multidaemon
@@ -947,10 +963,10 @@ class TestMasterTransactionsRpcProxy(TestMasterTransactions):
 
 ##################################################################
 
+
 @pytest.mark.enabled_multidaemon
-class TestSequoiaCypressTransactionReplication(YTEnvSetup):
+class TestCypressTransactionExternalization(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
-    ENABLE_TMP_ROOTSTOCK = False
     ENABLE_TMP_PORTAL = False
     NUM_MASTERS = 3
 
@@ -1094,20 +1110,9 @@ class TestSequoiaCypressTransactionReplication(YTEnvSetup):
         assert read_table("//tmp/t") == content
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestSequoiaCypressTransactionReplicationMirroredTx(TestSequoiaCypressTransactionReplication):
+class TestCypressTransactionExternalizationMirroredTx(TestCypressTransactionExternalization):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-
-    # COMPAT(kvk1920): Remove when `use_cypress_transaction_service` become `true` by default.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            },
-        },
-    }

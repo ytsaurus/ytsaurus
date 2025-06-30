@@ -46,26 +46,14 @@ DEFINE_ENUM(ECompatUpdateMode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TChunkOwnerBase::TCommonUploadContext::TCommonUploadContext(TBootstrap* bootstrap)
-    : Bootstrap(bootstrap)
-{ }
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkOwnerBase::TBeginUploadContext::TBeginUploadContext(TBootstrap* bootstrap)
-    : TCommonUploadContext(bootstrap)
+    : Bootstrap(bootstrap)
 { }
 
-////////////////////////////////////////////////////////////////////////////////
-
-// COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
-TChunkOwnerBase::TEndUploadContext::TEndUploadContext(TBootstrap* bootstrap)
-    : TCommonUploadContext(bootstrap)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,31 +118,10 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, Replication_);
     Load(context, PrimaryMediumIndex_);
-
-    std::optional<TChunkOwnerDataStatistics> deltaStatistics;
-    // COMPAT(cherepashka)
-    if (context.GetVersion() >= EMasterReign::SerializationOfDataStatistics) {
-        Load(context, SnapshotStatistics_);
-        // COMPAT(cherepashka)
-        if (context.GetVersion() >= EMasterReign::DeltaStatisticsPointer) {
-            if (!IsTrunk()) {
-                deltaStatistics = Load<TChunkOwnerDataStatistics>(context);
-            }
-        } else {
-            if (!IsTrunk()) {
-                deltaStatistics = Load<TChunkOwnerDataStatistics>(context);
-            } else {
-                Load<TChunkOwnerDataStatistics>(context);
-            }
-        }
-    } else {
-        SnapshotStatistics_ = FromProto<TChunkOwnerDataStatistics>(Load<NChunkClient::NProto::TDataStatistics>(context));
-        deltaStatistics = FromProto<TChunkOwnerDataStatistics>(Load<NChunkClient::NProto::TDataStatistics>(context));
+    Load(context, SnapshotStatistics_);
+    if (!IsTrunk()) {
+        Load(context, *MutableDeltaStatistics());
     }
-    if (deltaStatistics) {
-        *MutableDeltaStatistics() = *deltaStatistics;
-    }
-
     Load(context, CompressionCodec_);
     Load(context, ErasureCodec_);
     Load(context, EnableStripedErasure_);
@@ -178,12 +145,8 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, EnableSkynetSharing_);
     Load(context, UpdatedSinceLastMerge_);
     Load(context, ChunkMergerTraversalInfo_);
-
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= EMasterReign::HunkMedia) {
-        Load(context, HunkReplication_);
-        Load(context, HunkPrimaryMediumIndex_);
-    }
+    Load(context, HunkReplication_);
+    Load(context, HunkPrimaryMediumIndex_);
 
     // COMPAT(shakurov): IsTrunk() check should not be necessary after EMasterReign::ResetHunkMediaOnBranchedNodes is rolled out.
     if (IsTrunk() || context.GetVersion() > EMasterReign::ResetHunkMediaOnBranchedNodes) {
@@ -380,9 +343,6 @@ const TChunkReplication& TChunkOwnerBase::EffectiveHunkReplication() const
         return HunkReplication_;
     }
 }
-
-void TChunkOwnerBase::ParseCommonUploadContext(const TCommonUploadContext& /*context*/)
-{ }
 
 void TChunkOwnerBase::BeginUpload(const TBeginUploadContext& context)
 {

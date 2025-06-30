@@ -28,10 +28,10 @@ target_link_libraries(datetime2_udf PUBLIC
   essentials-public-udf
   public-udf-support
   util-draft
+  cpp-type_info-tz
   public-udf-arrow
   yql-essentials-minikql
   essentials-minikql-datetime
-  public-udf-tz
 )
 
 target_link_options(datetime2_udf PRIVATE
@@ -71,10 +71,10 @@ target_link_libraries(datetime2_udf.global PUBLIC
   essentials-public-udf
   public-udf-support
   util-draft
+  cpp-type_info-tz
   public-udf-arrow
   yql-essentials-minikql
   essentials-minikql-datetime
-  public-udf-tz
 )
 
 target_sources(datetime2_udf.global PRIVATE

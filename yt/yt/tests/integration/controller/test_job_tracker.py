@@ -473,7 +473,7 @@ class TestJobTrackerRaces(YTEnvSetup):
             tags={"tree": "default", "job_type": "vanilla", "abort_reason": "allocation_finished"})
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+        create_pool("test_pool", attributes={"strong_guarantee_resources": {"cpu": total_cpu_limit}})
 
         (node_address, ) = ls("//sys/cluster_nodes")
 

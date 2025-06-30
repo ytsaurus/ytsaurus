@@ -215,9 +215,8 @@ struct IOperationControllerHost
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
     virtual const NServer::TJobReporterPtr& GetJobReporter() = 0;
+    virtual const NServer::TOperationEventReporterPtr& GetOperationEventReporter() = 0;
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() = 0;
-
-    virtual TJobProfiler* GetJobProfiler() const = 0;
 
     virtual int GetAvailableExecNodeCount() = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) = 0;
@@ -658,7 +657,7 @@ struct IOperationController
 
     //! The transaction to monitor for its intermediate medium usage and the corresponding medium name.
     //! Returns the nullptr if no monitoring is required or if no more updates are required.
-    virtual std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() = 0;
+    virtual std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction() = 0;
 
     //! Callback for the monitoring of the intermediate medium usage.
     //! Switches operation's tasks to the slow medium when the montored usage is over the limit.

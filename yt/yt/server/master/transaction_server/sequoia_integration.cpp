@@ -55,7 +55,9 @@ TFuture<TSharedRefArray> AbortCypressTransactionInSequoia(
     TBootstrap* bootstrap,
     TTransactionId transactionId,
     bool force,
-    TAuthenticationIdentity authenticationIdentity)
+    TAuthenticationIdentity authenticationIdentity,
+    TMutationId mutationId,
+    bool retry)
 {
     return AbortCypressTransaction(
         bootstrap->GetSequoiaClient(),
@@ -63,9 +65,10 @@ TFuture<TSharedRefArray> AbortCypressTransactionInSequoia(
         transactionId,
         force,
         authenticationIdentity,
+        mutationId,
+        retry,
         TDispatcher::Get()->GetHeavyInvoker(),
-        TransactionServerLogger())
-        .Apply(CreateAbortTransactionResponse);
+        TransactionServerLogger());
 }
 
 TFuture<TSharedRefArray> AbortExpiredCypressTransactionInSequoia(
@@ -77,8 +80,7 @@ TFuture<TSharedRefArray> AbortExpiredCypressTransactionInSequoia(
         bootstrap->GetCellId(),
         transactionId,
         TDispatcher::Get()->GetHeavyInvoker(),
-        TransactionServerLogger())
-        .Apply(CreateAbortTransactionResponse);
+        TransactionServerLogger());
 }
 
 TFuture<TSharedRefArray> CommitCypressTransactionInSequoia(
@@ -86,24 +88,36 @@ TFuture<TSharedRefArray> CommitCypressTransactionInSequoia(
     TTransactionId transactionId,
     std::vector<TTransactionId> prerequisiteTransactionIds,
     TTimestamp commitTimestamp,
-    NRpc::TAuthenticationIdentity authenticationIdentity)
+    NRpc::TAuthenticationIdentity authenticationIdentity,
+    TMutationId mutationId,
+    bool retry)
 {
     return CommitCypressTransaction(
         bootstrap->GetSequoiaClient(),
         bootstrap->GetCellId(),
         transactionId,
         std::move(prerequisiteTransactionIds),
+        bootstrap->GetPrimaryCellTag(),
         commitTimestamp,
         std::move(authenticationIdentity),
+        mutationId,
+        retry,
         TDispatcher::Get()->GetHeavyInvoker(),
-        TransactionServerLogger())
-        .Apply(BIND_NO_PROPAGATE([=] () {
-            NCypressTransactionClient::NProto::TRspCommitTransaction rsp;
-            NHiveClient::TTimestampMap timestampMap;
-            timestampMap.Timestamps.emplace_back(bootstrap->GetPrimaryCellTag(), commitTimestamp);
-            ToProto(rsp.mutable_commit_timestamps(), timestampMap);
-            return NRpc::CreateResponseMessage(rsp);
-        }));
+        TransactionServerLogger());
+}
+
+TFuture<TSharedRefArray> FinishNonAliveCypressTransactionInSequoia(
+    NCellMaster::TBootstrap* bootstrap,
+    TTransactionId transactionId,
+    NRpc::TMutationId mutationId,
+    bool retry)
+{
+    return FinishNonAliveCypressTransaction(
+        bootstrap->GetSequoiaClient(),
+        transactionId,
+        mutationId,
+        retry,
+        TransactionServerLogger());
 }
 
 TFuture<void> ReplicateCypressTransactionsInSequoiaAndSyncWithLeader(

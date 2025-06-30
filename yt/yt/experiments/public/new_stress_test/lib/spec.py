@@ -215,7 +215,6 @@ spec_template = {
         "write_policy": Variable(["insert_rows", "bulk_insert", "mixed"], VariationPolicy.PickRandom),
         "insertion_probability": 0.7,
         "deletion_probability": 0.1,
-        "max_inline_hunk_size": None,
         "enable_value_dictionary_compression": False,
     },
 
@@ -227,6 +226,7 @@ spec_template = {
 
     "queues": {
         "use_hunk_storage": False,
+        "use_erasure_hunk_storage": BoolVariable(VariationPolicy.PickRandom),
     },
 
     "replicated": {
@@ -244,6 +244,7 @@ spec_template = {
         "key_column_types": None,
         "value_column_types": None,
         "allow_aggregates": True,
+        "max_inline_hunk_size": None,
     },
 
     "extra_attributes": MapWithUnrecognizedChildren(),

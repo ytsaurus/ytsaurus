@@ -42,7 +42,8 @@ IUserDirectorySynchronizerPtr CreateUserDirectorySynchronizer(
     TUserDirectorySynchronizerConfigPtr config,
     NApi::IClientPtr client,
     TUserDirectoryPtr userDirectory,
-    IInvokerPtr invoker);
+    IInvokerPtr invoker,
+    NApi::EMasterChannelKind readFrom);
 
 ////////////////////////////////////////////////////////////////////////////////
 

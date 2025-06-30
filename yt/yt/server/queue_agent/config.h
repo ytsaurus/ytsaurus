@@ -61,9 +61,6 @@ struct TCypressSynchronizerDynamicConfig
     //! Clusters polled by the watching version of the synchronizer.
     std::vector<std::string> Clusters;
 
-    //! If true, the synchronizer will add objects from the registration table to the list of objects to watch.
-    //! NB: This flag is only supported with the `watching` policy.
-    bool PollReplicatedObjects;
     //! If true, the synchronizer will update the configured replicated table mapping table with the corresponding meta.
     //! NB: This flag is only supported with the `watching` policy, as well as enabled polling of replicated objects.
     bool WriteReplicatedTableMapping;
@@ -89,7 +86,7 @@ struct TQueueAgentConfig
 
     //! Identifies a family of queue agents.
     //! Each queue agent only handles queues and consumers with the corresponding attribute set to its own stage.
-    TString Stage;
+    std::string Stage;
 
     REGISTER_YSON_STRUCT(TQueueAgentConfig);
 
@@ -166,11 +163,11 @@ struct TQueueControllerDynamicConfig
 
     //! List of objects, for which controllers must be delayed every pass.
     //!
-    //! Passes of such controllers take additional #ControllerDelayDuration seconds
+    //! Passes of such controllers take additional #ControllerDelay seconds
     //! to complete. This should be used for debug only.
     std::vector<NYPath::TRichYPath> DelayedObjects;
     //! Delay duration for #DelayedObjects.
-    TDuration ControllerDelayDuration;
+    TDuration ControllerDelay;
 
     TQueueExporterDynamicConfig QueueExporter;
 

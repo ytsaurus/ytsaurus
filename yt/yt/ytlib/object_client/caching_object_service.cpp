@@ -63,7 +63,7 @@ public:
             })
         , Config_(config)
         , Cache_(std::move(cache))
-        , CellId_(masterCellId)
+        , MasterCellId_(masterCellId)
         , ThrottlingUpstreamChannel_(CreateThrottlingChannel(
             config,
             std::move(upstreamChannel),
@@ -92,7 +92,7 @@ private:
 
     const TCachingObjectServiceConfigPtr Config_;
     const TObjectServiceCachePtr Cache_;
-    const TCellId CellId_;
+    const TCellId MasterCellId_;
     const IThrottlingChannelPtr ThrottlingUpstreamChannel_;
     const NLogging::TLogger Logger;
 
@@ -155,8 +155,8 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
             : std::nullopt;
 
         TObjectServiceCacheKey key(
-            CellTagFromId(CellId_),
-            cachingRequestHeaderExt->disable_per_user_cache() ? TString() : context->GetAuthenticationIdentity().User,
+            CellTagFromId(MasterCellId_),
+            cachingRequestHeaderExt->disable_per_user_cache() ? std::string() : context->GetAuthenticationIdentity().User,
             ypathExt.target_path(),
             subrequestHeader.service(),
             subrequestHeader.method(),
@@ -236,26 +236,26 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                     const TObjectServiceProxy::TErrorOrRspExecutePtr& rspOrError) mutable
                 {
                     if (!rspOrError.IsOK()) {
-                        YT_LOG_WARNING(rspOrError, "Cache population request failed (Key: %v)", cookie.GetKey());
+                        YT_LOG_DEBUG(rspOrError, "Cache population request failed (RequestId: %v, Key: %v)",
+                            requestId,
+                            cookie.GetKey());
                         cookie.Cancel(rspOrError);
                         return;
                     }
 
                     const auto& rsp = rspOrError.Value();
-                    YT_VERIFY(
-                        rsp->part_counts_size() == 1 ||
-                        (rsp->subresponses_size() == 1 && rsp->subresponses(0).part_count() == 1));
+                    YT_VERIFY(rsp->subresponses_size() == 1);
                     auto responseMessage = TSharedRefArray(rsp->Attachments(), TSharedRefArray::TCopyParts{});
 
                     TResponseHeader responseHeader;
                     if (!TryParseResponseHeader(responseMessage, &responseHeader)) {
-                        YT_LOG_WARNING("Error parsing cache population response header (Key: %v)", cookie.GetKey());
+                        YT_LOG_ALERT("Error parsing cache population response header (Key: %v)", cookie.GetKey());
                         cookie.Cancel(TError(NRpc::EErrorCode::ProtocolError, "Error parsing response header"));
                         return;
                     }
 
                     auto responseError = FromProto<TError>(responseHeader.error());
-                    auto revision = rsp->revisions_size() > 0 ? FromProto<NHydra::TRevision>(rsp->revisions(0)) : NHydra::NullRevision;
+                    auto revision = FromProto<NHydra::TRevision>(rsp->subresponses(0).revision());
 
                     bool cachingEnabled = rsp->caching_enabled();
                     if (CachingEnabled_.exchange(cachingEnabled) != cachingEnabled) {
@@ -292,30 +292,17 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
                         cacheEntry->GetKey(),
                         currentSize,
                         advisedSize);
-                    // COMPAT(babenko)
-                    response->add_advised_sticky_group_size(advisedSize);
                     subresponse->set_advised_sticky_group_size(advisedSize);
                 }
 
                 const auto& responseMessage = cacheEntry->GetResponseMessage();
                 subresponse->set_part_count(responseMessage.Size());
                 subresponse->set_revision(ToProto(cacheEntry->GetRevision()));
-                // COMPAT(babenko)
-                response->add_part_counts(responseMessage.Size());
 
                 responseAttachments.insert(
                     responseAttachments.end(),
                     responseMessage.Begin(),
                     responseMessage.End());
-            }
-
-            // COMPAT(babenko)
-            for (const auto& cacheEntry : cacheEntries) {
-                if (cacheEntry->GetRevision() == NHydra::NullRevision) {
-                    response->clear_revisions();
-                    break;
-                }
-                response->add_revisions(ToProto(cacheEntry->GetRevision()));
             }
 
             response->set_caching_enabled(true);
@@ -352,8 +339,7 @@ NRpc::IChannelPtr CreateMasterChannelForCache(
     NRpc::TRealmId masterCellId)
 {
     auto cellTag = CellTagFromId(masterCellId);
-    // TODO(gritukan): Support Cypress Proxies here.
-    return connection->GetMasterChannelOrThrow(
+    return connection->GetCypressChannelOrThrow(
         NApi::EMasterChannelKind::Follower,
         cellTag);
 }

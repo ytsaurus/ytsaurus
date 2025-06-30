@@ -64,6 +64,7 @@
 #include <yt/yt/core/yson/async_consumer.h>
 #include <yt/yt/core/yson/async_writer.h>
 #include <yt/yt/core/yson/attribute_consumer.h>
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 #include <library/cpp/yt/misc/enum.h>
 
@@ -91,7 +92,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ObjectServerLogger;
+constinit const auto Logger = ObjectServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -367,7 +368,9 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             additionalPath,
             GetTransactionId(context));
         auto result = resolver.Resolve();
-        if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
+        if (std::holds_alternative<TPathResolver::TSequoiaRedirectPayload>(result.Payload) ||
+            std::holds_alternative<TPathResolver::TRemoteObjectRedirectPayload>(result.Payload))
+        {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::CrossCellAdditionalPath,
                 "Request is cross-cell since it involves target path %v and additional path %v",
@@ -386,7 +389,7 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             prerequisitePath,
             GetTransactionId(context));
         auto result = resolver.Resolve();
-        if (std::holds_alternative<TPathResolver::TRemoteObjectPayload>(result.Payload)) {
+        if (std::holds_alternative<TPathResolver::TRemoteObjectRedirectPayload>(result.Payload)) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
                 "Request is cross-cell since it involves target path %v and revision prerequisite path %v",
@@ -906,7 +909,7 @@ std::unique_ptr<TObjectProxyBase::IPermissionValidator> TObjectProxyBase::Create
     return std::make_unique<TPermissionValidator>(this);
 }
 
-void TObjectProxyBase::ValidateAnnotation(const TString& annotation)
+void TObjectProxyBase::ValidateAnnotation(const std::string& annotation)
 {
     if (annotation.size() > MaxAnnotationLength) {
         THROW_ERROR_EXCEPTION("Annotation is too long")
@@ -1158,7 +1161,7 @@ void TNontemplateNonversionedObjectProxyBase::GetSelf(
         writer.Finish()
             .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
                 if (resultOrError.IsOK()) {
-                    response->set_value(resultOrError.Value().ToString());
+                    response->set_value(ToProto(resultOrError.Value()));
                     context->Reply();
                 } else {
                     context->Reply(resultOrError);

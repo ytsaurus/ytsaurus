@@ -36,6 +36,7 @@ struct TBridgeYqlPluginOptions
     size_t OperationAttributesLength = 0;
 
     const char* YTTokenPath = nullptr;
+    const char* UIOrigin = nullptr;
 
     // TODO(max42): passing C++ objects across shared libraries is incredibly
     // fragile. This is a temporary mean until we come up with something more
@@ -74,6 +75,8 @@ struct TBridgeQueryResult
 
     const char* YsonError = nullptr;
     ssize_t YsonErrorLength = 0;
+    const char* Ast = nullptr;
+    ssize_t AstLength = 0;
 };
 
 #define FOR_EACH_QUERY_RESULT_STRING_FIELD(XX) \
@@ -82,6 +85,7 @@ struct TBridgeQueryResult
     XX(Statistics) \
     XX(Progress) \
     XX(TaskInfo) \
+    XX(Ast) \
     XX(YsonError)
 
 struct TBridgeClustersResult

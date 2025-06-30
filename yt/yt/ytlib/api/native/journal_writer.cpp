@@ -280,8 +280,8 @@ private:
         int ReplicaCount_ = -1;
         int ReadQuorum_ = -1;
         int WriteQuorum_ = -1;
-        TString Account_;
-        TString PrimaryMedium_;
+        std::string Account_;
+        std::string PrimaryMedium_;
 
         TObjectId ObjectId_;
         TCellTag NativeCellTag_ = InvalidCellTag;
@@ -552,7 +552,7 @@ private:
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
                 AddCellTagToSyncWith(req, ObjectId_);
                 SetTransactionId(req, UploadTransaction_);
-                std::vector<TString> attributeKeys{
+                std::vector<std::string> attributeKeys{
                     "type",
                     "erasure_codec",
                     "replication_factor",
@@ -578,8 +578,8 @@ private:
                     : NErasure::GetCodec(ErasureCodec_)->GetTotalPartCount();
                 ReadQuorum_ = attributes->Get<int>("read_quorum");
                 WriteQuorum_ = attributes->Get<int>("write_quorum");
-                Account_ = attributes->Get<TString>("account");
-                PrimaryMedium_ = attributes->Get<TString>("primary_medium");
+                Account_ = attributes->Get<std::string>("account");
+                PrimaryMedium_ = attributes->Get<std::string>("primary_medium");
 
                 YT_LOG_DEBUG("Extended journal attributes received (ErasureCodec: %v, ReplicationFactor: %v, ReplicaCount: %v, "
                     "WriteQuorum: %v, Account: %v, PrimaryMedium: %v)",
@@ -1112,7 +1112,41 @@ private:
         void HandleBatch(const TBatchPtr& batch)
         {
             if (ErasureCodec_ != NErasure::ECodec::None) {
-                batch->ErasureRows = EncodeErasureJournalRows(NErasure::GetCodec(ErasureCodec_), batch->Rows);
+                auto* codec = NErasure::GetCodec(ErasureCodec_);
+                batch->ErasureRows = EncodeErasureJournalRows(codec, batch->Rows);
+
+                if (Config_->ValidateErasureCoding) {
+                    YT_LOG_DEBUG("Validating erasure coding");
+
+                    const auto& originalRows = batch->ErasureRows;
+                    auto erasedPartCount = codec->GetGuaranteedRepairablePartCount();
+                    auto dataPartCount = codec->GetDataPartCount();
+
+                    std::vector<int> erasedParts(erasedPartCount);
+                    std::iota(erasedParts.begin(), erasedParts.end(), 0);
+
+                    std::vector<std::vector<TSharedRef>> preservedParts(
+                        originalRows.begin() + erasedPartCount,
+                        originalRows.end());
+
+                    auto repairedParts = RepairErasureJournalRows(codec, erasedParts, preservedParts);
+
+                    for (int index = 0; index < dataPartCount - erasedPartCount; ++index) {
+                        repairedParts.push_back(preservedParts[index]);
+                    }
+                    auto decodedRows = DecodeErasureJournalRows(codec, repairedParts, Logger);
+
+                    const auto& expectedRows = batch->Rows;
+                    YT_LOG_FATAL_UNLESS(
+                        expectedRows.size() == decodedRows.size(),
+                        "Journal erasure coding validation failed");
+                    for (int rowIndex = 0; rowIndex < std::ssize(expectedRows); ++rowIndex) {
+                        YT_LOG_FATAL_UNLESS(
+                            TRef::AreBitwiseEqual(expectedRows[rowIndex], decodedRows[rowIndex]),
+                            "Journal erasure coding validation failed");
+                    }
+                }
+
                 batch->Rows.clear();
             }
             QuorumUnflushedBatches_.push_back(batch);
@@ -1454,7 +1488,6 @@ private:
                     node->Descriptor.GetDefaultAddress());
             }
         }
-
 
         void MaybeFlushBlocks(const TChunkSessionPtr& session, const TNodePtr& node)
         {

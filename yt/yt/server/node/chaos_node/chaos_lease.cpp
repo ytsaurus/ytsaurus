@@ -10,14 +10,16 @@ void TChaosLease::Save(TSaveContext& context) const
 {
     using NYT::Save;
 
-    Save(context, LastPingTimestamp_);
+    Save(context, ParentId_);
+    Save(context, Timeout_);
 }
 
 void TChaosLease::Load(TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, LastPingTimestamp_);
+    Load(context, ParentId_);
+    Load(context, Timeout_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

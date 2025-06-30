@@ -57,8 +57,8 @@ protected:
     const TString Path_;
 
     int ProcessId_;
-    std::atomic<bool> Started_ = {false};
-    std::atomic<bool> Finished_ = {false};
+    std::atomic<bool> Started_ = false;
+    std::atomic<bool> Finished_ = false;
     int MaxSpawnActionFD_ = - 1;
     NPipes::TPipe Pipe_;
     // Container for owning string data. Use std::deque because it never moves contained objects.

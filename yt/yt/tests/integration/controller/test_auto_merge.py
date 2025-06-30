@@ -13,6 +13,8 @@ from yt.common import YtError, update
 
 import yt.yson as yson
 
+from copy import deepcopy
+
 import pytest
 
 from time import sleep
@@ -66,17 +68,16 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
 
     @classmethod
     def modify_controller_agent_config(cls, config, cluster_index):
-        for op_type in ["map", "reduce"]:
-            config["controller_agent"] = update(config.get('controller_agent'), {
-                op_type + "_operation_options": {
-                    "spec_template": {
-                        "auto_merge": {
-                            "shallow_merge_min_data_weight_per_chunk": 0,
-                            "enable_shallow_merge": cls.ENABLE_SHALLOW_MERGE,
-                        },
+        config["controller_agent"] = update(config.get("controller_agent"), {
+            "operation_options": {
+                "spec_template": {
+                    "auto_merge": {
+                        "shallow_merge_min_data_weight_per_chunk": 0,
+                        "enable_shallow_merge": cls.ENABLE_SHALLOW_MERGE,
                     },
                 },
-            })
+            },
+        })
 
     def _get_auto_merge_job_counts(self, operation):
         def none_to_zero(value):
@@ -944,6 +945,21 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
             job_type=wrong_merge_type))
 
 
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerAutoMergeWithOldSlicing(TestSchedulerAutoMerge):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerAutoMerge, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
+
+##################################################################
+
+
 class TestSchedulerShallowAutoMerge(TestSchedulerAutoMerge):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     ENABLE_SHALLOW_MERGE = True
@@ -1107,3 +1123,15 @@ else:
 
         content = read_table("//tmp/t_out")
         assert sorted_dicts(content) == sorted_dicts(data)
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerAutoMergeAbortedWithOldSlicing(TestSchedulerAutoMergeAborted):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestSchedulerAutoMergeAborted, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False

@@ -18,6 +18,9 @@ links:
   display: flex;
   flex-direction: column;
 }
+.last {
+  grid-column: -2;
+}
 h2 {
   padding-top: 32px !important;
   margin-top: 0 !important;
@@ -41,7 +44,7 @@ h3 {
     </div>
     <div class="grid-item">
         <h3><a lang="en" href="overview/try-yt">How to try?</a></h3>
-        <p>Step-by-step tutorial on how to quickly deploy a {{product-name}} instance.</p>
+        <p>Examples of basic actions with {{product-name}} in the CLI and web interface.</p>
     </div>
     <div class="grid-item">
         <h3><a lang="en" href="user-guide/dynamic-tables/overview">Dynamic tables</a></h3>

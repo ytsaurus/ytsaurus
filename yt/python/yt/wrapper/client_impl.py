@@ -962,6 +962,12 @@ class YtClient(ClientState):
         """
         return client_api.get_current_transaction_id(client=self)
 
+    def get_current_user(self):
+        """
+        Get current user info
+        """
+        return client_api.get_current_user(client=self)
+
     def get_file_from_cache(
             self,
             md5,
@@ -1178,7 +1184,8 @@ class YtClient(ClientState):
 
     def get_pipeline_state(
             self,
-            pipeline_path):
+            pipeline_path,
+            timeout=None):
         """
         Get YT Flow pipeline state
 
@@ -1187,7 +1194,8 @@ class YtClient(ClientState):
         """
         return client_api.get_pipeline_state(
             pipeline_path,
-            client=self)
+            client=self,
+            timeout=timeout)
 
     def get_query(
             self,
@@ -1511,6 +1519,22 @@ class YtClient(ClientState):
             with_monitoring_descriptor=with_monitoring_descriptor, with_interruption_info=with_interruption_info,
             include_cypress=include_cypress, include_runtime=include_runtime, include_archive=include_archive,
             data_source=data_source, attributes=attributes, format=format)
+
+    def list_operation_events(
+            self,
+            operation_id,
+            event_type=None, format=None):
+        """
+        List events of given operation.
+
+        :param str operation_id: operation id.
+        :param str event_type: event type.
+
+        """
+        return client_api.list_operation_events(
+            operation_id,
+            client=self,
+            event_type=event_type, format=format)
 
     def list_operations(
             self,
@@ -2017,15 +2041,15 @@ class YtClient(ClientState):
 
     def read_table_structured(
             self,
-            table, row_type,
-            table_reader=None, unordered=None, response_parameters=None, enable_read_parallel=None):
+            table,
+            row_type=None, table_reader=None, unordered=None, response_parameters=None, enable_read_parallel=None):
         """
         Reads rows from table in structured format. Cf. docstring for read_table
         """
         return client_api.read_table_structured(
-            table, row_type,
+            table,
             client=self,
-            table_reader=table_reader, unordered=unordered, response_parameters=response_parameters,
+            row_type=row_type, table_reader=table_reader, unordered=unordered, response_parameters=response_parameters,
             enable_read_parallel=enable_read_parallel)
 
     def register_queue_consumer(
@@ -2878,7 +2902,8 @@ class YtClient(ClientState):
 
     def start_pipeline(
             self,
-            pipeline_path):
+            pipeline_path,
+            timeout=None):
         """
         Start YT Flow pipeline.
 
@@ -2887,7 +2912,8 @@ class YtClient(ClientState):
         """
         return client_api.start_pipeline(
             pipeline_path,
-            client=self)
+            client=self,
+            timeout=timeout)
 
     def start_query(
             self,

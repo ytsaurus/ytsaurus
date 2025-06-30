@@ -36,7 +36,7 @@ public:
         TComponentDiscoveryOptions componentDiscoveryOptions)
         : TComponentDiscoverer(
             std::move(client),
-            TMasterReadOptions{.ReadFrom = EMasterChannelKind::MasterCache},
+            TMasterReadOptions{.ReadFrom = EMasterChannelKind::Cache},
             std::move(componentDiscoveryOptions))
         , Config_(std::move(config))
     { }

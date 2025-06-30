@@ -1,5 +1,7 @@
 #pragma once
 
+// TODO: Move FormatId to query common.
+#include "ast.h"
 #include "query.h"
 
 namespace NYT::NQueryClient {
@@ -40,6 +42,8 @@ struct TAbstractVisitor
             return Derived()->OnLike(likeExpr, args...);
         } else if (auto memberAccessorExpr = expr->template As<TCompositeMemberAccessorExpression>()) {
             return Derived()->OnCompositeMemberAccessor(memberAccessorExpr, args...);
+        } else if (auto subqueryExpr = expr->template As<TSubqueryExpression>()) {
+            return Derived()->OnSubquery(subqueryExpr, args...);
         }
         YT_ABORT();
     }
@@ -131,6 +135,21 @@ struct TVisitor
     {
         Visit(memberAccessorExpr->CompositeExpression);
     }
+
+    void OnSubquery(const TSubqueryExpression* subqueryExpr)
+    {
+        for (const auto& [expr, name] : subqueryExpr->FromExpressions) {
+            Visit(expr);
+        }
+
+        Visit(subqueryExpr->WhereClause);
+
+        if (const auto* projectClause = subqueryExpr->ProjectClause.Get()) {
+            for (const auto& [expr, name] : projectClause->Projections) {
+                Visit(expr);
+            }
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,7 +217,7 @@ struct TRewriter
         }
 
         return New<TFunctionExpression>(
-            functionExpr->GetWireType(),
+            functionExpr->LogicalType,
             functionExpr->FunctionName,
             std::move(newArguments));
     }
@@ -353,6 +372,11 @@ struct TRewriter
             std::move(newCompositeExpression),
             memberAccessorExpr->NestedStructOrTupleItemAccessor,
             std::move(newDictOrListItemAccessor));
+    }
+
+    TConstExpressionPtr OnSubquery(const TSubqueryExpression* subqueryExpr)
+    {
+        return subqueryExpr;
     }
 };
 
@@ -528,7 +552,7 @@ struct TAbstractExpressionPrinter
 
     void OnReference(const TReferenceExpression* referenceExpr, TArgs... /*args*/)
     {
-        Builder->AppendString(referenceExpr->ColumnName);
+        Builder->AppendString(NAst::FormatId(referenceExpr->ColumnName));
     }
 
     void OnUnary(const TUnaryOpExpression* unaryExpr, TArgs... args)
@@ -734,6 +758,49 @@ struct TAbstractExpressionPrinter
     void OnCompositeMemberAccessor(const TCompositeMemberAccessorExpression* memberAccessorExpr, TArgs... args)
     {
         Derived()->OnCompositeMemberAccessorColumnReference(memberAccessorExpr, args...);
+    }
+
+    void OnSubquery(const TSubqueryExpression* subqueryExpr, TArgs... /*args*/)
+    {
+        auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
+            builder->AppendString(InferName(item.Expression, OmitValues));
+            if (!OmitValues) {
+                builder->AppendFormat(" AS %v", item.Name);
+            }
+        };
+
+        std::vector<TString> clauses;
+        TString str;
+
+        if (subqueryExpr->ProjectClause) {
+            str = JoinToString(subqueryExpr->ProjectClause->Projections, namedItemFormatter);
+        } else {
+            str = "*";
+        }
+
+        clauses.emplace_back("SELECT " + str);
+
+        clauses.push_back(TString("FROM (") + JoinToString(subqueryExpr->FromExpressions, namedItemFormatter) + ")");
+
+        if (subqueryExpr->WhereClause) {
+            clauses.push_back(TString("WHERE ") + InferName(subqueryExpr->WhereClause, OmitValues));
+        }
+
+        if (subqueryExpr->GroupClause) {
+            clauses.push_back(Format("GROUP BY[common prefix: %v, aggregates: %v] %v",
+                subqueryExpr->GroupClause->CommonPrefixWithPrimaryKey,
+                MakeFormattableView(subqueryExpr->GroupClause->AggregateItems, [] (auto* builder, const auto& item) {
+                    builder->AppendString(item.AggregateFunction);
+                }),
+                JoinToString(subqueryExpr->GroupClause->GroupItems, namedItemFormatter)));
+            if (subqueryExpr->GroupClause->TotalsMode == ETotalsMode::BeforeHaving) {
+                clauses.push_back("WITH TOTALS");
+            }
+        }
+
+        Builder->AppendChar('(');
+        Builder->AppendString(JoinToString(clauses, TStringBuf(" ")));
+        Builder->AppendChar(')');
     }
 };
 

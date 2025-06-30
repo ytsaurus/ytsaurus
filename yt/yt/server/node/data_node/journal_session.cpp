@@ -157,7 +157,7 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
          index < std::ssize(blocks);
          ++index)
     {
-        if (auto error = blocks[index].ValidateChecksum(); !error.IsOK()) {
+        if (auto error = blocks[index].CheckChecksum(); !error.IsOK()) {
             error = TError("Error appending changelog records")
                 << TErrorAttribute("chunk_id", SessionId_.ChunkId)
                 << TErrorAttribute("medium_index", SessionId_.MediumIndex)

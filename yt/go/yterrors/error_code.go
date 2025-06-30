@@ -303,6 +303,7 @@ const (
 	CodeDataSliceLimitExceeded                                ErrorCode = 2000
 	CodeMaxDataWeightPerJobExceeded                           ErrorCode = 2001
 	CodeMaxPrimaryDataWeightPerJobExceeded                    ErrorCode = 2002
+	CodeMaxCompressedDataSizePerJobExceeded                   ErrorCode = 2003
 	CodeProxyBanned                                           ErrorCode = 2100
 	CodeMailboxNotCreatedYet                                  ErrorCode = 2200
 	CodeParticipantUnregistered                               ErrorCode = 2201
@@ -1021,6 +1022,8 @@ func (e ErrorCode) String() string {
 		return "MaxDataWeightPerJobExceeded"
 	case CodeMaxPrimaryDataWeightPerJobExceeded:
 		return "MaxPrimaryDataWeightPerJobExceeded"
+	case CodeMaxCompressedDataSizePerJobExceeded:
+		return "MaxCompressedDataSizePerJobExceeded"
 	case CodeProxyBanned:
 		return "ProxyBanned"
 	case CodeMailboxNotCreatedYet:

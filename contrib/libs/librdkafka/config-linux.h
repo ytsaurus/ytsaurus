@@ -97,6 +97,8 @@
 #define HAVE_RAND_R 1
 // strndup
 #define HAVE_STRNDUP 1
+// strlcpy
+#define HAVE_STRLCPY 1
 // strerror_r
 #define HAVE_STRERROR_R 1
 // strcasestr

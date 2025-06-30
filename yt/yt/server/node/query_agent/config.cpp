@@ -19,6 +19,9 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("table_row_fetch_thread_pool_size", &TThis::TableRowFetchThreadPoolSize)
         .GreaterThan(0)
         .Default(4);
+    registrar.Parameter("pull_rows_thread_pool_size", &TThis::PullRowsThreadPoolSize)
+        .GreaterThan(0)
+        .Default(4);
     registrar.Parameter("max_subsplits_per_tablet", &TThis::MaxSubsplitsPerTablet)
         .GreaterThan(0)
         .Default(4096);
@@ -53,6 +56,9 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_query_pool_for_in_memory_lookups", &TThis::UseQueryPoolForInMemoryLookups)
         .Default(false);
 
+    registrar.Parameter("use_dedicated_pool_for_pull_rows", &TThis::UseDedicatedPoolForPullRows)
+        .Default(false);
+
     registrar.Parameter("pull_rows_read_data_weight_limit", &TThis::PullRowsReadDataWeightLimit)
         .GreaterThan(0)
         .Default(8_GB);
@@ -76,6 +82,9 @@ void TQueryAgentDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("lookup_thread_pool_size", &TThis::LookupThreadPoolSize)
         .GreaterThan(0)
         .Optional();
+    registrar.Parameter("pull_rows_thread_pool_size", &TThis::PullRowsThreadPoolSize)
+        .GreaterThan(0)
+        .Optional(false);
     registrar.Parameter("fetch_thread_pool_size", &TThis::FetchThreadPoolSize)
         .GreaterThan(0)
         .Optional();
@@ -93,6 +102,8 @@ void TQueryAgentDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_query_pool_for_lookups", &TThis::UseQueryPoolForLookups)
         .Optional();
     registrar.Parameter("use_query_pool_for_in_memory_lookups", &TThis::UseQueryPoolForInMemoryLookups)
+        .Optional();
+    registrar.Parameter("use_dedicated_pool_for_pull_rows", &TThis::UseDedicatedPoolForPullRows)
         .Optional();
 }
 

@@ -344,7 +344,7 @@ void TSharedSchedulerStrategy::ProcessAllocationUpdates(
     SchedulerStrategy_->ProcessAllocationUpdates(allocationUpdates, allocationsToPostpone, allocationsToAbort);
 }
 
-void TSharedSchedulerStrategy::UnregisterOperation(NYT::NScheduler::IOperationStrategyHost* operation)
+void TSharedSchedulerStrategy::UnregisterOperation(const NYT::NScheduler::IOperationStrategyHostPtr& operation)
 {
     WaitFor(
         BIND(&ISchedulerStrategy::UnregisterOperation, SchedulerStrategy_, operation)

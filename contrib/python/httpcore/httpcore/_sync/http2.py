@@ -67,10 +67,12 @@ class HTTP2Connection(ConnectionInterface):
         # Mapping from stream ID to response stream events.
         self._events: dict[
             int,
-            h2.events.ResponseReceived
-            | h2.events.DataReceived
-            | h2.events.StreamEnded
-            | h2.events.StreamReset,
+            list[
+                h2.events.ResponseReceived
+                | h2.events.DataReceived
+                | h2.events.StreamEnded
+                | h2.events.StreamReset,
+            ],
         ] = {}
 
         # Connection terminated events are stored as state since
@@ -102,9 +104,11 @@ class HTTP2Connection(ConnectionInterface):
         with self._init_lock:
             if not self._sent_connection_init:
                 try:
-                    kwargs = {"request": request}
-                    with Trace("send_connection_init", logger, request, kwargs):
-                        self._send_connection_init(**kwargs)
+                    sci_kwargs = {"request": request}
+                    with Trace(
+                        "send_connection_init", logger, request, sci_kwargs
+                    ):
+                        self._send_connection_init(**sci_kwargs)
                 except BaseException as exc:
                     with ShieldCancellation():
                         self.close()
@@ -293,6 +297,7 @@ class HTTP2Connection(ConnectionInterface):
 
         status_code = 200
         headers = []
+        assert event.headers is not None
         for k, v in event.headers:
             if k == b":status":
                 status_code = int(v.decode("ascii", errors="ignore"))
@@ -310,6 +315,8 @@ class HTTP2Connection(ConnectionInterface):
         while True:
             event = self._receive_stream_event(request, stream_id)
             if isinstance(event, h2.events.DataReceived):
+                assert event.flow_controlled_length is not None
+                assert event.data is not None
                 amount = event.flow_controlled_length
                 self._h2_state.acknowledge_received_data(amount, stream_id)
                 self._write_outgoing_data(request)
@@ -380,7 +387,9 @@ class HTTP2Connection(ConnectionInterface):
 
         self._write_outgoing_data(request)
 
-    def _receive_remote_settings_change(self, event: h2.events.Event) -> None:
+    def _receive_remote_settings_change(
+        self, event: h2.events.RemoteSettingsChanged
+    ) -> None:
         max_concurrent_streams = event.changed_settings.get(
             h2.settings.SettingCodes.MAX_CONCURRENT_STREAMS
         )

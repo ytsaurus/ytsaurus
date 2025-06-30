@@ -27,6 +27,7 @@ PEERDIR(
     library/cpp/getopt
 
     yt/yt/library/dynamic_config
+    yt/yt/library/monitoring
     yt/yt/library/program
     yt/yt/library/server_program
 
@@ -43,3 +44,5 @@ PEERDIR(
 )
 
 END()
+
+RECURSE_FOR_TESTS(unittests)

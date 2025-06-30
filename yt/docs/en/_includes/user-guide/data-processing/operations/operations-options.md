@@ -10,9 +10,9 @@ The default values, if set, are provided in parentheses:
 - `pool` — name of the [compute pool](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md) where the operation runs. If this parameter is not specified, the pool name defaults to the name of the {{product-name}} user who started the operation.
 - `weight`(1.0) — weight of the started operation. It determines how much of the pool's compute quota is allocated to the operation. For more information, see [Scheduler and pools](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md).
 - `pool_trees` — list of [pool trees](../../../../user-guide/data-processing/scheduler/scheduler-and-pools.md) where the operation's jobs are run. The default pool tree is configured by the cluster administrator.
-- `tentative_pool_trees` — list of test pool trees that will be used for running the operation if there is no performance degradation.
-- `use_default_tentative_pool_trees` — enable the use of all trees in the cluster that are `tentative` relative to the default pool tree.
-- `tentative_tree_eligibility` — configuration for running the operation's jobs in `tentative` trees:
+- **DEPRECATED** `tentative_pool_trees` — list of test pool trees that will be used for running the operation if there is no performance degradation.
+- **DEPRECATED** `use_default_tentative_pool_trees` — enable the use of all trees in the cluster that are `tentative` relative to the default pool tree.
+- **DEPRECATED** `tentative_tree_eligibility` — configuration for running the operation's jobs in `tentative` trees:
   - `sample_job_count` (10) — number of jobs to be run as samples.
   - `max_tentative_job_duration_ratio` (10) — maximum allowed latency of job execution.
   - `min_job_duration` (30) — job duration threshold in `tentative` trees. If the average job duration in the `tentative` tree exceeds this threshold, new jobs of the operation are not run in that `tentative` tree.
@@ -23,6 +23,7 @@ The default values, if set, are provided in parentheses:
 - `max_stderr_count` (10) — limit on the amount of stored data from the standard error stream (stderr) of jobs, by default taken from cluster settings that usually have it equal to 10. The maximum value is 150.
 - `max_failed_job_count` (10) — number of failed jobs past which the operation is considered failed. By default, this value is taken from the cluster settings, where it is usually set to 10.
 - `unavailable_chunk_strategy` and `unavailable_chunk_tactics` — determine further action in case intermediate calculation results are unavailable. For more information, see [Operation types](../../../../user-guide/data-processing/operations/overview.md#chunk_strategy).
+- `chunk_availability_policy` — system behavior if erasure chunks are unavailable. For more information, see [Operation types](../../../../user-guide/data-processing/operations/overview.md#chunk_erasure_strategy).
 - `scheduling_tag_filter` — filter for selecting cluster nodes upon job launch. The filter is a [logical expression](../../../../admin-guide/node-tags.md) that includes `&` (logical AND), `|` (logical OR), and `!` (logical NOT) operators and parentheses. The possible values of cluster node tags act as variables in the expression. A tag is a marker placed on a cluster node. Markup is done by the {{product-name}} service when configuring a cluster. If the cluster node has a tag specified in the expression, the expression takes the "true" value, if not — the value is "false". If the expression as a whole returns "false", then that cluster node is not selected to run the job.
 - `max_data_weight_per_job` (200 GB) — maximum allowed size of input data per job (in bytes). This option sets a hard cap on the job size. If the scheduler is not able to generate a job with a smaller size, the operation ends with an error.
 - `data_weight_per_job` (256 MB) — recommended size of input data per job (in bytes). This option is useless for composite operations such as MapReduce. which instead call for the following options:
@@ -36,7 +37,7 @@ The default values, if set, are provided in parentheses:
   - `job_id` — job ID.
   - `part_index` — for large error messages, the stderr message of a single job can be split into several segments that are stored in different rows. This column contains the numbers corresponding to these segments.
   - `data` — data from the standard error stream.
-- `redirect_stdout_to_stderr` - option for redirection of standard output stream (stdout) to standard error stream (stderr).
+- `redirect_stdout_to_stderr` — option for redirecting a standard output stream (stdout) to a standard error stream (stderr).
 - `core_table_path` — path to an existing table for writing core dump. The table format is identical to that described for `stderr_table_path`. {% if audience == "internal" %}For more information about using this option, see [Debugging MapReduce programs](../../../../user-guide/problems/mapreduce-debug.md).{% endif %}
 - `input_query` — for the [Map](../../../../user-guide/data-processing/operations/map.md) and [Merge](../../../../user-guide/data-processing/operations/merge.md) operations, you can pre-filter each input row using the [query language](../../../../user-guide/dynamic-tables/dyn-query-language.md). Because the input table is already known, and it is assumed that each row will be individually filtered, the query syntax changes and gets simplified to `* | <select-expr-1> [AS <select-alias-1>]... [WHERE <predicate-expr>]`. Speeifically, you cannot use `GROUP BY` and `ORDER BY`. Queries need strictly schematized data, so input tables must have a strict schema. In the [Merge](../../../../user-guide/data-processing/operations/merge.md) operation, the schema of the final data in the query is incorporated when outputting the schema for the output table.
 
@@ -137,11 +138,13 @@ Data from input tables written according to the specified input format is sent t
 
 ### Disk requests for jobs { #disk_request }
 
-If only `disk_space` is specified in the `disk_request` specification, the default disks for jobs are used. Namely, HDD (the `default` medium) in most cases, or NVME, when running on modern GPU hosts (v100 and newer). In this case, no book-keeping is done on used space — free disk space is assumed to be abundant, no problems are expected. Only the data that the user stores on the cluster counts toward that user's disk quota (account), while the disk space used for the job does not. The scheduler ensures that no job exceeds its limits and that the sum of the limits of all jobs on the cluster node does not exceed the available disk space on the cluster node.
+If only `disk_space` is specified in the `disk_request` specification, the default disks for jobs are used. {% if audience == "internal" %}Namely, HDD in most cases or NVME when running on modern GPU hosts (v100 and newer). {% endif %}In this case, no book-keeping is done on used space — free disk space is assumed to be abundant, no problems are expected. Only the data that the user stores on the cluster counts toward that user's disk quota (account), while the disk space used for the job does not. The scheduler ensures that no job exceeds its limits and that the sum of the limits of all jobs on the cluster node does not exceed the available disk space on the cluster node.
 
-In addition, specifying `disk_space` means the space used by the job becomes limited, but also guaranteed.
+In addition, specifying `disk_space` means that {{product-name}} starts limiting the space used by the job, but also guarantees it.
 
-If you want to use other disks for your operations' jobs, such as an SSD in place of the default HDD, specify the desired `medium` and your `account` for quoting the requested space. The Arnold and Hahn clusters currently have disks for jobs in the `ssd_slots_physical` medium, so in order to use them, you need to request the space for your account in this medium.
+If you want to use other disks for your operations' jobs, such as an SSD in place of the default HDD, specify the desired `medium` and your `account` for quoting the requested space.
+
+{% if audience == "internal" %}In the current implementation, {{mr-clusters}} clusters have SSDs for jobs in the `ssd_slots_physical` medium. In order to use them, you need to request the disk quota for your account in this medium. For more information about requesting a quota, see [Requesting and getting resources](../../../../user-guide/storage/quota-request.md#zapros-na-rasshirenie-kvoty-pod-sushestvuyushij-akkaunt).{% endif %}
 
 ## Path attributes { #path_attributes }
 
@@ -150,7 +153,7 @@ The following attributes are supported for operations' output tables (default va
 - `sorted_by` — set of columns by which to sort the table.
 - `append` (false) — determines if data is appended to a given output table. If `append` is set to `false`, the data in the table is overwritten.
 - `row_count_limit` — finishes the operation ahead of time as soon as the output table reaches at least `row_count_limit` rows. Can only be set for one table.
-- `create` (false) - scheduler will create the table described by this path if it does not exist (it will execute `create` command with parameters `{ "path" = "//path/from/spec" ; "type" = "table" }`)
+- `create` (false) — if the table at the specified path does not exist, the scheduler will create it automatically with default settings (it will execute the `create` command with the parameters `{ "path" = "//path/from/spec" ; "type" = "table" }`)
 
 The following attributes are supported on operations' input tables:
 - Standard [modifiers for selecting rows and columns](../../../../user-guide/storage/ypath.md#rich_ypath_suffix).

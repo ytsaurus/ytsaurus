@@ -9,20 +9,24 @@ namespace NYT::NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TOptions>
-void TControllerAgentConfig::UpdateOptions(TOptions* options, NYT::NYTree::INodePtr patch)
+void TControllerAgentConfig::BuildOptions(TOptions* options, NYTree::INodePtr optionsNode, NYTree::INodePtr patch)
 {
-    using NYTree::INodePtr;
     using NYTree::ConvertTo;
 
-    if (!patch) {
+    if (!patch && !optionsNode) {
+        *options = New<typename TOptions::TUnderlying>();
         return;
     }
 
-    if (*options) {
-        *options = ConvertTo<TOptions>(PatchNode(patch, ConvertTo<INodePtr>(*options)));
+    if (optionsNode) {
+        if (patch) {
+            optionsNode = PatchNode(patch, optionsNode);
+        }
     } else {
-        *options = ConvertTo<TOptions>(patch);
+        optionsNode = patch;
     }
+
+    *options = ConvertTo<TOptions>(optionsNode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

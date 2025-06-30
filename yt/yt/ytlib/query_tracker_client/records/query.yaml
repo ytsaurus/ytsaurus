@@ -42,7 +42,7 @@ types:
         lock: client
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
         lock: client
@@ -186,7 +186,7 @@ types:
         column_type: Any
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
 
@@ -238,6 +238,11 @@ types:
         column_type: Any
         lock: client
 
+      - cpp_name: AssignedTracker
+        cpp_type: std::optional<std::string>
+        column_name: assigned_tracker
+        column_type: String
+
 
   - type_name: TFinishedQueryByStartTime
     fields:
@@ -263,7 +268,7 @@ types:
         column_type: String
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
 
@@ -289,7 +294,7 @@ types:
       # Key.
 
       - cpp_name: AccessControlObject
-        cpp_type: TString
+        cpp_type: std::string
         column_name: access_control_object
         column_type: String
         sort_order: Ascending
@@ -314,7 +319,7 @@ types:
         column_type: String
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
 
@@ -334,7 +339,7 @@ types:
       # Key.
 
       - cpp_name: User
-        cpp_type: TString
+        cpp_type: std::string
         column_name: user
         column_type: String
         sort_order: Ascending

@@ -239,7 +239,8 @@ IIOEnginePtr CreateIOEngine(
     TString locationId = "default",
     NProfiling::TProfiler profiler = {},
     NLogging::TLogger logger = {},
-    TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue = nullptr);
+    TFairShareHierarchicalSlotQueuePtr<std::string> fairShareQueue = nullptr,
+    IHugePageManagerPtr hugePageManager = nullptr);
 
 std::vector<EIOEngineType> GetSupportedIOEngineTypes();
 

@@ -118,9 +118,11 @@ SRCS(
     tablet_node/compaction_hint_fetcher.cpp
     tablet_node/compression_dictionary_builder.cpp
     tablet_node/compression_dictionary_manager.cpp
+    tablet_node/config.cpp
     tablet_node/distributed_throttler_manager.cpp
     tablet_node/dynamic_store_bits.cpp
     tablet_node/error_manager.cpp
+    tablet_node/failing_on_rotation_reader.cpp
     tablet_node/hedging_manager_registry.cpp
     tablet_node/hint_manager.cpp
     tablet_node/hunk_chunk.cpp
@@ -150,6 +152,7 @@ SRCS(
     tablet_node/relative_replication_throttler.cpp
     tablet_node/replicated_store_manager.cpp
     tablet_node/replication_log.cpp
+    tablet_node/revision_provider.cpp
     tablet_node/row_cache.cpp
     tablet_node/row_digest_fetcher.cpp
     tablet_node/security_manager.cpp
@@ -189,8 +192,8 @@ SRCS(
     tablet_node/transaction_manager.cpp
     tablet_node/transaction_manager.proto
     tablet_node/versioned_chunk_meta_manager.cpp
-    tablet_node/overload_controller.cpp
-    tablet_node/overload_controlling_service_base.cpp
+    tablet_node/write_commands.cpp
+    tablet_node/write_log.cpp
 )
 
 PEERDIR(

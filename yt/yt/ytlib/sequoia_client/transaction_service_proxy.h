@@ -15,6 +15,8 @@ public:
     DEFINE_RPC_PROXY(TSequoiaTransactionServiceProxy, SequoiaTransactionService);
 
     DEFINE_RPC_PROXY_METHOD(NProto, StartTransaction);
+
+    DEFINE_RPC_PROXY_METHOD(NProto, SyncWithGroundUpdateQueue);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -85,7 +85,7 @@ struct IJobHost
 
     virtual void OnJobMemoryThrashing() = 0;
 
-    virtual NChunkClient::TChunkReaderHostPtr GetChunkReaderHost() const = 0;
+    virtual const NChunkClient::TMultiChunkReaderHostPtr& GetChunkReaderHost() const = 0;
 
     virtual NChunkClient::IBlockCachePtr GetReaderBlockCache() const = 0;
     virtual NChunkClient::IBlockCachePtr GetWriterBlockCache() const = 0;
@@ -111,7 +111,7 @@ struct IJobHost
 
     virtual IInvokerPtr GetControlInvoker() const = 0;
 
-    virtual NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) = 0;
+    virtual NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)
@@ -157,7 +157,6 @@ struct IJob
     struct TStatistics
     {
         NYT::TStatistics Statstics;
-        NChunkClient::TChunkReaderStatisticsPtr ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
         //! Per-output chunk writer statistics; this field is truncated when producing final job statistics,
         //! but the original statistics is sent as a separate protobuf field.
         std::vector<NChunkClient::TChunkWriterStatisticsPtr> ChunkWriterStatistics;

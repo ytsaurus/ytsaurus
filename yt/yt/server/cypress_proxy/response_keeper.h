@@ -16,7 +16,7 @@ struct ISequoiaResponseKeeper
     virtual void KeepResponse(
         const NSequoiaClient::ISequoiaTransactionPtr& transaction,
         NRpc::TMutationId mutationId,
-        const TErrorOr<TSharedRefArray>& responseMessageOrError) const = 0;
+        TSharedRefArray responseMessage) const = 0;
 
     virtual const TSequoiaResponseKeeperDynamicConfigPtr& GetDynamicConfig() const = 0;
 

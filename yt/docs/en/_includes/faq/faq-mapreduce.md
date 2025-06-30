@@ -1,5 +1,3 @@
-# FAQ
-
 #### **Q: Where do I get the simplest client and a step-by-step procedure for running MapReduce?**
 
 **A:** We recommend reviewing the Trial section as well as reading about working with {{product-name}} from the console.
@@ -26,10 +24,28 @@
 
 ------
 #### **Q: Reading a table or a file produces the following message: "Chunk ... is unavailable." What should I do?**
+
+See the answer to this question [below](#lostintermediatechunks).
+
+------
 #### **Q: The operation running on the cluster has slowed or stopped. The following message is displayed: "Some input chunks are not available." What should I do?** { #lostinputchunks }
+
+See the answer to this question [below](#lostintermediatechunks).
+
+------
 #### **Q: The operation running on the cluster has slowed or stopped. The following message is displayed: "Some intermediate outputs were lost and will be regenerated." What should I do?** { #lostintermediatechunks }
 
-**A:** Some of the data has become unavailable because cluster nodes have failed. This unavailable condition may be related to the disappearance of a data replica (if there is erasure coding) or the complete disappearance of all replicas (if there is no erasure coding). In any case, you need to wait for the data to be recovered or the failed cluster nodes to be repaired and force the operation to complete. You can monitor cluster status via the web interface's System tab (Lost Chunks, Lost Vital Chunks, Data Missing Chunks, Parity Missing Chunks parameters). You can terminate an operation waiting on missing data early and get some intermediate output. To do this, use the `complete-op` command in the CLI or the **Complete** button on the web interface's operation page.
+**A:** This means that some input table chunks used by the operation are unavailable. It may be caused by the disappearance of a data replica (with erasure coding) or the complete disappearance of all replicas (without erasure coding) due to cluster node failure or overloading. By default, the operation waits until the chunks are available again. You can:
+
+- Wait for the data to be recovered or the failed cluster nodes to be repaired. Monitor cluster status via the web interface's **System** tab (Lost Chunks, Lost Vital Chunks, Data Missing Chunks, Parity Missing Chunks parameters).
+
+  Or:
+
+- Terminate an operation waiting on missing data early and get some intermediate output. To do this, use the `complete-op` command in the CLI or the **Complete** button on the operation page in the web interface.
+
+To change the system behavior when chunks are unavailable, set the `unavailable_chunk_tactics` and `unavailable_chunk_strategy` options in the [operation specification](../../user-guide/data-processing/operations/overview.md#chunk_strategy). You cannot change options "on the fly", because they are set before an operation starts.
+
+If erasure chunks are unavailable, you can configure the system behavior using the `chunk_availability_policy` option. For more information, see [Operation types](../../user-guide/data-processing/operations/overview.md#chunk_erasure_strategy).
 
 ------
 #### **Q: I am getting the following error: "Table row is too large: current weight ..., max weight ... or Row weight is too large." What is this and what do I do about it?**
@@ -81,22 +97,17 @@ The name of the `JOB_IO` section is selected as follows:
 
 The maximum value of `max_key_weight` is 256 KB.
 
-{% note warning "Attention!" %}
+{% note warning "Attention" %}
 
 Chunk boundary keys are stored on master servers; therefore, raising limits is prohibited except when repairing the production version. Prior to increasing a limit, you must write the system administrator and advise that a limit is about to be increased providing rationale.
 
 {% endnote %}
 
-<!-- ------
-#### **Q: При работе джобов, написанных с использованием пакета yandex-yt-python, возникает ошибка «Unicode symbols above 255 are not supported». Что делать?**
-
-**A:** Следует прочитать в разделе [Форматы](../../user-guide/storage/formats#json) про формат JSON. Можно либо отказаться от использования JSON в пользу [YSON](../../user-guide/storage/formats#yson), либо указать `encode_utf8=false`. -->
-
 ------
 #### **Q: Why is reduce_combiner taking a long time? What should I do?**
 
-**A:** Possibly, the job code is fairly slow, and it would make sense to reduce job size. `reduce_combiner` is triggered if partition size exceeds `data_size_per_sort_job`. The amount of data in `reduce_combiner` equals `data_size_per_sort_job`. The `data_size_per_sort_job` default is specified in the {{product-name}} scheduler configuration, but can be overridden via an operation specification (in bytes).
-`yt map_reduce ... --spec '{data_size_per_sort_job = N}'`
+**A:** Possibly, the job code is fairly slow, and it would make sense to reduce job size. `reduce_combiner` is triggered if partition size exceeds `data_weight_per_sort_job`. The amount of data in `reduce_combiner` equals `data_weight_per_sort_job`. The default value for `data_weight_per_sort_job` is specified in the {{product-name}} scheduler configuration, but can be overridden in the operation specification (in bytes).
+`yt map_reduce ... --spec '{data_weight_per_sort_job = N}'`
 
 ------
 #### **Q: I feed several input tables to MapReduce without specifying a mapper. At the same time, I am unable to get input table indexes in the reducer. What seems to be the problem?**
@@ -153,7 +164,7 @@ yt.wrapper.file_commands.md5sum = custom_md5sum
 
 #### **Q: How do I increase the number of Reduce jobs? The job_count option is not working.**
 
-**A:** Most likely, the output table is too small, and the scheduler does not have enough key samples to spawn a larger number of jobs. To get more jobs out of a small table, you will have forcibly to move the table creating more chunks. You can do this with `merge` using the `desired_chunk_size` option. To create 5-MB chunks, for instance, you need to run the command below:
+**A:** Most likely, the output table is too small, and the scheduler does not have enough key samples to spawn a larger number of jobs.  To get more jobs out of a small table, you will have to forcibly move the table creating more chunks. You can do this with `merge` using the `desired_chunk_size` option. To create 5-MB chunks, for instance, you need to run the command below:
 
 ```bash
 yt merge --src _table --dst _table --spec '{job_io = {table_writer = {desired_chunk_size = 5000000}}; force_transform = %true}'
@@ -190,29 +201,29 @@ This is also possible for a [Sort](../../user-guide/data-processing/operations/s
 **A:** The limit is controlled by the `max_failed_job_count` setting. For more information, see [Operation settings.](../../user-guide/data-processing/operations/operations-options.md)
 
 ------
-#### **Q: The operation page displays "Average job duration is smaller than 25 seconds, try increasing data_size_per_job in operation spec"?** { #shortjobsduration }
+#### **Q: The operation page displays "Average job duration is smaller than 25 seconds, try increasing data_weight_per_job in operation spec". What does that mean?** { #shortjobsduration }
 
 **A:** The message is an indication that the operation jobs are too short, and their launch overhead is slowing the operation down and reducing cluster resource performance. To correct the situation, you need to increase the amount of data being fed to the job as inputs. To do this, you need to increase the relevant settings in the operation spec:
 
-* **Map, Reduce, JoinReduce, Merge**: `data_size_per_job`.
+* **Map, Reduce, JoinReduce, Merge** — `data_weight_per_job`.
 * **MapReduce**:
-   * For `map`/`partition` jobs: `data_size_per_map_job`.
-   * For `reduce` jobs: `partition_data_size`.
+  * For `map`/`partition` jobs: `data_weight_per_map_job`.
+  * For `reduce` jobs: `partition_data_size`.
 * **Sort**:
-   * For `partition` jobs: `data_size_per_partition_job`.
-   * For `final_sort` jobs: `partition_data_size`.
+  * For `partition` jobs: `data_weight_per_partition_job`.
+  * For `final_sort` jobs: `partition_data_size`.
 
 The default values are listed in the [sections](../../user-guide/data-processing/operations/overview.md) on specific operation types.
 
 ------
 #### **Q: The operation page is displaying "Aborted jobs time ratio ... is is too high. Scheduling is likely to be inefficient. Consider increasing job count to make individual jobs smaller"?** { #longabortedjobs }
 
-**A:** The message means that the jobs are too long. Given that the pool's cluster resource allocation changes constantly with the arrival and departure of other users that run operations, an operation's jobs launch and are subsequently displaced. That is why the percentage of time wasted by the jobs becomes very large. The overall recommendation is to make jobs reasonably short. The best job duration is in the single minutes. You can accomplish this by reducing the amount of data fed to a single job either using the `data_size_per_job` or by optimizing and accelerating the code.
+**A:** The message means that the jobs are too long. Given that the pool's cluster resource allocation changes constantly with the arrival and departure of other users that run operations, an operation's jobs launch and are subsequently displaced. That is why the percentage of time wasted by the jobs becomes very large. The overall recommendation is to make jobs reasonably short. The best job duration is in the single minutes. You can accomplish this by reducing the amount of data fed to a single job either by using the `data_weight_per_job` option or by optimizing and accelerating the code.
 
 ------
 #### **Q: The operation page is displaying the following message: "Average CPU wait time of some of your job types is significantly high..."?** { #highcpuwait }
 
-**A:** The message means that the jobs spent significant amounts of time (on the order tenths of the total job runtime) waiting for data from {{product-name}} or were hung up reading data from local disk/over the network. In the general case, it means that you are not utilizing the CPU efficiently. If there is waiting for data from {{product-name}}, you can look to reducing your jobs' `cpu_limit` or try moving your data to SSD for faster reading. If this is a feature of your process because it reads something large from the job's local disk and goes somewhere online, you should either consider optimizing your process or also reducing `cpu_limit`. Optimization implies the restructuring of the user process in a job to prevent disk reads or network requests from becoming a bottleneck.
+**A:** The message means that the jobs spent significant amounts of time (on the order tenths of the total job runtime) waiting for data from {{product-name}} or were hung up reading data from local disk/over the network. In the general case, it means that you are not utilizing the CPU efficiently. If there is waiting for data from {{product-name}}, you can look to reducing your jobs' `cpu_limit` or try moving your data to SSD for faster reading. If this is a feature of your process because it reads something large from the job's local disk or accesses something online, you should either consider optimizing your process or also reducing the `cpu_limit`. Optimization implies the restructuring of the user process in a job to prevent disk reads or network requests from becoming a bottleneck.
 
 ------
 #### **Q: What is the easiest method of sampling a table?**
@@ -227,12 +238,12 @@ Or simply read the data:
 ------
 #### **Q: A running operation generates the following warning: "Account limit exceeded" and stops. What does it mean?** { #operationsuspended }
 
-**A:** The message indicates that the `suspend_operation_if_account_limit_exceeded` specification parameter is enabled. Also, the account that hosts the operation's output tables is out of one of its quotas. Such as, the disk space quota. You need to figure out why this happened and resume the operation. You can view the account's quotas on the **Accounts** page of the web interface.
+**A:** The message indicates that the `suspend_operation_if_account_limit_exceeded` specification parameter is enabled. Also, the account that hosts the operation's output tables is out of one of its quotas. Such as, the disk space quota. You need to figure out why this happened and resume the operation. You can view the account's quotas on the {% if audience == "public" %}**Accounts** page in the web interface{% endif %}.
 
 ------
 #### **Q: A running operation remains in pending mode a long time. When will it execute?** { #operationpending }
 
-**A:** The {{product-name}} system has a limitation on the number of concurrently **executing** operations in each pool (as opposed to operations launched, or accepted for execution). By default, this limit is not large (around 10). Whenever a pool's limit on the number of executing operations is reached, new operations are queued. Queued operations will proceed when previous operations in the same pool exit. The limit on the number of executing operations is applicable at all levels of the pool hierarchy, that is to say, that if an operation is launched in pool A, it may be classified as pending not only if the limit is reached in pool A itself but also in any of pool A's parents. For more information on pools and pool configuration, please see [Scheduler and pools](../../user-guide/data-processing/scheduler/scheduler-and-pools.md). If there is a reasonable need to run more operations concurrently, you need to send a request to the system administrator.
+**A:** The {{product-name}} system has a limitation on the number of concurrently **executing** operations in each pool (as opposed to operations launched, or accepted for execution). By default, this limit is not large (around 10). Whenever a pool's limit on the number of executing operations is reached, new operations are queued. Queued operations will proceed when previous operations in the same pool exit. The limit on the number of executing operations is applicable at all levels of the pool hierarchy, that is to say, that if an operation is launched in pool A, it may be classified as pending not only if the limit is reached in pool A itself but also in any of pool A's parents. For more information on pools and pool configuration, please see [Scheduler and pools](../../user-guide/data-processing/scheduler/scheduler-and-pools.md). If there is a reasonable need to run more operations concurrently, you need to send a request to {% if audience == "public" %}the system administrator{% else %}your service's capacity planner{% endif %}.
 
 ------
 #### **Q: A running operation generates the following warning: "Excessive job spec throttling is detected". What does it mean?** { #excessivejobspecthrottling }
@@ -242,7 +253,7 @@ Or simply read the data:
 ------
 #### **Q: A running operation generates the following message: "Average cpu usage... is lower than requested 'cpu_limit'». What does it mean?** { #lowcpuusage }
 
-**A:** The message means that the operation is using much less CPU than requested. By default, a single HyperThreading core is requested. If you have explicitly set the `cpu_limit` higher than one, it means that the operation does not require that much and is not using the pool's CPU quota efficiently. In this case, we recommend reducing the limit for this operation. If you have not set the `cpu_limit` higher than one, the operation is probably waiting for some other resource, most often disk I/O. In this case, you might review the operation jobs' runtime [statistics](../../user-guide/problems/jobstatistics.md) profiling the job while it is running to understand what it is doing.
+**A:** The message means that the operation is using much less CPU than requested. By default, a single HyperThreading core is requested. If you have explicitly set the `cpu_limit` higher than one, it means that the operation does not require that much and is not using the pool's CPU quota efficiently. In this case, we recommend reducing the limit for this operation. If you have not set the `cpu_limit` higher than one, the operation is probably waiting for some other resource, most often disk I/O. In this case, you can review the operation jobs' runtime [statistics](../../user-guide/problems/jobstatistics.md) profiling the job while it is running to understand what it is doing.
 
 ------
 #### **Q: A running operation displays the following warning: "Estimated duration of this operation is about ... days". What does it mean?** { #operationtoolong }
@@ -263,7 +274,7 @@ Or simply read the data:
 ------
 #### **Q: A running operation generates warning "Operation has jobs that use less than F% of requested tmpfs size". What does it mean?** { #unusedtmpfsspace }
 
-**A:** You request a tmpfs for jobs in the specification (you can view the warning attributes to find out which specific jobs) but are not using the entire file system (apart from certain thresholds). tmpfs size is included into the memory limit, which means that a job requests a lot of memory but does not use it in the end. First, this reduces actual memory utilization in your cluster. Second, large tmpfs requests may slow down job scheduling since it is much more likely that the cluster will have a slot with 1 GB of memory than one with 15 GB. You should order as much tmpfs as your jobs actually need. You can review warning attributes or look at the [statistic](../../user-guide/problems/jobstatistics.md) for `user_job/tmpfs_size` to find out about actual use of tmpfs by jobs.
+**A:** You request a tmpfs for jobs in the specification (you can view the warning attributes to find out which specific jobs) but are not utilizing the entire file system (apart from certain thresholds). tmpfs size is included into the memory limit, which means that a job requests a lot of memory but does not use it in the end. First, this reduces actual memory utilization in your cluster. Second, large tmpfs requests may slow down job scheduling since it is much more likely that the cluster will have a slot with 1 GB of memory than one with 15 GB. You should order as much tmpfs as your jobs actually need. You can review warning attributes or look at the [statistic](../../user-guide/problems/jobstatistics.md) for `user_job/tmpfs_size` to find out about actual use of tmpfs by jobs.
 
 ------
 #### **Q: When I lunch an operation, I get error "No online node can satisfy the resource demand". What do I do?**
@@ -274,15 +285,20 @@ Or simply read the data:
 * This specifies a `scheduling_tag_filter` that none of the cluster nodes match.
 
 ------
-#### **Q: When I start a Merge, Reduce operation, I get error "Maximum allowed data weight per sorted job exceeds the limit: xxx > yyy"**
+#### **Q: When I start a Merge, Reduce operation, I get the error "Maximum allowed data weight per sorted job exceeds the limit: xxx > yyy"**
 
-**A:** When jobs are bing built, the scheduler estimates that one job is getting too much data (hundreds of gigabytes), and the scheduler is unable to make a smaller job. The following options are available:
+**A:** When jobs are being built, the scheduler estimates that one job is getting too much data (hundreds of gigabytes), and the scheduler is unable to make a smaller job. The following options are available:
 
 * When you are using [Reduce](../../user-guide/data-processing/operations/reduce.md), and the input table has a monster key meaning that a single row in the first table corresponds to a large number of rows in another, as a result of the [Reduce](../../user-guide/data-processing/operations/reduce.md) guarantee, all rows with this key must go into a single job, and the job will run indefinitely. You should use [MapReduce](../../user-guide/data-processing/operations/mapreduce.md) with the trivial mapper and the reduce combiner to pre-process monster keys.
 * There are very many input tables being fed to an operation (100 or more) because chunks at the range boundary are not being counted precisely. The general observation is that the more input tables the less efficient the use of sorted input. You may want to use [MapReduce](../../user-guide/data-processing/operations/mapreduce.md).
-* When using [Merge](../../user-guide/data-processing/operations/merge.md), this error may result from suboptimal scheduler operation. You should contact the mailbox `community@ytsaurus.tech`.
+* When using [Merge](../../user-guide/data-processing/operations/merge.md), this error may result from suboptimal scheduler operation. In this case, please write to `community@ytsaurus.tech`.
 
 The above recommendations notwithstanding, if you are certain that you would like to launch the operation anyway and are ready for it to take a very long time, you can increase the value of the `max_data_weight_per_job` parameter, which will start the operation.
+
+------
+#### **Q: A running operation produces the following warning: "Partition count, estimated by the new partition heuristic, is significantly larger than old heuristic estimation. This may lead to inadequate number of partitions." What does it mean?** { #newpartitionscountissignificantlylarger }
+
+**A:** A new partitioning algorithm computed a suspicious number of partitions. This may result in a large number of jobs, extremely slow operation execution, overuse of intermediate data quotas, and so on. Check that the parameters are set correctly in the operation spec. Start by looking at `map_selectivity_factor`, `partition_data_size`, and `partition_count`.
 
 ------
 #### **Q: A running operation produces the following warning: "Legacy live preview suppressed", and live preview is not available. What does it mean?** { #legacylivepreviewsuppressed }
@@ -292,3 +308,15 @@ The above recommendations notwithstanding, if you are certain that you would lik
 If you wish to force activate live preview, use the `enable_legacy_live_preview = %true` option in the operation spec.
 
 If you wish to disable this warning, use the `enable_legacy_live_preview = %false` option in the operation spec.
+
+------
+#### **Q: When running jobs written using the ytsaurus-client package, I get "Unicode symbols above 255 are not supported". What should I do?**
+
+**A:** We recommend reading about the JSON format in the [Formats](../../user-guide/storage/formats.md#json) section. You can either forego using JSON and use [YSON](../../user-guide/storage/formats.md#yson) instead or set `encode_utf8=false`.
+
+
+
+------
+#### **Q: What causes the error "Too many dynamic store locate retries failed"?**
+
+**A:** If the operation contains a dynamic table with the set `enable_dynamic_store_read` attribute as input, jobs will read data directly from tablet nodes that host the dynamic table. For more information about this option, see [Running operations on dynamic tables](../../user-guide/dynamic-tables/mapreduce.md). If tablet nodes are unavailable for a long time, the above error occurs. Check if the cluster undergoes any maintenance works that affect dynamic tables. Besides that, check that the bundle the table refers to is in a healthy state (the **Good** bar in the interface).

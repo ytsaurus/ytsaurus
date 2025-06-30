@@ -12,6 +12,8 @@
 #include <yt/yt/core/ytree/ypath_proxy.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NQueueAgent {
 
 using namespace NAlertManager;
@@ -27,13 +29,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CypressSynchronizerLogger;
+constinit const auto Logger = CypressSynchronizerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ECypressSyncObjectType,
+DEFINE_ENUM(ECypressSyncObjectKind,
     (Queue)
     (Consumer)
+    (Unknown)
 );
 
 namespace {
@@ -51,15 +54,15 @@ TRowRevision NextRowRevision(const std::optional<TRowRevision> rowRevision)
 
 struct TObject
 {
-    //! The location (cluster, path) of the object in question.
-    TCrossClusterReference Object;
-    ECypressSyncObjectType Type;
+    TYPath Path;
+    ECypressSyncObjectKind Kind;
     //! Master object type.
-    std::optional<EObjectType> ObjectType;
+    std::optional<EObjectType> Type;
     //! The revision of the corresponding Cypress node.
     std::optional<NHydra::TRevision> Revision;
     //! The internal revision of the corresponding dynamic state row.
     std::optional<TRowRevision> RowRevision;
+    bool HasReplicatedTableMappingRow = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,26 +85,16 @@ public:
 
     void Build()
     {
-        if (DynamicConfigSnapshot_->Policy == ECypressSynchronizerPolicy::Polling && (DynamicConfigSnapshot_->PollReplicatedObjects || DynamicConfigSnapshot_->WriteReplicatedTableMapping)) {
+        if (DynamicConfigSnapshot_->Policy == ECypressSynchronizerPolicy::Polling && DynamicConfigSnapshot_->WriteReplicatedTableMapping) {
             THROW_ERROR_EXCEPTION("Cypress synchronizer cannot work with replicated objects in polling mode");
         }
 
-        if (DynamicConfigSnapshot_->WriteReplicatedTableMapping && !DynamicConfigSnapshot_->PollReplicatedObjects) {
-            THROW_ERROR_EXCEPTION("Cypress synchronizer cannot build replicated table mapping with replicated object polling disabled");
-        }
-
         FetchObjectMaps();
-        if (DynamicConfigSnapshot_->PollReplicatedObjects) {
-            YT_LOG_DEBUG("Polling replicated objects is enabled");
-            FetchObjectsFromRegistrationTable();
-        } else {
-            YT_LOG_DEBUG("Polling replicated objects is disabled");
-        }
 
         ListObjectChanges();
 
-        DeleteRows();
         FetchAttributes();
+        DeleteRows();
         WriteRows();
     }
 
@@ -112,25 +105,39 @@ private:
     const IAlertCollectorPtr AlertCollector_;
     const NLogging::TLogger Logger;
 
-    using TObjectMap = THashMap<TString, std::vector<TObject>>;
+    using TClusterToObjectListMapping = THashMap<std::string, std::vector<TObject>>;
 
-    struct TObjectHashMap
-        : public THashMap<TString, THashMap<TString, TObject>>
+    class TClusterObjectRefMap
+        : public THashMap<TYPath, const TObject*>
     {
-        bool Contains(const TCrossClusterReference& objectRef) const
-        {
-            auto clusterToObjectsIt = find(objectRef.Cluster);
-            if (clusterToObjectsIt == end()) {
-                return false;
-            }
+    public:
+        using THashMap::THashMap;
 
-            auto objectIt = clusterToObjectsIt->second.find(objectRef.Path);
-            return objectIt != clusterToObjectsIt->second.end();
+        auto InsertObject(const TObject* object)
+        {
+            return this->insert(std::pair{object->Path, object});
         }
 
-        void Insert(const TObject& object)
+        void InsertObjectOrCrash(const TObject* object)
         {
-            (*this)[object.Object.Cluster][object.Object.Path] = object;
+            InsertOrCrash(*this, std::pair{object->Path, object});
+        }
+    };
+
+    // Represents list of objects from the same cluster.
+    struct TClusterObjectList
+    {
+        std::string Cluster;
+        std::vector<TObject> Objects;
+
+        i64 AppendObject(TObject object, std::optional<ECypressSyncObjectKind> kindOverride = {})
+        {
+            if (kindOverride) {
+                object.Kind = *kindOverride;
+            }
+            i64 index = std::ssize(Objects);
+            Objects.push_back(std::move(object));
+            return index;
         }
     };
 
@@ -146,7 +153,7 @@ private:
         std::vector<TReplicatedTableMappingTableRow> ReplicatedTableMappingRows;
 
         // NB: Must provide a strong exception-safety guarantee.
-        void AppendObject(const TObject& object, const IAttributeDictionaryPtr& attributes, const std::string& chaosReplicatedTableQueueAgentStage)
+        void AppendObject(const std::string& cluster, const TObject& object, const IAttributeDictionaryPtr& attributes, const std::string& chaosReplicatedTableQueueAgentStage)
         {
             auto fillChaosReplicatedTableQueueAgentStage = [=] (auto& row) {
                 if (row.ObjectType && *row.ObjectType == EObjectType::ChaosReplicatedTable && !row.QueueAgentStage) {
@@ -154,28 +161,31 @@ private:
                 }
             };
 
-            switch (object.Type) {
-                case ECypressSyncObjectType::Queue:
+            switch (object.Kind) {
+                case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back(TQueueTableRow::FromAttributeDictionary(
-                        object.Object,
+                        TCrossClusterReference{cluster, object.Path},
                         NextRowRevision(object.RowRevision),
                         attributes));
                     fillChaosReplicatedTableQueueAgentStage(QueueRows.back());
                     break;
-                case ECypressSyncObjectType::Consumer:
+                case ECypressSyncObjectKind::Consumer:
                     ConsumerRows.push_back(TConsumerTableRow::FromAttributeDictionary(
-                        object.Object,
+                        TCrossClusterReference{cluster, object.Path},
                         NextRowRevision(object.RowRevision),
                         attributes));
                     fillChaosReplicatedTableQueueAgentStage(ConsumerRows.back());
                     break;
+                case ECypressSyncObjectKind::Unknown:
+                    // NB(apachee): Cypress sync object kind must be known at this point.
+                    YT_ABORT();
             }
         }
 
         // NB: Must provide a strong exception-safety guarantee.
-        void AppendPotentiallyReplicatedObject(const TObject& object, const IAttributeDictionaryPtr& attributes) {
+        void AppendPotentiallyReplicatedObject(const std::string& cluster, const TObject& object, const IAttributeDictionaryPtr& attributes) {
             auto tableRow =
-                TReplicatedTableMappingTableRow::FromAttributeDictionary(object.Object, attributes);
+                TReplicatedTableMappingTableRow::FromAttributeDictionary(TCrossClusterReference{cluster, object.Path}, attributes);
             const auto& type = tableRow.ObjectType;
             if (IsReplicatedTableObjectType(type)) {
                 ReplicatedTableMappingRows.push_back(std::move(tableRow));
@@ -183,31 +193,36 @@ private:
         }
 
         void AppendObjectWithError(
+            const std::string& cluster,
             const TObject& object,
             const TError& error,
             std::optional<NHydra::TRevision> revision = std::nullopt)
         {
-            switch (object.Type) {
-                case ECypressSyncObjectType::Queue:
+            switch (object.Kind) {
+                case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back({
-                        .Ref = object.Object,
+                        .Ref = TCrossClusterReference{cluster, object.Path},
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .Revision = revision,
                         .SynchronizationError = error,
                     });
                     break;
-                case ECypressSyncObjectType::Consumer:
+                case ECypressSyncObjectKind::Consumer:
                     ConsumerRows.push_back({
-                        .Ref = object.Object,
+                        .Ref = TCrossClusterReference{cluster, object.Path},
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .Revision = revision,
                         .SynchronizationError = error,
                     });
                     break;
+                case ECypressSyncObjectKind::Unknown:
+                    // NB(apachee): Cypress sync object kind must be known at this point.
+                    YT_ABORT();
             }
         }
 
         void AppendObjectWithErrorAndBasicAttributes(
+            const std::string& cluster,
             const TObject& object,
             const IAttributeDictionaryPtr& attributes,
             const std::string& chaosReplicatedTableQueueAgentStage,
@@ -238,53 +253,60 @@ private:
                 }
             };
 
-            switch (object.Type) {
-                case ECypressSyncObjectType::Queue:
+            switch (object.Kind) {
+                case ECypressSyncObjectKind::Queue:
                     QueueRows.push_back({
-                        .Ref = object.Object,
+                        .Ref = TCrossClusterReference{cluster, object.Path},
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
                     fillBasicFieldsFromAttributes(QueueRows.back());
                     break;
-                case ECypressSyncObjectType::Consumer:
+                case ECypressSyncObjectKind::Consumer:
                     ConsumerRows.push_back({
-                        .Ref = object.Object,
+                        .Ref = TCrossClusterReference{cluster, object.Path},
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
                     fillBasicFieldsFromAttributes(ConsumerRows.back());
                     break;
+                case ECypressSyncObjectKind::Unknown:
+                    // NB(apachee): Cypress sync object kind must be known at this point.
+                    YT_ABORT();
             }
         }
 
         void AppendReplicatedObjectWithError(
+            const std::string& cluster,
             const TObject& object,
             const TError& error,
             std::optional<NHydra::TRevision> revision = std::nullopt)
         {
             ReplicatedTableMappingRows.push_back({
-                .Ref = object.Object,
+                .Ref = TCrossClusterReference{cluster, object.Path},
                 .Revision = revision,
                 .SynchronizationError = error,
             });
         }
 
-        void AppendObjectKey(const TObject& object)
+        void AppendObjectKey(const std::string& cluster, const TObject& object)
         {
-            switch (object.Type) {
-                case ECypressSyncObjectType::Queue:
-                    QueueRows.push_back({.Ref = object.Object});
+            switch (object.Kind) {
+                case ECypressSyncObjectKind::Queue:
+                    QueueRows.push_back({.Ref = TCrossClusterReference{cluster, object.Path}});
                     break;
-                case ECypressSyncObjectType::Consumer:
-                    ConsumerRows.push_back({.Ref = object.Object});
+                case ECypressSyncObjectKind::Consumer:
+                    ConsumerRows.push_back({.Ref = TCrossClusterReference{cluster, object.Path}});
                     break;
+                case ECypressSyncObjectKind::Unknown:
+                    // NB(apachee): Cypress sync object kind must be known at this point.
+                    YT_ABORT();
             }
         }
 
-        void AppendReplicatedObjectKey(const TObject& object)
+        void AppendReplicatedObjectKey(const std::string& cluster, const TObject& object)
         {
-            ReplicatedTableMappingRows.push_back({.Ref = object.Object});
+            ReplicatedTableMappingRows.push_back({.Ref = TCrossClusterReference{cluster, object.Path}});
         }
 
         void MergeWith(const TObjectRowList& rhs)
@@ -302,9 +324,9 @@ private:
 
     // Session state.
 
-    TObjectMap ClusterToDynamicStateObjects_;
-    TObjectHashMap ClusterToPolledObjects_;
-    TObjectMap ClusterToModifiedObjects_;
+    TClusterToObjectListMapping ClusterToDynamicStateObjects_;
+    TClusterToObjectListMapping ClusterToReplicatedTableMappingObjects_;
+    std::vector<TClusterObjectList> ModifiedObjects_;
     TObjectRowList RowsWithErrors_;
     TObjectRowList RowsToDelete_;
     TObjectRowList RowsToWrite_;
@@ -334,7 +356,7 @@ private:
                 EMasterChannelKind::Follower);
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& object : objects) {
-                batchReq->AddRequest(TYPathProxy::Get(object.Object.Path + "/@attribute_revision"));
+                batchReq->AddRequest(TYPathProxy::Get(object.Path + "/@attribute_revision"));
             }
             asyncResults.push_back(batchReq->Invoke());
             clusters.push_back(cluster);
@@ -356,6 +378,11 @@ private:
                     GetCumulativeError(batchRsp)));
                 continue;
             }
+
+            TClusterObjectList clusterModifiedObjectList{
+                .Cluster = cluster,
+            };
+
             auto responses = batchRsp.Value()->GetResponses<TYPathProxy::TRspGet>();
             for (int objectIndex = 0; objectIndex < std::ssize(responses); ++objectIndex) {
                 const auto& responseOrError = responses[objectIndex];
@@ -363,9 +390,10 @@ private:
                 if (!responseOrError.IsOK()) {
                     YT_LOG_DEBUG(
                         responseOrError,
-                        "Error fetching revision (Object: %v)",
-                        object.Object);
-                    RowsWithErrors_.AppendObjectWithError(object, responseOrError);
+                        "Error fetching revision (Cluster: %v, Path: %v)",
+                        cluster,
+                        object.Path);
+                    RowsWithErrors_.AppendObjectWithError(cluster, object, responseOrError);
                     continue;
                 }
 
@@ -375,37 +403,59 @@ private:
                 } catch (const std::exception& ex) {
                     YT_LOG_DEBUG(
                         ex,
-                        "Error parsing revision (Object: %v)",
-                        object.Object);
-                    RowsWithErrors_.AppendObjectWithError(object, ex);
+                        "Error parsing revision (Cluster: %v, Path: %v)",
+                        cluster,
+                        object.Path);
+                    RowsWithErrors_.AppendObjectWithError(cluster, object, ex);
                     continue;
                 }
                 if (!object.Revision || *object.Revision < *revision) {
                     YT_LOG_DEBUG(
-                        "Object Cypress revision changed (Object: %v, Revision: %x -> %x)",
-                        object.Object,
+                        "Object Cypress revision changed (Cluster: %v, Path: %v, Revision: %x -> %x)",
+                        cluster,
+                        object.Path,
                         object.Revision,
                         revision);
-                    ClusterToModifiedObjects_[cluster].push_back(object);
+                    clusterModifiedObjectList.AppendObject(object);
                 }
             }
+
+            ModifiedObjects_.push_back(std::move(clusterModifiedObjectList));
         }
     }
 
     struct TCypressWatchlist
         : public TYsonStructLite
     {
-        THashMap<TString, NHydra::TRevision> Queues;
-        THashMap<TString, NHydra::TRevision> Consumers;
+        static constexpr std::array<ECypressSyncObjectKind, 2> ObjectKinds{
+            ECypressSyncObjectKind::Queue,
+            ECypressSyncObjectKind::Consumer,
+        };
 
-        THashMap<TString, NHydra::TRevision>& ObjectsByType(ECypressSyncObjectType type)
+        THashMap<TYPath, NHydra::TRevision> Queues;
+        THashMap<TYPath, NHydra::TRevision> Consumers;
+
+        THashMap<TYPath, NHydra::TRevision>& ObjectsByKind(ECypressSyncObjectKind kind)
         {
-            switch (type) {
-                case ECypressSyncObjectType::Queue:
+            switch (kind) {
+                case ECypressSyncObjectKind::Queue:
                     return Queues;
-                case ECypressSyncObjectType::Consumer:
+                case ECypressSyncObjectKind::Consumer:
                     return Consumers;
+                case ECypressSyncObjectKind::Unknown:
+                    YT_ABORT();
             }
+        }
+
+        std::optional<std::pair<NHydra::TRevision, ECypressSyncObjectKind>> FindObjectInfo(TYPath key) const
+        {
+            if (auto it = Queues.find(key); it != Queues.end()) {
+                return {{it->second, ECypressSyncObjectKind::Queue}};
+            }
+            if (auto it = Consumers.find(key); it != Consumers.end()) {
+                return {{it->second, ECypressSyncObjectKind::Consumer}};
+            }
+            return std::nullopt;
         }
 
         REGISTER_YSON_STRUCT_LITE(TCypressWatchlist);
@@ -416,6 +466,24 @@ private:
                 .Default();
             registrar.Parameter("consumers", &TThis::Consumers)
                 .Default();
+
+            registrar.Postprocessor([] (TThis* watchlist) {
+                // NB(apachee): Verify invariant that must hold for cypress watchlist.
+
+                for (const auto& [path, _] : watchlist->Queues) {
+                    THROW_ERROR_EXCEPTION_IF(
+                        watchlist->Consumers.contains(path),
+                        "Set of queues and consumers must not intersect, but they do (ObjectPath: %v)",
+                        path);
+                }
+
+                for (const auto& [path, _] : watchlist->Consumers) {
+                    THROW_ERROR_EXCEPTION_IF(
+                        watchlist->Queues.contains(path),
+                        "Set of queues and consumers must not intersect, but they do (ObjectPath: %v)",
+                        path);
+                }
+            });
         }
     };
 
@@ -455,95 +523,187 @@ private:
     }
 
     //! Infers which objects for a given cluster were modified and which should be deleted in this Cypress synchronizer pass.
-    //! Modified:
-    //!    1) Objects present in watchlist and in current dynamic state, for which we detect a revision increase.
-    //!    2) Objects present in watchlist and not in the current dynamic state.
-    //!    3) Objects polled from registration table.
-    //! Deleted (from dynamic state):
-    //!    1) Objects present in the current dynamic state and not present in the watchlist AND in the set of polled objects.
-    //! Deleted (from registration table mapping):
-    //!    1) Objects present in the current dynamic state and not present in set of polled objects.
+    //!
+    //! For dynamic state (queues/consumers) calculate diff with Cypress watchlist, which is enough to detect all changes to queues/consumers tables.
+    //! It is important that we detect object type changes for proper syncing of replicated table mapping and we do detect those since
+    //! we can assume it would change attribute revision (with overwhelming probability).
+    //!
+    //! For replicated table mapping diff with cypress watchlist is not enough, since it does not provide object types.
+    //! Here is the description of how we detect all changes for replicated table mapping:
+    //!   - Deleted objects are detected using cypress watchlist.
+    //!   - Objects, which type changed from replicated table to regular table, are detected after fetching attributes and deleted from replicated
+    //!   table mapping.
+    //!   - Modified and unchanged objects are detected by comparing revision with one from Cypress watchlist,
+    //!   but currently all replicated table mapping rows are assumed as changed, since revision does not change with replica set change.
+    //!   - Missing objects that were also missing from dynamic state are detected in dynamic state diff.
+    //!   - Missing objects that are only missing from replicated table mapping are detected by inducing which replicated table mapping objects
+    //!   must be present according to updated dynamic state, e.g. all dynamic state objects with replicated table type must also be a replicated table object.
     void InferChangesFromClusterWatchlist(const std::string& cluster, TCypressWatchlist cypressWatchlist)
     {
-        // First, we collect all dynamic state objects for which the current Cypress revision
-        // is larger than the stored revision.
+        TClusterObjectList clusterModifiedObjectList{
+            .Cluster = cluster,
+        };
 
-        // Objects for which we can infer from the watchlist whether they were modified or not.
-        // Used for adding objects polled from the registration table.
-        THashSet<TCrossClusterReference> watchedObjects;
+        // Generic object already watched by queue agent. Used for discovering new objects.
+        TClusterObjectRefMap watchedObjects;
 
-        if (auto clusterToObjectsIt = ClusterToDynamicStateObjects_.find(cluster); clusterToObjectsIt != ClusterToDynamicStateObjects_.end()) {
-            for (const auto& object : clusterToObjectsIt->second) {
-                auto& relevantCypressWatchlist = cypressWatchlist.ObjectsByType(object.Type);
-                auto cypressObjectIt = relevantCypressWatchlist.find(object.Object.Path);
-                auto isPolledObject = ClusterToPolledObjects_.Contains(object.Object);
-                if (cypressObjectIt != relevantCypressWatchlist.end()) {
-                    if (!object.Revision || cypressObjectIt->second > *object.Revision) {
+        // Replicated table mapping object already watched by queue agent.
+        // Used for adding missing replicated_table_mapping table rows.
+        TClusterObjectRefMap watchedReplicatedTableMappingObjects;
+
+        THashMap<TYPath, i64> modifiedObjectIndexes;
+
+        auto addModifiedObject = [&] (const TObject& object, ECypressSyncObjectKind kindOverride) {
+            auto [it, inserted] = modifiedObjectIndexes.insert(std::pair{object.Path, -1});
+            if (inserted) {
+                it->second = clusterModifiedObjectList.AppendObject(object, kindOverride);
+            }
+
+            YT_VERIFY(it->second >= 0);
+
+            return it->second;
+        };
+
+        // Infer changes from generic dynamic state objects (objects from queues and consumers table).
+
+        if (auto clusterToDynamicStateObjectsIt = ClusterToDynamicStateObjects_.find(cluster); clusterToDynamicStateObjectsIt != ClusterToDynamicStateObjects_.end()) {
+            THashSet<TYPath> removedObjects;
+
+            for (const auto& object : clusterToDynamicStateObjectsIt->second) {
+                auto objectInfo = cypressWatchlist.FindObjectInfo(object.Path);
+                if (!objectInfo) {
+                    if (removedObjects.insert(object.Path).second) {
                         YT_LOG_DEBUG(
-                            "Object Cypress revision changed (Object: %v, Revision: %x -> %x)",
-                            object.Object,
-                            object.Revision,
-                            cypressObjectIt->second);
-                        ClusterToModifiedObjects_[cluster].push_back(object);
-                        watchedObjects.insert(object.Object);
-                    } else if (object.ObjectType && !IsReplicatedTableObjectType(*object.ObjectType)) {
-                        // Besides actually modified objects, we also add regular objects for which the revision has
-                        // not changed to this list, so that we do not perform unnecessary attribute fetches when
-                        // adding objects polled from registrations.
-                        watchedObjects.insert(object.Object);
+                            "Object was not found in corresponding watchlist, scheduled to be removed (Cluster: %v, Path: %v)",
+                            cluster,
+                            object.Path);
+                        RowsToDelete_.AppendObjectKey(cluster, object);
                     }
-                    relevantCypressWatchlist.erase(cypressObjectIt);
-                } else if (!isPolledObject) {
-                    // NB: We do not delete non-replicated queues/consumers that are found in the polled objects list.
-                    // There is no way to distinguish deleted regular objects from non-watched replicated objects,
-                    // so we would just add them back if we were to delete them.
+                    continue;
+                }
+
+                if (auto inserted = watchedObjects.InsertObject(&object).second; Y_UNLIKELY(!inserted)) {
+                    YT_LOG_WARNING("Duplicate object paths present in current dynamic state (Cluster: %v, Path: %v)",
+                        cluster,
+                        object.Path);
+
+                    AlertCollector_->StageAlert(CreateAlert(
+                        NAlerts::EErrorCode::CypressSynchronizerConflictingDynamicStateObjects,
+                        "Duplicate object paths present in current dynamic state",
+                        /*tags*/ {{"cluster", cluster}, {"path", object.Path}},
+                        TError("Object %v on cluster %v present multiple times in current dynamic state", object.Path, cluster)));
+                }
+
+                auto [revision, kind] = *objectInfo;
+
+                // NB(apachee): Replicated table attributes change is handled in other part below and here we only
+                // care about revision change.
+                // TODO(apachee): In future it might be beneficial to limit fetched attributes for replicated objects to only those
+                // needed for replicated table mapping, as other attributes change results in revision change.
+                if (!object.Revision || revision > *object.Revision) {
                     YT_LOG_DEBUG(
-                        "Object was not found in corresponding watchlist, scheduled to be removed (Object: %v)",
-                        object.Object);
-                    RowsToDelete_.AppendObjectKey(object);
+                        "Object Cypress revision changed (Cluster: %v, Path: %v, Revision: %x -> %x)",
+                        cluster,
+                        object.Path,
+                        object.Revision,
+                        revision);
 
-                    // Deleted replicated objects should also be removed from the replicated table mapping table.
-                    if (IsReplicatedTableObjectType(object.ObjectType)) {
-                        YT_LOG_DEBUG(
-                            "Object scheduled to be removed from replicated table mapping table (Object: %v)",
-                            object.Object);
-                        RowsToDelete_.AppendReplicatedObjectKey(object);
-                    }
+                    addModifiedObject(object, kind);
                 }
             }
         }
 
+        // Infer changes from replicated dynamic state objects (objects from replicated_table_mapping table).
+
+        // NB(apachee): Effectively skipped if WriteReplicatedTableMapping is disabled, since in this case replicated table mapping table rows are not fetched.
+        if (auto clusterToReplicatedTableMappingObjectsIt = ClusterToReplicatedTableMappingObjects_.find(cluster);
+            clusterToReplicatedTableMappingObjectsIt != ClusterToReplicatedTableMappingObjects_.end())
+        {
+            THashSet<TYPath> removedReplicatedObjects;
+
+            for (const auto& object : clusterToReplicatedTableMappingObjectsIt->second) {
+                auto objectInfo = cypressWatchlist.FindObjectInfo(object.Path);
+                if (!objectInfo) {
+                    InsertOrCrash(removedReplicatedObjects, object.Path);
+
+                    YT_LOG_DEBUG(
+                        "Replicated object was not found in corresponding watchlist, scheduled to be removed from replicated table mapping table (Cluster: %v, Path: %v)",
+                        cluster,
+                        object.Path);
+                    RowsToDelete_.AppendReplicatedObjectKey(cluster, object);
+
+                    continue;
+                }
+
+                watchedReplicatedTableMappingObjects.InsertObjectOrCrash(&object);
+
+                auto [revision, kind] = *objectInfo;
+
+                // NB(apachee): Currently attribute revision does not change on replica set change, thus we always assume attributes of replicated table object changed.
+
+                YT_LOG_DEBUG(
+                    "Replicated object Cypress revision assumed as changed (Cluster: %v, Path: %v, OldRevision: %x, NewRevision: %x)",
+                    cluster,
+                    object.Path,
+                    object.Revision,
+                    revision);
+
+                auto index = addModifiedObject(object, kind);
+
+                clusterModifiedObjectList.Objects[index].HasReplicatedTableMappingRow = true;
+            }
+        }
+
+        int missingReplicatedTableMappingObjectCount = 0;
+
         // The remaining objects are not present in the current dynamic state, thus they are all new and modified.
 
-        for (const auto& type : TEnumTraits<ECypressSyncObjectType>::GetDomainValues()) {
-            for (const auto& [object, revision] : cypressWatchlist.ObjectsByType(type)) {
-                TCrossClusterReference objectRef{cluster, object};
-                YT_LOG_DEBUG(
-                    "Discovered object (Object: %v, Revision: %x)",
-                    objectRef,
-                    revision);
-                ClusterToModifiedObjects_[cluster].push_back({
-                    .Object = objectRef,
-                    .Type = type,
-                    .Revision = revision,
-                });
-                watchedObjects.insert(objectRef);
+        for (const auto& kind : TCypressWatchlist::ObjectKinds) {
+            for (const auto& [objectPath, revision] : cypressWatchlist.ObjectsByKind(kind)) {
+                auto watchedObjectsIt = watchedObjects.find(objectPath);
+
+                bool isNewDynamicStateObject = (watchedObjectsIt == watchedObjects.end());
+                bool isNewReplicatedTableMappingObject = DynamicConfigSnapshot_->WriteReplicatedTableMapping
+                    && !isNewDynamicStateObject && IsReplicatedTableObjectType(watchedObjectsIt->second->Type)
+                    && !watchedReplicatedTableMappingObjects.contains(objectPath);
+
+                if (isNewDynamicStateObject) {
+                    YT_LOG_DEBUG("Discovered object (Cluster: %v, Path: %v, Revision: %v)",
+                        cluster,
+                        objectPath,
+                        revision);
+                } else if (isNewReplicatedTableMappingObject) {
+                    YT_LOG_DEBUG("Discovered missing replicated table mapping object (Cluster: %v, Path: %v, Revision: %v)",
+                        cluster,
+                        objectPath,
+                        revision);
+                    ++missingReplicatedTableMappingObjectCount;
+                }
+
+                if (isNewDynamicStateObject || isNewReplicatedTableMappingObject) {
+                    addModifiedObject(
+                        TObject{
+                            .Path = objectPath,
+                            .Revision = revision,
+                        },
+                        kind);
+                }
             }
         }
 
-        // Add objects polled from registration table that were not added to the modified object list in the loops above.
-        for (const auto& [objectPath, object] : ClusterToPolledObjects_[cluster]) {
-            // NB: This will add regular queues/consumers, which are actually deleted.
-            // There is no way to distinguish these objects from unwatched replicated objects.
-            // NB: This will add watched objects with unchanged master revisions.
-            // There is no way to distinguish these objects from watched replicated objects for which the master
-            // revision doesn't always change when we want it to change (e.g. when the replica set is updated).
-            // TODO(achulkov2): How long do we want to keep this behavior? Especially the latter.
-            if (!watchedObjects.contains(object.Object)) {
-                YT_LOG_DEBUG("Discovered polled registration table object (Object: %v)", object.Object);
-                ClusterToModifiedObjects_[cluster].push_back(object);
-            }
+        if (Y_UNLIKELY(missingReplicatedTableMappingObjectCount > 0)) {
+            // NB(apachee): As a side effect if WriteReplicatedTableMapping was only just enabled, this would stage an alert.
+            // TODO(apachee): Persist alerts in alert collector to be able to check this alert in tests.
+            YT_LOG_WARNING("Found objects present in current dynamic state with replicated table object type, but missing in replicated table mapping table (ObjectCount: %v)",
+                missingReplicatedTableMappingObjectCount);
+            AlertCollector_->StageAlert(CreateAlert(
+                NAlerts::EErrorCode::CypressSynchronizerMissingReplicatedTableMappingObjects,
+                "Found objects present in current dynamic state with replicated table object type, but missing in replicated table mapping table",
+                /*tags*/ {{"cluster", cluster}},
+                TError("%v objects missing in replicated table mapping table", missingReplicatedTableMappingObjectCount)));
         }
+
+        ModifiedObjects_.push_back(std::move(clusterModifiedObjectList));
     }
 
     //! List all objects that appear in the dynamic state.
@@ -551,55 +711,57 @@ private:
     {
         auto asyncQueues = DynamicState_->Queues->Select();
         auto asyncConsumers = DynamicState_->Consumers->Select();
-        WaitFor(AllSucceeded(std::vector{asyncQueues.AsVoid(), asyncConsumers.AsVoid()}))
+
+        // NB(apachee): Initialize with set future in case write_replicated_table_mapping is false.
+        auto asyncReplicatedTableMapping = DynamicConfigSnapshot_->WriteReplicatedTableMapping
+            ? DynamicState_->ReplicatedTableMapping->Select()
+            : MakeFuture<std::vector<TReplicatedTableMappingTableRow>>({});
+
+        WaitFor(AllSucceeded(std::vector{asyncQueues.AsVoid(), asyncConsumers.AsVoid(), asyncReplicatedTableMapping.AsVoid()}))
             .ThrowOnError();
 
         for (const auto& queue : asyncQueues.Get().Value()) {
             ClusterToDynamicStateObjects_[queue.Ref.Cluster].push_back({
-                queue.Ref,
-                ECypressSyncObjectType::Queue,
+                queue.Ref.Path,
+                /*kind*/ ECypressSyncObjectKind::Queue,
                 queue.ObjectType,
                 queue.Revision,
                 queue.RowRevision});
         }
+
         for (const auto& consumer : asyncConsumers.Get().Value()) {
             ClusterToDynamicStateObjects_[consumer.Ref.Cluster].push_back({
-                consumer.Ref,
-                ECypressSyncObjectType::Consumer,
+                consumer.Ref.Path,
+                /*kind*/ ECypressSyncObjectKind::Consumer,
                 consumer.ObjectType,
                 consumer.Revision,
                 consumer.RowRevision});
         }
-    }
 
-    void FetchObjectsFromRegistrationTable()
-    {
-        auto registrations = WaitFor(DynamicState_->Registrations->Select())
-            .ValueOrThrow();
-
-        for (const auto& registration : registrations) {
-            ClusterToPolledObjects_.Insert({
-                .Object = registration.Queue,
-                .Type = ECypressSyncObjectType::Queue,
-            });
-            ClusterToPolledObjects_.Insert({
-                .Object = registration.Consumer,
-                .Type = ECypressSyncObjectType::Consumer,
-            });
+        if (!DynamicConfigSnapshot_->WriteReplicatedTableMapping) {
+            return;
         }
 
-        for (const auto& [cluster, polledObjects] : ClusterToPolledObjects_) {
-            YT_LOG_DEBUG("Fetched polled objects (Cluster: %v, Count: %v)", cluster, polledObjects.size());
+        for (const auto& replicatedObject : asyncReplicatedTableMapping.Get().Value()) {
+            ClusterToReplicatedTableMappingObjects_[replicatedObject.Ref.Cluster].push_back({
+                replicatedObject.Ref.Path,
+                /*kind*/ ECypressSyncObjectKind::Unknown,
+                replicatedObject.ObjectType,
+                replicatedObject.Revision,
+                /*rowRevision*/ std::nullopt});
         }
     }
 
     static std::vector<TString> GetCypressAttributeNames(const TObject& object)
     {
-        switch (object.Type) {
-            case ECypressSyncObjectType::Consumer:
+        switch (object.Kind) {
+            case ECypressSyncObjectKind::Consumer:
                 return TConsumerTableRow::GetCypressAttributeNames();
-            case ECypressSyncObjectType::Queue:
+            case ECypressSyncObjectKind::Queue:
                 return TQueueTableRow::GetCypressAttributeNames();
+            case ECypressSyncObjectKind::Unknown:
+                // NB(apachee): Not a valid option.
+                YT_ABORT();
         }
     }
 
@@ -609,30 +771,28 @@ private:
         // Fetch attributes for modified objects via batch requests to each cluster.
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
-        std::vector<std::string> clusters;
-        for (const auto& [cluster, modifiedObjects] : ClusterToModifiedObjects_) {
+        for (const auto& [cluster, modifiedObjects] : ModifiedObjects_) {
             auto proxy = CreateObjectServiceReadProxy(
                 GetNativeClientOrThrow(cluster),
                 EMasterChannelKind::Follower);
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& object : modifiedObjects) {
-                auto req = TYPathProxy::Get(object.Object.Path + "/@");
+                auto req = TYPathProxy::Get(object.Path + "/@");
                 ToProto(
                     req->mutable_attributes()->mutable_keys(),
                     GetCypressAttributeNames(object));
                 batchReq->AddRequest(req);
             }
             asyncResults.push_back(batchReq->Invoke());
-            clusters.push_back(cluster);
         }
         auto combinedResults = WaitFor(AllSet(asyncResults))
             .ValueOrThrow();
 
         // Create rows for the modified objects with new attribute values and an increased row revision.
 
-        for (int index = 0; index < std::ssize(combinedResults); ++index) {
-            const auto& batchRsp = combinedResults[index];
-            const auto& cluster = clusters[index];
+        for (const auto& [batchRsp, clusterToModifiedObjectsItem] : Zip(combinedResults, ModifiedObjects_)) {
+            const auto& [cluster, modifiedObjects] = clusterToModifiedObjectsItem;
+
             if (!batchRsp.IsOK()) {
                 AlertCollector_->StageAlert(CreateAlert(
                     NAlerts::EErrorCode::CypressSynchronizerUnableToFetchAttributes,
@@ -641,37 +801,43 @@ private:
                     GetCumulativeError(batchRsp)));
                 continue;
             }
+
             auto responses = batchRsp.Value()->GetResponses<TYPathProxy::TRspGet>();
-            for (int objectIndex = 0; objectIndex < std::ssize(responses); ++objectIndex) {
+            for (i64 objectIndex = 0; objectIndex < std::ssize(modifiedObjects); ++objectIndex) {
+                const auto& object = modifiedObjects[objectIndex];
                 const auto& responseOrError = responses[objectIndex];
-                const auto& object = GetOrCrash(ClusterToModifiedObjects_, cluster)[objectIndex];
                 if (!responseOrError.IsOK()) {
                     YT_LOG_ERROR(
                         responseOrError,
-                        "Error fetching attributes for object (Object: %v)",
-                        object.Object);
-                    RowsWithErrors_.AppendObjectWithError(object, responseOrError);
+                        "Error fetching attributes for object (Cluster: %v, Path: %v)",
+                        cluster,
+                        object.Path);
+                    RowsWithErrors_.AppendObjectWithError(cluster, object, responseOrError);
                     continue;
                 }
                 auto attributes = ConvertToAttributes(TYsonString(responseOrError.Value()->value()));
                 YT_LOG_DEBUG(
-                    "Fetched updated attributes (Object: %v, Attributes: %v)",
-                    object.Object,
+                    "Fetched updated attributes (Cluster: %v, Path: %v, Attributes: %v)",
+                    cluster,
+                    object.Path,
                     ConvertToYsonString(attributes, EYsonFormat::Text));
 
-                // First, we try to interpret the attributes as one of two types: a queue, or a consumer.
+                // First, we try to interpret the attributes as one of two kinds: a queue, or a consumer.
                 // If successful, we prepare an updated row for the corresponding state table.
                 try {
                     RowsToWrite_.AppendObject(
+                        cluster,
                         object,
                         attributes,
                         DynamicConfigSnapshot_->ChaosReplicatedTableQueueAgentStage);
                 } catch (const std::exception& ex) {
                     YT_LOG_DEBUG(
                         ex,
-                        "Error parsing object attributes (Object: %v)",
-                        object.Object);
+                        "Error parsing object attributes (Cluster: %v, Path: %v)",
+                        cluster,
+                        object.Path);
                     RowsWithErrors_.AppendObjectWithErrorAndBasicAttributes(
+                        cluster,
                         object,
                         attributes,
                         DynamicConfigSnapshot_->ChaosReplicatedTableQueueAgentStage,
@@ -683,6 +849,11 @@ private:
                     continue;
                 }
 
+                if (object.HasReplicatedTableMappingRow && !IsReplicatedTableObjectType(object.Type)) {
+                    // NB(apachee): Object type changed (e.g. object was re-created) and now replicated_table_mapping table row should be deleted.
+                    RowsToDelete_.AppendReplicatedObjectKey(cluster, object);
+                }
+
                 // Some objects might be replicated, so we need to export them to a separate state table.
                 // In the end, these objects appear in one of the regular state tables,
                 // as well as in the replicated table mapping table.
@@ -690,13 +861,14 @@ private:
                 // NB: We only export synchronization errors for object that have a replicated table type, so there will
                 // be no entries for deleted objects, or objects for which the type attribute value is unavailable.
                 try {
-                    RowsToWrite_.AppendPotentiallyReplicatedObject(object, attributes);
+                    RowsToWrite_.AppendPotentiallyReplicatedObject(cluster, object, attributes);
                 } catch (const std::exception& ex) {
                     YT_LOG_DEBUG(
                         ex,
-                        "Error parsing replicated object attributes (Object: %v)",
-                        object.Object);
-                    RowsWithErrors_.AppendReplicatedObjectWithError(object, ex);
+                        "Error parsing replicated object attributes (Cluster: %v, Path: %v)",
+                        cluster,
+                        object.Path);
+                    RowsWithErrors_.AppendReplicatedObjectWithError(cluster, object, ex);
                 }
             }
         }

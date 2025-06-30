@@ -10,12 +10,6 @@ from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
-    Hashable,
-    Iterable,
-    List,
-    Mapping,
-    Sequence,
-    Tuple,
     cast,
     final,
     overload,
@@ -31,12 +25,6 @@ from pandas._libs import (
 import pandas._libs.ops as libops
 from pandas._libs.parsers import STR_NA_VALUES
 from pandas._libs.tslibs import parsing
-from pandas._typing import (
-    ArrayLike,
-    DtypeArg,
-    DtypeObj,
-    Scalar,
-)
 from pandas.compat._optional import import_optional_dependency
 from pandas.errors import (
     ParserError,
@@ -49,7 +37,6 @@ from pandas.core.dtypes.common import (
     ensure_object,
     is_bool_dtype,
     is_dict_like,
-    is_dtype_equal,
     is_extension_array_dtype,
     is_float_dtype,
     is_integer,
@@ -68,12 +55,15 @@ from pandas.core.dtypes.missing import isna
 
 from pandas import (
     ArrowDtype,
+    DataFrame,
     DatetimeIndex,
     StringDtype,
+    concat,
 )
 from pandas.core import algorithms
 from pandas.core.arrays import (
     ArrowExtensionArray,
+    BaseMaskedArray,
     BooleanArray,
     Categorical,
     ExtensionArray,
@@ -93,7 +83,19 @@ from pandas.core.tools import datetimes as tools
 from pandas.io.common import is_potential_multi_index
 
 if TYPE_CHECKING:
-    from pandas import DataFrame
+    from collections.abc import (
+        Hashable,
+        Iterable,
+        Mapping,
+        Sequence,
+    )
+
+    from pandas._typing import (
+        ArrayLike,
+        DtypeArg,
+        DtypeObj,
+        Scalar,
+    )
 
 
 class ParserBase:
@@ -102,10 +104,17 @@ class ParserBase:
         WARN = 1
         SKIP = 2
 
-    _implicit_index: bool = False
+    _implicit_index: bool
     _first_chunk: bool
+    keep_default_na: bool
+    dayfirst: bool
+    cache_dates: bool
+    keep_date_col: bool
+    usecols_dtype: str | None
 
     def __init__(self, kwds) -> None:
+        self._implicit_index = False
+
         self.names = kwds.get("names")
         self.orig_names: Sequence[Hashable] | None = None
 
@@ -155,15 +164,19 @@ class ParserBase:
 
             # validate index_col that only contains integers
             if self.index_col is not None:
-                if not (
+                # In this case we can pin down index_col as list[int]
+                if is_integer(self.index_col):
+                    self.index_col = [self.index_col]
+                elif not (
                     is_list_like(self.index_col, allow_sets=False)
                     and all(map(is_integer, self.index_col))
-                    or is_integer(self.index_col)
                 ):
                     raise ValueError(
                         "index_col must only contain row numbers "
                         "when specifying a multi-index header"
                     )
+                else:
+                    self.index_col = list(self.index_col)
 
         self._name_processed = False
 
@@ -250,8 +263,8 @@ class ParserBase:
 
     @final
     def _should_parse_dates(self, i: int) -> bool:
-        if isinstance(self.parse_dates, bool):
-            return self.parse_dates
+        if lib.is_bool(self.parse_dates):
+            return bool(self.parse_dates)
         else:
             if self.index_names is not None:
                 name = self.index_names[i]
@@ -259,14 +272,9 @@ class ParserBase:
                 name = None
             j = i if self.index_col is None else self.index_col[i]
 
-            if is_scalar(self.parse_dates):
-                return (j == self.parse_dates) or (
-                    name is not None and name == self.parse_dates
-                )
-            else:
-                return (j in self.parse_dates) or (
-                    name is not None and name in self.parse_dates
-                )
+            return (j in self.parse_dates) or (
+                name is not None and name in self.parse_dates
+            )
 
     @final
     def _extract_multi_indexer_columns(
@@ -347,7 +355,7 @@ class ParserBase:
     ) -> Sequence[Hashable] | MultiIndex:
         # possibly create a column mi here
         if is_potential_multi_index(columns):
-            list_columns = cast(List[Tuple], columns)
+            list_columns = cast(list[tuple], columns)
             return MultiIndex.from_tuples(list_columns, names=col_names)
         return columns
 
@@ -433,6 +441,7 @@ class ParserBase:
 
         return index
 
+    @final
     def _clean_mapping(self, mapping):
         """converts col numbers to names"""
         if not isinstance(mapping, dict):
@@ -551,11 +560,7 @@ class ParserBase:
                 try:
                     values = lib.map_infer(values, conv_f)
                 except ValueError:
-                    # error: Argument 2 to "isin" has incompatible type "List[Any]";
-                    # expected "Union[Union[ExtensionArray, ndarray], Index, Series]"
-                    mask = algorithms.isin(
-                        values, list(na_values)  # type: ignore[arg-type]
-                    ).view(np.uint8)
+                    mask = algorithms.isin(values, list(na_values)).view(np.uint8)
                     values = lib.map_infer_mask(values, conv_f, mask)
 
                 cvals, na_count = self._infer_types(
@@ -580,11 +585,12 @@ class ParserBase:
                 )
 
                 # type specified in dtype param or cast_type is an EA
-                if cast_type and (not is_dtype_equal(cvals, cast_type) or is_ea):
+                if cast_type is not None:
+                    cast_type = pandas_dtype(cast_type)
+                if cast_type and (cvals.dtype != cast_type or is_ea):
                     if not is_ea and na_count > 0:
                         if is_bool_dtype(cast_type):
                             raise ValueError(f"Bool column has NA values in column {c}")
-                    cast_type = pandas_dtype(cast_type)
                     cvals = self._cast_types(cvals, cast_type, c)
 
             result[c] = cvals
@@ -661,6 +667,7 @@ class ParserBase:
 
         return noconvert_columns
 
+    @final
     def _infer_types(
         self, values, na_values, no_dtype_specified, try_num_bool: bool = True
     ) -> tuple[ArrayLike, int]:
@@ -705,7 +712,7 @@ class ParserBase:
                     values,
                     na_values,
                     False,
-                    convert_to_masked_nullable=non_default_dtype_backend,  # type: ignore[arg-type]  # noqa
+                    convert_to_masked_nullable=non_default_dtype_backend,  # type: ignore[arg-type]
                 )
             except (ValueError, TypeError):
                 # e.g. encountering datetime string gets ValueError
@@ -741,7 +748,7 @@ class ParserBase:
                 np.asarray(values),
                 true_values=self.true_values,
                 false_values=self.false_values,
-                convert_to_masked_nullable=non_default_dtype_backend,  # type: ignore[arg-type]  # noqa
+                convert_to_masked_nullable=non_default_dtype_backend,  # type: ignore[arg-type]
             )
             if result.dtype == np.bool_ and non_default_dtype_backend:
                 if bool_mask is None:
@@ -749,22 +756,31 @@ class ParserBase:
                 result = BooleanArray(result, bool_mask)
             elif result.dtype == np.object_ and non_default_dtype_backend:
                 # read_excel sends array of datetime objects
-                inferred_type = lib.infer_dtype(result)
-                if inferred_type != "datetime":
-                    result = StringDtype().construct_array_type()._from_sequence(values)
+                if not lib.is_datetime_array(result, skipna=True):
+                    dtype = StringDtype()
+                    cls = dtype.construct_array_type()
+                    result = cls._from_sequence(values, dtype=dtype)
 
         if dtype_backend == "pyarrow":
             pa = import_optional_dependency("pyarrow")
             if isinstance(result, np.ndarray):
                 result = ArrowExtensionArray(pa.array(result, from_pandas=True))
+            elif isinstance(result, BaseMaskedArray):
+                if result._mask.all():
+                    # We want an arrow null array here
+                    result = ArrowExtensionArray(pa.array([None] * len(result)))
+                else:
+                    result = ArrowExtensionArray(
+                        pa.array(result._data, mask=result._mask)
+                    )
             else:
-                # ExtensionArray
                 result = ArrowExtensionArray(
                     pa.array(result.to_numpy(), from_pandas=True)
                 )
 
         return result, na_count
 
+    @final
     def _cast_types(self, values: ArrayLike, cast_type: DtypeObj, column) -> ArrayLike:
         """
         Cast values to specified type
@@ -804,7 +820,7 @@ class ParserBase:
                 if isinstance(cast_type, BooleanDtype):
                     # error: Unexpected keyword argument "true_values" for
                     # "_from_sequence_of_strings" of "ExtensionArray"
-                    return array_type._from_sequence_of_strings(  # type: ignore[call-arg]  # noqa:E501
+                    return array_type._from_sequence_of_strings(  # type: ignore[call-arg]
                         values,
                         dtype=cast_type,
                         true_values=self.true_values,
@@ -852,6 +868,7 @@ class ParserBase:
     ) -> tuple[Sequence[Hashable], Mapping[Hashable, ArrayLike]]:
         ...
 
+    @final
     def _do_date_conversions(
         self,
         names: Sequence[Hashable] | Index,
@@ -873,6 +890,7 @@ class ParserBase:
 
         return names, data
 
+    @final
     def _check_data_length(
         self,
         columns: Sequence[Hashable],
@@ -916,6 +934,7 @@ class ParserBase:
     ) -> set[str]:
         ...
 
+    @final
     def _evaluate_usecols(
         self,
         usecols: Callable[[Hashable], object] | set[str] | set[int],
@@ -932,7 +951,8 @@ class ParserBase:
             return {i for i, name in enumerate(names) if usecols(name)}
         return usecols
 
-    def _validate_usecols_names(self, usecols, names):
+    @final
+    def _validate_usecols_names(self, usecols, names: Sequence):
         """
         Validates that all usecols are present in a given
         list of names. If not, raise a ValueError that
@@ -963,6 +983,7 @@ class ParserBase:
 
         return usecols
 
+    @final
     def _validate_usecols_arg(self, usecols):
         """
         Validate the 'usecols' parameter.
@@ -1012,6 +1033,7 @@ class ParserBase:
             return usecols, usecols_dtype
         return usecols, None
 
+    @final
     def _clean_index_names(self, columns, index_col) -> tuple[list | None, list, list]:
         if not is_index_col(index_col):
             return None, columns, index_col
@@ -1049,10 +1071,12 @@ class ParserBase:
 
         return index_names, columns, index_col
 
-    def _get_empty_meta(
-        self, columns, index_col, index_names, dtype: DtypeArg | None = None
-    ):
+    @final
+    def _get_empty_meta(self, columns, dtype: DtypeArg | None = None):
         columns = list(columns)
+
+        index_col = self.index_col
+        index_names = self.index_names
 
         # Convert `dtype` to a defaultdict of some kind.
         # This will enable us to write `dtype[col_name]`
@@ -1130,14 +1154,25 @@ def _make_date_converter(
                 date_format.get(col) if isinstance(date_format, dict) else date_format
             )
 
-            result = tools.to_datetime(
-                ensure_object(strs),
-                format=date_fmt,
-                utc=False,
-                dayfirst=dayfirst,
-                errors="ignore",
-                cache=cache_dates,
-            )
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore",
+                    ".*parsing datetimes with mixed time zones will raise an error",
+                    category=FutureWarning,
+                )
+                str_objs = ensure_object(strs)
+                try:
+                    result = tools.to_datetime(
+                        str_objs,
+                        format=date_fmt,
+                        utc=False,
+                        dayfirst=dayfirst,
+                        cache=cache_dates,
+                    )
+                except (ValueError, TypeError):
+                    # test_usecols_with_parse_dates4
+                    return str_objs
+
             if isinstance(result, DatetimeIndex):
                 arr = result.to_numpy()
                 arr.flags.writeable = True
@@ -1145,22 +1180,45 @@ def _make_date_converter(
             return result._values
         else:
             try:
-                result = tools.to_datetime(
-                    date_parser(*(unpack_if_single_element(arg) for arg in date_cols)),
-                    errors="ignore",
-                    cache=cache_dates,
-                )
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore",
+                        ".*parsing datetimes with mixed time zones "
+                        "will raise an error",
+                        category=FutureWarning,
+                    )
+                    pre_parsed = date_parser(
+                        *(unpack_if_single_element(arg) for arg in date_cols)
+                    )
+                    try:
+                        result = tools.to_datetime(
+                            pre_parsed,
+                            cache=cache_dates,
+                        )
+                    except (ValueError, TypeError):
+                        # test_read_csv_with_custom_date_parser
+                        result = pre_parsed
                 if isinstance(result, datetime.datetime):
                     raise Exception("scalar parser")
                 return result
             except Exception:
-                return tools.to_datetime(
-                    parsing.try_parse_dates(
+                # e.g. test_datetime_fractional_seconds
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore",
+                        ".*parsing datetimes with mixed time zones "
+                        "will raise an error",
+                        category=FutureWarning,
+                    )
+                    pre_parsed = parsing.try_parse_dates(
                         parsing.concat_date_cols(date_cols),
                         parser=date_parser,
-                    ),
-                    errors="ignore",
-                )
+                    )
+                    try:
+                        return tools.to_datetime(pre_parsed)
+                    except (ValueError, TypeError):
+                        # TODO: not reached in tests 2023-10-27; needed?
+                        return pre_parsed
 
     return converter
 
@@ -1291,7 +1349,10 @@ def _process_date_conversion(
             new_cols.append(new_name)
             date_cols.update(old_names)
 
-    data_dict.update(new_data)
+    if isinstance(data_dict, DataFrame):
+        data_dict = concat([DataFrame(new_data), data_dict], axis=1, copy=False)
+    else:
+        data_dict.update(new_data)
     new_cols.extend(columns)
 
     if not keep_date_col:
@@ -1327,7 +1388,7 @@ def _try_convert_dates(
     return new_name, new_col, colnames
 
 
-def _get_na_values(col, na_values, na_fvalues, keep_default_na):
+def _get_na_values(col, na_values, na_fvalues, keep_default_na: bool):
     """
     Get the NaN values for a given column.
 
@@ -1373,13 +1434,12 @@ def _validate_parse_dates_arg(parse_dates):
         "for the 'parse_dates' parameter"
     )
 
-    if parse_dates is not None:
-        if is_scalar(parse_dates):
-            if not lib.is_bool(parse_dates):
-                raise TypeError(msg)
-
-        elif not isinstance(parse_dates, (list, dict)):
-            raise TypeError(msg)
+    if not (
+        parse_dates is None
+        or lib.is_bool(parse_dates)
+        or isinstance(parse_dates, (list, dict))
+    ):
+        raise TypeError(msg)
 
     return parse_dates
 

@@ -115,7 +115,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TableServerLogger;
+constinit const auto Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -132,7 +132,9 @@ void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
         } else if (securityManager->HasColumnarAce(Object_, user)) {
             // If the object lacks a columnar ACE, column-level permissions
             // are skipped during the permission check.
-            auto tableSchema = table->GetSchema()->AsHeavyTableSchema();
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            // TODO(cherepashka): make GetBasicAttributes async YT-25153.
+            auto tableSchema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
             checkOptions.Columns.emplace();
             checkOptions.Columns->reserve(tableSchema->Columns().size());
             for (const auto& columnSchema : tableSchema->Columns()) {
@@ -895,7 +897,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(table->GetEnableDetailedProfiling());
             return true;
 
-
         case EInternedAttributeKey::SerializationType:
             if (!isDynamic) {
                 break;
@@ -904,7 +905,6 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             BuildYsonFluently(consumer)
                 .Value(table->GetSerializationType());
             return true;
-
 
         case EInternedAttributeKey::ReplicationCollocationTablePaths: {
             if (!isDynamic || !table->IsReplicated() || !trunkTable->GetReplicationCollocation()) {
@@ -1171,12 +1171,13 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             return ComputeChunkStatistics(
                 Bootstrap_,
                 chunkLists,
-                [] (const TChunk* chunk) -> std::optional<ETableChunkFormat> {
+                [] (const TChunk* chunk) -> std::optional<EChunkFormat> {
                     if (chunk->GetChunkType() != EChunkType::Table) {
                         return std::nullopt;
                     }
-                    return static_cast<ETableChunkFormat>(chunk->GetChunkFormat());
-                });
+                    return chunk->GetChunkFormat();
+                },
+                SerializeChunkFormatAsTableChunkFormat);
 
         case EInternedAttributeKey::OptimizeForStatistics: {
             if (isExternal) {
@@ -1204,8 +1205,10 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             return ComputeHunkStatistics(Bootstrap_, chunkLists);
         }
 
-        case EInternedAttributeKey::Schema:
-            return table->GetSchema()->AsYsonAsync();
+        case EInternedAttributeKey::Schema: {
+            const auto& tableManager = Bootstrap_->GetTableManager();
+            return tableManager->GetYsonTableSchemaAsync(table->GetSchema());
+        }
 
         case EInternedAttributeKey::QueueStatus:
         case EInternedAttributeKey::QueuePartitions: {
@@ -1388,7 +1391,7 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();
-            lockedTable->CustomRuntimeData() = {};
+            lockedTable->MutableCustomRuntimeData() = {};
 
             Bootstrap_->GetTabletManager()->SetCustomRuntimeData(lockedTable, {});
 
@@ -1618,7 +1621,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         case EInternedAttributeKey::ProfilingTag: {
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
-            lockedTable->SetProfilingTag(ConvertTo<TString>(value));
+            lockedTable->SetProfilingTag(ConvertTo<std::string>(value));
             lockedTable->OnRemountNeeded();
             return true;
         }
@@ -1640,18 +1643,20 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
                 break;
             }
 
+            ValidateNoTransaction();
+
             auto serializationType = ConvertTo<ETabletTransactionSerializationType>(value);
 
             if (serializationType == ETabletTransactionSerializationType::PerRow &&
                 !table->IsSorted())
             {
-                THROW_ERROR_EXCEPTION("Serialization type %qlv is supported only for sorted dynamic tables",
+                THROW_ERROR_EXCEPTION("Serialization type %Qlv is supported only for sorted dynamic tables",
                     serializationType);
             }
 
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
-            lockedTable->ValidateAllTabletsUnmounted(Format("Cannot change sequencer type to %v",
+            lockedTable->ValidateAllTabletsUnmounted(Format("Cannot change serialization type to %Qlv",
                 serializationType));
             lockedTable->SetSerializationType(serializationType);
             return true;
@@ -1711,7 +1716,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             }
 
             auto* lockedTable = LockThisImpl();
-            lockedTable->SetQueueAgentStage(ConvertTo<TString>(value));
+            lockedTable->SetQueueAgentStage(ConvertTo<std::string>(value));
 
             SetModified(EModificationType::Attributes);
 
@@ -1809,7 +1814,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();
-            lockedTable->CustomRuntimeData() = value;
+            lockedTable->MutableCustomRuntimeData() = value;
 
             Bootstrap_->GetTabletManager()->SetCustomRuntimeData(lockedTable, value);
 
@@ -2096,6 +2101,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.SchemaId = FromProto<TObjectId>(request->schema_id());
     }
 
+    const auto& tableManager = Bootstrap_->GetTableManager();
     context->SetRequestInfo("Dynamic: %v, UpstreamReplicaId: %v, SchemaModification: %v, ReplicationProgress: %v, SchemaId: %v, SchemaMemoryUsage: %v, Schema: %v",
         options.Dynamic,
         options.UpstreamReplicaId,
@@ -2103,10 +2109,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
         options.ReplicationProgress,
         options.SchemaId,
         options.Schema ? options.Schema->GetMemoryUsage() : 0,
-        options.Schema);
+        tableManager->GetHeavyTableSchemaSync(options.Schema));
 
     const auto& tabletManager = Bootstrap_->GetTabletManager();
-    const auto& tableManager = Bootstrap_->GetTableManager();
     auto* table = LockThisImpl();
     auto dynamic = options.Dynamic.value_or(table->IsDynamic());
     auto schemaReceived = options.SchemaId || options.Schema;
@@ -2133,13 +2138,14 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (dynamic && schemaReceived  && schema->IsSorted() && !schema->IsUniqueKeys()) {
         // COMPAT(h0pless): Change this to YT_VERIFY after schema migration is complete.
+        auto heavySchema = tableManager->GetHeavyTableSchemaSync(schema);
         YT_LOG_ALERT_IF(
             !schema->IsUniqueKeys() && table->IsForeign(),
             "Schema doesn't have UniqueKeys set to true on the external cell (TableId: %v, Schema: %v)",
             table->GetId(),
-            schema);
+            heavySchema);
 
-        schema = schema->ToUniqueKeys();
+        schema = New<TCompactTableSchema>(heavySchema->ToUniqueKeys());
     }
 
     if (table->IsNative()) {
@@ -2227,12 +2233,29 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                 THROW_ERROR_EXCEPTION("Replication progress should fully cover key space");
             }
 
+            // Validate replication progress segment keys against table schema.
+            if (table->IsSorted()) {
+                auto heavySchema = tableManager->GetHeavyTableSchemaSync(schema);
+                const auto& upper = options.ReplicationProgress->UpperKey;
+                if (upper.GetCount() != 1 || upper[0].Type != EValueType::Max) {
+                    THROW_ERROR_EXCEPTION("Invalid replication progress: unexpected upper key %v for sorted table",
+                        upper);
+                }
+
+                for (const auto& segment : options.ReplicationProgress->Segments) {
+                    ValidatePivotKey(segment.LowerKey, *heavySchema, "replication progress");
+                }
+            } else {
+                ValidateOrderedTabletReplicationProgress(*options.ReplicationProgress);
+            }
+
             table->ValidateAllTabletsUnmounted("Cannot change replication progress");
         }
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
-        auto newTableSchema = schema->AsHeavyTableSchema();
-        auto tableSchema = table->GetSchema()->AsHeavyTableSchema();
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        auto newTableSchema = tableManager->GetHeavyTableSchemaSync(schema);
+        auto tableSchema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
 
         ValidateTableSchemaUpdateInternal(
             *tableSchema,
@@ -2243,12 +2266,9 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             config->AllowAlterKeyColumnToAny);
 
         if (table->IsDynamic()) {
-            const auto& tableManager = Bootstrap_->GetTableManager();
-
             if (auto index = table->GetIndexTo()) {
-                auto indexTableSchema = tableManager->GetTableNodeOrThrow(index->GetTableId())
-                    ->GetSchema()
-                    ->AsHeavyTableSchema();
+                auto indexTableNode = tableManager->GetTableNodeOrThrow(index->GetTableId());
+                auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
                 ValidateIndexSchema(
                     index->GetKind(),
                     *indexTableSchema,
@@ -2259,9 +2279,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             }
 
             for (const auto index : GetValuesSortedByKey(table->SecondaryIndices())) {
-                auto indexTableSchema = tableManager->GetTableNodeOrThrow(index->GetIndexTableId())
-                    ->GetSchema()
-                    ->AsHeavyTableSchema();
+                auto indexTableNode = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
+                auto indexTableSchema = tableManager->GetHeavyTableSchemaSync(indexTableNode->GetSchema());
                 ValidateIndexSchema(
                     index->GetKind(),
                     *newTableSchema,
@@ -2303,7 +2322,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
     if (options.SchemaModification) {
         YT_LOG_ALERT_IF(table->IsForeign(), "Alter request with schema modification present was received by an external cell (TableId: %v)",
             table->GetId());
-        schema = schema->ToModifiedSchema(*options.SchemaModification);
+        auto heavySchema = tableManager->GetHeavyTableSchemaSync(schema);
+        schema = New<TCompactTableSchema>(heavySchema->ToModifiedSchema(*options.SchemaModification));
     }
 
     if (schemaReceived || options.SchemaModification) {
@@ -2314,7 +2334,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             const auto& tableManager)
         {
             if (table->IsNative()) {
-                return tableManager->GetOrCreateNativeMasterTableSchema(*schema, table);
+                return tableManager->GetOrCreateNativeMasterTableSchema(schema, table);
             }
 
             YT_VERIFY(!options.Schema);

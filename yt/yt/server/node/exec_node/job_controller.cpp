@@ -73,6 +73,7 @@ using namespace NProfiling;
 using namespace NScheduler;
 using namespace NControllerAgent;
 using namespace NServer;
+using namespace NGpu;
 
 using NNodeTrackerClient::NProto::TNodeResources;
 
@@ -82,7 +83,7 @@ using TJobStartInfo = TControllerAgentConnectorPool::TControllerAgentConnector::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -113,7 +114,6 @@ public:
     TJobController(IBootstrapBase* bootstrap)
         : Bootstrap_(bootstrap)
         , DynamicConfig_(New<TJobControllerDynamicConfig>())
-        , OperationInfoRequestBackoffStrategy_(GetDynamicConfig()->OperationInfoRequestBackoffStrategy)
         , Profiler_("/job_controller")
         , JobProxyExitProfiler_(Profiler_, "/job_proxy_process_exit")
         , CacheHitArtifactsSizeCounter_(Profiler_.Counter("/chunk_cache/cache_hit_artifacts_size"))
@@ -142,6 +142,8 @@ public:
     void Initialize() override
     {
         auto dynamicConfig = GetDynamicConfig();
+
+        InitAllocationProfiler(Profiler_);
 
         JobResourceManager_ = Bootstrap_->GetJobResourceManager();
         JobResourceManager_->RegisterResourcesConsumer(
@@ -267,6 +269,19 @@ public:
                 YT_ASSERT_THREAD_AFFINITY(JobThread);
 
                 InterruptAllJobs(std::move(error));
+            }));
+        }
+    }
+
+    void InterruptJob(TJobId jobId, EInterruptionReason interruptionReason, TDuration interruptionTimeout) override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        if (auto job = FindJob(jobId)) {
+            Bootstrap_->GetJobInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), job = std::move(job), interruptionReason, interruptionTimeout] {
+                YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+                DoInterruptJob(job, interruptionReason, interruptionTimeout);
             }));
         }
     }
@@ -460,7 +475,6 @@ public:
 
         DynamicConfig_.Store(newConfig);
 
-        OperationInfoRequestBackoffStrategy_.UpdateOptions(newConfig->OperationInfoRequestBackoffStrategy);
         ProfilingExecutor_->SetPeriod(
             newConfig->ProfilingPeriod);
         ResourceAdjustmentExecutor_->SetPeriod(
@@ -546,8 +560,6 @@ private:
     // For converting vcpu to cpu back after getting response from scheduler.
     // It is needed because cpu_to_vcpu_factor can change between preparing request and processing response.
     double LastHeartbeatCpuToVCpuFactor_ = 1.0;
-
-    TRelativeConstantBackoffStrategy OperationInfoRequestBackoffStrategy_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobsLock_);
 
@@ -666,29 +678,25 @@ private:
             auto operationId = FromProto<TOperationId>(startInfoProto.operation_id());
             auto allocationId = FromProto<TAllocationId>(startInfoProto.allocation_id());
 
+            std::optional<TNetworkPriority> networkPriority = YT_OPTIONAL_FROM_PROTO(startInfoProto, network_priority);
+
             auto incarnationId = FromProto<NScheduler::TIncarnationId>(
                 startInfoProto.controller_agent_descriptor().incarnation_id());
 
-            std::optional<NScheduler::TAllocationAttributes> allocationAttributes;
-            if (GetDynamicConfig()->DisableLegacyAllocationPreparation) {
-                YT_VERIFY(startInfoProto.has_allocation_attributes());
-                auto& attributes = allocationAttributes.emplace();
-                FromProto(&attributes, startInfoProto.allocation_attributes());
-            }
+            auto allocationAttributes = FromProto<NScheduler::TAllocationAttributes>(startInfoProto.allocation_attributes());
 
             const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
             auto agentDescriptor = controllerAgentConnectorPool->GetDescriptorByIncarnationId(incarnationId);
 
-            // TODO(pogorelov): Move this logic to job resource manager.
-            startInfoProto.mutable_resource_limits()->set_vcpu(
-                static_cast<double>(NVectorHdrf::TCpuResource(
-                    startInfoProto.resource_limits().cpu() * JobResourceManager_->GetCpuToVCpuFactor())));
+            auto resourceDemand = FromNodeResources(startInfoProto.resource_limits());
+            JobResourceManager_->CalculateAndSetVCpu(GetPtr(resourceDemand));
 
             auto allocation = CreateAllocation(
                 allocationId,
                 operationId,
-                FromNodeResources(startInfoProto.resource_limits()),
+                resourceDemand,
                 std::move(allocationAttributes),
+                networkPriority,
                 agentDescriptor,
                 Bootstrap_->GetExecNodeBootstrap());
 
@@ -1253,7 +1261,7 @@ private:
                     jobId,
                     interruptionReason);
 
-                InterruptJob(
+                DoInterruptJob(
                     job,
                     interruptionReason,
                     timeout);
@@ -1347,9 +1355,6 @@ private:
         auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
         auto slotManager = execNodeBootstrap->GetSlotManager();
 
-        const bool requestOperationInfo = OperationInfoRequestBackoffStrategy_
-            .RecordInvocationIfOverBackoff();
-
         THashSet<TOperationId> operationIdsToRequestInfo;
 
         for (const auto& [_, allocation] : IdToAllocations_) {
@@ -1369,16 +1374,29 @@ private:
             }
         }
 
-        if (requestOperationInfo) {
-            for (const auto& [_, job] : IdToJob_) {
-                if (!job->GetControllerAgentDescriptor() && job->IsFinished()) {
-                    operationIdsToRequestInfo.insert(job->GetOperationId());
-                }
-            }
+        for (const auto& [_, job] : IdToJob_) {
+            if (!job->GetControllerAgentDescriptor()) {
+                if (job->GetControllerAgentResetTime() + context->RequestNewAgentDelay < TInstant::Now()) {
+                    YT_LOG_DEBUG(
+                        "Requesting new agent for job and reset agent for it (JobId: %v, OperationId: %v, JobState: %v, ControllerAgentResetTime: %v, Delay: %v)",
+                        job->GetId(),
+                        job->GetOperationId(),
+                        job->GetState(),
+                        job->GetControllerAgentResetTime(),
+                        context->RequestNewAgentDelay);
 
-            for (const auto& [_, allocation] : IdToAllocations_) {
-                if (allocation->IsEmpty()) {
-                    operationIdsToRequestInfo.insert(allocation->GetOperationId());
+                    // NB(pogorelov): We need to reset agent for job here, to prevent backpressure when scheduler overloaded.
+                    job->UpdateControllerAgentDescriptor({});
+
+                    operationIdsToRequestInfo.insert(job->GetOperationId());
+                } else {
+                    YT_LOG_DEBUG(
+                        "Job is orphaned but request new agent delay is not expired; skip requesting new agent (JobId: %v, OperationId: %v, JobState: %v, ControllerAgentResetTime: %v, Delay: %v)",
+                        job->GetId(),
+                        job->GetOperationId(),
+                        job->GetState(),
+                        job->GetControllerAgentResetTime(),
+                        context->RequestNewAgentDelay);
                 }
             }
         }
@@ -1395,7 +1413,7 @@ private:
             FillStatus(allocationStatus, allocation);
         }
 
-        if (requestOperationInfo) {
+        if (!empty(operationIdsToRequestInfo)) {
             YT_LOG_DEBUG(
                 "Adding operation info requests for stored jobs (Count: %v)",
                 std::size(operationIdsToRequestInfo));
@@ -1663,7 +1681,7 @@ private:
         job->GetAllocation()->AbortJob(std::move(abortionError), graceful, requestNewJob);
     }
 
-    void InterruptJob(const TJobPtr& job, EInterruptionReason interruptionReason, TDuration interruptionTimeout)
+    void DoInterruptJob(const TJobPtr& job, EInterruptionReason interruptionReason, TDuration interruptionTimeout)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1894,7 +1912,7 @@ private:
         for (const auto& job : GetJobs()) {
             try {
                 YT_LOG_DEBUG(error, "Trying to interrupt job (JobId: %v)", job->GetId());
-                InterruptJob(
+                DoInterruptJob(
                     job,
                     EInterruptionReason::JobsDisabledOnNode,
                     GetDynamicConfig()->DisabledJobsInterruptionTimeout);

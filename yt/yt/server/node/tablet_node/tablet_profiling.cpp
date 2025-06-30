@@ -77,9 +77,9 @@ TLookupCounters::TLookupCounters(
         TDuration::Seconds(10)))
     , RetryCount(profiler.Counter("/lookup/retry_count"))
     , ChunkReaderStatisticsCounters(
-        profiler.WithPrefix("/lookup/chunk_reader_statistics"),
+        mediumProfiler.WithPrefix("/lookup/chunk_reader_statistics"),
         mediumProfiler.WithPrefix("/lookup/medium_statistics"))
-    , HunkChunkReaderCounters(profiler.WithPrefix("/lookup/hunks"), schema)
+    , HunkChunkReaderCounters(mediumProfiler.WithPrefix("/lookup/hunks"), schema)
     , KeyFilterCounters(profiler.WithPrefix("/lookup/key_filter"))
 { }
 
@@ -102,6 +102,7 @@ TSelectRowsCounters::TSelectRowsCounters(
     , UnmergedMissingRowCount(profiler.Counter("/select/unmerged_missing_row_count"))
     , UnmergedDataWeight(profiler.Counter("/select/unmerged_data_weight"))
     , WastedUnmergedDataWeight(profiler.Counter("/select/wasted_unmerged_data_weight"))
+    , ConcurrentStoreRotateErrors(profiler.Counter("/select/concurrent_store_rotate_errors"))
     , CpuTime(profiler.TimeCounter("/select/cpu_time"))
     , DecompressionCpuTime(profiler.TimeCounter("/select/decompression_cpu_time"))
     , SelectDuration(profiler.TimeHistogram(
@@ -111,9 +112,9 @@ TSelectRowsCounters::TSelectRowsCounters(
     , RangeFilterCounters(profiler.WithPrefix("/select/range_filter"))
     , KeyFilterCounters(profiler.WithPrefix("/select/key_filter"))
     , ChunkReaderStatisticsCounters(
-        profiler.WithPrefix("/select/chunk_reader_statistics"),
+        mediumProfiler.WithPrefix("/select/chunk_reader_statistics"),
         mediumProfiler.WithPrefix("/select/medium_statistics"))
-    , HunkChunkReaderCounters(profiler.WithPrefix("/select/hunks"), schema)
+    , HunkChunkReaderCounters(mediumProfiler.WithPrefix("/select/hunks"), schema)
     , CacheHits(profiler.Counter("/select/cache_hits"))
     , CacheOutdated(profiler.Counter("/select/cache_outdated"))
     , CacheMisses(profiler.Counter("/select/cache_misses"))
@@ -403,6 +404,33 @@ void TLsmCounters::DoProfileCompaction(
     counters->HunkChunks.OutStoreCount.Increment(hunkChunkWriterStatistics.chunk_count());
 }
 
+TSmoothMovementCounters::TSmoothMovementCounters(const TProfiler& profiler)
+{
+    auto movementProfiler = profiler
+        .WithHot(false)
+        .WithSparse()
+        .WithPrefix("/smooth_tablet_movement");
+
+    SwitchTime = movementProfiler
+        .WithTag("writable", "false")
+        .WithTag("stage", "switch", /*parent*/ -1)
+        .Timer("/stage_time");
+
+    for (auto stage : TEnumTraits<ESmoothMovementStage>::GetDomainValues()) {
+        bool writable = true;
+        if (stage == ESmoothMovementStage::WaitingForLocksBeforeActivation ||
+            stage == ESmoothMovementStage::WaitingForLocksBeforeSwitch)
+        {
+            writable = false;
+        }
+
+        StageTime[stage] = movementProfiler
+            .WithTag("writable", writable ? "true" : "false")
+            .WithTag("stage", FormatEnum(stage), /*parent*/ -1)
+            .Timer("/stage_time");
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TWriterProfiler::Profile(
@@ -417,11 +445,13 @@ void TWriterProfiler::Profile(
         CodecStatistics_,
         tabletSnapshot->Settings.StoreWriterOptions->ReplicationFactor);
 
-    counters->HunkChunkWriterCounters.Increment(
-        HunkChunkWriterStatistics_,
-        HunkChunkDataStatistics_,
-        /*codecStatistics*/ {},
-        tabletSnapshot->Settings.HunkWriterOptions->ReplicationFactor);
+    if (HunkChunkWriterStatistics_) {
+        counters->HunkChunkWriterCounters.Increment(
+            HunkChunkWriterStatistics_,
+            HunkChunkDataStatistics_,
+            /*codecStatistics*/ {},
+            tabletSnapshot->Settings.HunkWriterOptions->ReplicationFactor);
+    }
 }
 
 void TWriterProfiler::Update(const IMultiChunkWriterPtr& writer)
@@ -483,9 +513,13 @@ void TReaderProfiler::Profile(
     counters->UnmergedDataWeight.Increment(DataStatistics_.data_weight());
     counters->DecompressionCpuTime.Add(compressionCpuTime);
 
-    counters->ChunkReaderStatisticsCounters.Increment(ChunkReaderStatistics_, failed);
+    if (ChunkReaderStatistics_) {
+        counters->ChunkReaderStatisticsCounters.Increment(ChunkReaderStatistics_, failed);
+    }
 
-    counters->HunkChunkReaderCounters.Increment(HunkChunkReaderStatistics_, failed);
+    if (HunkChunkReaderStatistics_) {
+        counters->HunkChunkReaderCounters.Increment(HunkChunkReaderStatistics_, failed);
+    }
 }
 
 void TReaderProfiler::Update(
@@ -527,11 +561,11 @@ public:
 
     TTableProfilerPtr CreateTabletProfiler(
         EDynamicTableProfilingMode profilingMode,
-        const TString& bundle,
-        const TString& tablePath,
+        const std::string& bundle,
+        const NYPath::TYPath& tablePath,
         const TString& tableTag,
-        const TString& account,
-        const TString& medium,
+        const std::string& account,
+        const std::string& medium,
         TObjectId schemaId,
         const TTableSchemaPtr& schema)
     {
@@ -631,8 +665,7 @@ private:
     THashSet<TString> AllTables_;
     TGauge ConsumedTableTags_;
 
-    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, TString, TString, TString, TString, TObjectId>;
-
+    using TProfilerKey = std::tuple<EDynamicTableProfilingMode, std::string, NYPath::TYPath, std::string, std::string, TObjectId>;
     THashMap<TProfilerKey, TWeakPtr<TTableProfiler>> Tables_;
 };
 
@@ -640,11 +673,11 @@ private:
 
 TTableProfilerPtr CreateTableProfiler(
     EDynamicTableProfilingMode profilingMode,
-    const TString& tabletCellBundle,
+    const std::string& tabletCellBundle,
     const TString& tablePath,
     const TString& tableTag,
-    const TString& account,
-    const TString& medium,
+    const std::string& account,
+    const std::string& medium,
     TObjectId schemaId,
     const TTableSchemaPtr& schema)
 {
@@ -672,8 +705,7 @@ TCounter* TTableProfiler::TUserTaggedCounter<TCounter>::Get(
 
     return Counters.FindOrInsert(userTag, [&] {
         if (userTag) {
-            // TODO(babenko): switch to std::string
-            return TCounter{profiler.WithTag("user", ToString(*userTag))};
+            return TCounter{profiler.WithTag("user", *userTag)};
         } else {
             return TCounter{profiler};
         }
@@ -856,6 +888,20 @@ TCounter* TTableProfiler::GetThrottlerCounter(ETabletDistributedThrottlerKind ki
 TLsmCounters* TTableProfiler::GetLsmCounters()
 {
     return GetCounterUnlessDisabled(&LsmCounters_);
+}
+
+TSmoothMovementCounters* TTableProfiler::GetSmoothMovementCounters()
+{
+    if (Disabled_) {
+        static TSmoothMovementCounters counters;
+        return &counters;
+    }
+
+    if (!SmoothMovementCounters_) {
+        SmoothMovementCounters_.emplace(Profiler_);
+    }
+
+    return &SmoothMovementCounters_.value();
 }
 
 const TProfiler& TTableProfiler::GetProfiler() const

@@ -3,11 +3,12 @@
 #include "show_create.h"
 
 #include <contrib/ydb/core/base/tablet_pipe.h>
-#include <contrib/ydb/core/base/tablet_pipe.h>
+#include <contrib/ydb/core/scheme/scheme_pathid.h>
 #include <contrib/ydb/core/sys_view/common/scan_actor_base_impl.h>
 #include <contrib/ydb/core/sys_view/common/schema.h>
 #include <contrib/ydb/core/tx/scheme_cache/scheme_cache.h>
 #include <contrib/ydb/core/tx/schemeshard/schemeshard.h>
+#include <contrib/ydb/core/tx/sequenceproxy/public/events.h>
 #include <contrib/ydb/core/tx/tx_proxy/proxy.h>
 
 #include <contrib/ydb/library/actors/core/hfunc.h>
@@ -79,6 +80,7 @@ public:
     STFUNC(StateCollectTableSettings) {
         switch (ev->GetTypeRewrite()) {
              hFunc(NSchemeShard::TEvSchemeShard::TEvDescribeSchemeResult, HandleCollectTableSettings);
+             hFunc(NSequenceProxy::TEvSequenceProxy::TEvGetSequenceResult, Handle);
              default:
                  LOG_CRIT(*TlsActivationContext, NKikimrServices::SYSTEM_VIEWS,
                      "NSysView::TScanActorBase: unexpected event 0x%08" PRIx32, ev->GetTypeRewrite());
@@ -153,6 +155,10 @@ private:
         if (PathType == "Table") {
             record->MutableOptions()->SetReturnBoundaries(true);
             record->MutableOptions()->SetShowPrivateTable(false);
+            record->MutableOptions()->SetReturnBoundaries(true);
+            record->MutableOptions()->SetShowPrivateTable(true);
+            record->MutableOptions()->SetReturnIndexTableBoundaries(true);
+            record->MutableOptions()->SetReturnPartitionConfig(true);
         }
 
         Send(MakeTxProxyID(), navigateRequest.release());
@@ -167,6 +173,10 @@ private:
         if (AckReceived) {
             StartScan();
         }
+    }
+
+    bool NeedToCollectTableSettings(const NKikimrSchemeOp::TTableDescription& tableDesc) {
+        return !tableDesc.GetCdcStreams().empty() || !tableDesc.GetSequences().empty();
     }
 
     void StartCollectTableSettings(const TString& tablePath, const NKikimrSchemeOp::TTableDescription& tableDesc, bool temporary) {
@@ -196,9 +206,18 @@ private:
 
             Send(MakeTxProxyID(), navigateRequest.release());
         }
+
+        for (const auto& sequence: tableDesc.GetSequences()) {
+            auto sequencePathId = TPathId::FromProto(sequence.GetPathId());
+            CollectTableSettingsState->Sequences[sequencePathId] = nullptr;
+
+            Send(NSequenceProxy::MakeSequenceProxyServiceID(),
+                new NSequenceProxy::TEvSequenceProxy::TEvGetSequence(Database, sequencePathId)
+            );
+        }
     }
 
-    void FillBatch(NKqp::TEvKqpCompute::TEvScanData& batch, const TString& path, const TString& statement) {
+    void FillBatch(NKqp::TEvKqpCompute::TEvScanData& batch, const TString& path, const TString& createQuery) {
         TVector<TCell> cells;
         for (auto column : Columns) {
             switch (column.Tag) {
@@ -210,8 +229,8 @@ private:
                     cells.emplace_back(TCell(PathType.data(), PathType.size()));
                     break;
                 }
-                case Schema::ShowCreate::Statement::ColumnId: {
-                    cells.emplace_back(TCell(statement.data(), statement.size()));
+                case Schema::ShowCreate::CreateQuery::ColumnId: {
+                    cells.emplace_back(TCell(createQuery.data(), createQuery.size()));
                     break;
                 }
                 default:
@@ -230,7 +249,7 @@ private:
         const auto& record = ev->Get()->GetRecord();
         const auto status = record.GetStatus();
         std::optional<TString> path;
-        std::optional<TString> statement;
+        std::optional<TString> createQuery;
         switch (status) {
             case NKikimrScheme::StatusSuccess: {
                 const auto& pathDescription = record.GetPathDescription();
@@ -263,17 +282,17 @@ private:
                             temporary = true;
                         }
 
-                        if (!tableDesc.GetCdcStreams().empty()) {
+                        if (NeedToCollectTableSettings(tableDesc)) {
                             StartCollectTableSettings(tablePath, tableDesc, temporary);
                             Become(&TShowCreate::StateCollectTableSettings);
                             return;
                         }
 
                         TCreateTableFormatter formatter;
-                        auto formatterResult = formatter.Format(tablePath, tableDesc, temporary, {});
+                        auto formatterResult = formatter.Format(tablePath, Path, tableDesc, temporary, {}, {});
                         if (formatterResult.IsSuccess()) {
                             path = tablePath;
-                            statement = formatterResult.ExtractOut();
+                            createQuery = formatterResult.ExtractOut();
                         } else {
                             ReplyErrorAndDie(formatterResult.GetStatus(), formatterResult.GetError());
                             return;
@@ -294,10 +313,10 @@ private:
                         }
 
                         TCreateTableFormatter formatter;
-                        auto formatterResult = formatter.Format(tablePath, columnTableDesc, temporary);
+                        auto formatterResult = formatter.Format(tablePath, Path, columnTableDesc, temporary);
                         if (formatterResult.IsSuccess()) {
                             path = tablePath;
-                            statement = formatterResult.ExtractOut();
+                            createQuery = formatterResult.ExtractOut();
                         } else {
                             ReplyErrorAndDie(formatterResult.GetStatus(), formatterResult.GetError());
                             return;
@@ -311,7 +330,7 @@ private:
                         TCreateViewFormatter formatter;
                         auto formatterResult = formatter.Format(*path, Path, description);
                         if (formatterResult.IsSuccess()) {
-                            statement = formatterResult.ExtractOut();
+                            createQuery = formatterResult.ExtractOut();
                         } else {
                             return ReplyErrorAndDie(formatterResult.GetStatus(), formatterResult.GetError());
                         }
@@ -345,11 +364,11 @@ private:
         }
 
         Y_ENSURE(path.has_value());
-        Y_ENSURE(statement.has_value());
+        Y_ENSURE(createQuery.has_value());
 
         auto batch = MakeHolder<NKqp::TEvKqpCompute::TEvScanData>(ScanId);
 
-        FillBatch(*batch, path.value(), statement.value());
+        FillBatch(*batch, path.value(), createQuery.value());
 
         SendBatch(std::move(batch));
     }
@@ -359,7 +378,7 @@ private:
         const auto& record = ev->Get()->GetRecord();
         const auto status = record.GetStatus();
         std::optional<TString> path;
-        std::optional<TString> statement;
+        std::optional<TString> createQuery;
         switch (status) {
             case NKikimrScheme::StatusSuccess: {
                 auto currentPath = record.GetPath();
@@ -385,20 +404,22 @@ private:
                         it->second = MakeHolder<NKikimrSchemeOp::TPersQueueGroupDescription>(description);
                         CollectTableSettingsState->CurrentPersQueuesNumber++;
 
-                        if (CollectTableSettingsState->CurrentPersQueuesNumber != CollectTableSettingsState->PersQueues.size()) {
+                        if (!CollectTableSettingsState->IsReady()) {
                             return;
                         }
 
                         TCreateTableFormatter formatter;
                         auto formatterResult = formatter.Format(
                             CollectTableSettingsState->TablePath,
+                            Path,
                             CollectTableSettingsState->TableDescription,
                             CollectTableSettingsState->Temporary,
-                            CollectTableSettingsState->PersQueues
+                            CollectTableSettingsState->PersQueues,
+                            CollectTableSettingsState->Sequences
                         );
                         if (formatterResult.IsSuccess()) {
                             path = CollectTableSettingsState->TablePath;
-                            statement = formatterResult.ExtractOut();
+                            createQuery = formatterResult.ExtractOut();
                         } else {
                             ReplyErrorAndDie(formatterResult.GetStatus(), formatterResult.GetError());
                             return;
@@ -432,11 +453,62 @@ private:
         }
 
         Y_ENSURE(path.has_value());
-        Y_ENSURE(statement.has_value());
+        Y_ENSURE(createQuery.has_value());
 
         auto batch = MakeHolder<NKqp::TEvKqpCompute::TEvScanData>(ScanId);
 
-        FillBatch(*batch, path.value(), statement.value());
+        FillBatch(*batch, path.value(), createQuery.value());
+
+        SendBatch(std::move(batch));
+    }
+
+    void Handle(NSequenceProxy::TEvSequenceProxy::TEvGetSequenceResult::TPtr& ev) {
+        if (ev->Get()->Status != Ydb::StatusIds::SUCCESS) {
+            ReplyErrorAndDie(ev->Get()->Status, ev->Get()->Issues.ToString());
+            return;
+        }
+
+        auto* msg = ev->Get();
+
+        auto it = CollectTableSettingsState->Sequences.find(msg->PathId);
+        if (it == CollectTableSettingsState->Sequences.end()) {
+            return ReplyErrorAndDie(Ydb::StatusIds::INTERNAL_ERROR, TStringBuilder() << "Unknown sequence path id: " << msg->PathId);
+        }
+        if (it->second) {
+            return ReplyErrorAndDie(Ydb::StatusIds::INTERNAL_ERROR, TStringBuilder() << "Found duplicate sequence path id: " << msg->PathId);
+        }
+        it->second = MakeHolder<NSequenceProxy::TEvSequenceProxy::TEvGetSequenceResult>(*msg);
+        CollectTableSettingsState->CurrentSequencesNumber++;
+
+        if (!CollectTableSettingsState->IsReady()) {
+            return;
+        }
+
+        TCreateTableFormatter formatter;
+        auto formatterResult = formatter.Format(
+            CollectTableSettingsState->TablePath,
+            Path,
+            CollectTableSettingsState->TableDescription,
+            CollectTableSettingsState->Temporary,
+            CollectTableSettingsState->PersQueues,
+            CollectTableSettingsState->Sequences
+        );
+        std::optional<TString> path;
+        std::optional<TString> createQuery;
+        if (formatterResult.IsSuccess()) {
+            path = CollectTableSettingsState->TablePath;
+            createQuery = formatterResult.ExtractOut();
+        } else {
+            ReplyErrorAndDie(formatterResult.GetStatus(), formatterResult.GetError());
+            return;
+        }
+
+        Y_ENSURE(path.has_value());
+        Y_ENSURE(createQuery.has_value());
+
+        auto batch = MakeHolder<NKqp::TEvKqpCompute::TEvScanData>(ScanId);
+
+        FillBatch(*batch, path.value(), createQuery.value());
 
         SendBatch(std::move(batch));
     }
@@ -453,6 +525,12 @@ private:
         bool Temporary;
         THashMap<TString, THolder<NKikimrSchemeOp::TPersQueueGroupDescription>> PersQueues;
         ui32 CurrentPersQueuesNumber = 0;
+        THashMap<TPathId, THolder<NSequenceProxy::TEvSequenceProxy::TEvGetSequenceResult>> Sequences;
+        ui32 CurrentSequencesNumber = 0;
+
+        bool IsReady() const {
+            return CurrentPersQueuesNumber == PersQueues.size() && CurrentSequencesNumber == Sequences.size();
+        }
     };
     THolder<TCollectTableSettingsState> CollectTableSettingsState;
 };

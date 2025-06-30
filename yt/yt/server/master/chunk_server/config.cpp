@@ -738,6 +738,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("disposed_pending_restart_node_chunk_refresh_delay", &TThis::DisposedPendingRestartNodeChunkRefreshDelay)
         .Default(TDuration::Minutes(1));
 
+    registrar.Parameter("virtual_chunk_map_read_result_limit", &TThis::VirtualChunkMapReadResultLimit)
+        .GreaterThanOrEqual(0)
+        .Default(100);
+
     registrar.Parameter("enable_fix_requisition_update_on_merge", &TThis::EnableFixRequisitionUpdateOnMerge)
         .Default(false);
 
@@ -749,6 +753,17 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("nodes_to_check_before_giving_up_on_write_target_allocation", &TThis::NodesToCheckBeforeGivingUpOnWriteTargetAllocation)
         .Default(32);
+
+    registrar.Parameter("enable_node_write_session_limit_on_write_target_allocation", &TThis::EnableNodeWriteSessionLimitOnWriteTargetAllocation)
+        .Default(false);
+
+    // NB: For testing purposes only.
+    registrar.Parameter("enable_node_write_session_limit_for_user_on_write_target_allocation", &TThis::EnableNodeWriteSessionLimitForUserOnWriteTargetAllocation)
+        .Default(false);
+
+    registrar.Parameter("node_write_session_limit_fraction_on_write_target_allocation", &TThis::NodeWriteSessionLimitFractionOnWriteTargetAllocation)
+        .InRange(0.0, 1.0)
+        .Default(1.0);
 
     registrar.Parameter("data_center_failure_detector", &TThis::DataCenterFailureDetector)
         .DefaultNew();

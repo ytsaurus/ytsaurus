@@ -83,9 +83,13 @@
 
 #include <yt/yt/server/master/transaction_server/cypress_integration.h>
 
+#include <yt/yt/server/lib/cellar_agent/helpers.h>
+
 #include <yt/yt/server/lib/hydra/hydra_context.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/sequoia/helpers.h>
 
 #include <yt/yt/ytlib/api/native/proto/transaction_actions.pb.h>
 
@@ -149,11 +153,9 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
 
-using TYPath = NYPath::TYPath;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CypressServerLogger;
+constinit const auto Logger = CypressServerLogger;
 static const INodeTypeHandlerPtr NullTypeHandler;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -786,7 +788,7 @@ private:
             return;
         }
 
-        static const TString AllowExternalFalseKey("allow_external_false");
+        static const std::string AllowExternalFalseKey("allow_external_false");
         auto attribute  = user->FindAttribute(AllowExternalFalseKey);
         if (attribute && ConvertTo<bool>(*attribute)) {
             return;
@@ -1459,6 +1461,12 @@ public:
 
         // See SerializeNodeCore.
         auto type = Load<EObjectType>(*context);
+        if (context->GetMaterializeAsSequoiaNode()) {
+            type = MaybeConvertToSequoiaType(type);
+        } else if (!context->GetMaterializeAsSequoiaNode()) {
+            type = MaybeConvertToCypressType(type);
+        }
+
         ValidateCreatedNodeTypePermission(type);
 
         auto externalCellTag = Load<TCellTag>(*context);
@@ -1569,7 +1577,11 @@ public:
             if (pathRootType) {
                 *pathRootType = EPathRootType::PortalExit;
             }
-        } else if (currentNode->ImmutableSequoiaProperties()) {
+        } else if (
+            currentNode->ImmutableSequoiaProperties() &&
+            currentNode->IsNative() &&
+            currentNode->GetReachable())
+        {
             builder.AppendString(currentNode->ImmutableSequoiaProperties()->Path);
             if (pathRootType) {
                 *pathRootType = EPathRootType::SequoiaNode;
@@ -1605,6 +1617,11 @@ public:
             path,
             transaction,
             IObjectManager::TResolvePathOptions{});
+        return CastObjectToCypressNodeOrThrow(object, path);
+    }
+
+    TCypressNode* CastObjectToCypressNodeOrThrow(TObject* object, const TYPath& path)
+    {
         if (!IsVersionedType(object->GetType())) {
             THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
                 path,
@@ -1617,6 +1634,18 @@ public:
     {
         auto* trunkNode = ResolvePathToTrunkNode(path, transaction);
         return GetNodeProxy(trunkNode, transaction);
+    }
+
+    ICypressNodeProxyPtr TryResolvePathToNodeProxy(const TYPath& path, TTransaction* transaction) override
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto* object = objectManager->ResolvePathToObject(
+            path,
+            transaction,
+            IObjectManager::TResolvePathOptions{});
+        return object
+            ? GetNodeProxy(CastObjectToCypressNodeOrThrow(object, path), transaction)
+            : nullptr;
     }
 
     TCypressNode* FindNode(
@@ -2684,7 +2713,7 @@ private:
     NHydra::TEntityMap<TAccessControlObject> AccessControlObjectMap_;
     NHydra::TEntityMap<TAccessControlObjectNamespace> AccessControlObjectNamespaceMap_;
 
-    using TNameToAccessControlObjectNamespace = THashMap<TString, TAccessControlObjectNamespace*>;
+    using TNameToAccessControlObjectNamespace = THashMap<std::string, TAccessControlObjectNamespace*>;
     TNameToAccessControlObjectNamespace NameToAccessControlObjectNamespaceMap_;
 
     std::unique_ptr<TEnumIndexedArray<NObjectClient::EObjectType, INodeTypeHandlerPtr>> TypeToHandler_;
@@ -2703,7 +2732,12 @@ private:
     bool RecomputeNodeReachability_ = false;
 
     // COMPAT(shakurov)
-    bool NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_ = false;
+    bool NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
+    // COMPAT(shakurov)
+    bool NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
+
+    // COMPAT(danilalexeev): YT-21862.
+    bool ValidateLegacyCellMapsEmptyOnSnapshotLoaded_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -2767,8 +2801,19 @@ private:
         }
 
         // COMPAT(shakurov)
-        NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_ =
-            context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodes;
+        YT_VERIFY(EMasterReign::ResetHunkMediaOnBranchedNodes < EMasterReign::ResetHunkMediaOnBranchedNodesOnly);
+        if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodes) {
+            NeedResetHunkSpecificMediaOnTrunkNodes_ = true;
+            NeedResetHunkSpecificMediaOnBranchedNodes_ = true;
+        } else if (context.GetVersion() < EMasterReign::ResetHunkMediaOnBranchedNodesOnly) {
+            YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_); // Check and leave it false.
+            NeedResetHunkSpecificMediaOnBranchedNodes_ = true;
+        } // Else leave both of them false.
+
+        // COMPAT(danilalexeev): YT-21862.
+        if (context.GetVersion() < EMasterReign::AutomaticCellMapMigration) {
+            ValidateLegacyCellMapsEmptyOnSnapshotLoaded_ = true;
+        }
     }
 
     void Clear() override
@@ -2794,7 +2839,9 @@ private:
         RecursiveResourceUsageCache_->Clear();
 
         RecomputeNodeReachability_ = false;
-        NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_ = false;
+        NeedResetHunkSpecificMediaOnTrunkNodes_ = false;
+        NeedResetHunkSpecificMediaOnBranchedNodes_ = false;
+        ValidateLegacyCellMapsEmptyOnSnapshotLoaded_ = false;
     }
 
     void SetZeroState() override
@@ -2903,7 +2950,10 @@ private:
         }
 
         // COMPAT(shakurov)
-        if (NeedResetHunkSpecificMediaAndRecomputeTabletStatistics_) {
+        YT_VERIFY(!NeedResetHunkSpecificMediaOnTrunkNodes_ || NeedResetHunkSpecificMediaOnBranchedNodes_);
+        if (NeedResetHunkSpecificMediaOnTrunkNodes_ ||
+            NeedResetHunkSpecificMediaOnBranchedNodes_)
+        {
             const auto& tabletManager = Bootstrap_->GetTabletManager();
             for (auto [nodeId, node] : NodeMap_) {
                 if (!IsObjectAlive(node) && node->IsTrunk()) {
@@ -2914,10 +2964,66 @@ private:
                     continue;
                 }
 
+                if (node->IsTrunk() && !NeedResetHunkSpecificMediaOnTrunkNodes_) {
+                    continue;
+                }
+
+                // Just a reminder - already checked above.
+                YT_VERIFY(NeedResetHunkSpecificMediaOnBranchedNodes_);
+
                 auto* chunkOwnerNode = node->As<TChunkOwnerBase>();
                 chunkOwnerNode->ResetHunkPrimaryMediumIndex();
                 chunkOwnerNode->HunkReplication().ClearEntries();
                 tabletManager->OnNodeStorageParametersUpdated(chunkOwnerNode);
+
+                // NB: resetting hunk media-related settings on branches won't
+                // reproduce invariants maintained by a running system. But since
+                // those settings cannot be modified under transaction, aren't
+                // merged back in and simply dropped at tx commit, the only
+                // thing affected by this is the decision, at commit time,
+                // to schedule (or not) a requisition update. This is hardly
+                // significant, seeing as the feature is still very fresh.
+            }
+        }
+
+        const auto& config = GetDynamicConfig();
+        if (config->AlertOnListNodeLoad) {
+            for (auto [nodeId, node] : NodeMap_) {
+                YT_LOG_ALERT_IF(
+                    node->GetType() == EObjectType::ListNode,
+                    "A list node encountered during snapshot load; list nodes are deprecated "
+                    "and the ability to load them will be removed completely in the next major version. "
+                    "Please consider removing or replacing them with document nodes (NodeId: %v, Path: %v)",
+                    nodeId,
+                    GetNodePath(node->GetTrunkNode(), node->GetTransaction()));
+            }
+        }
+
+        // COMPAT(danilalexeev): YT-21862.
+        if (ValidateLegacyCellMapsEmptyOnSnapshotLoaded_) {
+            for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
+                auto cellMapNodeProxy = ResolvePathToNodeProxy(
+                    NCellarAgent::GetCellarTypeCypressPathPrefix(cellarType),
+                    /*transaction*/ nullptr);
+                if (cellMapNodeProxy->GetType() != ENodeType::Map) {
+                    return;
+                }
+
+                auto descendants = ListSubtreeNodes(
+                    cellMapNodeProxy->GetTrunkNode(),
+                    /*transaction*/ nullptr,
+                    /*includeRoot*/ false);
+
+                for (auto* node : descendants) {
+                    THROW_ERROR_EXCEPTION_IF(
+                        node->GetType() == EObjectType::Journal ||
+                        node->GetType() == EObjectType::File,
+                        "Failed to migrate to new cell map nodes: found legacy"
+                        " object %v at %v. Before updating, ensure all data is"
+                        " migrated and legacy storage is empty.",
+                        node->GetId(),
+                        GetNodePath(node, /*transaction*/ nullptr));
+                }
             }
         }
     }
@@ -3163,7 +3269,6 @@ private:
             return DoCheckLock(trunkNode, transaction, request);
         };
 
-
         // Validate all potential locks to see if we need to take at least one of them.
         // This throws an exception in case the validation fails.
         return CheckSubtreeTrunkNodes(trunkNode, transaction, recursive, doCheck);
@@ -3260,22 +3365,24 @@ private:
                 currentTransaction = currentTransaction->GetParent();
             }
 
-            // Validate lock count.
-            const auto& config = GetDynamicConfig();
-            auto lockCountLimit = config->MaxLocksPerTransactionSubtree;
-            currentTransaction = transaction;
-            while (currentTransaction) {
-                auto recursiveLockCount = currentTransaction->GetRecursiveLockCount();
-                if (recursiveLockCount >= lockCountLimit) {
-                    return TError(
-                        NCypressClient::EErrorCode::TooManyLocksOnTransaction,
-                        "Cannot create %Qlv lock for node %v since transaction %v and its descendants already have %v locks associated with them",
-                        request.Mode,
-                        GetNodePath(trunkNode, transaction),
-                        currentTransaction->GetId(),
-                        recursiveLockCount);
+            if (trunkNode->IsNative()) {
+                // Validate lock count.
+                const auto& config = GetDynamicConfig();
+                auto lockCountLimit = config->MaxLocksPerTransactionSubtree;
+                currentTransaction = transaction;
+                while (currentTransaction) {
+                    auto recursiveLockCount = currentTransaction->GetRecursiveLockCount();
+                    if (recursiveLockCount >= lockCountLimit) {
+                        return TError(
+                            NCypressClient::EErrorCode::TooManyLocksOnTransaction,
+                            "Cannot create %Qlv lock for node %v since transaction %v and its descendants already have %v locks associated with them",
+                            request.Mode,
+                            GetNodePath(trunkNode, transaction),
+                            currentTransaction->GetId(),
+                            recursiveLockCount);
+                    }
+                    currentTransaction = currentTransaction->GetParent();
                 }
-                currentTransaction = currentTransaction->GetParent();
             }
         }
 
@@ -4049,6 +4156,7 @@ private:
 
         TCypressNode* originatingNode = nullptr;
 
+        bool branchedNodeReachable = branchedNode->GetReachable();
         MaybeSetUnreachable(handler, branchedNode);
 
         if (!isSnapshotBranch) {
@@ -4072,6 +4180,23 @@ private:
             YT_LOG_DEBUG("Node snapshot destroyed (NodeId: %v)", branchedNodeId);
         }
 
+        if (originatingNode &&
+            originatingNode->IsSequoia() &&
+            originatingNode->IsNative())
+        {
+            if (branchedNode->MutableSequoiaProperties()->Tombstone) {
+                originatingNode->MutableSequoiaProperties()->Tombstone = true;
+
+                if (originatingNode->GetReachable()) {
+                    handler->SetUnreachable(originatingNode);
+                }
+                originatingNode = nullptr;
+            } else if (!originatingNode->GetReachable()) {
+                YT_VERIFY(branchedNodeReachable);
+                handler->SetReachable(originatingNode);
+            }
+        }
+
         // Drop the implicit reference to the trunk.
         objectManager->UnrefObject(trunkNode);
 
@@ -4080,17 +4205,7 @@ private:
 
         YT_LOG_DEBUG("Branched node removed (NodeId: %v)", branchedNodeId);
 
-        if (originatingNode &&
-            originatingNode->IsTrunk() &&
-            originatingNode->IsSequoia() &&
-            originatingNode->IsNative() &&
-            originatingNode->MutableSequoiaProperties()->Tombstone)
-        {
-            objectManager->UnrefObject(originatingNode);
-            return nullptr;
-        } else {
-            return originatingNode;
-        }
+        return originatingNode;
     }
 
     //! Returns originating node.
@@ -4452,6 +4567,7 @@ private:
                     "removal is canceled (NodeId: %v, Path: %v)",
                     nodeId,
                     path);
+                ExpirationTracker_->OnNodeRemovalFailed(trunkNode);
                 continue;
             }
 
@@ -4595,7 +4711,7 @@ private:
     void SetAttributeOnTransactionCommit(
         TTransactionId transactionId,
         TNodeId nodeId,
-        const TString& attribute,
+        const std::string& attribute,
         const TYsonString& value)
     {
         YT_VERIFY(HasMutationContext());
@@ -4692,6 +4808,7 @@ private:
         auto* transaction = currentNode->GetTransaction();
         if (!transaction) {
             YT_LOG_ALERT("Skipping manual node unbranching: node is already trunk (NodeId: %v)", versionedId);
+            return;
         }
 
         for (auto nestedTransaction : transaction->NestedTransactions()) {

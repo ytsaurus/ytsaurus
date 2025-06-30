@@ -78,7 +78,7 @@ public:
     TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const override;
     EPreemptionMode GetPreemptionMode() const override;
 
-    std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction();
+    std::pair<NApi::ITransactionPtr, std::string> GetIntermediateMediumTransaction();
     void UpdateIntermediateMediumUsage(i64 usage);
 
 private:

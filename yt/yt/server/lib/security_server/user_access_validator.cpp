@@ -3,6 +3,10 @@
 #include "config.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/config.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
@@ -18,36 +22,76 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TUserBanCacheKey = std::pair<std::string, std::optional<std::string>>;
+
 DECLARE_REFCOUNTED_CLASS(TUserBanCache)
 
 class TUserBanCache
-    : public TAsyncExpiringCache<std::string, void>
+    : public TAsyncExpiringCache<TUserBanCacheKey, void>
 {
 public:
     TUserBanCache(
         TAsyncExpiringCacheConfigPtr config,
-        IConnectionPtr connection,
+        NNative::IConnectionPtr connection,
         TLogger logger)
         : TAsyncExpiringCache(std::move(config), logger.WithTag("Cache: UserBan"))
         , Connection_(std::move(connection))
         , Logger(std::move(logger))
-        , Client_(Connection_->CreateClient(TClientOptions::Root()))
+        , Client_(Connection_->CreateNativeClient(TClientOptions::Root()))
     { }
 
 private:
-    const IConnectionPtr Connection_;
+    const NNative::IConnectionPtr Connection_;
     const TLogger Logger;
-    const IClientPtr Client_;
+    const NNative::IClientPtr Client_;
 
-    TFuture<void> DoGet(const std::string& user, bool /*isPeriodicUpdate*/) noexcept override
+    THashMap<std::string, NNative::IClientPtr> RemoteClientMap_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, RemoteClientMapLock_);
+
+    TFuture<void> DoGet(const TUserBanCacheKey& cacheKey, bool /*isPeriodicUpdate*/) noexcept override
     {
-        YT_LOG_DEBUG("Getting user ban flag (User: %v)",
-            user);
+        const auto& [user, cluster] = cacheKey;
+        YT_LOG_DEBUG("Getting user ban flag (User: %v, Cluster: %v)",
+            user,
+            cluster);
 
+        if (!cluster) {
+            return CheckUser(Client_, user);
+        }
+
+        std::vector<TFuture<void>> futures;
+        // Check user on local cluster first.
+        futures.push_back(Get(TUserBanCacheKey(user, std::nullopt)));
+
+        // If remote multiproxy target specified check its ban status as well.
+
+        NNative::IClientPtr remoteClient;
+        try {
+            auto guard = Guard(RemoteClientMapLock_);
+
+            const auto& [it, inserted] = RemoteClientMap_.emplace(*cluster, nullptr);
+            if (inserted) {
+                auto remoteClusterConnection = Connection_->GetClusterDirectory()->GetConnectionOrThrow(*cluster);
+                it->second = remoteClusterConnection->CreateNativeClient(TClientOptions::Root());
+            }
+            remoteClient = it->second;
+        } catch (const std::exception& ex) {
+            return MakeFuture<void>(ex);
+        }
+        futures.push_back(CheckUser(remoteClient, user));
+
+        return AllSucceeded(std::move(futures));
+    }
+
+    TFuture<void> CheckUser(const NNative::IClientPtr& client, const std::string& user) noexcept
+    {
         auto options = TGetNodeOptions();
         options.ReadFrom = EMasterChannelKind::Cache;
-        return Client_->GetNode("//sys/users/" + ToYPathLiteral(user) + "/@banned", options).Apply(
-            BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
+        options.SuppressUpstreamSync = true;
+        options.SuppressTransactionCoordinatorSync = true;
+        auto clusterName = client->GetNativeConnection()->GetStaticConfig()->ClusterName;
+        return client->GetNode("//sys/users/" + ToYPathLiteral(user) + "/@banned", options).Apply(
+            BIND([user, clusterName, this, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
                 if (!resultOrError.IsOK()) {
                     auto wrappedError = TError("Error getting user info for user %Qv",
                         user)
@@ -63,8 +107,9 @@ private:
                     banned);
 
                 if (banned) {
-                    THROW_ERROR_EXCEPTION("User %Qv is banned",
-                        user);
+                    THROW_ERROR_EXCEPTION("User %Qv is banned on cluster %Qv",
+                        user,
+                        clusterName.value_or("unknown"));
                 }
             }));
     }
@@ -80,7 +125,7 @@ class TUserAccessValidator
 public:
     TUserAccessValidator(
         TUserAccessValidatorDynamicConfigPtr config,
-        IConnectionPtr connection,
+        NNative::IConnectionPtr connection,
         TLogger logger)
         : UserCache_(New<TUserBanCache>(
             config->BanCache,
@@ -88,11 +133,11 @@ public:
             std::move(logger)))
     { }
 
-    void ValidateUser(const std::string& user) override
+    void ValidateUser(const std::string& user, const std::optional<std::string>& cluster) override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        WaitForFast(UserCache_->Get(user))
+        WaitForFast(UserCache_->Get({user, cluster}))
             .ThrowOnError();
     }
 
@@ -111,7 +156,7 @@ private:
 
 IUserAccessValidatorPtr CreateUserAccessValidator(
     TUserAccessValidatorDynamicConfigPtr config,
-    IConnectionPtr connection,
+    NNative::IConnectionPtr connection,
     NLogging::TLogger logger)
 {
     return New<TUserAccessValidator>(

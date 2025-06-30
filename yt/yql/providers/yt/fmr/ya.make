@@ -1,6 +1,7 @@
 RECURSE(
     coordinator
     fmr_tool_lib
+    gc_service
     job
     job_factory
     proto
@@ -8,7 +9,7 @@ RECURSE(
     table_data_service
     utils
     worker
-    yt_service
+    yt_job_service
 )
 
 RECURSE_FOR_TESTS(

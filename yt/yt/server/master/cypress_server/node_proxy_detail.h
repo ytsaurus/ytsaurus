@@ -453,7 +453,10 @@ END_DEFINE_SCALAR_TYPE(Boolean, bool)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressMapNodeProxy
-    : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TCypressMapNode>
+    : public TCypressNodeProxyBase<
+        TNontemplateCompositeCypressNodeProxyBase,
+        NYTree::IMapNode,
+        TCypressMapNode>
     , public NYTree::TMapNodeMixin
     , public TSupportsForcefulSetSelfMixin
 {
@@ -479,7 +482,10 @@ protected:
     bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
 
 private:
-    using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TCypressMapNode>;
+    using TBase = TCypressNodeProxyBase<
+        TNontemplateCompositeCypressNodeProxyBase,
+        NYTree::IMapNode,
+        TCypressMapNode>;
 
     bool DoInvoke(const NYTree::IYPathServiceContextPtr& context) override;
 
@@ -550,12 +556,18 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TListNodeProxy
-    : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>
+    : public TCypressNodeProxyBase<
+        TNontemplateCompositeCypressNodeProxyBase,
+        NYTree::IListNode,
+        TListNode>
     , public NYTree::TListNodeMixin
     , public TSupportsForcefulSetSelfMixin
 {
 private:
-    using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>;
+    using TBase = TCypressNodeProxyBase<
+        TNontemplateCompositeCypressNodeProxyBase,
+        NYTree::IListNode,
+        TListNode>;
 
 public:
     YTREE_NODE_TYPE_OVERRIDES(List)

@@ -1,9 +1,11 @@
 #include "sorted_chunk_store.h"
+
 #include "automaton.h"
+#include "config.h"
 #include "in_memory_manager.h"
+#include "serialize.h"
 #include "tablet.h"
 #include "transaction.h"
-#include "serialize.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -363,9 +365,9 @@ TSortedChunkStorePtr TSortedChunkStore::AsSortedChunk()
     return this;
 }
 
-void TSortedChunkStore::BuildOrchidYson(TFluentMap fluent)
+void TSortedChunkStore::DoBuildOrchidYson(TFluentMap fluent)
 {
-    TChunkStoreBase::BuildOrchidYson(fluent);
+    TChunkStoreBase::DoBuildOrchidYson(fluent);
 
     fluent
         .Item("min_key").Value(GetMinKey())
@@ -939,8 +941,7 @@ private:
 
         auto chunkState = chunkStore->PrepareChunkState(chunkMeta);
 
-        if (chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
-        {
+        if (chunkMeta->GetChunkFormat() == EChunkFormat::TableVersionedColumnar) {
             auto blockManagerFactory = NColumnarChunkFormat::CreateAsyncBlockWindowManagerFactory(
                 std::move(backendReaders.ReaderConfig),
                 std::move(backendReaders.ChunkReader),

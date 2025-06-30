@@ -7,7 +7,8 @@
 Тип `default_value` должен совпадать с типом поля `key` из структуры.
 
 #### Сигнатура
-```
+
+```yql
 TryMember(struct:Struct<...>, key:String, default_value:T) -> T
 TryMember(struct:Struct<...>?, key:String, default_value:T) -> T?
 ```
@@ -18,14 +19,15 @@ TryMember(struct:Struct<...>?, key:String, default_value:T) -> T?
 2. key - имя поля;
 3. default_value - значение по умолчанию если поле отсутствует
 
-{% note info "Ограничение" %}
+{% note info %}
 
 Имя поля (key) не может зависеть от данных или от аргументов лямбды. В этом случае функция TryMember не может быть протипизирована.
 
 {% endnote %}
 
 #### Примеры
-``` yql
+
+```yql
 $struct = <|a:1|>;
 SELECT
   TryMember(
@@ -45,7 +47,8 @@ SELECT
 Добавление одного или нескольких новых полей в структуру. Возвращается новая раширенная структура.  В случае возникновения дублей в наборе полей будет возвращена ошибка.
 
 #### Сигнатура
-```
+
+```yql
 ExpandStruct(struct:Struct<...>, value_1:T1 AS key_1:K, value_2:T2 AS key_2:K, ....) -> Struct<...>
 ```
 
@@ -55,7 +58,8 @@ ExpandStruct(struct:Struct<...>, value_1:T1 AS key_1:K, value_2:T2 AS key_2:K, .
 * Все остальные аргументы должны быть именованными, каждый аргумент добавляет новое поле и имя аргумента используется в роли имени поля (по аналогии с [AsStruct](basic.md#asstruct)).
 
 #### Примеры
-``` yql
+
+```yql
 $struct = <|a:1|>;
 SELECT
   ExpandStruct(
@@ -72,7 +76,8 @@ SELECT
 В случае возникновения дублей в наборе полей будет возвращена ошибка.
 
 #### Сигнатура
-```
+
+```yql
 AddMember(struct:Struct<...>, new_key:String, new_value:T) -> Struct<...>
 ```
 
@@ -83,7 +88,8 @@ AddMember(struct:Struct<...>, new_key:String, new_value:T) -> Struct<...>
 3. new_value - значение нового поля.
 
 #### Примеры
-``` yql
+
+```yql
 $struct = <|a:1|>;
 SELECT
   AddMember(
@@ -98,7 +104,8 @@ SELECT
 Удаление поля из структуры. Если указанного поля не существовало, будет возвращена ошибка.
 
 #### Сигнатура
-```
+
+```yql
 RemoveMember(struct:Struct<...>, key_to_delete:String) -> Struct<...>
 ```
 
@@ -108,7 +115,8 @@ RemoveMember(struct:Struct<...>, key_to_delete:String) -> Struct<...>
 2. Имя поля для удаления
 
 #### Примеры
-``` yql
+
+```yql
 $struct = <|a:1, b:2|>;
 SELECT
   RemoveMember(
@@ -124,7 +132,8 @@ SELECT
 Если указанного поля не существовало, в отличии от [RemoveMember](#removemember) ошибка возвращена не будет.
 
 #### Сигнатура
-```
+
+```yql
 ForceRemoveMember(struct:Struct<...>, key_to_delete:String) -> Struct<...>
 ```
 
@@ -134,7 +143,8 @@ ForceRemoveMember(struct:Struct<...>, key_to_delete:String) -> Struct<...>
 2. Имя поля для удаления.
 
 #### Примеры
-``` yql
+
+```yql
 $struct = <|a:1, b:2|>;
 SELECT
   ForceRemoveMember(
@@ -150,7 +160,8 @@ SELECT
 Если какого-либо из полей не существовало, будет возвращена ошибка.
 
 #### Сигнатура
-```
+
+```yql
 ChooseMembers(struct:Struct<...>, list_of_keys:List<String>) -> Struct<...>
 ```
 
@@ -160,7 +171,8 @@ ChooseMembers(struct:Struct<...>, list_of_keys:List<String>) -> Struct<...>
 2. Список имен полей.
 
 #### Примеры
-``` yql
+
+```yql
 $struct = <|a:1, b:2, c:3|>;
 SELECT
   ChooseMembers(
@@ -176,7 +188,8 @@ SELECT
 Если какого-либо из полей не существовало, будет возвращена ошибка.
 
 #### Сигнатура
-```
+
+```yql
 RemoveMembers(struct:Struct<...>, list_of_delete_keys:List<String>) -> Struct<...>
 ```
 
@@ -186,7 +199,8 @@ RemoveMembers(struct:Struct<...>, list_of_delete_keys:List<String>) -> Struct<..
 2. Список имен полей.
 
 #### Примеры
-``` yql
+
+```yql
 $struct = <|a:1, b:2, c:3|>;
 SELECT
   RemoveMembers(
@@ -202,7 +216,8 @@ SELECT
 Если какого-либо из полей не существовало, то оно игнорируется.
 
 #### Сигнатура
-```
+
+```yql
 ForceRemoveMembers(struct:Struct<...>, list_of_delete_keys:List<String>) -> Struct<...>
 ```
 
@@ -212,7 +227,8 @@ ForceRemoveMembers(struct:Struct<...>, list_of_delete_keys:List<String>) -> Stru
 2. Список имен полей.
 
 #### Примеры
-``` yql
+
+```yql
 $struct = <|a:1, b:2, c:3|>;
 SELECT
   ForceRemoveMembers(
@@ -228,7 +244,8 @@ SELECT
 В случае возникновения дублей в результирующем наборе полей будет возвращена ошибка.
 
 #### Сигнатура
-```
+
+```yql
 CombineMembers(struct1:Struct<...>, struct2:Struct<...>, .....) -> Struct<...>
 CombineMembers(struct1:Struct<...>?, struct2:Struct<...>?, .....) -> Struct<...>
 ```
@@ -236,7 +253,8 @@ CombineMembers(struct1:Struct<...>?, struct2:Struct<...>?, .....) -> Struct<...>
 Аргументы: две и более структуры.
 
 #### Примеры
-``` yql
+
+```yql
 $struct1 = <|a:1, b:2|>;
 $struct2 = <|c:3|>;
 SELECT
@@ -253,14 +271,16 @@ SELECT
 В случае возникновения дублей в результирующем наборе полей будет возвращена ошибка.
 
 #### Сигнатура
-```
+
+```yql
 FlattenMembers(prefix_struct1:Tuple<String, Struct<...>>, prefix_struct2:Tuple<String, Struct<...>>, ...) -> Struct<...>
 ```
 
 Аргументы: два и более кортежа из двух элементов: префикс и структура.
 
 #### Примеры
-``` yql
+
+```yql
 $struct1 = <|a:1, b:2|>;
 $struct2 = <|c:3|>;
 SELECT
@@ -275,7 +295,8 @@ SELECT
 Возвращает неупорядоченный список имен полей (возможно, сняв один уровень опциональности) для единственного аргумента - структуры. Для `NULL` аргумента возвращается пустой список строк.
 
 #### Сигнатура
-```
+
+```yql
 StructMembers(struct:Struct<...>) -> List<String>
 StructMembers(struct:Struct<...>?) -> List<String>
 StructMembers(NULL) -> []
@@ -284,7 +305,8 @@ StructMembers(NULL) -> []
 Аргумент: структура
 
 #### Примеры
-``` yql
+
+```yql
 $struct = <|a:1, b:2|>;
 SELECT
   StructMembers($struct) AS a, -- ['a', 'b']
@@ -296,7 +318,8 @@ SELECT
 Переименовывает поля в переданной структуре. При этом исходное поле можно переименовать в несколько новых. Все поля, не упомянутые в переименовании как исходные, переносятся в результирующую структуру. Если нет какого-то исходного поля в списке для переименования, выдается ошибка. Для опциональной структуры либо `NULL` таким же является и результат.
 
 #### Сигнатура
-```
+
+```yql
 RenameMembers(struct:Struct<...>, rename_rules:List<Tuple<String, String>>) -> Struct<...>
 ```
 
@@ -306,7 +329,8 @@ RenameMembers(struct:Struct<...>, rename_rules:List<Tuple<String, String>>) -> S
 2. Список имен полей в форме списка таплов: исходное имя, новое имя.
 
 #### Примеры
-``` yql
+
+```yql
 $struct = <|a:1, b:2|>;
 SELECT
   RenameMembers($struct, [('a', 'c'), ('a', 'e')]); -- (b:2, c:1, e:1)
@@ -317,7 +341,8 @@ SELECT
 Переименовывает поля в переданной структуре. При этом исходное поле можно переименовать в несколько новых. Все поля, не упомянутые в переименовании как исходные, переносятся в результирующую структуру. Если нет какого-то исходного поля в списке для переименования, оно игнорируется. Для опциональной структуры либо `NULL` таким же является и результат.
 
 #### Сигнатура
-```
+
+```yql
 ForceRenameMembers(struct:Struct<...>, rename_rules:List<Tuple<String, String>>) -> Struct<...>
 ```
 
@@ -327,7 +352,8 @@ ForceRenameMembers(struct:Struct<...>, rename_rules:List<Tuple<String, String>>)
 2. Список имен полей в форме списка таплов: исходное имя, новое имя.
 
 #### Примеры
-``` yql
+
+```yql
 $struct = <|a:1, b:2|>;
 SELECT
   ForceRenameMembers($struct, [('a', 'c'), ('d', 'e')]); -- (b:2, c:1)
@@ -338,7 +364,8 @@ SELECT
 Возвращает неупорядоченный список таплов из имени поля и значения. Для `NULL` аргумента возвращается `EmptyList`. Можно использовать только в тех случаях, когда типы элементов в структуре одинаковы или совместимы. Для опциональной структуры возвращает опциональный список.
 
 #### Сигнатура
-```
+
+```yql
 GatherMembers(struct:Struct<...>) -> List<Tuple<String,V>>
 GatherMembers(struct:Struct<...>?) -> List<Tuple<String,V>>?
 GatherMembers(NULL) -> []
@@ -347,7 +374,8 @@ GatherMembers(NULL) -> []
 Аргумент: структура
 
 #### Примеры
-``` yql
+
+```yql
 $struct = <|a:1, b:2|>;
 SELECT
   GatherMembers($struct), -- [('a', 1), ('b', 2)]
@@ -359,7 +387,8 @@ SELECT
 Создает структуру с заданным списком полей и применяет к ней заданный список исправлений в формате (имя поля, значение). Все типы полей результирующей структуры совпадают, и равны типу значений в списке исправлений с добавленной опциональностью (если еще не были таковыми). Если поле не было упомянуто среди списка редактируемых полей, оно возвращается как `NULL`. Среди всех исправлений по одному полю сохраняется последнее. Если в списке исправлений встречается поле, которого нет в списке ожидаемых полей, выдается ошибка.
 
 #### Сигнатура
-```
+
+```yql
 SpreadMembers(list_of_tuples:List<Tuple<String, T>>, result_keys:List<String>) -> Struct<...>
 ```
 
@@ -369,7 +398,8 @@ SpreadMembers(list_of_tuples:List<Tuple<String, T>>, result_keys:List<String>) -
 2. Список всех возможных имен полей в структуре.
 
 #### Примеры
-``` yql
+
+```yql
 SELECT
   SpreadMembers([('a',1),('a',2)],['a','b']); -- (a: 2, b: null)
 ```
@@ -379,7 +409,8 @@ SELECT
 Создает структуру с заданным списком полей и применяет к ней заданный список исправлений в формате (имя поля, значение). Все типы полей результирующей структуры совпадают, и равны типу значений в списке исправлений с добавленной опциональностью (если еще не были таковыми). Если поле не было упомянуто среди списка редактируемых полей, оно возвращается как `NULL`. Среди всех исправлений по одному полю сохраняется последнее. Если в списке исправлений встречается поле, которого нет в списке ожидаемых полей, то это исправление игнорируется.
 
 #### Сигнатура
-```
+
+```yql
 ForceSpreadMembers(list_of_tuples:List<Tuple<String, T>>, result_keys:List<String>) -> Struct<...>
 ```
 
@@ -389,8 +420,51 @@ ForceSpreadMembers(list_of_tuples:List<Tuple<String, T>>, result_keys:List<Strin
 2. Список всех возможных имен полей в структуре.
 
 #### Примеры
-``` yql
+
+```yql
 SELECT
   ForceSpreadMembers([('a',1),('a',2),('c',100)],['a','b']); -- (a: 2, b: null)
+```
+
+## StructUnion, StructIntersection, StructDifference, StructSymmetricDifference
+
+Комбинируют две структуры одним из четырех способов, используя предоставленную функцию для слияния полей с одинаковыми именами:
+
+* `StructUnion` добавляет в результат все поля обеих структур;
+* `StructIntersection` — поля, которые есть в обеих структурах;
+* `StructDifference` — поля которые есть в left, но которых нет в right;
+* `StructSymmetricDifference` — все поля, которые есть только в одной из структур.
+
+#### Сигнатуры
+
+```yql
+StructUnion(left:Struct<...>, right:Struct<...>[, mergeLambda:(name:String, l:T1?, r:T2?)->T])->Struct<...>
+StructIntersection(left:Struct<...>, right:Struct<...>[, mergeLambda:(name:String, l:T1?, r:T2?)->T])->Struct<...>
+StructDifference(left:Struct<...>, right:Struct<...>)->Struct<...>
+StructSymmetricDifference(left:Struct<...>, right:Struct<...>)->Struct<...>
+```
+
+Аргументы:
+
+1. `left` - первая структура;
+2. `right` - вторая структура;
+3. `mergeLambda` - _(опционально)_ позволяет задать функцию для объединения полей (аргументы: имя поля, `Optional` значение поля в первой структуре, `Optional` значение поля во второй структуре - аргументы принимают значение `Nothing<T?>` в случае отсутствия соответствующего поля); по умолчанию выбирается значение поля из первой структуры, а если в первой отсутствует — из второй.
+
+#### Примеры
+
+```yql
+$merge = ($name, $l, $r) -> {
+    return ($l ?? 0) + ($r ?? 0);
+};
+$left = <|a: 1, b: 2, c: 3|>;
+$right = <|c: 1, d: 2, e: 3|>;
+
+SELECT
+    StructUnion($left, $right),                 -- <|a: 1, b: 2, c: 3, d: 2, e: 3|>
+    StructUnion($left, $right, $merge),         -- <|a: 1, b: 2, c: 4, d: 2, e: 3|>
+    StructIntersection($left, $right, $merge),  -- <|c: 4|>
+    StructDifference($left, $right),            -- <|a: 1, b: 1|>
+    StructSymmetricDifference($left, $right)    -- <|a: 1, b: 2, d: 2, e: 3|>
+;
 ```
 

@@ -1,6 +1,6 @@
 module go.ytsaurus.tech/library/go/core/xerrors
 
-go 1.22.0
+go 1.23.8
 
 require (
 	github.com/pkg/errors v0.9.1

@@ -224,11 +224,11 @@ protected:
         auto inputChunk = New<TInputChunk>();
         inputChunk->SetChunkId(TChunkId(id, 0));
 
-        TChunkReplicaWithMediumList replicas;
+        TChunkReplicaList replicas;
         for (int index = 0; index < std::ssize(replicaNodes); ++index) {
-            replicas.emplace_back(TNodeId(replicaNodes[index]), index, GenericMediumIndex);
+            replicas.emplace_back(TNodeId(replicaNodes[index]), index);
         }
-        inputChunk->SetReplicaList(replicas);
+        inputChunk->SetReplicas(replicas);
 
         return inputChunk;
     }

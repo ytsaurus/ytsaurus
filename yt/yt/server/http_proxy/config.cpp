@@ -6,7 +6,9 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/security_server/config.h>
+
+#include <yt/yt/server/lib/signature/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
@@ -125,6 +127,37 @@ void TFramingConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMemoryLimitsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("total", &TThis::Total)
+        .Optional()
+        .GreaterThanOrEqual(0);
+    registrar.Parameter("heavy_request", &TThis::HeavyRequest)
+        .Optional()
+        .GreaterThanOrEqual(0);
+}
+
+void TMemoryLimitRatiosConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("default_user_memory_limit_ratio", &TThis::DefaultUserMemoryLimitRatio)
+        .Optional()
+        .InRange(0.0, 1.0);
+    registrar.Parameter("user_to_memory_limit_ratio", &TThis::UserToMemoryLimitRatio)
+        .Default();
+
+    registrar.Postprocessor([&] (TMemoryLimitRatiosConfig* config) {
+        for (const auto& [name, value] : config->UserToMemoryLimitRatio) {
+            if (value > 1 || value < 0) {
+                THROW_ERROR_EXCEPTION("User ratio must be less than 1 and greater than 0")
+                    << TErrorAttribute("user_name", name)
+                    << TErrorAttribute("user_ratio", value);
+            }
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TApiConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("ban_cache_expiration_time", &TThis::BanCacheExpirationTime)
@@ -138,6 +171,11 @@ void TApiConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("force_tracing", &TThis::ForceTracing)
         .Default(false);
+
+    registrar.Parameter("cpu_update_period", &TThis::CpuUpdatePeriod)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("user_access_validator", &TThis::UserAccessValidator)
+        .DefaultNew();
 
     registrar.Parameter("testing", &TThis::TestingOptions)
         .Default();
@@ -156,13 +194,18 @@ void TApiDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)
         .Default(false);
 
-    registrar.Parameter("default_user_memory_limit_ratio", &TThis::DefaultUserMemoryLimitRatio)
-        .Optional();
-    registrar.Parameter("user_to_memory_limit_ratio", &TThis::UserToMemoryLimitRatio)
-        .Default();
+    registrar.Parameter("user_access_validator", &TThis::UserAccessValidator)
+        .DefaultNew();
 
     registrar.Parameter("use_compression_thread_pool", &TThis::UseCompressionThreadPool)
         .Default(true);
+
+    registrar.Parameter("default_user_memory_limit_ratio", &TThis::DefaultUserMemoryLimitRatio)
+        .Optional()
+        .InRange(0.0, 1.0);
+
+    registrar.Parameter("role_to_memory_limit_ratios", &TThis::RoleToMemoryLimitRatios)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,16 +232,6 @@ void TAccessCheckerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TProxyMemoryLimitsConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("total", &TThis::Total)
-        .Optional();
-    registrar.Parameter("heavy_request", &TThis::HeavyRequest)
-        .Optional();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TProxyBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("port", &TThis::Port)
@@ -221,6 +254,9 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TThis* config) {
         config->HttpServer->Port = config->Port;
     });
+
+    registrar.Parameter("addresses", &TThis::Addresses)
+        .Default();
 
     registrar.Parameter("driver", &TThis::Driver)
         .Default();

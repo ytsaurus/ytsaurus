@@ -1,5 +1,7 @@
 #include "io_engine_base.h"
 
+#include "huge_page_manager.h"
+
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -329,9 +331,11 @@ i64 TIOEngineBase::GetWriteRequestLimit() const
 TIOEngineBase::TIOEngineBase(
     TConfigPtr config,
     TString locationId,
+    IHugePageManagerPtr hugePageManager,
     NProfiling::TProfiler profiler,
     NLogging::TLogger logger)
     : LocationId_(std::move(locationId))
+    , HugePageManager_(std::move(hugePageManager))
     , Logger(std::move(logger))
     , Profiler(std::move(profiler))
     , StaticConfig_(std::move(config))
@@ -435,6 +439,22 @@ int TIOEngineBase::GetLockOp(ELockFileMode mode)
     }
 }
 
+TSharedMutableRef TIOEngineBase::AllocateHugeBlob()
+{
+    TSharedMutableRef hugePageBlob;
+    if (HugePageManager_ && HugePageManager_->IsEnabled()) {
+        auto hugePageBlobReservingResult = HugePageManager_->ReserveHugePageBlob();
+        if (hugePageBlobReservingResult.IsOK()) {
+            hugePageBlob = hugePageBlobReservingResult.Value();
+        } else {
+            YT_LOG_DEBUG(
+                "Failed to reserve huge page blob: %v",
+                hugePageBlobReservingResult);
+        }
+    }
+    return hugePageBlob;
+}
+
 void TIOEngineBase::DoLock(const TLockRequest& request)
 {
     Sensors_->UpdateKernelStatistics();
@@ -519,13 +539,8 @@ void TIOEngineBase::Reconfigure(const NYTree::INodePtr& node)
 
 void TIOEngineBase::InitProfilerSensors()
 {
-    Profiler.AddFuncGauge("/sick", MakeStrong(this), [this] {
-        return Sick_.load();
-    });
-
-    Profiler.AddFuncGauge("/alive", MakeStrong(this), [] {
-        return 1;
-    });
+    SickGauge_ = Profiler.Gauge("/sick");
+    SickGauge_.Update(Sick_.load());
 
     Profiler.AddFuncCounter("/sick_events", MakeStrong(this), [this] {
         return SicknessCounter_.load();
@@ -562,6 +577,7 @@ void TIOEngineBase::SetSickFlag(const TError& error)
     }
 
     if (!Sick_.exchange(true)) {
+        SickGauge_.Update(true);
         ++SicknessCounter_;
 
         TDelayedExecutor::Submit(
@@ -585,6 +601,7 @@ void TIOEngineBase::ResetSickFlag()
     }
 
     Sick_ = false;
+    SickGauge_.Update(false);
 
     YT_LOG_WARNING("Sick flag reset");
 }

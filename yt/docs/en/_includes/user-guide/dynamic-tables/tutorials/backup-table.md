@@ -27,7 +27,7 @@
 
 - MapReduce
 
-   If you need to give data read and write access when copying a table, dump the contents of the dynamic table into the static table and back again. To do this, use the script described in the [MapReduce for dynamic tables](../../../user-guide/dynamic-tables/mapreduce.md) section.
+   If you need to give data read and write access when copying a table, dump the contents of the dynamic table into the static table and back again. To do this, use the script described in the [MapReduce for dynamic tables](../../../../user-guide/dynamic-tables/mapreduce.md) section.
 
 {% endlist %}
 

@@ -27,8 +27,6 @@ void TTransactionManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("default_transaction_timeout", &TThis::DefaultTransactionTimeout)
         .Default(TDuration::Seconds(30));
-    registrar.Parameter("use_cypress_transaction_service", &TThis::UseCypressTransactionService)
-        .Default(false);
     registrar.Parameter("ping_batcher", &TThis::PingBatcher)
         .DefaultNew();
     registrar.Parameter("bulk_insert_lock_checker", &TThis::BulkInsertLockChecker)

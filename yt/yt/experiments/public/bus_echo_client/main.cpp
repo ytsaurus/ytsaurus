@@ -4,7 +4,6 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/client.h>
-#include <yt/yt/core/bus/tcp/ssl_context.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -57,7 +56,7 @@ public:
 
 private:
     const int ExpectedCounter_ = 0;
-    std::atomic<int> Counter_ = {0};
+    std::atomic<int> Counter_ = 0;
 
     TPromise<void> Promise_ = NewPromise<void>();
 };
@@ -80,10 +79,6 @@ public:
 protected:
     void DoRun() override
     {
-        if (!CAFile_.empty()) {
-            NYT::TSslContext::Get()->LoadCAFile(CAFile_);
-        }
-
         DoSingleRun();
 
         if (!Flood_) {
@@ -116,8 +111,8 @@ protected:
         }
 
         if (!CAFile_.empty()) {
-            config->CA = New<NCrypto::TPemBlobConfig>();
-            config->CA->FileName = CAFile_;
+            config->CertificateAuthority = New<NCrypto::TPemBlobConfig>();
+            config->CertificateAuthority->FileName = CAFile_;
         }
 
         YT_LOG_INFO("Connecting echo client to %v", Address_);

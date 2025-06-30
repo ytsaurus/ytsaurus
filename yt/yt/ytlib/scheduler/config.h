@@ -767,8 +767,14 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NControllerAgent::NP
 struct TNbdDiskConfig
     : public NYTree::TYsonStruct
 {
-    //! Address of data node that hosts NBD chunk.
+    //! Params to connect to chosen data nodes.
+    TDuration DataNodeRpcTimeout;
     std::optional<std::string> DataNodeAddress;
+
+    //! Params to get suitable data nodes from master.
+    TDuration MasterRpcTimeout;
+    int MinDataNodeCount;
+    int MaxDataNodeCount;
 
     REGISTER_YSON_STRUCT(TNbdDiskConfig);
 
@@ -786,9 +792,9 @@ struct TDiskRequestConfig
     //! Limit for disk inodes.
     std::optional<i64> InodeCount;
 
-    std::optional<TString> MediumName;
+    std::optional<std::string> MediumName;
     std::optional<int> MediumIndex;
-    std::optional<TString> Account;
+    std::optional<std::string> Account;
 
     //! Use Network Block Device (NBD) disk.
     TNbdDiskConfigPtr NbdDisk;
@@ -813,7 +819,7 @@ struct TJobShell
 
     TString Subcontainer;
 
-    std::vector<TString> Owners;
+    std::vector<std::string> Owners;
 
     REGISTER_YSON_STRUCT(TJobShell);
 
@@ -912,7 +918,7 @@ struct TJobExperimentConfig
     std::optional<TString> BaseLayerPath;
 
     //! The network project used in the treatment jobs of the experiment.
-    std::optional<TString> NetworkProject;
+    std::optional<std::string> NetworkProject;
 
     //! Do not run any more treatment jobs if the `MaxFailedTreatmentJobs` of them failed.
     int MaxFailedTreatmentJobs;
@@ -980,6 +986,7 @@ struct TFastIntermediateMediumTableWriterConfig
     : public NYTree::TYsonStruct
 {
     int MinUploadReplicationFactor;
+    std::optional<int> DirectUploadNodeCount;
     int UploadReplicationFactor;
     NErasure::ECodec ErasureCodec;
     bool EnableStripedErasure;
@@ -997,7 +1004,7 @@ struct TOperationSpecBase
     : public TStrategyOperationSpec
 {
     //! Account holding intermediate data produces by the operation.
-    TString IntermediateDataAccount;
+    std::string IntermediateDataAccount;
 
     //! Codec used for compressing intermediate output during shuffle.
     NCompression::ECodec IntermediateCompressionCodec;
@@ -1005,13 +1012,16 @@ struct TOperationSpecBase
     //! Replication factor for intermediate data.
     int IntermediateDataReplicationFactor;
 
+    //! Direct upload replication factor for intermediate data.
+    std::optional<int> IntermediateDirectUploadNodeCount;
+
     //! Minimum replication factor for intermediate data.
     int MinIntermediateDataReplicationFactor;
 
     //! SyncOnClose option for intermediate data.
     bool IntermediateDataSyncOnClose;
 
-    TString IntermediateDataMediumName;
+    std::string IntermediateDataMediumName;
 
     //! Table writer config for the data that will be written to the fast medium (SSD) in the default intermediate account.
     TFastIntermediateMediumTableWriterConfigPtr FastIntermediateMediumTableWriterConfig;
@@ -1020,7 +1030,7 @@ struct TOperationSpecBase
     i64 FastIntermediateMediumLimit;
 
     //! Account for job nodes and operation files (stderrs and input contexts of failed jobs).
-    TString DebugArtifactsAccount;
+    std::string DebugArtifactsAccount;
 
     //! What to do during initialization if some chunks are unavailable.
     EUnavailableChunkAction UnavailableChunkStrategy;
@@ -1030,6 +1040,10 @@ struct TOperationSpecBase
 
     i64 MaxDataWeightPerJob;
     i64 MaxPrimaryDataWeightPerJob;
+
+    //! Strict limit for job input compressed data size. May not affect input
+    //! slicing.
+    i64 MaxCompressedDataSizePerJob;
 
     //! Once this limit is reached the operation fails.
     int MaxFailedJobCount;
@@ -1048,7 +1062,7 @@ struct TOperationSpecBase
     TDuration JobProxyRefCountedTrackerLogPeriod;
 
     //! An arbitrary user-provided string that is, however, logged by the scheduler.
-    std::optional<TString> Title;
+    std::optional<std::string> Title;
 
     //! Limit on operation execution time.
     std::optional<TDuration> TimeLimit;
@@ -1064,7 +1078,7 @@ struct TOperationSpecBase
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
 
     //! ACO name in the "operations" namespace.
-    std::optional<TString> AcoName;
+    std::optional<std::string> AcoName;
 
     //! Add the "read" and "manage" rights for the authenticated_user to |Acl|.
     std::optional<bool> AddAuthenticatedUserToAcl;
@@ -1275,8 +1289,11 @@ struct TOperationSpecBase
     //! If |true|, exec node will reuse allocation for multiple jobs.
     std::optional<bool> EnableMultipleJobsInAllocation;
 
-    //! COMPAT(apollo1321): remove in 25.1 release.
+    //! COMPAT(apollo1321): remove in 25.2.
     bool UseNewSlicingImplementationInOrderedPool;
+
+    //! COMPAT(apollo1321): remove in 25.2.
+    bool UseNewSlicingImplementationInUnorderedPool;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
@@ -1411,7 +1428,7 @@ struct TUserJobSpec
     std::optional<TDuration> JobSpeculationTimeout;
 
     //! Name of the network project to use in job.
-    std::optional<TString> NetworkProject;
+    std::optional<std::string> NetworkProject;
 
     //! Configures |enable_porto| setting for user job containers.
     //! If not given, then the global default from controller agent's config is used.
@@ -1447,6 +1464,7 @@ struct TUserJobSpec
     bool RedirectStdoutToStderr;
 
     bool EnableRpcProxyInJobProxy;
+    bool EnableShuffleServiceInJobProxy;
     int RpcProxyWorkerThreadPoolSize;
 
     bool StartQueueConsumerRegistrationManager;
@@ -1503,15 +1521,17 @@ DEFINE_REFCOUNTED_TYPE(TOptionalUserJobSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGangManagerConfig
+struct TGangOptions
     : public NYTree::TYsonStruct
 {
-    REGISTER_YSON_STRUCT(TGangManagerConfig);
+    std::optional<int> Size;
+
+    REGISTER_YSON_STRUCT(TGangOptions);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TGangManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TGangOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1527,7 +1547,7 @@ struct TVanillaTaskSpec
 
     bool RestartCompletedJobs;
 
-    TGangManagerConfigPtr GangManager;
+    TGangOptionsPtr GangOptions;
 
     REGISTER_YSON_STRUCT(TVanillaTaskSpec);
 
@@ -1612,21 +1632,19 @@ DEFINE_REFCOUNTED_TYPE(TOperationWithUserJobSpec)
 struct TSimpleOperationSpecBase
     : public TOperationSpecBase
 {
-    //! During sorted merge the scheduler tries to ensure that large connected
-    //! groups of chunks are partitioned into tasks of this or smaller size.
-    //! This number, however, is merely an estimate, i.e. some tasks may still
-    //! be larger.
+    //! During sorted merge, the controller tries to ensure that large, connected
+    //! groups of chunks are partitioned into tasks of this size or greater.
+    //! However, this number is merely an estimate; some tasks may still be
+    //! smaller or significantly larger in some cases.
     std::optional<i64> DataWeightPerJob;
+
+    //! Recomendation for job input compressed data size.
+    std::optional<i64> CompressedDataSizePerJob;
 
     std::optional<int> JobCount;
     std::optional<int> MaxJobCount;
 
     std::optional<int> MaxDataSlicesPerJob;
-
-    //! Limit for job input compressed data size.
-    //! This limit is not strict and may be violated in some cases,
-    //! for example, if chunk slice is too big.
-    std::optional<i64> MaxCompressedDataSizePerJob;
 
     bool ForceJobSizeAdjuster;
     bool ForceAllowJobInterruption;
@@ -1942,6 +1960,9 @@ struct TSortOperationSpecBase
     // Desired number of samples per partition.
     int SamplesPerPartition;
 
+    // This option is used for partition/partition_map and sorted_reduce/sorted_merge jobs.
+    bool ForceJobSizeAdjuster;
+
     REGISTER_YSON_STRUCT(TSortOperationSpecBase);
 
     static void Register(TRegistrar registrar);
@@ -2130,7 +2151,7 @@ DEFINE_REFCOUNTED_TYPE(TOperationFairShareTreeRuntimeParameters)
 struct TOperationJobShellRuntimeParameters
     : public NYTree::TYsonStruct
 {
-    std::vector<TString> Owners;
+    std::vector<std::string> Owners;
 
     REGISTER_YSON_STRUCT(TOperationJobShellRuntimeParameters);
 
@@ -2151,7 +2172,7 @@ struct TOperationRuntimeParameters
     // to be able to revive old operations.
     std::vector<std::string> Owners;
     NSecurityClient::TSerializableAccessControlList Acl;
-    std::optional<TString> AcoName;
+    std::optional<std::string> AcoName;
     TJobShellOptionsMap OptionsPerJobShell;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
     TBooleanFormula SchedulingTagFilter;
@@ -2196,7 +2217,7 @@ struct TOperationRuntimeParametersUpdate
     std::optional<double> Weight;
     std::optional<TString> Pool;
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
-    std::optional<TString> AcoName;
+    std::optional<std::string> AcoName;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
     std::optional<TBooleanFormula> SchedulingTagFilter;
     TJobShellOptionsUpdateMap OptionsPerJobShell;
@@ -2205,6 +2226,8 @@ struct TOperationRuntimeParametersUpdate
 
 
     bool ContainsPool() const;
+
+    bool IsAllowedForPoolManagers() const;
 
     NYTree::EPermissionSet GetRequiredPermissions() const;
 

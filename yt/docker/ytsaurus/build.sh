@@ -9,6 +9,7 @@ yql_build_path="."
 output_path="."
 image_cr=""
 component="ytsaurus"
+apt_mirror="http://archive.ubuntu.com/"
 
 print_usage() {
     cat << EOF
@@ -20,6 +21,7 @@ Usage: $script_name [-h|--help]
                     [--output-path /path/to/output (default: $output_path)]
                     [--image-tag some-tag (default: $image_tag)]
                     [--image-cr some-cr/ (default: '$image_cr')]
+                    [--apt-mirror http://some.apt.mirror/ (default: '$apt_mirror')]
 EOF
     exit 1
 }
@@ -54,6 +56,10 @@ while [[ $# -gt 0 ]]; do
         ;;
         --image-cr)
         image_cr="$2"
+        shift 2
+        ;;
+        --apt-mirror)
+        apt_mirror="$2"
         shift 2
         ;;
         -h|--help)
@@ -174,9 +180,13 @@ elif [[ "${component}" == "local" ]]; then
     cp -r ${ytserver_all_credits}/*.CREDITS ${output_path}/credits
     cp -r ${qt_credits}/*.CREDITS ${output_path}/credits
 
+elif [[ "${component}" == "job-environment" ]]; then
+
+    echo "Do nothing" > /dev/null
+
 else
     echo "Unknown component: ${component}"
 fi
 
 cd ${output_path}
-docker build --target ${component} -t ${image_cr}ytsaurus/${component}:${image_tag} .
+docker build --target ${component} --build-arg APT_MIRROR=${apt_mirror} -t ${image_cr}ytsaurus/${component}:${image_tag} .

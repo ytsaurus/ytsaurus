@@ -12,8 +12,7 @@ struct IQueueExportManager
 {
     virtual NConcurrency::IThroughputThrottlerPtr GetExportThrottler() const = 0;
 
-    virtual void OnDynamicConfigChanged(
-        const TQueueExportManagerDynamicConfigPtr& oldConfig,
+    virtual void Reconfigure(
         const TQueueExportManagerDynamicConfigPtr& newConfig) = 0;
 };
 

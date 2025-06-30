@@ -9,7 +9,7 @@ using namespace NYT::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = HydraStressTestLogger;
+constinit const auto Logger = HydraStressTestLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,7 +178,7 @@ void TAutomatonPart::HydraSequence(
         req.set_value(i);
         req.set_id(id);
         YT_UNUSED_FUTURE(CreateMutation(HydraManager_, req)
-            ->CommitAndLog(Logger));
+            ->CommitAndLog(Logger()));
     }
 
     YT_LOG_DEBUG(

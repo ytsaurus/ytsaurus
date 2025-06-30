@@ -366,9 +366,6 @@ struct TFairShareUpdateOptions
 
     TDuration IntegralPoolCapacitySaturationPeriod;
     TDuration IntegralSmoothPeriod;
-
-    // COMPAT(eshcherbin): Remove when well tested.
-    bool EnableFastChildFunctionSummationInFifoPools = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -403,6 +400,7 @@ struct TFairShareUpdateContext
     NProfiling::TCpuDuration PointwiseMinTotalTime = {};
     NProfiling::TCpuDuration ComposeTotalTime = {};
     NProfiling::TCpuDuration CompressFunctionTotalTime = {};
+    NProfiling::TCpuDuration ComputeAndSetFairShareTotalTime = {};
 
     std::vector<TPool*> RelaxedPools;
     std::vector<TPool*> BurstPools;

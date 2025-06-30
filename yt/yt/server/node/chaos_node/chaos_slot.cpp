@@ -73,12 +73,12 @@ public:
         int slotIndex,
         TChaosNodeConfigPtr config,
         IBootstrap* bootstrap)
-        : THood(Format("ChaosSlot:%v", slotIndex))
+        : THood(Format("ChaosSlot/%v", slotIndex))
         , Config_(config)
         , ShortcutSnapshotStore_(CreateShortcutSnapshotStore())
         , Bootstrap_(bootstrap)
         , SnapshotQueue_(New<TActionQueue>(
-            Format("ChaosSnap:%v", slotIndex)))
+            Format("ChaosSnap/%v", slotIndex)))
         , ReplicationCardsWatcher_(CreateReplicationCardsWatcher(
             Config_->ReplicationCardsWatcher,
             bootstrap->GetConnection()->GetInvoker()))
@@ -108,7 +108,7 @@ public:
         return Occupant_->GetCellId();
     }
 
-    const TString& GetCellBundleName() const override
+    const std::string& GetCellBundleName() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -422,6 +422,11 @@ public:
         if (auto it = config->PerBundleConfigs.find(GetCellBundleName()); it != config->PerBundleConfigs.end()) {
             VerboseLoggingEnabled_ = it->second->EnableVerboseLogging;
         }
+    }
+
+    TChaosNodeDynamicConfigPtr GetDynamicConfig() const override
+    {
+        return Bootstrap_->GetDynamicConfig();
     }
 
 private:

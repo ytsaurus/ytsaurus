@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 from collections import defaultdict
-import itertools
-from typing import (
+from collections.abc import (
     Hashable,
     Iterable,
+)
+import itertools
+from typing import (
+    TYPE_CHECKING,
+    cast,
 )
 
 import numpy as np
 
 from pandas._libs.sparse import IntIndex
-from pandas._typing import NpDtype
 
 from pandas.core.dtypes.common import (
     is_integer_dtype,
@@ -18,15 +21,23 @@ from pandas.core.dtypes.common import (
     is_object_dtype,
     pandas_dtype,
 )
+from pandas.core.dtypes.dtypes import (
+    ArrowDtype,
+    CategoricalDtype,
+)
 
 from pandas.core.arrays import SparseArray
 from pandas.core.arrays.categorical import factorize_from_iterable
+from pandas.core.arrays.string_ import StringDtype
 from pandas.core.frame import DataFrame
 from pandas.core.indexes.api import (
     Index,
     default_index,
 )
 from pandas.core.series import Series
+
+if TYPE_CHECKING:
+    from pandas._typing import NpDtype
 
 
 def get_dummies(
@@ -158,7 +169,7 @@ def get_dummies(
             data_to_encode = data[columns]
 
         # validate prefixes and separator to avoid silently dropping cols
-        def check_len(item, name):
+        def check_len(item, name: str):
             if is_list_like(item):
                 if not len(item) == data_to_encode.shape[1]:
                     len_msg = (
@@ -238,8 +249,25 @@ def _get_dummies_1d(
     # Series avoids inconsistent NaN handling
     codes, levels = factorize_from_iterable(Series(data, copy=False))
 
-    if dtype is None:
+    if dtype is None and hasattr(data, "dtype"):
+        input_dtype = data.dtype
+        if isinstance(input_dtype, CategoricalDtype):
+            input_dtype = input_dtype.categories.dtype
+
+        if isinstance(input_dtype, ArrowDtype):
+            import pyarrow as pa
+
+            dtype = ArrowDtype(pa.bool_())  # type: ignore[assignment]
+        elif (
+            isinstance(input_dtype, StringDtype)
+            and input_dtype.storage != "pyarrow_numpy"
+        ):
+            dtype = pandas_dtype("boolean")  # type: ignore[assignment]
+        else:
+            dtype = np.dtype(bool)
+    elif dtype is None:
         dtype = np.dtype(bool)
+
     _dtype = pandas_dtype(dtype)
 
     if is_object_dtype(_dtype):
@@ -315,13 +343,15 @@ def _get_dummies_1d(
         return concat(sparse_series, axis=1, copy=False)
 
     else:
-        # take on axis=1 + transpose to ensure ndarray layout is column-major
-        eye_dtype: NpDtype
+        # ensure ndarray layout is column-major
+        shape = len(codes), number_of_cols
+        dummy_dtype: NpDtype
         if isinstance(_dtype, np.dtype):
-            eye_dtype = _dtype
+            dummy_dtype = _dtype
         else:
-            eye_dtype = np.bool_
-        dummy_mat = np.eye(number_of_cols, dtype=eye_dtype).take(codes, axis=1).T
+            dummy_dtype = np.bool_
+        dummy_mat = np.zeros(shape=shape, dtype=dummy_dtype, order="F")
+        dummy_mat[np.arange(len(codes)), codes] = 1
 
         if not dummy_na:
             # reset NaN GH4446
@@ -452,10 +482,12 @@ def from_dummies(
             f"Received 'data' of type: {type(data).__name__}"
         )
 
-    if data.isna().any().any():
+    col_isna_mask = cast(Series, data.isna().any())
+
+    if col_isna_mask.any():
         raise ValueError(
             "Dummy DataFrame contains NA value in column: "
-            f"'{data.isna().any().idxmax()}'"
+            f"'{col_isna_mask.idxmax()}'"
         )
 
     # index data with a list of all columns that are dummies
@@ -526,8 +558,13 @@ def from_dummies(
             )
         else:
             data_slice = data_to_decode.loc[:, prefix_slice]
-        cats_array = np.array(cats, dtype="object")
+        cats_array = data._constructor_sliced(cats, dtype=data.columns.dtype)
         # get indices of True entries along axis=1
-        cat_data[prefix] = cats_array[data_slice.to_numpy().nonzero()[1]]
+        true_values = data_slice.idxmax(axis=1)
+        indexer = data_slice.columns.get_indexer_for(true_values)
+        cat_data[prefix] = cats_array.take(indexer).set_axis(data.index)
 
-    return DataFrame(cat_data)
+    result = DataFrame(cat_data)
+    if sep is not None:
+        result.columns = result.columns.astype(data.columns.dtype)
+    return result

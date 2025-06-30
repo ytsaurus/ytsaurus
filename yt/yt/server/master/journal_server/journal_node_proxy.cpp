@@ -59,12 +59,13 @@ public:
 
         SealedRowCount_ = chunkList->Statistics().RowCount;
 
-        auto* firstUnsealedChunk = FindFirstUnsealedChild(chunkList)->As<TChunk>();
-        if (!firstUnsealedChunk) {
+        auto* firstUnsealedChild = FindFirstUnsealedChild(chunkList);
+        if (!firstUnsealedChild) {
             Promise_.Set(SealedRowCount_);
             return;
         }
 
+        auto* firstUnsealedChunk = firstUnsealedChild->As<TChunk>();
         if (firstUnsealedChunk->GetOverlayed()) {
             auto firstUnsealedChunkIndex = GetChildIndex(chunkList, firstUnsealedChunk);
             for (int index = firstUnsealedChunkIndex; index < std::ssize(chunkList->Children()); ++index) {

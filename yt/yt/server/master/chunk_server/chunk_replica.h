@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
+#include <yt/yt/client/object_client/public.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NChunkServer {
@@ -214,13 +216,12 @@ NChunkClient::TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithReplicaAndMe
 
 struct TSequoiaChunkReplica
 {
-    NChunkClient::TChunkId ChunkId;
-    int ReplicaIndex;
-    NNodeTrackerClient::TNodeId NodeId;
-    NChunkClient::TChunkLocationUuid LocationUuid;
+    NChunkClient::TChunkId ChunkId = NObjectClient::NullObjectId;
+    int ReplicaIndex = NChunkClient::GenericChunkReplicaIndex;
+    NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
+    NNodeTrackerClient::TChunkLocationIndex LocationIndex = NNodeTrackerClient::InvalidChunkLocationIndex;
 
-    bool operator==(const TSequoiaChunkReplica& other) const;
-    bool operator<(const TSequoiaChunkReplica& other) const;
+    std::strong_ordering operator<=>(const TSequoiaChunkReplica& other) const = default;
 
     void Persist(const NCellMaster::TPersistenceContext& context);
 };

@@ -375,6 +375,10 @@ message TGetObjectOptions
     // If true then all requested attributes will be merged into
     // root object corresponding to the object type.
     optional bool fetch_root_object = 4;
+
+    // If true then response will contain matching finalizing objects. Otherwise, they are filtered out.
+    // If not specified, Config's |fetch_finalizing_objects_by_default| is used.
+    optional bool fetch_finalizing_objects = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -43,8 +43,9 @@
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
-
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/core/yson/protobuf_helpers.h>
 
 namespace NYT::NQueryClient {
 
@@ -64,7 +65,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = QueryClientLogger;
+constinit const auto Logger = QueryClientLogger;
 
 struct TQueryUdfTag
 { };
@@ -159,7 +160,7 @@ TString GetUdfDescriptorPath(const TYPath& registryPath, const std::string& func
 } // namespace
 
 std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
-    const std::vector<std::pair<TString, TString>>& functionNames,
+    const std::vector<std::pair<TYPath, std::string>>& functionNames,
     const NNative::IClientPtr& client)
 {
     using NObjectClient::TObjectYPathProxy;
@@ -281,7 +282,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 void AppendUdfDescriptors(
     const TTypeInferrerMapPtr& typeInferrers,
     const TExternalCGInfoPtr& cgInfo,
-    const std::vector<TString>& functionNames,
+    const std::vector<std::string>& functionNames,
     const std::vector<TExternalFunctionSpec>& externalFunctionSpecs)
 {
     YT_VERIFY(functionNames.size() == externalFunctionSpecs.size());
@@ -338,15 +339,14 @@ void AppendUdfDescriptors(
             functionBody.UseFunctionContext = functionDescriptor->UseFunctionContext;
 
             auto typer = functionDescriptor->RepeatedArgumentType
-                ? New<TFunctionTypeInferrer>(
-                    std::unordered_map<TTypeParameter, TUnionType>(),
+                ? CreateFunctionTypeInferrer(
+                    functionDescriptor->ResultType.Type,
                     functionDescriptor->GetArgumentsTypes(),
-                    functionDescriptor->RepeatedArgumentType->Type,
-                    functionDescriptor->ResultType.Type)
-                : New<TFunctionTypeInferrer>(
-                    std::unordered_map<TTypeParameter, TUnionType>(),
-                    functionDescriptor->GetArgumentsTypes(),
-                    functionDescriptor->ResultType.Type);
+                    /*typeParameterConstraints*/ {},
+                    functionDescriptor->RepeatedArgumentType->Type)
+                : CreateFunctionTypeInferrer(
+                    functionDescriptor->ResultType.Type,
+                    functionDescriptor->GetArgumentsTypes());
 
             typeInferrers->emplace(name, typer);
             cgInfo->Functions.push_back(std::move(functionBody));
@@ -361,11 +361,10 @@ void AppendUdfDescriptors(
             functionBody.RepeatedArgType = EValueType::Null;
             functionBody.RepeatedArgIndex = -1;
 
-            auto typer = New<TAggregateFunctionTypeInferrer>(
-                std::unordered_map<TTypeParameter, TUnionType>(),
+            auto typer = CreateAggregateTypeInferrer(
+                aggregateDescriptor->ResultType.Type,
                 aggregateDescriptor->ArgumentType.Type,
-                aggregateDescriptor->StateType.Type,
-                aggregateDescriptor->ResultType.Type);
+                aggregateDescriptor->StateType.Type);
 
             typeInferrers->emplace(name, typer);
             cgInfo->Functions.push_back(std::move(functionBody));
@@ -380,7 +379,7 @@ DEFINE_REFCOUNTED_TYPE(IFunctionRegistry)
 namespace {
 
 class TCypressFunctionRegistry
-    : public TAsyncExpiringCache<std::pair<TString, TString>, TExternalFunctionSpec>
+    : public TAsyncExpiringCache<std::pair<TYPath, std::string>, TExternalFunctionSpec>
     , public IFunctionRegistry
 {
 public:
@@ -396,10 +395,10 @@ public:
     { }
 
     TFuture<std::vector<TExternalFunctionSpec>> FetchFunctions(
-        const TString& udfRegistryPath,
-        const std::vector<TString>& names) override
+        const TYPath& udfRegistryPath,
+        const std::vector<std::string>& names) override
     {
-        std::vector<std::pair<TString, TString>> keys;
+        std::vector<std::pair<TYPath, std::string>> keys;
         for (const auto& name : names) {
             keys.emplace_back(udfRegistryPath, name);
         }
@@ -427,7 +426,7 @@ private:
     const IInvokerPtr Invoker_;
 
     TFuture<TExternalFunctionSpec> DoGet(
-        const std::pair<TString, TString>& key,
+        const std::pair<TYPath, std::string>& key,
         bool isPeriodicUpdate) noexcept override
     {
         return DoGetMany({key}, isPeriodicUpdate)
@@ -438,7 +437,7 @@ private:
     }
 
     TFuture<std::vector<TErrorOr<TExternalFunctionSpec>>> DoGetMany(
-        const std::vector<std::pair<TString, TString>>& keys,
+        const std::vector<std::pair<TYPath, std::string>>& keys,
         bool /*isPeriodicUpdate*/) noexcept override
     {
         if (auto client = Client_.Lock()) {
@@ -815,7 +814,7 @@ void ToProto(NProto::TExternalFunctionImpl* proto, const TExternalFunctionImpl& 
     TDescriptorType descriptorType;
     descriptorType.Type = object.RepeatedArgType;
 
-    proto->set_repeated_arg_type(ConvertToYsonString(descriptorType).ToString());
+    proto->set_repeated_arg_type(ToProto(ConvertToYsonString(descriptorType)));
     proto->set_repeated_arg_index(object.RepeatedArgIndex);
     proto->set_use_function_context(object.UseFunctionContext);
 }

@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NSecurityClient {
 
 using namespace NApi::NNative;
@@ -210,7 +212,7 @@ NYTree::TYPathRequestPtr TPermissionCache::MakeRequest(
         auto typedReq = TMasterYPathProxy::CheckPermissionByAcl();
         typedReq->set_user(ToProto(key.User));
         typedReq->set_permission(ToProto(key.Permission));
-        typedReq->set_acl(key.Acl->ToString());
+        typedReq->set_acl(ToProto(*key.Acl));
         typedReq->set_ignore_missing_subjects(true);
         req = std::move(typedReq);
     }
@@ -271,7 +273,7 @@ TError TPermissionCache::ParseCheckPermissionByAclResponse(
     result.Action = FromProto<ESecurityAction>(rsp->action());
     result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
     result.SubjectName = rsp->has_subject_name() ? std::make_optional(rsp->subject_name()) : std::nullopt;
-    result.MissingSubjects = FromProto<std::vector<TString>>(rsp->missing_subjects());
+    result.MissingSubjects = FromProto<std::vector<std::string>>(rsp->missing_subjects());
     return result.ToError(key.User, key.Permission);
 }
 

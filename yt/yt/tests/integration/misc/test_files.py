@@ -109,7 +109,7 @@ class TestFiles(YTEnvSetup):
 
         wait(lambda: not exists("#%s" % chunk_id))
 
-    @authors("babenko", "ignat")
+    @authors("kvk1920", "babenko", "ignat")
     def test_copy_tx(self):
         content = b"some_data"
         create("file", "//tmp/f")
@@ -130,7 +130,7 @@ class TestFiles(YTEnvSetup):
 
         remove("//tmp/f2")
 
-        wait(lambda: not exists("#%s" % chunk_id))
+        wait(lambda: not exists(f"#{chunk_id}"))
 
     @authors("babenko", "ignat")
     def test_replication_factor_attr(self):
@@ -301,6 +301,22 @@ class TestFilesRpcProxy(TestFiles):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+
+
+@pytest.mark.enabled_multidaemon
+class TestFilesSequoia(TestFiles):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 4
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["sequoia_node_host", "transaction_coordinator"]},
+        "12": {"roles": ["sequoia_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+        "14": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################

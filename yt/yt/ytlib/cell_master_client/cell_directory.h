@@ -19,12 +19,12 @@ NRpc::IChannelPtr CreateMasterCacheChannel(
     const NApi::NNative::TMasterConnectionConfigPtr& masterCacheConfig,
     const NRpc::IChannelFactoryPtr channelFactory,
     const NApi::NNative::TConnectionOptions& options,
-    const std::vector<TString>& discoveredAddresses);
+    const std::vector<std::string>& discoveredAddresses);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICellDirectory
-    : public TRefCounted
+    : public virtual TRefCounted
 {
     using TCellReconfigurationSignature = void(
         const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs,
@@ -39,6 +39,8 @@ struct ICellDirectory
     virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() = 0;
     virtual NObjectClient::TCellTagList GetSecondaryMasterCellTags() = 0;
     virtual THashSet<NObjectClient::TCellId> GetSecondaryMasterCellIds() = 0;
+
+    virtual bool IsMasterCacheConfigured() = 0;
 
     virtual NRpc::IChannelPtr FindMasterChannel(
         NApi::EMasterChannelKind kind,
@@ -57,8 +59,10 @@ struct ICellDirectory
         NApi::EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
 
+    //! Throws when passed EMasterCellRole::Unknown. Returns empty list if no cells have the specified role.
     virtual NObjectClient::TCellTagList GetMasterCellTagsWithRole(EMasterCellRole role) = 0;
 
+    //! Throws when passed EMasterCellRole::Unknown. Throws if no cells have the specified role.
     virtual NObjectClient::TCellId GetRandomMasterCellWithRoleOrThrow(EMasterCellRole role) = 0;
 };
 

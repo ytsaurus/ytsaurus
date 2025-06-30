@@ -17,7 +17,7 @@ std::vector<T> VectorFromProtoField(T field)
     return {std::move(field)};
 }
 
-template <template<typename> typename T, typename U>
+template <template <typename> typename T, typename U>
     requires std::same_as<T<U>, std::remove_const_t<::google::protobuf::RepeatedField<U>>> ||
         std::same_as<T<U>, std::remove_const_t<::google::protobuf::RepeatedPtrField<U>>>
 std::vector<U> VectorFromProtoField(T<U> field)

@@ -26,6 +26,27 @@ type Counter struct {
 	memOnly    bool
 }
 
+func NewCounter(name string, value int64, opts ...MetricOpt) Counter {
+	mOpts := MetricsOpts{}
+	for _, op := range opts {
+		op(&mOpts)
+	}
+	mType := typeCounter
+	if mOpts.rated {
+		mType = typeRated
+	}
+	return Counter{
+		name:       name,
+		metricType: mType,
+		tags:       mOpts.tags,
+		value:      *atomic.NewInt64(value),
+		timestamp:  mOpts.timestamp,
+
+		useNameTag: mOpts.useNameTag,
+		memOnly:    mOpts.memOnly,
+	}
+}
+
 // Inc increments counter by 1.
 func (c *Counter) Inc() {
 	c.Add(1)
@@ -103,6 +124,7 @@ func (c *Counter) Snapshot() Metric {
 		metricType: c.metricType,
 		tags:       c.tags,
 		value:      *atomic.NewInt64(c.value.Load()),
+		timestamp:  c.timestamp,
 
 		useNameTag: c.useNameTag,
 		memOnly:    c.memOnly,

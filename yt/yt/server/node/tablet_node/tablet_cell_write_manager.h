@@ -11,7 +11,7 @@
 
 #include <yt/yt/client/table_client/public.h>
 
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 namespace NYT::NTabletNode {
 
@@ -46,7 +46,7 @@ struct ITabletCellWriteManagerHost
     virtual NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const = 0;
     virtual TTabletManagerConfigPtr GetConfig() const = 0;
 
-    virtual void ValidateMemoryLimit(const std::optional<TString>& poolTag) = 0;
+    virtual void ValidateMemoryLimit(const std::optional<std::string>& poolTag) = 0;
     virtual NTransactionClient::TTimestamp GetLatestTimestamp() const = 0;
 
     virtual bool ValidateRowRef(const TSortedDynamicRowRef& rowRef) = 0;
@@ -86,7 +86,7 @@ struct ITabletCellWriteManager
 
     virtual TFuture<void> Write(
         const TTabletSnapshotPtr& tabletSnapshot,
-        TWireWriteCommandBatchReader* reader,
+        TWireWriteCommandsBatchingReader* reader,
         const TTabletCellWriteParams& params) = 0;
 
     // Tablet locking stuff.

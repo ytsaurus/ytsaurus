@@ -1,8 +1,10 @@
 #include "smooth_movement_tracker.h"
 
 #include "automaton.h"
+#include "config.h"
 #include "store_manager.h"
 #include "tablet.h"
+#include "transaction_manager.h"
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
@@ -11,8 +13,6 @@
 #include <yt/yt/server/lib/hive/helpers.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/persistent_mailbox_state_cookie.h>
-
-#include <yt/yt/server/lib/tablet_node/config.h>
 
 namespace NYT::NTabletNode {
 
@@ -209,9 +209,31 @@ public:
         } else if (movementData.GetRole() == ESmoothMovementRole::Target) {
             switch (movementData.GetStage()) {
                 case ESmoothMovementStage::TargetActivated:
-                    if (movementData.CommonDynamicStoreIds().empty()) {
-                        newStage = ESmoothMovementStage::ServantSwitchRequested;
+                    if (!movementData.CommonDynamicStoreIds().empty()) {
+                        return;
                     }
+
+                    if (TInstant::Now() - movementData.GetLastStageChangeTime() <
+                        GetDynamicConfig()->PreloadWaitTimeout)
+                    {
+                        // NB: It may be rather slow to traverse all chunks upon each CheckTablet
+                        // call since this method is called on all transaction commits.
+                        // Maybe should optimize and store accumulated preload statistics in tablet.
+                        auto preloadStatistics = tablet->ComputePreloadStatistics();
+                        if (preloadStatistics.PendingStoreCount > 0 ||
+                            preloadStatistics.FailedStoreCount > 0)
+                        {
+                            YT_LOG_DEBUG("Target servant is not fully preloaded, will not initiate switch "
+                                "(%v, PendingStoreCount: %v, FailedStoreCount: %v)",
+                                tablet->GetLoggingTag(),
+                                preloadStatistics.PendingStoreCount,
+                                preloadStatistics.FailedStoreCount);
+
+                            return;
+                        }
+                    }
+
+                    newStage = ESmoothMovementStage::ServantSwitchRequested;
 
                     break;
 
@@ -283,7 +305,14 @@ private:
         movementData.SetRole(ESmoothMovementRole::Source);
         movementData.SetSiblingCellId(targetCellId);
         movementData.SetStage(ESmoothMovementStage::TargetAllocated);
+        movementData.SetLastStageChangeTime(TInstant::Now());
         movementData.SetSiblingMountRevision(targetMountRevision);
+
+        auto& runtimeData = tablet->RuntimeData()->SmoothMovementData;
+        runtimeData.Role = ESmoothMovementRole::Source;
+        YT_VERIFY(runtimeData.IsActiveServant.load());
+        runtimeData.SiblingServantCellId.Store(targetCellId);
+        runtimeData.SiblingServantMountRevision.store(targetMountRevision);
 
         auto selfEndpointId = FromProto<TAvenueEndpointId>(request->source_avenue_endpoint_id());
         auto siblingEndpointId = GetSiblingAvenueEndpointId(selfEndpointId);
@@ -396,24 +425,33 @@ private:
             return;
         }
 
+        YT_VERIFY(tablet->SmoothMovementData().GetRole() == ESmoothMovementRole::Target);
+
         auto masterEndpointId = FromProto<TAvenueEndpointId>(request->master_avenue_endpoint_id());
         auto mailboxCookie = FromProto<TPersistentMailboxStateCookie>(request->master_mailbox_cookie());
 
+        auto inFlightTime = TInstant::Now() - FromProto<TInstant>(request->sending_time());
+
+        if (!IsRecovery()) {
+            tablet->GetTableProfiler()->GetSmoothMovementCounters()->SwitchTime.Record(inFlightTime);
+        }
+
         YT_LOG_DEBUG("Got servant switch request (%v, MasterAvenueEndpointId: %v, "
-            "FirstOutcomingMessageId: %v)",
+            "FirstOutcomingMessageId: %v, InFlightTime: %v)",
             tablet->GetLoggingTag(),
             masterEndpointId,
-            mailboxCookie.FirstOutcomingMessageId);
+            mailboxCookie.FirstOutcomingMessageId,
+            inFlightTime);
 
         tablet->SetMasterAvenueEndpointId(masterEndpointId);
         Host_->RegisterMasterAvenue(tabletId, masterEndpointId, std::move(mailboxCookie));
+        YT_VERIFY(!tablet->RuntimeData()->SmoothMovementData.IsActiveServant.load());
+        tablet->RuntimeData()->SmoothMovementData.IsActiveServant.store(true);
 
         ChangeSmoothMovementStage(
             tablet,
             ESmoothMovementStage::ServantSwitchRequested,
             ESmoothMovementStage::ServantSwitched);
-
-        tablet->RuntimeData()->SmoothMovementData.IsActiveServant.store(true);
 
         if (auto& promise = tablet->SmoothMovementData().TargetActivationPromise()) {
             YT_LOG_DEBUG("Setting target servant activation promise (%v)",
@@ -454,11 +492,20 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Changing smooth movement stage (%v)", tags);
+        auto timeInStage = TInstant::Now() - movementData.GetLastStageChangeTime();
+
+        if (!IsRecovery() && movementData.GetRole() == ESmoothMovementRole::Source) {
+            tablet->GetTableProfiler()->GetSmoothMovementCounters()->StageTime[expectedStage]
+                .Record(timeInStage);
+        }
+
+        YT_LOG_DEBUG("Changing smooth movement stage (%v, TimeInStage: %v)",
+            tags,
+            timeInStage);
 
         movementData.SetStage(newStage);
         movementData.SetStageChangeScheduled(false);
-        movementData.SetLastStageChangeTime(GetCurrentMutationContext()->GetTimestamp());
+        movementData.SetLastStageChangeTime(TInstant::Now());
 
         auto role = movementData.GetRole();
 
@@ -489,6 +536,16 @@ private:
         YT_VERIFY(HasHydraContext());
 
         auto& movementData = tablet->SmoothMovementData();
+
+        if (newStage == ESmoothMovementStage::WaitingForLocksBeforeActivation ||
+            newStage == ESmoothMovementStage::WaitingForLocksBeforeSwitch)
+        {
+            YT_LOG_DEBUG("Tablet approaches smooth movement barrier, aborting all "
+                "affecting transactions (%v, Stage: %v)",
+                tablet->GetLoggingTag(),
+                newStage);
+            Host_->AbortAllTransactions(tablet);
+        }
 
         switch (newStage) {
             case ESmoothMovementStage::WaitingForLocksBeforeActivation:
@@ -547,19 +604,15 @@ private:
                     ToProto(req.mutable_tablet_id(), tablet->GetId());
                     req.set_mount_revision(ToProto(movementData.GetSiblingMountRevision()));
 
-                    {
-                        auto& runtimeData = tablet->RuntimeData()->SmoothMovementData;
-                        runtimeData.SiblingServantCellId.Store(movementData.GetSiblingCellId());
-                        runtimeData.SiblingServantMountRevision.store(movementData.GetSiblingMountRevision());
-                        runtimeData.IsActiveServant.store(false);
-                    }
-
                     auto masterEndpointId = tablet->GetMasterAvenueEndpointId();
                     tablet->SetMasterAvenueEndpointId({});
+                    tablet->RuntimeData()->SmoothMovementData.IsActiveServant.store(false);
 
                     ToProto(req.mutable_master_avenue_endpoint_id(), masterEndpointId);
                     auto mailboxCookie = Host_->UnregisterMasterAvenue(masterEndpointId);
                     ToProto(req.mutable_master_mailbox_cookie(), mailboxCookie);
+
+                    req.set_sending_time(ToProto(GetCurrentMutationContext()->GetTimestamp()));
 
                     Host_->PostAvenueMessage(
                         movementData.GetSiblingAvenueEndpointId(),
@@ -619,7 +672,9 @@ private:
 
                 Host_->UnregisterSiblingTabletAvenue(
                     movementData.GetSiblingAvenueEndpointId());
+
                 movementData = {};
+                tablet->RuntimeData()->SmoothMovementData.Reset();
 
                 break;
             }
@@ -671,7 +726,9 @@ private:
 
         Host_->UnregisterSiblingTabletAvenue(
             movementData.GetSiblingAvenueEndpointId());
+
         movementData = {};
+        tablet->RuntimeData()->SmoothMovementData.Reset();
 
         NTabletServer::NProto::TReqReportSmoothMovementAborted rsp;
         ToProto(rsp.mutable_tablet_id(), tablet->GetId());

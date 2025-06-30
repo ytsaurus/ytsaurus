@@ -75,6 +75,11 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
 
         self._multicell_wait(resource_usage_matches)
 
+    def setup_method(self, method):
+        super().setup_method(method)
+        set("//sys/@config/security_manager/enable_tablet_resource_validation", True)
+        set("//sys/@config/tablet_manager/enable_tablet_resource_validation", False)
+
     @authors("savrus")
     @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
     def test_resource_limits(self, resource):
@@ -587,36 +592,12 @@ class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPo
     }
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestDynamicTablesResourceLimitsShardedTxCTxS(TestDynamicTablesResourceLimitsShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestDynamicTablesResourceLimitsMirroredTx(TestDynamicTablesResourceLimitsShardedTxCTxS):
+class TestDynamicTablesResourceLimitsMirroredTx(TestDynamicTablesResourceLimitsShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    def setup_method(self, method):
-        super(TestDynamicTablesResourceLimitsShardedTxCTxS, self).setup_method(method)
-        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
 
 
 ##################################################################
@@ -954,6 +935,44 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
         self._multicell_set("//sys/@config/tablet_manager/enable_tablet_resource_validation", False)
         insert_rows("//tmp/t", [{"key": 1}])
 
+    @authors("ifsmirnov")
+    def test_resource_quota_attribute(self):
+        create_tablet_cell_bundle("b")
+
+        path = "//sys/tablet_cell_bundles/b"
+
+        default_resource_limits = {
+            "tablet_count": 0,
+            "tablet_static_memory": 0,
+        }
+
+        set(f"{path}/@resource_limits", default_resource_limits)
+
+        assert get(f"{path}/@resource_quota") == {}
+
+        set(f"{path}/@resource_quota/cpu", 1)
+        assert get(f"{path}/@resource_quota") == {"cpu": 1}
+        assert get(f"{path}/@resource_limits") == {**default_resource_limits, "cpu": 1}
+
+        set(f"{path}/@resource_quota/memory", 100500)
+        assert get(f"{path}/@resource_quota") == {"cpu": 1, "memory": 100500}
+        assert get(f"{path}/@resource_limits") == {**default_resource_limits, "cpu": 1, "memory": 100500}
+
+        set(f"{path}/@resource_limits/net_bytes", 42)
+        assert get(f"{path}/@resource_quota") == {"cpu": 1, "memory": 100500, "net_bytes": 42}
+        assert get(f"{path}/@resource_limits") == {**default_resource_limits, "cpu": 1, "memory": 100500, "net_bytes": 42}
+
+        remove(f"{path}/@resource_quota/memory")
+        assert get(f"{path}/@resource_quota") == {"cpu": 1, "net_bytes": 42}
+        assert get(f"{path}/@resource_limits") == {**default_resource_limits, "cpu": 1, "net_bytes": 42}
+
+        with raises_yt_error():
+            remove(f"{path}/@resource_quota")
+        with raises_yt_error():
+            set(f"{path}/@resource_quota/memory", "string value")
+        with raises_yt_error():
+            set(f"{path}/@resource_quota/memory", -1)
+
 
 @pytest.mark.enabled_multidaemon
 class TestPerBundleAccountingMulticell(TestPerBundleAccounting):
@@ -977,40 +996,10 @@ class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
     }
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestPerBundleAccountingShardedTxCTxS(TestPerBundleAccountingShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestPerBundleAccountingMirroredTx(TestPerBundleAccountingShardedTxCTxS):
+class TestPerBundleAccountingMirroredTx(TestPerBundleAccountingShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 2
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        }
-    }
-
-    def setup_method(self, method):
-        super(TestPerBundleAccountingShardedTxCTxS, self).setup_method(method)
-        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)

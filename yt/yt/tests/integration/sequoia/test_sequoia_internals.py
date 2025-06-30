@@ -13,7 +13,7 @@ from yt_sequoia_helpers import (
     lookup_cypress_transaction, select_cypress_transaction_replicas,
     select_cypress_transaction_descendants, clear_table_in_ground,
     select_cypress_transaction_prerequisites,
-    mangle_sequoia_path, insert_rows_to_ground,
+    mangle_sequoia_path, demangle_sequoia_path, insert_rows_to_ground,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -28,7 +28,7 @@ from flaky import flaky
 import builtins
 from collections import namedtuple
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import itertools
 from random import randint
 from time import sleep
@@ -47,7 +47,6 @@ except ImportError:
 class TestSequoiaEnvSetup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_MASTERS = 1
     NUM_CLOCKS = 1
     NUM_NODES = 3
@@ -94,8 +93,8 @@ class TestSequoiaInternals(YTEnvSetup):
     DELTA_CYPRESS_PROXY_CONFIG = {
         "user_directory_synchronizer": {
             "sync_period": 100,
+            "sync_period_splay": 100,
         },
-        "heartbeat_period": 1000,
     }
 
     @authors("kvk1920")
@@ -113,9 +112,9 @@ class TestSequoiaInternals(YTEnvSetup):
     def test_create_table(self):
         create("table", "//tmp/some_dir/table", recursive=True)
         assert select_paths_from_ground() == [
-            "//tmp/",
-            "//tmp/some_dir/",
-            "//tmp/some_dir/table/",
+            "//tmp",
+            "//tmp/some_dir",
+            "//tmp/some_dir/table",
         ]
 
         assert get("//tmp") == {"some_dir": {"table": yson.YsonEntity()}}
@@ -220,29 +219,29 @@ class TestSequoiaInternals(YTEnvSetup):
         create("string_node", "//tmp/strings/s2")
 
         COMMON_ROWS = [
-            "//tmp/",
-            "//tmp/other/",
-            "//tmp/other/s1/",
-            "//tmp/other/s2/",
+            "//tmp",
+            "//tmp/other",
+            "//tmp/other/s1",
+            "//tmp/other/s2",
         ]
 
         if copy_mode == "copy":
             copy("//tmp/strings", "//tmp/other")
             assert select_paths_from_ground() == COMMON_ROWS + [
-                "//tmp/strings/",
-                "//tmp/strings/s1/",
-                "//tmp/strings/s2/",
+                "//tmp/strings",
+                "//tmp/strings/s1",
+                "//tmp/strings/s2",
             ]
 
             # Let's do it twice for good measure.
             copy("//tmp/strings", "//tmp/other_other")
             assert select_paths_from_ground() == COMMON_ROWS + [
-                "//tmp/other_other/",
-                "//tmp/other_other/s1/",
-                "//tmp/other_other/s2/",
-                "//tmp/strings/",
-                "//tmp/strings/s1/",
-                "//tmp/strings/s2/",
+                "//tmp/other_other",
+                "//tmp/other_other/s1",
+                "//tmp/other_other/s2",
+                "//tmp/strings",
+                "//tmp/strings/s1",
+                "//tmp/strings/s2",
             ]
         else:
             move("//tmp/strings", "//tmp/other")
@@ -256,24 +255,24 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", "//tmp/src/d")
 
         COMMON_ROWS = [
-            "//tmp/",
-            "//tmp/d/",
-            "//tmp/d/s/",
-            "//tmp/d/s/t/",
-            "//tmp/d/s/t/a/",
-            "//tmp/d/s/t/a/b/",
-            "//tmp/d/s/t/a/c/",
-            "//tmp/d/s/t/d/",
+            "//tmp",
+            "//tmp/d",
+            "//tmp/d/s",
+            "//tmp/d/s/t",
+            "//tmp/d/s/t/a",
+            "//tmp/d/s/t/a/b",
+            "//tmp/d/s/t/a/c",
+            "//tmp/d/s/t/d",
         ]
 
         if copy_mode == "copy":
             copy("//tmp/src", "//tmp/d/s/t", recursive=True)
             assert select_paths_from_ground() == COMMON_ROWS + [
-                "//tmp/src/",
-                "//tmp/src/a/",
-                "//tmp/src/a/b/",
-                "//tmp/src/a/c/",
-                "//tmp/src/d/",
+                "//tmp/src",
+                "//tmp/src/a",
+                "//tmp/src/a/b",
+                "//tmp/src/a/c",
+                "//tmp/src/d",
             ]
         else:
             move("//tmp/src", "//tmp/d/s/t", recursive=True)
@@ -288,12 +287,12 @@ class TestSequoiaInternals(YTEnvSetup):
         create("map_node", "//tmp/src/d")
 
         COMMON_ROWS = [
-            "//tmp/",
-            "//tmp/dst/",
-            "//tmp/dst/a/",
-            "//tmp/dst/a/b/",
-            "//tmp/dst/a/c/",
-            "//tmp/dst/d/",
+            "//tmp",
+            "//tmp/dst",
+            "//tmp/dst/a",
+            "//tmp/dst/a/b",
+            "//tmp/dst/a/c",
+            "//tmp/dst/d",
         ]
 
         if not is_excessive:
@@ -302,11 +301,11 @@ class TestSequoiaInternals(YTEnvSetup):
         if copy_mode == "copy":
             copy("//tmp/src", "//tmp/dst", force=True)
             assert select_paths_from_ground() == COMMON_ROWS + [
-                "//tmp/src/",
-                "//tmp/src/a/",
-                "//tmp/src/a/b/",
-                "//tmp/src/a/c/",
-                "//tmp/src/d/",
+                "//tmp/src",
+                "//tmp/src/a",
+                "//tmp/src/a/b",
+                "//tmp/src/a/c",
+                "//tmp/src/d",
             ]
         else:
             move("//tmp/src", "//tmp/dst", force=True)
@@ -325,12 +324,12 @@ class TestSequoiaInternals(YTEnvSetup):
             move("//tmp/dst/src", "//tmp/dst", force=True)
 
         assert select_paths_from_ground() == [
-            "//tmp/",
-            "//tmp/dst/",
-            "//tmp/dst/a/",
-            "//tmp/dst/a/b/",
-            "//tmp/dst/a/c/",
-            "//tmp/dst/d/",
+            "//tmp",
+            "//tmp/dst",
+            "//tmp/dst/a",
+            "//tmp/dst/a/b",
+            "//tmp/dst/a/c",
+            "//tmp/dst/d",
         ]
 
     @authors("kvk1920")
@@ -501,42 +500,6 @@ class TestSequoiaInternals(YTEnvSetup):
         with raises_yt_error():
             get_batch_output(results[1])
 
-    @authors("kvk1920")
-    def test_cypress_proxy_registry(self):
-        assert get("//sys/cypress_proxies/@count") == self.NUM_CYPRESS_PROXIES
-
-        cypress_proxy = ls("//sys/cypress_proxies")[0]
-        cypress_proxy_object_id = get(f"//sys/cypress_proxies/{cypress_proxy}/@id")
-        cypress_proxy_reign = get(f"//sys/cypress_proxies/{cypress_proxy}/orchid/sequoia_reign")
-
-        master = ls("//sys/primary_masters")[0]
-        master_reign = get(f"//sys/primary_masters/{master}/orchid/sequoia_reign")
-
-        assert cypress_proxy_reign == master_reign
-
-        remove(f"//sys/cypress_proxies/{cypress_proxy}")
-        wait(lambda: exists(f"//sys/cypress_proxies/{cypress_proxy}"))
-        assert cypress_proxy_object_id != get(f"//sys/cypress_proxies/{cypress_proxy}/@id")
-
-    @authors("kvk1920")
-    def test_cypress_proxy_version(self):
-        version = ls("//sys/cypress_proxies", attributes=["version"])[0].attributes["version"]
-        assert ".".join(map(str, self.Env.get_component_version("ytserver-cypress-proxy").abi)) in version
-
-    @authors("kvk1920")
-    def test_cypress_proxy_persistent_heartbeat_period(self):
-        set("//sys/@config/cypress_proxy_tracker/persistent_heartbeat_period", 1000)
-
-        now = datetime.now(timezone.utc)
-
-        def check():
-            last_persistent_heartbeat_time = ls("//sys/cypress_proxies", attributes=["last_persistent_heartbeat_time"])[0].attributes["last_persistent_heartbeat_time"]
-            last_persistent_heartbeat_time = datetime.strptime(last_persistent_heartbeat_time, "%Y-%m-%dT%H:%M:%S.%fZ")
-            last_persistent_heartbeat_time = last_persistent_heartbeat_time.replace(tzinfo=timezone.utc)
-            return last_persistent_heartbeat_time > now
-
-        wait(check)
-
     @authors("danilalexeev")
     @flaky(max_runs=3)
     def test_request_throttling(self):
@@ -604,7 +567,6 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
     NUM_TEST_PARTITIONS = 6
 
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -613,18 +575,6 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         "11": {"roles": ["sequoia_node_host", "cypress_node_host", "chunk_host"]},
         "12": {"roles": ["transaction_coordinator", "cypress_node_host"]},
         "13": {"roles": ["chunk_host", "cypress_node_host"]}
-    }
-
-    # COMPAT(kvk1920): Remove when `use_cypress_transaction_service` become `true` by default.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            },
-        },
     }
 
     def _check_transaction_not_exists(self, tx):
@@ -1115,20 +1065,6 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-
-    # COMPAT(kvk1920): remove when `use_cypress_transaction_service` become
-    # `true` by default.
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            },
-        },
-    }
 
     # Creates node and returns its ID. For rootstock returns corresponding
     # scion's ID.
@@ -2080,6 +2016,8 @@ class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
     ENABLE_MULTIDAEMON = True
     # We need only the primary master with tx coordinator role.
     NUM_SECONDARY_MASTER_CELLS = 0
+    # Don't need them here.
+    NUM_CYPRESS_PROXIES = 0
 
     def teardown_method(self, method):
         clear_table_in_ground(DESCRIPTORS.node_id_to_path)
@@ -2127,7 +2065,6 @@ class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
 class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
-    NUM_CYPRESS_PROXIES = 1
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
         "11": {"roles": ["sequoia_node_host", "cypress_node_host", "chunk_host"]},
@@ -2617,7 +2554,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
             # Target content is removed.
             r | {"transaction_id": tx2, "node_id": None}
             for r in path_to_node_id_destination
-            if not r["path"].endswith("/e/")
+            if not demangle_sequoia_path(r["path"]).endswith("/e")
         ] + [
             # Target node is recreated.
             self.path_to_node_id("//tmp/scion/e", e2, tx2)
@@ -2754,7 +2691,6 @@ class TestSequoiaTmpCleanup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_SECONDARY_MASTER_CELLS = 0
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},

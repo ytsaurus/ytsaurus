@@ -261,59 +261,24 @@ DEFINE_ENUM(EHunkStoreState,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TTabletHydraManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TRelativeReplicationThrottlerConfig)
 DECLARE_REFCOUNTED_STRUCT(TRowDigestCompactionConfig)
 DECLARE_REFCOUNTED_STRUCT(TBuiltinTableMountConfig)
 DECLARE_REFCOUNTED_STRUCT(TCustomTableMountConfig)
 DECLARE_REFCOUNTED_STRUCT(TTableMountConfig)
-DECLARE_REFCOUNTED_STRUCT(TTransactionManagerConfig)
-DECLARE_REFCOUNTED_STRUCT(TTabletManagerConfig)
-DECLARE_REFCOUNTED_STRUCT(TTabletManagerDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TTabletCellWriteManagerDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TTabletHunkLockManagerDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TStoreBackgroundActivityOrchidConfig)
-DECLARE_REFCOUNTED_STRUCT(TStoreFlusherConfig)
-DECLARE_REFCOUNTED_STRUCT(TStoreFlusherDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TStoreCompactorConfig)
-DECLARE_REFCOUNTED_STRUCT(TStoreCompactorDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TStoreTrimmerDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(THunkChunkSweeperDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TInMemoryManagerConfig)
-DECLARE_REFCOUNTED_STRUCT(TInMemoryManagerDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TPartitionBalancerConfig)
-DECLARE_REFCOUNTED_STRUCT(TPartitionBalancerDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderConfig)
-DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TSmoothMovementTrackerDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TSmoothMovementTrackerTestingConfig)
 DECLARE_REFCOUNTED_STRUCT(TSecurityManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TSecurityManagerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TTabletStoreReaderConfig)
 DECLARE_REFCOUNTED_STRUCT(TTabletHunkReaderConfig)
-DECLARE_REFCOUNTED_STRUCT(TResourceLimitsConfig)
-DECLARE_REFCOUNTED_STRUCT(TMasterConnectorConfig)
-DECLARE_REFCOUNTED_STRUCT(TMasterConnectorDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TTabletNodeDynamicConfig)
-DECLARE_REFCOUNTED_STRUCT(TTabletNodeConfig)
 DECLARE_REFCOUNTED_STRUCT(TReplicatorHintConfig)
-DECLARE_REFCOUNTED_STRUCT(THintManagerConfig)
 DECLARE_REFCOUNTED_STRUCT(TTabletHunkWriterConfig)
 DECLARE_REFCOUNTED_STRUCT(TTableIOConfigPatch)
 DECLARE_REFCOUNTED_STRUCT(TTableConfigPatch)
 DECLARE_REFCOUNTED_STRUCT(TTableConfigExperiment)
 DECLARE_REFCOUNTED_STRUCT(TClusterTableConfigPatchSet)
-DECLARE_REFCOUNTED_STRUCT(TBackupManagerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(THunkStorageMountConfig)
 DECLARE_REFCOUNTED_STRUCT(THunkStoreWriterConfig)
 DECLARE_REFCOUNTED_STRUCT(THunkStoreWriterOptions)
-DECLARE_REFCOUNTED_STRUCT(TServiceMethod)
-DECLARE_REFCOUNTED_STRUCT(TServiceMethodConfig)
-DECLARE_REFCOUNTED_STRUCT(TOverloadTrackerConfig)
-DECLARE_REFCOUNTED_STRUCT(TOverloadControllerConfig)
-DECLARE_REFCOUNTED_STRUCT(TStatisticsReporterConfig)
-DECLARE_REFCOUNTED_STRUCT(TMediumThrottlersConfig)
-DECLARE_REFCOUNTED_STRUCT(TErrorManagerConfig)
 
 using TTabletStoreWriterConfig = NTableClient::TTableWriterConfig;
 using TTabletStoreWriterConfigPtr = NTableClient::TTableWriterConfigPtr;
@@ -324,11 +289,15 @@ using TTabletStoreWriterOptionsPtr = NTableClient::TTableWriterOptionsPtr;
 using TTabletHunkWriterOptions = NChunkClient::TMultiChunkWriterOptions;
 using TTabletHunkWriterOptionsPtr = NChunkClient::TMultiChunkWriterOptionsPtr;
 
-//! This is the hard limit.
-//! Moreover, it is quite expensive to be graceful in preventing it from being exceeded.
-//! The soft limit, thus, is significantly smaller.
-constexpr i64 HardRevisionsPerDynamicStoreLimit = 1ULL << 26;
-constexpr i64 SoftRevisionsPerDynamicStoreLimit = 1ULL << 25;
+YT_DEFINE_STRONG_TYPEDEF(TSortedDynamicStoreRevision, ui32);
+
+// NB: Should be clumped using IDynamicStore::ClampMaxDynamicStoreTimestampCount,
+// otherwise hard limit could be breached.
+// TODO(ponasenko-rs): Make underlying access more restricted.
+YT_DEFINE_STRONG_TYPEDEF(TMaxDynamicStoreTimestampCount, i64);
+
+// NB: c.f. revision_provider.h for hard limits.
+constexpr i64 SoftRevisionsPerDynamicStoreLimit = 1ULL << 30;
 
 constexpr int DefaultMaxOverlappingStoreCount = 30;
 

@@ -191,7 +191,7 @@ TTabletManagerConfigPtr TSimpleTabletManager::GetConfig() const
     return Config_;
 }
 
-void TSimpleTabletManager::ValidateMemoryLimit(const std::optional<TString>& /*poolTag*/)
+void TSimpleTabletManager::ValidateMemoryLimit(const std::optional<std::string>& /*poolTag*/)
 { }
 
 TTimestamp TSimpleTabletManager::GetLatestTimestamp() const

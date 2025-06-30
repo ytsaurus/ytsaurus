@@ -287,7 +287,7 @@ public:
     {
         auto connection = Owner_->Connection_.Lock();
         if (!connection) {
-            THROW_ERROR_EXCEPTION("Unable to locate %v %v: connection terminated",
+            THROW_ERROR_EXCEPTION("Unable to locate %Qlv %v: connection terminated",
                 Type_,
                 ObjectId_);
         }
@@ -433,7 +433,7 @@ private:
                         THROW_ERROR *resolveError;
                     }
 
-                    THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %v %v",
+                    THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v",
                         type,
                         objectId)
                     << errorOr;
@@ -519,7 +519,7 @@ public:
     {
         auto connection = Owner_->Connection_.Lock();
         if (!connection) {
-            THROW_ERROR_EXCEPTION("Unable to locate %v %v: connection terminated",
+            THROW_ERROR_EXCEPTION("Unable to locate %Qlv %v: connection terminated",
                 Type_,
                 ObjectId_);
         }
@@ -529,7 +529,7 @@ public:
         auto req = proxy.GetChaosObjectResidency();
         ToProto(req->mutable_chaos_object_id(), ObjectId_);
         if (ForceRefresh_) {
-            req->set_force_refresh_chaos_object_cell_tag(ToProto<ui32>(CellTag_));
+            req->set_force_refresh_chaos_object_cell_tag(ToProto(CellTag_));
         }
 
         SetChaosCacheStickyGroupBalancingHint(
@@ -544,7 +544,7 @@ public:
             ] (TErrorOr<TChaosNodeServiceProxy::TRspGetChaosObjectResidencyPtr>&& resultOrError)
         {
             if (!resultOrError.IsOK()) {
-                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %v %v",
+                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %Qlv %v",
                     type,
                     objectId)
                     << resultOrError;
@@ -690,7 +690,7 @@ IChaosResidencyCachePtr CreateChaosResidencyCache(
         chaosCacheChannelConfig->Addresses->empty();
 
     if (chaosChannelConfigAddressesInvalid) {
-        auto& Logger = logger;
+        const auto& Logger = logger;
         YT_LOG_WARNING(
             "Chaos cache channel addresses are present but empty, "
             "falling back to master cache variant of chaos residency cache");

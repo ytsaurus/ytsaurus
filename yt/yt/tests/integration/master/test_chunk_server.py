@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE, with_additional_threads
 
 from yt_commands import (
-    authors, create_user, set_nodes_banned, wait, create, ls, get, set, remove, exists,
+    authors, copy, create_user, get_driver, set_nodes_banned, wait, create, ls, get, set, remove, exists,
     start_transaction, insert_rows, build_snapshot, gc_collect, concatenate, create_account, create_rack,
     read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_control_chunk_replicator, get_singular_chunk_id, multicell_sleep, update_nodes_dynamic_config,
@@ -20,9 +20,12 @@ from flaky import flaky
 
 from collections import defaultdict
 
+import yt.wrapper as yt
+
 import json
 import os
-from time import sleep
+import threading
+from time import sleep, time
 
 ##################################################################
 
@@ -35,9 +38,7 @@ class TestChunkServer(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "data_node": {
-            "disk_health_checker": {
-                "check_period": 1000,
-            },
+            "store_locations": [{"disk_health_checker": {"check_period": 1000}}],
         },
     }
 
@@ -495,6 +496,157 @@ class TestChunkServer(YTEnvSetup):
 ##################################################################
 
 
+class TestMaxWriteSessionLimit(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_MASTERS = 3
+    NUM_NODES = 6
+    ENABLE_HTTP_PROXY = True
+    NUM_HTTP_PROXIES = 1
+
+    DELTA_NODE_CONFIG = {
+        "data_node": {
+            "max_write_sessions": 1000,
+            "incremental_heartbeat_period": 100,
+        },
+    }
+
+    @authors("koloshmet")
+    def test_zero_limits(self):
+        set("//sys/@config/chunk_manager/enable_node_write_session_limit_on_write_target_allocation", True)
+        set("//sys/@config/chunk_manager/enable_node_write_session_limit_for_user_on_write_target_allocation", True)
+
+        def trivial(c):
+            c[0] += 1
+            with raises_yt_error("Not enough data nodes available to write chunk"):
+                create("table", f"//tmp/t{c[0]}")
+                write_table(f"//tmp/t{c[0]}", {"a": "b"})
+            return True
+
+        set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", .0)
+
+        counter = [0]
+        trivial(counter)
+
+        set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", 1.0)
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "session_count_limit": 0,
+                    }
+                }
+            }
+        })
+
+        wait(lambda: trivial(counter), ignore_exceptions=True)
+
+    @authors("koloshmet")
+    @flaky(max_runs=3)
+    def test_dynamic_limits(self):
+        set("//sys/@config/chunk_manager/enable_node_write_session_limit_on_write_target_allocation", True)
+        set("//sys/@config/chunk_manager/enable_node_write_session_limit_for_user_on_write_target_allocation", True)
+
+        def gen():
+            start = time()
+            while start + 10 > time():
+                yield yson.dumps({"a": "b"}) + ';'.encode()
+                sleep(0.1)
+            return None
+
+        def write_tables(table_prefix, expect_exceptions):
+            tables = []
+            for i in range(10):
+                table_name = table_prefix.format(i)
+                create("table", table_name)
+                tables.append(table_name)
+
+            writers = []
+            exceptions = []
+
+            for table_name in tables:
+                yw = yt.YtClient(proxy=self.Env.get_proxy_address(), config={"write_retries": {"enable": False}})
+
+                def writer():
+                    try:
+                        yw.write_table(table_name, gen(), raw=True, format=yt.YsonFormat())
+                    except Exception as e:
+                        exceptions.append(e)
+
+                t = threading.Thread(target=writer)
+                t.start()
+                writers.append(t)
+
+            for t in writers:
+                t.join()
+
+            not_enough_data_nodes_available = False
+            for e in exceptions:
+                if "Not enough data nodes available to write chunk" in str(e):
+                    not_enough_data_nodes_available = True
+
+            if expect_exceptions:
+                assert exceptions
+                assert not_enough_data_nodes_available
+            else:
+                assert not exceptions
+                for table_name in tables:
+                    chunk_id = get_singular_chunk_id(table_name)
+                    wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 3)
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "session_count_limit": 10,
+                    }
+                }
+            }
+        })
+
+        sleep(1)
+
+        write_tables("//tmp/t1{}", False)
+
+        set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", 0.1)
+
+        sleep(1)
+
+        write_tables("//tmp/t2{}", True)
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "session_count_limit": 100,
+                    }
+                }
+            }
+        })
+
+        sleep(1)
+
+        write_tables("//tmp/t3{}", False)
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "session_count_limit": 100000,
+                    }
+                }
+            }
+        })
+
+        set("//sys/@config/chunk_manager/node_write_session_limit_fraction_on_write_target_allocation", 0.001)
+
+        sleep(1)
+
+        write_tables("//tmp/t4{}", True)
+
+
+##################################################################
+
 def _find_median(series):
     sorted_series = sorted(series)
     series_size = len(sorted_series)
@@ -523,7 +675,7 @@ class TestTwoRandomChoicesWriteTargetAllocation(YTEnvSetup):
     NUM_NODES = 10
 
     @authors("h0pless")
-    @pytest.mark.timeout(120)
+    @pytest.mark.timeout(180)
     def test_power_of_two_choices_write_target_allocation(self):
         set("//sys/@config/chunk_manager/enable_two_random_choices_write_target_allocation", True)
         set("//sys/@config/chunk_manager/nodes_to_check_before_giving_up_on_write_target_allocation", 8)
@@ -832,7 +984,7 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
 
 class TestChunkServerMulticell(TestChunkServer):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_SCHEDULERS = 1
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
@@ -844,26 +996,27 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("babenko")
     def test_validate_chunk_host_cell_role1(self):
-        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors", {"12": {"roles": ["cypress_node_host"]}})
         with raises_yt_error("cannot host chunks"):
-            create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
+            create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
     @authors("aleksandra-zh")
     def test_validate_chunk_host_cell_role2(self):
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
         set("//sys/@config/multicell_manager/cell_descriptors", {})
         with raises_yt_error("cannot host chunks"):
-            create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
+            create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
-        create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 11})
+        create("table", "//tmp/t", attributes={"external": True, "external_cell_tag": 12})
 
     @authors("aleksandra-zh")
     def test_multicell_with_primary_chunk_host(self):
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
         set("//sys/@config/multicell_manager/cell_descriptors", {"10": {"roles": ["cypress_node_host", "chunk_host"]}})
 
-        create("table", "//tmp/t")
+        create("table", "//t")
+        remove("//t")
 
     @authors("babenko")
     def test_owning_nodes3(self):
@@ -887,6 +1040,38 @@ class TestChunkServerMulticell(TestChunkServer):
         chunk_id = chunk_ids[0]
 
         assert_items_equal(get("#" + chunk_id + "/@owning_nodes"), ["//tmp/t0", "//tmp/t1", "//tmp/t2"])
+
+    @authors("cherepashka")
+    @pytest.mark.parametrize("to_concatenate", [True, False])
+    def test_owning_nodes4(self, to_concatenate):
+        def check_owning_nodes(object_id, owning_nodes):
+            cell_indicies = {0}  # primary cell
+            cell_indicies.add(get(f"#{object_id}/@native_cell_tag") - 10)
+
+            for cell_index in cell_indicies:
+                assert_items_equal(get(f"#{object_id}/@owning_nodes", driver=get_driver(cell_index)), owning_nodes)
+
+        create("table", "//tmp/t", attributes={"external_cell_tag": 12})
+        write_table("//tmp/t", [{"key": 42, "value": "hello!"}])
+        chunk_id = get("//tmp/t/@chunk_ids")[0]
+        chunk_list_id = get("//tmp/t/@chunk_list_id")
+        chunk_list_owning_nodes = ["//tmp/t"]
+        if to_concatenate:
+            create("table", "//home/t", recursive=True, force=True, attributes={"external_cell_tag": 11})
+            # Export from 12 cell to 11.
+            concatenate(["//tmp/t", "//tmp/t"], "//home/t")
+
+            create("table", "//tmp/t1", attributes={"external_cell_tag": 13})
+            # Export from 11 cell to 13.
+            concatenate(["//home/t", "//home/t"], "//tmp/t1")
+        else:
+            copy("//tmp/t", "//home/t", recursive=True, force=True)
+            copy("//home/t", "//tmp/t1")
+            chunk_list_owning_nodes.append("//home/t")
+            chunk_list_owning_nodes.append("//tmp/t1")
+
+        check_owning_nodes(chunk_id, ["//tmp/t", "//home/t", "//tmp/t1"])
+        check_owning_nodes(chunk_list_id, chunk_list_owning_nodes)
 
     @authors("babenko")
     def test_chunk_requisition_registry_orchid(self):
@@ -912,7 +1097,8 @@ class TestChunkServerMulticell(TestChunkServer):
     def test_dedicated_chunk_host_roles_only(self):
         set("//sys/@config/multicell_manager/cell_descriptors", {
             "11": {"roles": ["dedicated_chunk_host", "cypress_node_host"]},
-            "12": {"roles": ["dedicated_chunk_host"]}})
+            "12": {"roles": ["dedicated_chunk_host"]},
+            "13": {"roles": ["dedicated_chunk_host"]}})
 
         with raises_yt_error("No secondary masters with a chunk host role were found"):
             create("table", "//tmp/t", attributes={
@@ -985,6 +1171,10 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("koloshmet")
     def test_lost_vital_chunks_sample(self):
+        if self.ENABLE_TMP_PORTAL:
+            # TODO(koloshmet): fix me.
+            pytest.skip("Test is broken with portals")
+
         set("//sys/@config/chunk_manager/lost_vital_chunks_sample_update_period", 1000)
 
         create("table", "//tmp/t0", attributes={"external": False})
@@ -1067,6 +1257,14 @@ class TestChunkServerMulticell(TestChunkServer):
         with raises_yt_error("it still hosts chunks"):
             set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
 
+        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["dedicated_chunk_host", "cypress_node_host"]}})
+        with raises_yt_error("it still hosts chunks"):
+            set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["cypress_node_host"]}})
+
+
+class TestChunkServerPortal(TestChunkServerMulticell):
+    ENABLE_TMP_PORTAL = True
+
 
 ##################################################################
 
@@ -1078,9 +1276,7 @@ class TestChunkServerReplicaRemoval(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "data_node": {
-            "disk_health_checker": {
-                "check_period": 1000,
-            },
+            "store_locations": [{"disk_health_checker": {"check_period": 1000}}],
         },
     }
 

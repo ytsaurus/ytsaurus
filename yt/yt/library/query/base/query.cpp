@@ -743,17 +743,33 @@ bool TReferenceComparer::operator()(const std::string& lhs, const std::string& r
     return lhs == rhs;
 }
 
-bool Compare(
-    TConstExpressionPtr lhs,
-    TConstExpressionPtr rhs,
-    std::function<bool(const std::string&, const std::string&)> referenceComparer)
-{
 #define CHECK(condition)    \
     do {                    \
         if (!(condition)) { \
             return false;   \
         }                   \
     } while (false)
+
+bool Compare(
+    TNamedItemList lhs,
+    TNamedItemList rhs,
+    std::function<bool(const std::string&, const std::string&)> referenceComparer)
+{
+    CHECK(lhs.size() == rhs.size());
+    for (size_t index = 0; index < lhs.size(); ++index) {
+        CHECK(Compare(lhs[index].Expression, rhs[index].Expression, referenceComparer));
+        CHECK(lhs[index].Name == rhs[index].Name);
+    }
+
+    return true;
+}
+
+bool Compare(
+    TConstExpressionPtr lhs,
+    TConstExpressionPtr rhs,
+    std::function<bool(const std::string&, const std::string&)> referenceComparer)
+{
+
 
     CHECK(*lhs->LogicalType == *rhs->LogicalType);
 
@@ -851,13 +867,25 @@ bool Compare(
         CHECK(Compare(memberAccessorLhs->CompositeExpression, memberAccessorRhs->CompositeExpression, referenceComparer));
         CHECK(memberAccessorLhs->NestedStructOrTupleItemAccessor == memberAccessorRhs->NestedStructOrTupleItemAccessor);
         CHECK(Compare(memberAccessorLhs->DictOrListItemAccessor, memberAccessorRhs->DictOrListItemAccessor, referenceComparer));
+    } else if (auto subqueryLhs = lhs->As<TSubqueryExpression>()) {
+        auto subqueryRhs = rhs->As<TSubqueryExpression>();
+        CHECK(subqueryRhs);
+
+        CHECK(Compare(subqueryLhs->FromExpressions, subqueryRhs->FromExpressions, referenceComparer));
+        CHECK(Compare(subqueryLhs->WhereClause, subqueryRhs->WhereClause, referenceComparer));
+
+        if (subqueryLhs->ProjectClause) {
+            CHECK(subqueryRhs->ProjectClause);
+            CHECK(Compare(subqueryLhs->ProjectClause->Projections, subqueryRhs->ProjectClause->Projections, referenceComparer));
+        }
     } else {
         YT_ABORT();
     }
-#undef CHECK
 
     return true;
 }
+
+#undef CHECK
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -934,6 +962,17 @@ std::vector<size_t> GetJoinGroups(
 
     return joinGroups;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TNamedItem* serialized, const TNamedItem& original);
+void FromProto(TNamedItem* original, const NProto::TNamedItem& serialized);
+
+void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original);
+void FromProto(TConstGroupClausePtr* original, const NProto::TGroupClause& serialized);
+
+void ToProto(NProto::TProjectClause* proto, const TConstProjectClausePtr& original);
+void FromProto(TConstProjectClausePtr* original, const NProto::TProjectClause& serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1133,6 +1172,23 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         if (memberAccessorExpr->DictOrListItemAccessor) {
             ToProto(proto->mutable_dict_or_list_item_accessor(), memberAccessorExpr->DictOrListItemAccessor);
         }
+    } else if (auto subqueryExpr = original->As<TSubqueryExpression>()) {
+        serialized->set_kind(ToProto(EExpressionKind::Subquery));
+        auto* proto = serialized->MutableExtension(NProto::TSubqueryExpression::subquery_expression);
+
+        ToProto(proto->mutable_from_expressions(), subqueryExpr->FromExpressions);
+
+        if (subqueryExpr->WhereClause) {
+            ToProto(proto->mutable_where_clause(), subqueryExpr->WhereClause);
+        }
+
+        if (subqueryExpr->GroupClause) {
+            ToProto(proto->mutable_group_clause(), subqueryExpr->GroupClause);
+        }
+
+        if (subqueryExpr->ProjectClause) {
+            ToProto(proto->mutable_project_clause(), subqueryExpr->ProjectClause);
+        }
     }
 }
 
@@ -1184,7 +1240,7 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
         }
 
         case EExpressionKind::Function: {
-            auto result = New<TFunctionExpression>(GetWireType(type));
+            auto result = New<TFunctionExpression>(type);
             const auto& ext = serialized.GetExtension(NProto::TFunctionExpression::function_expression);
             result->FunctionName = ext.function_name();
             FromProto(&result->Arguments, ext.arguments());
@@ -1301,6 +1357,31 @@ void FromProto(TConstExpressionPtr* original, const NProto::TExpression& seriali
 
             if (ext.has_dict_or_list_item_accessor()) {
                 FromProto(&result->DictOrListItemAccessor, ext.dict_or_list_item_accessor());
+            }
+
+            *original = result;
+            return;
+        }
+
+        case EExpressionKind::Subquery: {
+            auto result = New<TSubqueryExpression>(type);
+            const auto& ext = serialized.GetExtension(NProto::TSubqueryExpression::subquery_expression);
+
+            result->FromExpressions.reserve(ext.from_expressions_size());
+            for (int i = 0; i < ext.from_expressions_size(); ++i) {
+                result->FromExpressions.push_back(FromProto<TNamedItem>(ext.from_expressions(i)));
+            }
+
+            if (ext.has_where_clause()) {
+                FromProto(&result->WhereClause, ext.where_clause());
+            }
+
+            if (ext.has_group_clause()) {
+                FromProto(&result->GroupClause, ext.group_clause());
+            }
+
+            if (ext.has_project_clause()) {
+                FromProto(&result->ProjectClause, ext.project_clause());
             }
 
             *original = result;

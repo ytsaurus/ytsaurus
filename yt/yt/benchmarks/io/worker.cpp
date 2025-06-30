@@ -154,7 +154,7 @@ private:
 
     private:
         TStatistics Statistics_;
-        std::atomic<bool> Stop_ = {false};
+        std::atomic<bool> Stop_ = false;
         std::vector<TProcessRusageMeter> PollerMeters_;
         THashSet<TProcessId> RegisteredProcesses_;
 

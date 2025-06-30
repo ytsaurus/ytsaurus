@@ -39,7 +39,7 @@ using NYT::ToProto;
 
 constexpr int MaxAnnotationValueLength = 128;
 
-static constexpr auto& Logger = SchedulerLogger;
+constinit const auto Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -161,9 +161,14 @@ TInstant TOperation::GetStartTime() const
     return StartTime_;
 }
 
-TString TOperation::GetAuthenticatedUser() const
+std::string TOperation::GetAuthenticatedUser() const
 {
     return AuthenticatedUser_;
+}
+
+std::optional<std::string> TOperation::GetTitle() const
+{
+    return Spec_->Title;
 }
 
 TStrategyOperationSpecPtr TOperation::GetStrategySpec() const
@@ -213,9 +218,9 @@ TFuture<TOperationPtr> TOperation::GetStarted()
 TAccessControlRule TOperation::GetAccessControlRule() const
 {
     if (RuntimeParameters_->AcoName) {
-        return *RuntimeParameters_->AcoName;
+        return TAccessControlRule(*RuntimeParameters_->AcoName);
     } else {
-        return RuntimeParameters_->Acl;
+        return TAccessControlRule(RuntimeParameters_->Acl);
     }
 }
 
@@ -545,7 +550,7 @@ std::vector<TString> TOperation::GetExperimentAssignmentNames() const
     return result;
 }
 
-std::vector<TString> TOperation::GetJobShellOwners(const TString& jobShellName)
+std::vector<std::string> TOperation::GetJobShellOwners(const TString& jobShellName)
 {
     TJobShellPtr jobShell;
     for (const auto& shell : Spec_->JobShells) {
@@ -627,7 +632,7 @@ bool TOperation::AddSecureVaultEntry(const TString& key, const INodePtr& value)
     return SecureVault_->AddChild(key, value);
 }
 
-void TOperation::SetTemporaryToken(const TString& token, const TNodeId& nodeId)
+void TOperation::SetTemporaryToken(const std::string& token, const TNodeId& nodeId)
 {
     YT_VERIFY(State_ == EOperationState::Starting);
     YT_VERIFY(Spec_->IssueTemporaryToken);

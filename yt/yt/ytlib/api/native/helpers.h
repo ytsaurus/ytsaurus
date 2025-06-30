@@ -96,4 +96,10 @@ THashSet<TString> DeduceActualAttributes(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSelectRowsOptions GetDefaultSelectRowsOptions(
+    TInstant deadline,
+    NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi::NNative

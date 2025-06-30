@@ -106,8 +106,7 @@ using TOperationControllerStrategyHostMockPtr = TIntrusivePtr<TOperationControll
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationStrategyHostMock
-    : public TRefCounted
-    , public IOperationStrategyHost
+    : public IOperationStrategyHost
 {
 public:
     explicit TOperationStrategyHostMock(const TJobResourcesWithQuotaList& jobResourcesList)
@@ -122,6 +121,11 @@ public:
     }
 
     EOperationState GetState() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    std::optional<std::string> GetTitle() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -147,9 +151,9 @@ public:
     void ReleaseSlotIndex(const TString& /*treeId*/) override
     { }
 
-    TString GetAuthenticatedUser() const override
+    std::string GetAuthenticatedUser() const override
     {
-        return "root";
+        return NSecurityClient::RootUserName;
     }
 
     TOperationId GetId() const override

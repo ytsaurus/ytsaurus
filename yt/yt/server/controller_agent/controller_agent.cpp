@@ -4,7 +4,7 @@
 #include "bootstrap.h"
 #include "helpers.h"
 #include "job_monitoring_index_manager.h"
-#include "job_profiler.h"
+#include "controllers/common_profilers.h"
 #include "job_tracker.h"
 #include "master_connector.h"
 #include "memory_watchdog.h"
@@ -23,6 +23,7 @@
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/yt/server/lib/misc/job_reporter.h>
+#include <yt/yt/server/lib/misc/operation_events_reporter.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -59,6 +60,8 @@
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/service_combiner.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/build/build.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
@@ -89,7 +92,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ControllerAgentLogger;
+constinit const auto Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,12 +224,14 @@ public:
         , JobReporter_(New<TJobReporter>(
             Config_->JobReporter,
             Bootstrap_->GetClient()->GetNativeConnection()))
+        , OperationEventsReporter_(New<TOperationEventReporter>(
+            Config_->OperationEventsReporter,
+            Bootstrap_->GetClient()->GetNativeConnection()))
         , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
             std::move(configNode),
             Bootstrap_))
         , JobTracker_(New<TJobTracker>(Bootstrap_, JobReporter_))
-        , JobProfiler_(New<TJobProfiler>())
         , JobEventsInvoker_(CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker(), "controller_agent"))
         , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>>(
             BIND_NO_PROPAGATE(&TImpl::FilterExecNodes, MakeStrong(this)),
@@ -392,13 +397,6 @@ public:
         return JobTracker_.Get();
     }
 
-    TJobProfiler* GetJobProfiler() const
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        return JobProfiler_.Get();
-    }
-
     const TMediumDirectoryPtr& GetMediumDirectory() const
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
@@ -500,6 +498,11 @@ public:
     const TJobReporterPtr& GetJobReporter() const
     {
         return JobReporter_;
+    }
+
+    const TOperationEventReporterPtr& GetOperationEventReporter() const
+    {
+        return OperationEventsReporter_;
     }
 
     IInvokerPtr CreateCancelableInvoker(const IInvokerPtr& invoker)
@@ -1122,9 +1125,9 @@ private:
     const TAsyncSemaphorePtr CoreSemaphore_;
     const IEventLogWriterPtr EventLogWriter_;
     const TJobReporterPtr JobReporter_;
+    const TOperationEventReporterPtr OperationEventsReporter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     const TJobTrackerPtr JobTracker_;
-    const TJobProfilerPtr JobProfiler_;
 
     bool Connected_= false;
     bool ConnectScheduled_ = false;
@@ -1164,7 +1167,7 @@ private:
     TAgentToSchedulerScheduleAllocationResponseOutboxPtr ScheduleAllocationResponsesOutbox_;
     TAgentToSchedulerRunningAllocationStatisticsOutboxPtr RunningAllocationStatisticsUpdatesOutbox_;
 
-    std::unique_ptr<TMessageQueueInbox> AllocationEventsInbox_;
+    std::shared_ptr<TMessageQueueInbox> AllocationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> OperationEventsInbox_;
     std::unique_ptr<TMessageQueueInbox> ScheduleAllocationRequestsInbox_;
 
@@ -1366,7 +1369,7 @@ private:
             ControllerAgentProfiler().WithTag("queue", "running_allocation_statistics"),
             Bootstrap_->GetControlInvoker());
 
-        AllocationEventsInbox_ = std::make_unique<TMessageQueueInbox>(
+        AllocationEventsInbox_ = std::make_shared<TMessageQueueInbox>(
             ControllerAgentLogger().WithTag(
                 "Kind: SchedulerToAgentAllocationEvents, IncarnationId: %v",
                 IncarnationId_),
@@ -1582,8 +1585,11 @@ private:
             },
             Config_->MaxRunningJobStatisticsUpdateCountPerHeartbeat);
 
-        auto error = WaitFor(BIND([&, request] {
-                AllocationEventsInbox_->ReportStatus(request->mutable_scheduler_to_agent_allocation_events());
+        // NB(pogorelov): CA may disconnect while the callback is executing (it will lead to invoker cancellation).
+        // So we just copy "allocationEventsInbox" shared pointer.
+        // Variable "request" will be valid cause fiber will be destroyed after the future is set.
+        auto error = WaitFor(BIND([allocationEventsInbox = AllocationEventsInbox_, request] {
+                allocationEventsInbox->ReportStatus(request->mutable_scheduler_to_agent_allocation_events());
             })
             .AsyncVia(JobEventsInvoker_)
             .Run());
@@ -1627,7 +1633,7 @@ private:
             }
 
             if (preparedRequest.SuspiciousJobsSent) {
-                protoOperation->set_suspicious_jobs(controller->GetSuspiciousJobsYson().ToString());
+                protoOperation->set_suspicious_jobs(ToProto(controller->GetSuspiciousJobsYson()));
             }
 
             ToProto(
@@ -1751,7 +1757,9 @@ private:
             GetExecNodesUpdateInvoker()->Invoke(BIND(&TImpl::UpdateExecNodeDescriptors, MakeStrong(this), GetExecNodeDescriptorList(rsp)));
         }
 
-        JobReporter_->SetOperationsArchiveVersion(rsp->operations_archive_version());
+        int archiveVersion = rsp->operations_archive_version();
+        JobReporter_->SetOperationsArchiveVersion(archiveVersion);
+        OperationEventsReporter_->SetOperationsArchiveVersion(archiveVersion);
 
         ConfirmHeartbeatRequest(preparedRequest);
     }
@@ -2356,11 +2364,6 @@ TJobTracker* TControllerAgent::GetJobTracker() const
     return Impl_->GetJobTracker();
 }
 
-TJobProfiler* TControllerAgent::GetJobProfiler() const
-{
-    return Impl_->GetJobProfiler();
-}
-
 bool TControllerAgent::IsConnected() const
 {
     return Impl_->IsConnected();
@@ -2424,6 +2427,11 @@ const IEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
 const TJobReporterPtr& TControllerAgent::GetJobReporter() const
 {
     return Impl_->GetJobReporter();
+}
+
+const TOperationEventReporterPtr& TControllerAgent::GetOperationEventReporter() const
+{
+    return Impl_->GetOperationEventReporter();
 }
 
 IInvokerPtr TControllerAgent::CreateCancelableInvoker(const IInvokerPtr& invoker)

@@ -1,4 +1,4 @@
-import library.cpp.porto.proto.rpc_pb2 as rpc
+import library.cpp.porto.proto.error_codes_pb2 as error_codes
 
 
 class PortoException(Exception):
@@ -7,7 +7,7 @@ class PortoException(Exception):
 
     @classmethod
     def _Init(cls):
-        for eid, err in rpc._EERROR.values_by_number.items():
+        for eid, err in error_codes._EERROR.values_by_number.items():
             e_class = type(err.name, (cls,), {'EID': eid})
             cls.__TYPES__[eid] = e_class
             globals()[err.name] = e_class

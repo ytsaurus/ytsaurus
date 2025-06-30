@@ -40,6 +40,8 @@
 
 #include <yt/yt/core/phoenix/type_decl.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <util/generic/cast.h>
@@ -287,7 +289,7 @@ protected:
 
             // If teleport chunks were found, then teleport table index should be non-null.
             Controller_->RegisterTeleportChunk(
-                std::move(teleportChunk), /*key*/ 0, /*tableIndex*/*Controller_->GetOutputTeleportTableIndex());
+                std::move(teleportChunk), /*key*/ TChunkStripeKey(), /*tableIndex*/*Controller_->GetOutputTeleportTableIndex());
         }
 
         TJobSplitterConfigPtr GetJobSplitterConfig() const override
@@ -355,7 +357,7 @@ protected:
 
     i64 GetUnavailableInputChunkCount() const override
     {
-        if (UnavailableChunksWatcher_ && State == EControllerState::Preparing) {
+        if (UnavailableChunksWatcher_ && State_ == EControllerState::Preparing) {
             UnavailableChunksWatcher_->GetUnavailableChunkCount();
         }
 
@@ -364,18 +366,18 @@ protected:
 
     void CalculateSizes()
     {
-        switch (OperationType) {
+        switch (OperationType_) {
             case EOperationType::Merge:
                 JobSizeConstraints_ = CreateMergeJobSizeConstraints(
                     Spec_,
                     Options_,
                     Logger,
-                    TotalEstimatedInputChunkCount,
-                    PrimaryInputDataWeight,
-                    PrimaryInputCompressedDataSize,
-                    DataWeightRatio,
-                    InputCompressionRatio,
-                    InputManager->GetInputTables().size(),
+                    EstimatedInputStatistics_->ChunkCount,
+                    EstimatedInputStatistics_->PrimaryDataWeight,
+                    EstimatedInputStatistics_->PrimaryCompressedDataSize,
+                    EstimatedInputStatistics_->DataWeightRatio,
+                    EstimatedInputStatistics_->CompressionRatio,
+                    InputManager_->GetInputTables().size(),
                     GetPrimaryInputTableCount());
                 break;
             default:
@@ -384,15 +386,15 @@ protected:
                     Options_,
                     Logger,
                     OutputTables_.size(),
-                    DataWeightRatio,
-                    TotalEstimatedInputChunkCount,
-                    PrimaryInputDataWeight,
-                    PrimaryInputCompressedDataSize,
+                    EstimatedInputStatistics_->DataWeightRatio,
+                    EstimatedInputStatistics_->ChunkCount,
+                    EstimatedInputStatistics_->PrimaryDataWeight,
+                    EstimatedInputStatistics_->PrimaryCompressedDataSize,
                     /*inputRowCount*/ std::numeric_limits<i64>::max() / 4, // It is not important in sorted operations.
                     GetForeignInputDataWeight(),
-                    InputManager->GetInputTables().size(),
-                    GetPrimaryInputTableCount(),
-                    /*sortedOperation*/ true);
+                    GetForeignInputCompressedDataSize(),
+                    InputManager_->GetInputTables().size(),
+                    GetPrimaryInputTableCount());
                 break;
         }
 
@@ -416,12 +418,12 @@ protected:
         const TSortColumns& sortColumns,
         std::function<bool(const TInputTablePtr& table)> inputTableFilter = [] (const TInputTablePtr& /*table*/) { return true; })
     {
-        YT_VERIFY(!InputManager->GetInputTables().empty());
+        YT_VERIFY(!InputManager_->GetInputTables().empty());
 
         for (const auto& sortColumn : sortColumns) {
             const TColumnSchema* referenceColumn = nullptr;
             TInputTablePtr referenceTable;
-            for (const auto& table : InputManager->GetInputTables()) {
+            for (const auto& table : InputManager_->GetInputTables()) {
                 if (!inputTableFilter(table)) {
                     continue;
                 }
@@ -464,7 +466,7 @@ protected:
 
     TChunkStripePtr CreateChunkStripe(TLegacyDataSlicePtr dataSlice)
     {
-        auto chunkStripe = New<TChunkStripe>(InputManager->GetInputTables()[dataSlice->GetTableIndex()]->IsForeign());
+        auto chunkStripe = New<TChunkStripe>(InputManager_->GetInputTables()[dataSlice->GetTableIndex()]->IsForeign());
         chunkStripe->DataSlices.emplace_back(std::move(dataSlice));
         return chunkStripe;
     }
@@ -482,15 +484,15 @@ protected:
             int primaryVersionedSlices = 0;
             int foreignSlices = 0;
             // TODO(max42): use CollectPrimaryInputDataSlices() here?
-            for (const auto& chunk : InputManager->CollectPrimaryUnversionedChunks()) {
-                const auto& comparator = InputManager->GetInputTables()[chunk->GetTableIndex()]->Comparator;
+            for (const auto& chunk : InputManager_->CollectPrimaryUnversionedChunks()) {
+                const auto& comparator = InputManager_->GetInputTables()[chunk->GetTableIndex()]->Comparator;
                 YT_VERIFY(comparator);
 
                 const auto& dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
                 dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(chunk->GetTableIndex(), chunk->GetRangeIndex()));
                 if (comparator) {
-                    dataSlice->TransformToNew(RowBuffer, comparator.GetLength());
-                    InferLimitsFromBoundaryKeys(dataSlice, RowBuffer, comparator);
+                    dataSlice->TransformToNew(RowBuffer_, comparator.GetLength());
+                    InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_, comparator);
                 } else {
                     dataSlice->TransformToNewKeyless();
                 }
@@ -562,7 +564,7 @@ protected:
     {
         auto tableIndex = GetOutputTeleportTableIndex();
         if (tableIndex) {
-            for (const auto& inputTable : InputManager->GetInputTables()) {
+            for (const auto& inputTable : InputManager_->GetInputTables()) {
                 if (inputTable->SupportsTeleportation() && OutputTables_[*tableIndex]->SupportsTeleportation()) {
                     inputTable->Teleportable = CheckTableSchemaCompatibility(
                         *inputTable->Schema,
@@ -586,6 +588,8 @@ protected:
     virtual void AdjustSortColumns() = 0;
 
     virtual i64 GetForeignInputDataWeight() const = 0;
+
+    virtual i64 GetForeignInputCompressedDataSize() const = 0;
 
     void PrepareOutputTables() override
     {
@@ -679,16 +683,17 @@ protected:
         jobOptions.PrimaryPrefixLength = PrimarySortColumns_.size();
         jobOptions.ForeignPrefixLength = ForeignSortColumns_.size();
         jobOptions.ShouldSlicePrimaryTableByKeys = ShouldSlicePrimaryTableByKeys();
-        jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+        jobOptions.MaxTotalSliceCount = Config_->MaxTotalSliceCount;
         jobOptions.EnablePeriodicYielder = true;
 
-        chunkPoolOptions.RowBuffer = RowBuffer;
+        chunkPoolOptions.RowBuffer = RowBuffer_;
         chunkPoolOptions.SortedJobOptions = jobOptions;
         chunkPoolOptions.MinTeleportChunkSize = GetMinTeleportChunkSize();
         chunkPoolOptions.JobSizeConstraints = JobSizeConstraints_;
         chunkPoolOptions.Logger = Logger().WithTag("Name: Root");
         chunkPoolOptions.StructuredLogger = ChunkPoolStructuredLogger()
-            .WithStructuredTag("operation_id", OperationId);
+            .WithStructuredTag("operation_id", OperationId_);
+        chunkPoolOptions.JobSizeAdjusterConfig = Options_->JobSizeAdjuster;
         return chunkPoolOptions;
     }
 
@@ -723,7 +728,7 @@ protected:
 private:
     IChunkSliceFetcherPtr CreateChunkSliceFetcher()
     {
-        auto [fetcher, watcher] = InputManager->CreateChunkSliceFetcher();
+        auto [fetcher, watcher] = InputManager_->CreateChunkSliceFetcher();
         UnavailableChunksWatcher_ = watcher;
         return fetcher;
     }
@@ -888,15 +893,15 @@ public:
         JobSpecTemplate_.set_type(ToProto(EJobType::SortedMerge));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
         auto* mergeJobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
-        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO))));
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ToProto(ConvertToYsonString(JobIOConfig_)));
 
         ToProto(mergeJobSpecExt->mutable_key_columns(), GetColumnNames(PrimarySortColumns_));
         ToProto(mergeJobSpecExt->mutable_sort_columns(), PrimarySortColumns_);
@@ -971,6 +976,11 @@ public:
         return 0;
     }
 
+    i64 GetForeignInputCompressedDataSize() const override
+    {
+        return 0;
+    }
+
 protected:
     TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
@@ -1002,11 +1012,11 @@ protected:
         if (!interrupted) {
             auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
             if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
-                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != SortedTask_->GetTotalOutputRowCount(),
+                YT_LOG_ERROR_IF(EstimatedInputStatistics_->RowCount != SortedTask_->GetTotalOutputRowCount(),
                     "Input/output row count mismatch in sorted merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
-                    TotalEstimatedInputRowCount,
+                    EstimatedInputStatistics_->RowCount,
                     SortedTask_->GetTotalOutputRowCount());
-                YT_VERIFY(TotalEstimatedInputRowCount == SortedTask_->GetTotalOutputRowCount());
+                YT_VERIFY(EstimatedInputStatistics_->RowCount == SortedTask_->GetTotalOutputRowCount());
             }
         }
 
@@ -1072,7 +1082,7 @@ public:
 
     TCpuResource GetCpuLimit() const override
     {
-        return TCpuResource(Spec_->Reducer->CpuLimit);
+        return TCpuResource(TOperationControllerBase::GetCpuLimit(Spec_->Reducer));
     }
 
     TUserJobSpecPtr GetUserJobSpec() const override
@@ -1100,7 +1110,7 @@ public:
         return 0;
     }
 
-    void CustomizeJoblet(const TJobletPtr& joblet) override
+    void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& /*allocation*/) override
     {
         joblet->StartRowIndex = StartRowIndex_;
         StartRowIndex_ += joblet->InputStripeList->TotalRowCount;
@@ -1117,11 +1127,11 @@ public:
 
         JobSpecTemplate_.set_type(ToProto(GetJobType()));
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TJobSpecExt::job_spec_ext);
-        jobSpecExt->set_table_reader_options(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO)).ToString());
+        jobSpecExt->set_table_reader_options(ToProto(ConvertToYsonString(CreateTableReaderOptions(Spec_->JobIO))));
 
         SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
             jobSpecExt->mutable_extensions(),
-            BuildDataSourceDirectoryFromInputTables(InputManager->GetInputTables()));
+            BuildDataSourceDirectoryFromInputTables(InputManager_->GetInputTables()));
         SetProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(
             jobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryWithAutoMerge(
@@ -1131,7 +1141,7 @@ public:
                     ? std::make_optional(GetSpec()->IntermediateDataAccount)
                     : std::nullopt));
 
-        jobSpecExt->set_io_config(ConvertToYsonString(JobIOConfig_).ToString());
+        jobSpecExt->set_io_config(ToProto(ConvertToYsonString(JobIOConfig_)));
 
         InitUserJobSpecTemplate(
             jobSpecExt->mutable_user_job_spec(),
@@ -1173,7 +1183,7 @@ public:
         ValidateUserFileCount(Spec_->Reducer, "reducer");
 
         int foreignInputCount = 0;
-        for (auto& table : InputManager->GetInputTables()) {
+        for (auto& table : InputManager_->GetInputTables()) {
             if (table->Path.GetForeign()) {
                 if (table->Path.GetTeleport()) {
                     THROW_ERROR_EXCEPTION("Foreign table can not be specified as teleport")
@@ -1183,7 +1193,7 @@ public:
             }
         }
 
-        if (foreignInputCount == std::ssize(InputManager->GetInputTables())) {
+        if (foreignInputCount == std::ssize(InputManager_->GetInputTables())) {
             THROW_ERROR_EXCEPTION("At least one non-foreign input table is required");
         }
 
@@ -1246,7 +1256,12 @@ public:
 
     i64 GetForeignInputDataWeight() const override
     {
-        return Spec_->ConsiderOnlyPrimarySize ? 0 : ForeignInputDataWeight;
+        return Spec_->ConsiderOnlyPrimarySize ? 0 : EstimatedInputStatistics_->ForeignDataWeight;
+    }
+
+    i64 GetForeignInputCompressedDataSize() const override
+    {
+        return Spec_->ConsiderOnlyPrimarySize ? 0 : EstimatedInputStatistics_->ForeignCompressedDataSize;
     }
 
     TYsonStructPtr GetTypedSpec() const override
@@ -1299,7 +1314,7 @@ public:
 
             if (Spec_->ReduceBy.empty()) {
                 THROW_ERROR_EXCEPTION("Reduce by can not be empty when key guarantee is enabled")
-                    << TErrorAttribute("operation_type", OperationType);
+                    << TErrorAttribute("operation_type", OperationType_);
             }
 
             PrimarySortColumns_ = Spec_->ReduceBy;
@@ -1322,7 +1337,7 @@ public:
             PrimarySortColumns_ = CheckInputTablesSorted(!Spec_->ReduceBy.empty() ? Spec_->ReduceBy : Spec_->JoinBy);
             if (PrimarySortColumns_.empty()) {
                 THROW_ERROR_EXCEPTION("At least one of reduce_by and join_by should be specified when key guarantee is disabled")
-                    << TErrorAttribute("operation_type", OperationType);
+                    << TErrorAttribute("operation_type", OperationType_);
             }
             SortColumns_ = ForeignSortColumns_ = PrimarySortColumns_;
 
@@ -1369,7 +1384,7 @@ public:
                 }
                 previousUpperBound = upperBound;
             }
-            for (const auto& table : InputManager->GetInputTables()) {
+            for (const auto& table : InputManager_->GetInputTables()) {
                 if (table->Path.GetTeleport()) {
                     THROW_ERROR_EXCEPTION("Chunk teleportation is not supported when pivot keys are specified");
                 }

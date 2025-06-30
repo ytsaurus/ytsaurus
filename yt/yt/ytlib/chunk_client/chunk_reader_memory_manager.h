@@ -134,14 +134,14 @@ private:
 
     TChunkReaderMemoryManagerOptions Options_;
 
-    std::atomic<i64> ReservedMemorySize_ = {0};
-    std::atomic<i64> PrefetchMemorySize_ = {0};
-    std::atomic<i64> RequiredMemorySize_ = {0};
+    std::atomic<i64> ReservedMemorySize_ = 0;
+    std::atomic<i64> PrefetchMemorySize_ = 0;
+    std::atomic<i64> RequiredMemorySize_ = 0;
 
     static constexpr i64 TotalMemorySizeUnknown = -1;
-    std::atomic<i64> TotalMemorySize_ = {TotalMemorySizeUnknown};
+    std::atomic<i64> TotalMemorySize_ = TotalMemorySizeUnknown;
 
-    std::atomic<bool> Finalized_ = {false};
+    std::atomic<bool> Finalized_ = false;
     std::atomic_flag Unregistered_ = ATOMIC_FLAG_INIT;
 
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;

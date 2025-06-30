@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "private.h"
 
 namespace NYT::NCypressProxy {
 

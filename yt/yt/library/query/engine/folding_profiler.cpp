@@ -44,6 +44,7 @@ DEFINE_ENUM(EFoldingObjectType,
     (CaseExpr)
     (LikeExpr)
     (CompositeMemberAccessorExpr)
+    (Subquery)
 
     (NamedExpression)
     (AggregateItem)
@@ -95,6 +96,8 @@ protected:
     void Fold(size_t numeric);
     void Fold(const char* str);
     void Fold(const llvm::FoldingSetNodeID& id);
+
+    static void AddLogicalType(const TLogicalType& logicalType, llvm::FoldingSetNodeID* id);
 
     llvm::FoldingSetNodeID* Id_;
 };
@@ -168,6 +171,64 @@ void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
         if (column.Aggregate()) {
             Fold(column.Aggregate()->c_str());
         }
+    }
+}
+
+void TSchemaProfiler::AddLogicalType(const TLogicalType& logicalType, llvm::FoldingSetNodeID* id)
+{
+    auto metatype = logicalType.GetMetatype();
+    id->AddInteger(ToUnderlying(metatype));
+
+    auto addElements = [&] (TRange<TLogicalTypePtr> elements) {
+        for (const auto& element : elements) {
+            AddLogicalType(*element, id);
+        }
+    };
+    auto addFields = [&] (TRange<TStructField> fields) {
+        for (const auto& field : fields) {
+            AddLogicalType(*field.Type, id);
+            id->AddString(field.Name);
+        }
+    };
+
+    switch (metatype) {
+        case ELogicalMetatype::Optional:
+            AddLogicalType(*logicalType.AsOptionalTypeRef().GetElement(), id);
+            break;
+
+        case ELogicalMetatype::List:
+            AddLogicalType(*logicalType.AsListTypeRef().GetElement(), id);
+            break;
+
+        case ELogicalMetatype::Tagged:
+            AddLogicalType(*logicalType.AsTaggedTypeRef().GetElement(), id);
+            break;
+
+        case ELogicalMetatype::Tuple:
+            addElements(logicalType.AsTupleTypeRef().GetElements());
+            break;
+
+        case ELogicalMetatype::VariantTuple:
+            addElements(logicalType.AsVariantTupleTypeRef().GetElements());
+            break;
+
+        case ELogicalMetatype::Struct:
+            addFields(logicalType.AsStructTypeRef().GetFields());
+            break;
+
+        case ELogicalMetatype::VariantStruct:
+            addFields(logicalType.AsVariantStructTypeRef().GetFields());
+            break;
+
+        case ELogicalMetatype::Decimal:
+            break;
+        case ELogicalMetatype::Simple:
+            id->AddInteger(ToUnderlying(logicalType.AsSimpleTypeRef().GetElement()));
+            break;
+        case ELogicalMetatype::Dict:
+            AddLogicalType(*logicalType.AsDictTypeRef().GetKey(), id);
+            AddLogicalType(*logicalType.AsDictTypeRef().GetValue(), id);
+            break;
     }
 }
 
@@ -342,7 +403,6 @@ struct TExpressionFragmentPrinter
             Builder->AppendString(Format("[%v]", columnName));
         }
     }
-
 };
 
 static bool IsDumpExprsEnabled()
@@ -433,6 +493,38 @@ struct TExpressionFragments
 
 };
 
+struct TReferenceProvider
+{
+    TTableSchemaPtr Schema;
+    std::vector<std::pair<std::string, TLogicalTypePtr>> BindedReferences;
+    TReferenceProvider* Parent = nullptr;
+
+    // Or can get types from schema.
+    int GetColumnIndex(TStringBuf name, const TLogicalTypePtr& type)
+    {
+        auto* column = Schema->FindColumn(name);
+        if (column) {
+            return Schema->GetColumnIndex(*column);
+        }
+
+        if (!Parent) {
+            THROW_ERROR_EXCEPTION("Cannot resove column with name %Qv", name);
+        }
+
+        for (int index = 0; index < std::ssize(BindedReferences); ++index) {
+            if (BindedReferences[index].first == name) {
+                return -(index + 1);
+            }
+        }
+
+        // Throw exception if not found.
+        Parent->GetColumnIndex(name, type);
+        BindedReferences.emplace_back(std::string(name), type);
+
+        return -std::ssize(BindedReferences);
+    }
+};
+
 class TExpressionProfiler
     : public TSchemaProfiler
 {
@@ -441,11 +533,13 @@ public:
         llvm::FoldingSetNodeID* id,
         TCGVariables* variables,
         const TConstFunctionProfilerMapPtr& functionProfilers,
+        const TConstAggregateProfilerMapPtr& aggregateProfilers,
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend)
         : TSchemaProfiler(id)
         , Variables_(variables)
         , FunctionProfilers_(functionProfilers)
+        , AggregateProfilers_(aggregateProfilers)
         , ComparerManager_(MakeComparerManager())
         , UseCanonicalNullRelations_(useCanonicalNullRelations)
         , ExecutionBackend_(executionBackend)
@@ -455,80 +549,121 @@ public:
 
     size_t Profile(
         const TConstExpressionPtr& expr,
-        const TTableSchemaPtr& schema,
+        TReferenceProvider* referenceProvider,
         TExpressionFragments* fragments,
         bool isolated = false);
+
+    size_t Profile(
+        const TConstExpressionPtr& expr,
+        TTableSchemaPtr schema,
+        TExpressionFragments* fragments,
+        bool isolated = false)
+    {
+        TReferenceProvider referenceProvider{schema, {}, nullptr};
+        return Profile(expr, &referenceProvider, fragments, isolated);
+    }
+
+    size_t Profile(
+        const TNamedItem& namedExpression,
+        TReferenceProvider* referenceProvider,
+        TExpressionFragments* fragments)
+    {
+        Fold(ExecutionBackend_);
+        Fold(EFoldingObjectType::NamedExpression);
+
+        size_t resultId = TExpressionProfiler::Profile(namedExpression.Expression, referenceProvider, fragments);
+        Fold(resultId);
+        ++fragments->Items[resultId].UseCount;
+
+        return resultId;
+    }
+
+    size_t Profile(
+        const TNamedItem& namedExpression,
+        const TTableSchemaPtr& schema,
+        TExpressionFragments* fragments)
+    {
+        TReferenceProvider referenceProvider{schema, {}, nullptr};
+        return Profile(namedExpression, &referenceProvider, fragments);
+    }
 
 private:
     size_t Profile(
         const TLiteralExpression* literalExpr,
-        const TTableSchemaPtr& schema,
+        TReferenceProvider* referenceProvider,
         TExpressionFragments* fragments,
         bool isolated);
 
     size_t Profile(
         const TReferenceExpression* referenceExpr,
-        const TTableSchemaPtr& schema,
+        TReferenceProvider* referenceProvider,
         TExpressionFragments* fragments,
         bool isolated);
 
     size_t Profile(
         const TFunctionExpression* functionExpr,
-        const TTableSchemaPtr& schema,
+        TReferenceProvider* referenceProvider,
         TExpressionFragments* fragments,
         bool isolated);
 
     size_t Profile(
         const TUnaryOpExpression* unaryOp,
-        const TTableSchemaPtr& schema,
+        TReferenceProvider* referenceProvider,
         TExpressionFragments* fragments,
         bool isolated);
 
     size_t Profile(
         const TBinaryOpExpression* binaryOp,
-        const TTableSchemaPtr& schema,
+        TReferenceProvider* referenceProvider,
         TExpressionFragments* fragments,
         bool isolated);
 
     size_t Profile(
         const TInExpression* inExpr,
-        const TTableSchemaPtr& schema,
+        TReferenceProvider* referenceProvider,
         TExpressionFragments* fragments,
         bool isolated);
 
     size_t Profile(
         const TBetweenExpression* betweenExpr,
-        const TTableSchemaPtr& schema,
+        TReferenceProvider* referenceProvider,
         TExpressionFragments* fragments,
         bool isolated);
 
     size_t Profile(
         const TTransformExpression* transformExpr,
-        const TTableSchemaPtr& schema,
+        TReferenceProvider* referenceProvider,
         TExpressionFragments* fragments,
         bool isolated);
 
     size_t Profile(
         const TCaseExpression* caseExpr,
-        const TTableSchemaPtr& schema,
+        TReferenceProvider* referenceProvider,
         TExpressionFragments* fragments,
         bool isolated);
 
     size_t Profile(
         const TLikeExpression* likeExpr,
-        const TTableSchemaPtr& schema,
+        TReferenceProvider* referenceProvider,
         TExpressionFragments* fragments,
         bool isolated);
 
     size_t Profile(
         const TCompositeMemberAccessorExpression* memberAccessorExpr,
-        const TTableSchemaPtr& schema,
+        TReferenceProvider* referenceProvider,
+        TExpressionFragments* fragments,
+        bool isolated);
+
+    size_t Profile(
+        const TSubqueryExpression* subqueryExpr,
+        TReferenceProvider* referenceProvider,
         TExpressionFragments* fragments,
         bool isolated);
 
 protected:
     TCGVariables* const Variables_;
     const TConstFunctionProfilerMapPtr FunctionProfilers_;
+    const TConstAggregateProfilerMapPtr AggregateProfilers_;
     const TComparerManagerPtr ComparerManager_;
     const bool UseCanonicalNullRelations_;
     const EExecutionBackend ExecutionBackend_;
@@ -551,7 +686,7 @@ size_t* TryGetSubexpressionRef(
 
 size_t TExpressionProfiler::Profile(
     const TLiteralExpression* literalExpr,
-    const TTableSchemaPtr& /*schema*/,
+    TReferenceProvider* /*referenceProvider*/,
     TExpressionFragments* fragments,
     bool isolated)
 {
@@ -586,7 +721,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TReferenceExpression* referenceExpr,
-    const TTableSchemaPtr& schema,
+    TReferenceProvider* referenceProvider,
     TExpressionFragments* fragments,
     bool isolated)
 {
@@ -595,7 +730,7 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(static_cast<int>(EFoldingObjectType::ReferenceExpr));
     id.AddInteger(static_cast<ui8>(referenceExpr->GetWireType()));
 
-    auto indexInSchema = schema->GetColumnIndexOrThrow(referenceExpr->ColumnName);
+    auto indexInSchema = referenceProvider->GetColumnIndex(referenceExpr->ColumnName, referenceExpr->LogicalType);
     id.AddInteger(indexInSchema);
 
     if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
@@ -610,34 +745,34 @@ size_t TExpressionProfiler::Profile(
             referenceExpr->GetWireType(),
             referenceExpr->ColumnName),
         referenceExpr->GetWireType(),
-        /*nullable*/ true,
+        referenceExpr->LogicalType->IsNullable(),
         /*forceInline*/ true);
     return fragments->Items.size() - 1;
 }
 
 size_t TExpressionProfiler::Profile(
     const TFunctionExpression* functionExpr,
-    const TTableSchemaPtr& schema,
+    TReferenceProvider* referenceProvider,
     TExpressionFragments* fragments,
     bool isolated)
 {
     llvm::FoldingSetNodeID id;
     id.AddInteger(static_cast<int>(ExecutionBackend_));
     id.AddInteger(static_cast<int>(EFoldingObjectType::FunctionExpr));
-    id.AddInteger(static_cast<ui8>(functionExpr->GetWireType()));
+    AddLogicalType(*functionExpr->LogicalType, &id);
     id.AddString(functionExpr->FunctionName.c_str());
 
     int argumentCount = functionExpr->Arguments.size();
     std::vector<size_t> argIds(argumentCount);
-    std::vector<EValueType> argumentTypes(argumentCount);
+    std::vector<TLogicalTypePtr> argumentTypes(argumentCount);
     auto literalArgs = std::make_unique<bool[]>(argumentCount);
     id.AddInteger(argumentCount);
     for (int index = 0; index < argumentCount; ++index) {
         const auto& argument = functionExpr->Arguments[index];
         // If fold is called inside Profile(argument) than in current function Fold will be called too.
-        argIds[index] = Profile(argument, schema, fragments, isolated);
+        argIds[index] = Profile(argument, referenceProvider, fragments, isolated);
         id.AddInteger(argIds[index]);
-        argumentTypes[index] = argument->GetWireType();
+        argumentTypes[index] = argument->LogicalType;
         literalArgs[index] = argument->As<TLiteralExpression>() != nullptr;
     }
 
@@ -661,7 +796,7 @@ size_t TExpressionProfiler::Profile(
             std::move(argIds),
             std::move(literalArgs),
             std::move(argumentTypes),
-            functionExpr->GetWireType(),
+            functionExpr->LogicalType,
             "{" + InferName(functionExpr, true) + "}",
             ExecutionBackend_,
             Id_),
@@ -672,7 +807,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TUnaryOpExpression* unaryOp,
-    const TTableSchemaPtr& schema,
+    TReferenceProvider* referenceProvider,
     TExpressionFragments* fragments,
     bool isolated)
 {
@@ -682,7 +817,7 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(static_cast<ui8>(unaryOp->GetWireType()));
     id.AddInteger(static_cast<int>(unaryOp->Opcode));
 
-    size_t operand = Profile(unaryOp->Operand, schema, fragments, isolated);
+    size_t operand = Profile(unaryOp->Operand, referenceProvider, fragments, isolated);
     id.AddInteger(operand);
 
     if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
@@ -704,7 +839,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TBinaryOpExpression* binaryOp,
-    const TTableSchemaPtr& schema,
+    TReferenceProvider* referenceProvider,
     TExpressionFragments* fragments,
     bool isolated)
 {
@@ -715,9 +850,9 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(static_cast<int>(binaryOp->Opcode));
     id.AddInteger(UseCanonicalNullRelations_);
 
-    size_t lhsOperand = Profile(binaryOp->Lhs, schema, fragments, isolated);
+    size_t lhsOperand = Profile(binaryOp->Lhs, referenceProvider, fragments, isolated);
     id.AddInteger(lhsOperand);
-    size_t rhsOperand = Profile(binaryOp->Rhs, schema, fragments, isolated);
+    size_t rhsOperand = Profile(binaryOp->Rhs, referenceProvider, fragments, isolated);
     id.AddInteger(rhsOperand);
 
     if (const auto* ref = TryGetSubexpressionRef(fragments, id, isolated)) {
@@ -747,7 +882,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TInExpression* inExpr,
-    const TTableSchemaPtr& schema,
+    TReferenceProvider* referenceProvider,
     TExpressionFragments* fragments,
     bool isolated)
 {
@@ -761,7 +896,7 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(inExpr->Arguments.size());
     for (const auto& argument : inExpr->Arguments) {
         // If fold is called inside Profile(argument) than in current function Fold will be called too.
-        argIds.push_back(Profile(argument, schema, fragments, isolated));
+        argIds.push_back(Profile(argument, referenceProvider, fragments, isolated));
         id.AddInteger(argIds.back());
     }
 
@@ -791,7 +926,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TBetweenExpression* betweenExpr,
-    const TTableSchemaPtr& schema,
+    TReferenceProvider* referenceProvider,
     TExpressionFragments* fragments,
     bool isolated)
 {
@@ -805,7 +940,7 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(betweenExpr->Arguments.size());
     for (const auto& argument : betweenExpr->Arguments) {
         // If fold is called inside Profile(argument) than in current function Fold will be called too.
-        argIds.push_back(Profile(argument, schema, fragments, isolated));
+        argIds.push_back(Profile(argument, referenceProvider, fragments, isolated));
         id.AddInteger(argIds.back());
     }
 
@@ -836,7 +971,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TTransformExpression* transformExpr,
-    const TTableSchemaPtr& schema,
+    TReferenceProvider* referenceProvider,
     TExpressionFragments* fragments,
     bool isolated)
 {
@@ -852,13 +987,13 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(transformExpr->Arguments.size() + static_cast<bool>(defaultExpression));
     for (const auto& argument : transformExpr->Arguments) {
         // If fold is called inside Profile(argument) than in current function Fold will be called too.
-        argIds.push_back(Profile(argument, schema, fragments, isolated));
+        argIds.push_back(Profile(argument, referenceProvider, fragments, isolated));
         id.AddInteger(argIds.back());
     }
 
     std::optional<size_t> defaultExprId;
     if (defaultExpression) {
-        defaultExprId = Profile(defaultExpression, schema, fragments, isolated);
+        defaultExprId = Profile(defaultExpression, referenceProvider, fragments, isolated);
         id.AddInteger(*defaultExprId);
     }
 
@@ -903,7 +1038,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TCaseExpression* caseExpr,
-    const TTableSchemaPtr& schema,
+    TReferenceProvider* referenceProvider,
     TExpressionFragments* fragments,
     bool isolated)
 {
@@ -922,15 +1057,15 @@ size_t TExpressionProfiler::Profile(
 
     std::optional<size_t> optionalOperandId;
     if (caseExpr->OptionalOperand) {
-        optionalOperandId = Profile(caseExpr->OptionalOperand, schema, fragments, isolated);
+        optionalOperandId = Profile(caseExpr->OptionalOperand, referenceProvider, fragments, isolated);
         id.AddInteger(*optionalOperandId);
     }
 
     std::vector<std::pair<size_t, size_t>> whenThenExpressionIds;
     whenThenExpressionIds.reserve(caseExpr->WhenThenExpressions.size());
     for (const auto& caseClause : caseExpr->WhenThenExpressions) {
-        size_t conditionId = Profile(caseClause->Condition, schema, fragments, isolated);
-        size_t resultId = Profile(caseClause->Result, schema, fragments, isolated);
+        size_t conditionId = Profile(caseClause->Condition, referenceProvider, fragments, isolated);
+        size_t resultId = Profile(caseClause->Result, referenceProvider, fragments, isolated);
 
         whenThenExpressionIds.emplace_back(conditionId, resultId);
 
@@ -940,7 +1075,7 @@ size_t TExpressionProfiler::Profile(
 
     std::optional<size_t> defaultExprId;
     if (caseExpr->DefaultExpression) {
-        defaultExprId = Profile(caseExpr->DefaultExpression, schema, fragments, isolated);
+        defaultExprId = Profile(caseExpr->DefaultExpression, referenceProvider, fragments, isolated);
         id.AddInteger(*defaultExprId);
     }
 
@@ -960,12 +1095,11 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[resultId].UseCount;
     }
 
-    bool nullable = true;
+    bool nullable = false;
 
     if (defaultExprId) {
         ++fragments->Items[*defaultExprId].UseCount;
 
-        nullable = false;
         nullable |= fragments->Items[*defaultExprId].Nullable;
     }
 
@@ -976,6 +1110,7 @@ size_t TExpressionProfiler::Profile(
     }
     for (auto& [_, resultId] : whenThenExpressionIds) {
         argIds.push_back(resultId);
+        nullable |= fragments->Items[resultId].Nullable;
     }
     fragments->DebugInfos.emplace_back(caseExpr, argIds, defaultExprId, optionalOperandId);
 
@@ -1000,7 +1135,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TLikeExpression* likeExpr,
-    const TTableSchemaPtr& schema,
+    TReferenceProvider* referenceProvider,
     TExpressionFragments* fragments,
     bool isolated)
 {
@@ -1010,18 +1145,18 @@ size_t TExpressionProfiler::Profile(
 
     YT_VERIFY(likeExpr->GetWireType() == EValueType::Boolean);
 
-    auto textId = Profile(likeExpr->Text, schema, fragments, isolated);
+    auto textId = Profile(likeExpr->Text, referenceProvider, fragments, isolated);
     id.AddInteger(textId);
 
     id.AddInteger(static_cast<int>(likeExpr->Opcode));
 
-    auto patternId = Profile(likeExpr->Pattern, schema, fragments, isolated);
+    auto patternId = Profile(likeExpr->Pattern, referenceProvider, fragments, isolated);
     id.AddInteger(patternId);
 
     std::optional<size_t> escapeCharacterId;
     if (likeExpr->EscapeCharacter) {
         YT_VERIFY(likeExpr->Opcode != EStringMatchOp::Regex);
-        escapeCharacterId = Profile(likeExpr->EscapeCharacter, schema, fragments, isolated);
+        escapeCharacterId = Profile(likeExpr->EscapeCharacter, referenceProvider, fragments, isolated);
         id.AddInteger(*escapeCharacterId);
     }
 
@@ -1039,7 +1174,7 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[*escapeCharacterId].UseCount;
     }
 
-    bool nullable = true;
+    bool nullable = false;
     nullable |= fragments->Items[textId].Nullable;
     nullable |= fragments->Items[patternId].Nullable;
     if (escapeCharacterId) {
@@ -1108,14 +1243,14 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TCompositeMemberAccessorExpression* memberAccessorExpr,
-    const TTableSchemaPtr& schema,
+    TReferenceProvider* referenceProvider,
     TExpressionFragments* fragments,
     bool isolated)
 {
     llvm::FoldingSetNodeID id;
     id.AddInteger(static_cast<int>(EFoldingObjectType::CompositeMemberAccessorExpr));
 
-    auto compositeId = Profile(memberAccessorExpr->CompositeExpression, schema, fragments, isolated);
+    auto compositeId = Profile(memberAccessorExpr->CompositeExpression, referenceProvider, fragments, isolated);
     id.AddInteger(compositeId);
 
     id.AddInteger(std::ssize(memberAccessorExpr->NestedStructOrTupleItemAccessor.NestedTypes));
@@ -1129,7 +1264,7 @@ size_t TExpressionProfiler::Profile(
     id.AddBoolean(static_cast<bool>(memberAccessorExpr->DictOrListItemAccessor));
     size_t dictOrListItemAccessorId = 0;
     if (memberAccessorExpr->DictOrListItemAccessor) {
-        dictOrListItemAccessorId = Profile(memberAccessorExpr->DictOrListItemAccessor, schema, fragments, isolated);
+        dictOrListItemAccessorId = Profile(memberAccessorExpr->DictOrListItemAccessor, referenceProvider, fragments, isolated);
         id.AddInteger(dictOrListItemAccessorId);
     }
 
@@ -1147,8 +1282,6 @@ size_t TExpressionProfiler::Profile(
         ++fragments->Items[dictOrListItemAccessorId].UseCount;
     }
 
-    bool nullable = true;
-
     fragments->DebugInfos.emplace_back(memberAccessorExpr, std::vector{compositeId});
 
     int opaqueIndex = Variables_->AddOpaque<TCompositeMemberAccessorPath>(memberAccessorExpr->NestedStructOrTupleItemAccessor);
@@ -1160,39 +1293,243 @@ size_t TExpressionProfiler::Profile(
             memberAccessorExpr->DictOrListItemAccessor ? std::optional<size_t>(dictOrListItemAccessorId) : std::nullopt,
             memberAccessorExpr->GetWireType()),
         memberAccessorExpr->GetWireType(),
-        nullable);
+        /*nullable*/ true);
+
+    return fragments->Items.size() - 1;
+}
+
+size_t TExpressionProfiler::Profile(
+    const TSubqueryExpression* subqueryExpr,
+    TReferenceProvider* referenceProvider,
+    TExpressionFragments* fragments,
+    bool isolated)
+{
+    llvm::FoldingSetNodeID id;
+    id.AddInteger(static_cast<int>(ExecutionBackend_));
+    id.AddInteger(static_cast<int>(EFoldingObjectType::Subquery));
+
+    std::vector<TColumnSchema> nestedColumns;
+    std::vector<EValueType> fromTypes;
+
+    std::vector<size_t> fromExprIds;
+    for (const auto& [expr, name] : subqueryExpr->FromExpressions) {
+        size_t fromExprId = Profile(expr, referenceProvider, fragments, isolated);
+        id.AddInteger(fromExprId);
+        fromExprIds.push_back(fromExprId);
+
+        nestedColumns.emplace_back(name, expr->LogicalType->GetElement());
+        fromTypes.push_back(nestedColumns.back().GetWireType());
+    }
+
+    // Currently common subexpression elimination is not implemented.
+    // Id only fold id fragment cache.
+
+    for (size_t fromExprId : fromExprIds) {
+        ++fragments->Items[fromExprId].UseCount;
+    }
+
+    auto nestedSchema = New<TTableSchema>(nestedColumns);
+    TReferenceProvider nestedReferenceProvider{nestedSchema, {}, referenceProvider};
+
+    TCodegenSource codegenSource;
+
+    size_t slotCount = 0;
+
+    int subqueryParametersIndex = Variables_->AddOpaque<TSubqueryParameters>(fromTypes);
+
+    size_t currentSlot = MakeCodegenSubqueryScanOp(&codegenSource, &slotCount, subqueryParametersIndex);
+
+    if (auto whereClause = subqueryExpr->WhereClause.Get()) {
+        if (!IsTrue(whereClause)) {
+            Fold(EFoldingObjectType::FilterOp);
+
+            TExpressionFragments filterExprFragments;
+            auto predicateId = TExpressionProfiler::Profile(whereClause, &nestedReferenceProvider, &filterExprFragments);
+            id.AddInteger(predicateId);
+
+            auto filterExprInfos = filterExprFragments.ToFragmentInfos("nestedFilter");
+            filterExprFragments.DumpArgs(std::vector<size_t>{predicateId});
+
+            currentSlot = MakeCodegenFilterOp(
+                &codegenSource,
+                &slotCount,
+                currentSlot,
+                filterExprInfos,
+                predicateId);
+
+            MakeCodegenFragmentBodies(&codegenSource, filterExprInfos);
+        }
+    }
+
+    if (auto groupClause = subqueryExpr->GroupClause.Get()) {
+        Fold(EFoldingObjectType::GroupOp);
+
+        std::vector<EValueType> keyTypes;
+        std::vector<EValueType> stateTypes;
+
+        std::vector<size_t> groupExprIds;
+        std::vector<std::vector<size_t>> aggregateExprIdsByFunc;
+        std::vector<TCodegenAggregate> codegenAggregates;
+
+        TExpressionFragments expressionFragments;
+
+        TExpressionFragments groupFragments;
+        for (const auto& groupItem : groupClause->GroupItems) {
+            auto groupExprId = Profile(groupItem, &nestedReferenceProvider, &expressionFragments);
+            groupExprIds.push_back(groupExprId);
+
+            keyTypes.push_back(groupItem.Expression->GetWireType());
+        }
+
+        for (const auto& aggregateItem : groupClause->AggregateItems) {
+            Fold(EFoldingObjectType::AggregateItem);
+            Fold(aggregateItem.AggregateFunction.c_str());
+            Fold(aggregateItem.Name.c_str());
+
+            const auto& aggregate = AggregateProfilers_->GetAggregate(aggregateItem.AggregateFunction);
+
+            int argumentCount = aggregateItem.Arguments.size();
+
+            {
+                std::vector<size_t> aggregateArgIds;
+                aggregateArgIds.reserve(argumentCount);
+                for (auto& arg : aggregateItem.Arguments) {
+                    aggregateArgIds.push_back(Profile(TNamedItem{arg, ""}, &nestedReferenceProvider, &expressionFragments));
+                }
+                aggregateExprIdsByFunc.emplace_back(std::move(aggregateArgIds));
+            }
+
+            std::vector<TLogicalTypePtr> logicalTypes;
+            logicalTypes.reserve(argumentCount);
+            for (const auto& arg : aggregateItem.Arguments) {
+                logicalTypes.push_back(arg->LogicalType);
+            }
+            codegenAggregates.push_back(aggregate->Profile(
+                logicalTypes,
+                aggregateItem.StateType,
+                aggregateItem.ResultType,
+                aggregateItem.Name,
+                ExecutionBackend_,
+                Id_));
+            stateTypes.push_back(GetWireType(aggregateItem.StateType));
+        }
+
+        auto fragmentInfos = expressionFragments.ToFragmentInfos("groupExpression");
+        for (const auto& funcArgs : aggregateExprIdsByFunc) {
+            expressionFragments.DumpArgs(funcArgs);
+        }
+        expressionFragments.DumpArgs(groupExprIds);
+
+        currentSlot = MakeCodegenNestedGroupOp(
+            &codegenSource,
+            &slotCount,
+            currentSlot,
+            fragmentInfos,
+            std::move(groupExprIds),
+            std::move(aggregateExprIdsByFunc),
+            codegenAggregates,
+            keyTypes,
+            stateTypes,
+            ComparerManager_);
+
+        currentSlot = MakeCodegenFinalizeOp(
+            &codegenSource,
+            &slotCount,
+            currentSlot,
+            std::ssize(keyTypes),
+            codegenAggregates,
+            stateTypes);
+
+        nestedSchema = groupClause->GetTableSchema(true);
+
+        nestedReferenceProvider.Schema = nestedSchema;
+
+        MakeCodegenFragmentBodies(&codegenSource, fragmentInfos);
+    }
+
+    if (auto projectClause = subqueryExpr->ProjectClause.Get()) {
+        Fold(EFoldingObjectType::ProjectOp);
+
+        std::vector<size_t> projectExprIds;
+        projectExprIds.reserve(projectClause->Projections.size());
+        TExpressionFragments projectExprFragments;
+        for (const auto& item : projectClause->Projections) {
+            projectExprIds.push_back(Profile(item.Expression, &nestedReferenceProvider, &projectExprFragments));
+            id.AddInteger(projectExprIds.back());
+        }
+
+        auto projectExprInfos = projectExprFragments.ToFragmentInfos("nestedProject");
+        projectExprFragments.DumpArgs(projectExprIds);
+
+        currentSlot = MakeCodegenProjectOp(
+            &codegenSource,
+            &slotCount,
+            currentSlot,
+            projectExprInfos,
+            projectExprIds);
+
+        MakeCodegenFragmentBodies(&codegenSource, projectExprInfos);
+
+        nestedSchema = projectClause->GetTableSchema();
+    }
+
+    MakeCodegenSubqueryWriteOp(
+        &codegenSource,
+        currentSlot,
+        nestedSchema->GetColumnCount());
+
+    std::vector<size_t> bindedExprIds;
+    for (const auto& [name, type] : nestedReferenceProvider.BindedReferences) {
+        auto referenceExpr = New<TReferenceExpression>(
+            type,
+            name);
+
+        size_t bindedExprId = Profile(referenceExpr, referenceProvider, fragments, isolated);
+        id.AddInteger(bindedExprId);
+        bindedExprIds.push_back(bindedExprId);
+    }
+
+    Fold(id);
+
+    fragments->DebugInfos.emplace_back(subqueryExpr, std::vector{fromExprIds});
+    fragments->Items.emplace_back(
+        MakeCodegenSubqueryExpr(codegenSource, fromExprIds, bindedExprIds, slotCount),
+        EValueType::Any,
+        /*nullable*/ false);
 
     return fragments->Items.size() - 1;
 }
 
 size_t TExpressionProfiler::Profile(
     const TConstExpressionPtr& expr,
-    const TTableSchemaPtr& schema,
+    TReferenceProvider* referenceProvider,
     TExpressionFragments* fragments,
     bool isolated)
 {
     if (auto literalExpr = expr->As<TLiteralExpression>()) {
-        return Profile(literalExpr, schema, fragments, isolated);
+        return Profile(literalExpr, referenceProvider, fragments, isolated);
     } else if (auto referenceExpr = expr->As<TReferenceExpression>()) {
-        return Profile(referenceExpr, schema, fragments, isolated);
+        return Profile(referenceExpr, referenceProvider, fragments, isolated);
     } else if (auto functionExpr = expr->As<TFunctionExpression>()) {
-        return Profile(functionExpr, schema, fragments, isolated);
+        return Profile(functionExpr, referenceProvider, fragments, isolated);
     } else if (auto unaryOp = expr->As<TUnaryOpExpression>()) {
-        return Profile(unaryOp, schema, fragments, isolated);
+        return Profile(unaryOp, referenceProvider, fragments, isolated);
     } else if (auto binaryOp = expr->As<TBinaryOpExpression>()) {
-        return Profile(binaryOp, schema, fragments, isolated);
+        return Profile(binaryOp, referenceProvider, fragments, isolated);
     } else if (auto inExpr = expr->As<TInExpression>()) {
-        return Profile(inExpr, schema, fragments, isolated);
+        return Profile(inExpr, referenceProvider, fragments, isolated);
     } else if (auto betweenExpr = expr->As<TBetweenExpression>()) {
-        return Profile(betweenExpr, schema, fragments, isolated);
+        return Profile(betweenExpr, referenceProvider, fragments, isolated);
     } else if (auto transformExpr = expr->As<TTransformExpression>()) {
-        return Profile(transformExpr, schema, fragments, isolated);
+        return Profile(transformExpr, referenceProvider, fragments, isolated);
     } else if (auto caseExpr = expr->As<TCaseExpression>()) {
-        return Profile(caseExpr, schema, fragments, isolated);
+        return Profile(caseExpr, referenceProvider, fragments, isolated);
     } else if (auto likeExpr = expr->As<TLikeExpression>()) {
-        return Profile(likeExpr, schema, fragments, isolated);
+        return Profile(likeExpr, referenceProvider, fragments, isolated);
     } else if (auto memberAccessorExpr = expr->As<TCompositeMemberAccessorExpression>()) {
-        return Profile(memberAccessorExpr, schema, fragments, isolated);
+        return Profile(memberAccessorExpr, referenceProvider, fragments, isolated);
+    } else if (auto subqueryExpr = expr->As<TSubqueryExpression>()) {
+        return Profile(subqueryExpr, referenceProvider, fragments, isolated);
     }
 
     YT_ABORT();
@@ -1212,8 +1549,7 @@ public:
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,
         bool allowUnorderedGroupByWithLimit)
-        : TExpressionProfiler(id, variables, functionProfilers, useCanonicalNullRelations, executionBackend)
-        , AggregateProfilers_(aggregateProfilers)
+        : TExpressionProfiler(id, variables, functionProfilers, aggregateProfilers, useCanonicalNullRelations, executionBackend)
         , AllowUnorderedGroupByWithLimit_(allowUnorderedGroupByWithLimit)
     { }
 
@@ -1237,14 +1573,9 @@ public:
         size_t* slotCount);
 
 protected:
-    const TConstAggregateProfilerMapPtr AggregateProfilers_;
+
     // COMPAT(sabdenovch)
     const bool AllowUnorderedGroupByWithLimit_;
-
-    size_t Profile(
-        const TNamedItem& namedExpression,
-        const TTableSchemaPtr& schema,
-        TExpressionFragments* fragments);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1569,9 +1900,9 @@ void TQueryProfiler::Profile(
                 auto referenceExpr = New<TReferenceExpression>(
                     groupItem.Expression->LogicalType,
                     groupItem.Name);
-                groupExprId = Profile(TNamedItem(std::move(referenceExpr), groupItem.Name), schema, &expressionFragments);
+                groupExprId = TExpressionProfiler::Profile(TNamedItem(std::move(referenceExpr), groupItem.Name), schema, &expressionFragments);
             } else {
-                groupExprId = Profile(groupItem, schema, &expressionFragments);
+                groupExprId = TExpressionProfiler::Profile(groupItem, schema, &expressionFragments);
             }
             groupExprIds.push_back(groupExprId);
 
@@ -1591,19 +1922,19 @@ void TQueryProfiler::Profile(
                 std::vector<size_t> aggregateArgIds;
                 aggregateArgIds.reserve(argumentCount);
                 for (auto& arg : aggregateItem.Arguments) {
-                    aggregateArgIds.push_back(Profile(TNamedItem{arg, ""}, schema, &expressionFragments));
+                    aggregateArgIds.push_back(TExpressionProfiler::Profile(TNamedItem{arg, ""}, schema, &expressionFragments));
                 }
                 aggregateExprIdsByFunc.emplace_back(std::move(aggregateArgIds));
             }
-            std::vector<EValueType> wireTypes;
-            wireTypes.reserve(argumentCount);
+            std::vector<TLogicalTypePtr> logicalTypes;
+            logicalTypes.reserve(argumentCount);
             for (const auto& arg : aggregateItem.Arguments) {
-                wireTypes.push_back(arg->GetWireType());
+                logicalTypes.push_back(arg->LogicalType);
             }
             codegenAggregates.push_back(aggregate->Profile(
-                std::move(wireTypes),
-                GetWireType(aggregateItem.StateType),
-                GetWireType(aggregateItem.ResultType),
+                logicalTypes,
+                aggregateItem.StateType,
+                aggregateItem.ResultType,
                 aggregateItem.Name,
                 ExecutionBackend_,
                 Id_));
@@ -1914,7 +2245,7 @@ void TQueryProfiler::Profile(
         projectExprIds.reserve(projectClause->Projections.size());
         TExpressionFragments projectExprFragments;
         for (const auto& item : projectClause->Projections) {
-            projectExprIds.push_back(Profile(item, schema, &projectExprFragments));
+            projectExprIds.push_back(TExpressionProfiler::Profile(item, schema, &projectExprFragments));
         }
 
         auto projectFragmentsInfos = projectExprFragments.ToFragmentInfos("projectExpression");
@@ -2350,21 +2681,6 @@ void TQueryProfiler::Profile(
     Profile(codegenSource, query, slotCount, currentSlot, schema, /*mergeMode*/ true);
 }
 
-size_t TQueryProfiler::Profile(
-    const TNamedItem& namedExpression,
-    const TTableSchemaPtr& schema,
-    TExpressionFragments* fragments)
-{
-    Fold(ExecutionBackend_);
-    Fold(EFoldingObjectType::NamedExpression);
-
-    size_t resultId = TExpressionProfiler::Profile(namedExpression.Expression, schema, fragments);
-    Fold(resultId);
-    ++fragments->Items[resultId].UseCount;
-
-    return resultId;
-}
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2386,10 +2702,13 @@ TCGExpressionGenerator Profile(
     EExecutionBackend executionBackend,
     const TConstFunctionProfilerMapPtr& functionProfilers)
 {
+    TConstAggregateProfilerMapPtr aggregateProfilers;
+
     auto profiler = TExpressionProfiler(
         id,
         variables,
         functionProfilers,
+        aggregateProfilers,
         useCanonicalNullRelations,
         executionBackend);
     auto fragments = TExpressionFragments();

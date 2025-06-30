@@ -11,7 +11,6 @@ PEERDIR(
 SRCS(
     protobuf_helpers.cpp
     public.cpp
-    traits.cpp
 )
 
 END()

@@ -104,7 +104,7 @@ bool TChunkOwnerTypeHandler<TChunkOwner>::HasBranchedChangesImpl(TChunkOwner* or
     }
 
     return
-        branchedNode->GetUpdateMode() != NChunkClient::EUpdateMode::None ||
+        branchedNode->GetUpdateMode() != EUpdateMode::None ||
         branchedNode->GetPrimaryMediumIndex() != originatingNode->GetPrimaryMediumIndex() ||
         branchedNode->Replication() != originatingNode->Replication() ||
         branchedNode->GetHunkPrimaryMediumIndex() != originatingNode->GetHunkPrimaryMediumIndex() ||
@@ -297,13 +297,13 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
 
     bool topmostCommit = !originatingNode->GetTransaction();
     auto newOriginatingMode = topmostCommit || originatingNode->GetType() == NObjectClient::EObjectType::Journal
-        ? NChunkClient::EUpdateMode::None
-        : originatingMode == NChunkClient::EUpdateMode::Overwrite || branchedMode == NChunkClient::EUpdateMode::Overwrite
-            ? NChunkClient::EUpdateMode::Overwrite
-            : NChunkClient::EUpdateMode::Append;
+        ? EUpdateMode::None
+        : originatingMode == EUpdateMode::Overwrite || branchedMode == EUpdateMode::Overwrite
+            ? EUpdateMode::Overwrite
+            : EUpdateMode::Append;
 
     // Check if we have anything to do at all.
-    if (branchedMode == NChunkClient::EUpdateMode::None) {
+    if (branchedMode == EUpdateMode::None) {
         // If ChunkMergerMode was changed need to reschedule chunk merge.
         if (topmostCommit && !isExternal && originatingChunkList->GetKind() == EChunkListKind::Static) {
             if (originatingNode->GetChunkMergerMode() != EChunkMergerMode::None) {
@@ -335,7 +335,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     // Below, chunk requisition update is scheduled no matter what (for non-external chunks,
     // of course). If nothing else, this is necessary to update 'committed' flags on chunks.
 
-    if (branchedMode == NChunkClient::EUpdateMode::Overwrite) {
+    if (branchedMode == EUpdateMode::Overwrite) {
         if (!isExternal) {
             auto oldOriginatingChunkLists = originatingNode->GetChunkLists();
             if (branchedChunkList->GetKind() == EChunkListKind::Static || !originatingNode->IsTrunk()) {
@@ -392,13 +392,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
         originatingNode->DeltaSecurityTags() = branchedNode->DeltaSecurityTags();
         originatingNode->ChunkMergerTraversalInfo() = {};
     } else {
-        YT_VERIFY(branchedMode == NChunkClient::EUpdateMode::Append);
-
-        bool isDynamic = false;
-
-        TEnumIndexedArray<EChunkListContentType, TChunkTree*> deltaTrees;
-        TChunkLists originatingChunkLists;
-        TChunkLists newOriginatingChunkLists;
+        YT_VERIFY(branchedMode == EUpdateMode::Append);
 
         if (!isExternal) {
             if (branchedChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
@@ -418,16 +412,60 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                             branchedNode->GetTransaction()->GetId());
                     }
                 } else {
-                    // For non-trunk node just overwrite originating node with branched node contents.
-                    // Could be made more consistent with static tables by using hierarchical chunk lists.
-
+                    YT_VERIFY(!topmostCommit);
                     YT_VERIFY(originatingNode->GetHunkChunkList() == branchedNode->GetHunkChunkList());
 
-                    originatingNode->SetChunkList(branchedChunkList);
-                    originatingChunkList->RemoveOwningNode(originatingNode);
-                    branchedChunkList->AddOwningNode(originatingNode);
+                    // COMPAT(dave11ar): Remove when all branched append chunk lists will be in new format.
+                    if (const auto& branchedChildren = branchedChunkList->Children();
+                        !branchedChildren.empty() && !branchedChildren.front()->AsChunkList()->IsNewAppendTabletChunkList())
+                    {
+                        originatingNode->SetChunkList(branchedChunkList);
+                        originatingChunkList->RemoveOwningNode(originatingNode);
+                        branchedChunkList->AddOwningNode(originatingNode);
+                    } else {
+                        auto* newOriginatingChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicRoot);
+                        originatingChunkList->RemoveOwningNode(originatingNode);
+                        newOriginatingChunkList->AddOwningNode(originatingNode);
+                        originatingNode->SetChunkList(newOriginatingChunkList);
+
+                        for (int tabletIndex = 0; tabletIndex < ssize(originatingChunkList->Children()); ++tabletIndex) {
+                            if (newOriginatingMode == EUpdateMode::Append) {
+                                auto* originatingTabletChunkList = originatingChunkList->Children()[tabletIndex]->AsChunkList();
+                                auto* branchedTabletChunkList = branchedChunkList->Children()[tabletIndex]->AsChunkList();
+
+                                auto appendTabletChunkLists = branchedTabletChunkList->GetAppendTabletChunkLists();
+                                YT_VERIFY(originatingTabletChunkList == appendTabletChunkLists.OriginatingChunkList);
+
+                                auto newOriginatingTabletChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
+                                newOriginatingTabletChunkList->SetPivotKey(originatingTabletChunkList->GetPivotKey());
+                                chunkManager->AttachToChunkList(newOriginatingChunkList, {newOriginatingTabletChunkList});
+
+                                if (originatingMode == EUpdateMode::Append) {
+                                    auto newOriginatingDeltaChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
+
+                                    auto originatingAppendTabletChunkLists = originatingTabletChunkList->GetAppendTabletChunkLists();
+
+                                    chunkManager->AttachToChunkList(
+                                        newOriginatingDeltaChunkList,
+                                        {originatingAppendTabletChunkLists.DeltaChunkList, appendTabletChunkLists.DeltaChunkList});
+
+                                    chunkManager->AttachToChunkList(
+                                        newOriginatingTabletChunkList,
+                                        {originatingAppendTabletChunkLists.OriginatingChunkList, newOriginatingDeltaChunkList});
+                                } else {
+                                    YT_VERIFY(originatingMode == EUpdateMode::None);
+
+                                    chunkManager->AttachToChunkList(
+                                        newOriginatingTabletChunkList,
+                                        {originatingTabletChunkList, appendTabletChunkLists.DeltaChunkList});
+                                }
+                            } else {
+                                // NB(dave11ar): We allow only one transaction to write in table.
+                                YT_ABORT();
+                            }
+                        }
+                    }
                 }
-                isDynamic = true;
             } else {
                 YT_VERIFY(branchedChunkList->GetKind() == EChunkListKind::Static);
 
@@ -440,63 +478,43 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
                     }
 
                     YT_VERIFY(branchedChunkList->Children().size() == 2);
-                    deltaTrees[contentType] = branchedChunkList->Children()[1];
+                    auto deltaChunkList = branchedChunkList->Children()[1];
 
                     auto* newOriginatingChunkList = chunkManager->CreateChunkList(originatingChunkList->GetKind());
-                    originatingChunkLists[contentType] = originatingChunkList;
-                    newOriginatingChunkLists[contentType] = newOriginatingChunkList;
 
                     originatingChunkList->RemoveOwningNode(originatingNode);
                     newOriginatingChunkList->AddOwningNode(originatingNode);
                     originatingNode->SetChunkList(contentType, newOriginatingChunkList);
+
+                    if (originatingMode == EUpdateMode::Append) {
+                        YT_VERIFY(!topmostCommit);
+
+                        chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList->Children()[0]});
+                        auto* newDeltaChunkList = chunkManager->CreateChunkList(originatingChunkList->GetKind());
+                        chunkManager->AttachToChunkList(newOriginatingChunkList, {newDeltaChunkList});
+                        chunkManager->AttachToChunkList(newDeltaChunkList, {originatingChunkList->Children()[1], deltaChunkList});
+                    } else {
+                        YT_VERIFY(originatingChunkList->GetKind() == EChunkListKind::Static);
+
+                        chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList, deltaChunkList});
+
+                        if (requisitionUpdateNeeded) {
+                            chunkManager->ScheduleChunkRequisitionUpdate(deltaChunkList);
+                        }
+                    }
                 }
             }
         }
 
-        if (originatingMode == NChunkClient::EUpdateMode::Append) {
+        // Update statistics.
+        if (originatingMode == EUpdateMode::Append) {
             YT_VERIFY(!topmostCommit);
-            if (!isExternal && branchedChunkList->GetKind() == EChunkListKind::Static) {
-                for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                    auto* deltaTree = deltaTrees[contentType];
-                    auto* originatingChunkList = originatingChunkLists[contentType];
-                    auto* newOriginatingChunkList = newOriginatingChunkLists[contentType];
-                    if (!originatingChunkList) {
-                        YT_VERIFY(!newOriginatingChunkList);
-                        continue;
-                    }
-
-                    chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList->Children()[0]});
-                    auto* newDeltaChunkList = chunkManager->CreateChunkList(originatingChunkList->GetKind());
-                    chunkManager->AttachToChunkList(newOriginatingChunkList, {newDeltaChunkList});
-                    chunkManager->AttachToChunkList(newDeltaChunkList, {originatingChunkList->Children()[1], deltaTree});
-                }
-            }
 
             *originatingNode->MutableDeltaStatistics() += branchedNode->DeltaStatistics();
             originatingNode->DeltaSecurityTags() = securityTagsRegistry->Intern(
                 *originatingNode->DeltaSecurityTags() + *branchedNode->DeltaSecurityTags());
         } else {
-            if (!isExternal && branchedChunkList->GetKind() == EChunkListKind::Static) {
-                YT_VERIFY(originatingChunkList->GetKind() == EChunkListKind::Static);
-
-                for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                    auto* originatingChunkList = originatingChunkLists[contentType];
-                    auto* newOriginatingChunkList = newOriginatingChunkLists[contentType];
-                    if (!originatingChunkList) {
-                        YT_VERIFY(!newOriginatingChunkList);
-                        continue;
-                    }
-
-                    auto* deltaTree = deltaTrees[contentType];
-                    chunkManager->AttachToChunkList(newOriginatingChunkList, {originatingChunkList, deltaTree});
-
-                    if (requisitionUpdateNeeded) {
-                        chunkManager->ScheduleChunkRequisitionUpdate(deltaTree);
-                    }
-                }
-            }
-
-            if (newOriginatingMode == NChunkClient::EUpdateMode::Append) {
+            if (newOriginatingMode == EUpdateMode::Append) {
                 *originatingNode->MutableDeltaStatistics() += branchedNode->DeltaStatistics();
                 originatingNode->DeltaSecurityTags() = securityTagsRegistry->Intern(
                     *originatingNode->DeltaSecurityTags() + *branchedNode->DeltaSecurityTags());
@@ -507,7 +525,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             }
         }
 
-        if (!isExternal && isDynamic) {
+        if (!isExternal && branchedChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
             const auto& tableManager = TBase::GetBootstrap()->GetTableManager();
             tableManager->SendStatisticsUpdate(originatingNode);
         }
@@ -516,7 +534,9 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     if (topmostCommit && !isExternal && branchedChunkList->GetKind() == EChunkListKind::Static) {
         // Rebalance when the topmost transaction commits.
         // If chunk merger is disabled on table we should use strict mode for more frequent rebalancing.
-        auto rebalanceMode = (originatingNode->GetChunkMergerMode() == EChunkMergerMode::None ? EChunkTreeBalancerMode::Strict : EChunkTreeBalancerMode::Permissive);
+        auto rebalanceMode = originatingNode->GetChunkMergerMode() == EChunkMergerMode::None
+            ? EChunkTreeBalancerMode::Strict
+            : EChunkTreeBalancerMode::Permissive;
         chunkManager->RebalanceChunkTree(originatingNode->GetChunkList(), rebalanceMode);
         // Don't schedule requisition update for #newOriginatingChunkList here.
         // See balancer implementation for details.

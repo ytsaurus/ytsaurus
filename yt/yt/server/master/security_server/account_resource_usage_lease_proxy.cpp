@@ -40,6 +40,7 @@ private:
         TBase::ListSystemAttributes(descriptors);
 
         descriptors->push_back(EInternedAttributeKey::Account);
+        descriptors->push_back(EInternedAttributeKey::AccountId);
         descriptors->push_back(EInternedAttributeKey::TransactionId);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceUsage)
             .SetWritable(true));
@@ -54,6 +55,11 @@ private:
             case EInternedAttributeKey::Account:
                 BuildYsonFluently(consumer)
                     .Value(accountResourceUsageLease->Account()->GetName());
+                return true;
+
+            case EInternedAttributeKey::AccountId:
+                BuildYsonFluently(consumer)
+                    .Value(accountResourceUsageLease->Account()->GetId());
                 return true;
 
             case EInternedAttributeKey::TransactionId:

@@ -836,18 +836,17 @@ llvm::GlobalVariable* TComparerManager::GetLabelsArray(
                 labels.push_back(valueTypeLabels.OnDouble);
                 break;
 
-            case EValueType::String: {
+            case EValueType::String:
                 labels.push_back(valueTypeLabels.OnString);
                 break;
-            }
 
-            case EValueType::Any: {
+            case EValueType::Composite:
+            case EValueType::Any:
                 labels.push_back(valueTypeLabels.OnAny);
                 break;
-            }
 
             default:
-                YT_ABORT();
+                THROW_ERROR_EXCEPTION("Unexpected type %Qlv encountered in comparer manager", type);
         }
         id.AddPointer(labels.back());
     }
@@ -1335,12 +1334,21 @@ TCodegenExpression MakeCodegenReferenceExpr(
     return [
             =
         ] (TCGExprContext& builder) {
-            return TCGValue::LoadFromRowValues(
-                builder,
-                builder.RowValues,
-                index,
-                type,
-                "reference." + Twine(name.c_str()));
+            if (index >= 0) {
+                return TCGValue::LoadFromRowValues(
+                    builder,
+                    builder.RowValues,
+                    index,
+                    type,
+                    "reference." + Twine(name.c_str()));
+            } else {
+                return TCGValue::LoadFromRowValues(
+                    builder,
+                    builder.GetBindedValues(),
+                    -index - 1,
+                    type,
+                    "bindedRef." + Twine(name.c_str()));
+            }
         };
 }
 
@@ -2637,6 +2645,275 @@ TLlvmClosure MakeConsumerWithPIConversion(
             innerBuilder->CreateRet(casted);
         });
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t MakeCodegenSubqueryScanOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    int subqueryParametersIndex)
+{
+    size_t consumerSlot = (*slotCount)++;
+
+    *codegenSource = [
+        consumerSlot,
+        subqueryParametersIndex
+    ] (TCGOperatorContext& builder) {
+        auto consume = MakeConsumer(
+            builder,
+            "SubqueryOpInner",
+            consumerSlot);
+
+        builder->CreateCall(
+            builder.Module->GetRoutine("SubqueryExprHelper"),
+            {
+                builder.GetExecutionContext(),
+                builder.GetOpaqueValue(subqueryParametersIndex),
+                consume.ClosurePtr,
+                consume.Function,
+            });
+    };
+
+    return consumerSlot;
+}
+
+size_t MakeCodegenNestedGroupOp(
+    TCodegenSource* codegenSource,
+    size_t* slotCount,
+    size_t producerSlot,
+    TCodegenFragmentInfosPtr fragmentInfos,
+    std::vector<size_t> groupExprsIds,
+    std::vector<std::vector<size_t>> aggregateExprIds,
+    std::vector<TCodegenAggregate> codegenAggregates,
+    std::vector<EValueType> keyTypes,
+    std::vector<EValueType> stateTypes,
+    TComparerManagerPtr comparerManager)
+{
+    size_t newSlot = (*slotCount)++;
+
+    i64 groupKeySize = std::ssize(keyTypes);
+    i64 groupStateSize = std::ssize(stateTypes);
+    i64 rowSize = groupKeySize + groupStateSize;
+
+    *codegenSource = [
+        =,
+        codegenSource = std::move(*codegenSource),
+        fragmentInfos = std::move(fragmentInfos),
+        groupExprsIds = std::move(groupExprsIds),
+        aggregateExprIds = std::move(aggregateExprIds),
+        codegenAggregates = std::move(codegenAggregates),
+        keyTypes = std::move(keyTypes),
+        stateTypes = std::move(stateTypes),
+        comparerManager = std::move(comparerManager)
+    ] (TCGOperatorContext& builder) {
+
+        auto collect = MakeClosure<void(TGroupByClosure*, TExpressionContext*)>(builder, "NestedGroupCollect", [&] (
+            TCGOperatorContext& builder,
+            Value* groupByClosure,
+            Value* buffer) {
+            Value* newValuesPtr = builder->CreateAlloca(TTypeBuilder<TPIValue*>::Get(builder->getContext()));
+
+            builder->CreateCall(
+                builder.Module->GetRoutine("AllocatePermanentRow"),
+                {
+                    builder.GetExecutionContext(),
+                    buffer,
+                    builder->getInt32(rowSize),
+                    newValuesPtr
+                });
+
+            Type* closureType = TClosureTypeBuilder::Get(
+                builder->getContext(),
+                fragmentInfos->Functions.size());
+            Value* groupExpressionClosurePtr = builder->CreateAlloca(
+                closureType,
+                nullptr,
+                "expressionClosurePtr");
+
+            builder[producerSlot] = [&] (TCGContext& builder, Value* values) -> Value* {
+                Value* bufferRef = builder->ViaClosure(buffer);
+                Value* newValuesPtrRef = builder->ViaClosure(newValuesPtr);
+                Value* newValuesRef = builder->CreateLoad(
+                    TTypeBuilder<TValue*>::Get(builder->getContext()),
+                    newValuesPtrRef);
+
+                auto innerBuilder = TCGExprContext::Make(
+                    builder,
+                    *fragmentInfos,
+                    values,
+                    builder.Buffer,
+                    builder->ViaClosure(groupExpressionClosurePtr));
+
+                Value* dstValues = newValuesRef;
+
+                for (i64 index = 0; index < std::ssize(groupExprsIds); index++) {
+                    CodegenFragment(innerBuilder, groupExprsIds[index])
+                        .StoreToValues(builder, dstValues, index);
+                }
+
+                Value* groupByClosureRef = builder->ViaClosure(groupByClosure);
+
+                Value* groupValues = builder->CreateCall(
+                    builder.Module->GetRoutine("SubqueryInsertGroupRow"),
+                    {
+                        builder.GetExecutionContext(),
+                        groupByClosureRef,
+                        newValuesRef,
+                    });
+
+                Value* incomingRowIsNew = builder->CreateICmpEQ(groupValues, newValuesRef);
+
+                CodegenIf<TCGContext>(builder, incomingRowIsNew, [&] (TCGContext& builder) {
+                    for (i64 index = 0; index < std::ssize(codegenAggregates); index++) {
+                        codegenAggregates[index].Initialize(builder, bufferRef)
+                            .StoreToValues(builder, groupValues, groupKeySize + index);
+                    }
+
+                    builder->CreateCall(
+                        builder.Module->GetRoutine("AllocatePermanentRow"),
+                        {
+                            builder.GetExecutionContext(),
+                            bufferRef,
+                            builder->getInt32(rowSize),
+                            newValuesPtrRef
+                        });
+                });
+
+                for (i64 index = 0; index < std::ssize(codegenAggregates); index++) {
+                    auto aggState = TCGValue::LoadFromRowValues(
+                        builder,
+                        groupValues,
+                        groupKeySize + index,
+                        stateTypes[index]);
+
+                    std::vector<TCGValue> newValues;
+                    for (size_t argId : aggregateExprIds[index]) {
+                        newValues.emplace_back(CodegenFragment(innerBuilder, argId));
+                    }
+                    codegenAggregates[index].Update(builder, bufferRef, aggState, newValues)
+                        .StoreToValues(builder, groupValues, groupKeySize + index);
+                }
+
+                return builder->getFalse();
+            };
+
+            codegenSource(builder);
+
+            builder->CreateRetVoid();
+        });
+
+        auto consumeRows = MakeConsumer(builder, "SubqueryConsumeGroupedRows", newSlot);
+
+        builder->CreateCall(
+            builder.Module->GetRoutine("SubqueryGroupOpHelper"),
+            {
+                builder.GetExecutionContext(),
+                comparerManager->GetHasher(keyTypes, builder.Module, 0, keyTypes.size()),
+                comparerManager->GetEqComparer(keyTypes, builder.Module, 0, keyTypes.size()),
+                collect.ClosurePtr,
+                collect.Function,
+                consumeRows.ClosurePtr,
+                consumeRows.Function,
+            });
+    };
+
+    return newSlot;
+}
+
+void MakeCodegenSubqueryWriteOp(
+    TCodegenSource* codegenSource,
+    size_t producerSlot,
+    size_t rowSize)
+{
+    *codegenSource = [
+        =,
+        codegenSource = std::move(*codegenSource)
+    ] (TCGOperatorContext& builder) {
+        auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "SubqueryWriteOpInner", [&] (
+            TCGOperatorContext& builder,
+            Value* writeRowClosure) {
+            builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
+                Value* writeRowClosureRef = builder->ViaClosure(writeRowClosure);
+
+                Value* finished = builder->CreateCall(
+                    builder.Module->GetRoutine("SubqueryWriteRow"),
+                    {builder.GetExecutionContext(), writeRowClosureRef, values});
+
+                return builder->CreateIsNotNull(finished);
+            };
+
+            codegenSource(builder);
+
+            builder->CreateRetVoid();
+        });
+
+        builder->CreateCall(
+            builder.Module->GetRoutine("SubqueryWriteHelper"),
+            {
+                builder.GetExecutionContext(),
+                builder->getInt32(rowSize),
+                collect.ClosurePtr,
+                collect.Function
+            });
+    };
+}
+
+TCodegenExpression MakeCodegenSubqueryExpr(
+    TCodegenSource codegenSource,
+    std::vector<size_t> fromExprIds,
+    std::vector<size_t> bindedExprIds,
+    size_t slotCount)
+{
+    return [
+        =,
+        codegenSource = std::move(codegenSource)
+    ] (TCGExprContext& builder) -> TCGValue {
+        Value* fromValues = CodegenAllocateValues(builder, std::ssize(fromExprIds));
+        for (int index = 0; index < std::ssize(fromExprIds); ++index) {
+            CodegenFragment(builder, fromExprIds[index])
+                .StoreToValues(builder, fromValues, index);
+        }
+
+        Value* bindedValues = CodegenAllocateValues(builder, std::ssize(bindedExprIds));
+        for (int index = 0; index < std::ssize(bindedExprIds); ++index) {
+            CodegenFragment(builder, bindedExprIds[index])
+                .StoreToValues(builder, bindedValues, index);
+        }
+
+        Type* nestedContextType = TTypeBuilder<TNestedExecutionContext>::Get(builder->getContext());
+
+        Value* nestedContext = builder->CreateAlignedAlloca(
+            nestedContextType,
+            8);
+
+        using TFields = TTypeBuilder<TNestedExecutionContext>::Fields;
+
+        builder->CreateStore(
+            builder.Buffer,
+            builder->CreateConstGEP2_32(nestedContextType, nestedContext, 0, TFields::ExpressionContext));
+
+        builder->CreateStore(
+            fromValues,
+            builder->CreateConstGEP2_32(nestedContextType, nestedContext, 0, TFields::FromValues));
+
+        std::vector<std::shared_ptr<TCodegenConsumer>> consumers(slotCount);
+
+        TCGOperatorContext operatorBuilder(
+            TCGOpaqueValuesContext(
+                builder,
+                builder.GetLiterals(),
+                builder.GetOpaqueValues(),
+                bindedValues),
+            nestedContext,
+            &consumers);
+
+        codegenSource(operatorBuilder);
+
+        return TCGValue::LoadFromRowValue(builder, builder->CreateConstGEP2_32(nestedContextType, nestedContext, 0, TFields::Result), EValueType::Any);
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 size_t MakeCodegenScanOp(
     TCodegenSource* codegenSource,
@@ -3990,7 +4267,10 @@ void MakeCodegenWriteOp(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TSignature, typename TPISignature>
-TCallback<TSignature> BuildCGEntrypoint(TCGModulePtr cgModule, const TString& entryFunctionName, EExecutionBackend executionBackend)
+TCallback<TSignature> BuildCGEntrypoint(
+    TCGModulePtr cgModule,
+    const std::string& entryFunctionName,
+    EExecutionBackend executionBackend)
 {
     if (executionBackend == EExecutionBackend::WebAssembly) {
         auto caller = New<TCGWebAssemblyCaller<TSignature, TPISignature>>(

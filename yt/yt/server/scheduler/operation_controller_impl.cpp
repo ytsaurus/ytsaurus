@@ -18,6 +18,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
@@ -405,14 +407,14 @@ TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
     auto* descriptor = req->mutable_operation_descriptor();
     ToProto(descriptor->mutable_operation_id(), operation->GetId());
     descriptor->set_operation_type(ToProto(operation->GetType()));
-    descriptor->set_spec(operation->GetSpecString().ToString());
-    descriptor->set_experiment_assignments(ConvertToYsonString(operation->ExperimentAssignments()).ToString());
+    descriptor->set_spec(ToProto(operation->GetSpecString()));
+    descriptor->set_experiment_assignments(ToProto(ConvertToYsonString(operation->ExperimentAssignments())));
     descriptor->set_start_time(ToProto(operation->GetStartTime()));
     descriptor->set_authenticated_user(operation->GetAuthenticatedUser());
     if (operation->GetSecureVault()) {
-        descriptor->set_secure_vault(ConvertToYsonString(operation->GetSecureVault()).ToString());
+        descriptor->set_secure_vault(ToProto(ConvertToYsonString(operation->GetSecureVault())));
     }
-    descriptor->set_acl(ConvertToYsonString(operation->GetRuntimeParameters()->Acl).ToString());
+    descriptor->set_acl(ToProto(ConvertToYsonString(operation->GetRuntimeParameters()->Acl)));
     if (auto acoName = operation->GetRuntimeParameters()->AcoName) {
         descriptor->set_aco_name(*acoName);
     }
@@ -751,7 +753,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     YT_LOG_TRACE(
         "Allocation schedule request enqueued (AllocationId: %v, NodeAddress: %v)",
         allocationId,
-        context->GetNodeDescriptor()->Address);
+        NNodeTrackerClient::GetDefaultAddress(context->GetNodeDescriptor()->Addresses));
 
     return nodeShard->BeginScheduleAllocation(incarnationId, OperationId_, allocationId);
 }
@@ -889,7 +891,7 @@ TFuture<TIntrusivePtr<TResponse>> TOperationControllerImpl::InvokeAgent(
     }));
 }
 
-std::pair<NApi::ITransactionPtr, TString> TOperationControllerImpl::GetIntermediateMediumTransaction()
+std::pair<NApi::ITransactionPtr, std::string> TOperationControllerImpl::GetIntermediateMediumTransaction()
 {
     return {nullptr, {}};
 }

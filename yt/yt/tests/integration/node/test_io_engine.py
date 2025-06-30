@@ -682,6 +682,33 @@ class TestIoEngine(YTEnvSetup):
         # uring is broken in CI
         # use_engine("uring")
 
+    @authors("vvshlyaga")
+    def test_metrics(self):
+        nodes = ls("//sys/cluster_nodes")
+        create("table", "//tmp/table")
+
+        content1 = [{"a": i} for i in range(100)]
+        content2 = [{"a": i} for i in range(100, 200)]
+
+        def seed_counter(node, path):
+            return profiler_factory().at_node(node).counter(name=path, tags={"location_type": "store"})
+
+        self._set_io_engine({"default": "fair_share_thread_pool"})
+        self._wait_for_io_engine_enabled("fair_share_thread_pool")
+        write_table("//tmp/table", content1)
+
+        wait(lambda: all(seed_counter(node, "location/alive").get() == 1. for node in nodes))
+
+        self._set_io_engine({"default": "thread_pool"})
+        self._wait_for_io_engine_enabled("thread_pool")
+        write_table("<append=%true>//tmp/table", content2)
+
+        wait(lambda: all(seed_counter(node, "location/alive").get() == 1. for node in nodes))
+
+        assert read_table("//tmp/table") == content1 + content2
+
+        wait(lambda: all(seed_counter(node, "location/alive").get() == 1. for node in nodes))
+
     @authors("kvk1920")
     def test_dynamic_io_engine_with_overriden_medium(self):
         if not exists("//sys/media/ssd_blobs"):
@@ -700,6 +727,53 @@ class TestIoEngine(YTEnvSetup):
 
         # Shouldn't change.
         self._wait_for_io_engine_enabled("fair_share_thread_pool")
+
+    @classmethod
+    def get_io_weight(self, node, medium):
+        return get("//sys/cluster_nodes/{}/@statistics/media/{}/io_weight".format(node, medium))
+
+    @authors("vvshlyaga")
+    def test_custom_io_weight_formula(self):
+        nodes = ls("//sys/cluster_nodes")
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "io_weight_formula": "0.5",
+                    }
+                }
+            }
+        })
+
+        REPLICATION_FACTOR = self.NUM_NODES
+
+        create(
+            "table",
+            "//tmp/test",
+            attributes={
+                "primary_medium": "default",
+                "replication_factor": REPLICATION_FACTOR,
+            })
+
+        wait(lambda: all(self.get_io_weight(node, "default") == 0.5 for node in nodes))
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "store_location_config_per_medium": {
+                    "default": {
+                        "io_weight_formula": "double([/stat/available_space]) / (double([/stat/used_space]) + double([/stat/available_space]))",
+                    }
+                }
+            }
+        })
+
+        wait(lambda: all(self.get_io_weight(node, "default") == 1. for node in nodes))
+        io_weights = [self.get_io_weight(node, "default") for node in nodes]
+
+        write_table("//tmp/test", [{"a" * 10: i} for i in range(10000)])
+
+        wait(lambda: all(self.get_io_weight(node, "default") < io_weights[i] for i, node in enumerate(nodes)))
 
 
 @authors("capone212")

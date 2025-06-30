@@ -40,7 +40,7 @@ message TPeerDescriptor
 
     reserved 2;
 
-    optional TP2PBarrier delivery_barier = 4;
+    optional TP2PBarrier delivery_barrier = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,6 +215,9 @@ message TRspProbeChunkSet
         required bool disk_throttling = 3;
         required int64 disk_queue_size = 4;
 
+        // COMPAT(babenko): make required after 25.2
+        optional int32 medium_index = 6;
+
         reserved 2;
     }
 
@@ -250,6 +253,7 @@ message TRspProbeBlockSet
     required bool disk_throttling = 5;
     required int64 disk_queue_size = 6;
     repeated TProbeBlockSetBlockInfo cached_blocks = 8;
+    optional int32 medium_index = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

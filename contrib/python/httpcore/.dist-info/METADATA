@@ -1,12 +1,13 @@
-Metadata-Version: 2.3
+Metadata-Version: 2.4
 Name: httpcore
-Version: 1.0.7
+Version: 1.0.9
 Summary: A minimal low-level HTTP client.
 Project-URL: Documentation, https://www.encode.io/httpcore
 Project-URL: Homepage, https://www.encode.io/httpcore/
 Project-URL: Source, https://github.com/encode/httpcore
 Author-email: Tom Christie <tom@tomchristie.com>
-License: BSD-3-Clause
+License-Expression: BSD-3-Clause
+License-File: LICENSE.md
 Classifier: Development Status :: 3 - Alpha
 Classifier: Environment :: Web Environment
 Classifier: Framework :: AsyncIO
@@ -24,7 +25,7 @@ Classifier: Programming Language :: Python :: 3.12
 Classifier: Topic :: Internet :: WWW/HTTP
 Requires-Python: >=3.8
 Requires-Dist: certifi
-Requires-Dist: h11<0.15,>=0.13
+Requires-Dist: h11>=0.16
 Provides-Extra: asyncio
 Requires-Dist: anyio<5.0,>=4.0; extra == 'asyncio'
 Provides-Extra: http2
@@ -151,6 +152,14 @@ pip install 'httpcore==1.*'
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+
+## Version 1.0.9 (April 24th, 2025)
+
+- Resolve https://github.com/advisories/GHSA-vqfr-h8mv-ghfj with h11 dependency update. (#1008)
+
+## Version 1.0.8 (April 11th, 2025)
+
+- Fix `AttributeError` when importing on Python 3.14. (#1005)
 
 ## Version 1.0.7 (November 15th, 2024)
 

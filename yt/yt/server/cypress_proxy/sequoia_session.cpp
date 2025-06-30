@@ -45,8 +45,6 @@ using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
 
-using TYPathBuf = NSequoiaClient::TYPathBuf;
-
 using TCypressTransactionAncestryView = TSequoiaSession::TCypressTransactionAncestryView;
 using TCypressTransactionDepths = TSequoiaSession::TCypressTransactionDepths;
 
@@ -60,8 +58,6 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr auto& Logger = CypressProxyLogger;
-
-const auto EmptyYPath = NSequoiaClient::TYPath("");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -201,7 +197,7 @@ void FillProgenitorTransactionCache(
     // Transaction of child must _not_ be less deeper than the parent's one.
 
     const int maxTransactionDepth = std::ssize(parentRecords);
-    const auto childKey = std::string(TAbsoluteYPath(*currentPath).GetBaseName());
+    const auto childKey = TAbsolutePath(*currentPath).GetBaseName();
 
     auto parentNodeWithoutProgenitorTransaction = NullObjectId;
     for (int transactionDepth : std::views::iota(0, maxTransactionDepth)) {
@@ -216,7 +212,7 @@ void FillProgenitorTransactionCache(
         if (const auto& childRecord = currentRecords[transactionDepth]) {
             if (parentNodeWithoutProgenitorTransaction && !IsTombstone(*childRecord)) {
                 cache->Child.emplace(
-                    std::pair(parentNodeWithoutProgenitorTransaction, childKey),
+                    std::pair(parentNodeWithoutProgenitorTransaction, std::string(childKey)),
                     childRecord->Key.TransactionId);
                 parentNodeWithoutProgenitorTransaction = NullObjectId;
             }
@@ -250,7 +246,7 @@ public:
         if (!IsTombstone(deepestFork)) {
             Result_.push_back({
                 .Id = deepestFork.NodeId,
-                .Path = TAbsoluteYPath(deepestFork.Key.Path),
+                .Path = TAbsolutePath(deepestFork.Key.Path),
             });
         }
     }
@@ -283,7 +279,7 @@ public:
     {
         YT_VERIFY(!currentRecords.Empty());
 
-        auto parsedPath = TAbsoluteYPath(currentRecords.Front().Key.Path);
+        auto parsedPath = TAbsolutePath(currentRecords.Front().Key.Path);
 
         // Progenitor transaction for path record is always the first record
         // since records are sorted by transaction depth.
@@ -433,7 +429,7 @@ TSequoiaSessionPtr TSequoiaSession::Start(
     // Best effort pre-check for mutating requests before starting execution of master commit sessions,
     // doesn't guarantee that prerequisite transactions will be alive during execution on master.
     if (dynamicConfig->ObjectService->EnableFastPathPrerequisiteTransactionCheck) {
-        ValidatePrerequisites(sequoiaClient, cypressPrerequisiteTransactionIds);
+        ValidatePrerequisiteTransactions(sequoiaClient, cypressPrerequisiteTransactionIds);
     }
 
     auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(sequoiaClient, ESequoiaTransactionType::CypressModification, cypressPrerequisiteTransactionIds))
@@ -609,7 +605,7 @@ TCellTag TSequoiaSession::RemoveRootstock(TNodeId rootstockId)
     return CellTagFromId(rootstockId);
 }
 
-TLockId TSequoiaSession::LockNode(
+TLockId TSequoiaSession::LockNodeExplicitly(
     TNodeId nodeId,
     ELockMode lockMode,
     const std::optional<std::string>& childKey,
@@ -627,26 +623,63 @@ TLockId TSequoiaSession::LockNode(
 
     if (lockMode == ELockMode::Snapshot) {
         auto record = LookupNodeById(SequoiaTransaction_, nodeId, CypressTransactionAncestry_);
-        // This node has been already resolved.
+        // This should have been already resolved.
         YT_VERIFY(record.has_value());
         YT_VERIFY(record->ForkKind != EForkKind::Tombstone);
 
         CreateSnapshotLockInSequoia(
             {nodeId, GetCurrentCypressTransactionId()},
-            TAbsoluteYPath(record->Path),
-            record->TargetPath.empty() ? std::nullopt : std::optional(TAbsoluteYPath(record->TargetPath)),
+            TAbsolutePath::UnsafeMakeCanonicalPath(std::move(record->Path)),
+            record->TargetPath.empty() ? std::nullopt : std::optional(std::move(record->TargetPath)),
             SequoiaTransaction_);
     }
 
     AcquireCypressLockInSequoia(nodeId, lockMode);
 
-    return LockNodeInMaster(
+    return ExplicitlyLockNodeInMaster(
         {nodeId, GetCurrentCypressTransactionId()},
         lockMode,
         childKey,
         attributeKey,
         timestamp,
         waitable,
+        SequoiaTransaction_);
+}
+
+void TSequoiaSession::LockNodeImplicitly(
+    NCypressClient::TNodeId nodeId,
+    NCypressClient::ELockMode lockMode,
+    const std::optional<std::string>& childKey,
+    const std::optional<std::string>& attributeKey)
+{
+    YT_VERIFY(GetCurrentCypressTransactionId());
+    YT_VERIFY(lockMode == ELockMode::Shared || (!childKey && !attributeKey));
+
+    // If method creates a node, then it needs a tx action to be sent to master,
+    // and that action might as well take implicit lock. Doing so will eliviate
+    // some contention on dynamic tables.
+    YT_VERIFY(!JustCreated(nodeId));
+
+    if (lockMode == ELockMode::Snapshot) {
+        auto record = LookupNodeById(SequoiaTransaction_, nodeId, CypressTransactionAncestry_);
+        // This should have been already resolved.
+        YT_VERIFY(record.has_value());
+        YT_VERIFY(record->ForkKind != EForkKind::Tombstone);
+
+        CreateSnapshotLockInSequoia(
+            {nodeId, GetCurrentCypressTransactionId()},
+            TAbsolutePath::UnsafeMakeCanonicalPath(std::move(record->Path)),
+            record->TargetPath.empty() ? std::nullopt : std::optional(std::move(record->TargetPath)),
+            SequoiaTransaction_);
+    }
+
+    AcquireCypressLockInSequoia(nodeId, lockMode);
+
+    ImplicitlyLockNodeInMaster(
+        {nodeId, GetCurrentCypressTransactionId()},
+        lockMode,
+        childKey,
+        attributeKey,
         SequoiaTransaction_);
 }
 
@@ -667,6 +700,13 @@ void TSequoiaSession::UnlockNode(TNodeId nodeId, bool snapshot)
     }
 
     return UnlockNodeInMaster({nodeId, GetCurrentCypressTransactionId()}, SequoiaTransaction_);
+}
+
+void TSequoiaSession::ValidateTransactionPresence()
+{
+    if (!CypressTransactionAncestry_.back()) {
+        THROW_ERROR_EXCEPTION("Operation cannot be performed outside of a transaction");
+    }
 }
 
 void TSequoiaSession::AcquireCypressLockInSequoia(
@@ -696,9 +736,7 @@ void TSequoiaSession::ProcessAcquiredCypressLocksInSequoia()
         std::vector<NRecords::TNodeIdToPathKey> rowsToLock;
         auto lockType = ELockType::None;
 
-        if (lock.IsSnapshot) {
-            YT_VERIFY(latePrepare);
-
+        if (lock.IsSnapshot && latePrepare) {
             // Using current transaction instead of trunk to avoid conflicts
             // with 2PC locks in ancestor transactions.
 
@@ -745,7 +783,7 @@ void TSequoiaSession::SetNode(
     const TSuppressableAccessTrackingOptions& options)
 {
     // NB: Force flag is irrelevant when setting node's value.
-    DoSetNode(nodeId, EmptyYPath, value, /*force*/ false, options);
+    DoSetNode(nodeId, "", value, /*force*/ false, options);
 }
 
 void TSequoiaSession::SetNodeAttribute(
@@ -755,7 +793,7 @@ void TSequoiaSession::SetNodeAttribute(
     bool force,
     const TSuppressableAccessTrackingOptions& options)
 {
-    YT_VERIFY(path.Underlying().StartsWith("/@"));
+    YT_VERIFY(path.StartsWith("/@"));
     DoSetNode(nodeId, path, value, force, options);
 }
 
@@ -802,7 +840,7 @@ bool TSequoiaSession::IsMapNodeEmpty(TNodeId nodeId)
 
 void TSequoiaSession::DetachAndRemoveSingleNode(
     TNodeId nodeId,
-    TAbsoluteYPathBuf path,
+    TAbsolutePathBuf path,
     TNodeId parentId)
 {
     // It's weird to create and remove node in the same Sequoia transaction.
@@ -831,7 +869,7 @@ void TSequoiaSession::DetachAndRemoveSingleNode(
         SequoiaTransaction_);
 }
 
-TSequoiaSession::TSubtree TSequoiaSession::FetchSubtree(TAbsoluteYPathBuf path)
+TSequoiaSession::TSubtree TSequoiaSession::FetchSubtree(TAbsolutePathBuf path)
 {
     auto records = WaitFor(SelectSubtree(SequoiaTransaction_, path, CypressTransactionAncestry_))
         .ValueOrThrow();
@@ -879,7 +917,7 @@ void TSequoiaSession::DetachAndRemoveSubtree(
 
 TNodeId TSequoiaSession::CopySubtree(
     const TSubtree& subtree,
-    TAbsoluteYPathBuf destinationRoot,
+    TAbsolutePathBuf destinationRoot,
     TNodeId destinationParentId,
     const TCopyOptions& options)
 {
@@ -917,7 +955,7 @@ TNodeId TSequoiaSession::CopySubtree(
 }
 
 void TSequoiaSession::ClearSubtree(
-    TAbsoluteYPathBuf path,
+    TAbsolutePathBuf path,
     const TSuppressableAccessTrackingOptions& options)
 {
     auto records = WaitFor(SelectSubtree(SequoiaTransaction_, path, CypressTransactionAncestry_))
@@ -967,7 +1005,7 @@ std::optional<TSequoiaSession::TResolvedNodeId> TSequoiaSession::FindNodePath(TN
 
     // Note that we've requested records with order of transactions from nested
     // to progenitor.
-    for (const auto& record : rsp) {
+    for (auto&& record : rsp) {
         if (!record.has_value()) {
             continue;
         }
@@ -977,11 +1015,11 @@ std::optional<TSequoiaSession::TResolvedNodeId> TSequoiaSession::FindNodePath(TN
         }
 
         if (IsLinkType(TypeFromId(id))) {
-            CachedLinkTargetPaths_.emplace(id, TAbsoluteYPath(record->TargetPath));
+            CachedLinkTargetPaths_.emplace(id, std::move(record->TargetPath));
         }
 
         return TResolvedNodeId{
-            .Path = TAbsoluteYPath(record->Path),
+            .Path = TAbsolutePath::UnsafeMakeCanonicalPath(std::move(record->Path)),
             .IsSnapshot = record->ForkKind == EForkKind::Snapshot,
         };
     }
@@ -989,9 +1027,9 @@ std::optional<TSequoiaSession::TResolvedNodeId> TSequoiaSession::FindNodePath(TN
     return std::nullopt;
 }
 
-THashMap<TNodeId, TAbsoluteYPath> TSequoiaSession::GetLinkTargetPaths(TRange<TNodeId> linkIds)
+THashMap<TNodeId, TYPath> TSequoiaSession::GetLinkTargetPaths(TRange<TNodeId> linkIds)
 {
-    THashMap<TNodeId, TAbsoluteYPath> result;
+    THashMap<TNodeId, TYPath> result;
     result.reserve(linkIds.Size());
 
     std::vector<TNodeId> linksToFetch;
@@ -1040,9 +1078,8 @@ THashMap<TNodeId, TAbsoluteYPath> TSequoiaSession::GetLinkTargetPaths(TRange<TNo
             const auto& record = linkRecords[transactionIndex];
             if (record.has_value()) {
                 auto nodeId = record->Key.NodeId;
-                auto targetPath = TAbsoluteYPath(std::move(record->TargetPath));
-                CachedLinkTargetPaths_.emplace(nodeId, targetPath);
-                result.emplace(nodeId, std::move(targetPath));
+                CachedLinkTargetPaths_.emplace(nodeId, record->TargetPath);
+                result.emplace(nodeId, std::move(record->TargetPath));
                 break;
             }
         }
@@ -1051,14 +1088,14 @@ THashMap<TNodeId, TAbsoluteYPath> TSequoiaSession::GetLinkTargetPaths(TRange<TNo
     return result;
 }
 
-TAbsoluteYPath TSequoiaSession::GetLinkTargetPath(TNodeId linkId)
+TYPath TSequoiaSession::GetLinkTargetPath(TNodeId linkId)
 {
     return GetLinkTargetPaths(TRange(&linkId, 1)).at(linkId);
 }
 
 namespace {
 
-bool ArePrefixes(TRange<TAbsoluteYPathBuf> prefixes)
+bool ArePrefixes(TRange<TAbsolutePathBuf> prefixes)
 {
     YT_VERIFY(prefixes.Front().Underlying() == "/");
 
@@ -1073,7 +1110,7 @@ bool ArePrefixes(TRange<TAbsoluteYPathBuf> prefixes)
 
 } // namespace
 
-std::vector<TNodeId> TSequoiaSession::FindNodeIds(TRange<TAbsoluteYPathBuf> paths)
+std::vector<TNodeId> TSequoiaSession::FindNodeIds(TRange<TAbsolutePathBuf> paths)
 {
     YT_VERIFY(ArePrefixes(paths));
 
@@ -1127,7 +1164,7 @@ std::vector<TNodeId> TSequoiaSession::FindNodeIds(TRange<TAbsoluteYPathBuf> path
 }
 
 TNodeId TSequoiaSession::CreateMapNodeChain(
-    TAbsoluteYPathBuf startPath,
+    TAbsolutePathBuf startPath,
     TNodeId startId,
     TRange<std::string> names,
     const TSuppressableAccessTrackingOptions& options)
@@ -1157,7 +1194,7 @@ TNodeId TSequoiaSession::CreateMapNodeChain(
 
 TNodeId TSequoiaSession::CreateNode(
     EObjectType type,
-    TAbsoluteYPathBuf path,
+    TAbsolutePathBuf path,
     const IAttributeDictionary* explicitAttributes,
     TNodeId parentId,
     const TSuppressableAccessTrackingOptions& options)
@@ -1181,6 +1218,98 @@ TNodeId TSequoiaSession::CreateNode(
         SequoiaTransaction_);
 
     return createdNodeId;
+}
+
+TNodeId TSequoiaSession::MaterializeNodeOnMaster(
+    NObjectClient::NProto::TReqMaterializeNode* originalRequest,
+    TCellTag cellTagHint,
+    EObjectType type,
+    TNodeId /*existingNodeId*/)
+{
+    // TODO(h0pless): externalize.
+
+    auto createdNodeId = SequoiaTransaction_->GenerateObjectId(type, cellTagHint);
+
+    NCypressProxy::MaterializeNodeOnMaster(
+        {createdNodeId, GetCurrentCypressTransactionId()},
+        originalRequest,
+        SequoiaTransaction_);
+
+    return createdNodeId;
+}
+
+void TSequoiaSession::AssembleTreeCopy(
+    TNodeId rootNodeId,
+    TNodeId rootParentId,
+    TAbsolutePath rootPath,
+    bool preserveAcl,
+    bool preserveModificationTime,
+    THashMap<TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildrenInfo)
+{
+    auto cypressTransactionId = GetCurrentCypressTransactionId();
+    TCypressChildDescriptor rootNodeInfo = {
+        .ParentId = rootParentId,
+        .ChildId = rootNodeId,
+        .ChildKey = rootPath.GetBaseName(),
+    };
+
+    std::vector<std::pair<TCypressChildDescriptor, int>> traverseQueue;
+    traverseQueue.emplace_back(rootNodeInfo, 0);
+
+    TSuppressableAccessTrackingOptions accessTrackingOptions = {
+        .SuppressAccessTracking = true,
+        // Can be set to "true", FinishNodeMaterialization will touch the node if needed anyway.
+        .SuppressModificationTracking = preserveModificationTime,
+        .SuppressExpirationTimeoutRenewal = true,
+    };
+
+    auto currentPath = TAbsolutePath(rootPath.GetDirPath());
+    int previousDepth = -1;
+    while (!traverseQueue.empty()) {
+        auto [nodeInfo, currentDepth] = traverseQueue.back();
+        traverseQueue.pop_back();
+
+        while (previousDepth >= currentDepth) {
+            // Drop last literal in path.
+            currentPath = currentPath.GetDirPath();
+            --previousDepth;
+        }
+
+        currentPath.Append(nodeInfo.ChildKey);
+
+        for (const auto& childInfo : nodeIdToChildrenInfo[nodeInfo.ChildId]) {
+            traverseQueue.emplace_back(childInfo, currentDepth + 1);
+
+            // NB: Sequoia transaction has automated action sorting,
+            // so the order of action registration does not matter.
+            AttachChild(
+                {nodeInfo.ChildId, GetCurrentCypressTransactionId()},
+                childInfo.ChildId,
+                childInfo.ChildKey,
+                accessTrackingOptions,
+                ProgenitorTransactionCache_,
+                SequoiaTransaction_);
+        }
+
+        NCypressProxy::MaterializeNodeInSequoia(
+            {nodeInfo.ChildId, cypressTransactionId},
+            nodeInfo.ParentId,
+            currentPath,
+            preserveAcl,
+            preserveModificationTime,
+            ProgenitorTransactionCache_,
+            SequoiaTransaction_);
+
+        previousDepth = currentDepth;
+    }
+
+    AttachChild(
+        {rootParentId, GetCurrentCypressTransactionId()},
+        rootNodeId,
+        rootPath.GetBaseName(),
+        accessTrackingOptions,
+        ProgenitorTransactionCache_,
+        SequoiaTransaction_);
 }
 
 TFuture<std::vector<TCypressChildDescriptor>> TSequoiaSession::FetchChildren(TNodeId nodeId)

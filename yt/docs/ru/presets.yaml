@@ -13,3 +13,7 @@ public:
     pool-tree: default
     ipa: _вай-ти-за́у-рус_
     yt-docs-root: https://ytsaurus.tech/docs/ru
+    cluster-ui: https://<host-root>/<cluster-name>
+    community-tg: https://t.me/ytsaurus_ru
+    python-lib-qt: SystemPython3_8
+

@@ -13,6 +13,7 @@ SRCS(
     dsproxy_assimilate.cpp
     dsproxy_block.cpp
     dsproxy_collect.cpp
+    dsproxy_check_integrity_get.cpp
     dsproxy_discover.cpp
     dsproxy_discover_m3dc.cpp
     dsproxy_discover_m3of4.cpp
@@ -67,6 +68,7 @@ PEERDIR(
     contrib/ydb/core/blobstorage/common
     contrib/ydb/core/blobstorage/groupinfo
     contrib/ydb/core/blobstorage/storagepoolmon
+    contrib/ydb/core/blobstorage/vdisk/common
     contrib/ydb/core/blobstorage/vdisk/ingress
     contrib/ydb/core/control/lib
     contrib/ydb/core/util
@@ -75,6 +77,7 @@ PEERDIR(
 END()
 
 RECURSE(
+    bridge
     mock
 )
 

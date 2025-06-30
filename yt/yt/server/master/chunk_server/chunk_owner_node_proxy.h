@@ -89,8 +89,7 @@ protected:
 
     void ReplicateEndUploadRequestToExternalCell(
         TChunkOwnerBase* node,
-        NChunkClient::NProto::TReqEndUpload* request,
-        TChunkOwnerBase::TEndUploadContext& uploadContext) const;
+        NChunkClient::NProto::TReqEndUpload* request) const;
 
     NTableServer::TMasterTableSchema* CalculateEffectiveMasterTableSchema(
         TChunkOwnerBase* node,

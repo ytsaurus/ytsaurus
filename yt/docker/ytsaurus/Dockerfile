@@ -25,7 +25,11 @@ ARG SERVER_IMAGE_BASE="base-server"
 
 ##########################################################################################
 
-FROM mirror.gcr.io/ubuntu:focal AS ubuntu-base
+FROM ubuntu:focal AS ubuntu-base
+
+ARG APT_MIRROR="http://archive.ubuntu.com/"
+
+RUN sed -i "s|http://archive.ubuntu.com/|${APT_MIRROR}|g" /etc/apt/sources.list
 
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
@@ -33,6 +37,13 @@ RUN apt-get update \
       python3.8  \
       python3.8-distutils \
       linux-tools-generic
+
+##########################################################################################
+
+FROM golang:1.22.12 AS pprof-builder
+ENV CGO_ENABLED=0
+ENV GOBIN=/
+RUN go install github.com/google/pprof@v0.0.0-20200417002340-c6e0a841f49a
 
 ##########################################################################################
 
@@ -91,6 +102,8 @@ packages=(
   netcat-openbsd
   tcpdump
   wget
+  llvm
+  git
 )
 
 apt-get install -y "${packages[@]}"
@@ -100,13 +113,38 @@ rm -rf /var/lib/apt/lists/*
 
 EOT
 
+COPY --from=pprof-builder /pprof /usr/local/bin/pprof
+
+##########################################################################################
+
+FROM base AS job-environment
+
+# Libpython shared objects that are needed for YQL system python UDFs to work.
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  libpython3.8 \
+  libpython3.9 \
+  libpython3.10 \
+  libpython3.11 \
+  libpython3.12
+
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y \
+  openjdk-11-jdk \
+  openjdk-17-jdk \
+  java-common
+
+RUN HOST_ARCH=$(dpkg --print-architecture) \
+  && ln -s /usr/lib/jvm/java-11-openjdk-${HOST_ARCH} /opt/jdk11 \
+  && ln -s /usr/lib/jvm/java-17-openjdk-${HOST_ARCH} /opt/jdk17 \
+  && update-java-alternatives --set java-1.11.0-openjdk-${HOST_ARCH}
+
 ##########################################################################################
 
 FROM base AS build-ytsaurus-python-binaries
 
 ARG PROTOC_VERSION="3.20.1"
 
-RUN curl -sL -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-x86_64.zip \
+RUN PROTOC_ARCH=$(uname -m | sed -e 's/aarch64/aarch_64/') \
+    && curl -sL -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/protoc-${PROTOC_VERSION}-linux-${PROTOC_ARCH}.zip \
     && unzip protoc.zip -d /usr/local \
     && rm protoc.zip
 
@@ -161,10 +199,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   openjdk-17-jdk \
   java-common
 
-RUN ln -s /usr/lib/jvm/java-11-openjdk-amd64 /opt/jdk11
-RUN ln -s /usr/lib/jvm/java-17-openjdk-amd64 /opt/jdk17
-
-RUN update-java-alternatives --set java-1.11.0-openjdk-amd64
+RUN HOST_ARCH=$(dpkg --print-architecture) \
+  && ln -s /usr/lib/jvm/java-11-openjdk-${HOST_ARCH} /opt/jdk11 \
+  && ln -s /usr/lib/jvm/java-17-openjdk-${HOST_ARCH} /opt/jdk17 \
+  && update-java-alternatives --set java-1.11.0-openjdk-${HOST_ARCH}
 
 # Default python to be used by python3 jobs, for compatibility with jupyter tutorial.
 RUN ln -s /usr/bin/python3.8 /usr/bin/python3 -f

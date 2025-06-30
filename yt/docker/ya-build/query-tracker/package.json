@@ -13,7 +13,7 @@
         },
     },
     "include": [
-      "yt/docker/ya-build/base/package.json",
+        "yt/docker/ya-build/base/package.json",
     ],
     "data": [
         {

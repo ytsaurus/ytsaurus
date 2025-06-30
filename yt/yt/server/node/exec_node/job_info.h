@@ -42,6 +42,7 @@ private:
     NClusterNode::TJobResources InitialResourceDemand_;
 
     std::vector<int> JobPorts_;
+    std::optional<int> JobProxyRpcServerPort_;
 
     NServer::TJobEvents JobEvents_;
 
@@ -71,6 +72,7 @@ private:
         const NClusterNode::TJobResources& additionalResourceUsage,
         const NClusterNode::TJobResources& initialResourceDemand,
         const std::vector<int>& jobPorts,
+        std::optional<int> jobProxyRpcServerPort,
         const NServer::TJobEvents& jobEvents,
         const NControllerAgent::TCoreInfos& jobCoreInfos,
         const NServer::TExecAttributes& jobExecAttributes,

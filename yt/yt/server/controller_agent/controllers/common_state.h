@@ -1,5 +1,7 @@
 #pragma once
 
+#include "private.h"
+
 #include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -7,6 +9,11 @@ namespace NYT::NControllerAgent::NControllers {
 ////////////////////////////////////////////////////////////////////////////////
 
 void InitCommonState(const NProfiling::TProfiler& profiler);
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TJobProfilerPtr& GetJobProfiler();
+const TScheduleJobProfilerPtr& GetScheduleJobProfiler();
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,5 +1,8 @@
 from yt_env_setup import YTEnvSetup
 
+from yt_sequoia_helpers import (
+    not_implemented_in_sequoia, cannot_be_implemented_in_sequoia)
+
 from yt_commands import (
     authors, create, get, set, remove, exists, start_transaction, abort_transaction,
     commit_transaction, lock, raises_yt_error,
@@ -12,31 +15,6 @@ from yt.common import YtError
 import pytest
 
 import builtins
-import decorator
-
-##################################################################
-
-
-def not_implemented_in_sequoia(func):
-    def wrapper(func, self, *args, **kwargs):
-        if isinstance(self, TestCypressLocksInSequoia):
-            pytest.skip("Not implemented in Sequoia")
-        return func(self, *args, **kwargs)
-
-    return decorator.decorate(func, wrapper)
-
-
-def cannot_be_implemented_in_sequoia(reason):
-    def wrapper_factory(func):
-        def wrapper(func, self, *args, **kwargs):
-            if isinstance(self, TestCypressLocksInSequoia):
-                pytest.skip(f"Cannot be imlpemented in Sequoia: {reason}")
-            return func(self, *args, **kwargs)
-
-        return decorator.decorate(func, wrapper)
-
-    return wrapper_factory
-
 
 ##################################################################
 
@@ -47,9 +25,10 @@ class TestCypressLocks(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
     NUM_TEST_PARTITIONS = 4
+    NUM_CYPRESS_PROXIES = 2
 
     def _in_sequoia(self):
-        return isinstance(self, TestCypressLocksInSequoia)
+        return isinstance(self, TestCypressLocksSequoia)
 
     @authors("panin", "ignat")
     def test_invalid_cases(self):
@@ -1700,28 +1679,12 @@ class TestCypressLocksShardedTx(TestCypressLocksMulticell):
     }
 
 
+@authors("kvk1920")
 @pytest.mark.enabled_multidaemon
-class TestCypressLocksShardedTxCTxS(TestCypressLocksShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
+class TestCypressLocksMirroredTx(TestCypressLocksShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 8
 
     _SUPRESSED_MESSAGES = [
@@ -1752,14 +1715,7 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
         },
     }
 
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
     DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        },
         "cell_master": {
             "logging": {
                 "suppressed_messages": _SUPRESSED_MESSAGES,
@@ -1772,10 +1728,9 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
 
 
 @pytest.mark.enabled_multidaemon
-class TestCypressLocksInSequoia(TestCypressLocksMirroredTx):
+class TestCypressLocksSequoia(TestCypressLocksMirroredTx):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 12
     NUM_SECONDARY_MASTER_CELLS = 4
 

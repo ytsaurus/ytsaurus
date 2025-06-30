@@ -2,19 +2,36 @@
 
 #include "public.h"
 
+#include <yt/yt/client/table_client/unversioned_row.h>
+
 #include <yt/yt/core/ypath/public.h>
 
 namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTable final
+struct TTableBase
+    : public TRefCounted
+{
+    const NYPath::TYPath Path;
+    const TTableId Id;
+    const NObjectClient::TCellTag ExternalCellTag;
+    std::vector<TTabletPtr> Tablets;
+    std::vector<NTableClient::TLegacyOwningKey> PivotKeys;
+
+    TTableBase(
+        NYPath::TYPath path,
+        TTableId tableId,
+        NObjectClient::TCellTag cellTag);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableBase)
+
+struct TTable
+    : public TTableBase
 {
     const bool Sorted;
-    const NYPath::TYPath Path;
-    const NObjectClient::TCellTag ExternalCellTag;
     TTabletCellBundle* const Bundle;
-    const TTableId Id;
 
     bool Dynamic = false;
 
@@ -23,7 +40,8 @@ struct TTable final
 
     EInMemoryMode InMemoryMode = EInMemoryMode::None;
     TTableTabletBalancerConfigPtr TableConfig;
-    std::vector<TTabletPtr> Tablets;
+
+    THashMap<TClusterName, std::vector<TAlienTablePtr>> AlienTables;
 
     TTable(
         bool sorted,
@@ -38,9 +56,30 @@ struct TTable final
 
     bool IsParameterizedMoveBalancingEnabled() const;
     bool IsParameterizedReshardBalancingEnabled(bool enableParameterizedByDefault) const;
+
+    THashMap<TClusterName, std::vector<NYPath::TYPath>> GetReplicaBalancingMinorTables(
+        const std::string& selfClusterName) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTable)
+
+struct TAlienTable
+    : public TTableBase
+{
+    TAlienTable(
+        NYPath::TYPath path,
+        TTableId tableId,
+        NObjectClient::TCellTag cellTag);
+};
+
+DEFINE_REFCOUNTED_TYPE(TAlienTable)
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::optional<TGroupName> GetBalancingGroup(
+    EInMemoryMode inMemoryMode,
+    const TTableTabletBalancerConfigPtr& tableConfig,
+    const TBundleTabletBalancerConfigPtr& bundleConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

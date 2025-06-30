@@ -78,4 +78,19 @@ DEFINE_REFCOUNTED_TYPE(TReplicationCardsWatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChaosReplicationCardUpdatesBatcherConfig
+    : public NYTree::TYsonStruct
+{
+    std::optional<bool> Enable;
+    TDuration FlushPeriod;
+
+    REGISTER_YSON_STRUCT(TChaosReplicationCardUpdatesBatcherConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosReplicationCardUpdatesBatcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChaosClient

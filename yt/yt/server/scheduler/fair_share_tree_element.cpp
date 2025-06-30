@@ -1241,12 +1241,12 @@ bool TSchedulerPoolElement::IsEphemeralInDefaultParentPool() const
     return EphemeralInDefaultParentPool_;
 }
 
-void TSchedulerPoolElement::SetUserName(const std::optional<TString>& userName)
+void TSchedulerPoolElement::SetUserName(const std::optional<std::string>& userName)
 {
     UserName_ = userName;
 }
 
-const std::optional<TString>& TSchedulerPoolElement::GetUserName() const
+const std::optional<std::string>& TSchedulerPoolElement::GetUserName() const
 {
     return UserName_;
 }
@@ -1753,15 +1753,15 @@ void TSchedulerPoolElement::PropagatePoolAttributesToOperations()
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
-    IOperationStrategyHost* operation,
+    IOperationStrategyHostPtr operation,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     TSchedulingTagFilter schedulingTagFilter)
     : OperationId_(operation->GetId())
-    , OperationHost_(operation)
+    , OperationHost_(std::move(operation))
     , ControllerConfig_(std::move(controllerConfig))
-    , UserName_(operation->GetAuthenticatedUser())
-    , Type_(operation->GetType())
-    , TrimmedAnnotations_(operation->GetTrimmedAnnotations())
+    , UserName_(OperationHost_->GetAuthenticatedUser())
+    , Type_(OperationHost_->GetType())
+    , TrimmedAnnotations_(OperationHost_->GetTrimmedAnnotations())
     , SchedulingTagFilter_(std::move(schedulingTagFilter))
 { }
 
@@ -1777,7 +1777,7 @@ TSchedulerOperationElement::TSchedulerOperationElement(
     TFairShareStrategyOperationStatePtr state,
     ISchedulerStrategyHost* strategyHost,
     IFairShareTreeElementHost* treeElementHost,
-    IOperationStrategyHost* operation,
+    IOperationStrategyHostPtr operation,
     const TString& treeId,
     const NLogging::TLogger& logger)
     : TSchedulerElement(
@@ -1789,7 +1789,7 @@ TSchedulerOperationElement::TSchedulerOperationElement(
         EResourceTreeElementKind::Operation,
         logger.WithTag("OperationId: %v", operation->GetId()))
     , TSchedulerOperationElementFixedState(
-        operation,
+        std::move(operation),
         std::move(controllerConfig),
         TSchedulingTagFilter(spec->SchedulingTagFilter))
     , Spec_(std::move(spec))
@@ -1963,6 +1963,11 @@ TOperationId TSchedulerOperationElement::GetOperationId() const
     return OperationId_;
 }
 
+std::optional<std::string> TSchedulerOperationElement::GetTitle() const
+{
+    return OperationHost_->GetTitle();
+}
+
 void TSchedulerOperationElement::SetRuntimeParameters(TOperationFairShareTreeRuntimeParametersPtr runtimeParameters)
 {
     RuntimeParameters_ = std::move(runtimeParameters);
@@ -2080,7 +2085,7 @@ int TSchedulerOperationElement::GetSlotIndex() const
     return SlotIndex_;
 }
 
-TString TSchedulerOperationElement::GetUserName() const
+std::string TSchedulerOperationElement::GetUserName() const
 {
     return UserName_;
 }

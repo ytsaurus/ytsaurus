@@ -57,11 +57,12 @@ public:
 
     TFilterType OnReference(const TReferenceExpressionPtr /*referenceExpr*/)
     {
-        return {.Place = EFilterPlace::Where};
+        return {};
     }
 
     TFilterType OnAlias(const TAliasExpressionPtr aliasExpr)
     {
+        auto guard = MakeDepthGuard();
         auto type = Visit(aliasExpr->Expression);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot alias heterogenous expression in filter")
@@ -72,6 +73,7 @@ public:
 
     TFilterType OnUnary(const TUnaryOpExpressionPtr unaryExpr)
     {
+        auto guard = MakeDepthGuard();
         auto type = Visit(unaryExpr->Operand);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot apply unary %lv on heterogenous expression in filter", unaryExpr->Opcode)
@@ -80,7 +82,7 @@ public:
         return type;
     }
 
-    TFilterType OnBinary(const TBinaryOpExpressionPtr binaryExpr)
+    TFilterType OnBinaryAnd(const TBinaryOpExpressionPtr binaryExpr)
     {
         const auto& lhs = binaryExpr->Lhs;
         auto lhsType = Visit(lhs);
@@ -88,24 +90,43 @@ public:
         auto rhsType = Visit(rhs);
 
         auto commonType = GetCommonType(lhsType, rhsType);
-
-        if (commonType.Place != EFilterPlace::Heterogenous) {
-            return commonType;
-        }
-
-        if (binaryExpr->Opcode == NQueryClient::EBinaryOp::And) {
+        if (NonAndDepth_ == 0 || commonType.Place == EFilterPlace::Heterogenous) {
             AddExpression(lhs[0], lhsType);
             AddExpression(rhs[0], rhsType);
-        } else {
-            ThrowSplitError(TError("Cannot apply binary %lv to heterogenous operands", binaryExpr->Opcode)
-                << TErrorAttribute("expression", FormatExpression(*binaryExpr)));
+            return {.Place=EFilterPlace::Heterogenous};
         }
 
         return commonType;
     }
 
+    TFilterType OnBinaryOther(const TBinaryOpExpressionPtr binaryExpr)
+    {
+        auto guard = MakeDepthGuard();
+        const auto& lhs = binaryExpr->Lhs;
+        auto lhsType = Visit(lhs);
+        const auto& rhs = binaryExpr->Rhs;
+        auto rhsType = Visit(rhs);
+
+        auto commonType = GetCommonType(lhsType, rhsType);
+        if (commonType.Place == EFilterPlace::Heterogenous) {
+            ThrowSplitError(TError("Cannot apply binary %lv to heterogenous operands", binaryExpr->Opcode)
+                << TErrorAttribute("expression", FormatExpression(*binaryExpr)));
+        }
+        return commonType;
+    }
+
+    TFilterType OnBinary(const TBinaryOpExpressionPtr binaryExpr)
+    {
+        if (binaryExpr->Opcode == NQueryClient::EBinaryOp::And) {
+            return OnBinaryAnd(binaryExpr);
+        } else {
+            return OnBinaryOther(binaryExpr);
+        }
+    }
+
     TFilterType OnFunction(const TFunctionExpressionPtr functionExpr)
     {
+        auto guard = MakeDepthGuard();
         auto type = Visit(functionExpr->Arguments);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot call function %v with heterogenous arguments", functionExpr->FunctionName)
@@ -116,6 +137,7 @@ public:
 
     TFilterType OnIn(const TInExpressionPtr inExpr)
     {
+        auto guard = MakeDepthGuard();
         auto type = Visit(inExpr->Expr);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot use in with heterogenous expression")
@@ -126,6 +148,7 @@ public:
 
     TFilterType OnBetween(const TBetweenExpressionPtr betweenExpr)
     {
+        auto guard = MakeDepthGuard();
         auto type = Visit(betweenExpr->Expr);
         if (type.Place == EFilterPlace::Heterogenous) {
             ThrowSplitError(TError("Cannot use between with heterogenous expression")
@@ -136,6 +159,7 @@ public:
 
     TFilterType OnTransform(const TTransformExpressionPtr transformExpr)
     {
+        auto guard = MakeDepthGuard();
         const auto& expr = transformExpr->Expr;
         auto exprType = Visit(expr);
         const auto& defaultExpr = transformExpr->DefaultExpr;
@@ -146,12 +170,12 @@ public:
             ThrowSplitError(TError("Cannot use transform with heterogenous arguments")
                 << TErrorAttribute("expression", FormatExpression(*transformExpr)));
         }
-
         return type;
     }
 
     TFilterType OnCase(const TCaseExpressionPtr caseExpr)
     {
+        auto guard = MakeDepthGuard();
         auto optionalType = Visit(caseExpr->OptionalOperand);
         auto defaultType = Visit(caseExpr->DefaultExpression);
         std::vector<TFilterType> types;
@@ -175,6 +199,7 @@ public:
 
     TFilterType OnLike(const TLikeExpressionPtr likeExpr)
     {
+        auto guard = MakeDepthGuard();
         auto textType = Visit(likeExpr->Text);
         auto patternType = Visit(likeExpr->Pattern);
         auto escapeType = Visit(likeExpr->EscapeCharacter);
@@ -185,7 +210,6 @@ public:
             ThrowSplitError(TError("Cannot use like with heterogenous arguments")
                 << TErrorAttribute("expression", FormatExpression(*likeExpr)));
         }
-
         return commonType;
     }
 
@@ -201,9 +225,10 @@ public:
 
     TFilterType Visit(const std::vector<TExpressionPtr>& tuple)
     {
-        return GetCommonType(tuple | std::views::transform([this] (TExpressionPtr expr) {
+        auto type = GetCommonType(tuple | std::views::transform([this] (TExpressionPtr expr) {
             return Visit(expr);
         }));
+        return type;
     }
 
     TFilterType Visit(const std::optional<std::vector<TExpressionPtr>>& nullableTuple)
@@ -249,11 +274,13 @@ private:
     TObjectsHolder* const ObjectsHolder_;
     const TFilterHints& FilterHints_;
 
+    int NonAndDepth_ = 0;
+
     TExpressionPtr Where_ = nullptr;
     TExpressionPtr Having_ = nullptr;
     THashMap<TString, TExpressionPtr> JoinPredicates_;
 
-    TExpressionPtr FilterExpression_;
+    TExpressionPtr FilterExpression_ = nullptr;
 
     TFilterType GetExpressionFilterTypeHint(
         TExpressionPtr expression,
@@ -295,7 +322,7 @@ private:
         return {.Place=EFilterPlace::Heterogenous};
     }
 
-    template<std::ranges::range TFilterTypes>
+    template <std::ranges::range TFilterTypes>
     TFilterType GetCommonType(TFilterTypes types)
     {
         TFilterType commonType;
@@ -316,6 +343,7 @@ private:
             case EFilterPlace::Having:
                 Having_ = BuildAndExpression(ObjectsHolder_, Having_, expression);
                 return;
+            case EFilterPlace::Unknown:
             case EFilterPlace::Where:
                 Where_ = BuildAndExpression(ObjectsHolder_, Where_, expression);
                 return;
@@ -329,19 +357,54 @@ private:
             }
             case EFilterPlace::Heterogenous:
                 return;
-            case EFilterPlace::Unknown:
-                ThrowSplitError(TError("Failed to determine filter place")
-                    << TErrorAttribute("expression", FormatExpression(*expression)));
         }
     }
 
-    void ThrowSplitError(TError error)
+    [[noreturn]] void ThrowSplitError(TError error)
     {
         THROW_ERROR_EXCEPTION(
             NClient::EErrorCode::InvalidRequestArguments,
             "Cannot split query filter")
                 << std::move(error)
                 << TErrorAttribute("filter", FormatExpression(*FilterExpression_));
+    }
+
+    class TDepthGuard
+    {
+    public:
+        explicit TDepthGuard(TFilterSplitter* splitter)
+            : Splitter_(splitter)
+        {
+            ++Splitter_->NonAndDepth_;
+        }
+
+        TDepthGuard(const TDepthGuard& other)
+            : Splitter_(other.Splitter_)
+        {
+            ++Splitter_->NonAndDepth_;
+        }
+
+        TDepthGuard(TDepthGuard&& other)
+            : Splitter_(std::exchange(other.Splitter_, nullptr))
+        { }
+
+        TDepthGuard& operator=(const TDepthGuard& other) = delete;
+        TDepthGuard& operator=(TDepthGuard&& other) = delete;
+
+        ~TDepthGuard()
+        {
+            if (Splitter_) {
+                --Splitter_->NonAndDepth_;
+            }
+        }
+
+    private:
+        TFilterSplitter* Splitter_;
+    };
+
+    TDepthGuard MakeDepthGuard()
+    {
+        return TDepthGuard(this);
     }
 };
 

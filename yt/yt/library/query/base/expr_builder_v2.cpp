@@ -2,6 +2,7 @@
 #include "functions.h"
 #include "helpers.h"
 #include "private.h"
+#include "query_helpers.h"
 
 #include <library/cpp/yt/misc/variant.h>
 
@@ -54,6 +55,26 @@ TConstExpressionPtr CreateCoercion(EValueType type, TConstExpressionPtr operand)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TAliasResolver
+{
+    const NAst::TAliasMap& AliasMap;
+    std::set<std::string> UsedAliases;
+
+    TReferenceResolver ColumnResolver;
+
+    bool AfterGroupBy = false;
+    bool NeedSubstitute = false;
+
+    const TNamedItemList* GroupItems = nullptr;
+    TAggregateItemList* AggregateItems = nullptr;
+
+    THashMap<TString, TConstExpressionPtr> AggregateLookup;
+
+    explicit TAliasResolver(const NAst::TAliasMap& aliasMap)
+        : AliasMap(aliasMap)
+    { }
+};
+
 struct TExprBuilderV2
     : public TExprBuilder
 {
@@ -63,66 +84,59 @@ public:
         const TConstTypeInferrerMapPtr& functions,
         const NAst::TAliasMap& aliasMap)
         : TExprBuilder(source, functions)
-        , AliasMap_(aliasMap)
-    { }
+    {
+        PushAliasResolver(aliasMap);
+    }
 
-    TConstExpressionPtr DoBuildTypedExpression(
-        const NAst::TExpression* expr, TRange<EValueType> /*resultTypes*/) override;
+    void PushAliasResolver(const NAst::TAliasMap& aliasMap)
+    {
+        AliasResolvers_.push_back(std::make_unique<TAliasResolver>(aliasMap));
+    }
+
+    void PopAliasResolver()
+    {
+        AliasResolvers_.pop_back();
+    }
 
     void AddTable(TNameSource nameSource) override
     {
-        ColumnResolver_.AddTable(std::move(nameSource));
+        AliasResolvers_.back()->ColumnResolver.AddTable(std::move(nameSource));
     }
 
     TLogicalTypePtr ResolveColumn(const NAst::TColumnReference& reference) override
     {
-        return ColumnResolver_.Resolve(reference);
+        return AliasResolvers_.back()->ColumnResolver.Resolve(reference);
     }
 
     void PopulateAllColumns() override
     {
-        ColumnResolver_.PopulateAllColumns();
+        AliasResolvers_.back()->ColumnResolver.PopulateAllColumns();
     }
+
+    TConstExpressionPtr DoBuildTypedExpression(
+        const NAst::TExpression* expr, TRange<EValueType> /*resultTypes*/) override;
 
     void Finish() override
     {
-        ColumnResolver_.Finish();
+        AliasResolvers_.back()->ColumnResolver.Finish();
     }
 
-    TLogicalTypePtr GetColumnType(const NAst::TColumnReference& reference)
+    TString InferGroupItemName(
+        const TConstExpressionPtr& typedExpression,
+        const NAst::TExpression& /*expressionsAst*/) override
     {
-        if (AfterGroupBy_) {
-            // Search other way after group by.
-            if (reference.TableName) {
-                return nullptr;
-            }
-
-            for (int index = 0; index < std::ssize(*GroupItems_); ++index) {
-                const auto& item = (*GroupItems_)[index];
-                if (item.Name == reference.ColumnName) {
-                    return item.Expression->LogicalType;
-                }
-            }
-            return nullptr;
-        }
-
-        return ColumnResolver_.Resolve(reference);
+        return InferName(typedExpression);
     }
 
     void SetGroupData(const TNamedItemList* groupItems, TAggregateItemList* aggregateItems) override
     {
-        YT_VERIFY(!GroupItems_ && !AggregateItems_);
+        auto* aliasResolver = AliasResolvers_.back().get();
 
-        GroupItems_ = groupItems;
-        AggregateItems_ = aggregateItems;
-        AfterGroupBy_ = true;
-    }
+        YT_VERIFY(!aliasResolver->GroupItems && !aliasResolver->AggregateItems);
 
-    TString InferGroupItemName(
-        const TConstExpressionPtr& /*typedExpression*/,
-        const NAst::TExpression& expressionsAst) override
-    {
-        return InferColumnName(expressionsAst);
+        aliasResolver->GroupItems = groupItems;
+        aliasResolver->AggregateItems = aggregateItems;
+        aliasResolver->AfterGroupBy = true;
     }
 
 private:
@@ -134,20 +148,13 @@ private:
     };
 
     TTypingCtx TypingCtx_;
-    const NAst::TAliasMap& AliasMap_;
-    std::set<std::string> UsedAliases_;
+
+    std::vector<std::unique_ptr<TAliasResolver>> AliasResolvers_;
+
     int Depth_ = 0;
 
-    THashMap<TString, TConstExpressionPtr> AggregateLookup_;
-
-    TReferenceResolver ColumnResolver_;
-
-    const TNamedItemList* GroupItems_ = nullptr;
-    // TODO: Enrich TMappedSchema with alias and keep here pointers to TMappedSchema.
-
-    TAggregateItemList* AggregateItems_ = nullptr;
-
-    bool AfterGroupBy_ = false;
+    TConstExpressionPtr DoOnExpression(
+        const NAst::TExpression* expr);
 
     TConstExpressionPtr OnExpression(
         const NAst::TExpression* expr);
@@ -160,9 +167,8 @@ private:
         const NAst::TReference& reference,
         ELogicalMetatype metaType);
 
-    TConstExpressionPtr UnwrapCompositeMemberAccessor(
-        const NAst::TReference& reference,
-        const TLogicalTypePtr& type);
+    TConstExpressionPtr OnColumnReference(
+        const NAst::TColumnReference& reference);
 
     TConstExpressionPtr OnReference(
         const NAst::TReference& reference);
@@ -206,6 +212,9 @@ private:
 
     TConstExpressionPtr OnLikeOp(
         const NAst::TLikeExpression* likeExpr);
+
+    TConstExpressionPtr OnQueryOp(
+        const NAst::TQueryExpression* queryExpr);
 };
 
 std::unique_ptr<TExprBuilder> CreateExpressionBuilderV2(
@@ -216,7 +225,7 @@ std::unique_ptr<TExprBuilder> CreateExpressionBuilderV2(
     return std::make_unique<TExprBuilderV2>(source, functions, aliasMap);
 }
 
-TConstExpressionPtr TExprBuilderV2::OnExpression(
+TConstExpressionPtr TExprBuilderV2::DoOnExpression(
     const NAst::TExpression* expr)
 {
     CheckStackDepth();
@@ -259,15 +268,52 @@ TConstExpressionPtr TExprBuilderV2::OnExpression(
         return OnCaseOp(caseExpr);
     } else if (auto likeExpr = expr->As<NAst::TLikeExpression>()) {
         return OnLikeOp(likeExpr);
+    } else if (auto queryExpr = expr->As<NAst::TQueryExpression>()) {
+        return OnQueryOp(queryExpr);
     }
 
     YT_ABORT();
+}
+
+TConstExpressionPtr TExprBuilderV2::OnExpression(
+    const NAst::TExpression* expr)
+{
+    auto result = DoOnExpression(expr);
+
+    for (const auto& aliasResolver : AliasResolvers_) {
+        if (aliasResolver->NeedSubstitute) {
+            auto subexpressionName = InferName(result);
+
+            auto* groupItems = aliasResolver->GroupItems;
+            YT_VERIFY(groupItems);
+
+            for (const auto& [expression, name]: *groupItems) {
+                if (name == subexpressionName) {
+                    aliasResolver->NeedSubstitute = false;
+
+                    result = New<TReferenceExpression>(
+                        result->LogicalType,
+                        subexpressionName);
+                    break;
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 TConstExpressionPtr TExprBuilderV2::DoBuildTypedExpression(
     const NAst::TExpression* expr, TRange<EValueType> /*resultTypes*/)
 {
     auto result = OnExpression(expr);
+
+    for (const auto& aliasResolver : AliasResolvers_) {
+        if (aliasResolver->NeedSubstitute) {
+            THROW_ERROR_EXCEPTION("Expression or its parts are not in GROUP BY keys")
+                << TErrorAttribute("expression", InferName(result));
+        }
+    }
 
     // TODO(lukyan): Rewrite inplace.
     return ApplyRewriters(result);
@@ -378,66 +424,98 @@ TConstExpressionPtr TExprBuilderV2::UnwrapListOrDictItemAccessor(
     return typedExpression;
 }
 
-TConstExpressionPtr TExprBuilderV2::UnwrapCompositeMemberAccessor(
-    const NAst::TReference& reference,
-    const TLogicalTypePtr& type)
+TConstExpressionPtr TExprBuilderV2::OnColumnReference(const NAst::TColumnReference& reference)
 {
-
-    auto columnReference = New<TReferenceExpression>(type, InferColumnName(reference));
-
-    if (reference.CompositeTypeAccessor.IsEmpty()) {
-        return columnReference;
+    if (AliasResolvers_.empty()) {
+        THROW_ERROR_EXCEPTION("Undefined reference %Qv",
+            InferColumnName(reference));
     }
 
-    auto resolved = ResolveNestedTypes(type, reference);
+    auto* aliasResolver = AliasResolvers_.back().get();
+
+    if (!reference.TableName) {
+        const auto& columnName = reference.ColumnName;
+        auto found = aliasResolver->AliasMap.find(columnName);
+
+        if (found != aliasResolver->AliasMap.end()) {
+            // try InferName(found, expand aliases = true)
+
+            if (aliasResolver->UsedAliases.insert(columnName).second) {
+                auto aliasExpr = OnExpression(found->second);
+                aliasResolver->UsedAliases.erase(columnName);
+                return aliasExpr;
+            }
+        }
+    }
+
+    // Lookup in tables.
+    if (auto type = aliasResolver->ColumnResolver.Resolve(reference)) {
+        if (aliasResolver->AfterGroupBy) {
+            // Cannot increase resolver level.
+            for (int index = 0; index + 1 < std::ssize(AliasResolvers_); ++index) {
+                if (AliasResolvers_[index]->NeedSubstitute) {
+                    THROW_ERROR_EXCEPTION("Misuse of columns under group by")
+                        << TErrorAttribute("column", InferColumnName(reference));
+                }
+            }
+
+            aliasResolver->NeedSubstitute = true;
+        }
+
+        // OnExpression.
+        return New<TReferenceExpression>(type, InferColumnName(reference));
+    }
+
+    // Lookup in parent alias resolver.
+    auto saveAliasResolver = std::move(AliasResolvers_.back());
+    AliasResolvers_.pop_back();
+    auto result = OnColumnReference(reference);
+    AliasResolvers_.push_back(std::move(saveAliasResolver));
+
+    return result;
+}
+
+TConstExpressionPtr TExprBuilderV2::OnReference(const NAst::TReference& reference)
+{
+    auto referenceExpr = OnColumnReference(reference);
+
+    if (reference.CompositeTypeAccessor.IsEmpty()) {
+        return referenceExpr;
+    }
+
+    auto resolved = ResolveNestedTypes(referenceExpr->LogicalType, reference);
     auto listOrDictItemAccessor = UnwrapListOrDictItemAccessor(reference, resolved.IntermediateType->GetMetatype());
 
     auto memberAccessor = New<TCompositeMemberAccessorExpression>(
         resolved.ResultType,
-        columnReference,
+        referenceExpr,
         std::move(resolved.NestedStructOrTupleItemAccessor),
         listOrDictItemAccessor);
 
     return memberAccessor;
 }
 
-TConstExpressionPtr TExprBuilderV2::OnReference(const NAst::TReference& reference)
-{
-    if (AfterGroupBy_) {
-        if (auto type = GetColumnType(reference)) {
-            return UnwrapCompositeMemberAccessor(reference, type);
-        }
-    }
-
-    if (!reference.TableName) {
-        const auto& columnName = reference.ColumnName;
-        auto found = AliasMap_.find(columnName);
-
-        if (found != AliasMap_.end()) {
-            // try InferName(found, expand aliases = true)
-
-            if (UsedAliases_.insert(columnName).second) {
-                auto aliasExpr = OnExpression(found->second);
-                UsedAliases_.erase(columnName);
-                return aliasExpr;
-            }
-        }
-    }
-
-    if (!AfterGroupBy_) {
-        if (auto type = GetColumnType(reference)) {
-            return UnwrapCompositeMemberAccessor(reference, type);
-        }
-    }
-
-    THROW_ERROR_EXCEPTION("Undefined reference %Qv",
-        InferColumnName(reference));
-}
-
 TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* functionExpr)
 {
-    auto functionName = functionExpr->FunctionName;
-    functionName.to_lower();
+    auto functionName = to_lower(TString(functionExpr->FunctionName));
+
+    if (functionName == "cast_operator") {
+        THROW_ERROR_EXCEPTION_IF(functionExpr->Arguments.size() != 2,
+            "Expected two arguments for %Qv function, got %v",
+            functionName,
+            functionExpr->Arguments.size());
+
+        auto* literalArgument = functionExpr->Arguments[1]->As<NAst::TLiteralExpression>();
+
+        THROW_ERROR_EXCEPTION_UNLESS(literalArgument && std::holds_alternative<TString>(literalArgument->Value),
+            "Misuse of function %Qv",
+            functionName);
+
+        return New<TFunctionExpression>(
+            NTableClient::ParseType(std::get<TString>(literalArgument->Value)),
+            functionName,
+            std::vector<TConstExpressionPtr>{OnExpression(functionExpr->Arguments[0])});
+    }
 
     const auto& descriptor = Functions_->GetFunction(functionName);
 
@@ -454,44 +532,81 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
         }
     };
 
-    if (const auto* regularFunction = descriptor->As<TFunctionTypeInferrer>()) {
+    // Regular function.
+    if (!descriptor->IsAggregate()) {
         getArguments();
 
-        auto functionTypes = regularFunction->InferTypes(
+        auto functionTypes = descriptor->InferTypes(
             &TypingCtx_,
             argumentTypes,
             functionName);
 
         for (int i = 0; i < std::ssize(typedOperands); ++i) {
-            if (functionTypes[i + 1] != TypingCtx_.GetTypeId(typedOperands[i]->GetWireType())) {
+            if (functionTypes[i + 1] != TypingCtx_.GetTypeId(typedOperands[i]->LogicalType)) {
                 auto type = TypingCtx_.GetWireType(functionTypes[i + 1]);
                 typedOperands[i] = CreateCoercion(type, typedOperands[i]);
             }
         }
 
-        return New<TFunctionExpression>(TypingCtx_.GetWireType(functionTypes[0]), functionName, typedOperands);
-    } else if (const auto* aggregateFunction = descriptor->As<TAggregateFunctionTypeInferrer>()) {
-        auto subexpressionName = InferColumnName(*functionExpr);
+        return New<TFunctionExpression>(TypingCtx_.GetLogicalType(functionTypes[0]), functionName, typedOperands);
+    } else {
+        // Aggregate function.
 
-        if (!AfterGroupBy_) {
-            THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv", functionName);
+        std::vector<std::unique_ptr<TAliasResolver>> poppedAliasResolvers;
+
+        // Upper aggregation level is determined by nesting level of aggregate functions.
+        while (!AliasResolvers_.empty()) {
+            auto* aliasResolver = AliasResolvers_.back().get();
+
+            if (aliasResolver->AfterGroupBy) {
+                break;
+            } else {
+                poppedAliasResolvers.push_back(std::move(AliasResolvers_.back()));
+                AliasResolvers_.pop_back();
+            }
         }
 
-        YT_VERIFY(AfterGroupBy_);
+        if (AliasResolvers_.empty()) {
+            THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv", functionName)
+                << TErrorAttribute("expression", InferColumnName(*functionExpr));
+        }
 
-        // TODO(lukyan): Use guard.
-        AfterGroupBy_ = false;
+        auto* aliasResolver = AliasResolvers_.back().get();
+
+        aliasResolver->AfterGroupBy = false;
         getArguments();
-        AfterGroupBy_ = true;
+        aliasResolver->AfterGroupBy = true;
+
+        // Determine aggregation level by substitution level.
+        // Example query:
+        // sel (sel n.a + sum(o.y), sum(n.b) from array_agg(o.z) as n group n.a) from ... as o group by o.x
+        // sum(o.y) is outer aggregate because o.y is not outer group key and cannot be used without aggregation.
+        // sum(n.b) is inner aggregate.
+
+        for (const auto& currentAliasResolver : AliasResolvers_) {
+            // Find level by substitute flags.
+            if (currentAliasResolver->NeedSubstitute) {
+                aliasResolver = currentAliasResolver.get();
+                break;
+            }
+        }
+
+        aliasResolver->NeedSubstitute = false;
+
+        while (!poppedAliasResolvers.empty()) {
+            AliasResolvers_.push_back(std::move(poppedAliasResolvers.back()));
+            poppedAliasResolvers.pop_back();
+        }
+
         std::vector<TTypeId> inferredTypes;
 
-        inferredTypes = aggregateFunction->InferTypes(
+        inferredTypes = descriptor->InferTypes(
             &TypingCtx_,
             argumentTypes,
             functionName);
 
         for (int i = 0; i < std::ssize(typedOperands); ++i) {
-            if (inferredTypes[i + 2] != TypingCtx_.GetTypeId(typedOperands[i]->GetWireType())) {
+            if (inferredTypes[i + 2] != TypingCtx_.GetTypeId(typedOperands[i]->LogicalType)) {
                 auto type = TypingCtx_.GetWireType(inferredTypes[i + 2]);
                 typedOperands[i] = CreateCoercion(type, typedOperands[i]);
             }
@@ -500,11 +615,13 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
         auto resultType = TypingCtx_.GetLogicalType(inferredTypes[0]);
         auto stateType = TypingCtx_.GetLogicalType(inferredTypes[1]);
 
-        auto found = AggregateLookup_.find(subexpressionName);
-        if (found != AggregateLookup_.end()) {
+        auto subexpressionName = InferName(New<TFunctionExpression>(resultType, functionName, typedOperands));
+
+        auto found = aliasResolver->AggregateLookup.find(subexpressionName);
+        if (found != aliasResolver->AggregateLookup.end()) {
             return found->second;
         } else {
-            AggregateItems_->emplace_back(
+            aliasResolver->AggregateItems->emplace_back(
                 typedOperands,
                 functionName,
                 subexpressionName,
@@ -514,11 +631,9 @@ TConstExpressionPtr TExprBuilderV2::OnFunction(const NAst::TFunctionExpression* 
             auto expr = New<TReferenceExpression>(
                 resultType,
                 subexpressionName);
-            YT_VERIFY(AggregateLookup_.emplace(subexpressionName, expr).second);
+            YT_VERIFY(aliasResolver->AggregateLookup.emplace(subexpressionName, expr).second);
             return expr;
         }
-    } else {
-        YT_ABORT();
     }
 }
 
@@ -725,7 +840,7 @@ void TExprBuilderV2::InferArgumentTypes(
     std::unordered_set<std::string> columnNames;
 
     for (const auto& argument : expressions) {
-        auto typedArgument = BuildTypedExpression(argument);
+        auto typedArgument = OnExpression(argument);
 
         if (auto reference = typedArgument->As<TReferenceExpression>()) {
             if (!columnNames.insert(reference->ColumnName).second) {
@@ -1033,6 +1148,138 @@ TConstExpressionPtr TExprBuilderV2::OnLikeOp(const NAst::TLikeExpression* likeEx
         likeExpr->Opcode,
         std::move(typedPattern),
         std::move(typedEscapeCharacter));
+}
+
+TConstExpressionPtr BuildPredicate(
+    const NAst::TExpressionList& expressionAst,
+    TExprBuilder* builder,
+    TStringBuf name)
+{
+    if (expressionAst.size() != 1) {
+        THROW_ERROR_EXCEPTION("Expecting scalar expression")
+            << TErrorAttribute("source", FormatExpression(expressionAst));
+    }
+
+    // TODO(lukyan): BuildTypedExpression(expressionAst.front(), {EValueType::Boolean}) ?
+    auto typedPredicate = builder->BuildTypedExpression(expressionAst.front());
+
+    auto actualType = typedPredicate->GetWireType();
+    EValueType expectedType(EValueType::Boolean);
+    if (actualType != expectedType) {
+        THROW_ERROR_EXCEPTION("%v is not a boolean expression", name)
+            << TErrorAttribute("source", expressionAst.front()->GetSource(builder->GetSource()))
+            << TErrorAttribute("actual_type", actualType)
+            << TErrorAttribute("expected_type", expectedType);
+    }
+
+    return typedPredicate;
+}
+
+TGroupClausePtr BuildGroupClause(
+    const NAst::TExpressionList& expressionsAst,
+    ETotalsMode totalsMode,
+    TExprBuilder* builder)
+{
+    auto groupClause = New<TGroupClause>();
+    groupClause->TotalsMode = totalsMode;
+
+    for (const auto& expressionAst : expressionsAst) {
+        auto typedExpr = builder->BuildTypedExpression(expressionAst);
+
+        groupClause->AddGroupItem(typedExpr, builder->InferGroupItemName(typedExpr, *expressionAst));
+    }
+
+    builder->SetGroupData(
+        &groupClause->GroupItems,
+        &groupClause->AggregateItems);
+
+    return groupClause;
+}
+
+TConstExpressionPtr TExprBuilderV2::OnQueryOp(const NAst::TQueryExpression* queryExpr)
+{
+    NAst::TExpressionList fromExpressions;
+
+    Visit(queryExpr->Query.FromClause,
+        [&] (const NAst::TTableDescriptor& /*table*/) {
+            THROW_ERROR_EXCEPTION("Subquery from table not supported");
+        },
+        [&] (const NAst::TQueryAstHeadPtr& /*subquery*/) {
+            THROW_ERROR_EXCEPTION("Subquery from subquery in expression not supported");
+        },
+        [&] (const NAst::TExpressionList& expressions) {
+            fromExpressions = expressions;
+        });
+
+    TNamedItemList typedFromExpressions;
+
+    std::vector<TColumnSchema> columns;
+
+    for (const auto& expressionAst : fromExpressions) {
+        auto typedExpr = BuildTypedExpression(expressionAst);
+        auto columnName = InferColumnName(*expressionAst);
+
+        typedFromExpressions.emplace_back(typedExpr, columnName);
+
+        auto type = typedExpr->LogicalType;
+
+        // TODO(lukyan): Support optional list.
+        if (type->GetMetatype() != ELogicalMetatype::List) {
+            THROW_ERROR_EXCEPTION("Unexpected type instead of list")
+                << TErrorAttribute("column_name", columnName)
+                << TErrorAttribute("actual_type", type->GetMetatype());
+        }
+
+        columns.emplace_back(columnName, type->GetElement());
+    }
+
+    auto schema = New<TTableSchema>(columns);
+
+    PushAliasResolver(queryExpr->AliasMap);
+    AddTable({*schema, std::nullopt});
+
+    TConstExpressionPtr whereClause;
+
+    if (queryExpr->Query.WherePredicate) {
+        auto wherePredicate = BuildPredicate(*queryExpr->Query.WherePredicate, this, "WHERE-clause");
+        whereClause = IsTrue(wherePredicate) ? nullptr : wherePredicate;
+    }
+
+    TGroupClausePtr groupClause;
+    if (queryExpr->Query.GroupExprs) {
+        groupClause = BuildGroupClause(*queryExpr->Query.GroupExprs, queryExpr->Query.TotalsMode, this);
+    }
+
+    TProjectClausePtr projectClause;
+    if (queryExpr->Query.SelectExprs) {
+        projectClause = New<TProjectClause>();
+        for (const auto& expressionAst : *queryExpr->Query.SelectExprs) {
+            auto typedExpr = BuildTypedExpression(expressionAst);
+            auto name = InferColumnName(*expressionAst);
+
+            projectClause->AddProjection(typedExpr, name);
+        }
+    }
+
+    PopAliasResolver();
+
+    std::vector<NTableClient::TStructField> resultFields;
+
+    for (const auto& [expression, name] : projectClause->Projections) {
+        resultFields.push_back(NTableClient::TStructField{name, expression->LogicalType});
+    }
+
+    auto resultType = ListLogicalType(StructLogicalType(resultFields));
+
+    auto result = New<TSubqueryExpression>(resultType);
+
+    result->FromExpressions = typedFromExpressions;
+
+    result->WhereClause = whereClause;
+    result->GroupClause = groupClause;
+    result->ProjectClause = projectClause;
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

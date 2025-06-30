@@ -112,10 +112,10 @@ def _do_get_yt_binary_versions(binary_infos):
         processes.append((binary_info.name, process))
 
     for name, process in processes:
-        stdout, _ = process.communicate()
+        stdout, stderr = process.communicate()
         assert name not in result
+        assert process.returncode == 0, f"Failed to get version of {name}, returncode={process.returncode}, stderr={stderr}"
         result[name] = _parse_version(to_native_str(stdout))
-        assert process.returncode == 0, f"Failed to get version of {name}, returncode={process.returncode}"
 
     return result
 
@@ -183,7 +183,7 @@ def _get_ports_generator(yt_config):
 class YTInstance(object):
     def __init__(self, path, yt_config,
                  modify_configs_func=None,
-                 modify_dynamic_configs_func=None,
+                 modify_dynamic_configs_func=None,  # TODO(kvk1920): rename to modify_node_dynamic_configs_func.
                  kill_child_processes=False,
                  watcher_config=None,
                  run_watcher=True,
@@ -194,10 +194,12 @@ class YTInstance(object):
                  external_bin_path=None,
                  tmpfs_path=None,
                  open_port_iterator=None,
-                 modify_driver_logging_config_func=None):
+                 modify_driver_logging_config_func=None,
+                 modify_master_dynamic_configs_func=None):
         self.path = os.path.realpath(os.path.abspath(path))
         self.yt_config = yt_config
         self.modify_dynamic_configs_func = modify_dynamic_configs_func
+        self.modify_master_dynamic_configs_func = modify_master_dynamic_configs_func
 
         self.id = yt_config.cluster_name
 
@@ -644,7 +646,7 @@ class YTInstance(object):
                 client.set("//sys/@local_mode_fqdn", get_fqdn())
 
             if on_masters_started_func is not None:
-                on_masters_started_func()
+                on_masters_started_func(client)
 
             patched_node_config = self._apply_nodes_dynamic_config(client)
 
@@ -783,6 +785,9 @@ class YTInstance(object):
 
     def rewrite_controller_agent_configs(self):
         self._prepare_controller_agents(self._cluster_configuration["controller_agent"], force_overwrite=True)
+
+    def rewrite_cypress_proxies_configs(self):
+        self._prepare_cypress_proxies(self._cluster_configuration["cypress_proxy"], force_overwrite=True)
 
     def rewrite_timestamp_provider_configs(self):
         self._prepare_timestamp_providers(self._cluster_configuration["timestamp_provider"], force_overwrite=True)
@@ -1002,7 +1007,7 @@ class YTInstance(object):
         self.kill_service("tablet_balancer", indexes=indexes)
 
     def kill_cypress_proxies(self, indexes=None):
-        self.kill_service("cypress_proxies", indexes=indexes)
+        self.kill_service("cypress_proxy", indexes=indexes)
 
     def kill_replicated_table_trackers(self, indexes=None):
         self.kill_service("replicated_table_tracker", indexes=indexes)
@@ -1238,7 +1243,7 @@ class YTInstance(object):
                 has_some_bind_failure = has_some_bind_failure or has_bind_failure
 
         if has_some_bind_failure:
-            raise YtEnvRetriableError("Process failed to bind on some of ports")
+            raise YtEnvRetriableError(f"Process {name} failed to bind on some of ports")
 
     def _run(self, args, name, env=None, number=None):
         with self._lock:
@@ -1413,7 +1418,14 @@ class YTInstance(object):
                 # `suppress_transaction_coordinator_sync` and `suppress_upstream_sync`
                 # are set True due to possibly enabled read-only mode.
                 if set_config:
-                    client.set("//sys/@config", get_patched_dynamic_master_config(get_dynamic_master_config()),
+                    patched_dynamic_master_config = get_patched_dynamic_master_config(get_dynamic_master_config())
+                    # TODO(kvk1920): there are many optional callbacks which
+                    # leads to "if some_func is not None: some_func()". It's
+                    # better use no-op callbacks instead of None.
+                    if self.modify_master_dynamic_configs_func is not None:
+                        self.modify_master_dynamic_configs_func(patched_dynamic_master_config, self.abi_version)
+
+                    client.set("//sys/@config", patched_dynamic_master_config,
                                suppress_transaction_coordinator_sync=True,
                                suppress_upstream_sync=True)
                 else:
@@ -2222,11 +2234,16 @@ class YTInstance(object):
             lambda: self._wait_for(tablet_balancer_ready, "tablet_balancer"),
             sync)
 
-    def _prepare_cypress_proxies(self, cypress_proxy_configs):
+    def _prepare_cypress_proxies(self, cypress_proxy_configs, force_overwrite=False):
+        if force_overwrite:
+            self.configs["cypress_proxy"] = []
+            self.config_paths["cypress_proxy"] = []
+            self._service_processes["cypress_proxy"] = []
+
         for cypress_proxy_index in xrange(self.yt_config.cypress_proxy_count):
             cypress_proxy_config_name = "cypress_proxy-{0}.yson".format(cypress_proxy_index)
             config_path = os.path.join(self.configs_path, cypress_proxy_config_name)
-            if self._load_existing_environment:
+            if self._load_existing_environment and not force_overwrite:
                 if not os.path.isfile(config_path):
                     raise YtError("Cypress proxy config {0} not found. It is possible that you requested "
                                   "more cypress proxies than configs exist".format(config_path))
@@ -2391,6 +2408,7 @@ class YTInstance(object):
             self.modify_dynamic_configs_func(patched_dynamic_node_config, self.abi_version)
 
         client.set("//sys/cluster_nodes/@config", patched_dynamic_node_config)
+        logger.debug(patched_dynamic_node_config)
 
         return patched_dynamic_node_config["%true"]
 

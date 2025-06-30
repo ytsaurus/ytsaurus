@@ -585,10 +585,7 @@ private:
         Load(context, Consumers_);
 
         // COMPAT(apachee)
-        // DropLegacyClusterNodeMap is the start of 24.2 reigns.
-        if ((context.GetVersion() >= EMasterReign::QueueProducers_24_1 && context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap) ||
-            context.GetVersion() >= EMasterReign::QueueProducers)
-        {
+        if (context.GetVersion() >= EMasterReign::QueueProducers) {
             Load(context, Producers_);
         }
     }

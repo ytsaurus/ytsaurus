@@ -122,12 +122,40 @@ func TestOperationWithStderr(t *testing.T) {
 			break
 		}
 	}
+	{
+		taskName := "foo"
+		jobs, err := env.YT.ListJobs(ctx, opID, &yt.ListJobsOptions{
+			TaskName: &taskName,
+		})
+		require.NoError(t, err)
+		require.Empty(t, jobs.Jobs)
+	}
+	taskName := "map"
 	jobs, err := env.YT.ListJobs(ctx, opID, nil)
 	require.NoError(t, err)
+	require.NotEmpty(t, jobs.Jobs)
 	for _, job := range jobs.Jobs {
 		stderr, err := env.YT.GetJobStderr(ctx, opID, job.ID, nil)
 		require.NoError(t, err)
 		require.Equal(t, []byte("hello\n"), stderr)
+		info, err := env.YT.GetJob(ctx, opID, job.ID, nil)
+		require.NoError(t, err)
+		require.Equal(t, &job, info)
+		require.Equal(t, taskName, job.TaskName)
+	}
+	jobs, err = env.YT.ListJobs(ctx, opID, &yt.ListJobsOptions{
+		TaskName: &taskName,
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, jobs.Jobs)
+	for _, job := range jobs.Jobs {
+		stderr, err := env.YT.GetJobStderr(ctx, opID, job.ID, nil)
+		require.NoError(t, err)
+		require.Equal(t, []byte("hello\n"), stderr)
+		info, err := env.YT.GetJob(ctx, opID, job.ID, nil)
+		require.NoError(t, err)
+		require.Equal(t, &job, info)
+		require.Equal(t, taskName, job.TaskName)
 	}
 }
 

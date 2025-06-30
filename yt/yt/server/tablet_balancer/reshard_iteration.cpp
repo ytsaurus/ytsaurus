@@ -21,7 +21,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletBalancerLogger;
+constinit const auto Logger = TabletBalancerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +30,7 @@ class TReshardIterationBase
 {
 public:
     TReshardIterationBase(
-        TString bundleName,
+        std::string bundleName,
         TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : BundleName_(std::move(bundleName))
@@ -53,7 +53,7 @@ public:
         return DynamicConfig_->PickReshardPivotKeys && bundleConfig->EnablePickPivotKeys;
     }
 
-    const TString& GetBundleName() const override
+    const std::string& GetBundleName() const override
     {
         return BundleName_;
     }
@@ -69,7 +69,7 @@ public:
     }
 
 protected:
-    TString BundleName_;
+    std::string BundleName_;
     TString GroupName_;
     TTabletBalancerDynamicConfigPtr DynamicConfig_;
 };
@@ -81,7 +81,7 @@ class TSizeReshardIteration
 {
 public:
     TSizeReshardIteration(
-        TString bundleName,
+        std::string bundleName,
         TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TReshardIterationBase(
@@ -195,7 +195,7 @@ class TParameterizedReshardIteration
 {
 public:
     TParameterizedReshardIteration(
-        TString bundleName,
+        std::string bundleName,
         TString groupName,
         TTabletBalancerDynamicConfigPtr dynamicConfig)
         : TReshardIterationBase(
@@ -218,7 +218,6 @@ public:
         Resharder_ = CreateParameterizedResharder(
             bundleState->GetBundle(),
             bundleState->PerformanceCountersKeys(),
-            bundleState->GetPerformanceCountersTableSchema(),
             TParameterizedResharderConfig{
                 .EnableReshardByDefault = DynamicConfig_->EnableParameterizedReshardByDefault,
                 .Metric = DynamicConfig_->DefaultParameterizedMetric,
@@ -296,7 +295,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IReshardIterationPtr CreateSizeReshardIteration(
-    TString bundleName,
+    std::string bundleName,
     TString groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {
@@ -307,7 +306,7 @@ IReshardIterationPtr CreateSizeReshardIteration(
 }
 
 IReshardIterationPtr CreateParameterizedReshardIteration(
-    TString bundleName,
+    std::string bundleName,
     TString groupName,
     TTabletBalancerDynamicConfigPtr dynamicConfig)
 {

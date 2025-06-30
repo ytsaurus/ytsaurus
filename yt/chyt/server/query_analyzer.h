@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include "storage_distributor.h"
-
 #include <yt/yt/client/table_client/key_bound.h>
 
 #include <Storages/MergeTree/KeyCondition.h>
@@ -37,6 +35,50 @@ struct TSecondaryQuery
 {
     DB::ASTPtr Query;
     DB::Scalars Scalars;
+    DB::UInt64 TotalRowsToRead;
+    DB::UInt64 TotalBytesToRead;
+};
+
+struct TBoundJoinOptions
+{
+    bool FilterJoinedSubqueryBySortKey = false;
+    bool RightOrFullJoin = false;
+    bool CareAboutNullsInBoundCondition = false;
+    NTableClient::TTableSchemaPtr JoinLeftTableExpressionSchema;
+    DB::QueryTreeNodePtr JoinRightTableExpression;
+    std::vector<DB::QueryTreeNodePtr> JoinRightKeyExpressions;
+};
+
+class TSecondaryQueryBuilder
+{
+public:
+    TSecondaryQueryBuilder(
+        DB::ContextPtr context,
+        const NLogging::TLogger& logger,
+        DB::QueryTreeNodePtr query,
+        const std::vector<TSubquerySpec>& specs,
+        TBoundJoinOptions boundJoinOptions = {});
+
+    TSecondaryQuery CreateSecondaryQuery(
+        const TRange<TSubquery>& subqueries,
+        const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap,
+        int subqueryIndex,
+        bool isLastSubquery);
+
+private:
+    DB::ContextPtr Context_;
+    NLogging::TLogger Logger;
+    DB::QueryTreeNodePtr Query_;
+    std::vector<TSubquerySpec> TableSpecs_;
+    TBoundJoinOptions BoundJoinOptions_;
+
+    NTableClient::TOwningKeyBound PreviousUpperBound_;
+
+    DB::QueryTreeNodePtr AddBoundConditionToJoinedSubquery(
+        DB::QueryTreeNodePtr query,
+        DB::QueryTreeNodePtr joinedTableExpression,
+        NTableClient::TOwningKeyBound lowerBound,
+        NTableClient::TOwningKeyBound upperBound);
 };
 
 class TQueryAnalyzer
@@ -53,13 +95,9 @@ public:
     //! GetOptimizedQueryProcessingStage and Analyze methods are called.
     void Prepare();
 
-    //! Prepare method should be called before CreateSecondaryQuery.
-    TSecondaryQuery CreateSecondaryQuery(
-        const TRange<TSubquery>& subqueries,
-        TSubquerySpec specTemplate,
-        const THashMap<NChunkClient::TChunkId, NChunkClient::TRefCountedMiscExtPtr>& miscExtMap,
-        int subqueryIndex,
-        bool isLastSubquery);
+    //! Prepare method should be called before GetSecondaryQueryBuilder.
+    std::shared_ptr<TSecondaryQueryBuilder> GetSecondaryQueryBuilder(
+        TSubquerySpec specTemplate);
 
     //! Prepare method should be called before GetOptimizedQueryProcessingStage.
     DB::QueryProcessingStage::Enum GetOptimizedQueryProcessingStage() const;
@@ -71,8 +109,11 @@ public:
     TQueryAnalysisResult Analyze() const;
 
     bool HasJoinWithTwoTables() const;
+    bool HasRightOrFullJoin() const;
     bool HasGlobalJoin() const;
     bool HasInOperator() const;
+
+    bool IsJoinedByKeyColumns() const;
 
 private:
     const TStorageContext* StorageContext_;
@@ -81,7 +122,7 @@ private:
     std::vector<DB::QueryTreeNodePtr> TableExpressions_;
     std::vector<DB::TableExpressionData*> TableExpressionDataPtrs_;
     int YtTableCount_ = 0;
-    std::vector<DB::QueryTreeNodePtr*> TableExpressionPtrs_;
+    int SecondaryQueryOperandCount_ = 0;
     std::vector<IStorageDistributorPtr> Storages_;
     //! If the query contains any kind of join.
     bool Join_ = false;
@@ -110,8 +151,6 @@ private:
 
     NTableClient::TOwningKeyBound PreviousUpperBound_;
 
-    std::vector<std::pair<DB::QueryTreeNodePtr*, DB::QueryTreeNodePtr>> Modifications_;
-
     void ParseQuery();
     // Infer longest possible key prefix used in ON/USING clauses.
     // Throws an error if sorted pool is required, but key prefix is empty.
@@ -122,18 +161,6 @@ private:
     void InferReadInOrderMode(bool assumeNoNullKeys, bool assumeNoNanKeys);
 
     IStorageDistributorPtr GetStorage(const DB::QueryTreeNodePtr& tableExpression) const;
-
-    //! Apply modification to query part which can be later rolled back by calling RollbackModifications().
-    void ApplyModification(DB::QueryTreeNodePtr* queryPart, DB::QueryTreeNodePtr newValue);
-    //! Version with explicit previous value specification specially for weird DB::ASTSelect::refWhere() behaviour.
-    void ApplyModification(DB::QueryTreeNodePtr* queryPart, DB::QueryTreeNodePtr newValue, DB::QueryTreeNodePtr previousValue);
-    //! Rollback all modifications to the query.
-    void RollbackModifications();
-
-    void ReplaceTableExpressions(std::vector<DB::QueryTreeNodePtr> newTableExpressions);
-    void AddBoundConditionToJoinedSubquery(
-        NTableClient::TOwningKeyBound lowerBound,
-        NTableClient::TOwningKeyBound upperBound);
 
     void LazyProcessQueryTree();
 };

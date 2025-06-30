@@ -2,6 +2,7 @@
 #include "private.h"
 #include "job_detail.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
@@ -36,7 +37,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = JobProxyLogger;
+constinit const auto Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -85,7 +86,7 @@ public:
 
             return CreatePartitionSortReader(
                 tableReaderConfig,
-                Host_->GetChunkReaderHost(),
+                Host_->GetChunkReaderHost()->CreateHostForCluster(NScheduler::LocalClusterName),
                 outputSchema->ToComparator(std::move(cgComparer)),
                 nameTable,
                 BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),

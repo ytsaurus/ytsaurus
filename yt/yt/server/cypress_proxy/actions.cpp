@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/server/lib/sequoia/protobuf_helpers.h>
+
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
 #include <yt/yt/ytlib/sequoia_client/helpers.h>
@@ -21,25 +23,26 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NCypressProxy {
 
 using namespace NApi;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
+using namespace NSequoiaServer;
+using namespace NServer;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
-using namespace NServer;
 
 using namespace NCypressServer::NProto;
 
 using NYT::FromProto;
 using NYT::ToProto;
-
-using TYPathBuf = NSequoiaClient::TYPathBuf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,8 +52,8 @@ void WriteSequoiaNodeAndPathRows(
     const ISequoiaTransactionPtr& sequoiaTransaction,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     TVersionedNodeId id,
-    TAbsoluteYPathBuf path,
-    std::optional<TAbsoluteYPathBuf> linkTargetPath)
+    TAbsolutePathBuf path,
+    std::optional<TYPathBuf> linkTargetPath)
 {
     YT_VERIFY(IsLinkType(TypeFromId(id.ObjectId)) == linkTargetPath.has_value());
 
@@ -61,8 +64,8 @@ void WriteSequoiaNodeAndPathRows(
 
     sequoiaTransaction->WriteRow(NRecords::TNodeIdToPath{
         .Key = {.NodeId = id.ObjectId, .TransactionId = id.TransactionId},
-        .Path = path.ToRawYPath().Underlying(),
-        .TargetPath = NYPath::TYPath(linkTargetPath ? linkTargetPath->Underlying() : ""),
+        .Path = path.ToRealPath().Underlying(),
+        .TargetPath = TYPath(linkTargetPath.value_or("")),
         .ForkKind = EForkKind::Regular,
     });
 
@@ -70,8 +73,8 @@ void WriteSequoiaNodeAndPathRows(
         // Node is just created so the progenitor tx is the current Cypress tx.
         sequoiaTransaction->WriteRow(NRecords::TNodeFork{
             .Key = {.TransactionId = id.TransactionId, .NodeId = id.ObjectId},
-            .Path = path.ToRawYPath().Underlying(),
-            .TargetPath = NYPath::TYPath(linkTargetPath ? linkTargetPath->Underlying() : ""),
+            .Path = path.ToRealPath().Underlying(),
+            .TargetPath = TYPath(linkTargetPath.value_or("")),
             .ProgenitorTransactionId = id.TransactionId,
         });
 
@@ -108,7 +111,7 @@ void DeleteSequoiaNodeRows(
 void WriteSequoiaNodeTombstoneRows(
     const ISequoiaTransactionPtr& sequoiaTransaction,
     TVersionedNodeId nodeId,
-    TAbsoluteYPathBuf path,
+    TAbsolutePathBuf path,
     TTransactionId progenitorTransactionId)
 {
     YT_VERIFY(nodeId.IsBranched());
@@ -118,14 +121,14 @@ void WriteSequoiaNodeTombstoneRows(
 
     sequoiaTransaction->WriteRow(NRecords::TNodeIdToPath{
         .Key = {.NodeId = nodeId.ObjectId, .TransactionId = nodeId.TransactionId},
-        .Path = path.ToRawYPath().Underlying(),
+        .Path = path.ToRealPath().Underlying(),
         .TargetPath = LinkTargetPathTombstone,
         .ForkKind = EForkKind::Tombstone,
     });
 
     sequoiaTransaction->WriteRow(NRecords::TNodeFork{
         .Key = {.TransactionId = nodeId.TransactionId, .NodeId = nodeId.ObjectId},
-        .Path = path.ToRawYPath().Underlying(),
+        .Path = path.ToRealPath().Underlying(),
         .TargetPath = LinkTargetPathTombstone,
         .ProgenitorTransactionId = progenitorTransactionId,
     });
@@ -133,7 +136,7 @@ void WriteSequoiaNodeTombstoneRows(
 
 void WriteSequoiaPathTombstoneRows(
     const ISequoiaTransactionPtr& sequoiaTransaction,
-    const TMangledSequoiaPath path,
+    TMangledSequoiaPath path,
     TTransactionId cypressTransactionId,
     TTransactionId progenitorTransactionId)
 {
@@ -147,7 +150,7 @@ void WriteSequoiaPathTombstoneRows(
     });
 
     sequoiaTransaction->WriteRow(NRecords::TPathFork{
-        .Key = {.TransactionId = cypressTransactionId, .Path = path},
+        .Key = {.TransactionId = cypressTransactionId, .Path = std::move(path)},
         .NodeId = NodeTombstoneId,
         .ProgenitorTransactionId = progenitorTransactionId,
     });
@@ -155,7 +158,7 @@ void WriteSequoiaPathTombstoneRows(
 
 void DeleteSequoiaPathRows(
     const ISequoiaTransactionPtr& sequoiaTransaction,
-    const TMangledSequoiaPath& path,
+    TMangledSequoiaPath path,
     TTransactionId cypressTransactionId)
 {
     sequoiaTransaction->DeleteRow(NRecords::TPathToNodeIdKey{
@@ -166,7 +169,7 @@ void DeleteSequoiaPathRows(
     if (cypressTransactionId) {
         sequoiaTransaction->DeleteRow(NRecords::TPathForkKey{
             .TransactionId = cypressTransactionId,
-            .Path = path,
+            .Path = std::move(path),
         });
     }
 }
@@ -185,8 +188,8 @@ void SetNode(
 {
     NCypressServer::NProto::TReqSetNode reqSetNode;
     ToProto(reqSetNode.mutable_node_id(), nodeId.ObjectId);
-    reqSetNode.set_path(path.ToRawYPath().Underlying());
-    reqSetNode.set_value(value.ToString());
+    reqSetNode.set_path(path);
+    reqSetNode.set_value(ToProto(value));
     reqSetNode.set_force(force);
     ToProto(reqSetNode.mutable_transaction_id(), nodeId.TransactionId);
     ToProto(reqSetNode.mutable_access_tracking_options(), options);
@@ -205,7 +208,7 @@ void MultisetNodeAttributes(
 {
     NCypressServer::NProto::TReqMultisetAttributes reqMultisetAttributes;
     ToProto(reqMultisetAttributes.mutable_node_id(), nodeId.ObjectId);
-    reqMultisetAttributes.set_path(path.ToRawYPath().Underlying());
+    reqMultisetAttributes.set_path(path);
     ToProto(reqMultisetAttributes.mutable_subrequests(), subrequests);
     reqMultisetAttributes.set_force(force);
     ToProto(reqMultisetAttributes.mutable_transaction_id(), nodeId.TransactionId);
@@ -218,7 +221,7 @@ void MultisetNodeAttributes(
 void CreateNode(
     TVersionedNodeId nodeId,
     TNodeId parentId,
-    TAbsoluteYPathBuf path,
+    TAbsolutePathBuf path,
     const IAttributeDictionary* explicitAttributes,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const ISequoiaTransactionPtr& sequoiaTransaction)
@@ -229,31 +232,34 @@ void CreateNode(
 
     auto type = TypeFromId(nodeId.ObjectId);
 
+    std::optional<TYPath> linkTargetPath;
+    if (type == EObjectType::SequoiaLink) {
+        linkTargetPath = ValidateAndMakeYPath(
+            explicitAttributes->Get<TRawYPath>(EInternedAttributeKey::TargetPath.Unintern()));
+    }
+
     WriteSequoiaNodeAndPathRows(
         sequoiaTransaction,
         progenitorTransactionCache,
         nodeId,
         path,
-        type == EObjectType::SequoiaLink
-            ? std::optional(TAbsoluteYPath(explicitAttributes->Get<TString>(
-                EInternedAttributeKey::TargetPath.Unintern())))
-            : std::nullopt);
+        linkTargetPath);
 
-    NCypressServer::NProto::TReqCreateNode createNodeRequest;
-    createNodeRequest.set_type(ToProto<int>(type));
-    ToProto(createNodeRequest.mutable_node_id(), nodeId.ObjectId);
-    createNodeRequest.set_path(path.ToRawYPath().Underlying());
-    ToProto(createNodeRequest.mutable_node_attributes(), *explicitAttributes);
-    ToProto(createNodeRequest.mutable_transaction_id(), nodeId.TransactionId);
-    ToProto(createNodeRequest.mutable_parent_id(), parentId);
+    NCypressServer::NProto::TReqCreateNode reqCreateNode;
+    reqCreateNode.set_type(ToProto(type));
+    ToProto(reqCreateNode.mutable_node_id(), nodeId.ObjectId);
+    reqCreateNode.set_path(path.ToRealPath().Underlying());
+    ToProto(reqCreateNode.mutable_node_attributes(), *explicitAttributes);
+    ToProto(reqCreateNode.mutable_transaction_id(), nodeId.TransactionId);
+    ToProto(reqCreateNode.mutable_parent_id(), parentId);
     sequoiaTransaction->AddTransactionAction(
         CellTagFromId(nodeId.ObjectId),
-        MakeTransactionActionData(createNodeRequest));
+        MakeTransactionActionData(reqCreateNode));
 }
 
 TNodeId CopyNode(
     const NRecords::TNodeIdToPath& sourceNode,
-    TAbsoluteYPathBuf destinationNodePath,
+    TAbsolutePathBuf destinationNodePath,
     TNodeId destinationParentId,
     TTransactionId cypressTransactionId,
     const TCopyOptions& options,
@@ -278,25 +284,68 @@ TNodeId CopyNode(
         {destinationNodeId, cypressTransactionId},
         destinationNodePath,
         sourceNodeType == EObjectType::SequoiaLink
-            ? std::optional(TAbsoluteYPath(sourceNode.TargetPath))
+            ? std::optional(sourceNode.TargetPath)
             : std::nullopt);
 
-    NCypressServer::NProto::TReqCloneNode cloneNodeRequest;
-    ToProto(cloneNodeRequest.mutable_src_id(), sourceNodeId);
-    ToProto(cloneNodeRequest.mutable_dst_id(), destinationNodeId);
-    cloneNodeRequest.set_dst_path(destinationNodePath.ToRawYPath().Underlying());
-    ToProto(cloneNodeRequest.mutable_options(), options);
-    ToProto(cloneNodeRequest.mutable_dst_parent_id(), destinationParentId);
-    ToProto(cloneNodeRequest.mutable_transaction_id(), cypressTransactionId);
+    NCypressServer::NProto::TReqCloneNode reqCloneNode;
+    ToProto(reqCloneNode.mutable_src_id(), sourceNodeId);
+    ToProto(reqCloneNode.mutable_dst_id(), destinationNodeId);
+    reqCloneNode.set_dst_path(destinationNodePath.ToRealPath().Underlying());
+    ToProto(reqCloneNode.mutable_options(), options);
+    ToProto(reqCloneNode.mutable_dst_parent_id(), destinationParentId);
+    ToProto(reqCloneNode.mutable_transaction_id(), cypressTransactionId);
 
-    sequoiaTransaction->AddTransactionAction(cellTag, MakeTransactionActionData(cloneNodeRequest));
+    sequoiaTransaction->AddTransactionAction(cellTag, MakeTransactionActionData(reqCloneNode));
 
     return destinationNodeId;
 }
 
+void MaterializeNodeOnMaster(
+    TVersionedNodeId nodeId,
+    NObjectClient::NProto::TReqMaterializeNode* originalRequest,
+    const ISequoiaTransactionPtr& sequoiaTransaction)
+{
+    auto request = BuildMaterializeNodeRequest(nodeId, originalRequest);
+
+    sequoiaTransaction->AddTransactionAction(
+        CellTagFromId(nodeId.ObjectId),
+        MakeTransactionActionData(request));
+}
+
+void MaterializeNodeInSequoia(
+    TVersionedNodeId nodeId,
+    NCypressClient::TNodeId parentId,
+    TAbsolutePathBuf path,
+    bool preserveAcl,
+    bool preserveModificationTime,
+    const TProgenitorTransactionCache& progenitorTransactionCache,
+    const ISequoiaTransactionPtr& sequoiaTransaction)
+{
+    WriteSequoiaNodeAndPathRows(
+        sequoiaTransaction,
+        progenitorTransactionCache,
+        nodeId,
+        path,
+        std::nullopt);
+
+    NCypressServer::NProto::TReqFinishNodeMaterialization reqFinishNodeMaterialization;
+    ToProto(reqFinishNodeMaterialization.mutable_node_id(), nodeId.ObjectId);
+    ToProto(reqFinishNodeMaterialization.mutable_parent_id(), parentId);
+    reqFinishNodeMaterialization.set_path(path.ToRealPath().Underlying());
+
+    reqFinishNodeMaterialization.set_preserve_acl(preserveAcl);
+    reqFinishNodeMaterialization.set_preserve_modification_time(preserveModificationTime);
+
+    ToProto(reqFinishNodeMaterialization.mutable_transaction_id(), nodeId.TransactionId);
+
+    sequoiaTransaction->AddTransactionAction(
+        CellTagFromId(nodeId.ObjectId),
+        MakeTransactionActionData(reqFinishNodeMaterialization));
+}
+
 void RemoveNode(
     TVersionedNodeId nodeId,
-    TAbsoluteYPathBuf path,
+    TAbsolutePathBuf path,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const ISequoiaTransactionPtr& sequoiaTransaction)
 {
@@ -334,13 +383,13 @@ void RemoveNode(
 
 void RemoveNodeAttribute(
     NCypressClient::TVersionedNodeId nodeId,
-    NSequoiaClient::TYPathBuf attributePath,
+    NYPath::TYPathBuf attributePath,
     bool force,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction)
 {
     NCypressServer::NProto::TReqRemoveNodeAttribute reqRemoveNodeAttribute;
     ToProto(reqRemoveNodeAttribute.mutable_node_id(), nodeId.ObjectId);
-    reqRemoveNodeAttribute.set_path(attributePath.ToRawYPath().Underlying());
+    reqRemoveNodeAttribute.set_path(attributePath);
     reqRemoveNodeAttribute.set_force(force);
     ToProto(reqRemoveNodeAttribute.mutable_transaction_id(), nodeId.TransactionId);
     transaction->AddTransactionAction(
@@ -380,15 +429,15 @@ void AttachChild(
         });
     }
 
-    NCypressServer::NProto::TReqAttachChild attachChildRequest;
-    ToProto(attachChildRequest.mutable_parent_id(), parentId.ObjectId);
-    ToProto(attachChildRequest.mutable_child_id(), childId);
-    attachChildRequest.set_key(childKey);
-    ToProto(attachChildRequest.mutable_access_tracking_options(), options);
-    ToProto(attachChildRequest.mutable_transaction_id(), parentId.TransactionId);
+    NCypressServer::NProto::TReqAttachChild reqAttachChild;
+    ToProto(reqAttachChild.mutable_parent_id(), parentId.ObjectId);
+    ToProto(reqAttachChild.mutable_child_id(), childId);
+    reqAttachChild.set_key(childKey);
+    ToProto(reqAttachChild.mutable_access_tracking_options(), options);
+    ToProto(reqAttachChild.mutable_transaction_id(), parentId.TransactionId);
     sequoiaTransaction->AddTransactionAction(
         CellTagFromId(parentId.ObjectId),
-        MakeTransactionActionData(attachChildRequest));
+        MakeTransactionActionData(reqAttachChild));
 }
 
 void DetachChild(
@@ -446,7 +495,7 @@ void DetachChild(
         MakeTransactionActionData(reqDetachChild));
 }
 
-TLockId LockNodeInMaster(
+TLockId ExplicitlyLockNodeInMaster(
     TVersionedNodeId nodeId,
     ELockMode lockMode,
     const std::optional<std::string>& childKey,
@@ -457,7 +506,7 @@ TLockId LockNodeInMaster(
 {
     YT_VERIFY(nodeId.IsBranched());
 
-    NCypressServer::NProto::TReqLockNode request;
+    NCypressServer::NProto::TReqExplicitlyLockNode request;
     ToProto(request.mutable_node_id(), nodeId.ObjectId);
     ToProto(request.mutable_transaction_id(), nodeId.TransactionId);
     request.set_mode(ToProto(lockMode));
@@ -481,6 +530,31 @@ TLockId LockNodeInMaster(
     return lockId;
 }
 
+void ImplicitlyLockNodeInMaster(
+    NCypressClient::TVersionedNodeId nodeId,
+    NCypressClient::ELockMode lockMode,
+    const std::optional<std::string>& childKey,
+    const std::optional<std::string>& attributeKey,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction)
+{
+    YT_VERIFY(nodeId.IsBranched());
+
+    NCypressServer::NProto::TReqImplicitlyLockNode request;
+    ToProto(request.mutable_node_id(), nodeId.ObjectId);
+    ToProto(request.mutable_transaction_id(), nodeId.TransactionId);
+    request.set_mode(ToProto(lockMode));
+    if (childKey) {
+        request.set_child_key(*childKey);
+    }
+    if (attributeKey) {
+        request.set_attribute_key(*attributeKey);
+    }
+
+    sequoiaTransaction->AddTransactionAction(
+        CellTagFromId(nodeId.ObjectId),
+        MakeTransactionActionData(request));
+}
+
 void UnlockNodeInMaster(TVersionedNodeId nodeId, const ISequoiaTransactionPtr& sequoiaTransaction)
 {
     YT_VERIFY(nodeId.IsBranched());
@@ -496,16 +570,16 @@ void UnlockNodeInMaster(TVersionedNodeId nodeId, const ISequoiaTransactionPtr& s
 
 void CreateSnapshotLockInSequoia(
     TVersionedNodeId nodeId,
-    TAbsoluteYPathBuf path,
-    std::optional<TAbsoluteYPathBuf> targetPath,
+    TAbsolutePathBuf path,
+    std::optional<TYPath> targetPath,
     const ISequoiaTransactionPtr& sequoiaTransaction)
 {
     YT_VERIFY(nodeId.IsBranched());
 
     sequoiaTransaction->WriteRow(NRecords::TNodeIdToPath{
         .Key = {.NodeId = nodeId.ObjectId, .TransactionId = nodeId.TransactionId},
-        .Path = path.ToRawYPath().Underlying(),
-        .TargetPath = NYPath::TYPath(targetPath.has_value() ? targetPath->Underlying() : ""),
+        .Path = path.ToRealPath().Underlying(),
+        .TargetPath = TYPath(targetPath.value_or("")),
         .ForkKind = EForkKind::Snapshot,
     });
 
@@ -539,7 +613,7 @@ void ToProto(
     const TMultisetAttributesSubrequest& subrequest)
 {
     protoSubrequest->set_attribute(ToProto(subrequest.AttributeKey));
-    protoSubrequest->set_value(subrequest.Value.ToString());
+    protoSubrequest->set_value(ToProto(subrequest.Value));
 }
 
 void ToProto(NCypressServer::NProto::TAccessTrackingOptions* protoOptions, const TSuppressableAccessTrackingOptions& options)

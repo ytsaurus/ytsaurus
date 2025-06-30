@@ -343,8 +343,11 @@ void TSchemafulRowMerger::Reset()
 void TSchemafulRowMerger::Cleanup()
 {
     MergedRow_ = {};
-    AggregateValues_.clear();
+
     AggregateValues_.resize(std::ssize(AggregateColumnIds_));
+    for (auto& item : AggregateValues_) {
+        item.clear();
+    }
 
     LatestWrite_ = NullTimestamp;
     LatestDelete_ = NullTimestamp;

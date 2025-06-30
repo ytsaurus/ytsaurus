@@ -52,7 +52,7 @@ struct TKqpCompileRequest {
         const TIntrusivePtr<TUserRequestContext>& userRequestContext, NLWTrace::TOrbit orbit = {}, NWilson::TSpan span = {},
         TKqpTempTablesState::TConstPtr tempTablesState = {},
         TMaybe<TQueryAst> queryAst = {},
-        NYql::TExprContext* splitCtx = nullptr,
+        std::shared_ptr<NYql::TExprContext> splitCtx = nullptr,
         NYql::TExprNode::TPtr splitExpr = nullptr)
         : Sender(sender)
         , Query(std::move(query))
@@ -70,8 +70,8 @@ struct TKqpCompileRequest {
         , TempTablesState(std::move(tempTablesState))
         , IntrestedInResult(std::move(intrestedInResult))
         , QueryAst(std::move(queryAst))
-        , SplitCtx(splitCtx)
-        , SplitExpr(splitExpr)
+        , SplitCtx(std::move(splitCtx))
+        , SplitExpr(std::move(splitExpr))
     {}
 
     TActorId Sender;
@@ -93,7 +93,7 @@ struct TKqpCompileRequest {
     std::shared_ptr<std::atomic<bool>> IntrestedInResult;
     TMaybe<TQueryAst> QueryAst;
 
-    NYql::TExprContext* SplitCtx;
+    std::shared_ptr<NYql::TExprContext> SplitCtx;
     NYql::TExprNode::TPtr SplitExpr;
 
     bool FindInCache = true;
@@ -309,6 +309,7 @@ private:
 
         ui64 defaultCostBasedOptimizationLevel = TableServiceConfig.GetDefaultCostBasedOptimizationLevel();
         bool enableConstantFolding = TableServiceConfig.GetEnableConstantFolding();
+        bool enableFoldUdfs = TableServiceConfig.GetEnableFoldUdfs();
 
         bool defaultEnableShuffleElimination = TableServiceConfig.GetDefaultEnableShuffleElimination();
 
@@ -316,6 +317,13 @@ private:
         bool enableSpilling = TableServiceConfig.GetEnableQueryServiceSpilling();
 
         bool enableSnapshotIsolationRW = TableServiceConfig.GetEnableSnapshotIsolationRW();
+
+        bool enableNewRBO = TableServiceConfig.GetEnableNewRBO();
+        bool enableSpillingInHashJoinShuffleConnections = TableServiceConfig.GetEnableSpillingInHashJoinShuffleConnections();
+        bool enableOlapScalarApply = TableServiceConfig.GetEnableOlapScalarApply();
+        bool enableOlapSubstringPushdown = TableServiceConfig.GetEnableOlapSubstringPushdown();
+
+        bool enableIndexStreamWrite = TableServiceConfig.GetEnableIndexStreamWrite();
 
         TableServiceConfig.Swap(event.MutableConfig()->MutableTableServiceConfig());
         LOG_INFO(*TlsActivationContext, NKikimrServices::KQP_COMPILE_SERVICE, "Updated config");
@@ -341,6 +349,7 @@ private:
             TableServiceConfig.GetEnableSpillingNodes() != enableSpillingNodes ||
             TableServiceConfig.GetDefaultCostBasedOptimizationLevel() != defaultCostBasedOptimizationLevel ||
             TableServiceConfig.GetEnableConstantFolding() != enableConstantFolding ||
+            TableServiceConfig.GetEnableFoldUdfs() != enableFoldUdfs ||
             TableServiceConfig.GetEnableAstCache() != enableAstCache ||
             TableServiceConfig.GetEnableImplicitQueryParameterTypes() != enableImplicitQueryParameterTypes ||
             TableServiceConfig.GetEnablePgConstsToParams() != enablePgConstsToParams ||
@@ -348,8 +357,13 @@ private:
             TableServiceConfig.GetEnableSnapshotIsolationRW() != enableSnapshotIsolationRW ||
             TableServiceConfig.GetAllowMultiBroadcasts() != allowMultiBroadcasts ||
             TableServiceConfig.GetDefaultEnableShuffleElimination() != defaultEnableShuffleElimination ||
-            TableServiceConfig.GetEnableQueryServiceSpilling() != enableSpilling
-        ) {
+            TableServiceConfig.GetEnableQueryServiceSpilling() != enableSpilling ||
+            TableServiceConfig.GetEnableNewRBO() != enableNewRBO ||
+            TableServiceConfig.GetEnableSpillingInHashJoinShuffleConnections() != enableSpillingInHashJoinShuffleConnections ||
+            TableServiceConfig.GetEnableOlapScalarApply() != enableOlapScalarApply ||
+            TableServiceConfig.GetEnableOlapSubstringPushdown() != enableOlapSubstringPushdown ||
+            TableServiceConfig.GetEnableIndexStreamWrite() != enableIndexStreamWrite) 
+        {
 
             QueryCache->Clear();
 

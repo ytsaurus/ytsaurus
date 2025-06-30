@@ -19,9 +19,10 @@ struct TChunkSlice
     NChunkClient::TReadLimit LowerLimit;
     NChunkClient::TReadLimit UpperLimit;
 
-    i64 DataWeight;
-    i64 RowCount;
-    i64 CompressedDataSize;
+    i64 DataWeight = 0;
+    i64 RowCount = 0;
+    i64 CompressedDataSize = 0;
+    i64 UncompressedDataSize = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -31,10 +31,13 @@ struct TSequoiaTransactionRequestPriorities
     int DeleteRow = 0;
 };
 
-struct TSequoiaTransactionSequencingOptions
+struct TSequoiaTransactionOptions
 {
     const ISequoiaTransactionActionSequencer* TransactionActionSequencer = nullptr;
-    std::optional<TSequoiaTransactionRequestPriorities> RequestPriorities;
+    std::optional<TSequoiaTransactionRequestPriorities> RequestPriorities = std::nullopt;
+    std::vector<NObjectClient::TTransactionId> CypressPrerequisiteTransactionIds = {};
+    bool SequenceTabletCommitSessions = false;
+    bool EnableVerboseLogging = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,8 +84,7 @@ struct ISequoiaClient
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
         ESequoiaTransactionType type,
         const NApi::TTransactionStartOptions& options = {},
-        const std::vector<NObjectClient::TTransactionId>& cypressPrerequisiteTransactionIds = {},
-        const TSequoiaTransactionSequencingOptions& sequencingOptions = {}) = 0;
+        const TSequoiaTransactionOptions& sequoiaTransactionOptions = {}) = 0;
 
     virtual const NLogging::TLogger& GetLogger() const = 0;
 };
@@ -93,7 +95,8 @@ DEFINE_REFCOUNTED_TYPE(ISequoiaClient)
 
 ISequoiaClientPtr CreateSequoiaClient(
     NApi::NNative::TSequoiaConnectionConfigPtr config,
-    NApi::NNative::IClientPtr nativeClient);
+    NApi::NNative::IClientPtr localClient,
+    TFuture<NApi::NNative::IClientPtr> groundClientFuture);
 
 ////////////////////////////////////////////////////////////////////////////////
 

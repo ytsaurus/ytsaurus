@@ -10,7 +10,7 @@ PEERDIR(
     contrib/ydb/library/actors/interconnect
     library/cpp/monlib/service/pages
     library/cpp/svnversion
-    library/cpp/resource
+    contrib/ydb/library/global_plugins
     contrib/ydb/core/protos
     contrib/ydb/core/viewer/json
 )

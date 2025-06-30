@@ -16,7 +16,7 @@ Each command also defines the type of its input and output data. Below all the p
 - No data (`null`).
 - The data is a `binary` stream. For example, [file](../../user-guide/storage/files.md) contents.
 - The data is [structured](../../user-guide/storage/formats.md#structured_data) (`structured`). For example, regular [Cypress](../../user-guide/storage/cypress.md) nodes.
-- The data is a `binary` stream. For example, [table](../../user-guide/storage/objects.md#tables) contents.
+- The data is a `tabular` stream. For example, [table](../../user-guide/storage/objects.md#tables) contents.
 
 In addition to that, each command can be:
 
@@ -209,7 +209,7 @@ For more information about the metainformation tree, see [Cypress](../../user-gu
 
 {% note info "Note" %}
 
-All the commands used to work with Cypress are transactional.
+All the commands working with Cypress are transactional.
 
 {% endnote %}
 
@@ -818,7 +818,7 @@ For more information about files, see the [Files](../../user-guide/storage/files
 
 {% note info "Note" %}
 
-All the commands used to work with files are transactional.
+All the commands working with files are transactional.
 
 {% endnote %}
 
@@ -1494,9 +1494,9 @@ Semantics:
 - The resharded tablets must be unmounted.
 - Be sure to specify `tablet_count` for an ordered table. For a sorted table, you can specify both `tablet_count` and `pivot_keys`. The resharded tablets are replaced by a set of new tablets.
 - In the case of a sorted table:
-  - When passing `pivot_keys`, the first key in `pivot_keys` must match the first key of the first resharded tablet. The number of `pivot_keys` is equal to the number of new tablets that the resharded tablets are split into.
-  - When passing `tablet_count`, the system will select pivot keys based on the data available in the table as evenly as possible. If the table isn't large enough, you might get less tablets then requested as a result. At default settings, your resulting tablets can't be smaller than about 200 MB each. For smaller slicing, use the option`enable_slicing`.
-  - If the first key column of the table has an integer type, then along with `tablet_count`, you can use `uniform=True`. In this case, uniform values from the range of the appropriate type will be selected as pivot keys. `0, 2^64/n, 2^64\*2/n, ...` for an unsigned 64-bit type and `-2^63, -2^63 + 2^64/n, -2^63 + 2^64\*2/n, ...` for a signed 64-bit type.
+   - When passing `pivot_keys`, the first key in `pivot_keys` must match the first key of the first resharded tablet. The number of `pivot_keys` is equal to the number of new tablets that the resharded tablets are split into.
+   - When passing `tablet_count`, the system will select pivot keys based on the data available in the table as evenly as possible. If the table isn't large enough, you might get less tablets then requested as a result. At default settings, your resulting tablets can't be smaller than about 200 MB each. For smaller slicing, use the option`enable_slicing`.
+   - If the first key column of the table has an integer type, then along with `tablet_count`, you can use `uniform=True`. In this case, uniform values from the range of the appropriate type will be selected as pivot keys. `0, 2^64/n, 2^64\*2/n, ...` for an unsigned 64-bit type and `-2^63, -2^63 + 2^64/n, -2^63 + 2^64\*2/n, ...` for a signed 64-bit type.
 - For an ordered table, `table_count` specifies the number of new tablets that the sharded tablets are split into. In this case, if the resulting tablets are higher in numbers than the old ones, new empty tablets are created. If the resulting tablets are smaller in numbers, the corresponding number of source trailing tablets are merged into a single tablet in their natural order.
 
 Parameters:
@@ -1564,7 +1564,7 @@ OUTPUT [
 ]
 ```
 
- ### alter_table
+### alter_table
 
 Command properties: **Mutating**, **Light**.
 
@@ -1643,9 +1643,9 @@ Semantics:
 
 - Get statistics on the set of columns in the given set of tables (taken completely or partially, by ranges).
 - The statistics includes:
-  - The total `data_weight` for each of the requested columns.
-  - The total `data_weight` for all the old chunks (that the metainformation about each column hasn't been saved to because the chunk has been generated before column-by-column statistics were supported).
-  - The total weight of all the timestamps of rows in a dynamic table.
+   - The total `data_weight` for each of the requested columns.
+   - The total `data_weight` for all the old chunks (that the metainformation about each column hasn't been saved to because the chunk has been generated before column-by-column statistics were supported).
+   - The total weight of all the timestamps of rows in a dynamic table.
 - The paths should always include the `column selectors`.
 - The command can be nested in a transaction.
 
@@ -1687,9 +1687,15 @@ OUTPUT {
 For more information about running data processing operations, see [Data processing](../../user-guide/data-processing/operations/overview.md).
 
 All the operations are run asynchronously, the specified commands only launch them. To find out whether the operation is complete or not, request the [operation status](../../user-guide/data-processing/operations/overview.md#status) using the `get_operation` command.
-All the commands used to work with operations are also transactional. It means that everything you do with tables in an operation will be executed within the specified transaction when you run the operation.  The node responsible for the operation (`//sys/operations/<OP_ID>`) is updated by the [scheduler](../../user-guide/data-processing/scheduler/scheduler-and-pools.md)outside of any transactions.
+All the commands working with operations are also transactional. It means that everything you do with tables in an operation will be executed within the specified transaction when you run the operation.  The node responsible for the operation (`//sys/operations/<OP_ID>`) is updated by the [scheduler](../../user-guide/data-processing/scheduler/scheduler-and-pools.md)outside of any transactions.
 
 ### start_operation
+
+{% note info %}
+
+The HTTP API supports this operation from version v4 onward. Earlier versions of the API use commands with the same names to run operations, such as `map`, `reduce`, `sort`, and so on.
+
+{% endnote %}
 
 Command properties: **Mutating**, **Light**.
 
@@ -2019,9 +2025,39 @@ OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 
 {% note info "Note" %}
 
-All the commands used to work with the operations are non-transactional.
+All the commands working with the operations are non-[transactional](#transactions).
 
 {% endnote %}
+
+The table describes the `TOperation` type, which contains information about the operation returned by the `get_operation` and `list_operations` commands:
+
+| **Field** | **Type** | **Description** |
+|--------------------------|-----------------|---------------------------------------------------------------------------------------------------|
+| `id` | `string` | String representation of the operation ID (for example, `d840bb39-3d893e5b-3fe03e8-f009b1fb`). |
+| `type` | `string` | Operation type (for example, `map`, `reduce`, `map_reduce`). |
+| `state` | `string` | Current operation state (for example, `completed`, `running`,`failed`). |
+| `authenticated_user` | `string` | User that ran the operation. |
+| `start_time` | `ISO 8601 string` | Start time. |
+| `finish_time` | `ISO 8601 string` | End time (if the operation completed). |
+| `brief_progress` | `map` | Summarized statistics on jobs. |
+| `progress` | `map` | Full statistics on jobs. |
+| `brief_spec` | `map` | Part of the specification with light fields. |
+| `provided_spec` | `map` | Specification given by the user when starting the operation. |
+| `full_spec` | `map` | Specification where all the fields omitted by the user are populated by defaults. |
+| `unrecognized_spec` | `map` | Specification fields that were entered by the user but not recognized by the scheduler. |
+| `experiment_assignment_names` | `list<string>` | Names of the experiments applied to the operation. |
+| `experiment_assignments` | `list<string>` | Descriptions of the experiments applied to the operation. |
+| `spec` | `map` | Specification given by the user when starting the operation, with the experiments applied. |
+| `controller_agent_address` | `string` | Address of the controller agent (host:port) responsible for the operation. |
+| `events` | `list<map>` | List of state change events that occurred during the operation. |
+| `alerts` | `map<string, map>` | Alerts set up for the operation at the moment. |
+| `alert_events` | `list<map>` | List of alert start and end events that occurred during the operation. |
+| `result` | `map` | A map with an `error` field that can include an error if the operation failed. |
+| `committed` | `bool` | Whether the operation results were committed. |
+| `suspended` | `bool` | Whether the operation is currently suspended. |
+| `scheduling_attributes_per_pool_tree` | `map<string, map>` | Map with information about the operation's execution across different trees. |
+| `task_names` | `list<string>` | Names of the tasks comprising the operation. |
+| `controller_features` | `map` | Set of quantitative characteristics that can be used to analyze experiments applied to operations. |
 
 ### list_operations { #list_operations }
 
@@ -2049,14 +2085,14 @@ Parameters:
 | `user` | `string` | No | `Null` | Username to filter for. |
 | `state` | `string` | No | `Null` | Operation state used to filter data. |
 | `type` | `string` | No | `Null` | Type of filtering operation. |
-| `filter` | `string` | No | `Null` | Substring that the operation's `filter_factors` should include. |
+| `filter` | `string` | No | `Null` | Substring that `filter_factors` should include. `filter_factors` is a concatenation of various operation attributes, such as `id`, `type`, `authenticated_user`, `state`, `input_table_paths`, `output_table_paths`, `experiments`, `annotations`, `runtime_parameters`, `pool`, and `title`. |
 | `pool` | `string` | No | `Null` | Pool used for filtering. |
+| `pool_tree` | `string` | No | `Null` | Pool tree used for filtering. |
 | `with_failed_jobs` | `bool` | No | `Null` | Return only the operations that have jobs with the `failed` status. |
 | `access` | `map` | No | `Null` | Dictionary with the mandatory fields `subject` (a string) and `permissions` (a list of strings) that set a filter by access rights. If specified, only the operations for which a `subject` has every right in the `permissions` list, are returned. |
 | `include_archive` | `bool` | No | `false` | Whether to request operations from the archive. |
 | `include_counters` | `bool` | No | `true` | Whether to return statistics for the requested operations. |
 | `limit` | `int` | No | `100` | List of operations that need to be returned in the response. |
-| `enable_ui_mode` | `bool` | No | `false` | Whether to return the response in the old UI-compatible format. |
 
 Input data:
 
@@ -2065,14 +2101,17 @@ Input data:
 Output data:
 
 - Type: `structured`.
-- Returns a dictionary with the following fields:
-  - `operations`: List with explicit descriptions of operations. Each operation described is a dictionary that includes the selected operation attributes: `id`, `type`, `state`, `authenticated_user`, `brief_progress`, `brief_spec`, `start_time`, `suspended`, `weight`. The `weight`, `brief_progress`, and `brief_spec` attributes are optional.
-  - `incomplete`: Whether the list of operations is complete (that is, whether all the operations in the range `from_time` — `to_time` are listed).
-  - `pool_counts`: Statistics on pools.
-  - `user_counts`: Statistics on users.
-  - `state_counts`: Statistics on operation states.
-  - `type_counts`: Statistics on operation type.
-  - `failed_jobs_count`: Count of `failed` jobs for the operations.
+
+| **Parameter** | **Type** | **Description** |
+| ------------ | ------- | ------------ |
+| `operations` | `list<TOperation>` | List of operations. |
+| `incomplete` | `bool` | Whether the list of operations is complete. That is, whether all the operations in the range `from_time` — `to_time` are listed. |
+| `type_counts` | `map<string, int>` | Map indicating the number of operations of various types that match all specified filters (except the filter by type). |
+| `state_counts` | `map<string, int>` | Map indicating the number of operations with various states that match all specified filters (except the filter by state). |
+| `type_counts` | `map<string, int>` | Map indicating the number of operations of various types that match all specified filters (except the filter by type). |
+| `pool_counts` | `map<string, int>` | Map indicating the number of operations in various pools that match all specified filters (except the filter by pool). |
+| `pool_tree_counts` | `map<string, int>` | Map indicating the number of operations in various pool trees that match all specified filters (except the filter by pool tree). |
+| `failed_job_count` | `int` | Number of unsuccessful jobs in the `failed` state. |
 
 Example:
 
@@ -2147,28 +2186,8 @@ Input data:
 Output data:
 
 - Type: `structured`.
-- Returns a dictionary with the requested operation attributes.
+- Operation description (`TOperation`).
 
-| **Field** | **Type** | **Description** |
-|--------------------------|-----------------|---------------------------------------------------------------------------------------------------|
-| `id` | `string` | String representation of the operation ID (for example, `d840bb39-3d893e5b-3fe03e8-f009b1fb`). |
-| `type` | `string` | Operation type (for example, `map`, `reduce`, `map_reduce`). |
-| `state` | `string` | Current operation state (for example, `completed`, `running`,`failed`). |
-| `authenticated_user` | `string` | User that ran the operation. |
-| `start_time` | `ISO 8601 string` | Start time. |
-| `finish_time` | `ISO 8601 string` | End time (if the operation completed). |
-| `brief_progress` | `map` | Summarized statistics on jobs. |
-| `progress` | `map` | Full statistics on jobs. |
-| `brief_spec` | `map` | Part of the specification with light fields. |
-| `spec` | `map` | Specification given by the user at the beginning of the operation. |
-| `full_spec` | `map` | Specification where all the fields omitted by the user are populated by defaults. |
-| `unrecognized_spec` | `map` | Specification fields that were entered by the user but not recognized by the scheduler. |
-| `controller_agent_address` | `string` | Address of the controller agent (host:port) responsible for the operation. |
-| `events` | `list<map>` | List of events (state changes) that occurred with the operation. |
-| `alerts` | `map` | Alerts (in the format of a dictionary `<alert_name> : <map_with_attributes>`) set up for the operation at the moment. |
-| `result` | `map` | A map with an `error` field that can include an error if the operation failed. |
-| `committed` | `bool` | Whether the operation results were committed. |
-| `suspended` | `bool` | Whether the operation is currently suspended. |
 
 Example:
 
@@ -2347,9 +2366,48 @@ PARAMETERS {"operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "parameters" =
 
 {% note info "Note" %}
 
-All the commands used to work with jobs are non-[transactional](#transactions).
+All the commands working with jobs are non-[transactional](#transactions).
 
 {% endnote %}
+
+The table describes the `TJob` type, which contains information about the job returned by the `get_job` and `list_jobs` commands:
+
+| Field | Type | Description |
+|------------------------------|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `job_id`/`id` | `string` | String representation of the job ID (for example, `d6bf44e17-8c200aed-41103e8-4958aff3`). The field name depends on the command: `job_id` for `get_job` and `id` for `list_jobs`. |
+| `operation_id` | `string` | String representation of the operation ID (for example, `2cb654e4-9ab04944-4110384-100d7ed`). |
+| `allocation_id` | `string` | String representation of the ID of the allocation used to execute the job (for example, `2cb654e4-9ab04944-4110384-d7ed`). |
+| `type` | `string` | Job type (for example, `vanilla`, `map`, `partition_reduce`). |
+| `state` | `string` | Current job state (for example, `running`, `failed`, `completed`). |
+| `controller_state` | `string` | Job state according to the controller. |
+| `archive_state` | `string` | Job state according to the node. |
+| `address` | `string` | Address of the exec node (host:port) that ran the job. If the node has multiple addresses, the value matches the default address. |
+| `addresses` | `map` | Map containing the addresses of the exec node that ran the job. Used when the exec node can have multiple addresses. |
+| `task_name` | `string` | Name of the task the job belonged to. |
+| `start_time` | `ISO 8601 string` | Job start time. |
+| `finish_time` | `ISO 8601 string` | Job end time. |
+| `has_spec` | `bool` | Flag indicating whether the job specification was archived. |
+| `has_competitors` | `bool` | Flag indicating whether the job is speculative or has speculative competitors. |
+| `has_probing_competitors` | `bool` | Flag indicating whether the job is a probe or has probe competitors. |
+| `job_competition_id` | `string` | For speculative jobs, matches the ID of the competitor job. |
+| `probing_job_competition_id` | `string` | For probes, matches the ID of the competitor job. |
+| `pool` | `string` | Name of the [pool](../../user-guide/data-processing/scheduler/scheduler-and-pools.md) where the job was run. |
+| `pool_tree` | `string` | Name of the [pool tree](../../user-guide/data-processing/scheduler/scheduler-and-pools.md) where the job was run. |
+| `progress` | `float in [0,1]` | Evaluation of the share of work executed by the job by the current moment. |
+| `stderr_size` | `int` | Size of the saved stderr of the job (you can get stderr using the [`get_job_stderr`](#get_job_stderr) command). |
+| `fail_context_size` | `int` | Size of the saved fail_context of the job (you can get fail_context using the [`get_fail_context`](#get_fail_context) command). |
+| `error` | `map` | Error that interrupted the job. |
+| `statistics` | `map` | Job statistics. |
+| `brief_statistics` | `map` | Summarized job statistics. |
+| `exec_attributes` | `map` | Metainformation about the job's initiation on the exec node. |
+| `monitoring_descriptor` | `string` | ID used by the monitoring system to store information about the job. |
+| `job_cookie` | `int` | Unique job index within the operation that serves as an implementation detail of the operation controller. In vanilla operations, it can be used to group workers: if a job is interrupted, the new job launched to replace it will have the same `job_cookie`. |
+| `operation_incarnation` | `string` | ID of the gang operation incarnation. |
+| `interruption_info` | `map` | Information about the reasons for the job's interruption. |
+| `archive_features` | `map` | Information about the job's archived attributes. |
+| `core_infos` | `map` | List of metainformation about the job's saved core dumps. |
+| `events` | `map` | List of job state transition events. |
+| `is_stale` | `bool` | Whether the information about the job is outdated (if `%true`, some fields might need update). Information about the job is considered outdated if it hasn't been updated for a long time. The information in the job archive is updated by the node running the job and the operation controller. The update process is asynchronous. If the node and the controller restart at the same time for some reason (for example, as a result of an update), the information about the final job state (`completed`, `failed`, or `aborted`) might not end up in the archive, resulting in this job always returning as stale. Despite the `running` status, such jobs likely haven't been running for a long time and should be ignored. |
 
 ### get_job { #get_job }
 
@@ -2361,10 +2419,13 @@ Semantics:
 
 Parameters:
 
-| **Parameter** | **Required** | **Default value** | **Description** |
-| ------------ | ----------------- | ------------------------- | ----------------------- |
-| `operation_id` | Yes |                           | Operation ID |
-| `job_id` | Yes |                           | Job ID |
+| **Parameter** | **Type** | **Required** | **Default value** | **Description** |
+| -------------- | ------------- | ---------------- | ------------------------- | ------------ |
+| `operation_id` | `GUID` | Yes |                           | Operation ID. |
+| `job_id` | `GUID` | Yes |                           | Job ID. |
+| `attributes` | `list<string>` | No | `Null` | List of job attributes that need to be returned in the response. |
+
+The `attributes` parameter is a subset of `TJob` objects. If it's `Null`, all job attributes are returned; otherwise, the user receives only the attributes specified in `attributes`.
 
 Input data:
 
@@ -2372,29 +2433,8 @@ Input data:
 
 Output data:
 
-- Type: `structured`. Map with the job's attributes.
-
-| **Field** | **Type** | **Description** |
-|------------------|-----------------|-----------------------------------------------------------------------------------------------------------------------------|
-| `job_id` | `string` | String representation of the job ID (for example, `d840bb39-3d893e5b-3fe03e8-f009b1fb`). |
-| `operation_id` | `string` | String representation of the operation ID (for example, `d840bb39-3d893e5b-3fe03e8-f009b1fb`). |
-| `type` | `string` | Job type (for example, `vanilla`, `map`, `partition_reduce`). |
-| `state` | `string` | Current job state (for example, `running`, `failed`, `completed`). |
-| `address` | `string` | Address of the node (host:port) that ran the job. |
-| `task_name` | `string` | Name of the task that the job responds to. |
-| `start_time` | `ISO 8601 string` | Start time. |
-| `finish_time` | `ISO 8601 string` | End time. |
-| `pool` | `string` | Name of the [pool](../../user-guide/data-processing/scheduler/scheduler-and-pools.md) where the job was run. |
-| `pool_tree` | `string` | Name of the [pool tree](../../user-guide/data-processing/scheduler/scheduler-and-pools.md) where the job was run. |
-| `progress` | `float in [0,1]` | Evaluation of the share of work executed by the job by the current moment. |
-| `stderr_size` | `integer` | Size of the saved stderr of the job (you can get stderr using the [`get_job_stderr`](#get_job_stderr) command). |
-| `error` | `map` | Dictionary with an error description (for a failed job). |
-| `statistics` | `map` | Dictionary with the job's statistics. |
-| `brief_statistics` | `map` | Dictionary with brief statistics. |
-| `input_paths` | `list<YPath>` | List of parts to tables (with row ranges) processed by the job. |
-| `core_infos` | `list<map>` | List of dictionaries describing the core dumps saved by the job. |
-| `events` | `list<map>` | List of dictionaries describing events (changes in state or phase) that occurred to the job. |
-| `is_stale` | `bool` | Whether the information about the job is outdated (if `%true`, some fields might need update). Information about the job is considered outdated if it hasn't been updated for a long time. The information in the job archive is updated by the node running the job and the operation controller. The update process is asynchronous. If the node and the controller restart at the same time for some reason (for example, as a result of an update), the information about the final job state (`completed`, `failed`, or `aborted`) might not end up in the archive, resulting in this job always returning as stale. Despite the `running` status, such jobs likely haven't been running for a long time and should be ignored. |
+- Type: `structured`.
+- Job description (`TJob`).
 
 Example:
 
@@ -2436,7 +2476,7 @@ Semantics:
 Parameters:
 
 | **Parameter** | **Type** | **Required** | **Default value** | **Description** |
-| -------------------- | ------------------------------------------------------------ | ----------------- | ------------------------- | ------------------------------------------------------------ |
+| -------------------- | ------------------------------------------------------------ | ---------------- | ------------------------- | ------------------------------------------------------------ |
 | `operation_id` | `GUID` | Yes |                           | Operation ID. |
 | `type (job_type)` | `EJobType` | No | `Null` | When you specify the parameter, the response will only include the jobs with the specified `job_type`. |
 | `state (job_state)` | `EJobState` | No | `Null` | When you specify the parameter, the response will only include the jobs with the specified `job_state`. |
@@ -2447,21 +2487,23 @@ Parameters:
 | `with_competitors` | `bool` | No | `Null` | At `Null`, all the jobs are returned. At `True`, only the jobs for which speculative copies were run along with those copies are returned. At `False`, only the jobs that do not have speculative copies are returned. |
 | `job_competition_id` | `GUID` | No | `Null` | When you specify the parameter, the response will include the job with the `job_competition_id` and all of its speculative copies (if any). |
 | `with_monitoring_descriptor` | `bool` | No | `Null` | At `Null`, all the jobs are returned. At `True`, only the jobs that have `monitoring_descriptor` are returned. At `False`, only the jobs that do not have `monitoring_descriptor` are returned. |
+| `with_interruption_info` | `bool` | No | `Null` | At `Null`, all the jobs are returned. At `True`, only the jobs that have `interruption_info` are returned. At `False`, only the jobs that do not have `interruption_info` are returned. |
 | `task_name` | `string` | No | `Null` | When you specify the parameter, the response will only include the jobs with the specified `task_name`. |
+| `operation_incarnation` | `string` | No | `Null` | When you specify the parameter, the response will only include the jobs belonging to the requested incarnation. |
+| `from_time` | `ISO 8601 string` | No | `Null` | Bottom limit for the time interval for operation selection (based on the time when the operation began). |
+| `to_time` | `ISO 8601 string` | No | `Null` | Upper limit for the time interval for operation selection (based on the time when the operation began for running jobs and based on the time the operation ended for completed jobs). |
+| `continuation_token` | `string` | No | `Null` | String used for pagination (see below). |
 | `sort_field` | `{none,type,state,start_time,finish_time,address,duration,progress,id}` | No | `none` | Sort fields. |
 | `sort_order` | `{ascending,descending}` | No | `ascending` | Sorting order. |
 | `limit` | `int` | No | `1000` | Limit on the number of returned jobs. |
 | `offset` | `int` | No | `0` | Offset by the given number of jobs. |
-| `data_source` | `EDataSource` | No | `auto` | Data source, acceptable values: `runtime`, `archive`, and `auto`. |
+| `attributes` | `list<string>` | No | `Null` | List of job attributes that need to be returned in the response. |
 
-The `job_type`, `job_state`, `address`, `with_stderr`, `with_fail_context`, `with_competitors`, `with_spec`, and `with_monitoring_descriptor` parameters define the job *filter*. The response will only include the jobs that meet the filtering criteria.
+The `job_type`, `job_state`, `address`, `with_stderr`, `with_fail_context`, `with_competitors`, `with_spec`, `with_monitoring_descriptor`, and `with_interruption_info` parameters define the job *filter*. The response will only include the jobs that meet the filtering criteria.
 
 The `sort_field` and`sort_order` define the order of jobs in the response. In this case, the `limit` and `offset` parameters define the slice (subset) of jobs in the response: the first `offset` jobs are skipped, and then `limit` of the remaining jobs is selected.
 
-The `data_source` parameter regulates the source of data from which the jobs are taken:
-- In the `runtime` mode, jobs are retrieved from the controller agent and Cypress and then merged.
-- In the `archive` mode, jobs are retrieved from the archive and the controller agent and then merged.
-- The `auto` mode automatically determines the source of jobs based on availability of operations in the controller agent.
+The `attributes` parameter is a list of `TJob` objects. If it's `Null`, default attributes are returned; otherwise, the user receives only the attributes specified in `attributes`.
 
 Input data:
 
@@ -2470,13 +2512,16 @@ Input data:
 Output data:
 
 - Type: `structured`.
-- Structure with the fields `jobs`, `cypress_job_count`, `controller_agent_job_count`, and `archive_job_count`.
-- `*_count` fields: Сounter of jobs found for a given operation in the appropriate data sources, without filtering. If all three numbers are zeros, it means that there's no information about the operation's jobs. If all the three numbers aren't zeros, but the `jobs` response is empty, it means that all the jobs were filtered out. If you get `null` instead of a number, the corresponding data source wasn't polled.
 
-- `jobs` field: List of structures that describe each job. Each job can have the following fields:
-  - `id` (`guid`), `type` (`string`), `state` (`string`), `address` (`string`): Required fields.
-  - `start_time` (`instant`), `finish_time` (`instant`), `progress` (`double`), `stderr_size` (`int`): Optional fields.
-  - `error`, `brief_statistics`, `input_paths`, `core_infos`: Optional fields.
+| **Parameter** | **Type** | **Description** |
+| ------------ | ------- | ------------ |
+| `jobs` | `list<TJob>` | List of jobs. |
+| `controller_agent_job_count` | `int` | Number of jobs in the response that the operation controller stores information about. |
+| `archive_job_count` | `int` | Number of jobs in the response that the archive stores information about. |
+| `type_counts` | `map<string, int>` | Map indicating the number of jobs of various types that match all specified filters (except the filter by type). |
+| `state_counts` | `map<string, int>` | Map indicating the number of jobs with various states that match all specified filters (except the filter by state). |
+| `errors` | `list<map>` | List of errors. |
+| `continuation_token` | `string` | String used for pagination. It encodes the request parameters along with the index from which the job list should continue. You can pass it in the `continuation_token` parameter. |
 
 Example:
 
@@ -2847,7 +2892,7 @@ PARAMETERS { }
 OUTPUT {
     "features" = {
       "primitive_types" = ["int8"; "int16"; ... ];
-      "erasure_codecs" = ["lrc_12_2_2"; "reed_solomon_6_3"; ... ];
+      "erasure_codecs" = ["none", "isa_lrc_12_2_2"; "isa_reed_solomon_6_3"; ... ];
       "compression_codecs" = ["none"; "snappy"; "brotli_1"; ... ];
     };
 }

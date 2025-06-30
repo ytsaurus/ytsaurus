@@ -1,8 +1,9 @@
 #include "store_compactor.h"
 
-#include "tablet.h"
-#include "store.h"
+#include "config.h"
 #include "partition.h"
+#include "store.h"
+#include "tablet.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/lib/tablet_node/private.h>
@@ -20,7 +21,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = NTabletNode::TabletNodeLogger;
+constinit const auto Logger = NTabletNode::TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +50,7 @@ public:
 
     TLsmActionBatch BuildLsmActions(
         const std::vector<TTabletPtr>& tablets,
-        const TString& /*bundleName*/) override
+        const std::string& /*bundleName*/) override
     {
         YT_LOG_DEBUG("Started building store compactor action batch");
 
@@ -71,7 +72,7 @@ public:
 private:
     // Hydra timestamp. Crucial for consistency.
     TTimestamp CurrentTimestamp_;
-    TTabletNodeConfigPtr Config_;
+    TLsmTabletNodeConfigPtr Config_;
     // System time. Used for imprecise activities like periodic compaction.
     TInstant CurrentTime_;
 
@@ -556,7 +557,7 @@ private:
         }
 
         return CurrentTime_ > store->GetLastCompactionTimestamp() +
-            Config_->TabletManager->CompactionBackoffTime;
+            Config_->CompactionBackoffTime;
     }
 
     static bool IsStoreCompactionForced(const TStore* store)

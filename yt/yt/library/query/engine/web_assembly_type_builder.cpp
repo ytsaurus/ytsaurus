@@ -51,9 +51,19 @@ namespace NYT::NWebAssembly {
     XX(NQueryClient::TMultiJoinParameters*, EWebAssemblyValueType::UintPtr)
     XX(NQueryClient::TJoinComparers*, EWebAssemblyValueType::UintPtr)
 
+    XX(NQueryClient::TSubqueryParameters*, EWebAssemblyValueType::UintPtr)
+    XX(NQueryClient::TSubqueryWriteOpClosure*, EWebAssemblyValueType::UintPtr)
+
     XX(NQueryClient::TLikeExpressionContext*, EWebAssemblyValueType::UintPtr)
 
     XX(NQueryClient::TExecutionContext*, EWebAssemblyValueType::UintPtr)
+
+    XX(NTableClient::TLogicalTypePtr*, EWebAssemblyValueType::UintPtr)
+
+    XX(NQueryClient::TNestedExecutionContext*, EWebAssemblyValueType::UintPtr)
+    XX(NQueryClient::TNestedGroupByClosure*, EWebAssemblyValueType::UintPtr)
+
+    XX(void(*)(void**, NQueryClient::TNestedGroupByClosure*, NQueryClient::TExpressionContext*), EWebAssemblyValueType::UintPtr)
 
     XX(bool(*)(void**, NQueryClient::TExpressionContext*, const NQueryClient::TPositionIndependentValue**, long), EWebAssemblyValueType::UintPtr)
     XX(bool(*)(void**, NQueryClient::TExpressionContext*, NTableClient::TUnversionedValue const**, long), EWebAssemblyValueType::UintPtr)
@@ -67,6 +77,8 @@ namespace NYT::NWebAssembly {
     XX(void(*)(void**, NQueryClient::TWriteOpClosure*), EWebAssemblyValueType::UintPtr)
     XX(void(*)(void**, NQueryClient::TExpressionContext*), EWebAssemblyValueType::UintPtr)
     XX(bool(*)(void**, NQueryClient::TExpressionContext*, const NQueryClient::TPositionIndependentValue*), EWebAssemblyValueType::UintPtr)
+
+    XX(void (*)(void**, NYT::NQueryClient::TSubqueryWriteOpClosure*), EWebAssemblyValueType::UintPtr)
 
     XX(const time_t*, EWebAssemblyValueType::UintPtr)
     XX(struct tm*, EWebAssemblyValueType::UintPtr)

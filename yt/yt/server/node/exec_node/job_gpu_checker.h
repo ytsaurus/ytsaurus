@@ -27,13 +27,12 @@ struct TJobGpuCheckerContext
     NContainers::TRootFS RootFS;
     TString CommandUser;
 
-    TString GpuCheckBinaryPath;
-    std::vector<TString> GpuCheckBinaryArgs;
-    THashMap<TString, TString> GpuCheckEnvironment;
-    EGpuCheckType GpuCheckType;
+    EGpuCheckType Type;
+
+    TGpuCheckOptions Options;
+
     int CurrentStartIndex;
     bool TestExtraGpuCheckCommandFailure;
-    std::vector<NContainers::TDevice> GpuDevices;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

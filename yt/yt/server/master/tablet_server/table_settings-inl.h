@@ -4,6 +4,8 @@
 #include "table_settings.h"
 #endif
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -11,29 +13,31 @@ namespace NYT::NTabletServer {
 template <class TRequest>
 void FillTableSettings(TRequest* request, const TSerializedTableSettings& serializedTableSettings)
 {
+    using NYT::ToProto;
     auto* tableSettings = request->mutable_table_settings();
-    tableSettings->set_mount_config(serializedTableSettings.MountConfig.ToString());
+    tableSettings->set_mount_config(ToProto(serializedTableSettings.MountConfig));
     if (serializedTableSettings.ExtraMountConfig) {
         tableSettings->set_extra_mount_config_attributes(
             serializedTableSettings.ExtraMountConfig.ToString());
     }
-    tableSettings->set_store_reader_config(serializedTableSettings.StoreReaderConfig.ToString());
-    tableSettings->set_hunk_reader_config(serializedTableSettings.HunkReaderConfig.ToString());
-    tableSettings->set_store_writer_config(serializedTableSettings.StoreWriterConfig.ToString());
-    tableSettings->set_store_writer_options(serializedTableSettings.StoreWriterOptions.ToString());
-    tableSettings->set_hunk_writer_config(serializedTableSettings.HunkWriterConfig.ToString());
-    tableSettings->set_hunk_writer_options(serializedTableSettings.HunkWriterOptions.ToString());
-    tableSettings->set_global_patch(serializedTableSettings.GlobalPatch.ToString());
-    tableSettings->set_experiments(serializedTableSettings.Experiments.ToString());
+    tableSettings->set_store_reader_config(ToProto(serializedTableSettings.StoreReaderConfig));
+    tableSettings->set_hunk_reader_config(ToProto(serializedTableSettings.HunkReaderConfig));
+    tableSettings->set_store_writer_config(ToProto(serializedTableSettings.StoreWriterConfig));
+    tableSettings->set_store_writer_options(ToProto(serializedTableSettings.StoreWriterOptions));
+    tableSettings->set_hunk_writer_config(ToProto(serializedTableSettings.HunkWriterConfig));
+    tableSettings->set_hunk_writer_options(ToProto(serializedTableSettings.HunkWriterOptions));
+    tableSettings->set_global_patch(ToProto(serializedTableSettings.GlobalPatch));
+    tableSettings->set_experiments(ToProto(serializedTableSettings.Experiments));
 }
 
 template <class TRequest>
 void FillHunkStorageSettings(TRequest* request, const TSerializedHunkStorageSettings& settings)
 {
+    using NYT::ToProto;
     auto* hunkStorageSettings = request->mutable_hunk_storage_settings();
-    hunkStorageSettings->set_mount_config(settings.MountConfig.ToString());
-    hunkStorageSettings->set_hunk_store_config(settings.HunkStoreConfig.ToString());
-    hunkStorageSettings->set_hunk_store_options(settings.HunkStoreOptions.ToString());
+    hunkStorageSettings->set_mount_config(ToProto(settings.MountConfig));
+    hunkStorageSettings->set_hunk_store_config(ToProto(settings.HunkStoreConfig));
+    hunkStorageSettings->set_hunk_store_options(ToProto(settings.HunkStoreOptions));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

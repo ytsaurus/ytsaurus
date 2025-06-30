@@ -14,8 +14,7 @@ std::optional<NTableClient::EValueType> TryInferFunctionReturnType(const std::st
     if (functionIterator == inferrers->end()) {
         return std::nullopt;
     }
-    auto function = functionIterator->second->As<NQueryClient::TFunctionTypeInferrer>();
-    if (!function) {
+    if (functionIterator->second->IsAggregate()) {
         return std::nullopt;
     }
 
@@ -23,7 +22,7 @@ std::optional<NTableClient::EValueType> TryInferFunctionReturnType(const std::st
     std::vector<int> formalArguments;
     std::optional<std::pair<int, bool>> repeatedType;
 
-    int index = function->GetNormalizedConstraints(&typeConstraints, &formalArguments, &repeatedType);
+    int index = functionIterator->second->GetNormalizedConstraints(&typeConstraints, &formalArguments, &repeatedType);
     auto returnTypes = typeConstraints[index];
 
     if (returnTypes.GetSize() != 1) {

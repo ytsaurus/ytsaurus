@@ -95,5 +95,21 @@ TEST_F(TKeyRotatorTest, PeriodicRotate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TKeyRotatorTest, RotateNoErrorPropagation)
+{
+    EXPECT_CALL(*Store, RegisterKey(_))
+        .WillRepeatedly(Return(MakeFuture<void>(TError("error"))));
+
+    Config->KeyRotationInterval = TDuration::MilliSeconds(10);
+    Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Store, Generator);
+
+    // Rotation errors should not propagate.
+    EXPECT_NO_THROW(WaitFor(Rotator->Start())
+        .ThrowOnError());
+    EXPECT_NO_THROW(Sleep(Config->KeyRotationInterval * 10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NSignature

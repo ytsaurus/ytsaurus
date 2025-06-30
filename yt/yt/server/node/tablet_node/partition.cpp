@@ -1,9 +1,11 @@
 #include "partition.h"
+
 #include "automaton.h"
-#include "store.h"
-#include "tablet.h"
-#include "structured_logger.h"
 #include "serialize.h"
+#include "store.h"
+#include "structured_logger.h"
+#include "store_detail.h"
+#include "tablet.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
@@ -21,6 +23,7 @@ namespace NYT::NTabletNode {
 
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,6 +202,41 @@ void TPartition::RequestImmediateSplit(std::vector<TLegacyOwningKey> pivotKeys)
 bool TPartition::IsImmediateSplitRequested() const
 {
     return !PivotKeysForImmediateSplit_.empty();
+}
+
+void TPartition::BuildOrchidYson(TFluentMap fluent) const
+{
+    bool opaqueStores = Tablet_->GetSettings().MountConfig->Testing.OpaqueStoresInOrchid;
+
+    fluent
+        .Item("id").Value(GetId())
+        .Item("state").Value(GetState())
+        .Item("pivot_key").Value(GetPivotKey())
+        .Item("next_pivot_key").Value(GetNextPivotKey())
+        .Item("sample_key_count").Value(GetSampleKeys()->Keys.Size())
+        .Item("sampling_time").Value(GetSamplingTime())
+        .Item("sampling_request_time").Value(GetSamplingRequestTime())
+        .Item("compaction_time").Value(GetCompactionTime())
+        .Item("allowed_split_time").Value(GetAllowedSplitTime())
+        .Item("allowed_merge_time").Value(GetAllowedMergeTime())
+        .Item("uncompressed_data_size").Value(GetUncompressedDataSize())
+        .Item("compressed_data_size").Value(GetCompressedDataSize())
+        .Item("unmerged_row_count").Value(GetUnmergedRowCount())
+        .Item("stores").DoMapFor(Stores(), [&] (auto fluent, const IStorePtr& store) {
+            fluent
+                .Item(ToString(store->GetId()))
+                .Do(BIND(&IStore::BuildOrchidYson, store, opaqueStores));
+        })
+        .DoIf(IsImmediateSplitRequested(), [&] (auto fluent) {
+            fluent
+                .Item("immediate_split_keys").DoListFor(
+                    PivotKeysForImmediateSplit(),
+                    [&] (auto fluent, const TLegacyOwningKey& key)
+                {
+                    fluent
+                        .Item().Value(key);
+                });
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

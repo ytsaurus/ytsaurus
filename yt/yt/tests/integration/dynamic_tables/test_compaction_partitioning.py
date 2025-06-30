@@ -1122,5 +1122,20 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
 @pytest.mark.enabled_multidaemon
 class TestCompactionPartitioningMulticell(TestCompactionPartitioning):
-    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
+
+
+@pytest.mark.enabled_multidaemon
+class TestCompactionPartitioningSequoia(TestCompactionPartitioning):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_CYPRESS_PROXIES = 1
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }

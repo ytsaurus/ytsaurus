@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
@@ -74,7 +76,9 @@ TGetPipelineSpecResult TClient::DoGetPipelineSpec(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetSpec();
-    req->SetTimeout(options.Timeout);
+    if (options.Timeout) {
+        req->SetTimeout(options.Timeout);
+    }
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {
@@ -90,8 +94,10 @@ TSetPipelineSpecResult TClient::DoSetPipelineSpec(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.SetSpec();
-    req->SetTimeout(options.Timeout);
-    req->set_spec(spec.ToString());
+    if (options.Timeout) {
+        req->SetTimeout(options.Timeout);
+    }
+    req->set_spec(ToProto(spec));
     req->set_force(options.Force);
     if (options.ExpectedVersion) {
         req->set_expected_version(ToProto(*options.ExpectedVersion));
@@ -109,7 +115,9 @@ TGetPipelineDynamicSpecResult TClient::DoGetPipelineDynamicSpec(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetDynamicSpec();
-    req->SetTimeout(options.Timeout);
+    if (options.Timeout) {
+        req->SetTimeout(options.Timeout);
+    }
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {
@@ -125,8 +133,10 @@ TSetPipelineDynamicSpecResult TClient::DoSetPipelineDynamicSpec(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.SetDynamicSpec();
-    req->SetTimeout(options.Timeout);
-    req->set_spec(spec.ToString());
+    if (options.Timeout) {
+        req->SetTimeout(options.Timeout);
+    }
+    req->set_spec(ToProto(spec));
     if (options.ExpectedVersion) {
         req->set_expected_version(ToProto(*options.ExpectedVersion));
     }
@@ -143,7 +153,9 @@ void TClient::DoStartPipeline(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.StartPipeline();
-    req->SetTimeout(options.Timeout);
+    if (options.Timeout) {
+        req->SetTimeout(options.Timeout);
+    }
     WaitFor(req->Invoke())
         .ThrowOnError();
 }
@@ -154,7 +166,9 @@ void TClient::DoStopPipeline(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.StopPipeline();
-    req->SetTimeout(options.Timeout);
+    if (options.Timeout) {
+        req->SetTimeout(options.Timeout);
+    }
     WaitFor(req->Invoke())
         .ThrowOnError();
 }
@@ -165,7 +179,9 @@ void TClient::DoPausePipeline(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.PausePipeline();
-    req->SetTimeout(options.Timeout);
+    if (options.Timeout) {
+        req->SetTimeout(options.Timeout);
+    }
     WaitFor(req->Invoke())
         .ThrowOnError();
 }
@@ -176,7 +192,9 @@ TPipelineState TClient::DoGetPipelineState(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetPipelineState();
-    req->SetTimeout(options.Timeout);
+    if (options.Timeout) {
+        req->SetTimeout(options.Timeout);
+    }
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {
@@ -191,7 +209,9 @@ TGetFlowViewResult TClient::DoGetFlowView(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetFlowView();
-    req->SetTimeout(options.Timeout);
+    if (options.Timeout) {
+        req->SetTimeout(options.Timeout);
+    }
     req->set_path(viewPath);
     req->set_cache(options.Cache);
     auto rsp = WaitFor(req->Invoke())
@@ -209,10 +229,12 @@ TFlowExecuteResult TClient::DoFlowExecute(
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.FlowExecute();
-    req->SetTimeout(options.Timeout);
+    if (options.Timeout) {
+        req->SetTimeout(options.Timeout);
+    }
     req->set_command(command);
     if (argument) {
-        req->set_argument(argument.ToString());
+        req->set_argument(ToProto(argument));
     }
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();

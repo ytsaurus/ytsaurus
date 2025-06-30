@@ -27,16 +27,9 @@
 
 namespace NYT::NSequoiaClient {
 
+using namespace NApi::NNative;
+using namespace NConcurrency;
 using namespace NQueryClient;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSequoiaTablePathDescriptor::operator size_t() const
-{
-    return MultiHash(
-        Table,
-        MasterCellTag);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,6 +41,11 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
                 : public ITableDescriptor \
             { \
             public: \
+                \
+                static const NRecords::T##type::TRecordDescriptor* GetActualRecordDescriptor() \
+                { \
+                    return NRecords::T##type::TRecordDescriptor::Get(); \
+                } \
                 static const T##TableName##TableDescriptor* Get() \
                 { \
                     return LeakySingleton<T##TableName##TableDescriptor>(); \
@@ -59,9 +57,14 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
                     return Result; \
                 } \
                 \
+                bool IsSorted() const override \
+                { \
+                    return GetPrimarySchema()->IsSorted(); \
+                } \
+                \
                 const NTableClient::IRecordDescriptor* GetRecordDescriptor() const override \
                 { \
-                    return NRecords::T##type::TRecordDescriptor::Get(); \
+                    return GetActualRecordDescriptor(); \
                 } \
                 \
                 const NQueryClient::TColumnEvaluatorPtr& GetColumnEvaluator() const override \
@@ -69,11 +72,66 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
                     return ColumnEvaluator_; \
                 } \
                 \
+                const TTableSchemaPtr& GetPrimarySchema() const override \
+                { \
+                    return GetActualRecordDescriptor()->GetPrimaryTableSchema(); \
+                } \
+                \
+                const TTableSchemaPtr& GetWriteSchema() const override \
+                { \
+                    return WriteSchema_; \
+                } \
+                \
+                const TTableSchemaPtr& GetDeleteSchema() const override \
+                { \
+                    return DeleteSchema_; \
+                } \
+                \
+                const TTableSchemaPtr& GetLockSchema() const override \
+                { \
+                    return LockSchema_; \
+                } \
+                \
+                const TNameTableToSchemaIdMapping& GetNameTableToPrimarySchemaIdMapping() const override \
+                { \
+                    return NameTableToPrimarySchemaIdMapping_; \
+                } \
+                \
+                const TNameTableToSchemaIdMapping& GetNameTableToWriteSchemaIdMapping() const override \
+                { \
+                    return NameTableToWriteSchemaIdMapping_; \
+                } \
+                \
+                const TNameTableToSchemaIdMapping& GetNameTableToDeleteSchemaIdMapping() const override \
+                { \
+                    return NameTableToDeleteSchemaIdMapping_; \
+                } \
+                \
+                const TNameTableToSchemaIdMapping& GetNameTableToLockSchemaIdMapping() const override \
+                { \
+                    return NameTableToLockSchemaIdMapping_; \
+                } \
+                \
             private: \
                 const TColumnEvaluatorPtr ColumnEvaluator_ = TColumnEvaluator::Create( \
-                    GetRecordDescriptor()->GetSchema(), \
-                    /*typeInferrers*/ nullptr, \
-                    /*profilers*/ nullptr); \
+                    GetActualRecordDescriptor()->GetPrimaryTableSchema(), \
+                    GetBuiltinTypeInferrers(), \
+                    GetBuiltinFunctionProfilers()); \
+                const TTableSchemaPtr WriteSchema_ = GetActualRecordDescriptor()->GetPrimaryTableSchema()->ToWrite(); \
+                const TTableSchemaPtr DeleteSchema_ = GetActualRecordDescriptor()->GetPrimaryTableSchema()->ToDelete(); \
+                const TTableSchemaPtr LockSchema_ = GetActualRecordDescriptor()->GetPrimaryTableSchema()->ToLock(); \
+                const TNameTableToSchemaIdMapping NameTableToPrimarySchemaIdMapping_ = BuildColumnIdMapping( \
+                    *GetActualRecordDescriptor()->GetPrimaryTableSchema(), \
+                    GetActualRecordDescriptor()->GetNameTable()); \
+                const TNameTableToSchemaIdMapping NameTableToWriteSchemaIdMapping_ = BuildColumnIdMapping( \
+                    *WriteSchema_, \
+                    GetActualRecordDescriptor()->GetNameTable()); \
+                const TNameTableToSchemaIdMapping NameTableToDeleteSchemaIdMapping_ = BuildColumnIdMapping( \
+                    *DeleteSchema_, \
+                    GetActualRecordDescriptor()->GetNameTable()); \
+                const TNameTableToSchemaIdMapping NameTableToLockSchemaIdMapping_ = BuildColumnIdMapping( \
+                    *LockSchema_, \
+                    GetActualRecordDescriptor()->GetNameTable()); \
             }; \
             \
             return T##TableName##TableDescriptor::Get();
@@ -95,8 +153,6 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
         XX(ChildFork, "child_forks", ChildForks)
         XX(SequoiaResponseKeeper, "response_keeper", ResponseKeeper)
         XX(ChunkRefreshQueue, "chunk_refresh_queue", ChunkRefreshQueue)
-        default:
-            YT_ABORT();
     }
 
     #undef XX
@@ -120,3 +176,13 @@ NYPath::TYPath GetSequoiaTablePath(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaClient
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t THash<NYT::NSequoiaClient::TSequoiaTablePathDescriptor>::operator()(
+    const NYT::NSequoiaClient::TSequoiaTablePathDescriptor& descriptor) const
+{
+    return MultiHash(descriptor.Table, descriptor.MasterCellTag);
+}
+
+////////////////////////////////////////////////////////////////////////////////

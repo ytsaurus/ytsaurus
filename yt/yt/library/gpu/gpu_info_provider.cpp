@@ -21,7 +21,8 @@ void FormatValue(TStringBuilderBase* builder, const TGpuInfo& gpuInfo, TStringBu
         "{UpdateTime: %v, Index: %v, Name: %v, UtilizationGpuRate: %v, UtilizationMemoryRate: %v, "
         "MemoryUsed: %v, MemoryTotal: %v, PowerDraw: %v, PowerLimit: %v, ClocksSM: %v, ClocksMaxSM: %v, "
         "SMUtilizationRate: %v, SMOccupancyRate: %v, NvlinkRxByteRate: %v, NvlinkTxByteRate: %v, "
-        "PcieRxByteRate: %v, PcieTxByteRate: %v, TensorActivityRate: %v, DramActivityRate: %v, "
+        "PcieRxByteRate: %v, PcieTxByteRate: %v, TensorActivityRate: %v, DramActivityRate: %v,"
+        "IsSWThermalSlowdown: %v, IsHWThermalSlowdown: %v, IsHWPowerBrakeSlowdown: %v, IsHWSlowdown: %v, "
         "Stuck: {Status: %v, LastTransitionTime: %v}}",
         gpuInfo.UpdateTime,
         gpuInfo.Index,
@@ -42,6 +43,10 @@ void FormatValue(TStringBuilderBase* builder, const TGpuInfo& gpuInfo, TStringBu
         gpuInfo.PcieTxByteRate,
         gpuInfo.TensorActivityRate,
         gpuInfo.DramActivityRate,
+        gpuInfo.IsSWThermalSlowdown,
+        gpuInfo.IsHWThermalSlowdown,
+        gpuInfo.IsHWPowerBrakeSlowdown,
+        gpuInfo.IsHWSlowdown,
         gpuInfo.Stuck.Status,
         gpuInfo.Stuck.LastTransitionTime);
 }
@@ -69,10 +74,27 @@ void Serialize(const TGpuInfo& gpuInfo, NYson::IYsonConsumer* consumer)
             .Item("pcie_tx_byte_rate").Value(gpuInfo.PcieTxByteRate)
             .Item("tensor_activity_rate").Value(gpuInfo.TensorActivityRate)
             .Item("dram_activity_rate").Value(gpuInfo.DramActivityRate)
+            .Item("is_sw_thermal_slowdown").Value(gpuInfo.IsSWThermalSlowdown)
+            .Item("is_hw_thermal_slowdown").Value(gpuInfo.IsHWThermalSlowdown)
+            .Item("is_hw_power_brake_slowdown").Value(gpuInfo.IsHWPowerBrakeSlowdown)
+            .Item("is_hw_slowdown").Value(gpuInfo.IsHWSlowdown)
             .Item("stuck").BeginMap()
                 .Item("status").Value(gpuInfo.Stuck.Status)
                 .Item("last_transition_time").Value(gpuInfo.Stuck.LastTransitionTime)
             .EndMap()
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TRdmaDeviceInfo& rdmaDevice, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("name").Value(rdmaDevice.Name)
+            .Item("device_id").Value(rdmaDevice.DeviceId)
+            .Item("rx_byte_rate").Value(rdmaDevice.RxByteRate)
+            .Item("tx_byte_rate").Value(rdmaDevice.TxByteRate)
         .EndMap();
 }
 

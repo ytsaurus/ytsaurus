@@ -62,6 +62,8 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
+#include <yt/yt/library/numeric/util.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/node.h>
@@ -97,7 +99,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChunkServerLogger;
+constinit const auto Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -231,13 +233,17 @@ void BuildReplicalessChunkSpec(
     if (chunkSpec->row_count_override() >= chunk->GetRowCount()) {
         chunkSpec->set_data_weight_override(dataWeight);
         chunkSpec->set_compressed_data_size_override(chunk->GetCompressedDataSize());
+        chunkSpec->set_uncompressed_data_size_override(chunk->GetUncompressedDataSize());
     } else {
         // NB: If overlayed chunk is nested into another, it has zero row count and non-zero data weight.
         i64 dataWeightPerRow = DivCeil(dataWeight, std::max<i64>(chunk->GetRowCount(), 1));
         chunkSpec->set_data_weight_override(dataWeightPerRow * chunkSpec->row_count_override());
 
         double compressedDataSizePerRow = static_cast<double>(chunk->GetCompressedDataSize()) / std::max<i64>(chunk->GetRowCount(), 1);
-        chunkSpec->set_compressed_data_size_override(compressedDataSizePerRow * chunkSpec->row_count_override());
+        chunkSpec->set_compressed_data_size_override(SignedSaturationConversion(compressedDataSizePerRow * chunkSpec->row_count_override()));
+
+        double uncompressedDataSizePerRow = static_cast<double>(chunk->GetUncompressedDataSize()) / std::max<i64>(chunk->GetUncompressedDataSize(), 1);
+        chunkSpec->set_uncompressed_data_size_override(SignedSaturationConversion(uncompressedDataSizePerRow * chunkSpec->row_count_override()));
     }
 
     if (modifier) {
@@ -312,6 +318,7 @@ void BuildDynamicStoreSpec(
     chunkSpec->set_row_count_override(1);
     chunkSpec->set_data_weight_override(1);
     chunkSpec->set_compressed_data_size_override(1);
+    chunkSpec->set_uncompressed_data_size_override(1);
 
     // NB: Table_row_index is not filled here since:
     // 1) dynamic store reader receives it from the node;
@@ -374,9 +381,9 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
-    TChunkLists ChunkLists_;
+    const TChunkLists ChunkLists_;
     const TCtxFetchPtr RpcContext_;
-    TFetchContext FetchContext_;
+    const TFetchContext FetchContext_;
     const TComparator Comparator_;
     const EChunkListContentType ContentType_;
 
@@ -1201,7 +1208,8 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             securityTags.Validate();
 
             // TODO(babenko): audit
-            YT_LOG_DEBUG("Node security tags updated; node is switched to \"overwrite\" mode (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v",
+            YT_LOG_DEBUG("Node security tags updated; node is switched to \"overwrite\" mode "
+                "(NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v)",
                 node->GetVersionedId(),
                 node->ComputeSecurityTags().Items,
                 securityTags.Items);
@@ -1596,8 +1604,7 @@ void TChunkOwnerNodeProxy::ReplicateBeginUploadRequestToExternalCell(
 
 void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
     TChunkOwnerBase* node,
-    NChunkClient::NProto::TReqEndUpload* request,
-    TChunkOwnerBase::TEndUploadContext& uploadContext) const
+    NChunkClient::NProto::TReqEndUpload* request) const
 {
     auto externalCellTag = node->GetExternalCellTag();
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -1626,17 +1633,6 @@ void TChunkOwnerNodeProxy::ReplicateEndUploadRequestToExternalCell(
         replicationRequest->mutable_security_tags()->CopyFrom(request->security_tags());
     }
 
-    // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
-    // NB: Journals and files have no schema.
-    if (uploadContext.TableSchema) {
-        auto tableSchemaId = uploadContext.TableSchema->GetId();
-        // Schema was exported during EndUpload call, it's safe to send id only.
-        ToProto(replicationRequest->mutable_table_schema_id(), tableSchemaId);
-    }
-    if (request->has_schema_mode()) {
-        replicationRequest->set_schema_mode(request->schema_mode());
-    }
-
     SetTransactionId(replicationRequest, externalizedTransactionId);
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     multicellManager->PostToMaster(replicationRequest, externalCellTag);
@@ -1651,7 +1647,7 @@ TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     const auto& tableManager = Bootstrap_->GetTableManager();
     if (node->IsNative()) {
         if (schema) {
-            return tableManager->GetOrCreateNativeMasterTableSchema(*schema, schemaHolder);
+            return tableManager->GetOrCreateNativeMasterTableSchema(schema, schemaHolder);
         }
 
         if (schemaId) {
@@ -1664,7 +1660,7 @@ TMasterTableSchema* TChunkOwnerNodeProxy::CalculateEffectiveMasterTableSchema(
     YT_VERIFY(schemaId);
 
     if (schema) {
-        return tableManager->CreateImportedTemporaryMasterTableSchema(*schema, schemaHolder, schemaId);
+        return tableManager->CreateImportedTemporaryMasterTableSchema(schema, schemaHolder, schemaId);
     }
 
     return tableManager->GetMasterTableSchema(schemaId);
@@ -1804,17 +1800,19 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
+    const auto& tableManager = Bootstrap_->GetTableManager();
 
     YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (tableSchema || tableSchemaId),
         "Received a schema or schema ID while beginning upload into a non-schemaful node (NodeId: %v, Schema: %v, SchemaId: %v)",
         node->GetId(),
-        tableSchema,
+        tableManager->GetHeavyTableSchemaSync(tableSchema),
         tableSchemaId);
 
     YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (chunkSchema || chunkSchemaId),
-        "Received a chunk schema or chunk schema ID while beginning upload into a non-schemaful node (NodeId: %v, ChunkSchema: %v, ChunkSchemaId: %v)",
+        "Received a chunk schema or chunk schema ID while beginning upload into a non-schemaful node "
+        "(NodeId: %v, ChunkSchema: %v, ChunkSchemaId: %v)",
         node->GetId(),
-        chunkSchema,
+        tableManager->GetHeavyTableSchemaSync(chunkSchema),
         chunkSchemaId);
 
     std::vector<TTransactionRawPtr> prerequisiteTransactions;
@@ -1837,7 +1835,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         ->LockNode(TrunkNode_, uploadTransaction, lockMode, false, true)
         ->As<TChunkOwnerBase>();
 
-    const auto& tableManager = Bootstrap_->GetTableManager();
     if (IsSchemafulType(node->GetType())) {
         tableManager->ValidateTableSchemaCorrespondence(
             node->GetVersionedId(),
@@ -1891,14 +1888,21 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                     case EChunkListKind::SortedDynamicRoot: {
                         auto* newChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicRoot);
                         newChunkList->AddOwningNode(lockedNode);
+                        snapshotChunkList->RemoveOwningNode(lockedNode);
                         lockedNode->SetChunkList(newChunkList);
 
-                        for (int index = 0; index < std::ssize(snapshotChunkList->Children()); ++index) {
-                            auto* appendChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
-                            chunkManager->AttachToChunkList(newChunkList, {appendChunkList});
-                        }
+                        for (int tabletIndex = 0; tabletIndex < ssize(snapshotChunkList->Children()); ++tabletIndex) {
+                            auto* newTabletChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicTablet);
+                            auto* deltaChunkList = chunkManager->CreateChunkList(EChunkListKind::SortedDynamicSubtablet);
 
-                        snapshotChunkList->RemoveOwningNode(lockedNode);
+                            chunkManager->AttachToChunkList(
+                                newTabletChunkList,
+                                {snapshotChunkList->Children()[tabletIndex], deltaChunkList});
+
+                            chunkManager->AttachToChunkList(newChunkList, {newTabletChunkList});
+
+                            newTabletChunkList->SetPivotKey(snapshotChunkList->Children()[tabletIndex]->AsChunkList()->GetPivotKey());
+                        }
 
                         context->SetIncrementalResponseInfo("NewChunkListId: %v, SnapshotChunkListId: %v",
                             newChunkList->GetId(),
@@ -1924,7 +1928,9 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                         auto processChunkList = [&] (EChunkListContentType contentType, EChunkListKind appendChunkListKind) {
                             auto* oldChunkList = lockedNode->GetChunkList(contentType);
                             if (!oldChunkList) {
-                                YT_VERIFY(contentType == EChunkListContentType::Hunk && oldMainChunkList->GetKind() == EChunkListKind::Static);
+                                YT_VERIFY(
+                                    contentType == EChunkListContentType::Hunk &&
+                                    oldMainChunkList->GetKind() == EChunkListKind::Static);
                                 return;
                             }
 
@@ -1933,9 +1939,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
                             lockedNode->SetChunkList(contentType, newChunkList);
 
                             if (oldMainChunkList->GetKind() == EChunkListKind::SortedDynamicRoot) {
-                                for (int index = 0; index < std::ssize(oldMainChunkList->Children()); ++index) {
-                                    auto* appendChunkList = chunkManager->CreateChunkList(appendChunkListKind);
-                                    chunkManager->AttachToChunkList(newChunkList, {appendChunkList});
+                                for (int tabletIndex = 0; tabletIndex < ssize(oldMainChunkList->Children()); ++tabletIndex) {
+                                    auto* newTabletChunkList = chunkManager->CreateChunkList(appendChunkListKind);
+                                    newTabletChunkList->SetPivotKey(oldMainChunkList->Children()[tabletIndex]->AsChunkList()->GetPivotKey());
+
+                                    chunkManager->AttachToChunkList(newChunkList, {newTabletChunkList});
                                 }
                             }
 
@@ -2050,23 +2058,36 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
         }
 
         case EChunkListKind::SortedDynamicRoot: {
+            auto updateMode = node->GetUpdateMode();
+
             auto* trunkChunkList = node->GetTrunkNode()->As<TChunkOwnerBase>()->GetChunkList();
 
-            for (auto tabletList : trunkChunkList->Children()) {
-                ToProto(response->add_pivot_keys(), tabletList->AsChunkList()->GetPivotKey());
-            }
+            // COMPAT(dave11ar): Remove when all branched append chunk lists will be in new format.
+            bool isOldAppendChunkList = updateMode == EUpdateMode::Append && !chunkList->IsNewAppendTabletChunkList();
 
-            for (auto tabletList : chunkList->Children()) {
-                auto chunkListKind = tabletList->AsChunkList()->GetKind();
-                if (chunkListKind != EChunkListKind::SortedDynamicSubtablet &&
-                    chunkListKind != EChunkListKind::SortedDynamicTablet)
+            for (int tabletIndex = 0; tabletIndex < ssize(trunkChunkList->Children()); ++tabletIndex) {
+                auto* tabletChunkList = chunkList->Children()[tabletIndex]->AsChunkList();
+
+                auto chunkListKind = tabletChunkList->GetKind();
+                if (chunkListKind != EChunkListKind::SortedDynamicTablet &&
+                    (!isOldAppendChunkList || chunkListKind != EChunkListKind::SortedDynamicSubtablet))
                 {
                     THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv",
-                        tabletList->GetId(),
+                        tabletChunkList->GetId(),
                         chunkListKind);
                 }
-                ToProto(response->add_tablet_chunk_list_ids(), tabletList->GetId());
+
+                // COMPAT(dave11ar): Remove when all branched append chunk lists will be in new format.
+                if (updateMode == EUpdateMode::Overwrite || !tabletChunkList->IsNewAppendTabletChunkList()) {
+                    ToProto(response->add_tablet_chunk_list_ids(), tabletChunkList->GetId());
+                } else {
+                    auto appendTabletChunkLists = tabletChunkList->GetAppendTabletChunkLists();
+                    ToProto(response->add_tablet_chunk_list_ids(), appendTabletChunkLists.DeltaChunkList->GetId());
+                }
+
+                ToProto(response->add_pivot_keys(), tabletChunkList->GetPivotKey());
             }
+
             break;
         }
 
@@ -2103,22 +2124,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
 {
     DeclareMutating();
 
-    TChunkOwnerBase::TEndUploadContext uploadContext(Bootstrap_);
-
-    // COMPAT(h0pless): remove this when clients will send table schema options during begin upload.
-    auto tableSchema = request->has_table_schema()
-        ? New<TCompactTableSchema>(request->table_schema())
-        : nullptr;
-
-    auto offloadedSchemaDestruction = Finally([&] {
-        if (tableSchema) {
-            NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
-                BIND([tableSchema = std::move(tableSchema)] { }));
-        }
-    });
-
-    auto tableSchemaId = FromProto<TMasterTableSchemaId>(request->table_schema_id());
-    uploadContext.SchemaMode = FromProto<ETableSchemaMode>(request->schema_mode());
+    TChunkOwnerBase::TEndUploadContext uploadContext;
 
     if (request->has_statistics()) {
         uploadContext.Statistics = FromProto<TChunkOwnerDataStatistics>(request->statistics());
@@ -2156,14 +2162,14 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         uploadContext.ErasureCodec = FromProto<NErasure::ECodec>(request->erasure_codec());
     }
 
-    context->SetRequestInfo("Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, ChunkFormat: %v, MD5Hasher: %v, OptimizeFor: %v, IsTableSchemaPresent: %v",
+    context->SetRequestInfo("Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, ChunkFormat: %v, "
+        "MD5Hasher: %v, OptimizeFor: %v",
         uploadContext.Statistics,
         uploadContext.CompressionCodec,
         uploadContext.ErasureCodec,
         uploadContext.ChunkFormat,
         uploadContext.MD5Hasher.has_value(),
-        uploadContext.OptimizeFor,
-        tableSchema || tableSchemaId);
+        uploadContext.OptimizeFor);
 
     ValidateTransaction();
     ValidateInUpdate();
@@ -2175,34 +2181,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->GetTransaction() == Transaction_);
 
-    YT_LOG_ALERT_IF(!IsSchemafulType(node->GetType()) && (tableSchema || tableSchemaId),
-        "Received a schema or schema ID while ending upload into a non-schemaful node (NodeId: %v, Schema: %v, SchemaId: %v)",
-        node->GetId(),
-        tableSchema,
-        tableSchemaId);
-
-    const auto& tableManager = Bootstrap_->GetTableManager();
-    if (IsTableType(node->GetType())) {
-        tableManager->ValidateTableSchemaCorrespondence(
-            node->GetVersionedId(),
-            tableSchema,
-            tableSchemaId);
-
-        if (tableSchema || tableSchemaId) {
-            // Either a new client that sends schema info with BeginUpload,
-            // or an old client that aims for an empty schema.
-            // If the first case, we should leave the table schema intact.
-            // In the second case, BeginUpload would've already set table schema
-            // to empty, and we may as well leave it intact.
-            // COMPAT(shakurov): remove the above comment once all clients are "new".
-            uploadContext.TableSchema = CalculateEffectiveMasterTableSchema(node, tableSchema, tableSchemaId, Transaction_);
-        }
-    }
-
     node->EndUpload(uploadContext);
 
     if (node->IsExternal()) {
-        ReplicateEndUploadRequestToExternalCell(node, request, uploadContext);
+        ReplicateEndUploadRequestToExternalCell(node, request);
     }
 
     SetModified(EModificationType::Content);

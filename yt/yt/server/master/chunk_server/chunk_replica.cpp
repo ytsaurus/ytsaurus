@@ -9,6 +9,7 @@ namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
 using namespace NCellMaster;
+using namespace NNodeTrackerClient;
 
 using NYT::FromProto;
 
@@ -124,16 +125,6 @@ TChunkIdWithIndexes ToChunkIdWithIndexes(TChunkPtrWithReplicaAndMediumIndex chun
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TSequoiaChunkReplica::operator==(const TSequoiaChunkReplica& other) const
-{
-    return std::tie(ChunkId, ReplicaIndex, NodeId, LocationUuid) == std::tie(other.ChunkId, other.ReplicaIndex, other.NodeId, other.LocationUuid);
-}
-
-bool TSequoiaChunkReplica::operator<(const TSequoiaChunkReplica& other) const
-{
-    return std::tie(ChunkId, ReplicaIndex, NodeId, LocationUuid) < std::tie(other.ChunkId, other.ReplicaIndex, other.NodeId, other.LocationUuid);
-}
-
 void TSequoiaChunkReplica::Persist(const NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -141,15 +132,15 @@ void TSequoiaChunkReplica::Persist(const NCellMaster::TPersistenceContext& conte
     Persist(context, ChunkId);
     Persist(context, ReplicaIndex);
     Persist(context, NodeId);
-    Persist(context, LocationUuid);
+    Persist(context, LocationIndex);
 }
 
 void FromProto(TSequoiaChunkReplica* replica, const NProto::TSequoiaReplicaInfo& protoReplica)
 {
     replica->NodeId = FromProto<TNodeId>(protoReplica.node_id());
     replica->ReplicaIndex = protoReplica.replica_index();
-    replica->LocationUuid = FromProto<TChunkLocationUuid>(protoReplica.location_uuid());
     replica->ChunkId = FromProto<TChunkId>(protoReplica.chunk_id());
+    replica->LocationIndex = FromProto<TChunkLocationIndex>(protoReplica.location_index());
 }
 
 void ToProto(NProto::TSequoiaReplicaInfo* protoReplica, const TSequoiaChunkReplica& replica)
@@ -157,7 +148,7 @@ void ToProto(NProto::TSequoiaReplicaInfo* protoReplica, const TSequoiaChunkRepli
     protoReplica->set_node_id(ToProto(replica.NodeId));
     protoReplica->set_replica_index(replica.ReplicaIndex);
     ToProto(protoReplica->mutable_chunk_id(), replica.ChunkId);
-    ToProto(protoReplica->mutable_location_uuid(), replica.LocationUuid);
+    protoReplica->set_location_index(ToProto(replica.LocationIndex));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

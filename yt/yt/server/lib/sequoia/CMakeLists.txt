@@ -55,6 +55,7 @@ target_sources(server-lib-sequoia PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/sequoia/cypress_transaction.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/sequoia/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/sequoia/protobuf_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/sequoia/response_keeper.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/sequoia/proto/cypress_proxy_tracker.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/lib/sequoia/proto/transaction_manager.pb.h
 )

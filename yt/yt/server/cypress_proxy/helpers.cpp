@@ -1,7 +1,6 @@
 #include "helpers.h"
 
 #include "path_resolver.h"
-#include "sequoia_service.h"
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -39,9 +38,6 @@ using namespace NSequoiaClient;
 using namespace NYPath;
 using namespace NYTree;
 
-using TYPath = NSequoiaClient::TYPath;
-using TYPathBuf = NSequoiaClient::TYPathBuf;
-
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,25 +73,23 @@ void SetAccessTrackingOptions(
 
 namespace {
 
-TYPathBuf SkipAmpersand(TYPathBuf pathSuffix)
-{
-    TTokenizer tokenizer(pathSuffix.Underlying());
-    tokenizer.Advance();
-    tokenizer.Skip(ETokenType::Ampersand);
-    return TYPathBuf(tokenizer.GetInput());
-}
-
-TAbsoluteYPath GetCanonicalYPath(const TResolveResult& resolveResult)
+TAbsolutePath GetTargetPathOrThrow(const TResolveResult& resolveResult)
 {
     return Visit(resolveResult,
-        [] (const TCypressResolveResult& resolveResult) -> TAbsoluteYPath {
+        [] (const TCypressResolveResult& resolveResult) -> TAbsolutePath {
             // NB: Cypress resolve result doesn't contain unresolved links.
-            return TAbsoluteYPath(resolveResult.Path);
+            return TAbsolutePath::MakeCanonicalPathOrThrow(resolveResult.Path);
         },
-        [] (const TSequoiaResolveResult& resolveResult) -> TAbsoluteYPath {
+        [] (const TMasterResolveResult& /*resolveResult*/) -> TAbsolutePath {
+            // NB: Master resolve result is uncurated, it's unwise to attempt to parse it.
+            Y_UNREACHABLE();
+        },
+        [] (const TSequoiaResolveResult& resolveResult) -> TAbsolutePath {
             // We don't want to distinguish "//tmp/a&/my-link" from
             // "//tmp/a/my-link".
-            return resolveResult.Path + SkipAmpersand(resolveResult.UnresolvedSuffix);
+            return PathJoin(
+                resolveResult.Path,
+                TRelativePath::MakeCanonicalPathOrThrow(resolveResult.UnresolvedSuffix));
         });
 }
 
@@ -103,7 +97,7 @@ TAbsoluteYPath GetCanonicalYPath(const TResolveResult& resolveResult)
 
 void ValidateLinkNodeCreation(
     const TSequoiaSessionPtr& session,
-    TRawYPath targetPath,
+    const TYPath& targetPath,
     const TResolveResult& resolveResult)
 {
     // TODO(danilalexeev): In case of a master-object root designator the
@@ -111,14 +105,20 @@ void ValidateLinkNodeCreation(
     // be resolved by master first.
     // TODO(kvk1920): probably works (since links are stored in both resolve
     // tables now), but has to be tested.
-    auto linkPath = GetCanonicalYPath(resolveResult);
+    auto linkPath = GetTargetPathOrThrow(resolveResult);
 
     auto checkAcyclicity = [&] (
-        TRawYPath pathToResolve,
-        const TAbsoluteYPath& forbiddenPrefix)
+        TYPath pathToResolve,
+        const TAbsolutePath& forbiddenPrefix)
     {
         std::vector<TSequoiaResolveIterationResult> history;
-        auto resolveResult = ResolvePath(session, std::move(pathToResolve), /*method*/ {}, &history);
+        auto resolveResult = ResolvePath(
+            session,
+            std::move(pathToResolve),
+            /*pathIsAdditional*/ false,
+            /*service*/ {},
+            /*method*/ {},
+            &history);
 
         for (const auto& [id, path] : history) {
             if (IsLinkType(TypeFromId(id)) && path == forbiddenPrefix) {
@@ -126,12 +126,12 @@ void ValidateLinkNodeCreation(
             }
         }
 
-        return GetCanonicalYPath(resolveResult) != forbiddenPrefix;
+        return GetTargetPathOrThrow(resolveResult) != forbiddenPrefix;
     };
 
     if (!checkAcyclicity(targetPath, linkPath)) {
         THROW_ERROR_EXCEPTION("Failed to create link: link is cyclic")
-            << TErrorAttribute("target_path", targetPath.Underlying())
+            << TErrorAttribute("target_path", targetPath)
             << TErrorAttribute("path", linkPath);
     }
 }
@@ -153,7 +153,7 @@ std::vector<TTransactionId> ParsePrerequisiteTransactionIds(const NRpc::NProto::
     return prerequisiteTransactionIds;
 }
 
-void ValidatePrerequisites(
+void ValidatePrerequisiteTransactions(
     const ISequoiaClientPtr& sequoiaClient,
     const std::vector<TTransactionId>& prerequisiteTransactionIds)
 {
@@ -171,10 +171,10 @@ void ValidatePrerequisites(
         transactionKeys.push_back({.TransactionId = transactionId});
     }
 
-    auto resultOrError = WaitFor(sequoiaClient->LookupRows(transactionKeys));
-    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Failed to check prerequisite transactions")
+    auto transactionRowsOrError = WaitFor(sequoiaClient->LookupRows(transactionKeys));
+    THROW_ERROR_EXCEPTION_IF_FAILED(transactionRowsOrError, "Failed to check prerequisite transactions")
 
-    auto transactionRows = resultOrError.Value();
+    auto transactionRows = transactionRowsOrError.Value();
     for (const auto& [key, row] : Zip(transactionKeys, transactionRows)) {
         if (!row.has_value()) {
             THROW_ERROR_EXCEPTION(
@@ -187,13 +187,45 @@ void ValidatePrerequisites(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::pair<TRootDesignator, TYPathBuf> GetRootDesignator(TYPathBuf path)
+{
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    switch (tokenizer.GetType()) {
+        case NYPath::ETokenType::Slash:
+            return {TSlashRootDesignatorTag{}, TYPathBuf(tokenizer.GetSuffix())};
+        case NYPath::ETokenType::Literal: {
+            auto token = tokenizer.GetToken();
+            if (!token.StartsWith(NObjectClient::ObjectIdPathPrefix)) {
+                tokenizer.ThrowUnexpected();
+            }
+
+            TStringBuf objectIdString(token.begin() + 1, token.end());
+            NCypressClient::TObjectId objectId;
+            if (!NCypressClient::TObjectId::FromString(objectIdString, &objectId)) {
+                THROW_ERROR_EXCEPTION(
+                    NYTree::EErrorCode::ResolveError,
+                    "Error parsing object id %Qv in path %v",
+                    objectIdString,
+                    path);
+            }
+            return {objectId, TYPathBuf(tokenizer.GetSuffix())};
+        }
+        default:
+            tokenizer.ThrowUnexpected();
+    }
+    Y_UNREACHABLE();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<std::string> TokenizeUnresolvedSuffix(TYPathBuf unresolvedSuffix)
 {
     constexpr auto TypicalPathTokenCount = 3;
     std::vector<std::string> pathTokens;
     pathTokens.reserve(TypicalPathTokenCount);
 
-    TTokenizer tokenizer(unresolvedSuffix.Underlying());
+    TTokenizer tokenizer(unresolvedSuffix);
     tokenizer.Advance();
 
     while (tokenizer.GetType() != ETokenType::EndOfStream) {
@@ -207,6 +239,17 @@ std::vector<std::string> TokenizeUnresolvedSuffix(TYPathBuf unresolvedSuffix)
     return pathTokens;
 }
 
+TAbsolutePath JoinNestedNodesToPath(
+    const TAbsolutePath& parentPath,
+    const std::vector<std::string>& childKeys)
+{
+    auto result = parentPath;
+    for (const auto& key : childKeys) {
+        result.Append(key);
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsSupportedSequoiaType(EObjectType type)
@@ -214,7 +257,9 @@ bool IsSupportedSequoiaType(EObjectType type)
     return IsSequoiaCompositeNodeType(type) ||
         IsScalarType(type) ||
         IsChunkOwnerType(type) ||
-        type == EObjectType::SequoiaLink;
+        type == EObjectType::SequoiaLink ||
+        type == EObjectType::Document ||
+        type == EObjectType::Orchid;
 }
 
 bool IsSequoiaCompositeNodeType(EObjectType type)
@@ -231,7 +276,7 @@ void ValidateSupportedSequoiaType(EObjectType type)
     }
 }
 
-void ThrowAlreadyExists(const TAbsoluteYPath& path)
+void ThrowAlreadyExists(const TAbsolutePath& path)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::AlreadyExists,
@@ -239,7 +284,17 @@ void ThrowAlreadyExists(const TAbsoluteYPath& path)
         path);
 }
 
-void ThrowNoSuchChild(const TAbsoluteYPath& existingPath, TStringBuf missingPath)
+void ThrowCannotHaveChildren(const TAbsolutePath& path)
+{
+    THROW_ERROR_EXCEPTION("%v cannot have children", path);
+}
+
+void ThrowCannotReplaceNode(const TAbsolutePath& path)
+{
+    THROW_ERROR_EXCEPTION("%v cannot be replaced", path);
+}
+
+void ThrowNoSuchChild(const TAbsolutePath& existingPath, TStringBuf missingPath)
 {
     THROW_ERROR_EXCEPTION(
         NYTree::EErrorCode::ResolveError,

@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/config.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 

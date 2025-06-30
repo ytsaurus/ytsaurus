@@ -270,6 +270,30 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         ECallingConvention::UnversionedValue);
 
     builder->RegisterAggregate(
+        "cardinality_state",
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        {TUnionType{
+            EValueType::String,
+            EValueType::Uint64,
+            EValueType::Int64,
+            EValueType::Double,
+            EValueType::Boolean,
+        }},
+        EValueType::String,
+        EValueType::String,
+        "hyperloglog",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterAggregate(
+        "cardinality_merge",
+        std::unordered_map<TTypeParameter, TUnionType>(),
+        {EValueType::String},
+        EValueType::Uint64,
+        EValueType::String,
+        "hyperloglog",
+        ECallingConvention::UnversionedValue);
+
+    builder->RegisterAggregate(
         "array_agg",
         {},
         {
@@ -315,11 +339,13 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "timestamp_floor_day",
         "timestamp_floor_week",
         "timestamp_floor_month",
+        "timestamp_floor_quarter",
         "timestamp_floor_year",
         "timestamp_floor_hour_localtime",
         "timestamp_floor_day_localtime",
         "timestamp_floor_week_localtime",
         "timestamp_floor_month_localtime",
+        "timestamp_floor_quarter_localtime",
         "timestamp_floor_year_localtime",
     }) {
         builder->RegisterFunction(
@@ -330,6 +356,37 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
             ECallingConvention::Simple);
     }
 
+    for (const auto& name : std::vector<std::string>{
+        "timestamp_floor_hour_tz",
+        "timestamp_floor_day_tz",
+        "timestamp_floor_week_tz",
+        "timestamp_floor_month_tz",
+        "timestamp_floor_quarter_tz",
+        "timestamp_floor_year_tz",
+    }) {
+        builder->RegisterFunction(
+            name,
+            name,
+            {},
+            std::vector<TType>{EValueType::Int64, EValueType::String},
+            EValueType::Null,
+            EValueType::Int64,
+            "dates",
+            ECallingConvention::Simple,
+            /*useFunctionContext*/ true);
+    }
+
+    builder->RegisterFunction(
+        "format_timestamp_tz",
+        "format_timestamp_tz",
+        {},
+        std::vector<TType>{EValueType::Int64, EValueType::String, EValueType::String},
+        EValueType::Null,
+        EValueType::String,
+        "dates",
+        ECallingConvention::Simple,
+        /*useFunctionContext*/ true);
+
     builder->RegisterFunction(
         "format_guid",
         std::vector<TType>{EValueType::Uint64, EValueType::Uint64},
@@ -337,7 +394,7 @@ void RegisterBuiltinFunctions(IFunctionRegistryBuilder* builder)
         "format_guid",
         ECallingConvention::Simple);
 
-    std::vector<std::pair<TString, EValueType>> ypathGetFunctions = {
+    std::vector<std::pair<std::string, EValueType>> ypathGetFunctions = {
         {"try_get_int64", EValueType::Int64},
         {"get_int64", EValueType::Int64},
         {"try_get_uint64", EValueType::Uint64},

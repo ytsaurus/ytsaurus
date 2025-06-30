@@ -136,6 +136,7 @@ TClickHouseJobSizeSpec CreateClickHouseJobSizeSpec(
         jobCount,
         dataWeightPerJob,
         /*primaryDataWeightPerJob*/ 1_EB,
+        /*compressedDataSizePerJob*/ 1_EB,
         /*maxDataSlicesPerJob*/ 1'000'000'000'000ll,
         /*maxDataWeightPerJob*/ 1_EB,
         /*maxPrimaryDataWeightPerJob*/ 1_EB,

@@ -811,6 +811,26 @@ func (r ListJobsRequest) Path() (string, bool) {
 	return "", false
 }
 
+type GetJobRequest struct {
+	*rpc_proxy.TReqGetJob
+}
+
+func NewGetJobRequest(r *rpc_proxy.TReqGetJob) *GetJobRequest {
+	return &GetJobRequest{TReqGetJob: r}
+}
+
+func (r GetJobRequest) Log() []log.Field {
+	return []log.Field{
+		log.Any("opID", r.GetOperationId()),
+		log.String("alias", r.GetOperationAlias()),
+		log.Any("jobID", r.GetJobId()),
+	}
+}
+
+func (r GetJobRequest) Path() (string, bool) {
+	return "", false
+}
+
 type GetJobStderrRequest struct {
 	*rpc_proxy.TReqGetJobStderr
 }
@@ -1360,6 +1380,18 @@ func (r CreateQueueProducerSessionRequest) Log() []log.Field {
 		log.String("queue_path", string(r.GetQueuePath())),
 		log.String("session_id", r.GetSessionId()),
 	}
+}
+
+func (r CreateQueueProducerSessionRequest) HasMutatingOptions() bool {
+	return r.MutatingOptions != nil
+}
+
+func (r CreateQueueProducerSessionRequest) SetMutatingOptions(opts *yt.MutatingOptions) {
+	r.MutatingOptions = convertMutatingOptions(opts)
+}
+
+func (r *CreateQueueProducerSessionRequest) SetRetry(retry bool) {
+	*r.MutatingOptions.Retry = retry
 }
 
 func (r CreateQueueProducerSessionRequest) Path() (string, bool) {

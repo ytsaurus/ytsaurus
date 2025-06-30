@@ -1,7 +1,7 @@
 LIBRARY()
 
 SRCS(
-    schema_gateway.cpp
+    schema.cpp
 )
 
 PEERDIR(
@@ -11,5 +11,5 @@ PEERDIR(
 END()
 
 RECURSE(
-    static
+    simple
 )

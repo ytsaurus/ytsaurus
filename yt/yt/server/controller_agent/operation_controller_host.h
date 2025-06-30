@@ -147,9 +147,8 @@ public:
     const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() override;
     const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
     const NServer::TJobReporterPtr& GetJobReporter() override;
+    const NServer::TOperationEventReporterPtr& GetOperationEventReporter() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
-
-    TJobProfiler* GetJobProfiler() const override;
 
     int GetAvailableExecNodeCount() override;
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const NScheduler::TSchedulingTagFilter& filter, bool onlineOnly = false) override;

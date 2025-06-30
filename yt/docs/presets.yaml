@@ -3,7 +3,7 @@ default:
     yt-server-version: 24.1.0
     k8s-operator-version: 0.20.0
     chyt-version: 2.14.0
-    spyt-version: 2.6.0
+    spyt-version: 2.6.5
     strawberry-version: 0.0.12
     qt-version: 0.0.8
     yt-stable-branch: 24.1
@@ -15,9 +15,13 @@ default:
 public:
   example_cluster: 'cluster_name'
   yql:
+    udf-cpp-dir: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs
+    udf-ivaluebuilder-example-link: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs/examples/structs
+    udf-ivaluebuilder-example: yql/essentials/udfs/examples/structs
     pages:
       syntax:
         pragma:
           package: '"project.package", "/path/to/package"'
           package-var: '"project.package", "{$_path}/to/package"'
           error-code-list: https://github.com/ytsaurus/ytsaurus/blob/main/yql/essentials/core/issue/protos/issue_id.proto
+

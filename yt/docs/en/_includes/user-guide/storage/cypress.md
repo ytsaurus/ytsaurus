@@ -57,7 +57,7 @@ In addition to attributes common to all objects, Cypress nodes have additional a
 | `account` | `string` | Account used to keep track of the resources being used by a specific node |
 | `annotation` | `string` | Human-readable [summary description](../../../user-guide/storage/annotations.md) of an object |
 
-Each node has its own attribute responsible for access control. Therefore, its attributes include `inherit_acl`, `acl`, and `owner`. For more information, see [Access control system](../../../user-guide/storage/access-control.md).
+Each node has its own attributes responsible for access control. Therefore, its attributes include `inherit_acl`, `acl`, and `owner`. For more information, see [Access control system](../../../user-guide/storage/access-control.md).
 
 ### Time attributes { #time_attributes }
 
@@ -70,6 +70,12 @@ The `access_time` attribute stores the most recent node access time. Attribute a
 {% note warning "Attention" %}
 
 In rare cases, an attribute may have been accessed without an `access_time` update because of a master server fault.
+
+{% endnote %}
+
+{% note warning "Attention" %}
+
+The `modification_time` and `access_time` attributes for dynamic tables currently do not carry any useful information. Their updates (or lack thereof) are independent of user-initiated read and write operations. This behavior may change in the future.
 
 {% endnote %}
 
@@ -87,13 +93,13 @@ Cypress can delete nodes automatically at a specified moment in time or if nodes
 - to set `expiration_time` to a moment in time when the node is to be deleted. If it is a composite node, this will also delete its entire subtree.
 - to set `expiration_timeout` to a time interval during which there have to be no attempts to access the node (and its entire subtree if it is a composite node) for it to be deleted.
 
-The moment in time has to be either an isoformat string or an integer denoting the number of milliseconds since the epoch. These two methods are equivalent:
-
 {% note warning "Attention" %}
 
 You cannot restore data deleted using this mechanism. Use it with caution.
 
 {% endnote %}
+
+The moment in time has to be either an isoformat string or an integer denoting the number of milliseconds since the epoch. These two methods are equivalent:
 
 ```bash
 yt set //home/project/path/table/@expiration_time '"2020-05-16 15:12:34.591+03:00"'
@@ -108,7 +114,7 @@ yt set //home/project/path/table/@expiration_timeout 604800000
 
 {% note warning "Attention" %}
 
-Setting `expiration_timeout` for directories requires extreme caution. The lifetime of a directory is only prolonged by directly accessing it but not its subtree. For instance, reading a table that resides in a directory with an `expiration_timeout` *does not prolong* the lifetime of said directory.
+Exercise extreme caution when setting `expiration_timeout` for directories. A directory's time to live is extended only by direct access to that directory, not to any of its subtrees. For example, reading a table inside a directory with a set `expiration_timeout` *does not extend* this directory's TTL.
 
 {% endnote %}
 
@@ -118,7 +124,7 @@ To be able to set these attributes for a node, you need to have the [right](../.
 
 The system provides no guarantee that the delete will occur exactly at the time requested. In real life, the delete occurs within single seconds of the specified moment in time.
 
-A node is not automatically deleted if at the specified moment in time it is subject to locks other than `snapshot`. The system will delete the node when all locks are released. You can use this property to extend a node's time-to-live artificially.
+A node is not automatically deleted if at the specified moment in time it is subject to locks other than `snapshot`. The system will delete the node when all locks are released. You can use this property to artificially extend a node's time to live.
 
 When you copy and move a node, `expiration_time` and `expiration_timeout` are reset by default, so the copy will not automatically delete. Commands include the `preserve-expiration-time` and the `preserve-expiration-timeout` options that enable you to change their behavior.
 
@@ -139,3 +145,4 @@ $ yt get //home/project/path/table/@effective_expiration
 ```
 
 If the path from the root to the node doesn't contain `expiration_time` or another relevant attribute, a YSON entity is written to the `“time”` field instead.
+

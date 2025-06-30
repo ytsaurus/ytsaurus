@@ -90,8 +90,8 @@ void AlertAndThrowOnInvalidLocationIndex(
 
     auto chunkId = FromProto<TChunkId>(chunkInfo.chunk_id());
 
-    if (chunkInfo.location_index() >= locationDirectorySize) {
-        static constexpr auto& Logger = ChunkServerLogger;
+    if (chunkInfo.location_directory_index() < 0 || chunkInfo.location_directory_index() >= locationDirectorySize) {
+        const auto& Logger = ChunkServerLogger();
         YT_LOG_ALERT(
             "Data node reported %v heartbeat with invalid location index "
             "(%vChunkId: %v, NodeAddress: %v, LocationIndex: %v)",
@@ -99,7 +99,7 @@ void AlertAndThrowOnInvalidLocationIndex(
             FullHeartbeat ? "" : (isRemoval ? "Removed" : "Added"),
             chunkId,
             node->GetDefaultAddress(),
-            chunkInfo.location_index());
+            chunkInfo.location_directory_index());
 
         THROW_ERROR_EXCEPTION("%v heartbeat contains an incorrect location index",
             FullHeartbeat ? "Full" : "Incremental");

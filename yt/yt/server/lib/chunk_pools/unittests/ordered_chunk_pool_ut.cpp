@@ -8,12 +8,11 @@
 
 #include <yt/yt/server/lib/chunk_pools/unittests/chunk_pools_helpers.h>
 
+#include <yt/yt/server/lib/chunk_pools/config.h>
 #include <yt/yt/server/lib/chunk_pools/ordered_chunk_pool.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-
-#include <yt/yt/ytlib/chunk_pools/output_order.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -60,29 +59,34 @@ protected:
         Options_.ShouldSliceByRowIndices = true;
         Options_.Logger = GetTestLogger();
         DataWeightPerJob_ = Inf64;
+        SamplingDataWeightPerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataWeight_ = Inf64;
         InputSliceRowCount_ = Inf64;
+        MaxDataWeightPerJob_ = Inf64;
         MaxCompressedDataSizePerJob_ = Inf64;
+        CanAdjustDataSizePerJob_ = false;
     }
 
     void InitJobConstraints()
     {
         Options_.JobSizeConstraints = CreateExplicitJobSizeConstraints(
-            /*canAdjustDataSizePerJob*/ false,
+            CanAdjustDataSizePerJob_,
             /*isExplicitJobCount*/ static_cast<bool>(ExplicitJobCount_),
             /*jobCount*/ ExplicitJobCount_.value_or(0),
             DataWeightPerJob_,
-            Inf64,
+            /*primaryDataWeightPerJob*/ Inf64,
+            /*compressedDataSizePerJob*/ MaxCompressedDataSizePerJob_,
             MaxDataSlicesPerJob_,
-            /*maxDataSizePerJob_*/ 0,
+            /*maxDataWeightPerJob_*/ MaxDataWeightPerJob_,
             /*maxPrimaryDataWeightPerJob*/ 0,
             /*maxCompressedDataSizePerJob*/ MaxCompressedDataSizePerJob_,
             InputSliceDataWeight_,
             InputSliceRowCount_,
             BatchRowCount_,
             /*foreignSliceDataWeight*/ 0,
-            SamplingRate_);
+            SamplingRate_,
+            SamplingDataWeightPerJob_);
     }
 
     TInputChunkPtr CreateChunk(
@@ -125,8 +129,8 @@ protected:
             Options_,
             useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
         ChunkPool_->SubscribeChunkTeleported(
-            BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/ ) {
-                TeleportChunks_.push_back(std::move(teleportChunk));
+            BIND([this] (TInputChunkPtr teleportChunk, std::any tag) {
+                TeleportChunks_.emplace(std::any_cast<TOutputCookie>(tag), std::move(teleportChunk));
             }));
     }
 
@@ -145,7 +149,8 @@ protected:
 
         auto dataSlice = BuildDataSliceByChunk(chunk);
         ActiveChunks_.insert(chunk->GetChunkId());
-        OriginalChunks_.at(chunk->GetTableIndex()).push_back(chunk->GetChunkId());
+        YT_VERIFY(chunk->GetTableIndex() < std::ssize(OriginalChunks_) );
+        OriginalChunks_[chunk->GetTableIndex()].push_back(chunk->GetChunkId());
         return ChunkPool_->Add(New<TChunkStripe>(dataSlice));
     }
 
@@ -191,8 +196,8 @@ protected:
         TLoadContext loadContext(&input, RowBuffer_, GetCurrentSnapshotVersion());
         Load(loadContext, ChunkPool_);
         ChunkPool_->SubscribeChunkTeleported(
-            BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
-                TeleportChunks_.push_back(std::move(teleportChunk));
+            BIND([this] (TInputChunkPtr teleportChunk, std::any tag) {
+                TeleportChunks_.emplace(std::any_cast<TOutputCookie>(tag), std::move(teleportChunk));
             }));
     }
 
@@ -207,14 +212,13 @@ protected:
 
     std::vector<TChunkStripeListPtr> GetAllStripeListsByOutputOrder()
     {
-        auto outputOrder = ChunkPool_->GetOutputOrder();
-        YT_VERIFY(outputOrder);
+        auto outputCookiesInOrder = ChunkPool_->GetOutputCookiesInOrder();
         std::vector<TChunkStripeListPtr> stripeLists;
-        for (const auto& entry : outputOrder->ToEntryVector()) {
-            if (entry.IsTeleportChunk()) {
+        for (const auto& cookie : outputCookiesInOrder) {
+            if (TeleportChunks_.contains(cookie)) {
                 continue;
             }
-            stripeLists.emplace_back(ChunkPool_->GetStripeList(entry.GetCookie()));
+            stripeLists.push_back(ChunkPool_->GetStripeList(cookie));
         }
         return stripeLists;
     }
@@ -270,13 +274,13 @@ protected:
         }
     }
 
-    void PrintEntry(const TOutputOrder::TEntry entry)
+    void PrintCookie(TOutputCookie cookie)
     {
-        if (entry.IsTeleportChunk()) {
-            Cerr << "T " << ToString(entry.GetTeleportChunk()->GetChunkId()) << Endl;
+        if (TeleportChunks_.contains(cookie)) {
+            Cerr << "T " << ToString(TeleportChunks_[cookie]->GetChunkId()) << Endl;
         } else {
             Cerr << "C ";
-            auto stripeList = ChunkPool_->GetStripeList(entry.IsCookie());
+            auto stripeList = ChunkPool_->GetStripeList(cookie);
             for (const auto& dataSlice : stripeList->Stripes[0]->DataSlices) {
                 Cerr << ToString(dataSlice->GetSingleUnversionedChunk()->GetChunkId()) << " ";
             }
@@ -289,16 +293,16 @@ protected:
         ChunkPool_->Completed(cookie, SummaryWithSplitJobCount(ChunkPool_->GetStripeList(cookie), splitJobCount));
     }
 
-    static void ExpectEntryIsTeleportChunk(const TOutputOrder::TEntry& entry, TInputChunkPtr chunk)
+    void ExpectCookieIsTeleportChunk(TOutputCookie cookie, TInputChunkPtr chunk)
     {
-        EXPECT_TRUE(entry.IsTeleportChunk());
-        EXPECT_EQ(entry.GetTeleportChunk()->GetChunkId(), chunk->GetChunkId());
+        ASSERT_TRUE(TeleportChunks_.contains(cookie));
+        EXPECT_EQ(TeleportChunks_[cookie]->GetChunkId(), chunk->GetChunkId());
     }
 
-    void ExpectEntryIsCookie(const TOutputOrder::TEntry& entry, std::vector<TInputChunkPtr> chunks)
+    void ExpectCookieIsRegularJob(TOutputCookie cookie, std::vector<TInputChunkPtr> chunks)
     {
-        EXPECT_TRUE(entry.IsCookie());
-        auto stripeList = ChunkPool_->GetStripeList(entry.GetCookie());
+        ASSERT_FALSE(TeleportChunks_.contains(cookie));
+        auto stripeList = ChunkPool_->GetStripeList(cookie);
         EXPECT_EQ(stripeList->Stripes.size(), 1u);
         EXPECT_EQ(stripeList->Stripes[0]->DataSlices.size(), chunks.size());
         for (int index = 0; index < std::ssize(stripeList->Stripes[0]->DataSlices); ++index) {
@@ -306,51 +310,40 @@ protected:
         }
     }
 
-    void CheckEntryForBatchRowCountAcceptability(const TOutputOrder::TEntry& entry)
+    void CheckEntryForBatchRowCountAcceptability(TOutputCookie cookie)
     {
-        EXPECT_TRUE(entry.IsCookie());
+        EXPECT_FALSE(TeleportChunks_.contains(cookie));
 
-        auto stripeList = ChunkPool_->GetStripeList(entry.GetCookie());
+        auto stripeList = ChunkPool_->GetStripeList(cookie);
         EXPECT_TRUE(stripeList->TotalRowCount % *BatchRowCount_ == 0);
         EXPECT_LE(std::abs(stripeList->TotalDataWeight - DataWeightPerJob_), *BatchRowCount_ * MaxChunkRowDataWeight_);
     }
 
     void CheckBatchRowCount()
     {
-        ASSERT_TRUE(Options_.BuildOutputOrder);
-
-        auto order = ChunkPool_->GetOutputOrder();
-        ASSERT_TRUE(order);
-
-        auto entries = order->ToEntryVector();
-        for (int index = 0; index + 1 < std::ssize(entries); ++index) {
-            CheckEntryForBatchRowCountAcceptability(entries[index]);
+        auto cookies = ChunkPool_->GetOutputCookiesInOrder();
+        for (int index = 0; index + 1 < std::ssize(cookies); ++index) {
+            CheckEntryForBatchRowCountAcceptability(cookies[index]);
         }
     }
 
     void CheckExplicitRowCounts(std::vector<i64> rowCounts)
     {
-        ASSERT_TRUE(Options_.BuildOutputOrder);
+        auto cookies = ChunkPool_->GetOutputCookiesInOrder();
+        EXPECT_EQ(std::ssize(cookies), std::ssize(rowCounts));
 
-        auto order = ChunkPool_->GetOutputOrder();
-        ASSERT_TRUE(order);
-
-        auto entries = order->ToEntryVector();
-        EXPECT_EQ(std::ssize(entries), std::ssize(rowCounts));
-
-        for (const auto& [entry, rowCount] : Zip(entries, rowCounts)) {
-            if (entry.IsTeleportChunk()) {
-                EXPECT_EQ(entry.GetTeleportChunk()->GetRowCount(), rowCount);
+        for (const auto& [cookie, rowCount] : Zip(cookies, rowCounts)) {
+            if (TeleportChunks_.contains(cookie)) {
+                EXPECT_EQ(TeleportChunks_[cookie]->GetRowCount(), rowCount);
             } else {
-                EXPECT_TRUE(entry.IsCookie());
-                EXPECT_EQ(ChunkPool_->GetStripeList(entry.GetCookie())->TotalRowCount, rowCount);
+                EXPECT_EQ(ChunkPool_->GetStripeList(cookie)->TotalRowCount, rowCount);
             }
         }
     }
 
     std::vector<std::vector<TChunkId>> OriginalChunks_;
 
-    IPersistentChunkPoolPtr ChunkPool_;
+    IOrderedChunkPoolPtr ChunkPool_;
 
     //! Set containing all unversioned primary input chunks that have ever been created.
     THashSet<TInputChunkPtr> CreatedUnversionedPrimaryChunks_;
@@ -371,13 +364,19 @@ protected:
 
     i64 DataWeightPerJob_;
 
+    i64 SamplingDataWeightPerJob_;
+
     i32 MaxDataSlicesPerJob_;
+
+    i64 MaxDataWeightPerJob_;
 
     i64 MaxCompressedDataSizePerJob_;
 
     i64 InputSliceDataWeight_;
 
     i64 InputSliceRowCount_;
+
+    bool CanAdjustDataSizePerJob_;
 
     std::optional<i64> BatchRowCount_;
 
@@ -387,7 +386,7 @@ protected:
 
     std::mt19937 Gen_;
 
-    std::vector<TInputChunkPtr> TeleportChunks_;
+    THashMap<TOutputCookie, TInputChunkPtr> TeleportChunks_;
 };
 
 // COMPAT(apollo1321): Remove in 25.2 release.
@@ -480,12 +479,10 @@ TEST_P(TOrderedChunkPoolTest, BatchRowCountBasic)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, false, false});
 
-    Options_.BuildOutputOrder = true;
     // This should have no effect!
     Options_.MinTeleportChunkSize = 2_KB;
 
     // Nor this!
-    SamplingRate_ = 0.3;
     BatchRowCount_ = 42;
     DataWeightPerJob_ = 2_KB;
 
@@ -519,11 +516,9 @@ TEST_P(TOrderedChunkPoolTest, BatchRowCountDoesNotFailWithVersionedChunks)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, true, false});
 
-    Options_.BuildOutputOrder = true;
     // This should have no effect!
     Options_.MinTeleportChunkSize = 2_KB;
     // Nor this!
-    SamplingRate_ = 0.3;
     BatchRowCount_ = 42;
     DataWeightPerJob_ = 2_KB;
 
@@ -556,7 +551,6 @@ TEST_P(TOrderedChunkPoolTest, BatchRowCountBigBatchesSmallDataSizePerJob)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, false, false});
 
-    Options_.BuildOutputOrder = true;
     // This should have no effect!
     Options_.MinTeleportChunkSize = 2_KB;
     BatchRowCount_ = 20;
@@ -597,7 +591,6 @@ TEST_P(TOrderedChunkPoolTest, OrderedMergeOrderedOutput)
         /*isTeleportable*/ {true, true, true},
         /*isVersioned*/ {false, false, false});
 
-    Options_.BuildOutputOrder = true;
     Options_.MinTeleportChunkSize = 2_KB;
     DataWeightPerJob_ = 2_KB;
 
@@ -628,48 +621,46 @@ TEST_P(TOrderedChunkPoolTest, OrderedMergeOrderedOutput)
 
     PersistAndRestore();
 
-    auto order = ChunkPool_->GetOutputOrder();
-    ASSERT_TRUE(order);
+    auto cookiesInOrder = ChunkPool_->GetOutputCookiesInOrder();
 
-    auto entries = order->ToEntryVector();
-    ASSERT_EQ(entries.size(), 8u);
-    ExpectEntryIsCookie(entries[0], {chunks[0]});
-    ExpectEntryIsTeleportChunk(entries[1], chunks[1]);
-    ExpectEntryIsTeleportChunk(entries[2], chunks[2]);
-    ExpectEntryIsCookie(entries[3], {chunks[3], chunks[4]});
-    ExpectEntryIsCookie(entries[4], {chunks[5], chunks[6]});
-    ExpectEntryIsCookie(entries[5], {chunks[7]});
-    ExpectEntryIsTeleportChunk(entries[6], chunks[8]);
-    ExpectEntryIsCookie(entries[7], {chunks[9]});
+    ASSERT_EQ(cookiesInOrder.size(), 8u);
+    ExpectCookieIsRegularJob(cookiesInOrder[0], {chunks[0]});
+    ExpectCookieIsTeleportChunk(cookiesInOrder[1], chunks[1]);
+    ExpectCookieIsTeleportChunk(cookiesInOrder[2], chunks[2]);
+    ExpectCookieIsRegularJob(cookiesInOrder[3], {chunks[3], chunks[4]});
+    ExpectCookieIsRegularJob(cookiesInOrder[4], {chunks[5], chunks[6]});
+    ExpectCookieIsRegularJob(cookiesInOrder[5], {chunks[7]});
+    ExpectCookieIsTeleportChunk(cookiesInOrder[6], chunks[8]);
+    ExpectCookieIsRegularJob(cookiesInOrder[7], {chunks[9]});
 
-    auto originalEntries = entries;
+    auto originalCookies = cookiesInOrder;
 
-    SplitJob(originalEntries[4].GetCookie(), 10);
-    entries = order->ToEntryVector();
-    ASSERT_EQ(entries.size(), 10u);
+    SplitJob(originalCookies[4], 10);
+    cookiesInOrder = ChunkPool_->GetOutputCookiesInOrder();
+    ASSERT_EQ(cookiesInOrder.size(), 10u);
 
-    SplitJob(originalEntries[0].GetCookie(), 10);
-    entries = order->ToEntryVector();
-    ASSERT_EQ(entries.size(), 11u);
+    SplitJob(originalCookies[0], 10);
+    cookiesInOrder = ChunkPool_->GetOutputCookiesInOrder();
+    ASSERT_EQ(cookiesInOrder.size(), 11u);
 
-    SplitJob(originalEntries[7].GetCookie(), 10);
-    entries = order->ToEntryVector();
-    ASSERT_EQ(entries.size(), 12u);
+    SplitJob(originalCookies[7], 10);
+    cookiesInOrder = ChunkPool_->GetOutputCookiesInOrder();
+    ASSERT_EQ(cookiesInOrder.size(), 12u);
 
     ExtractOutputCookiesWhilePossible();
 
     // entries[0] is now invalidated.
-    ExpectEntryIsCookie(entries[1], {chunks[0]});
-    ExpectEntryIsTeleportChunk(entries[2], chunks[1]);
-    ExpectEntryIsTeleportChunk(entries[3], chunks[2]);
-    ExpectEntryIsCookie(entries[4], {chunks[3], chunks[4]});
+    ExpectCookieIsRegularJob(cookiesInOrder[1], {chunks[0]});
+    ExpectCookieIsTeleportChunk(cookiesInOrder[2], chunks[1]);
+    ExpectCookieIsTeleportChunk(cookiesInOrder[3], chunks[2]);
+    ExpectCookieIsRegularJob(cookiesInOrder[4], {chunks[3], chunks[4]});
     // entries[5] is now invalidated.
-    ExpectEntryIsCookie(entries[6], {chunks[5]});
-    ExpectEntryIsCookie(entries[7], {chunks[6]});
-    ExpectEntryIsCookie(entries[8], {chunks[7]});
-    ExpectEntryIsTeleportChunk(entries[9], chunks[8]);
+    ExpectCookieIsRegularJob(cookiesInOrder[6], {chunks[5]});
+    ExpectCookieIsRegularJob(cookiesInOrder[7], {chunks[6]});
+    ExpectCookieIsRegularJob(cookiesInOrder[8], {chunks[7]});
+    ExpectCookieIsTeleportChunk(cookiesInOrder[9], chunks[8]);
     // entries[10] is now invalidated.
-    ExpectEntryIsCookie(entries[11], {chunks[9]});
+    ExpectCookieIsRegularJob(cookiesInOrder[11], {chunks[9]});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -764,8 +755,306 @@ TEST_P(TOrderedChunkPoolTest, UnsuccessfulSplitMarksJobUnsplittable)
     CheckUnsuccessfulSplitMarksJobUnsplittable(ChunkPool_);
 }
 
+TEST_P(TOrderedChunkPoolTest, EnlargementAfterSampling)
+{
+    // This test verifies that jobs are initially sliced by sampling data
+    // weight per job, some jobs are omitted, and the remaining jobs are
+    // enlarged to meet the target data weight per job.
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 5_KB;
+    SamplingDataWeightPerJob_ = 1_KB;
+    SamplingRate_ = 0.5;
+
+    InitJobConstraints();
+    CreateChunkPool();
+    std::map<TChunkId, int> chunkIdToIndex;
+    for (int i = 0; i < 100; ++i) {
+        auto chunk = CreateChunk(
+            0,
+            /*dataWeight*/ 1_KB,
+            /*rowCount*/ 1);
+
+        chunkIdToIndex[chunk->GetChunkId()] = i;
+        AddChunk(chunk);
+    }
+
+    ChunkPool_->Finish();
+    auto stripeLists = GetAllStripeLists();
+    CheckEverything(stripeLists);
+
+    for (const auto& stripeList : stripeLists) {
+        EXPECT_NEAR(stripeList->GetAggregateStatistics().DataWeight, 5_KB, 1_KB);
+    }
+
+    auto allCookies = ChunkPool_->GetOutputCookiesInOrder();
+
+    int chunkCountAfterSampling = 0;
+    int previousChunkIndex = -1;
+    int numberOfSmallHoles = 0;
+
+    for (const auto& cookie : allCookies) {
+        const auto& stripeList = ChunkPool_->GetStripeList(cookie);
+        for (const auto& stripe : stripeList->Stripes) {
+            for (const auto& slice : stripe->DataSlices) {
+                ++chunkCountAfterSampling;
+                int currentChunkIndex = chunkIdToIndex[slice->GetSingleUnversionedChunk()->GetChunkId()];
+                ASSERT_LT(previousChunkIndex, currentChunkIndex);
+                if (currentChunkIndex != previousChunkIndex + 1) {
+                    if (currentChunkIndex - previousChunkIndex - 1 < 5) {
+                        ++numberOfSmallHoles;
+                    }
+                }
+                previousChunkIndex = currentChunkIndex;
+            }
+        }
+    }
+
+    EXPECT_NEAR(chunkCountAfterSampling, 50, 10);
+    EXPECT_GT(numberOfSmallHoles, 5);
+}
+
 INSTANTIATE_TEST_SUITE_P(BasicTests,
     TOrderedChunkPoolTest,
+    Values(/*useNewSlicingImplementation*/ false, /*useNewSlicingImplementation*/ true));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TOrderedChunkPoolTestJobSizeAdjuster
+    : public TOrderedChunkPoolTest
+{
+protected:
+    void InitPoolAndFeedChunks()
+    {
+        InitTables(
+            /*isTeleportable*/ {false},
+            /*isVersioned*/ {false});
+
+        DataWeightPerJob_ = 1_KB;
+        CanAdjustDataSizePerJob_ = true;
+        InitJobConstraints();
+        Options_.JobSizeAdjusterConfig = New<TJobSizeAdjusterConfig>();
+        CreateChunkPool();
+
+        for (int index = 0; index < 10; ++index) {
+            auto chunk = CreateChunk(
+                0,
+                /*dataWeight*/ 1_KB,
+                /*rowCount*/ 1);
+
+            AddChunk(chunk);
+        }
+        ChunkPool_->Finish();
+    }
+
+    static TCompletedJobSummary GetJobSummary()
+    {
+        TCompletedJobSummary jobSummary;
+        jobSummary.TotalInputDataStatistics.emplace();
+        jobSummary.TotalInputDataStatistics->set_data_weight(1_KB),
+        jobSummary.TimeStatistics.PrepareDuration = TDuration::Seconds(100);
+        jobSummary.TimeStatistics.ExecDuration = TDuration::Seconds(1);
+        return jobSummary;
+    }
+};
+
+TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeSimple)
+{
+    InitPoolAndFeedChunks();
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 10);
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        ASSERT_EQ(cookie, 0);
+        ChunkPool_->Completed(cookie, GetJobSummary());
+    }
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 5);
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        ASSERT_GE(cookie, 10); // Assert enlargement happened.
+        ChunkPool_->Completed(cookie, GetJobSummary());
+    }
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 2);
+
+    ExtractOutputCookiesWhilePossible();
+
+    auto stripeLists = GetAllStripeListsByOutputOrder();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+    EXPECT_EQ(stripeLists.size(), 4u);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, RemoveFromBeginning)
+{
+    InitTables(
+            /*isTeleportable*/ {false},
+            /*isVersioned*/ {false});
+
+    DataWeightPerJob_ = 1_KB;
+    CanAdjustDataSizePerJob_ = true;
+    InitJobConstraints();
+    Options_.JobSizeAdjusterConfig = New<TJobSizeAdjusterConfig>();
+    CreateChunkPool();
+
+    for (int index = 0; index < 11; ++index) {
+        auto chunk = CreateChunk(
+            0,
+            /*dataWeight*/ 1_KB + index + 1,
+            /*rowCount*/ 1);
+
+        AddChunk(chunk);
+    }
+    ChunkPool_->Finish();
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 11);
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        ASSERT_EQ(cookie, 10);
+        ChunkPool_->Completed(cookie, GetJobSummary());
+    }
+
+    // No enlargement, because 2_KB is less than the sum of any two jobs.
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 10);
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        ASSERT_EQ(cookie, 9);
+        ChunkPool_->Completed(cookie, GetJobSummary());
+    }
+
+    // Enlargement happened and grouped jobs by three.
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 3);
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        ASSERT_EQ(cookie, 13);
+        ChunkPool_->Completed(cookie, GetJobSummary());
+    }
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 1);
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        ASSERT_EQ(cookie, 14);
+        ChunkPool_->Completed(cookie, GetJobSummary());
+    }
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 0);
+
+    auto stripeLists = GetAllStripeListsByOutputOrder();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+    EXPECT_EQ(stripeLists.size(), 4u);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeMaxDataWeight)
+{
+    MaxDataWeightPerJob_ = 2_KB;
+    InitPoolAndFeedChunks();
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 10);
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        ASSERT_EQ(cookie, 0);
+        ChunkPool_->Completed(cookie, GetJobSummary());
+    }
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 5);
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        ASSERT_GE(cookie, 10); // Assert enlargement happened.
+        ChunkPool_->Completed(cookie, GetJobSummary());
+    }
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 4);
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeListsByOutputOrder();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+    EXPECT_EQ(stripeLists.size(), 6u);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeMaxCompressedDataSize)
+{
+    MaxCompressedDataSizePerJob_ = 2_KB;
+    InitPoolAndFeedChunks();
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 10);
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        ASSERT_EQ(cookie, 0);
+        ChunkPool_->Completed(cookie, GetJobSummary());
+    }
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 5);
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        ASSERT_GE(cookie, 10); // Assert enlargement happened.
+        ChunkPool_->Completed(cookie, GetJobSummary());
+    }
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 4);
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeListsByOutputOrder();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+    EXPECT_EQ(stripeLists.size(), 6u);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_P(TOrderedChunkPoolTestJobSizeAdjuster, EnlargeMaxDataSlices)
+{
+    MaxDataSlicesPerJob_ = 2;
+    InitPoolAndFeedChunks();
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 10);
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        ASSERT_EQ(cookie, 0);
+        ChunkPool_->Completed(cookie, GetJobSummary());
+    }
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 5);
+
+    {
+        auto cookie = ExtractCookie(TNodeId(0));
+        ASSERT_GE(cookie, 10); // Assert enlargement happened.
+        ChunkPool_->Completed(cookie, GetJobSummary());
+    }
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 4);
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeListsByOutputOrder();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+    EXPECT_EQ(stripeLists.size(), 6u);
+
+    CheckEverything(stripeLists);
+}
+
+INSTANTIATE_TEST_SUITE_P(OrderedChunkPoolJobSizeAdjuster,
+    TOrderedChunkPoolTestJobSizeAdjuster,
     Values(/*useNewSlicingImplementation*/ false, /*useNewSlicingImplementation*/ true));
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -980,6 +1269,11 @@ TEST_P(TOrderedChunkPoolJobSizesTestRandomized, BuildJobsInputByCompressedDataSi
 {
     int tableCount = std::uniform_int_distribution<int>(1, 3)(Gen_);
 
+    bool useJobSizeAdjuster = std::uniform_int_distribution<int>(0, 1)(Gen_);
+    if (useJobSizeAdjuster) {
+        Options_.JobSizeAdjusterConfig = New<TJobSizeAdjusterConfig>();
+    }
+
     std::vector<bool> isTeleportable(tableCount);
     for (bool& value : isTeleportable) {
         value = std::uniform_int_distribution<int>(0, 1)(Gen_);
@@ -1005,7 +1299,9 @@ TEST_P(TOrderedChunkPoolJobSizesTestRandomized, BuildJobsInputByCompressedDataSi
         return std::uniform_int_distribution(0, tableCount - 1)(Gen_);
     };
 
-    Options_.BuildOutputOrder = true;
+    auto generateDuration = [&] {
+        return TDuration::Seconds(std::uniform_int_distribution(1, 1000)(Gen_));
+    };
 
     InputSliceRowCount_ = generateRowCount();
     InputSliceDataWeight_ = generateSize();
@@ -1032,6 +1328,7 @@ TEST_P(TOrderedChunkPoolJobSizesTestRandomized, BuildJobsInputByCompressedDataSi
 
     DataWeightPerJob_ = std::max<i64>(generateSize(), 1);
     MaxCompressedDataSizePerJob_ = std::max<i64>(generateSize(), 1);
+    CanAdjustDataSizePerJob_ = true;
 
     // Don't build too many jobs.
     while (totalDataWeight / DataWeightPerJob_ > 50) {
@@ -1053,20 +1350,25 @@ TEST_P(TOrderedChunkPoolJobSizesTestRandomized, BuildJobsInputByCompressedDataSi
 
     ChunkPool_->Finish();
 
-    ExtractOutputCookiesWhilePossible();
+    while (ChunkPool_->GetJobCounter()->GetPending()) {
+        auto cookie = ExtractCookie(TNodeId(0));
+        TCompletedJobSummary jobSummary;
+        jobSummary.TotalInputDataStatistics.emplace();
+        jobSummary.TotalInputDataStatistics->set_data_weight(generateSize()),
+        jobSummary.TimeStatistics.PrepareDuration = generateDuration();
+        jobSummary.TimeStatistics.ExecDuration = generateDuration();
+        ChunkPool_->Completed(cookie, jobSummary);
+    }
 
     CheckEverything(GetAllStripeListsByOutputOrder());
 
-    auto outputOrder = ChunkPool_->GetOutputOrder();
-    YT_VERIFY(outputOrder);
-
-    for (const auto& entry : outputOrder->ToEntryVector()) {
-        if (entry.IsTeleportChunk()) {
-            ASSERT_GE(entry.GetTeleportChunk()->GetDataWeight(), Options_.MinTeleportChunkSize);
+    for (auto cookie : ChunkPool_->GetOutputCookiesInOrder()) {
+        if (TeleportChunks_.contains(cookie)) {
+            ASSERT_GE(TeleportChunks_[cookie]->GetDataWeight(), Options_.MinTeleportChunkSize);
             continue;
         }
 
-        const auto& stripeList = ChunkPool_->GetStripeList(entry.GetCookie());
+        const auto& stripeList = ChunkPool_->GetStripeList(cookie);
 
         i64 sliceCount = 0;
         for (const auto& stripe : stripeList->Stripes) {
@@ -1080,7 +1382,7 @@ TEST_P(TOrderedChunkPoolJobSizesTestRandomized, BuildJobsInputByCompressedDataSi
         ASSERT_LE(sliceCount, MaxDataSlicesPerJob_);
 
         if (!BatchRowCount_.has_value()) {
-            if (sliceCount > 1)  {
+            if (!useJobSizeAdjuster && sliceCount > 1)  {
                 i64 maxDataWeightSlice = 0;
                 for (const auto& stripe : stripeList->Stripes) {
                     for (const auto& slice : stripe->DataSlices) {
@@ -1092,9 +1394,10 @@ TEST_P(TOrderedChunkPoolJobSizesTestRandomized, BuildJobsInputByCompressedDataSi
                     stripeList->TotalDataWeight,
                     DataWeightPerJob_ + maxDataWeightSlice);
             }
-        } else if (tableCount == 1 && sliceCount < MaxDataSlicesPerJob_) {
+        } else if (tableCount == 1 && sliceCount < MaxDataSlicesPerJob_ && !useJobSizeAdjuster) {
             // Stripes are sorted by table index internally, so we can't check data
             // weight guarantee when batch row count is set and table count is more than 1.
+            // Also, this whole check does not work with job size adjuster.
 
             int rowsLeft = *BatchRowCount_;
             i64 lastRowBatchDataWeight = 0;

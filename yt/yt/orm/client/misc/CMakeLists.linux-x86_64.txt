@@ -38,6 +38,5 @@ target_link_libraries(orm-client-misc PUBLIC
 target_sources(orm-client-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/client/misc/protobuf_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/orm/client/misc/public.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/orm/client/misc/traits.cpp
 )
 

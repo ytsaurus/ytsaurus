@@ -14,21 +14,6 @@ using NYT::FromProto;
 
 ///////////////////////////////////////////////////////////////////////////////
 
-TCompactTableSchema::TCachedTableSchema::TCachedTableSchema(const TCompactTableSchema::TCachedTableSchema&)
-{ }
-
-TCompactTableSchema::TCachedTableSchema TCompactTableSchema::TCachedTableSchema::operator=(const TCachedTableSchema&)
-{
-    return TCachedTableSchema();
-}
-
-bool TCompactTableSchema::TCachedTableSchema::operator==(const TCachedTableSchema&)
-{
-    return true;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-
 static const std::string EmptyWireProtoTableSchema = SerializeToWireProto(TTableSchema());
 
 // NB: Need to ensure that all fields in wire protobuf will be set into correct values.
@@ -62,37 +47,13 @@ TCompactTableSchema::TCompactTableSchema(const TTableSchema& schema)
     }
 }
 
-TTableSchemaPtr TCompactTableSchema::AsHeavyTableSchema() const
+TCompactTableSchema::TCompactTableSchema(const NTableClient::TTableSchemaPtr& schema)
+    : TCompactTableSchema(*schema)
+{ }
+
+bool TCompactTableSchema::operator==(const TCompactTableSchema& other) const
 {
-    {
-        auto readerGuard = ReaderGuard(Cache_.TableSchemaLock);
-        if (Cache_.TableSchema) {
-            return Cache_.TableSchema;
-        }
-    }
-
-    NTableClient::NProto::TTableSchemaExt protoSchema;
-    YT_VERIFY(protoSchema.ParseFromString(TableSchema_));
-    auto tableSchema = FromProto<TTableSchemaPtr>(protoSchema);
-
-    auto writerGuard = WriterGuard(Cache_.TableSchemaLock);
-    if (Cache_.TableSchema) {
-        return Cache_.TableSchema;
-    }
-
-    Cache_.TableSchema = std::move(tableSchema);
-    // Offload cache expiration into heavy invoker.
-    TDelayedExecutor::Submit(
-        BIND([this, weakThis = MakeWeak(this)] () {
-            if (auto this_ = weakThis.Lock()) {
-                auto writerGuard = WriterGuard(Cache_.TableSchemaLock);
-                Cache_.TableSchema.Release();
-            }
-        }),
-        TCompactTableSchema::CacheExpirationTimeout.Load(),
-        NRpc::TDispatcher::Get()->GetHeavyInvoker());
-    // TODO(cherepashka): Prolong schema lifetime when it is accessed.
-    return Cache_.TableSchema;
+    return TableSchema_ == other.TableSchema_;
 }
 
 const std::string& TCompactTableSchema::AsWireProto() const
@@ -149,16 +110,6 @@ TComparator TCompactTableSchema::ToComparator(TCallback<TUUComparerSignature> cg
     return TComparator(SortOrders_, std::move(cgComparator));
 }
 
-TCompactTableSchemaPtr TCompactTableSchema::ToModifiedSchema(ETableSchemaModification modification) const
-{
-    return New<TCompactTableSchema>(*AsHeavyTableSchema()->ToModifiedSchema(modification));
-}
-
-TCompactTableSchemaPtr TCompactTableSchema::ToUniqueKeys() const
-{
-    return New<TCompactTableSchema>(*AsHeavyTableSchema()->ToUniqueKeys());
-}
-
 void TCompactTableSchema::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
@@ -182,11 +133,6 @@ void TCompactTableSchema::InitializePartial(
     bool uniqueKeys,
     ETableSchemaModification schemaModification)
 {
-    {
-        auto writerGuard = WriterGuard(Cache_.TableSchemaLock);
-        Cache_.TableSchema.Reset();
-    }
-
     Empty_ = empty;
     Strict_ = strict;
     UniqueKeys_ = uniqueKeys;
@@ -199,12 +145,12 @@ void TCompactTableSchema::InitializeFromProto(const NTableClient::NProto::TTable
         protoSchema.columns().empty(),
         protoSchema.strict(),
         protoSchema.unique_keys(),
-        CheckedEnumCast<ETableSchemaModification>(protoSchema.schema_modification()));
+        FromProto<ETableSchemaModification>(protoSchema.schema_modification()));
 
     for (const auto& column : protoSchema.columns()) {
         if (column.has_sort_order()) {
             KeyColumns_.push_back(column.name());
-            SortOrders_.push_back(CheckedEnumCast<ESortOrder>(column.sort_order()));
+            SortOrders_.push_back(FromProto<ESortOrder>(column.sort_order()));
         }
         if (column.has_max_inline_hunk_size()) {
             HasHunkColumns_ = true;
@@ -221,10 +167,6 @@ void TCompactTableSchema::SerializeToProto(NTableClient::NProto::TTableSchemaExt
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NThreading::TAtomicObject<TDuration> TCompactTableSchema::CacheExpirationTimeout;
-
-////////////////////////////////////////////////////////////////////////////////
-
 void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactTableSchema& schema)
 {
     protoSchema->Clear();
@@ -237,27 +179,6 @@ void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactT
         ToProto(protoSchema, *schema);
     } else {
         protoSchema->Clear();
-    }
-}
-
-void FromProto(TCompactTableSchema* schema, const NTableClient::NProto::TTableSchemaExt& protoSchema)
-{
-    *schema = TCompactTableSchema(protoSchema);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void FormatValue(TStringBuilderBase* builder, const TCompactTableSchema& schema, TStringBuf spec)
-{
-    FormatValue(builder, schema.AsHeavyTableSchema(), spec);
-}
-
-void FormatValue(TStringBuilderBase* builder, const TCompactTableSchemaPtr& schema, TStringBuf spec)
-{
-    if (schema) {
-        FormatValue(builder, *schema, spec);
-    } else {
-        builder->AppendString(TStringBuf("<null>"));
     }
 }
 

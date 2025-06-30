@@ -460,14 +460,8 @@ nghttp3_ssize nghttp3_conn_read_stream(nghttp3_conn *conn, int64_t stream_id,
       return NGHTTP3_ERR_H3_STREAM_CREATION_ERROR;
     }
   } else if (conn->server) {
-    if (nghttp3_client_stream_bidi(stream_id)) {
-      if (stream->rx.hstate == NGHTTP3_HTTP_STATE_NONE) {
-        stream->rx.hstate = NGHTTP3_HTTP_STATE_REQ_INITIAL;
-        stream->tx.hstate = NGHTTP3_HTTP_STATE_REQ_INITIAL;
-      }
-    } else {
-      assert(nghttp3_client_stream_uni(stream_id));
-    }
+    assert(nghttp3_client_stream_bidi(stream_id) ||
+           nghttp3_client_stream_uni(stream_id));
   } else {
     assert(nghttp3_client_stream_bidi(stream_id) ||
            nghttp3_server_stream_uni(stream_id));
@@ -667,7 +661,7 @@ nghttp3_ssize nghttp3_conn_read_control(nghttp3_conn *conn,
       nghttp3_varint_read_state_reset(rvint);
       rstate->state = NGHTTP3_CTRL_STREAM_STATE_FRAME_LENGTH;
       if (p == end) {
-        break;
+        return (nghttp3_ssize)nconsumed;
       }
       /* Fall through */
     case NGHTTP3_CTRL_STREAM_STATE_FRAME_LENGTH:
@@ -974,6 +968,10 @@ nghttp3_ssize nghttp3_conn_read_control(nghttp3_conn *conn,
       }
 
       rstate->state = NGHTTP3_CTRL_STREAM_STATE_PRIORITY_UPDATE;
+
+      if (p == end) {
+        return (nghttp3_ssize)nconsumed;
+      }
 
       /* Fall through */
     case NGHTTP3_CTRL_STREAM_STATE_PRIORITY_UPDATE:
@@ -1794,6 +1792,8 @@ conn_on_priority_update_stream(nghttp3_conn *conn,
 
     stream->node.pri = fr->pri;
     stream->flags |= NGHTTP3_STREAM_FLAG_PRIORITY_UPDATE_RECVED;
+    stream->rx.hstate = NGHTTP3_HTTP_STATE_REQ_INITIAL;
+    stream->tx.hstate = NGHTTP3_HTTP_STATE_REQ_INITIAL;
 
     return 0;
   }

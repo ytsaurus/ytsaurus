@@ -15,14 +15,14 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeId CreateConsumerNode(
+TNodeId CreateQueueConsumerNode(
     const NApi::IClientPtr& client,
     const NYPath::TYPath& path,
     const NApi::TCreateNodeOptions& options)
 {
     auto transaction = [&] {
         auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Create consumer %v", path));
+        attributes->Set("title", Format("Create queue consumer %v", path));
         TTransactionStartOptions startOptions{
             .ParentId = options.TransactionId,
             .Attributes = std::move(attributes),

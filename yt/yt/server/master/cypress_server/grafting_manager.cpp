@@ -20,6 +20,8 @@
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -37,11 +39,12 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NServer;
 
+using NYT::ToProto;
 using NCypressClient::NProto::TReqCreateRootstock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CypressServerLogger;
+constinit const auto Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -254,10 +257,10 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto effectiveAcl = securityManager->GetEffectiveAcl(trunkNode);
-        request.set_effective_acl(ConvertToYsonString(effectiveAcl).ToString());
+        request.set_effective_acl(ToProto(ConvertToYsonString(effectiveAcl)));
 
         const auto& directAcd = trunkNode->Acd();
-        request.set_direct_acl(ConvertToYsonString(directAcd.Acl()).ToString());
+        request.set_direct_acl(ToProto(ConvertToYsonString(directAcd.Acl())));
         request.set_inherit_acl(directAcd.Inherit());
 
         if (auto effectiveAnnotation = GetEffectiveAnnotation(rootstockNode)) {
@@ -305,7 +308,7 @@ private:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto accountId = FromProto<TAccountId>(request->account_id());
-        auto* account = securityManager->GetAccountOrThrow(accountId);
+        auto* account = securityManager->GetAccount(accountId);
 
         auto explicitAttributes = FromProto(request->explicit_node_attributes());
 
@@ -355,9 +358,6 @@ private:
             })->As<TScionNode>();
         YT_VERIFY(scionNode->GetId() == scionNodeId);
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RefObject(scionNode);
-
         cypressManager->SetShard(scionNode, shard);
 
         if (effectiveInheritableAttributes) {
@@ -406,6 +406,8 @@ private:
         scionNode->SetRootstockId(rootstockNodeId);
 
         EmplaceOrCrash(ScionNodes_, scionNodeId, scionNode);
+
+        typeHandler->SetReachable(scionNode);
 
         YT_LOG_DEBUG("Scion created "
             "(RootstockNodeId: %v, ScionNodeId: %v)",

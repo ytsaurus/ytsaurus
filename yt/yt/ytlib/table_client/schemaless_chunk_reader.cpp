@@ -443,6 +443,10 @@ protected:
                 misc.compressed_data_size(),
                 misc.row_count()) * rowCount;
             chunk.set_compressed_data_size_override(compressedDataSize);
+            i64 uncompressedDataSize = DivCeil(
+                misc.uncompressed_data_size(),
+                misc.row_count()) * rowCount;
+            chunk.set_uncompressed_data_size_override(uncompressedDataSize);
         }
 
         // Sometimes scheduler sends us empty slices (when both, row index and key limits are present).
@@ -464,6 +468,10 @@ protected:
                 misc.compressed_data_size(),
                 misc.row_count()) * rowCount;
             chunk.set_compressed_data_size_override(compressedDataSize);
+            i64 uncompressedDataSize = DivCeil(
+                misc.uncompressed_data_size(),
+                misc.row_count()) * rowCount;
+            chunk.set_uncompressed_data_size_override(uncompressedDataSize);
         }
         return {std::move(unreadDescriptors), std::move(readDescriptors)};
     }
@@ -508,6 +516,7 @@ public:
         const TKeyWideningOptions& keyWideningOptions,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        bool unpackAny,
         std::optional<int> partitionTag,
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
         std::optional<i64> virtualRowIndex = std::nullopt)
@@ -534,6 +543,7 @@ public:
         , PartitionTag_(partitionTag)
         , SortOrders_(sortOrders.begin(), sortOrders.end())
         , CommonKeyPrefix_(commonKeyPrefix)
+        , UnpackAny_(unpackAny)
     {
         YT_VERIFY(CommonKeyPrefix_ <= std::ssize(SortOrders_));
 
@@ -571,6 +581,7 @@ protected:
     //! chunk as unsorted.
     const std::vector<ESortOrder> SortOrders_;
     const int CommonKeyPrefix_;
+    const bool UnpackAny_;
 
     TColumnEvaluatorPtr ColumnEvaluator_;
 
@@ -648,6 +659,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        bool unpackAny,
         const TKeyWideningOptions& keyWideningOptions,
         const TReadRange& readRange,
         std::optional<int> partitionTag,
@@ -668,6 +680,7 @@ public:
             keyWideningOptions,
             sortOrders,
             commonKeyPrefix,
+            unpackAny,
             partitionTag,
             memoryManagerHolder,
             virtualRowIndex)
@@ -914,6 +927,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        bool unpackAny,
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
         std::optional<int> partitionTag = std::nullopt,
@@ -964,6 +978,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        bool unpackAny,
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
         std::optional<int> partitionTag = std::nullopt,
@@ -989,6 +1004,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        bool unpackAny,
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keyPrefixes,
         std::optional<int> partitionTag = std::nullopt,
@@ -1017,6 +1033,7 @@ THorizontalSchemalessLookupChunkReaderBase::THorizontalSchemalessLookupChunkRead
     const TClientChunkReadOptions& chunkReadOptions,
     TRange<ESortOrder> sortOrders,
     int commonKeyPrefix,
+    bool unpackAny,
     const TKeyWideningOptions& keyWideningOptions,
     const TSharedRange<TLegacyKey>& keyPrefixes,
     std::optional<int> partitionTag,
@@ -1035,6 +1052,7 @@ THorizontalSchemalessLookupChunkReaderBase::THorizontalSchemalessLookupChunkRead
         keyWideningOptions,
         sortOrders,
         commonKeyPrefix,
+        unpackAny,
         partitionTag,
         memoryManagerHolder)
     , Keys_(keyPrefixes)
@@ -1222,6 +1240,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     const TClientChunkReadOptions& chunkReadOptions,
     TRange<ESortOrder> sortOrders,
     int commonKeyPrefix,
+    bool unpackAny,
     const TKeyWideningOptions& keyWideningOptions,
     const TSharedRange<TLegacyKey>& keys,
     std::optional<int> partitionTag,
@@ -1239,6 +1258,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         chunkReadOptions,
         sortOrders,
         commonKeyPrefix,
+        unpackAny,
         keyWideningOptions,
         keys,
         partitionTag,
@@ -1282,6 +1302,7 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
     const TClientChunkReadOptions& chunkReadOptions,
     TRange<ESortOrder> sortOrders,
     int commonKeyPrefix,
+    bool unpackAny,
     const TKeyWideningOptions& keyWideningOptions,
     const TSharedRange<TLegacyKey>& keys,  // must be sorted.
     std::optional<int> partitionTag,
@@ -1299,6 +1320,7 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
         chunkReadOptions,
         sortOrders,
         commonKeyPrefix,
+        unpackAny,
         keyWideningOptions,
         keys,
         partitionTag,
@@ -1508,6 +1530,7 @@ public:
 
     using TBase::Columns_;
     using TBase::ChunkMeta_;
+    using TBase::UnpackAny_;
 
     void InitializeColumnReaders(
         const IColumnEvaluatorCachePtr& columnEvaluatorCache,
@@ -1530,7 +1553,9 @@ public:
                     columnMeta->columns(keyColumnIndex),
                     keyColumnIndex,
                     keyColumnIndex,
-                    sortOrders[keyColumnIndex]);
+                    sortOrders[keyColumnIndex],
+                    /*serializeFloatsAsDoublea*/ false,
+                    UnpackAny_);
                 KeyColumnReaders_.push_back(columnReader.get());
                 Columns_.emplace_back(std::move(columnReader), keyColumnIndex);
             }
@@ -1573,7 +1598,9 @@ public:
                 columnMeta->columns(columnIndex),
                 valueIndex,
                 columnIndex,
-                /*sortOrder*/ std::nullopt);
+                /*sortOrder*/ std::nullopt,
+                /*serializeFloatsAsDoubles*/ false,
+                UnpackAny_);
             RowColumnReaders_.push_back(columnReader.get());
             Columns_.emplace_back(std::move(columnReader), columnIndex, columnIndex);
             ++valueIndex;
@@ -1663,6 +1690,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        bool unpackAny,
         const TKeyWideningOptions& keyWideningOptions,
         const TReadRange& readRange,
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder,
@@ -1686,6 +1714,7 @@ public:
             underlyingReader,
             sortOrders,
             commonKeyPrefix,
+            unpackAny,
             chunkState->BlockCache,
             chunkReadOptions,
             BIND(&TColumnarSchemalessRangeChunkReader::OnRowsSkipped, MakeWeak(this)),
@@ -1779,7 +1808,7 @@ public:
         Pool_.Clear();
         MemoryGuard_.SetSize(Pool_.GetCapacity());
 
-        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 
@@ -2271,6 +2300,7 @@ public:
         const TClientChunkReadOptions& chunkReadOptions,
         TRange<ESortOrder> sortOrders,
         int commonKeyPrefix,
+        bool unpackAny,
         const TKeyWideningOptions& keyWideningOptions,
         const TSharedRange<TLegacyKey>& keys,
         const TChunkReaderMemoryManagerHolderPtr& memoryManagerHolder)
@@ -2291,6 +2321,7 @@ public:
             underlyingReader,
             sortOrders,
             commonKeyPrefix,
+            unpackAny,
             chunkState->BlockCache,
             chunkReadOptions,
             [] (int) { YT_ABORT(); }, // Rows should not be skipped in lookup reader.
@@ -2329,7 +2360,7 @@ public:
         Pool_.Clear();
         MemoryGuard_.SetSize(Pool_.GetCapacity());
 
-        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 
@@ -2448,6 +2479,7 @@ struct TReaderParams
     TReaderVirtualValues VirtualColumns;
     std::vector<int> ChunkToReaderIdMapping;
     int CommonKeyPrefix;
+    bool UnpackAny;
     TKeyWideningOptions KeyWideningOptions;
 
     TReaderParams(
@@ -2508,6 +2540,8 @@ struct TReaderParams
         if (options->EnableKeyWidening) {
             KeyWideningOptions = BuildKeyWideningOptions(sortColumnNames, nameTable, CommonKeyPrefix);
         }
+
+        UnpackAny = options->EnableAnyUnpacking;
     }
 };
 
@@ -2572,6 +2606,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 chunkReadOptions,
                 sortOrders,
                 params.CommonKeyPrefix,
+                params.UnpackAny,
                 params.KeyWideningOptions,
                 readRange,
                 partitionTag,
@@ -2593,6 +2628,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
                 chunkReadOptions,
                 sortOrders,
                 params.CommonKeyPrefix,
+                params.UnpackAny,
                 params.KeyWideningOptions,
                 readRange,
                 memoryManagerHolder,
@@ -2656,6 +2692,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 chunkReadOptions,
                 GetSortOrders(sortColumns),
                 params.CommonKeyPrefix,
+                params.UnpackAny,
                 params.KeyWideningOptions,
                 keys,
                 partitionTag,
@@ -2675,6 +2712,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
                 chunkReadOptions,
                 GetSortOrders(sortColumns),
                 params.CommonKeyPrefix,
+                params.UnpackAny,
                 params.KeyWideningOptions,
                 keys,
                 memoryManagerHolder);
@@ -2734,6 +2772,7 @@ ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
         chunkReadOptions,
         GetSortOrders(sortColumns),
         params.CommonKeyPrefix,
+        params.UnpackAny,
         params.KeyWideningOptions,
         keyPrefixes,
         partitionTag,

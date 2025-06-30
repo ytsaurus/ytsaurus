@@ -24,20 +24,33 @@ void SetAccessTrackingOptions(
 
 void ValidateLinkNodeCreation(
     const TSequoiaSessionPtr& session,
-    NSequoiaClient::TRawYPath targetPath,
+    const NYPath::TYPath& targetPath,
     const TResolveResult& resolveResult);
+
+////////////////////////////////////////////////////////////////////////////////
 
 std::vector<NObjectClient::TTransactionId> ParsePrerequisiteTransactionIds(const NRpc::NProto::TRequestHeader& header);
 
-void ValidatePrerequisites(
+void ValidatePrerequisiteTransactions(
     const NSequoiaClient::ISequoiaClientPtr& sequoiaClient,
     const std::vector<NObjectClient::TTransactionId>& prerequisiteTransactionIds);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<std::string> TokenizeUnresolvedSuffix(NSequoiaClient::TYPathBuf unresolvedSuffix);
-NSequoiaClient::TAbsoluteYPath JoinNestedNodesToPath(
-    const NSequoiaClient::TAbsoluteYPath& parentPath,
+struct TSlashRootDesignatorTag
+{ };
+
+using TRootDesignator = std::variant<NObjectClient::TObjectId, TSlashRootDesignatorTag>;
+
+//! Returns the root designator, throws if path does not contain any.
+//! Validates GUID in case of object root designator.
+std::pair<TRootDesignator, NYPath::TYPathBuf> GetRootDesignator(NYPath::TYPathBuf path);
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<std::string> TokenizeUnresolvedSuffix(NYPath::TYPathBuf unresolvedSuffix);
+NSequoiaClient::TAbsolutePath JoinNestedNodesToPath(
+    const NSequoiaClient::TAbsolutePath& parentPath,
     const std::vector<std::string>& childKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,8 +58,10 @@ NSequoiaClient::TAbsoluteYPath JoinNestedNodesToPath(
 bool IsSupportedSequoiaType(NCypressClient::EObjectType type);
 bool IsSequoiaCompositeNodeType(NCypressClient::EObjectType type);
 void ValidateSupportedSequoiaType(NCypressClient::EObjectType type);
-void ThrowAlreadyExists(const NSequoiaClient::TAbsoluteYPath& path);
-void ThrowNoSuchChild(const NSequoiaClient::TAbsoluteYPath& existingPath, TStringBuf missingPath);
+[[noreturn]] void ThrowAlreadyExists(const NSequoiaClient::TAbsolutePath& path);
+[[noreturn]] void ThrowCannotHaveChildren(const NSequoiaClient::TAbsolutePath& path);
+[[noreturn]] void ThrowCannotReplaceNode(const NSequoiaClient::TAbsolutePath& path);
+[[noreturn]] void ThrowNoSuchChild(const NSequoiaClient::TAbsolutePath& existingPath, TStringBuf missingPath);
 
 ////////////////////////////////////////////////////////////////////////////////
 

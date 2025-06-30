@@ -169,8 +169,6 @@ void SerializeAccountClusterResourceUsage(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTabletServer::TTabletResources ConvertToTabletResources(
-    const TClusterResources& clusterResources);
 TClusterResources ConvertToClusterResources(
     const NTabletServer::TTabletResources& tabletResources);
 

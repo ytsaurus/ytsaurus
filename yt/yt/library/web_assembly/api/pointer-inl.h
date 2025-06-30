@@ -10,66 +10,27 @@ namespace NYT::NWebAssembly {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <>
-Y_FORCE_INLINE char* ConvertPointerFromWasmToHost(char* data, size_t length)
+template <typename T>
+T* PtrFromVM(IWebAssemblyCompartment* compartment, T* data, size_t length)
 {
-    if (auto* compartment = GetCurrentCompartment()) {
-        return static_cast<char*>(
-            compartment->GetHostPointer(
-                std::bit_cast<uintptr_t>(data),
-                length));
+    if (compartment) {
+        return std::bit_cast<T*>(std::bit_cast<uintptr_t>(
+            compartment->GetHostPointer(std::bit_cast<uintptr_t>(data), sizeof(T) * length)));
     }
 
     return data;
 }
 
 template <typename T>
-T* ConvertPointerFromWasmToHost(T* data, size_t length)
+T* PtrToVM(IWebAssemblyCompartment* compartment, T* data, size_t length)
 {
-    return std::bit_cast<T*>(
-        ConvertPointerFromWasmToHost(
-            std::bit_cast<char*>(data),
-            sizeof(T) * length));
-}
-
-template <typename T>
-T* ConvertPointerFromWasmToHost(const T* data, size_t length)
-{
-    return std::bit_cast<T*>(
-        ConvertPointerFromWasmToHost(
-            std::bit_cast<char*>(data),
-            sizeof(T) * length));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <>
-Y_FORCE_INLINE char* ConvertPointerFromHostToWasm(char* data, size_t length)
-{
-    if (auto* compartment = GetCurrentCompartment()) {
+    if (compartment) {
         Y_UNUSED(length); // TODO(dtorilov): Check bounds.
-        return std::bit_cast<char*>(compartment->GetCompartmentOffset(static_cast<void*>(data)));
+        return std::bit_cast<T*>(compartment->GetCompartmentOffset(
+            std::bit_cast<void*>(std::bit_cast<uintptr_t>(data))));
     }
 
     return data;
-}
-
-template <typename T>
-T* ConvertPointerFromHostToWasm(T* data, size_t length)
-{
-    return std::bit_cast<T*>(
-        ConvertPointerFromHostToWasm(
-            std::bit_cast<char*>(data),
-            sizeof(T) * length));
-}
-
-template <typename T>
-T* ConvertPointerFromHostToWasm(const T* data, size_t length)
-{
-    return std::bit_cast<T*>(
-        ConvertPointerFromHostToWasm(
-            std::bit_cast<char*>(data),
-            sizeof(T) * length));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,16 +42,17 @@ Y_FORCE_INLINE T* ConvertPointer(
     EAddressSpace destinationAddressSpace,
     size_t length)
 {
-    if (!HasCurrentCompartment()) {
+    auto* compartment = GetCurrentCompartment();
+    if (!compartment) {
         return offset;
     }
 
     if (sourceAddressSpace == EAddressSpace::WebAssembly && destinationAddressSpace == EAddressSpace::Host) {
-        return ConvertPointerFromWasmToHost(offset, length);
+        return PtrFromVM(compartment, offset, length);
     }
 
     if (sourceAddressSpace == EAddressSpace::Host && destinationAddressSpace == EAddressSpace::WebAssembly) {
-        return ConvertPointerFromHostToWasm(offset, length);
+        return PtrToVM(compartment, offset, length);
     }
 
     if (sourceAddressSpace == EAddressSpace::Host && destinationAddressSpace == EAddressSpace::Host) {

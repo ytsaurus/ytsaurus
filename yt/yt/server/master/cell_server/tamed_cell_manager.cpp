@@ -88,6 +88,8 @@
 
 #include <yt/yt/core/ypath/token.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <algorithm>
 
 namespace NYT::NCellServer {
@@ -134,7 +136,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CellServerLogger;
+constinit const auto Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -465,7 +467,7 @@ public:
 
     // COPMAT(danilalexeev)
     void CreateSnapshotAndChangelogNodes(
-        const TString& path,
+        const TYPath& path,
         const IMapNodePtr& cellMapNodeProxy,
         const IAttributeDictionaryPtr& snapshotAttributes,
         const IAttributeDictionaryPtr& changelogAttributes)
@@ -554,7 +556,7 @@ public:
             return cell;
         }
         auto cellNodePath = "/" + ToString(cellId);
-        auto cellNodeCypressPrefix = GetCellCypressPathPrefix(cellId);
+        auto cellNodeCypressPrefix = GetCellarTypeCypressPathPrefix(GetCellarTypeFromCellId(cellId));
 
         try {
             // NB: Users typically are not allowed to create these types.
@@ -1215,10 +1217,9 @@ private:
 
     TPeriodicExecutorPtr CellStatusIncrementalGossipExecutor_;
     TPeriodicExecutorPtr CellStatusFullGossipExecutor_;
+    TPeriodicExecutorPtr ProfilingExecutor_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
-    TPeriodicExecutorPtr ProfilingExecutor_;
 
 
     const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig()
@@ -1660,7 +1661,7 @@ private:
             protoInfo->set_peer_id(peerId);
 
             const auto& cellBundle = cell->CellBundle();
-            protoInfo->set_options(ConvertToYsonString(cellBundle->GetOptions()).ToString());
+            protoInfo->set_options(ToProto(ConvertToYsonString(cellBundle->GetOptions())));
 
             protoInfo->set_cell_bundle(ToProto(cellBundle->GetName()));
 
@@ -1696,7 +1697,7 @@ private:
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
             protoInfo->set_abandon_leader_lease_during_recovery(GetDynamicConfig()->AbandonLeaderLeaseDuringRecovery);
-            protoInfo->set_options(ConvertToYsonString(cell->CellBundle()->GetOptions()).ToString());
+            protoInfo->set_options(ToProto(ConvertToYsonString(cell->CellBundle()->GetOptions())));
 
             YT_LOG_DEBUG("Occupant configuration update requested "
                 "(Address: %v, CellId: %v, PeerId: %v, Version: %v, PrerequisiteTransactionId: %v, AbandonLeaderLeaseDuringRecovery: %v)",
@@ -1726,7 +1727,7 @@ private:
 
             const auto& cellBundle = cell->CellBundle();
             protoInfo->set_dynamic_config_version(cellBundle->GetDynamicConfigVersion());
-            protoInfo->set_dynamic_options(ConvertToYsonString(cellBundle->GetDynamicOptions()).ToString());
+            protoInfo->set_dynamic_options(ToProto(ConvertToYsonString(cellBundle->GetDynamicOptions())));
 
             YT_LOG_DEBUG("Occupant update requested (Address: %v, CellId: %v, DynamicConfigVersion: %v)",
                 node->GetDefaultAddress(),
@@ -2532,7 +2533,8 @@ private:
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         try {
-            auto cellMapNode = cypressManager->ResolvePathToNodeProxy(GetCellCypressPathPrefix(cellId));
+            auto cellMapNode = cypressManager->ResolvePathToNodeProxy(
+                GetCellarTypeCypressPathPrefix(GetCellarTypeFromCellId(cellId)));
             return cellMapNode->GetType() == ENodeType::Map
                 ? cellMapNode->AsMap()
                 : nullptr;

@@ -23,7 +23,6 @@ using NYT::ToProto;
 
 TExecNodeDescriptor::TExecNodeDescriptor(
     NNodeTrackerClient::TNodeId id,
-    const std::string& address,
     const NNodeTrackerClient::TAddressMap& addresses,
     const std::optional<std::string>& dataCenter,
     double ioWeight,
@@ -35,7 +34,6 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     const std::optional<std::string>& infinibandCluster,
     IAttributeDictionaryPtr schedulingOptions)
     : Id(id)
-    , Address(address)
     , Addresses(addresses)
     , DataCenter(dataCenter)
     , IOWeight(ioWeight)
@@ -53,12 +51,20 @@ bool TExecNodeDescriptor::CanSchedule(const TSchedulingTagFilter& filter) const
     return Online && ResourceLimits.GetUserSlots() > 0 && (filter.IsEmpty() || filter.CanSchedule(Tags));
 }
 
+const std::string& TExecNodeDescriptor::GetDefaultAddress() const
+{
+    return NNodeTrackerClient::GetDefaultAddress(Addresses);
+}
+
 void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
 
     Persist(context, Id);
-    Persist(context, Address);
+    std::string oldAddress;
+    if (context.GetVersion() < ToUnderlying(NControllerAgent::ESnapshotVersion::RemoveAddressFromJob)) {
+        Persist(context, oldAddress);
+    }
     Persist(context, IOWeight);
     Persist(context, Online);
     Persist(context, ResourceLimits);
@@ -68,12 +74,15 @@ void TExecNodeDescriptor::Persist(const TStreamPersistenceContext& context)
     if (context.GetVersion() >= ToUnderlying(NControllerAgent::ESnapshotVersion::AddAddressesToJob)) {
         Persist(context, Addresses);
     }
+    if (context.GetVersion() < ToUnderlying(NControllerAgent::ESnapshotVersion::RemoveAddressFromJob)) {
+        Addresses.emplace(NNodeTrackerClient::DefaultNetworkName, std::move(oldAddress));
+    }
 }
 
 void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NScheduler::TExecNodeDescriptor& descriptor)
 {
     protoDescriptor->set_node_id(ToProto(descriptor.Id));
-    protoDescriptor->set_address(ToProto(descriptor.Address));
+    protoDescriptor->set_address(ToProto(descriptor.GetDefaultAddress()));
     ToProto(protoDescriptor->mutable_addresses(), descriptor.Addresses);
     protoDescriptor->set_io_weight(descriptor.IOWeight);
     protoDescriptor->set_online(descriptor.Online);
@@ -87,9 +96,11 @@ void ToProto(NScheduler::NProto::TExecNodeDescriptor* protoDescriptor, const NSc
 void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NProto::TExecNodeDescriptor& protoDescriptor)
 {
     descriptor->Id = FromProto<NNodeTrackerClient::TNodeId>(protoDescriptor.node_id());
-    descriptor->Address = protoDescriptor.address();
     if (protoDescriptor.has_addresses()) {
         FromProto(&descriptor->Addresses, protoDescriptor.addresses());
+    }
+    if (protoDescriptor.has_address()) {
+        descriptor->Addresses.emplace(NNodeTrackerClient::DefaultNetworkName, protoDescriptor.address());
     }
     descriptor->IOWeight = protoDescriptor.io_weight();
     descriptor->Online = protoDescriptor.online();

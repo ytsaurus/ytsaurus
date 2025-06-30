@@ -119,6 +119,15 @@ bool TReplicationCardFetchOptions::Contains(const TReplicationCardFetchOptions& 
     return (selfMask | NDetail::ToBitMask(other)) == selfMask;
 }
 
+TReplicationCardFetchOptions& TReplicationCardFetchOptions::operator |= (const TReplicationCardFetchOptions& other)
+{
+    IncludeCoordinators |= other.IncludeCoordinators;
+    IncludeProgress |= other.IncludeProgress;
+    IncludeHistory |= other.IncludeHistory;
+    IncludeReplicatedTableOptions |= other.IncludeReplicatedTableOptions;
+    return *this;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(
@@ -330,6 +339,8 @@ void UpdateReplicationProgress(TReplicationProgress* progress, const TReplicatio
     auto updateEnd = update.Segments.end();
     auto progressTimestamp = NullTimestamp;
     auto updateTimestamp = NullTimestamp;
+
+    segments.reserve(progress->Segments.size() + update.Segments.size());
 
     auto append = [&] (TUnversionedOwningRow key) {
         auto timestamp = std::max(progressTimestamp, updateTimestamp);

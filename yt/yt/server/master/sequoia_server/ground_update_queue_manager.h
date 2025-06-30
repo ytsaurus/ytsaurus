@@ -25,6 +25,9 @@ struct IGroundUpdateQueueManager
         NSequoiaClient::ESequoiaTable table,
         NTableClient::TUnversionedOwningRow row,
         EGroundUpdateAction action) = 0;
+
+    virtual TFuture<void> Sync(
+        NSequoiaClient::EGroundUpdateQueue queue) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IGroundUpdateQueueManager)

@@ -62,9 +62,11 @@ using namespace NYTree;
 using namespace NTools;
 using namespace NServer;
 
+using NNet::TIP6Address;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -203,6 +205,8 @@ public:
         const TRootFS& /*rootFS*/,
         const std::string& /*user*/,
         const std::optional<std::vector<TDevice>>& /*devices*/,
+        const std::optional<TString>& /*hostName*/,
+        const std::vector<TIP6Address>& /*ipAddresses*/,
         std::string /*tag*/) override
     {
         THROW_ERROR_EXCEPTION("Running custom commands is not yet supported by %Qlv environment",
@@ -304,7 +308,7 @@ private:
     {
         auto alert = Alert_.Load();
         if (!alert.IsOK()) {
-            alerts->push_back(alert);
+            alerts->push_back(std::move(alert));
         }
     }
 
@@ -573,11 +577,13 @@ public:
         const TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<TDevice>>& devices,
+        const std::optional<TString>& hostName,
+        const std::vector<TIP6Address>& ipAddresses,
         std::string tag) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, tag] {
+        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, hostName, ipAddresses, tag] {
             std::vector<TShellCommandOutput> outputs;
             outputs.reserve(commands.size());
 
@@ -601,6 +607,11 @@ public:
                 launcher->SetUser(user);
                 if (devices) {
                     launcher->SetDevices(*devices);
+                }
+
+                if (hostName) {
+                    launcher->SetHostName(*hostName);
+                    launcher->SetIPAddresses(ipAddresses, /*enableNat64*/ false);
                 }
 
                 auto instanceOrError = WaitFor(launcher->Launch(command->Path, command->Args, command->EnvironmentVariables));
@@ -969,7 +980,8 @@ private:
         return CreatePortoJobWorkspaceBuilder(
             invoker,
             std::move(context),
-            directoryManager);
+            directoryManager,
+            Bootstrap_->GetGpuManager());
     }
 };
 
@@ -1108,6 +1120,8 @@ public:
         const TRootFS& rootFS,
         const std::string& /*user*/,
         const std::optional<std::vector<TDevice>>& /*devices*/,
+        const std::optional<TString>& /*hostName*/,
+        const std::vector<TIP6Address>& /*ipAddresses*/,
         std::string tag) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -1205,6 +1219,7 @@ private:
         // Run job proxy in docker image specified for the job.
         // For now CRI job-environment does not isolate user jobs from job proxy.
         spec->Image.Image = config->DockerImage.value_or(ConcreteConfig_->JobProxyImage);
+        spec->Image.Id = config->DockerImageId.value_or("");
 
         spec->Labels[YTJobIdLabel] = ToString(jobId);
 

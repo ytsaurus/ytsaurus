@@ -29,9 +29,8 @@ public:
         int schemaColumnCount,
         TDataBlockWriter* blockWriter,
         IMemoryUsageTrackerPtr memoryUsageTracker)
-        : TColumnWriterBase(blockWriter, memoryUsageTracker)
+        : TColumnWriterBase(blockWriter, std::move(memoryUsageTracker))
         , SchemaColumnCount_(schemaColumnCount)
-        , MemoryUsageTracker_(std::move(memoryUsageTracker))
     {
         Reset();
     }
@@ -75,7 +74,6 @@ public:
 
 private:
     const int SchemaColumnCount_;
-    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     std::unique_ptr<TChunkedOutputStream> DataBuffer_;
 
@@ -91,8 +89,8 @@ private:
 
         DataBuffer_ = std::make_unique<TChunkedOutputStream>(
             GetRefCountedTypeCookie<TDefaultChunkedOutputStreamTag>(),
-            MemoryUsageTracker_
-        );
+            MemoryUsageTracker_);
+
         MaxValueCount_ = 0;
         MemoryGuard_.SetSize(GetUntrackedMemoryUsage());
     }

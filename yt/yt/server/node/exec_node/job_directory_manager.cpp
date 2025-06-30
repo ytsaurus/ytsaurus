@@ -29,7 +29,7 @@ using namespace NTools;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -186,7 +186,7 @@ public:
         for (int attempt = 0; attempt < TmpfsRemoveAttemptCount; ++attempt) {
             auto mountPoints = NFS::GetMountPoints("/proc/mounts");
             for (const auto& mountPoint : mountPoints) {
-                if (mountPoint.Path == Path_ || mountPoint.Path.StartsWith(Path_ + "/")) {
+                if (mountPoint.Path.StartsWith(Path_ + "/")) {
                     Directories_.insert(mountPoint.Path);
                 }
             }
@@ -195,7 +195,7 @@ public:
             if (!error.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to initialize simple job directory manager")
                     << TErrorAttribute("path", Path_)
-                    << error;
+                    << std::move(error);
             }
         }
     }

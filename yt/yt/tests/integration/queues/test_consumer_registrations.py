@@ -954,7 +954,6 @@ class TestDataApiSingleCluster(TestDataApiBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "watching",
-            "poll_replicated_objects": True,
             "write_replicated_table_mapping": True,
         },
         "queue_agent": {
@@ -1161,7 +1160,6 @@ class TestDataApiMultiCluster(TestDataApiBase):
             # List of clusters for the watching policy.
             "clusters": ["primary", "remote_0"],
             "pass_period": 100,
-            "poll_replicated_objects": True,
             "write_replicated_table_mapping": True,
         },
         "queue_agent": {
@@ -1236,7 +1234,7 @@ class TestDataApiMultiCluster(TestDataApiBase):
         insert_rows(queue_replicated_table, [{"data": "bar"}])
 
         register_queue_consumer(queue_replicated_table, consumer_replicated_table, vital=False)
-        # Wait for registration table mapping to be filled.
+        # Wait for replicated table mapping to be filled.
         CypressSynchronizerOrchid().wait_fresh_pass()
 
         # This works, since we perform fallback requests to replicas under root.
@@ -1266,7 +1264,7 @@ class TestDataApiMultiCluster(TestDataApiBase):
 
         set(f"{consumer_replicated_table}/@abc", True)
         set(f"{queue_replicated_table}/@abc", True)
-        # Wait for registration table mapping to be filled.
+        # Wait for replicated table mapping to be filled.
         CypressSynchronizerOrchid().wait_fresh_pass()
 
         self._wait_assert_rows_contain(

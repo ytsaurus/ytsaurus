@@ -1,6 +1,6 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: h11
-Version: 0.14.0
+Version: 0.16.0
 Summary: A pure-Python, bring-your-own-I/O implementation of HTTP/1.1
 Home-page: https://github.com/python-hyper/h11
 Author: Nathaniel J. Smith
@@ -13,15 +13,24 @@ Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3 :: Only
-Classifier: Programming Language :: Python :: 3.7
 Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
 Classifier: Topic :: Internet :: WWW/HTTP
 Classifier: Topic :: System :: Networking
-Requires-Python: >=3.7
+Requires-Python: >=3.8
 License-File: LICENSE.txt
-Requires-Dist: typing-extensions ; python_version < "3.8"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: home-page
+Dynamic: license
+Dynamic: license-file
+Dynamic: requires-python
+Dynamic: summary
 
 h11
 ===
@@ -137,7 +146,7 @@ library.
 It has a test suite with 100.0% coverage for both statements and
 branches.
 
-Currently it supports Python 3 (testing on 3.7-3.10) and PyPy 3.
+Currently it supports Python 3 (testing on 3.8-3.12) and PyPy 3.
 The last Python 2-compatible version was h11 0.11.x.
 (Originally it had a Cython wrapper for `http-parser
 <https://github.com/nodejs/http-parser>`_ and a beautiful nested state

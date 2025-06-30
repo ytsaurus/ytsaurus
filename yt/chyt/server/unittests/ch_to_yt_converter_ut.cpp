@@ -510,6 +510,29 @@ TEST_F(TCHToYTConversionTest, ArrayInt32)
     ExpectYsonConversion(column, expectedLogicalType, expectedValueYsons);
 }
 
+TEST_F(TCHToYTConversionTest, EmptyArrayString)
+{
+    auto dataType = std::make_shared<DB::DataTypeArray>(std::make_shared<DB::DataTypeString>());
+
+    auto column = MakeColumn(dataType, {
+        DB::Array{},
+        DB::Array(),
+        DB::Array{},
+    });
+
+    std::vector<TStringBuf> expectedValueYsons = {
+        "[]",
+        "[]",
+        "[]",
+    };
+
+    auto expectedLogicalType = ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String));
+
+    Converter_.emplace(dataType, Settings_);
+
+    ExpectYsonConversion(column, expectedLogicalType, expectedValueYsons);
+}
+
 TEST_F(TCHToYTConversionTest, ArrayNullableString)
 {
     auto dataType = std::make_shared<DB::DataTypeArray>(DB::makeNullable(std::make_shared<DB::DataTypeString>()));

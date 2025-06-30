@@ -30,13 +30,13 @@
 
 #include <yt/yt/core/logging/fluent_log.h>
 
+#include <yt/yt/core/misc/memory_usage_tracker.h>
+
 #include <yt/yt/core/rpc/authenticator.h>
 
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/ytree/fluent.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <util/random/random.h>
 
@@ -226,9 +226,11 @@ bool TContext::TryParseUser()
         return true;
     }
 
-    if (Api_->IsUserBannedInCache(authenticatedUser)) {
+    try {
+        Api_->ValidateUser(authenticatedUser);
+    } catch (const std::exception& ex) {
         Response_->SetStatus(EStatusCode::Forbidden);
-        ReplyError(TError("User %Qv is banned", authenticatedUser));
+        ReplyError(TError("User validation failed") << ex);
         return false;
     }
 
@@ -308,7 +310,7 @@ bool TContext::TryGetHeaderFormat()
 
 bool TContext::TryGetInputFormat()
 {
-    static const TString YtHeaderName = "X-YT-Input-Format";
+    static const std::string YtHeaderName = "X-YT-Input-Format";
     std::optional<TString> ytHeader;
     try {
         ytHeader = GatherHeader(Request_->GetHeaders(), YtHeaderName);
@@ -333,7 +335,7 @@ bool TContext::TryGetInputCompression()
 {
     auto header = Request_->GetHeaders()->Find("Content-Encoding");
     if (header) {
-        auto compression = StripString(*header);
+        auto compression = StripString(TString(*header));
         if (!IsContentEncodingSupported(compression)) {
             Response_->SetStatus(EStatusCode::UnsupportedMediaType);
             ReplyError(TError{"Unsupported Content-Encoding"});
@@ -589,7 +591,7 @@ void TContext::LogStructuredRequest()
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
         WallTime_,
-        CpuTime_,
+        ResultCpuTime_,
         Request_->GetReadByteCount(),
         Response_->GetWriteByteCount());
 
@@ -620,7 +622,7 @@ void TContext::LogStructuredRequest()
         .Item("l7_real_ip").Value(FindBalancerRealIP(Request_))
         // COMPAT(babenko): rename to wall_time
         .Item("duration").Value(WallTime_)
-        .Item("cpu_time").Value(CpuTime_)
+        .Item("cpu_time").Value(ResultCpuTime_)
         .Item("start_time").Value(Timer_.GetStartTime())
         .Item("in_bytes").Value(Request_->GetReadByteCount())
         .Item("out_bytes").Value(Response_->GetWriteByteCount());
@@ -750,15 +752,24 @@ void TContext::SetupTracing()
 
 void TContext::SetupUserMemoryLimits()
 {
-    auto config = Api_->GetDynamicConfig();
+    const auto& config = Api_->GetDynamicConfig();
     auto userMemoryRatio = config->DefaultUserMemoryLimitRatio;
-    auto userRatioIt = config->UserToMemoryLimitRatio.find(DriverRequest_.AuthenticatedUser);
-    if (userRatioIt != config->UserToMemoryLimitRatio.end()) {
-        userMemoryRatio = userRatioIt->second;
+    const auto& proxyRole = Api_->GetCoordinator()->GetSelf()->Role;
+    const auto& memoryLimitRatiosIt = config->RoleToMemoryLimitRatios.find(proxyRole);
+
+    if (memoryLimitRatiosIt != config->RoleToMemoryLimitRatios.end()) {
+        const auto& memoryLimitRatios = memoryLimitRatiosIt->second;
+        if (memoryLimitRatios->DefaultUserMemoryLimitRatio) {
+            userMemoryRatio = memoryLimitRatios->DefaultUserMemoryLimitRatio;
+        }
+        const auto& userToMemoryLimitRatio = memoryLimitRatios->UserToMemoryLimitRatio;
+        const auto& userRatioIt = userToMemoryLimitRatio.find(DriverRequest_.AuthenticatedUser);
+        if (userRatioIt != userToMemoryLimitRatio.end()) {
+            userMemoryRatio = userRatioIt->second;
+        }
     }
-    if (userMemoryRatio) {
-        Api_->GetMemoryUsageTracker()->SetPoolRatio(TString(DriverRequest_.AuthenticatedUser), *userMemoryRatio);
-    }
+
+    Api_->GetMemoryUsageTracker()->SetPoolRatio(TString(DriverRequest_.AuthenticatedUser), userMemoryRatio);
 }
 
 void TContext::SetupMemoryUsageTracker()
@@ -842,6 +853,21 @@ void TContext::ProcessFormatsInParameters()
     }
 }
 
+void TContext::SetupUpdateCpuExecutor()
+{
+    UpdateCpuExecutor_ = New<TPeriodicExecutor>(
+        GetCurrentInvoker(),
+        BIND(
+            &TContext::UpdateCumulativeCpuAndProfile,
+            MakeWeak(this),
+            TTraceContextPtr(TryGetCurrentTraceContext()),
+            DriverRequest_.AuthenticatedUser,
+            DriverRequest_.CommandName),
+        Api_->GetConfig()->CpuUpdatePeriod);
+
+    UpdateCpuExecutor_->Start();
+}
+
 void TContext::FinishPrepare()
 {
     CaptureParameters();
@@ -855,6 +881,7 @@ void TContext::FinishPrepare()
     SetupTracing();
     SetupUserMemoryLimits();
     SetupMemoryUsageTracker();
+    SetupUpdateCpuExecutor();
     AddHeaders();
     PrepareFinished_ = true;
 
@@ -965,9 +992,11 @@ TSharedRef DumpError(const TError& error)
 void TContext::LogAndProfile()
 {
     WallTime_ = Timer_.GetElapsedTime();
+    TDuration deltaCpuTime = TDuration::Zero();
     if (const auto* traceContext = TryGetCurrentTraceContext()) {
         FlushCurrentTraceContextElapsedTime();
-        CpuTime_ = traceContext->GetElapsedTime();
+        ResultCpuTime_ = traceContext->GetElapsedTime();
+        deltaCpuTime = ResultCpuTime_ - ProfiledCpuTime_;
     }
 
     LogStructuredRequest();
@@ -978,7 +1007,7 @@ void TContext::LogAndProfile()
         Response_->GetStatus(),
         Error_.GetNonTrivialCode(),
         WallTime_,
-        CpuTime_,
+        deltaCpuTime,
         Request_->GetRemoteAddress());
 }
 
@@ -987,6 +1016,11 @@ void TContext::Finalize()
     if (SendKeepAliveExecutor_) {
         YT_LOG_DEBUG("Stopping periodic executor that sends keep-alive frames");
         Y_UNUSED(WaitFor(SendKeepAliveExecutor_->Stop()));
+    }
+
+    if (UpdateCpuExecutor_) {
+        YT_LOG_DEBUG("Stopping periodic executor that updates and profiles cumulative cpu");
+        Y_UNUSED(WaitFor(UpdateCpuExecutor_->Stop()));
     }
 
     if (EnableRequestBodyWorkaround(Request_)) {
@@ -1017,10 +1051,7 @@ void TContext::Finalize()
     } else if (!Response_->AreHeadersFlushed()) {
         Response_->GetHeaders()->Remove("Trailer");
 
-        if (Error_.FindMatching(NSecurityClient::EErrorCode::UserBanned)) {
-            Response_->SetStatus(EStatusCode::Forbidden);
-            Api_->PutUserIntoBanCache(DriverRequest_.AuthenticatedUser);
-        } else if (!Error_.IsOK()) {
+        if (!Error_.IsOK()) {
             Response_->SetStatus(EStatusCode::BadRequest);
         }
         // TODO(prime@): More error codes.
@@ -1177,6 +1208,23 @@ IInvokerPtr TContext::GetCompressionInvoker() const
     return Api_->GetDynamicConfig()->UseCompressionThreadPool
         ? NYT::GetCompressionInvoker(workloadDescriptor)
         : Api_->GetPoller()->GetInvoker();
+}
+
+void TContext::UpdateCumulativeCpuAndProfile(
+    const TTraceContextPtr& traceContext,
+    const std::string& authenticatedUser,
+    const TString& commandName)
+{
+    if (traceContext) {
+        auto currentCpuTime = traceContext->GetElapsedTime();
+
+        Api_->IncrementCpuProfilingCounter(
+            authenticatedUser,
+            commandName,
+            currentCpuTime - ProfiledCpuTime_);
+
+        ProfiledCpuTime_ = currentCpuTime;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

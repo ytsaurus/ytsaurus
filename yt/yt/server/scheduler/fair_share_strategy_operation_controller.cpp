@@ -13,7 +13,7 @@ using namespace NControllerAgent;
 ////////////////////////////////////////////////////////////////////////////////
 
 TFairShareStrategyOperationController::TFairShareStrategyOperationController(
-    IOperationStrategyHost* operation,
+    const IOperationStrategyHostPtr& operation,
     const TFairShareStrategyOperationControllerConfigPtr& config,
     const std::vector<IInvokerPtr>& nodeShardInvokers)
     : Controller_(operation->GetControllerStrategyHost())

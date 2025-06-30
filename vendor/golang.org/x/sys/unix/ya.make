@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.30.0)
+VERSION(v0.33.0)
 
 BUILD_ONLY_IF(
     WARNING
@@ -106,7 +106,7 @@ IF (OS_LINUX AND ARCH_ARM64)
     )
 ENDIF()
 
-IF (OS_LINUX AND ARCH_ARM7)
+IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
     SRCS(
         asm_linux_arm.s
         fcntl_linux_32bit.go

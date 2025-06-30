@@ -61,6 +61,8 @@ def create_tables(registry, schema, attributes, spec, args):
         remove_existing([registry.data, registry.tablet_size], args.force)
     if not spec.testing.skip_write:
         remove_existing([registry.base], args.force)
+        if spec.queues.use_hunk_storage:
+            remove_existing([registry.hunk_storage], args.force)
 
     remove_existing([registry.result, registry.dump], args.force)
     yt.create("table", registry.result)
@@ -72,10 +74,6 @@ def create_tables(registry, schema, attributes, spec, args):
     create_tablet_size_table(registry.tablet_size, spec.size.tablet_count)
 
     if not spec.testing.skip_write:
-        if spec.queues.use_hunk_storage:
-            hunk_storage_id = yt.create("hunk_storage", registry.hunk_storage)
-            attributes["hunk_storage_id"] = hunk_storage_id
-
         create_dynamic_table(
             registry.base,
             schema,
@@ -83,7 +81,35 @@ def create_tables(registry, schema, attributes, spec, args):
             spec.size.tablet_count,
             sorted=False,
             dynamic=True,
-            spec=spec)
+            spec=spec,
+            skip_mount=False)
+
+        if spec.queues.use_hunk_storage:
+            cell_tag = yt.get(f"{registry.base}/@external_cell_tag")
+
+            hunk_storage_attributes = {
+                "external_cell_tag": cell_tag,
+            }
+            if spec.queues.use_erasure_hunk_storage:
+                hunk_storage_attributes["erasure_codec"] = "reed_solomon_3_3"
+                hunk_storage_attributes["replication_factor"] = 1
+                hunk_storage_attributes["read_quorum"] = 4
+                hunk_storage_attributes["write_quorum"] = 5
+
+            logger.info(f"Create hunk storage {registry.hunk_storage} on cell tag {cell_tag}")
+            hunk_storage_id = yt.create(
+                "hunk_storage",
+                registry.hunk_storage,
+                attributes=hunk_storage_attributes)
+
+            logger.info(f"Linking hunk storage {hunk_storage_id} to {registry.base}")
+            yt.set(f"{registry.base}/@hunk_storage_id", hunk_storage_id)
+
+            logger.info(f"Mounting hunk storage {registry.hunk_storage}")
+            mount_table(registry.hunk_storage)
+
+        logger.info(f"Mounting {registry.base}")
+        mount_table(registry.base)
 
     yt.register_queue_consumer(registry.base, registry.consumer, vital=False)
 
@@ -204,6 +230,8 @@ def test_queues(base_path, spec, attributes, args):
     logger.info("Schema data weight is %s", schema.data_weight())
 
     assert not spec.replicas
+    if spec.queues.use_hunk_storage:
+        assert spec.schema.max_inline_hunk_size, "Hunk storage can only by used with a table containing hunk columns"
 
     create_tables(registry, schema, attributes, spec, args)
 
@@ -254,3 +282,5 @@ def test_queues(base_path, spec, attributes, args):
         logger.info("Checking stuff for %s", registry.base)
         check_tablet_sizes(registry.base, registry.tablet_size, current_tablet_count)
         check_trimmed_rows(registry.base, tablet_trimmed_row_count, current_tablet_count)
+
+    yt.unregister_queue_consumer(registry.base, registry.consumer)

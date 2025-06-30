@@ -1,5 +1,6 @@
 #include "new_sorted_chunk_pool.h"
 
+#include "job_size_adjuster.h"
 #include "helpers.h"
 #include "input_chunk_mapping.h"
 #include "new_job_manager.h"
@@ -76,10 +77,16 @@ public:
 
         YT_VERIFY(RowBuffer_);
 
+        if (options.JobSizeAdjusterConfig && JobSizeConstraints_->CanAdjustDataWeightPerJob()) {
+            JobSizeAdjuster_ = CreateDiscreteJobSizeAdjuster(
+                JobSizeConstraints_->GetDataWeightPerJob(),
+                options.JobSizeAdjusterConfig);
+        }
+
         YT_LOG_DEBUG("New sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
             "ForeignPrefixLength: %v, DataWeightPerJob: %v, "
             "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, "
-            "MinManiacDataWeight: %v)",
+            "MinManiacDataWeight: %v, HasJobSizeAdjuster: %v)",
             SortedJobOptions_.EnableKeyGuarantee,
             PrimaryPrefixLength_,
             ForeignPrefixLength_,
@@ -87,7 +94,8 @@ public:
             JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
-            MinManiacDataWeight_);
+            MinManiacDataWeight_,
+            static_cast<bool>(JobSizeAdjuster_));
     }
 
     IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
@@ -197,10 +205,33 @@ public:
                 jobSummary.InterruptionReason,
                 jobSummary.SplitJobCount);
             auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
-            auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount);
+            for (auto& dataSlice : foreignSlices) {
+                dataSlice->LowerLimit().KeyBound = ShortenKeyBound(dataSlice->LowerLimit().KeyBound, ForeignPrefixLength_, RowBuffer_);
+                dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, ForeignPrefixLength_, RowBuffer_);
+            }
+            auto childCookies = SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount, cookie);
             RegisterChildCookies(cookie, std::move(childCookies));
         }
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
+
+        if (JobSizeAdjuster_) {
+            // No point in enlarging jobs if we cannot at least double them.
+            auto action = EJobAdjustmentAction::None;
+            if (JobManager_->JobCounter()->GetPending() > JobManager_->JobCounter()->GetRunning()) {
+                action = JobSizeAdjuster_->UpdateStatistics(jobSummary);
+            }
+
+            if (action == EJobAdjustmentAction::RebuildJobs) {
+                YT_LOG_INFO("Job completion triggered enlargement (JobCookie: %v)", cookie);
+                auto primaryDataWeightRatio = static_cast<double>(JobSizeConstraints_->GetPrimaryDataWeightPerJob())
+                    / JobSizeConstraints_->GetDataWeightPerJob();
+                JobManager_->Enlarge(
+                    JobSizeAdjuster_->GetDataWeightPerJob(),
+                    JobSizeAdjuster_->GetDataWeightPerJob() * primaryDataWeightRatio,
+                    JobSizeConstraints_);
+            }
+        }
+
         CheckCompleted();
     }
 
@@ -266,6 +297,8 @@ private:
     bool IsCompleted_ = false;
 
     TSerializableLogger StructuredLogger;
+
+    std::unique_ptr<IDiscreteJobSizeAdjuster> JobSizeAdjuster_;
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
@@ -567,11 +600,6 @@ private:
         }
     }
 
-    TOutputOrderPtr GetOutputOrder() const override
-    {
-        return nullptr;
-    }
-
     void DoFinish()
     {
         // NB(max42): this method may be run several times (in particular, when
@@ -630,7 +658,8 @@ private:
         if (JobSizeConstraints_->GetSamplingRate()) {
             JobManager_->Enlarge(
                 JobSizeConstraints_->GetDataWeightPerJob(),
-                JobSizeConstraints_->GetPrimaryDataWeightPerJob());
+                JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
+                JobSizeConstraints_);
         }
 
         auto oldDataSliceCount = GetDataSliceCounter()->GetTotal();
@@ -642,7 +671,8 @@ private:
     std::vector<IChunkPoolOutput::TCookie> SplitJob(
         std::vector<TLegacyDataSlicePtr> unreadInputDataSlices,
         std::vector<TLegacyDataSlicePtr> foreignInputDataSlices,
-        int splitJobCount)
+        int splitJobCount,
+        TOutputCookie cookie)
     {
         auto validateDataSlices = [&] (const std::vector<TLegacyDataSlicePtr>& dataSlices, int prefixLength) {
             for (const auto& dataSlice : dataSlices) {
@@ -693,11 +723,12 @@ private:
         // We create new job size constraints by incorporating the new desired data size per job
         // into the old job size constraints.
         auto jobSizeConstraints = CreateExplicitJobSizeConstraints(
-            false /*canAdjustDataSizePerJob*/,
-            false /*isExplicitJobCount*/,
-            splitJobCount /*jobCount*/,
+            /*canAdjustDataSizePerJob*/ false,
+            /*isExplicitJobCount*/ false,
+            /*jobCount*/ splitJobCount,
             dataWeightPerJob,
-            std::numeric_limits<i64>::max() / 4,
+            /*primaryDataWeightPerJob*/ std::numeric_limits<i64>::max() / 4,
+            JobSizeConstraints_->GetCompressedDataSizePerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetMaxPrimaryDataWeightPerJob(),
@@ -706,7 +737,7 @@ private:
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->GetBatchRowCount(),
             JobSizeConstraints_->GetForeignSliceDataWeight(),
-            std::nullopt /*samplingRate*/);
+            /*samplingRate*/ std::nullopt);
 
         // Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.
@@ -742,6 +773,7 @@ private:
         for (auto& job : jobs) {
             jobStubs.emplace_back(std::make_unique<TNewJobStub>(std::move(job)));
         }
+        JobManager_->SeekOrder(cookie);
         auto childCookies = JobManager_->AddJobs(std::move(jobStubs));
 
         return childCookies;
@@ -811,6 +843,9 @@ void TNewSortedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(18, StructuredLogger);
     PHOENIX_REGISTER_FIELD(19, MinManiacDataWeight_,
         .SinceVersion(ESnapshotVersion::IsolateManiacsInSlicing));
+
+    PHOENIX_REGISTER_FIELD(20, JobSizeAdjuster_,
+        .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);

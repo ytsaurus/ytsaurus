@@ -65,7 +65,8 @@ THorizontalBlockReader::THorizontalBlockReader(
     int commonKeyPrefix,
     const TKeyWideningOptions& keyWideningOptions,
     int extraColumnCount,
-    bool decodeInlineHunkValues)
+    bool decodeInlineHunkValues,
+    bool unpackAny)
     : Block_(block)
     , Meta_(meta)
     , ChunkToReaderIdMapping_(chunkToReaderIdMapping)
@@ -78,6 +79,7 @@ THorizontalBlockReader::THorizontalBlockReader(
     , CommonKeyPrefix_(commonKeyPrefix)
     , ExtraColumnCount_(extraColumnCount)
     , DecodeInlineHunkValues_(decodeInlineHunkValues)
+    , UnpackAny_(unpackAny)
 {
     YT_VERIFY(GetKeyColumnCount() >= GetChunkKeyColumnCount());
     YT_VERIFY(Meta_.row_count() > 0);
@@ -160,7 +162,7 @@ bool THorizontalBlockReader::IsHunkValue(TUnversionedValue value)
 
 TUnversionedValue THorizontalBlockReader::DecodeAnyValue(TUnversionedValue value)
 {
-    if (value.Type != EValueType::Any) {
+    if (!UnpackAny_ || value.Type != EValueType::Any) {
         return value;
     }
 

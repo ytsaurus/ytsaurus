@@ -3,6 +3,7 @@ package httpclient
 import (
 	"bytes"
 	"fmt"
+	"io"
 
 	"go.ytsaurus.tech/library/go/blockcodecs"
 	"go.ytsaurus.tech/yt/go/yt"
@@ -51,10 +52,11 @@ func (bw *rowBatchWriter) Batch() yt.RowBatch {
 
 func (c *httpClient) NewRowBatchWriter() yt.RowBatchWriter {
 	batch := &rowBatch{}
+	var w io.WriteCloser
 
 	switch c.config.GetClientCompressionCodec() {
 	case yt.ClientCodecGZIP, yt.ClientCodecNone:
-		return &rowBatchWriter{newTableWriter(batch, nil), batch}
+		w = batch
 	default:
 		block, ok := c.config.GetClientCompressionCodec().BlockCodec()
 		if !ok {
@@ -68,7 +70,12 @@ func (c *httpClient) NewRowBatchWriter() yt.RowBatchWriter {
 			return &rowBatchWriter{errTableWriter{err}, batch}
 		}
 
-		encoder := blockcodecs.NewEncoder(&batch.buf, codec)
-		return &rowBatchWriter{newTableWriter(encoder, nil), batch}
+		w = blockcodecs.NewEncoder(&batch.buf, codec)
 	}
+
+	tw, err := newTableWriter(w, nil, nil)
+	if err != nil {
+		return &rowBatchWriter{errTableWriter{err}, batch}
+	}
+	return &rowBatchWriter{tw, batch}
 }

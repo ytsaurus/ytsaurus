@@ -7,6 +7,7 @@ SRCS(
     config.cpp
     helpers.cpp
     parameterized_balancing_helpers.cpp
+    replica_balancing_helpers.cpp
     table.cpp
     tablet.cpp
     tablet_cell.cpp

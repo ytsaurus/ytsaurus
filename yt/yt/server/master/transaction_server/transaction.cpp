@@ -31,7 +31,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TransactionServerLogger;
+constinit const auto Logger = TransactionServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,6 +63,7 @@ TBranchedNodeSet::TIterator TBranchedNodeSet::end() const noexcept
 
 TCypressNode* TBranchedNodeSet::GetAnyNode()
 {
+    YT_ASSERT(!Nodes_.empty());
     return Nodes_.back();
 }
 
@@ -220,7 +221,6 @@ void TTransaction::TExportEntry::Persist(const NCellMaster::TPersistenceContext&
 
 TTransaction::TTransaction(TTransactionId id, bool upload)
     : TTransactionBase(id)
-    , Parent_(nullptr)
     , StartTime_(TInstant::Zero())
     , Acd_(this)
     , Upload_(upload)
@@ -327,29 +327,16 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, NativeCommitMutationRevision_);
     Load(context, IsCypressTransaction_);
 
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= EMasterReign::TabletPrerequisites) {
-        SetTransactionLeasesState(Load<ETransactionLeasesState>(context));
-        Load(context, LeaseCellIds_);
-        Load(context, SuccessorTransactionLeaseCount_);
-    }
+    SetTransactionLeasesState(Load<ETransactionLeasesState>(context));
+    Load(context, LeaseCellIds_);
+    Load(context, SuccessorTransactionLeaseCount_);
 
     Load(context, AccountResourceUsageLeases_);
     Load(context, SequoiaTransaction_);
     Load(context, SequoiaWriteSet_);
 
     // COMPAT(kvk1920)
-    if (context.GetVersion() >= EMasterReign::SaneTxActionAbort &&
-        context.GetVersion() < EMasterReign::SaneTxActionAbortFix)
-    {
-        Load(context, PreparedActionCount_);
-    }
-
-    // COMPAT(kvk1920)
-    if (context.GetVersion() >= EMasterReign::FixCypressTransactionMirroring ||
-        (context.GetVersion() >= EMasterReign::FixCypressTransactionMirroring_24_1 &&
-         context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap))
-    {
+    if (context.GetVersion() >= EMasterReign::FixCypressTransactionMirroring) {
         Load(context, AuthenticationIdentity_.User);
         Load(context, AuthenticationIdentity_.UserTag);
     }
@@ -513,6 +500,13 @@ int TTransaction::GetSuccessorTransactionLeaseCount() const
     return SuccessorTransactionLeaseCount_;
 }
 
+auto TTransaction::GetActionStateFactory() -> IActionStateFactory*
+{
+    return GetBootstrap()
+        ->GetTransactionManager()
+        ->GetTransactionActionStateFactory();
+}
+
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -521,7 +515,7 @@ template <class TFluent>
 void DumpTransaction(TFluent fluent, const TTransaction* transaction, bool dumpParents)
 {
     auto customAttributes = CreateEphemeralAttributes();
-    auto copyCustomAttribute = [&] (const TString& key) {
+    auto copyCustomAttribute = [&] (const std::string& key) {
         if (!transaction->GetAttributes()) {
             return;
         }
@@ -574,4 +568,3 @@ TYsonString TTransaction::GetErrorDescription() const
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionServer
-

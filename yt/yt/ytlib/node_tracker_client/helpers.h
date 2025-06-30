@@ -106,8 +106,11 @@ void ProfileResources(NProfiling::ISensorWriter* writer, const NProto::TNodeReso
 const NProto::TNodeResources& ZeroNodeResources();
 const NProto::TNodeResources& InfiniteNodeResources();
 
-NObjectClient::TObjectId ObjectIdFromNodeId(TNodeId nodeId, NObjectClient::TCellTag);
+NObjectClient::TObjectId ObjectIdFromNodeId(TNodeId nodeId, NObjectClient::TCellTag cellTag);
 TNodeId NodeIdFromObjectId(NObjectClient::TObjectId objectId);
+
+NObjectClient::TObjectId ObjectIdFromChunkLocationIndex(TChunkLocationIndex chunkLocationIndex, NObjectClient::TCellTag cellTag);
+TChunkLocationIndex ChunkLocationIndexFromObjectId(NObjectClient::TObjectId objectId);
 
 void ValidateNodeTags(const std::vector<std::string>& tags);
 

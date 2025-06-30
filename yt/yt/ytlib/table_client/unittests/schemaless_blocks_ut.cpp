@@ -47,7 +47,7 @@ class TSchemalessBlocksTestOneRow
 protected:
     void SetUp() override
     {
-        THorizontalBlockWriter blockWriter(New<TTableSchema>());
+        THorizontalBlockWriter blockWriter(New<TTableSchema>(), GetNullMemoryUsageTracker());
 
         auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, 5);
         row[0] = MakeUnversionedStringValue("a", 0);
@@ -75,7 +75,7 @@ protected:
         auto row = TMutableUnversionedRow::Allocate(&MemoryPool_, 1);
         row[0] = MakeUnversionedStringLikeValue(WriterType, "[]", 0);
 
-        THorizontalBlockWriter blockWriter(New<TTableSchema>());
+        THorizontalBlockWriter blockWriter(New<TTableSchema>(), GetNullMemoryUsageTracker());
         blockWriter.WriteRow(row);
         auto block = blockWriter.FlushBlock();
 
@@ -210,7 +210,7 @@ class TSchemalessBlocksTestManyRows
 protected:
     void SetUp() override
     {
-        THorizontalBlockWriter blockWriter(New<TTableSchema>());
+        THorizontalBlockWriter blockWriter(New<TTableSchema>(), GetNullMemoryUsageTracker());
 
         for (auto row : MakeRows(0, 1000)) {
             blockWriter.WriteRow(row);

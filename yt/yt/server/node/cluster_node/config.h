@@ -12,17 +12,19 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/server/lib/tablet_node/public.h>
-
 #include <yt/yt/server/node/cellar_node/public.h>
 
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/server/node/query_agent/public.h>
 
+#include <yt/yt/server/node/tablet_node/public.h>
+
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
+
+#include <yt/yt/ytlib/cell_master_client/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
@@ -399,6 +401,9 @@ struct TClusterNodeBootstrapConfig
 
     NConcurrency::TFairThrottlerConfigPtr OutThrottler;
 
+    //! Configuration for huge page manager.
+    NIO::THugePageManagerConfigPtr HugePageManager;
+
     //! Bucket configuration for in network throttlers.
     THashMap<TString, NConcurrency::TFairThrottlerBucketConfigPtr> InThrottlers;
 
@@ -409,6 +414,9 @@ struct TClusterNodeBootstrapConfig
     std::optional<TString> DataCenter;
 
     THeapProfilerConfigPtr HeapProfiler;
+
+    //! Only for testing purposes.
+    bool DelayMasterCellDirectoryStart;
 
     NHttp::TServerConfigPtr CreateSkynetHttpServerConfig();
 
@@ -491,11 +499,18 @@ struct TClusterNodeDynamicConfig
     //! Network throttler limit is this smaller than NetworkBandwidth.
     std::optional<double> ThrottlerFreeBandwidthRatio;
 
-    //! Chunk replica cache config overrides
+    //! Chunk replica cache config overrides.
     TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
 
-    //! Chaos residency cache config overrides
+    //! Chaos residency cache config overrides.
     TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
+
+    NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;
+
+    //! Configuration for huge page manager.
+    NIO::THugePageManagerDynamicConfigPtr HugePageManager;
+
+    TFairShareHierarchicalSchedulerDynamicConfigPtr FairShareHierarchicalScheduler;
 
     bool UsePortoNetworkLimitInThrottler;
 

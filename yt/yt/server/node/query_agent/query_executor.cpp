@@ -201,12 +201,25 @@ std::pair<NTableClient::TColumnFilter, TTimestampReadOptions> GetColumnFilter(
     return {TColumnFilter(std::move(indexes)), std::move(timestampReadOptions)};
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletBalancingRatios final
+    : public std::vector<THashMap<TTabletId, double>>
+{ };
+
+using TTabletBalancingRatiosPtr = TIntrusivePtr<TTabletBalancingRatios>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TProfilingReaderWrapper
     : public ISchemafulUnversionedReader
 {
 private:
     const ISchemafulUnversionedReaderPtr Underlying_;
     const TSelectRowsCounters Counters_;
+    const TTabletBalancingRatiosPtr TabletRatios_;
+    const TTabletId TabletId_;
+    const int SubqueryIndex_;
 
     std::optional<TWallTimer> Timer_;
 
@@ -214,9 +227,15 @@ public:
     TProfilingReaderWrapper(
         ISchemafulUnversionedReaderPtr underlying,
         TSelectRowsCounters counters,
-        bool enableDetailedProfiling)
+        bool enableDetailedProfiling,
+        TTabletId tabletId,
+        int subqueryIndex,
+        TTabletBalancingRatiosPtr tabletRatios)
         : Underlying_(std::move(underlying))
         , Counters_(std::move(counters))
+        , TabletRatios_(std::move(tabletRatios))
+        , TabletId_(tabletId)
+        , SubqueryIndex_(subqueryIndex)
     {
         if (enableDetailedProfiling) {
             Timer_.emplace();
@@ -267,6 +286,8 @@ public:
         if (Timer_) {
             Counters_.SelectDuration.Record(Timer_->GetElapsedTime());
         }
+
+        (*TabletRatios_)[SubqueryIndex_][TabletId_] += statistics.data_weight();
     }
 };
 
@@ -417,6 +438,7 @@ public:
         , Invoker_(std::move(invoker))
         , QueryOptions_(std::move(queryOptions))
         , RequestFeatureFlags_(std::move(requestFeatureFlags))
+        , TabletRatios_(New<TTabletBalancingRatios>())
         , Logger(MakeQueryLogger(Query_))
         , Identity_(NRpc::GetCurrentAuthenticationIdentity())
         , TabletSnapshots_(Bootstrap_->GetTabletSnapshotStore(), Logger)
@@ -473,6 +495,8 @@ public:
 
         auto statistics = DoCoordinateAndExecute();
 
+        AccountCpuTimeToTablets(statistics);
+
         auto cpuTime = statistics.SyncTime;
         for (const auto& innerStatistics : statistics.InnerStatistics) {
             cpuTime += innerStatistics.SyncTime;
@@ -500,6 +524,8 @@ private:
     const IInvokerPtr Invoker_;
     const TQueryOptions QueryOptions_;
     const TFeatureFlags RequestFeatureFlags_;
+
+    const TTabletBalancingRatiosPtr TabletRatios_;
 
     const NLogging::TLogger Logger;
 
@@ -542,8 +568,10 @@ private:
 
         splitCount = std::ssize(groupedDataSplits);
 
+        TabletRatios_->resize(splitCount);
+
         getSubqueryReader = [=, this, this_ = MakeStrong(this)] (int subqueryIndex) {
-            return CreateReaderForDataSources(groupedDataSplits[subqueryIndex]);
+            return CreateReaderForDataSources(groupedDataSplits[subqueryIndex], subqueryIndex);
         };
 
         getPrefetchJoinDataSource = [
@@ -1415,7 +1443,8 @@ private:
     }
 
     ISchemafulUnversionedReaderPtr CreateReaderForDataSources(
-        std::vector<TTabletReadItems> dataSplits)
+        std::vector<TTabletReadItems> dataSplits,
+        int subqueryIndex)
     {
         size_t partitionBounds = 0;
         size_t sortedRangeCount = 0;
@@ -1432,7 +1461,7 @@ private:
             keyCount += dataSplit.Keys.size();
         }
 
-        YT_LOG_DEBUG("Generating reader (SplitCount: %v, PartitionBounds: %v, SortedRanges: %v, OrderedRanges: %v, Keys: %v",
+        YT_LOG_DEBUG("Generating reader (SplitCount: %v, PartitionBounds: %v, SortedRanges: %v, OrderedRanges: %v, Keys: %v)",
             dataSplits.size(),
             partitionBounds,
             sortedRangeCount,
@@ -1544,13 +1573,56 @@ private:
                 return New<TProfilingReaderWrapper>(
                     reader,
                     *tabletSnapshot->TableProfiler->GetSelectRowsCounters(GetProfilingUser(Identity_)),
-                    tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling);
+                    tabletSnapshot->Settings.MountConfig->EnableDetailedProfiling,
+                    dataSplit.TabletId,
+                    subqueryIndex,
+                    TabletRatios_);
             } catch (const std::exception& ex) {
                 THROW_ERROR EnrichErrorForErrorManager(TError(ex), tabletSnapshot);
             }
         };
 
         return CreatePrefetchingOrderedSchemafulReader(std::move(bottomSplitReaderGenerator));
+    }
+
+    void AccountCpuTimeToTablets(const TQueryStatistics& statistics)
+    {
+        int subqueryCount = statistics.InnerStatistics.size();
+        // We might end up executing fewer subqueries than initially planned.
+        YT_VERIFY(subqueryCount <= std::ssize(*TabletRatios_));
+
+        std::vector<double> ratioSums(subqueryCount, 0.0);
+        double totalRowsWrittenBySubqueries = 0;
+
+        auto safeDiv = [] (double lhs, double rhs) {
+            return rhs == 0.0 ? 0.0 : lhs / rhs;
+        };
+
+        for (int subqueryIndex = 0; subqueryIndex < subqueryCount; ++subqueryIndex) {
+            for (const auto& [_, ratio] : (*TabletRatios_)[subqueryIndex]) {
+                ratioSums[subqueryIndex] += ratio;
+            }
+            totalRowsWrittenBySubqueries += statistics.InnerStatistics[subqueryIndex].RowsWritten;
+        }
+
+        for (int subqueryIndex = 0; subqueryIndex < subqueryCount; ++subqueryIndex) {
+            const auto& innerStatistics = statistics.InnerStatistics[subqueryIndex];
+
+            auto subqueryCpuTime = (
+                (innerStatistics.SyncTime - innerStatistics.CodegenTime) +
+                (statistics.SyncTime - statistics.CodegenTime) *
+                    safeDiv(innerStatistics.RowsWritten, totalRowsWrittenBySubqueries))
+                .MicroSeconds();
+
+
+            for (const auto& [tabletId, ratio] : (*TabletRatios_)[subqueryIndex]) {
+                TabletSnapshots_.GetCachedTabletSnapshot(tabletId)
+                    ->PerformanceCounters
+                    ->SelectCpuTime.Counter.fetch_add(
+                        safeDiv(ratio, ratioSums[subqueryIndex]) * subqueryCpuTime,
+                        std::memory_order::relaxed);
+            }
+        }
     }
 
     static size_t GetMinKeyWidth(TRange<TDataSource> dataSources)

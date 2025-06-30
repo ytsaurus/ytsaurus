@@ -1,0 +1,43 @@
+namespace: NYT::NScheduler::NRecords
+
+types:
+  - type_name: TOperationEvent
+    fields:
+      - cpp_name: OperationIdHi
+        cpp_type: ui64
+        column_name: operation_id_hi
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: OperationIdLo
+        cpp_type: ui64
+        column_name: operation_id_lo
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: Timestamp
+        cpp_type: TInstant
+        column_name: timestamp
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: EventType
+        cpp_type: std::string
+        column_name: event_type
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: Incarnation
+        cpp_type: std::string
+        column_name: incarnation
+        column_type: String
+
+      - cpp_name: IncarnationSwitchReason
+        cpp_type: std::string
+        column_name: incarnation_switch_reason
+        column_type: String
+
+      - cpp_name: IncarnationSwitchInfo
+        cpp_type: NYson::TYsonString
+        column_name: incarnation_switch_info
+        column_type: Any

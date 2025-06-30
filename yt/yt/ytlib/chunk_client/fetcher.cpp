@@ -205,7 +205,7 @@ private:
 
             // Update replicas in place for all input chunks with current chunkId.
             for (const auto& chunkSpec : description.ChunkSpecs) {
-                chunkSpec->SetReplicaList(chunkInfo.Replicas);
+                chunkSpec->SetReplicas(chunkInfo.Replicas);
             }
 
             auto observedCount = UnavailableFetcherChunkCount_.fetch_sub(1) - 1;
@@ -293,7 +293,7 @@ TFuture<void> TFetcherBase::Fetch()
 
     THashSet<TNodeId> nodeIds;
     for (int unfetchedChunkIndex : UnfetchedChunkIndexes_) {
-        for (auto replica : Chunks_[unfetchedChunkIndex]->GetReplicaList()) {
+        for (auto replica : Chunks_[unfetchedChunkIndex]->GetReplicas()) {
             nodeIds.insert(replica.GetNodeId());
         }
     }
@@ -451,7 +451,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
     while (!BannedNodes_.empty() && BannedNodes_.begin()->first <= now) {
         auto nodeId = BannedNodes_.begin()->second;
         YT_LOG_DEBUG(
-            "Unbaning node (Address: %v, Now: %v)",
+            "Unbanning node (Address: %v, Now: %v)",
             NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
             now);
 
@@ -468,7 +468,7 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
         const auto& chunk = Chunks_[chunkIndex];
         auto chunkId = chunk->GetChunkId();
         bool chunkAvailable = false;
-        const auto replicas = chunk->GetReplicaList();
+        const auto replicas = chunk->GetReplicas();
         for (auto replica : replicas) {
             auto nodeId = replica.GetNodeId();
             if (!DeadNodes_.contains(nodeId) &&
@@ -528,17 +528,18 @@ void TFetcherBase::StartFetchingRound(const TError& preparationError)
     asyncResults.reserve(size(nodeIts));
     THashSet<int> requestedChunkIndexes;
     for (const auto& it : nodeIts) {
-        for (int chunkIndex : it->second) {
+        const auto& [nodeId, chunkIndexes] = *it;
+        for (int chunkIndex : chunkIndexes) {
             if (requestedChunkIndexes.insert(chunkIndex).second) {
-                NodeToChunkIndexesToFetch_[it->first].insert(chunkIndex);
+                NodeToChunkIndexesToFetch_[nodeId].insert(chunkIndex);
             }
         }
 
-        if (NodeToChunkIndexesToFetch_[it->first].empty()) {
+        if (NodeToChunkIndexesToFetch_[nodeId].empty()) {
             continue;
         }
 
-        asyncResults.push_back(PerformFetchingRoundFromNode(it->first));
+        asyncResults.push_back(PerformFetchingRoundFromNode(nodeId));
     }
 
     bool backoff = asyncResults.empty();

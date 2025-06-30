@@ -32,6 +32,12 @@ This page features video content and publications from {{product-name}} develope
 - **Speaker:** Maxim Babenko
 - **Language:** Russian
 
+### 2023: Scheduling billions of tasks every day
+- **Event:** SmartData 2023
+- **Materials:** [YouTube](https://www.youtube.com/watch?v=Vy6rHf-BIG8), [slides](https://squidex.jugru.team/api/assets/srm/c319271f-8ff5-45b3-94c7-439711825318/scheduling-billions-tasks-per-day.pdf)
+- **Speaker:** Ignat Kolesnichenko
+- **Language:** Russian
+
 ### 2023: Transactional replication in YTsaurus
 - **Event:** HighLoad++ 2023
 - **Materials:** [YouTube](https://youtu.be/grNyiJrPE3w)
@@ -91,7 +97,8 @@ This page features video content and publications from {{product-name}} develope
 - **Language:** Russian
 
 ### 2016: YT: Evolution of Yandex MapReduce system
-- **Event:** Yandex Inside 2016
+- **Event:** Inside Yandex 2016
 - **Author:** Maxim Babenko
 - **Materials:** [YouTube](https://www.youtube.com/watch?v=VQGfH0sZi18)
 - **Language:** Russian
+

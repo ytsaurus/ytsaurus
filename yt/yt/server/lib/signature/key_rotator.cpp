@@ -71,8 +71,12 @@ void TKeyRotator::DoRotate()
 
     auto keyInfo = newKeyPair->KeyInfo();
 
-    WaitFor(KeyWriter_->RegisterKey(keyInfo))
-        .ThrowOnError();
+    auto error = WaitFor(KeyWriter_->RegisterKey(keyInfo));
+    if (!error.IsOK()) {
+       // TODO(pavook): add proper retries here (either via retrying channel or retrying periodic).
+       YT_LOG_ERROR(error, "Failed to register new keypair (NewKeyPair: %v), rotation failed", GetKeyId(keyInfo->Meta()));
+       return;
+    }
 
     Generator_->SetKeyPair(std::move(newKeyPair));
 

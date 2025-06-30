@@ -65,22 +65,27 @@ private:
     struct TOperationUserProfilingTag
     {
         TString PoolId;
-        TString UserName;
+        std::string UserName;
         std::optional<TString> CustomTag;
 
         bool operator==(const TOperationUserProfilingTag& other) const = default;
     };
 
-    struct TOperationProfilingEntry
+    struct TOperationState
     {
         int SlotIndex;
         TString ParentPoolId;
         std::vector<TOperationUserProfilingTag> UserProfilingTags;
 
         NProfiling::TBufferedProducerPtr BufferedProducer;
-    };
 
-    struct TPoolProfilingEntry
+        TResourceVolume AccumulatedResourceUsage;
+
+        TJobMetrics JobMetrics;
+    };
+    THashMap<TOperationId, TOperationState> OperationIdToState_;
+
+    struct TPoolState
     {
         TUnregisterOperationCounters UnregisterOperationCounters;
 
@@ -89,22 +94,21 @@ private:
 
         NProfiling::TBufferedProducerPtr BufferedProducer;
     };
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PoolNameToStateLock_);
+    THashMap<TString, TPoolState> PoolNameToState_;
+
+    // NB(eshcherbin): Ideally pool's job metrics should be embedded in the state,
+    // however, we don't want to acquire the lock when updating job metrics.
+    THashMap<TString, TJobMetrics> PoolNameToJobMetrics_;
 
     NProfiling::TGauge NodeCountGauge_;
     NProfiling::TGauge PoolCountGauge_;
     NProfiling::TGauge TotalElementCountGauge_;
 
-    THashMap<TString, TJobMetrics> JobMetricsMap_;
     THashMap<std::optional<EAllocationSchedulingStage>, THashMap<TString, TJobResources>> ScheduledResourcesByStageMap_;
     TEnumIndexedArray<EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourcesByReasonMap_;
     TEnumIndexedArray<EAllocationPreemptionReason, THashMap<TString, TJobResources>> PreemptedResourceTimesByReasonMap_;
     TEnumIndexedArray<EAllocationPreemptionReason, THashMap<TString, TJobResources>> ImproperlyPreemptedResourcesByReasonMap_;
-
-    THashMap<TOperationId, TOperationProfilingEntry> OperationIdToProfilingEntry_;
-    THashMap<TOperationId, TResourceVolume> OperationIdToAccumulatedResourceUsage_;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, PoolNameToProfilingEntryLock_);
-    THashMap<TString, TPoolProfilingEntry> PoolNameToProfilingEntry_;
 
     NProfiling::TBufferedProducerPtr DistributedResourcesBufferedProducer_;
 

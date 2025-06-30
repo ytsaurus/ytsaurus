@@ -6,17 +6,20 @@ SRCS(
     distconf.cpp
     distconf.h
     distconf_binding.cpp
+    distconf_cache.cpp
     distconf_console.cpp
     distconf_dynamic.cpp
     distconf_generate.cpp
     distconf_fsm.cpp
     distconf_invoke.h
+    distconf_invoke_bridge.cpp
     distconf_invoke_common.cpp
     distconf_invoke_state_storage.cpp
     distconf_invoke_static_group.cpp
     distconf_invoke_storage_config.cpp
     distconf_mon.cpp
     distconf_persistent_storage.cpp
+    distconf_quorum.h
     distconf_scatter_gather.cpp
     distconf_validate.cpp
     node_warden.h
@@ -43,6 +46,7 @@ PEERDIR(
     contrib/ydb/core/blob_depot/agent
     contrib/ydb/core/blobstorage/common
     contrib/ydb/core/blobstorage/crypto
+    contrib/ydb/core/blobstorage/dsproxy/bridge
     contrib/ydb/core/blobstorage/groupinfo
     contrib/ydb/core/blobstorage/pdisk
     contrib/ydb/core/control/lib

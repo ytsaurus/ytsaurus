@@ -35,7 +35,6 @@ using namespace NObjectClient;
 using namespace NSequoiaClient;
 using namespace NTransactionClient;
 
-using TYPath = NYPath::TYPath;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,13 +46,13 @@ public:
     TRootstockProxy(
         IBootstrap* bootstrap,
         TSequoiaSessionPtr sequoiaSession,
-        TAbsoluteYPath resolvedPath)
+        TAbsolutePath resolvedPath)
         : TNodeProxyBase(bootstrap, std::move(sequoiaSession))
         , Path_(std::move(resolvedPath))
     { }
 
 private:
-    const TAbsoluteYPath Path_;
+    const TAbsolutePath Path_;
 
     bool DoInvoke(const ISequoiaServiceContextPtr& context) override
     {
@@ -124,12 +123,12 @@ private:
         });
         sequoiaTransaction->WriteRow(NRecords::TNodeIdToPath{
             .Key = {.NodeId = scionId},
-            .Path = Path_.Underlying(),
+            .Path = Path_.ToRealPath().Underlying(),
         });
 
         NCypressClient::NProto::TReqCreateRootstock rootstockAction;
         rootstockAction.mutable_request()->CopyFrom(*request);
-        rootstockAction.set_path(Path_.Underlying());
+        rootstockAction.set_path(Path_.ToRealPath().Underlying());
 
         auto* createRootstockRequest = rootstockAction.mutable_request();
         ToProto(createRootstockRequest->mutable_hint_id(), rootstockId);
@@ -157,10 +156,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeProxyBasePtr CreateRootstockProxy(
+INodeProxyPtr CreateRootstockProxy(
     IBootstrap* bootstrap,
     TSequoiaSessionPtr sequoiaSession,
-    NSequoiaClient::TAbsoluteYPath resolvedPath)
+    NSequoiaClient::TAbsolutePath resolvedPath)
 {
     return New<TRootstockProxy>(bootstrap, std::move(sequoiaSession), std::move(resolvedPath));
 }

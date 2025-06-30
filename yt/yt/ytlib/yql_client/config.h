@@ -43,7 +43,7 @@ DEFINE_REFCOUNTED_TYPE(TYqlAgentStageConfig)
 struct TYqlAgentConnectionConfig
     : public NYTree::TYsonStruct
 {
-    THashMap<std::string, TYqlAgentStageConfigPtr> Stages;
+    THashMap<std::string, TYqlAgentStageConfigPtr, THash<TStringBuf>, TEqualTo<>> Stages;
 
     REGISTER_YSON_STRUCT(TYqlAgentConnectionConfig);
 

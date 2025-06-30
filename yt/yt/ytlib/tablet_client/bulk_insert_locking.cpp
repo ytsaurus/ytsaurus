@@ -155,8 +155,15 @@ void LockDynamicTables(
         TDelayedExecutor::WaitForDuration(backoff.GetBackoff());
     } while (backoff.Next());
 
-    if (!innerErrors.empty()) {
-        THROW_ERROR_EXCEPTION("Could not lock output dynamic tables")
+    if (!lockableDynamicTables.empty()) {
+        std::vector<TTableId> failedTables;
+        for (const auto& [cellId, tables] : lockableDynamicTables) {
+            for (const auto& table : tables) {
+                failedTables.push_back(table.TableId);
+            }
+        }
+
+        THROW_ERROR_EXCEPTION("Could not lock output dynamic tables %v", failedTables)
             << std::move(innerErrors);
     }
 

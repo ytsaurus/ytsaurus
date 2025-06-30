@@ -5,13 +5,13 @@ from yt_env_setup import Restarter, NODES_SERVICE
 from yt_commands import (
     authors, wait, get, set, mount_table, unmount_table, freeze_table, unfreeze_table,
     wait_for_tablet_state, sync_create_cells, create,
-    sync_mount_table, sync_unmount_table,
+    sync_mount_table, sync_unmount_table, sync_unfreeze_table,
     remount_table, sync_flush_table, select_rows, insert_rows, alter_table,
     sync_enable_table_replica, create_table_replica,
     cancel_tablet_transition, raises_yt_error, create_user, remove,
-    multicell_sleep)
+    multicell_sleep, create_area, ls)
 
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, are_items_equal
 
 from yt.common import YtError
 import yt.yson as yson
@@ -343,7 +343,26 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
             wait(lambda: get(f"#{tablet_id}/@state") == "freezing")
 
         cancel_tablet_transition(tablet_id)
-        wait(lambda: get(f"#{tablet_id}/@state") == "mounted")
+        if sorted and not replicated:
+            wait(lambda: get(f"#{tablet_id}/@state") == "mounted")
+        else:
+            # Cancelation during flush is not supported for physically ordered tables.
+            # However, transition of the replicate tables may be successfully cancelled
+            # if cancelation comes when replication is in progress.
+            sleep(3)
+
+            if transition_type == "unmount":
+                assert get(f"#{tablet_id}/@state") in ("unmounting", "mounted")
+                _set_flush_enabled(True)
+                if get(f"#{tablet_id}/@state") != "mounted":
+                    wait(lambda: get(f"#{tablet_id}/@state") == "unmounted")
+                    sync_mount_table("//tmp/t")
+            else:
+                assert get(f"#{tablet_id}/@state") in ("freezing", "mounted")
+                _set_flush_enabled(True)
+                if get(f"#{tablet_id}/@state") != "mounted":
+                    wait(lambda: get(f"#{tablet_id}/@state") == "frozen")
+                    sync_unfreeze_table("//tmp/t")
 
         if replicated:
             sync_unmount_table("//tmp/r2")
@@ -464,6 +483,146 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         remount_table("//tmp/t")
 
         sync_unmount_table("//tmp/t")
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("transition_type", ["unmount", "freeze"])
+    def test_cancel_transition_stuck_replica(self, transition_type):
+        cell_ids = sync_create_cells(2)
+        custom_area_id = create_area(
+            "custom",
+            cell_bundle_id=get("//sys/tablet_cell_bundles/default/@id"))
+        set(f"#{cell_ids[1]}/@area", "custom")
+        wait(lambda: get(f"#{cell_ids[1]}/@health") == "good")
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ])
+
+        create(
+            "replicated_table",
+            "//tmp/t",
+            attributes={
+                "schema": schema,
+                "dynamic": True,
+                "mount_config": {
+                    "max_dynamic_store_row_count": 5,
+                },
+                "enable_dynamic_store_read": True,
+            })
+        sync_mount_table("//tmp/t", cell_id=cell_ids[0])
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        create("table", "//tmp/r", attributes={
+            "schema": schema,
+            "dynamic": True,
+            "mount_config": {
+                "testing": {
+                    "sync_delay_in_write_transaction_commit": 5000,
+                }
+            }})
+        r = create_table_replica("//tmp/t", "primary", "//tmp/r", attributes={"mode": "async"})
+        alter_table("//tmp/r", upstream_replica_id=r)
+        sync_mount_table("//tmp/r", cell_id=cell_ids[1])
+        sync_enable_table_replica(r)
+
+        def _has_stuck_replication_transaction():
+            replicas = list(get(f"#{tablet_id}/orchid/replicas").values())
+            return replicas[0]["prepared_replication_transaction"] != "0-0-0-0"
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "a"}], require_sync_replica=False)
+        wait(_has_stuck_replication_transaction)
+        set(f"#{custom_area_id}/@node_tag_filter", "invalid")
+        assert _has_stuck_replication_transaction()
+
+        for i in range(1, 5):
+            insert_rows("//tmp/t", [{"key": i, "value": "a"}], require_sync_replica=False)
+
+        if transition_type == "unmount":
+            unmount_table("//tmp/t")
+            wait(lambda: get(f"#{tablet_id}/@state") == "unmounting")
+        else:
+            freeze_table("//tmp/t")
+            wait(lambda: get(f"#{tablet_id}/@state") == "freezing")
+        assert _has_stuck_replication_transaction()
+
+        cancel_tablet_transition(tablet_id)
+        wait(lambda: get(f"#{tablet_id}/@state") == "mounted")
+        assert _has_stuck_replication_transaction()
+
+        for i in range(5, 10):
+            insert_rows("//tmp/t", [{"key": i, "value": "a"}], require_sync_replica=False)
+
+        remove("//tmp/r/@mount_config/testing")
+        remount_table("//tmp/r")
+        set(f"#{custom_area_id}/@node_tag_filter", "")
+        wait(lambda: get(f"#{cell_ids[1]}/@health") == "good")
+
+        expected_rows = [{"key": i, "value": "a"} for i in range(10)]
+        wait(lambda: are_items_equal(expected_rows, select_rows("* from [//tmp/r]")))
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("transition_type", ["unmount", "freeze"])
+    def test_cancel_transition_ordered_table_empty_store(self, transition_type):
+        sync_create_cells(1)
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "key", "type": "int64"}],
+            "dynamic": True,
+            "mount_config": {
+                "testing": {
+                    "flush_failure_probability": 1.0,
+                }
+            }})
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        sync_mount_table("//tmp/t")
+
+        if transition_type == "unmount":
+            unmount_table("//tmp/t")
+            wait(lambda: get(f"#{tablet_id}/@state") == "unmounting")
+        else:
+            freeze_table("//tmp/t")
+            wait(lambda: get(f"#{tablet_id}/@state") == "freezing")
+
+        cancel_tablet_transition(tablet_id)
+        sleep(2)
+        if transition_type == "unmount":
+            assert get(f"#{tablet_id}/@state") == "unmounting"
+        else:
+            assert get(f"#{tablet_id}/@state") == "freezing"
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("transition_type", ["unmount", "freeze"])
+    def test_cancel_transition_mounted_table_receives_dynamic_stores(self, transition_type):
+        sync_create_cells(1)
+        self._create_sorted_table(
+            "//tmp/t",
+            enable_dynamic_store_read=True,
+            mount_config={
+                "testing": {
+                    "flush_failure_probability": 1.0,
+                }
+            })
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        sync_mount_table("//tmp/t")
+
+        action = unmount_table if transition_type == "unmount" else freeze_table
+        transitioning_state = "unmounting" if transition_type == "unmount" else "freezing"
+
+        for i in range(5):
+            action("//tmp/t")
+            wait(lambda: get(f"#{tablet_id}/@state") == transitioning_state)
+            for j in range(3):
+                cancel_tablet_transition(tablet_id)
+            wait(lambda: get(f"#{tablet_id}/@state") == "mounted")
+
+        root_chunk_list_id = get("//tmp/t/@chunk_list_id")
+        tablet_chunk_list_id = get(f"#{root_chunk_list_id}/@child_ids/0")
+        master_store_ids = get(f"#{tablet_chunk_list_id}/@child_ids")
+
+        node_store_ids = get(f"#{tablet_id}/orchid/dynamic_store_id_pool")
+        node_store_ids += ls(f"#{tablet_id}/orchid/eden/stores")
+
+        assert_items_equal(master_store_ids, node_store_ids)
 
 
 ##################################################################

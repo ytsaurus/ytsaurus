@@ -12,7 +12,7 @@ namespace NYT::NChunkClient {
 
 struct TMediumDescriptor
 {
-    TString Name;
+    std::string Name;
     int Index = GenericMediumIndex;
     int Priority = -1;
 
@@ -26,8 +26,8 @@ public:
     const TMediumDescriptor* FindByIndex(int index) const;
     const TMediumDescriptor* GetByIndexOrThrow(int index) const;
 
-    const TMediumDescriptor* FindByName(const TString& name) const;
-    const TMediumDescriptor* GetByNameOrThrow(const TString& name) const;
+    const TMediumDescriptor* FindByName(const std::string& name) const;
+    const TMediumDescriptor* GetByNameOrThrow(const std::string& name) const;
 
     std::vector<int> GetMediumIndexes() const;
 
@@ -37,11 +37,10 @@ public:
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
-    THashMap<TString, const TMediumDescriptor*> NameToDescriptor_;
+    THashMap<std::string, const TMediumDescriptor*> NameToDescriptor_;
     THashMap<int, const TMediumDescriptor*> IndexToDescriptor_;
 
     std::vector<std::unique_ptr<TMediumDescriptor>> Descriptors_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumDirectory)

@@ -40,6 +40,10 @@ struct IJobSizeConstraints
     virtual i64 GetMaxPrimaryDataWeightPerJob() const = 0;
 
     //! Approximate read data size provided via operation spec.
+    virtual i64 GetCompressedDataSizePerJob() const = 0;
+
+    //! Recommended upper limit on the compressed data size per job.
+    //! Can be overflown if exact job count is provided.
     virtual i64 GetMaxCompressedDataSizePerJob() const = 0;
 
     virtual i64 GetInputSliceDataWeight() const = 0;
@@ -57,6 +61,8 @@ struct IJobSizeConstraints
 
     //! A sampling rate if it was specified in a job spec, otherwise null.
     virtual std::optional<double> GetSamplingRate() const = 0;
+
+    //! NB(apollo1321): Using compressed data size here is likely more semantically correct.
     //! When sampling is on, we initially create jobs of this data weight, sample them according to a given rate
     //! and join them together to fulfill data weight per job of `GetDataWeightPerJob()`.
     virtual i64 GetSamplingDataWeightPerJob() const = 0;
@@ -94,6 +100,7 @@ IJobSizeConstraintsPtr CreateExplicitJobSizeConstraints(
     int jobCount,
     i64 dataWeightPerJob,
     i64 primaryDataWeightPerJob,
+    i64 compressedDataSizePerJob,
     i64 maxDataSlicesPerJob,
     i64 maxDataWeightPerJob,
     i64 maxPrimaryDataWeightPerJob,

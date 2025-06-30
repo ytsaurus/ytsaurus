@@ -33,7 +33,7 @@ public:
     NObjectServer::TObject* DoGetParent(TObject* object) override;
 
     //! Returns Cypress path to a map object which must be a designated root.
-    virtual TString GetRootPath(const TObject* rootObject) const = 0;
+    virtual NYPath::TYPath GetRootPath(const TObject* rootObject) const = 0;
 
     virtual void RegisterName(const std::string& /*name*/, TObject* /*object*/) noexcept = 0;
     virtual void UnregisterName(const std::string& /*name*/, TObject* /*object*/) noexcept = 0;

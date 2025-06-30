@@ -153,6 +153,23 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerIntegralGuaranteesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TModuleShareAndNetworkPriority
+    : public NYTree::TYsonStructLite
+{
+    double ModuleShare;
+
+    TNetworkPriority NetworkPriority;
+
+    static const TNetworkPriority MinNetworkPriority = 0;
+    static const TNetworkPriority MaxNetworkPriority = 15;
+
+    REGISTER_YSON_STRUCT_LITE(TModuleShareAndNetworkPriority);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TFairShareStrategySchedulingSegmentsConfig
     : public NYTree::TYsonStruct
 {
@@ -187,6 +204,12 @@ struct TFairShareStrategySchedulingSegmentsConfig
     bool EnableModuleResetOnZeroFairShareAndUsage;
 
     TDuration PriorityModuleAssignmentTimeout;
+
+    std::optional<double> ModuleOversatisfactionThreshold;
+
+    bool ForceIncompatibleSegmentPreemption;
+
+    std::vector<TModuleShareAndNetworkPriority> ModuleShareToNetworkPriority;
 
     const THashSet<std::string>& GetModules() const;
 
@@ -241,7 +264,7 @@ struct TFairShareStrategySsdPriorityPreemptionConfig
 
     TSchedulingTagFilter NodeTagFilter;
 
-    std::vector<TString> MediumNames;
+    std::vector<std::string> MediumNames;
 
     REGISTER_YSON_STRUCT(TFairShareStrategySsdPriorityPreemptionConfig);
 
@@ -456,8 +479,6 @@ struct TFairShareStrategyTreeConfig
     std::vector<double> PerPoolSatisfactionProfilingQuantiles;
 
     bool EnableGuaranteePriorityScheduling;
-
-    bool EnableFastChildFunctionSummationInFifoPools;
 
     TJobResourcesConfigPtr MinJobResourceLimits;
     TJobResourcesConfigPtr MaxJobResourceLimits;
@@ -1018,6 +1039,8 @@ struct TSchedulerConfig
     //! if a scheduler does disconnect after the token is issued but before the
     //! operation node is created, this will ensure it is cleaned up eventually.
     TDuration TemporaryOperationTokenExpirationTimeout;
+
+    THashSet<EOperationManagementAction> OperationActionsAllowedForPoolManagers;
 
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 

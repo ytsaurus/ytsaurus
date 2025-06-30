@@ -1043,10 +1043,7 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "map_operation_options": {
-                "max_data_slices_per_job": 1,
-            },
-            "ordered_merge_operation_options": {
+            "operation_options": {
                 "max_data_slices_per_job": 1,
             },
         }

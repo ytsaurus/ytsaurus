@@ -73,7 +73,7 @@ EValueType GetFrontWithCheck(const TTypeSet& typeSet, TStringBuf /*source*/)
 }
 
 TTypeSet InferFunctionTypes(
-    const TFunctionTypeInferrer* inferrer,
+    const ITypeInferrerPtr& inferrer,
     const std::vector<TTypeSet>& effectiveTypes,
     std::vector<TTypeSet>* genericAssignments,
     TStringBuf functionName,
@@ -138,7 +138,7 @@ TTypeSet InferFunctionTypes(
 }
 
 std::vector<EValueType> RefineFunctionTypes(
-    const TFunctionTypeInferrer* inferrer,
+    const ITypeInferrerPtr& inferrer,
     EValueType resultType,
     int argumentCount,
     std::vector<TTypeSet>* genericAssignments,
@@ -699,6 +699,8 @@ TUntypedExpression TExprBuilderV1::OnExpression(
         return OnCaseOp(caseExpr);
     } else if (auto likeExpr = expr->As<NAst::TLikeExpression>()) {
         return OnLikeOp(likeExpr);
+    } else if (auto queryExpr = expr->As<NAst::TQueryExpression>()) {
+        THROW_ERROR_EXCEPTION("Subqueries in expressions are not supported in expression builder v1.");
     }
 
     YT_ABORT();
@@ -904,12 +906,11 @@ TUntypedExpression TExprBuilderV1::OnReference(const NAst::TReference& reference
 
 TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* functionExpr)
 {
-    auto functionName = functionExpr->FunctionName;
-    functionName.to_lower();
+    auto functionName = to_lower(TString(functionExpr->FunctionName));
 
     const auto& descriptor = Functions_->GetFunction(functionName);
 
-    if (const auto* aggregateFunction = descriptor->As<TAggregateFunctionTypeInferrer>()) {
+    if (descriptor->IsAggregate()) {
         auto subexpressionName = InferColumnName(*functionExpr);
 
         std::vector<TTypeSet> argTypes;
@@ -936,7 +937,7 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
         int stateConstraintIndex;
         int resultConstraintIndex;
 
-        std::tie(stateConstraintIndex, resultConstraintIndex) = aggregateFunction->GetNormalizedConstraints(
+        std::tie(stateConstraintIndex, resultConstraintIndex) = descriptor->GetNormalizedConstraints(
             &genericAssignments,
             &formalArguments);
         IntersectGenericsWithArgumentTypes(
@@ -998,7 +999,7 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
         };
 
         return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant*/ false};
-    } else if (const auto* regularFunction = descriptor->As<TFunctionTypeInferrer>()) {
+    } else {
         std::vector<TTypeSet> argTypes;
         std::vector<TExpressionGenerator> operandTypers;
         argTypes.reserve(functionExpr->Arguments.size());
@@ -1011,7 +1012,7 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
 
         std::vector<TTypeSet> genericAssignments;
         auto resultTypes = InferFunctionTypes(
-            regularFunction,
+            descriptor,
             argTypes,
             &genericAssignments,
             functionName,
@@ -1019,13 +1020,13 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
 
         TExpressionGenerator generator = [
             functionName,
-            regularFunction,
+            descriptor,
             operandTypers,
             genericAssignments,
             source = functionExpr->GetSource(Source_)
         ] (EValueType type) mutable {
             auto effectiveTypes = RefineFunctionTypes(
-                regularFunction,
+                descriptor,
                 type,
                 operandTypers.size(),
                 &genericAssignments,
@@ -1041,8 +1042,6 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
         };
 
         return TUntypedExpression{.FeasibleTypes=resultTypes, .Generator=std::move(generator), .IsConstant=false};
-    } else {
-        YT_ABORT();
     }
 }
 

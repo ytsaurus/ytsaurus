@@ -53,15 +53,9 @@ void TSecondaryIndex::Load(TLoadContext& context)
         Load(context, CompatIndexTable_);
     }
     Load(context, Kind_);
+    Load(context, ExternalCellTag_);
     // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexReplication) {
-        Load(context, ExternalCellTag_);
-    }
-    // COMPAT(sabdenovch)
-    if (context.GetVersion() >= EMasterReign::SecondaryIndexPredicate ||
-        (context.GetVersion() >= EMasterReign::SecondaryIndexPredicate_24_1 &&
-        context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap))
-    {
+    if (context.GetVersion() >= EMasterReign::SecondaryIndexPredicate) {
         Load(context, Predicate_);
     }
     // COMPAT(sabdenovch)

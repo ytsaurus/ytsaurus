@@ -3,15 +3,15 @@
 #include "ast.h"
 #include "callbacks.h"
 
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TFunctionsFetcher = std::function<void(TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers)>;
+using TFunctionsFetcher = std::function<void(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers)>;
 
-void DefaultFetchFunctions(TRange<TString> names, const TTypeInferrerMapPtr& typeInferrers);
+void DefaultFetchFunctions(TRange<std::string> names, const TTypeInferrerMapPtr& typeInferrers);
 
 ////////////////////////////////////////////////////////////////////////////////
 

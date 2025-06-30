@@ -355,35 +355,34 @@ private:
             std::vector<TSessionId> chunkIds;
             chunkIds.reserve(chunkCount);
 
-            std::vector<TFuture<TChunkServiceProxy::TRspCreateChunkPtr>> requestResults;
-            requestResults.reserve(chunkCount);
-
+            std::vector<TFuture<TChunkServiceProxy::TRspCreateChunkPtr>> futures;
+            futures.reserve(chunkCount);
             for (int index = 0; index < chunkCount; ++index) {
-                auto request = proxy.CreateChunk();
-                GenerateMutationId(request);
+                auto req = proxy.CreateChunk();
+                GenerateMutationId(req);
                 auto chunkType = writerOptions->ErasureCodec == NErasure::ECodec::None
                     ? EObjectType::JournalChunk
                     : EObjectType::ErasureJournalChunk;
 
-                request->set_type(ToProto(chunkType));
-                request->set_account(writerOptions->Account);
-                ToProto(request->mutable_transaction_id(), transactionId);
-                request->set_replication_factor(writerOptions->ReplicationFactor);
-                request->set_erasure_codec(ToProto(writerOptions->ErasureCodec));
-                request->set_medium_name(writerOptions->MediumName);
-                request->set_read_quorum(writerOptions->ReadQuorum);
-                request->set_write_quorum(writerOptions->WriteQuorum);
-                request->set_movable(true);
-                request->set_vital(true);
+                req->set_type(ToProto(chunkType));
+                req->set_account(writerOptions->Account);
+                ToProto(req->mutable_transaction_id(), transactionId);
+                req->set_replication_factor(writerOptions->ReplicationFactor);
+                req->set_erasure_codec(ToProto(writerOptions->ErasureCodec));
+                req->set_medium_name(writerOptions->MediumName);
+                req->set_read_quorum(writerOptions->ReadQuorum);
+                req->set_write_quorum(writerOptions->WriteQuorum);
+                req->set_movable(true);
+                req->set_vital(true);
 
-                requestResults.push_back(request->Invoke());
+                futures.push_back(req->Invoke());
             }
-            auto rspsOrError = WaitFor(AllSucceeded(requestResults));
+            auto rspsOrError = WaitFor(AllSucceeded(futures));
             THROW_ERROR_EXCEPTION_IF_FAILED(
                 rspsOrError,
                 "Error creating chunks");
-            auto rsps = rspsOrError.Value();
 
+            const auto& rsps = rspsOrError.Value();
             for (const auto& rsp : rsps) {
                 chunkIds.push_back(FromProto<TSessionId>(rsp->session_id()));
             }

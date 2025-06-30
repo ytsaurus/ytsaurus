@@ -77,7 +77,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = JobProxyLogger;
+constinit const auto Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,6 +120,17 @@ public:
         for (const auto& mapping : RemoteCopyJobSpecExt_.hunk_chunk_id_mapping()) {
             EmplaceOrCrash(
                 HunkChunkIdMapping_,
+                FromProto<TChunkId>(mapping.input_hunk_chunk_id()),
+                FromProto<TChunkId>(mapping.output_hunk_chunk_id()));
+        }
+
+        for (const auto& mapping : RemoteCopyJobSpecExt_.compression_dictionary_id_mapping()) {
+            EmplaceOrCrash(
+                HunkChunkIdMapping_,
+                FromProto<TChunkId>(mapping.input_hunk_chunk_id()),
+                FromProto<TChunkId>(mapping.output_hunk_chunk_id()));
+            EmplaceOrCrash(
+                CompressionDictionaryIdMapping_,
                 FromProto<TChunkId>(mapping.input_hunk_chunk_id()),
                 FromProto<TChunkId>(mapping.output_hunk_chunk_id()));
         }
@@ -291,7 +302,6 @@ public:
     TStatistics GetStatistics() const override
     {
         return {
-            .ChunkReaderStatistics = ReadBlocksOptions_.ClientOptions.ChunkReaderStatistics,
             .ChunkWriterStatistics = {WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics},
             .TotalInputStatistics = {
                 .DataStatistics = DataStatistics_,
@@ -341,6 +351,7 @@ private:
 
     THashMap<TChunkId, TChunkId> HunkChunkIdMapping_;
     THashMap<TChunkId, TChunkId> ResultHunkChunkIdMapping_;
+    THashMap<TChunkId, TChunkId> CompressionDictionaryIdMapping_;
 
     TTraceContextPtr InputTraceContext_;
     TTraceContextFinishGuard InputFinishGuard_;
@@ -437,7 +448,7 @@ private:
 
         auto chunkMeta = GetChunkMeta(inputChunkId, readers);
         ReplaceHunkChunkIds(chunkMeta);
-        CheckNoCompressionDictionaries(chunkMeta, inputChunkId);
+        ReplaceCompressionDictionaryIds(chunkMeta, inputChunkId);
 
         // We do not support node reallocation for erasure chunks.
         auto remoteWriterOptions = New<TRemoteWriterOptions>();
@@ -769,13 +780,13 @@ private:
             erasedPartIndices,
             repairPartIndices);
 
-        TChunkReplicaWithMediumList repairSeedReplicas;
+        TChunkReplicaList repairSeedReplicas;
         repairSeedReplicas.reserve(repairPartIndices.size());
         for (auto repairPartIndex : repairPartIndices) {
             auto writtenReplicas = (*partWriters)[repairPartIndex]->GetWrittenChunkReplicasInfo().Replicas;
             YT_VERIFY(writtenReplicas.size() == 1);
             auto writtenReplica = writtenReplicas.front();
-            repairSeedReplicas.emplace_back(writtenReplica.GetNodeId(), repairPartIndex, writtenReplica.GetMediumIndex());
+            repairSeedReplicas.emplace_back(writtenReplica.GetNodeId(), repairPartIndex);
         }
 
         TChunkReplicaWithMediumList erasedTargetReplicas;
@@ -787,7 +798,7 @@ private:
         auto repairPartReaders = CreateErasurePartReaders(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
-            Host_->GetChunkReaderHost(),
+            Host_->GetChunkReaderHost()->CreateHostForCluster(NScheduler::LocalClusterName),
             outputSessionId.ChunkId,
             std::move(repairSeedReplicas),
             repairPartIndices,
@@ -860,8 +871,6 @@ private:
         auto inputChunkId = FromProto<TChunkId>(inputChunkSpec.chunk_id());
         auto inputReplicas = GetReplicasFromChunkSpec(inputChunkSpec);
 
-        TDeferredChunkMetaPtr chunkMeta;
-
         YT_VERIFY(!inputChunkSpec.use_proxying_data_node_service());
 
         auto reader = CreateReplicationReader(
@@ -871,9 +880,9 @@ private:
             inputChunkId,
             std::move(inputReplicas));
 
-        chunkMeta = GetChunkMeta(inputChunkId, {reader});
+        auto chunkMeta = GetChunkMeta(inputChunkId, {reader});
         ReplaceHunkChunkIds(chunkMeta);
-        CheckNoCompressionDictionaries(chunkMeta, inputChunkId);
+        ReplaceCompressionDictionaryIds(chunkMeta, inputChunkId);
 
         auto writer = CreateReplicationWriter(
             WriterConfig_,
@@ -1127,26 +1136,16 @@ private:
             clusterName = FromProto<TClusterName>(RemoteCopyJobSpecExt_.remote_cluster_name());
         }
 
-        auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
-            auto thisLocked = weakThis.Lock();
-            if (!thisLocked) {
-                return IThroughputThrottlerPtr();
-            }
-
-            return Host_->GetInBandwidthThrottler(clusterName);
-        });
-
         return New<TChunkReaderHost>(
             RemoteClient_,
             Host_->LocalDescriptor(),
             Host_->GetReaderBlockCache(),
             /*chunkMetaCache*/ nullptr,
             /*nodeStatusDirectory*/ nullptr,
-            bandwidthThrottlerFactory(clusterName),
+            Host_->GetInBandwidthThrottler(clusterName),
             Host_->GetOutRpsThrottler(),
             /*mediumThrottler*/ GetUnlimitedThrottler(),
-            Host_->GetTrafficMeter(),
-            std::move(bandwidthThrottlerFactory));
+            Host_->GetTrafficMeter());
     }
 
     void ReplaceHunkChunkIds(const TDeferredChunkMetaPtr& chunkMeta)
@@ -1191,6 +1190,43 @@ private:
                 << TErrorAttribute("chunk_id", chunkId)
                 << TErrorAttribute("job_type", EJobType::RemoteCopy);
         }
+    }
+
+    void ReplaceCompressionDictionaryIds(const TDeferredChunkMetaPtr& chunkMeta, TChunkId inputChunkId)
+    {
+        if (CompressionDictionaryIdMapping_.empty()) {
+            CheckNoCompressionDictionaries(chunkMeta, inputChunkId);
+            return;
+        }
+
+        auto miscExt = GetProtoExtension<TMiscExt>(chunkMeta->extensions());
+        if (miscExt.has_compression_dictionary_id()) {
+            auto chunkId = FromProto<TChunkId>(miscExt.compression_dictionary_id());
+            ToProto(
+                miscExt.mutable_compression_dictionary_id(),
+                GetOrCrash(CompressionDictionaryIdMapping_, chunkId));
+
+            SetProtoExtension<TMiscExt>(
+                chunkMeta->mutable_extensions(),
+                miscExt);
+        }
+
+        auto optionalHunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
+            chunkMeta->extensions());
+        if (!optionalHunkChunkRefsExt) {
+            return;
+        }
+
+        for (auto& ref : *optionalHunkChunkRefsExt->mutable_refs()) {
+            if (ref.has_compression_dictionary_id()) {
+                auto chunkId = FromProto<TChunkId>(ref.compression_dictionary_id());
+                ToProto(ref.mutable_compression_dictionary_id(), GetOrCrash(CompressionDictionaryIdMapping_, chunkId));
+            }
+        }
+
+        SetProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(
+            chunkMeta->mutable_extensions(),
+            *optionalHunkChunkRefsExt);
     }
 };
 

@@ -23,12 +23,21 @@ PY_SRCS(
     yt_dashboards/cache.py
     yt_dashboards/chyt.py
     yt_dashboards/cluster_resources.py
-    yt_dashboards/flow.py
+    yt_dashboards/flow/__init__.py
+    yt_dashboards/flow/common.py
+    yt_dashboards/flow/computation.py
+    yt_dashboards/flow/controller.py
+    yt_dashboards/flow/diagnostics.py
+    yt_dashboards/flow/event_time.py
+    yt_dashboards/flow/general.py
+    yt_dashboards/flow/message_transfering.py
+    yt_dashboards/flow/worker.py
     yt_dashboards/key_filter.py
     yt_dashboards/lsm.py
     yt_dashboards/master.py
     yt_dashboards/scheduler_internal.py
     yt_dashboards/scheduler_pool.py
+    yt_dashboards/scheduler_operation.py
     yt_dashboards/exe_nodes.py
     yt_dashboards/data_nodes.py
     yt_dashboards/queue_and_consumer_metrics.py
@@ -65,5 +74,6 @@ RECURSE(
 IF (NOT OPENSOURCE)
     RECURSE_FOR_TESTS(
         yt_dashboards/tests
+        yt_dashboards/flow/tests
     )
 ENDIF()

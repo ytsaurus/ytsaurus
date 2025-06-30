@@ -7,6 +7,8 @@
 #include <yt/yt/ytlib/query_tracker_client/helpers.h>
 #include <yt/yt/ytlib/query_tracker_client/query_tracker_service_proxy.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NRpcProxy;
@@ -34,10 +36,10 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
     auto* rpcRequest = req->mutable_rpc_proxy_request();
     rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
     if (options.Settings) {
-        rpcRequest->set_settings(ConvertToYsonString(options.Settings).ToString());
+        rpcRequest->set_settings(ToProto(ConvertToYsonString(options.Settings)));
     }
     if (options.Annotations) {
-        rpcRequest->set_annotations(ConvertToYsonString(options.Annotations).ToString());
+        rpcRequest->set_annotations(ToProto(ConvertToYsonString(options.Annotations)));
     }
     if (options.AccessControlObject) {
         rpcRequest->set_access_control_object(*options.AccessControlObject);
@@ -188,7 +190,7 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
         ToProto(rpcRequest->mutable_attributes(), options.Attributes);
     }
     if (options.Timestamp) {
-        rpcRequest->set_timestamp(ToProto<ui64>(options.Timestamp));
+        rpcRequest->set_timestamp(ToProto(options.Timestamp));
     }
 
     auto rsp = WaitFor(req->Invoke()).ValueOrThrow();
@@ -269,7 +271,7 @@ void TClient::DoAlterQuery(TQueryId queryId, const TAlterQueryOptions& options)
     rpcRequest->set_query_tracker_stage(options.QueryTrackerStage);
     ToProto(rpcRequest->mutable_query_id(), queryId);
     if (options.Annotations) {
-        rpcRequest->set_annotations(ConvertToYsonString(options.Annotations).ToString());
+        rpcRequest->set_annotations(ToProto(ConvertToYsonString(options.Annotations)));
     }
     if (options.AccessControlObject) {
         rpcRequest->set_access_control_object(*options.AccessControlObject);
@@ -310,7 +312,7 @@ TGetQueryTrackerInfoResult TClient::DoGetQueryTrackerInfo(const TGetQueryTracker
         .QueryTrackerStage = rpcResponse.query_tracker_stage(),
         .ClusterName = rpcResponse.cluster_name(),
         .SupportedFeatures = TYsonString(rpcResponse.supported_features()),
-        .AccessControlObjects = FromProto<std::vector<TString>>(rpcResponse.access_control_objects()),
+        .AccessControlObjects = FromProto<std::vector<std::string>>(rpcResponse.access_control_objects()),
         .Clusters = FromProto<std::vector<std::string>>(rpcResponse.clusters()),
     };
 }

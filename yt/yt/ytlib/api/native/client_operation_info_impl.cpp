@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/records/ordered_by_id.record.h>
+#include <yt/yt/ytlib/scheduler/records/operation_events.record.h>
 
 #include <yt/yt/client/api/rowset.h>
 
@@ -40,6 +41,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NCypressClient;
+using namespace NControllerAgent;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NRpc;
@@ -49,6 +51,8 @@ using namespace NSecurityClient;
 using namespace NQueryClient;
 using namespace NScheduler;
 using namespace NLogging;
+
+using NJobTrackerClient::NullJobId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -256,7 +260,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
         attributeDictionary->Set("type", type);
     }
 
-    if (auto key = attributeDictionary->FindAndRemove<TString>("key")) {
+    if (auto key = attributeDictionary->FindAndRemove<std::string>("key")) {
         attributeDictionary->Set("id", key);
     }
 
@@ -267,7 +271,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     auto modificationTime = attributeDictionary->GetAndRemove<TInstant>("modification_time");
 
     if (!options.Attributes) {
-        auto keysToKeep = attributeDictionary->Get<THashSet<TString>>("user_attribute_keys");
+        auto keysToKeep = attributeDictionary->Get<THashSet<std::string>>("user_attribute_keys");
         keysToKeep.insert("id");
         keysToKeep.insert("type");
         for (const auto& key : attributeDictionary->ListKeys()) {
@@ -282,14 +286,14 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
         attributeDictionary->Set("runtime_parameters", PatchNode(runtimeParameters, heavyRuntimeParameters));
     }
 
-    auto controllerAgentAddress = attributeDictionary->Find<TString>("controller_agent_address");
+    auto controllerAgentAddress = attributeDictionary->Find<std::string>("controller_agent_address");
     if (controllerAgentAddress) {
         if (options.Attributes && !options.Attributes->contains("controller_agent_address")) {
             attributeDictionary->Remove("controller_agent_address");
         }
     }
 
-    static const std::vector<std::pair<TString, bool>> RuntimeAttributes ={
+    static const std::vector<std::pair<std::string, bool>> RuntimeAttributes ={
         /* {Name, ShouldRequestFromScheduler} */
         {"progress", true},
         {"brief_progress", false},
@@ -299,7 +303,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     if (options.IncludeRuntime) {
         auto batchReq = proxy.ExecuteBatch();
 
-        auto addProgressAttributeRequest = [&] (const TString& attribute, bool shouldRequestFromScheduler) {
+        auto addProgressAttributeRequest = [&] (const std::string& attribute, bool shouldRequestFromScheduler) {
             if (shouldRequestFromScheduler) {
                 auto req = TYPathProxy::Get(GetSchedulerOrchidOperationPath(operationId) + "/" + attribute);
                 batchReq->AddRequest(req, "get_operation_" + attribute);
@@ -321,7 +325,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
             auto batchRsp = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
 
-            auto handleProgressAttributeRequest = [&] (const TString& attribute) {
+            auto handleProgressAttributeRequest = [&] (const std::string& attribute) {
                 INodePtr progressAttributeNode;
 
                 auto responses = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_operation_" + attribute);
@@ -492,6 +496,9 @@ static TYsonString GetLatestProgress(const TYsonString& cypressProgress, const T
 static bool IsErrorRetriable(const TError& error)
 {
     if (error.FindMatching(NTabletClient::EErrorCode::ColumnNotFound)) {
+        return false;
+    }
+    if (error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError)) {
         return false;
     }
     return true;
@@ -721,9 +728,14 @@ TOperation TClient::DoGetOperation(
         });
 
     const auto retryInterval = Connection_->GetConfig()->DefaultGetOperationRetryInterval;
+    auto getOperationOptions = options;
+    if (Connection_->GetConfig()->StrictOperationInfoAccessValidation && getOperationOptions.Attributes) {
+        // Request runtime_parameters to perform access control validation.
+        getOperationOptions.Attributes->insert("runtime_parameters");
+    }
     while (true) {
         try {
-            auto operation = DoGetOperationImpl(operationId, deadline, options);
+            auto operation = DoGetOperationImpl(operationId, deadline, getOperationOptions);
 
             // COMPAT(gepardo): this must be preserved until the operations without provided_spec (i.e. started before mid-2022)
             // are no longer in the operations archive.
@@ -731,6 +743,14 @@ TOperation TClient::DoGetOperation(
                 !operation.ProvidedSpec)
             {
                 operation.ProvidedSpec = operation.Spec;
+            }
+
+            if (Connection_->GetConfig()->StrictOperationInfoAccessValidation) {
+                ValidateOperationAccess(operationId, operation, NullJobId, EPermissionSet::Read);
+                if (options.Attributes && !options.Attributes->contains("runtime_parameters")) {
+                    // Remove runtime_parameters field if it was not requested.
+                    operation.RuntimeParameters = {};
+                }
             }
 
             return operation;
@@ -754,6 +774,7 @@ TOperation TClient::DoGetOperation(
 void TClient::DoListOperationsFromCypress(
     TListOperationsCountingFilter& countingFilter,
     const TListOperationsOptions& options,
+    const TListOperationsContextPtr& context,
     THashMap<NScheduler::TOperationId, TOperation>* idToOperation,
     const TLogger& Logger)
 {
@@ -854,6 +875,7 @@ void TClient::DoListOperationsFromCypress(
 
     auto filter = New<TListOperationsFilter>(
         options,
+        context,
         Connection_->GetInvoker(),
         Logger);
 
@@ -905,6 +927,84 @@ void TClient::DoListOperationsFromCypress(
 
     countingFilter.MergeFrom(filter->GetCountingFilter());
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::vector<TOperationEvent> TClient::DoListOperationEvents(
+    const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+    const TListOperationEventsOptions& options)
+{
+    auto maybeArchiveVersion = TryGetOperationsArchiveVersion();
+    if (!maybeArchiveVersion || *maybeArchiveVersion < 59) {
+        return std::vector<TOperationEvent>();
+    }
+
+    auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultListOperationEventsTimeout);
+    auto deadline = timeout.ToDeadLine();
+
+    TOperationId operationId;
+    Visit(operationIdOrAlias.Payload,
+        [&] (const TOperationId& id) {
+            operationId = id;
+        },
+        [&] (const TString& alias) {
+            operationId = ResolveOperationAlias(alias, options, deadline);
+        });
+
+    NQueryClient::TQueryBuilder builder;
+    builder.SetSource(GetOperationsArchiveOperationEventsPath());
+
+    builder.SetLimit(options.Limit);
+
+    builder.AddSelectExpression("operation_id_hi");
+    builder.AddSelectExpression("operation_id_lo");
+    builder.AddSelectExpression("event_type");
+    builder.AddSelectExpression("timestamp");
+    builder.AddSelectExpression("incarnation_switch_reason");
+    builder.AddSelectExpression("incarnation_switch_info");
+    builder.AddSelectExpression("incarnation");
+
+    builder.AddWhereConjunct(Format(
+        "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+        operationId.Underlying().Parts64[0],
+        operationId.Underlying().Parts64[1]));
+
+    if (options.EventType) {
+        builder.AddWhereConjunct(Format(
+            "event_type = %Qv",
+            FormatEnum(*options.EventType)));
+    }
+
+    builder.AddOrderByAscendingExpression("timestamp");
+
+    auto rowset = WaitFor(SelectRows(builder.Build(), GetDefaultSelectRowsOptions(deadline)))
+        .ValueOrThrow()
+        .Rowset;
+
+    auto idMapping = NRecords::TOperationEvent::TRecordDescriptor::TIdMapping(rowset->GetNameTable());
+    auto records = ToRecords<NRecords::TOperationEventPartial>(rowset->GetRows(), idMapping);
+
+    std::vector<TOperationEvent> events;
+    events.reserve(records.size());
+    for (const auto& record : records) {
+        std::optional<EOperationIncarnationSwitchReason> incarnationSwitchReason;
+        if (record.IncarnationSwitchReason) {
+            incarnationSwitchReason = ParseEnum<EOperationIncarnationSwitchReason>(*record.IncarnationSwitchReason);
+        }
+
+        events.push_back(TOperationEvent{
+            .Timestamp = record.Key.Timestamp,
+            .EventType = ParseEnum<EOperationEventType>(record.Key.EventType),
+            .Incarnation = record.Incarnation,
+            .IncarnationSwitchReason = incarnationSwitchReason,
+            .IncarnationSwitchInfo = record.IncarnationSwitchInfo,
+        });
+    }
+
+    return events;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
 void TryFromUnversionedValue(T& result, TUnversionedRow row, std::optional<int> index)
@@ -1025,6 +1125,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     TInstant deadline,
     TListOperationsCountingFilter& countingFilter,
     const TListOperationsOptions& options,
+    const TListOperationsContextPtr& context,
     int archiveVersion,
     const TLogger& Logger)
 {
@@ -1044,6 +1145,14 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         if (options.SubstrFilter) {
             builder->AddWhereConjunct(
                 Format("is_substr(%Qv, filter_factors)", *options.SubstrFilter));
+        }
+
+        if (context->StrictOperationInfoAccessValidation &&
+            !context->UserTransitiveClosure.contains(SuperusersGroupName))
+        {
+            builder->AddWhereConjunct(Format("NOT is_null(acl) AND _yt_has_permissions(acl, %Qv, %Qv)",
+                ConvertToYsonString(context->UserTransitiveClosure, EYsonFormat::Text),
+                ConvertToYsonString(EPermissionSet::Read, EYsonFormat::Text)));
         }
 
         if (options.AccessFilter) {
@@ -1078,10 +1187,7 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
         builder.AddGroupByExpression("pool");
         builder.AddGroupByExpression("has_failed_jobs");
 
-        TSelectRowsOptions selectOptions;
-        selectOptions.Timeout = deadline - Now();
-        selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
-        selectOptions.MemoryLimitPerNode = 100_MB;
+        TSelectRowsOptions selectOptions = GetDefaultSelectRowsOptions(deadline);
 
         auto resultCounts = WaitFor(GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions))
             .ValueOrThrow();
@@ -1195,10 +1301,8 @@ THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     // Retain more operations than limit to track (in)completeness of the response.
     builder.SetLimit(1 + options.Limit);
 
-    TSelectRowsOptions selectOptions;
-    selectOptions.Timeout = deadline - Now();
-    selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
-    selectOptions.MemoryLimitPerNode = 100_MB;
+    TSelectRowsOptions selectOptions = GetDefaultSelectRowsOptions(deadline);
+
     auto rowsItemsId = WaitFor(GetOperationsArchiveClient()->SelectRows(builder.Build(), selectOptions))
         .ValueOrThrow();
     auto records = ToRecords<NRecords::TOrderedByStartTimePartial>(rowsItemsId.Rowset);
@@ -1269,12 +1373,28 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
         options.SubstrFilter = to_lower(*options.SubstrFilter);
     }
 
+    // NB(aleksandr.gaev): This client is used to get subject closure (@member_of_closure) of a user, which is protected by an ACL.
+    auto client = Connection_->GetConfig()->StrictOperationInfoAccessValidation
+        ? this
+        : GetOperationsArchiveClient();
+
+    auto proxy = NObjectClient::CreateObjectServiceReadProxy(
+        client,
+        options.ReadFrom,
+        PrimaryMasterCellTagSentinel,
+        Connection_->GetStickyGroupSizeCache());
+
+    auto context = New<TListOperationsContext>();
+    context->StrictOperationInfoAccessValidation = Connection_->GetConfig()->StrictOperationInfoAccessValidation;
+    if (context->StrictOperationInfoAccessValidation) {
+        context->UserTransitiveClosure = GetSubjectClosure(
+            Options_.GetAuthenticatedUser(),
+            proxy,
+            Connection_,
+            options);
+    }
+
     if (options.AccessFilter) {
-        auto proxy = NObjectClient::CreateObjectServiceReadProxy(
-            GetOperationsArchiveClient(),
-            options.ReadFrom,
-            PrimaryMasterCellTagSentinel,
-            Connection_->GetStickyGroupSizeCache());
         options.AccessFilter->SubjectTransitiveClosure = GetSubjectClosure(
             options.AccessFilter->Subject,
             proxy,
@@ -1297,6 +1417,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
                 deadline,
                 countingFilter,
                 options,
+                context,
                 *archiveVersion,
                 Logger);
         }
@@ -1305,6 +1426,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     DoListOperationsFromCypress(
         countingFilter,
         options,
+        context,
         &idToOperation,
         Logger);
 

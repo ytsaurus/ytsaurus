@@ -1,12 +1,14 @@
 #include "job_gpu_checker.h"
 #include "slot.h"
 
+#include <yt/yt/server/lib/exec_node/config.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/core/misc/range_helpers.h>
 
 namespace NYT::NExecNode {
 
@@ -21,7 +23,7 @@ TJobGpuChecker::TJobGpuChecker(
     NLogging::TLogger logger)
     : Context_(std::move(context))
     , Logger(std::move(logger)
-        .WithTag("Type: %v", Context_.GpuCheckType))
+        .WithTag("Type: %v", Context_.Type))
 {
     YT_LOG_DEBUG("Creating job GPU checker");
 }
@@ -31,7 +33,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     std::string tag;
-    switch (Context_.GpuCheckType) {
+    switch (Context_.Type) {
         case EGpuCheckType::Preliminary:
             tag = "prelim";
             break;
@@ -47,7 +49,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
 
         auto testFileCommand = New<TShellCommandConfig>();
         testFileCommand->Path = "/usr/bin/test";
-        testFileCommand->Args = {"-f", Context_.GpuCheckBinaryPath};
+        testFileCommand->Args = {"-f", Context_.Options.BinaryPath};
 
         auto testFileResultOrError = WaitFor(
             Context_.Slot->RunPreparationCommands(
@@ -56,13 +58,15 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 Context_.RootFS,
                 Context_.CommandUser,
                 /*devices*/ std::nullopt,
+                /*hostName*/ std::nullopt,
+                /*ipAddresses*/ {},
                 tag + "_test"));
 
         if (!testFileResultOrError.IsOK()) {
-            auto error = TError(NExecNode::EErrorCode::GpuCheckCommandIncorrect, "Failed to verify GPU check binary")
-                << TErrorAttribute("check_type", Context_.GpuCheckType)
-                << TErrorAttribute("path", Context_.GpuCheckBinaryPath)
-                << testFileResultOrError;
+            auto error = TError(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, "Failed to verify GPU check binary")
+                << TErrorAttribute("check_type", Context_.Type)
+                << TErrorAttribute("path", Context_.Options.BinaryPath)
+                << std::move(testFileResultOrError);
 
             YT_LOG_INFO(error);
 
@@ -72,10 +76,53 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         YT_LOG_INFO("GPU check command successfully verified");
     }
 
+    // Setup actions should be performed only once (in preliminary GPU check).
+    if (Context_.Type == EGpuCheckType::Preliminary && !Context_.Options.SetupCommands.empty()) {
+        YT_LOG_INFO("Run GPU check setup commands");
+
+        auto resultOrError = WaitFor(
+            Context_.Slot->RunPreparationCommands(
+                Context_.Job->GetId(),
+                Context_.Options.SetupCommands,
+                Context_.RootFS,
+                Context_.CommandUser,
+                /*devices*/ std::nullopt,
+                /*hostName*/ std::nullopt,
+                /*ipAddresses*/ {},
+                tag + "_setup"));
+
+        if (!resultOrError.IsOK()) {
+            auto error = TError(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, "Failed to run setup commands for GPU check")
+                << TErrorAttribute("check_type", Context_.Type)
+                << std::move(resultOrError);
+
+            YT_LOG_INFO(error);
+
+            THROW_ERROR error;
+        }
+
+        YT_LOG_INFO("GPU check setup commands successfully executed");
+    }
+
     auto checkCommand = New<TShellCommandConfig>();
-    checkCommand->Path = Context_.GpuCheckBinaryPath;
-    checkCommand->Args = std::move(Context_.GpuCheckBinaryArgs);
-    checkCommand->EnvironmentVariables = std::move(Context_.GpuCheckEnvironment);
+    checkCommand->Path = Context_.Options.BinaryPath;
+    checkCommand->Args = std::move(Context_.Options.BinaryArgs);
+    checkCommand->EnvironmentVariables = std::move(Context_.Options.Environment);
+
+    checkCommand->EnvironmentVariables.emplace("YT_GPU_CHECK_TYPE", FormatEnum(Context_.Type));
+
+    if (Context_.Options.NetworkAttributes) {
+        checkCommand->EnvironmentVariables.emplace("YT_NETWORK_PROJECT_ID", ToString(Context_.Options.NetworkAttributes->ProjectId));
+        for (const auto& networkAddress : Context_.Options.NetworkAttributes->Addresses) {
+            checkCommand->EnvironmentVariables.emplace(
+                Format("YT_IP_ADDRESS_%v", to_upper(networkAddress->Name)),
+                ToString(networkAddress->Address));
+        }
+    }
+
+    if (Context_.Options.InfinibandCluster) {
+        checkCommand->EnvironmentVariables.emplace("YT_INFINIBAND_CLUSTER", *Context_.Options.InfinibandCluster);
+    }
 
     YT_LOG_INFO("Running GPU check commands");
 
@@ -92,7 +139,15 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         {checkCommand},
         Context_.RootFS,
         Context_.CommandUser,
-        Context_.GpuDevices,
+        Context_.Options.Devices,
+        Context_.Options.NetworkAttributes
+            ? std::make_optional(Context_.Options.NetworkAttributes->HostName)
+            : std::nullopt,
+        Context_.Options.NetworkAttributes
+            ? TransformRangeTo<std::vector<NNet::TIP6Address>>(
+                Context_.Options.NetworkAttributes->Addresses,
+                [] (const auto& networkAddress) { return networkAddress->Address; })
+            : std::vector<NNet::TIP6Address>{},
         std::move(tag))
         // We want to destroy checker in job thread,
         // so we pass the only reference to it in callback calling in job thread.

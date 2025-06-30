@@ -60,7 +60,7 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -963,6 +963,10 @@ private:
         const auto& mountConfig = tablet->GetSettings().MountConfig;
         const auto& config = mountConfig->ValueDictionaryCompression;
         if (!config->Enable) {
+            return {};
+        }
+
+        if (!tablet->SmoothMovementData().IsTabletStoresUpdateAllowed(/*isCommonFlush*/ false)) {
             return {};
         }
 

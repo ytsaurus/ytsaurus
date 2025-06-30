@@ -19,22 +19,29 @@ struct TSelectRowsQuery
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMangledSequoiaPath MangleSequoiaPath(NYPath::TYPathBuf rawPath);
-
-NYPath::TYPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
-
-TMangledSequoiaPath MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(
-    const TMangledSequoiaPath& prefix);
-
-//! Unescapes special characters.
-TString ToStringLiteral(TStringBuf key);
+inline const char MangledPathSeparator = '\0';
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr TErrorCode RetriableSequoiaErrorCodes[] = {
+TMangledSequoiaPath MangleSequoiaPath(const TRealPath& realPath);
+
+TRealPath DemangleSequoiaPath(const TMangledSequoiaPath& mangledPath);
+
+//! Unescapes special characters.
+TString ToStringLiteral(NYPath::TYPathBuf key);
+
+// TODO(danilalexeev): YT-20675. This method is for the time being until the validation
+// is global across all components.
+NYPath::TYPath ValidateAndMakeYPath(TRawYPath&& path);
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline constexpr TErrorCode RetriableSequoiaErrorCodes[] = {
     NTabletClient::EErrorCode::TransactionLockConflict,
     NTabletClient::EErrorCode::BlockedRowWaitTimeout,
     NTabletClient::EErrorCode::NoSuchTablet,
+    NTabletClient::EErrorCode::ChunkIsNotPreloaded,
+    NTabletClient::EErrorCode::TabletNotMounted,
 };
 
 bool IsRetriableSequoiaError(const TError& error);
@@ -50,6 +57,20 @@ bool IsMethodShouldBeHandledByMaster(const std::string& method);
 template <class T>
 TErrorOr<T> MaybeWrapSequoiaRetriableError(
     std::conditional_t<std::is_void_v<T>, const TError&, TErrorOr<T>&&> result);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TParsedChunkReplica
+{
+    NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
+    int ReplicaIndex = NChunkClient::GenericChunkReplicaIndex;
+    NNodeTrackerClient::TChunkLocationIndex LocationIndex = NNodeTrackerClient::InvalidChunkLocationIndex;
+};
+
+template <class TOnReplica>
+void ParseChunkReplicas(
+    NYson::TYsonStringBuf replicasYson,
+    const TOnReplica& onReplica);
 
 ////////////////////////////////////////////////////////////////////////////////
 

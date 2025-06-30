@@ -3,7 +3,7 @@
 #include "client_impl.h"
 #include "type_handler_detail.h"
 
-#include <yt/yt/ytlib/queue_client/producer_init.h>
+#include <yt/yt/ytlib/queue_client/queue_producer_init.h>
 
 namespace NYT::NApi::NNative {
 
@@ -28,7 +28,7 @@ public:
             return {};
         }
 
-        return CreateProducerNode(Client_, path, options);
+        return CreateQueueProducerNode(Client_, path, options);
     }
 };
 

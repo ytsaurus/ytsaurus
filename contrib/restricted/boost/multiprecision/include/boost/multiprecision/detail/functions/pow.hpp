@@ -43,6 +43,29 @@ inline void pow_imp(T& result, const T& t, const U& p, const std::integral_const
       return;
    }
 
+   switch (p)
+   {
+   case 0:
+      result = int_type(1);
+      return;
+   case 1:
+      result = t;
+      return;
+   case 2:
+      eval_multiply(result, t, t);
+      return;
+   case 3:
+      eval_multiply(result, t, t);
+      eval_multiply(result, t);
+      return;
+   case 4:
+      eval_multiply(result, t, t);
+      eval_multiply(result, result);
+      return;
+   default:
+      break;
+   }
+
    // This will store the result.
    if (U(p % U(2)) != U(0))
    {
@@ -371,6 +394,8 @@ void eval_log(T& result, const T& arg)
       result.negate();
       errno = ERANGE;
       return;
+   default:
+      break;
    }
    if (s)
    {

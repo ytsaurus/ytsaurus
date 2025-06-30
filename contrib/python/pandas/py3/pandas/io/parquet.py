@@ -2,22 +2,20 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 from typing import (
+    TYPE_CHECKING,
     Any,
     Literal,
 )
 import warnings
 from warnings import catch_warnings
 
+from pandas._config import using_pyarrow_string_dtype
+from pandas._config.config import _get_option
+
 from pandas._libs import lib
-from pandas._typing import (
-    DtypeBackend,
-    FilePath,
-    ReadBuffer,
-    StorageOptions,
-    WriteBuffer,
-)
 from pandas.compat._optional import import_optional_dependency
 from pandas.errors import AbstractMethodError
 from pandas.util._decorators import doc
@@ -30,8 +28,8 @@ from pandas import (
     get_option,
 )
 from pandas.core.shared_docs import _shared_docs
-from pandas.util.version import Version
 
+from pandas.io._util import arrow_string_types_mapper
 from pandas.io.common import (
     IOHandles,
     get_handle,
@@ -39,6 +37,15 @@ from pandas.io.common import (
     is_url,
     stringify_path,
 )
+
+if TYPE_CHECKING:
+    from pandas._typing import (
+        DtypeBackend,
+        FilePath,
+        ReadBuffer,
+        StorageOptions,
+        WriteBuffer,
+    )
 
 
 def get_engine(engine: str) -> BaseImpl:
@@ -78,7 +85,7 @@ def get_engine(engine: str) -> BaseImpl:
 def _get_path_or_handle(
     path: FilePath | ReadBuffer[bytes] | WriteBuffer[bytes],
     fs: Any,
-    storage_options: StorageOptions = None,
+    storage_options: StorageOptions | None = None,
     mode: str = "rb",
     is_dir: bool = False,
 ) -> tuple[
@@ -86,12 +93,35 @@ def _get_path_or_handle(
 ]:
     """File handling for PyArrow."""
     path_or_handle = stringify_path(path)
+    if fs is not None:
+        pa_fs = import_optional_dependency("pyarrow.fs", errors="ignore")
+        fsspec = import_optional_dependency("fsspec", errors="ignore")
+        if pa_fs is not None and isinstance(fs, pa_fs.FileSystem):
+            if storage_options:
+                raise NotImplementedError(
+                    "storage_options not supported with a pyarrow FileSystem."
+                )
+        elif fsspec is not None and isinstance(fs, fsspec.spec.AbstractFileSystem):
+            pass
+        else:
+            raise ValueError(
+                f"filesystem must be a pyarrow or fsspec FileSystem, "
+                f"not a {type(fs).__name__}"
+            )
     if is_fsspec_url(path_or_handle) and fs is None:
-        fsspec = import_optional_dependency("fsspec")
+        if storage_options is None:
+            pa = import_optional_dependency("pyarrow")
+            pa_fs = import_optional_dependency("pyarrow.fs")
 
-        fs, path_or_handle = fsspec.core.url_to_fs(
-            path_or_handle, **(storage_options or {})
-        )
+            try:
+                fs, path_or_handle = pa_fs.FileSystem.from_uri(path)
+            except (TypeError, pa.ArrowInvalid):
+                pass
+        if fs is None:
+            fsspec = import_optional_dependency("fsspec")
+            fs, path_or_handle = fsspec.core.url_to_fs(
+                path_or_handle, **(storage_options or {})
+            )
     elif storage_options and (not is_url(path_or_handle) or mode != "rb"):
         # can't write to a remote url
         # without making use of fsspec at the moment
@@ -136,7 +166,7 @@ class PyArrowImpl(BaseImpl):
         import pyarrow.parquet
 
         # import utils to register the pyarrow extension types
-        import pandas.core.arrays.arrow.extension_types  # pyright: ignore # noqa:F401
+        import pandas.core.arrays.arrow.extension_types  # pyright: ignore[reportUnusedImport] # noqa: F401
 
         self.api = pyarrow
 
@@ -146,8 +176,9 @@ class PyArrowImpl(BaseImpl):
         path: FilePath | WriteBuffer[bytes],
         compression: str | None = "snappy",
         index: bool | None = None,
-        storage_options: StorageOptions = None,
+        storage_options: StorageOptions | None = None,
         partition_cols: list[str] | None = None,
+        filesystem=None,
         **kwargs,
     ) -> None:
         self.validate_dataframe(df)
@@ -158,9 +189,15 @@ class PyArrowImpl(BaseImpl):
 
         table = self.api.Table.from_pandas(df, **from_pandas_kwargs)
 
-        path_or_handle, handles, kwargs["filesystem"] = _get_path_or_handle(
+        if df.attrs:
+            df_metadata = {"PANDAS_ATTRS": json.dumps(df.attrs)}
+            existing_metadata = table.schema.metadata
+            merged_metadata = {**existing_metadata, **df_metadata}
+            table = table.replace_schema_metadata(merged_metadata)
+
+        path_or_handle, handles, filesystem = _get_path_or_handle(
             path,
-            kwargs.pop("filesystem", None),
+            filesystem,
             storage_options=storage_options,
             mode="wb",
             is_dir=partition_cols is not None,
@@ -170,9 +207,10 @@ class PyArrowImpl(BaseImpl):
             and hasattr(path_or_handle, "name")
             and isinstance(path_or_handle.name, (str, bytes))
         ):
-            path_or_handle = path_or_handle.name
-            if isinstance(path_or_handle, bytes):
-                path_or_handle = path_or_handle.decode()
+            if isinstance(path_or_handle.name, bytes):
+                path_or_handle = path_or_handle.name.decode()
+            else:
+                path_or_handle = path_or_handle.name
 
         try:
             if partition_cols is not None:
@@ -182,12 +220,17 @@ class PyArrowImpl(BaseImpl):
                     path_or_handle,
                     compression=compression,
                     partition_cols=partition_cols,
+                    filesystem=filesystem,
                     **kwargs,
                 )
             else:
                 # write to single output file
                 self.api.parquet.write_table(
-                    table, path_or_handle, compression=compression, **kwargs
+                    table,
+                    path_or_handle,
+                    compression=compression,
+                    filesystem=filesystem,
+                    **kwargs,
                 )
         finally:
             if handles is not None:
@@ -197,9 +240,11 @@ class PyArrowImpl(BaseImpl):
         self,
         path,
         columns=None,
+        filters=None,
         use_nullable_dtypes: bool = False,
         dtype_backend: DtypeBackend | lib.NoDefault = lib.no_default,
-        storage_options: StorageOptions = None,
+        storage_options: StorageOptions | None = None,
+        filesystem=None,
         **kwargs,
     ) -> DataFrame:
         kwargs["use_pandas_metadata"] = True
@@ -211,26 +256,37 @@ class PyArrowImpl(BaseImpl):
             mapping = _arrow_dtype_mapping()
             to_pandas_kwargs["types_mapper"] = mapping.get
         elif dtype_backend == "pyarrow":
-            to_pandas_kwargs["types_mapper"] = pd.ArrowDtype  # type: ignore[assignment]  # noqa
+            to_pandas_kwargs["types_mapper"] = pd.ArrowDtype  # type: ignore[assignment]
+        elif using_pyarrow_string_dtype():
+            to_pandas_kwargs["types_mapper"] = arrow_string_types_mapper()
 
-        manager = get_option("mode.data_manager")
+        manager = _get_option("mode.data_manager", silent=True)
         if manager == "array":
             to_pandas_kwargs["split_blocks"] = True  # type: ignore[assignment]
 
-        path_or_handle, handles, kwargs["filesystem"] = _get_path_or_handle(
+        path_or_handle, handles, filesystem = _get_path_or_handle(
             path,
-            kwargs.pop("filesystem", None),
+            filesystem,
             storage_options=storage_options,
             mode="rb",
         )
         try:
             pa_table = self.api.parquet.read_table(
-                path_or_handle, columns=columns, **kwargs
+                path_or_handle,
+                columns=columns,
+                filesystem=filesystem,
+                filters=filters,
+                **kwargs,
             )
             result = pa_table.to_pandas(**to_pandas_kwargs)
 
             if manager == "array":
                 result = result._as_manager("array", copy=False)
+
+            if pa_table.schema.metadata:
+                if b"PANDAS_ATTRS" in pa_table.schema.metadata:
+                    df_metadata = pa_table.schema.metadata[b"PANDAS_ATTRS"]
+                    result.attrs = json.loads(df_metadata)
             return result
         finally:
             if handles is not None:
@@ -253,7 +309,8 @@ class FastParquetImpl(BaseImpl):
         compression: Literal["snappy", "gzip", "brotli"] | None = "snappy",
         index=None,
         partition_cols=None,
-        storage_options: StorageOptions = None,
+        storage_options: StorageOptions | None = None,
+        filesystem=None,
         **kwargs,
     ) -> None:
         self.validate_dataframe(df)
@@ -268,6 +325,11 @@ class FastParquetImpl(BaseImpl):
 
         if partition_cols is not None:
             kwargs["file_scheme"] = "hive"
+
+        if filesystem is not None:
+            raise NotImplementedError(
+                "filesystem is not implemented for the fastparquet engine."
+            )
 
         # cannot use get_handle as write() does not accept file buffers
         path = stringify_path(path)
@@ -294,14 +356,19 @@ class FastParquetImpl(BaseImpl):
             )
 
     def read(
-        self, path, columns=None, storage_options: StorageOptions = None, **kwargs
+        self,
+        path,
+        columns=None,
+        filters=None,
+        storage_options: StorageOptions | None = None,
+        filesystem=None,
+        **kwargs,
     ) -> DataFrame:
         parquet_kwargs: dict[str, Any] = {}
         use_nullable_dtypes = kwargs.pop("use_nullable_dtypes", False)
         dtype_backend = kwargs.pop("dtype_backend", lib.no_default)
-        if Version(self.api.__version__) >= Version("0.7.1"):
-            # We are disabling nullable dtypes for fastparquet pending discussion
-            parquet_kwargs["pandas_nulls"] = False
+        # We are disabling nullable dtypes for fastparquet pending discussion
+        parquet_kwargs["pandas_nulls"] = False
         if use_nullable_dtypes:
             raise ValueError(
                 "The 'use_nullable_dtypes' argument is not supported for the "
@@ -312,19 +379,16 @@ class FastParquetImpl(BaseImpl):
                 "The 'dtype_backend' argument is not supported for the "
                 "fastparquet engine"
             )
+        if filesystem is not None:
+            raise NotImplementedError(
+                "filesystem is not implemented for the fastparquet engine."
+            )
         path = stringify_path(path)
         handles = None
         if is_fsspec_url(path):
             fsspec = import_optional_dependency("fsspec")
 
-            if Version(self.api.__version__) > Version("0.6.1"):
-                parquet_kwargs["fs"] = fsspec.open(
-                    path, "rb", **(storage_options or {})
-                ).fs
-            else:
-                parquet_kwargs["open_with"] = lambda path, _: fsspec.open(
-                    path, "rb", **(storage_options or {})
-                ).open()
+            parquet_kwargs["fs"] = fsspec.open(path, "rb", **(storage_options or {})).fs
         elif isinstance(path, str) and not os.path.isdir(path):
             # use get_handle only when we are very certain that it is not a directory
             # fsspec resources can also point to directories
@@ -336,7 +400,7 @@ class FastParquetImpl(BaseImpl):
 
         try:
             parquet_file = self.api.ParquetFile(path, **parquet_kwargs)
-            return parquet_file.to_pandas(columns=columns, **kwargs)
+            return parquet_file.to_pandas(columns=columns, filters=filters, **kwargs)
         finally:
             if handles is not None:
                 handles.close()
@@ -349,8 +413,9 @@ def to_parquet(
     engine: str = "auto",
     compression: str | None = "snappy",
     index: bool | None = None,
-    storage_options: StorageOptions = None,
+    storage_options: StorageOptions | None = None,
     partition_cols: list[str] | None = None,
+    filesystem: Any = None,
     **kwargs,
 ) -> bytes | None:
     """
@@ -365,20 +430,20 @@ def to_parquet(
         returned as bytes. If a string, it will be used as Root Directory path
         when writing a partitioned dataset. The engine fastparquet does not
         accept file-like objects.
-
-        .. versionchanged:: 1.2.0
-
     engine : {{'auto', 'pyarrow', 'fastparquet'}}, default 'auto'
         Parquet library to use. If 'auto', then the option
         ``io.parquet.engine`` is used. The default ``io.parquet.engine``
         behavior is to try 'pyarrow', falling back to 'fastparquet' if
         'pyarrow' is unavailable.
+
+        When using the ``'pyarrow'`` engine and no storage options are provided
+        and a filesystem is implemented by both ``pyarrow.fs`` and ``fsspec``
+        (e.g. "s3://"), then the ``pyarrow.fs`` filesystem is attempted first.
+        Use the filesystem keyword with an instantiated fsspec filesystem
+        if you wish to use its implementation.
     compression : {{'snappy', 'gzip', 'brotli', 'lz4', 'zstd', None}},
         default 'snappy'. Name of the compression to use. Use ``None``
-        for no compression. The supported compression methods actually
-        depend on which engine is used. For 'pyarrow', 'snappy', 'gzip',
-        'brotli', 'lz4', 'zstd' are all supported. For 'fastparquet',
-        only 'gzip' and 'snappy' are supported.
+        for no compression.
     index : bool, default None
         If ``True``, include the dataframe's index(es) in the file output. If
         ``False``, they will not be written to the file.
@@ -393,7 +458,11 @@ def to_parquet(
         Must be None if path is not a string.
     {storage_options}
 
-        .. versionadded:: 1.2.0
+    filesystem : fsspec or pyarrow filesystem, default None
+        Filesystem object to use when reading the parquet file. Only implemented
+        for ``engine="pyarrow"``.
+
+        .. versionadded:: 2.1.0
 
     kwargs
         Additional keyword arguments passed to the engine
@@ -415,6 +484,7 @@ def to_parquet(
         index=index,
         partition_cols=partition_cols,
         storage_options=storage_options,
+        filesystem=filesystem,
         **kwargs,
     )
 
@@ -430,9 +500,11 @@ def read_parquet(
     path: FilePath | ReadBuffer[bytes],
     engine: str = "auto",
     columns: list[str] | None = None,
-    storage_options: StorageOptions = None,
+    storage_options: StorageOptions | None = None,
     use_nullable_dtypes: bool | lib.NoDefault = lib.no_default,
     dtype_backend: DtypeBackend | lib.NoDefault = lib.no_default,
+    filesystem: Any = None,
+    filters: list[tuple] | list[list[tuple]] | None = None,
     **kwargs,
 ) -> DataFrame:
     """
@@ -455,9 +527,14 @@ def read_parquet(
         ``io.parquet.engine`` is used. The default ``io.parquet.engine``
         behavior is to try 'pyarrow', falling back to 'fastparquet' if
         'pyarrow' is unavailable.
+
+        When using the ``'pyarrow'`` engine and no storage options are provided
+        and a filesystem is implemented by both ``pyarrow.fs`` and ``fsspec``
+        (e.g. "s3://"), then the ``pyarrow.fs`` filesystem is attempted first.
+        Use the filesystem keyword with an instantiated fsspec filesystem
+        if you wish to use its implementation.
     columns : list, default=None
         If not None, only these columns will be read from the file.
-
     {storage_options}
 
         .. versionadded:: 1.3.0
@@ -473,15 +550,40 @@ def read_parquet(
 
         .. deprecated:: 2.0
 
-    dtype_backend : {{"numpy_nullable", "pyarrow"}}, defaults to NumPy backed DataFrames
-        Which dtype_backend to use, e.g. whether a DataFrame should have NumPy
-        arrays, nullable dtypes are used for all dtypes that have a nullable
-        implementation when "numpy_nullable" is set, pyarrow is used for all
-        dtypes if "pyarrow" is set.
+    dtype_backend : {{'numpy_nullable', 'pyarrow'}}, default 'numpy_nullable'
+        Back-end data type applied to the resultant :class:`DataFrame`
+        (still experimental). Behaviour is as follows:
 
-        The dtype_backends are still experimential.
+        * ``"numpy_nullable"``: returns nullable-dtype-backed :class:`DataFrame`
+          (default).
+        * ``"pyarrow"``: returns pyarrow-backed nullable :class:`ArrowDtype`
+          DataFrame.
 
         .. versionadded:: 2.0
+
+    filesystem : fsspec or pyarrow filesystem, default None
+        Filesystem object to use when reading the parquet file. Only implemented
+        for ``engine="pyarrow"``.
+
+        .. versionadded:: 2.1.0
+
+    filters : List[Tuple] or List[List[Tuple]], default None
+        To filter out data.
+        Filter syntax: [[(column, op, val), ...],...]
+        where op is [==, =, >, >=, <, <=, !=, in, not in]
+        The innermost tuples are transposed into a set of filters applied
+        through an `AND` operation.
+        The outer list combines these sets of filters through an `OR`
+        operation.
+        A single list of tuples can also be used, meaning that no `OR`
+        operation between set of filters is to be conducted.
+
+        Using this argument will NOT result in row-wise filtering of the final
+        partitions unless ``engine="pyarrow"`` is also specified.  For
+        other engines, filtering is only performed at the partition level, that is,
+        to prevent the loading of some row-groups and/or files.
+
+        .. versionadded:: 2.1.0
 
     **kwargs
         Any additional kwargs are passed to the engine.
@@ -489,7 +591,63 @@ def read_parquet(
     Returns
     -------
     DataFrame
+
+    See Also
+    --------
+    DataFrame.to_parquet : Create a parquet object that serializes a DataFrame.
+
+    Examples
+    --------
+    >>> original_df = pd.DataFrame(
+    ...     {{"foo": range(5), "bar": range(5, 10)}}
+    ...    )
+    >>> original_df
+       foo  bar
+    0    0    5
+    1    1    6
+    2    2    7
+    3    3    8
+    4    4    9
+    >>> df_parquet_bytes = original_df.to_parquet()
+    >>> from io import BytesIO
+    >>> restored_df = pd.read_parquet(BytesIO(df_parquet_bytes))
+    >>> restored_df
+       foo  bar
+    0    0    5
+    1    1    6
+    2    2    7
+    3    3    8
+    4    4    9
+    >>> restored_df.equals(original_df)
+    True
+    >>> restored_bar = pd.read_parquet(BytesIO(df_parquet_bytes), columns=["bar"])
+    >>> restored_bar
+        bar
+    0    5
+    1    6
+    2    7
+    3    8
+    4    9
+    >>> restored_bar.equals(original_df[['bar']])
+    True
+
+    The function uses `kwargs` that are passed directly to the engine.
+    In the following example, we use the `filters` argument of the pyarrow
+    engine to filter the rows of the DataFrame.
+
+    Since `pyarrow` is the default engine, we can omit the `engine` argument.
+    Note that the `filters` argument is implemented by the `pyarrow` engine,
+    which can benefit from multithreading and also potentially be more
+    economical in terms of memory.
+
+    >>> sel = [("foo", ">", 2)]
+    >>> restored_part = pd.read_parquet(BytesIO(df_parquet_bytes), filters=sel)
+    >>> restored_part
+        foo  bar
+    0    3    8
+    1    4    9
     """
+
     impl = get_engine(engine)
 
     if use_nullable_dtypes is not lib.no_default:
@@ -509,8 +667,10 @@ def read_parquet(
     return impl.read(
         path,
         columns=columns,
+        filters=filters,
         storage_options=storage_options,
         use_nullable_dtypes=use_nullable_dtypes,
         dtype_backend=dtype_backend,
+        filesystem=filesystem,
         **kwargs,
     )

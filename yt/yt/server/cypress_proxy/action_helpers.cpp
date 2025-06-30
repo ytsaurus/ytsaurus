@@ -19,6 +19,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,9 +41,11 @@ struct TSequoiaTransactionActionSequencer
         HANDLE_ACTION_TYPE(TReqDetachChild, 200)
         HANDLE_ACTION_TYPE(TReqRemoveNode, 300)
         HANDLE_ACTION_TYPE(TReqCreateNode, 400)
-        HANDLE_ACTION_TYPE(TReqAttachChild, 500)
-        HANDLE_ACTION_TYPE(TReqSetNode, 600)
-        HANDLE_ACTION_TYPE(TReqMultisetAttributes, 700)
+        HANDLE_ACTION_TYPE(TReqFinishNodeMaterialization, 500)
+        HANDLE_ACTION_TYPE(TReqAttachChild, 600)
+        HANDLE_ACTION_TYPE(TReqSetNode, 700)
+        HANDLE_ACTION_TYPE(TReqMultisetAttributes, 800)
+        HANDLE_ACTION_TYPE(TReqImplicitlyLockNode, 900)
 
         #undef HANDLE_ACTION_TYPE
 
@@ -52,7 +55,7 @@ struct TSequoiaTransactionActionSequencer
 
 static const TSequoiaTransactionActionSequencer TransactionActionSequencer;
 
-static const TSequoiaTransactionSequencingOptions SequencingOptions = {
+static const TSequoiaTransactionOptions SequoiaTransactionOptionsTemplate = {
     .TransactionActionSequencer = &TransactionActionSequencer,
     .RequestPriorities = TSequoiaTransactionRequestPriorities{
         .DatalessLockRow = 100,
@@ -60,6 +63,7 @@ static const TSequoiaTransactionSequencingOptions SequencingOptions = {
         .WriteRow = 400,
         .DeleteRow = 300,
     },
+    .SequenceTabletCommitSessions = true,
 };
 
 } // namespace
@@ -70,14 +74,16 @@ TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
     const std::vector<TTransactionId>& cypressPrerequisiteTransactionIds,
     const TTransactionStartOptions& options)
 {
-    return sequoiaClient->StartTransaction(type, options, cypressPrerequisiteTransactionIds, SequencingOptions);
+    auto sequoiaTransactionOptions = SequoiaTransactionOptionsTemplate;
+    sequoiaTransactionOptions.CypressPrerequisiteTransactionIds = cypressPrerequisiteTransactionIds;
+    return sequoiaClient->StartTransaction(type, options, sequoiaTransactionOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
     const ISequoiaTransactionPtr& transaction,
-    const TAbsoluteYPath& path,
+    const TAbsolutePath& path,
     TRange<TTransactionId> cypressTransactionIds)
 {
     // NB: #cypressTransactionIds must contain at least 0-0-0-0 ("trunk")
@@ -87,8 +93,7 @@ TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
     auto mangledPath = path.ToMangledSequoiaPath();
     return transaction->SelectRows<NRecords::TPathToNodeId>({
         .WhereConjuncts = {
-            Format("path >= %Qv", mangledPath),
-            Format("path <= %Qv", MakeLexicographicallyMaximalMangledSequoiaPathForPrefix(mangledPath)),
+            Format("is_prefix(%Qv, path)", mangledPath),
             BuildMultipleTransactionSelectCondition(cypressTransactionIds),
         },
         .OrderBy = {"path"},
@@ -96,7 +101,7 @@ TFuture<std::vector<NRecords::TPathToNodeId>> SelectSubtree(
 }
 
 TNodeId CreateIntermediateMapNodes(
-    const TAbsoluteYPath& parentPath,
+    const TAbsolutePath& parentPath,
     TVersionedNodeId parentId,
     TRange<std::string> nodeKeys,
     const TSuppressableAccessTrackingOptions& options,
@@ -134,12 +139,12 @@ TNodeId CreateIntermediateMapNodes(
 
 TNodeId CopySubtree(
     const std::vector<TCypressNodeDescriptor>& sourceNodes,
-    const TAbsoluteYPath& sourceRootPath,
-    const TAbsoluteYPath& destinationRootPath,
+    const TAbsolutePath& sourceRootPath,
+    const TAbsolutePath& destinationRootPath,
     TNodeId destinationSubtreeParentId,
     TTransactionId cypressTransactionId,
     const TCopyOptions& options,
-    const THashMap<TNodeId, NSequoiaClient::TAbsoluteYPath>& subtreeLinks,
+    const THashMap<TNodeId, TYPath>& subtreeLinks,
     const TProgenitorTransactionCache& progenitorTransactionCache,
     const ISequoiaTransactionPtr& transaction)
 {
@@ -150,11 +155,11 @@ TNodeId CopySubtree(
     YT_VERIFY(!sourceNodes.empty());
     YT_VERIFY(sourceNodes.front().Path == sourceRootPath);
 
-    THashMap<TAbsoluteYPath, TNodeId> createdNodePathToId;
+    THashMap<TAbsolutePath, TNodeId> createdNodePathToId;
     createdNodePathToId.reserve(sourceNodes.size());
 
     for (const auto& sourceNode : sourceNodes) {
-        TAbsoluteYPath destinationPath(sourceNode.Path);
+        TAbsolutePath destinationPath(sourceNode.Path);
         destinationPath.UnsafeMutableUnderlying()->replace(
             0,
             sourceRootPath.Underlying().size(),
@@ -162,11 +167,11 @@ TNodeId CopySubtree(
 
         NRecords::TNodeIdToPath sourceRecord{
             .Key = {.NodeId = sourceNode.Id},
-            .Path = sourceNode.Path.Underlying(),
+            .Path = sourceNode.Path.ToRealPath().Underlying(),
         };
 
         if (IsLinkType(TypeFromId(sourceNode.Id))) {
-            sourceRecord.TargetPath = GetOrCrash(subtreeLinks, sourceNode.Id).Underlying();
+            sourceRecord.TargetPath = GetOrCrash(subtreeLinks, sourceNode.Id);
         }
 
         auto destinationParentId = sourceNode.Path == sourceRootPath
@@ -211,7 +216,7 @@ void RemoveSelectedSubtree(
         subtreeParentId ||
         TypeFromId(subtreeNodes.front().Id) == EObjectType::Scion);
 
-    THashMap<TAbsoluteYPath, TNodeId> pathToNodeId;
+    THashMap<TAbsolutePath, TNodeId> pathToNodeId;
     pathToNodeId.reserve(subtreeNodes.size());
     for (const auto& node : subtreeNodes) {
         pathToNodeId[node.Path] = node.Id;
@@ -241,7 +246,7 @@ void RemoveSelectedSubtree(
         return;
     }
 
-    TAbsoluteYPath subtreeRootPath(subtreeNodes.front().Path);
+    TAbsolutePath subtreeRootPath(subtreeNodes.front().Path);
     DetachChild(
         {subtreeParentId, cypressTransactionId},
         subtreeRootPath.GetBaseName(),

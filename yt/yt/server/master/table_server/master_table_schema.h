@@ -53,11 +53,6 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 
     const TCompactTableSchemaPtr& AsCompactTableSchema(bool crashOnZombie = true) const;
-    // Triggers deserialization of underlying `CompactTableSchema_`, so if possible, prefer the above.
-    NTableClient::TTableSchemaPtr AsHeavyTableSchema(bool crashOnZombie = true) const;
-    const TFuture<NYson::TYsonString>& AsYsonAsync() const;
-    // Whenever possible, prefer the above.
-    NYson::TYsonString AsYsonSync() const;
 
     //! Increases the number of times this schema is referenced by #account by #delta.
     //! Returns true iff this schema has just become referenced by it for the

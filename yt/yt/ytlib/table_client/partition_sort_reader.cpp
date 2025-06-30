@@ -34,7 +34,7 @@ using NYT::TRange;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TableClientLogger;
+constinit const auto Logger = TableClientLogger;
 
 static const int SortBucketSize = 10000;
 static const int RowsBetweenAtomicUpdate = 10000;
@@ -102,7 +102,7 @@ public:
     {
         MemoryPool_.Clear();
 
-        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
+        if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 

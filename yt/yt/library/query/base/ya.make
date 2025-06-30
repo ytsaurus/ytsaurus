@@ -4,6 +4,8 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 PROTO_NAMESPACE(yt)
 
+BISON_FLAGS(-Wcounterexamples)
+
 SRCS(
     ast.cpp
     ast_visitors.cpp

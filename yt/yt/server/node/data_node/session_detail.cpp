@@ -45,7 +45,7 @@ i64 TProbePutBlocksRequestSupplier::GetMaxRequestedMemory() const
     return MaxRequestedMemory_;
 }
 
-std::optional<TProbePutBlocksRequestSupplier::TRequest> TProbePutBlocksRequestSupplier::GetMinRequest()
+std::optional<TProbePutBlocksRequestSupplier::TRequest> TProbePutBlocksRequestSupplier::TryGetMinRequest()
 {
     auto guard = Guard(Lock_);
     if (Requests_.empty()) {

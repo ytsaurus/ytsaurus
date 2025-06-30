@@ -29,6 +29,7 @@
 #include "tablet_type_handler.h"
 #include "replicated_table_tracker.h"
 
+#include <yt/yt/server/master/cell_master/alert_manager.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -118,6 +119,8 @@
 
 #include <yt/yt/core/ytree/tree_builder.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
 #include <algorithm>
@@ -177,20 +180,21 @@ using TTabletResources = NTabletServer::TTabletResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletServerLogger;
+constinit const auto Logger = TabletServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletManager::TImpl
-    : public TMasterAutomatonPart
+class TTabletManager
+    : public ITabletManager
+    , public TMasterAutomatonPart
 {
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
+    explicit TTabletManager(NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::TabletManager)
-        , TabletService_(New<TTabletService>(Bootstrap_))
-        , TabletBalancer_(New<TTabletBalancer>(Bootstrap_))
-        , TabletCellDecommissioner_(New<TTabletCellDecommissioner>(Bootstrap_))
-        , TabletActionManager_(New<TTabletActionManager>(Bootstrap_))
+        , TabletService_(CreateTabletService(Bootstrap_))
+        , TabletBalancer_(CreateTabletBalancer(Bootstrap_))
+        , TabletCellDecommissioner_(CreateTabletCellDecommissioner(Bootstrap_))
+        , TabletActionManager_(CreateTabletActionManager(Bootstrap_))
         , TabletChunkManager_(CreateTabletChunkManager(Bootstrap_))
         , TabletMap_(TEntityMapTypeTraits<TTabletBase>(Bootstrap_))
     {
@@ -198,59 +202,60 @@ public:
 
         RegisterLoader(
             "TabletManager.Keys",
-            BIND_NO_PROPAGATE(&TImpl::LoadKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TabletManager.Values",
-            BIND_NO_PROPAGATE(&TImpl::LoadValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TabletManager.Keys",
-            BIND_NO_PROPAGATE(&TImpl::SaveKeys, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TabletManager.Values",
-            BIND_NO_PROPAGATE(&TImpl::SaveValues, Unretained(this)));
+            BIND_NO_PROPAGATE(&TTabletManager::SaveValues, Unretained(this)));
 
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         DefaultTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xffffffffffffffff);
         SequoiaTabletCellBundleId_ = MakeWellKnownId(EObjectType::TabletCellBundle, primaryCellTag, 0xfffffffffffffffe);
 
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletMounted, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletFrozen, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletUnfrozen, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletTransitionCanceled, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraUpdateTableReplicaStatistics, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTableReplicaEnabled, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTableReplicaDisabled, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletLocked, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraCreateTabletAction, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraDestroyTabletActions, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraKickOrphanedTabletActions, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraSetTabletCellStatistics, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraUpdateUpstreamTabletState, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraUpdateTabletState, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraAllocateDynamicStore, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraSetTabletCellBundleResourceUsage, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraUpdateTabletCellBundleResourceUsage, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnHunkTabletMounted, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnHunkTabletUnmounted, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraSwitchServant, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraDeallocateServant, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraReportSmoothMovementProgress, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraReportSmoothMovementAborted, Unretained(this)));
-        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraMaterializeExtraMountConfigKeys, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletMounted, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletUnmounted, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletFrozen, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletUnfrozen, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletTransitionCanceled, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateTableReplicaStatistics, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTableReplicaEnabled, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTableReplicaDisabled, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateTabletTrimmedRowCount, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnTabletLocked, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraCreateTabletAction, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraDestroyTabletActions, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraKickOrphanedTabletActions, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetTabletCellStatistics, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateUpstreamTabletState, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateTabletState, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraAllocateDynamicStore, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetTabletCellBundleResourceUsage, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateTabletCellBundleResourceUsage, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnHunkTabletMounted, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraOnHunkTabletUnmounted, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSwitchServant, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraDeallocateServant, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraReportSmoothMovementProgress, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraReportSmoothMovementAborted, Unretained(this)));
+        // COMPAT(ifsmirnov): 25.2 masters may send this mutation via hive so drop it after 25.3.
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraMaterializeExtraMountConfigKeys, Unretained(this)));
 
         const auto& tabletNodeTracker = Bootstrap_->GetTabletNodeTracker();
-        tabletNodeTracker->SubscribeHeartbeat(BIND_NO_PROPAGATE(&TImpl::OnTabletNodeHeartbeat, MakeWeak(this)));
+        tabletNodeTracker->SubscribeHeartbeat(BIND_NO_PROPAGATE(&TTabletManager::OnTabletNodeHeartbeat, MakeWeak(this)));
     }
 
-    void Initialize()
+    void Initialize() override
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
-        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TTabletManager::OnDynamicConfigChanged, MakeWeak(this)));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RegisterHandler(CreateTabletCellBundleTypeHandler(Bootstrap_));
@@ -261,37 +266,42 @@ public:
         objectManager->RegisterHandler(CreateTabletActionTypeHandler(Bootstrap_, &TabletActionMap_));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TImpl::OnTransactionAborted, MakeWeak(this)));
+        transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TTabletManager::OnTransactionAborted, MakeWeak(this)));
 
         transactionManager->RegisterTransactionActionHandlers<NProto::TReqUpdateTabletStores>({
-            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateTabletStores, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateTabletStores, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateTabletStores, Unretained(this)),
+            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareUpdateTabletStores, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitUpdateTabletStores, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortUpdateTabletStores, Unretained(this)),
         });
 
         transactionManager->RegisterTransactionActionHandlers<NProto::TReqUpdateHunkTabletStores>({
-            .Prepare = BIND_NO_PROPAGATE(&TImpl::HydraPrepareUpdateHunkTabletStores, Unretained(this)),
-            .Commit = BIND_NO_PROPAGATE(&TImpl::HydraCommitUpdateHunkTabletStores, Unretained(this)),
-            .Abort = BIND_NO_PROPAGATE(&TImpl::HydraAbortUpdateHunkTabletStores, Unretained(this)),
+            .Prepare = BIND_NO_PROPAGATE(&TTabletManager::HydraPrepareUpdateHunkTabletStores, Unretained(this)),
+            .Commit = BIND_NO_PROPAGATE(&TTabletManager::HydraCommitUpdateHunkTabletStores, Unretained(this)),
+            .Abort = BIND_NO_PROPAGATE(&TTabletManager::HydraAbortUpdateHunkTabletStores, Unretained(this)),
         });
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        cellManager->SubscribeAfterSnapshotLoaded(BIND_NO_PROPAGATE(&TImpl::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));
-        cellManager->SubscribeCellBundleDestroyed(BIND_NO_PROPAGATE(&TImpl::OnTabletCellBundleDestroyed, MakeWeak(this)));
-        cellManager->SubscribeCellDecommissionStarted(BIND_NO_PROPAGATE(&TImpl::OnTabletCellDecommissionStarted, MakeWeak(this)));
+        cellManager->SubscribeAfterSnapshotLoaded(BIND_NO_PROPAGATE(&TTabletManager::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));
+        cellManager->SubscribeCellBundleDestroyed(BIND_NO_PROPAGATE(&TTabletManager::OnTabletCellBundleDestroyed, MakeWeak(this)));
+        cellManager->SubscribeCellDecommissionStarted(BIND_NO_PROPAGATE(&TTabletManager::OnTabletCellDecommissionStarted, MakeWeak(this)));
+
+        if (Bootstrap_->IsPrimaryMaster()) {
+            Bootstrap_->GetAlertManager()->RegisterAlertSource(
+                BIND_NO_PROPAGATE(&TTabletManager::GetAlerts, MakeStrong(this)));
+        }
 
         TabletService_->Initialize();
     }
 
-    IYPathServicePtr GetOrchidService()
+    IYPathServicePtr GetOrchidService() override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return IYPathService::FromMethod(&TImpl::BuildOrchidYson, MakeWeak(this))
+        return IYPathService::FromMethod(&TTabletManager::BuildOrchidYson, MakeWeak(this))
             ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::TabletManager));
     }
 
-    const ITabletChunkManagerPtr& GetTabletChunkManager() const
+    const ITabletChunkManagerPtr& GetTabletChunkManager() const override
     {
         return TabletChunkManager_;
     }
@@ -314,7 +324,7 @@ public:
         BundleIdToProfilingCounters_.erase(tabletCellBundle->GetId());
     }
 
-    TTabletBase* GetTabletOrThrow(TTabletId id)
+    TTabletBase* GetTabletOrThrow(TTabletId id) override
     {
         auto* tablet = FindTablet(id);
         if (!IsObjectAlive(tablet)) {
@@ -362,7 +372,7 @@ public:
         return tablet;
     }
 
-    void DestroyTablet(TTabletBase* tablet)
+    void DestroyTablet(TTabletBase* tablet) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -431,7 +441,7 @@ public:
         bool enabled,
         TTimestamp startReplicationTimestamp,
         const std::optional<std::vector<i64>>& startReplicationRowIndexes,
-        bool enableReplicatedTableTracker)
+        bool enableReplicatedTableTracker) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -524,7 +534,7 @@ public:
         return replica;
     }
 
-    void ZombifyTableReplica(TTableReplica* replica)
+    void ZombifyTableReplica(TTableReplica* replica) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -560,7 +570,7 @@ public:
         std::optional<ETableReplicaMode> mode,
         std::optional<EAtomicity> atomicity,
         std::optional<bool> preserveTimestamps,
-        std::optional<bool> enableReplicatedTableTracker)
+        std::optional<bool> enableReplicatedTableTracker) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -735,7 +745,7 @@ public:
         bool skipFreezing,
         TGuid correlationId,
         TInstant expirationTime,
-        std::optional<TDuration> expirationTimeout)
+        std::optional<TDuration> expirationTimeout) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -769,7 +779,8 @@ public:
                     action->GetId());
             }
             if (tablet->GetState() != ETabletState::Mounted && tablet->GetState() != ETabletState::Frozen) {
-                THROW_ERROR_EXCEPTION("Tablet %v is in state %Qlv",
+                THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::TabletIsInIntermediateState,
+                    "Tablet %v is in state %Qlv",
                     tablet->GetId(),
                     tablet->GetState());
             }
@@ -876,6 +887,10 @@ public:
         ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
 
         if (kind == ETabletActionKind::SmoothMove) {
+            if (!GetDynamicConfig()->EnableSmoothTabletMovement) {
+                THROW_ERROR_EXCEPTION("Smooth tablet movement is disabled in config");
+            }
+
             if (tablets.size() != 1) {
                 THROW_ERROR_EXCEPTION("Only one tablet can be moved at a time");
             }
@@ -937,7 +952,7 @@ public:
         return action;
     }
 
-    void ZombifyTabletAction(TTabletAction* action)
+    void ZombifyTabletAction(TTabletAction* action) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -961,7 +976,7 @@ public:
         int lastTabletIndex,
         TTabletCellId hintCellId,
         const std::vector<TTabletCellId>& targetCellIds,
-        bool freeze)
+        bool freeze) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -1066,7 +1081,8 @@ public:
             GetDynamicConfig());
         ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
 
-        auto schema = table->GetSchema()->AsHeavyTableSchema();
+        const auto& tableManager = Bootstrap_->GetTableManager();
+        auto schema = tableManager->GetHeavyTableSchemaSync(table->GetSchema());
 
         if (table->GetReplicationCardId() && !table->IsSorted()) {
             if (table->GetCommitOrdering() != ECommitOrdering::Strong) {
@@ -1107,13 +1123,13 @@ public:
 
     void Mount(
         TTabletOwnerBase* table,
-        const TString& path,
+        const TYPath& path,
         int firstTabletIndex,
         int lastTabletIndex,
         TTabletCellId hintCellId,
         const std::vector<TTabletCellId>& targetCellIds,
         bool freeze,
-        TTimestamp mountTimestamp)
+        TTimestamp mountTimestamp) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -1180,7 +1196,7 @@ public:
         TTabletOwnerBase* table,
         bool force,
         int firstTabletIndex,
-        int lastTabletIndex)
+        int lastTabletIndex) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -1213,7 +1229,7 @@ public:
         TTabletOwnerBase* table,
         bool force,
         int firstTabletIndex,
-        int lastTabletIndex)
+        int lastTabletIndex) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -1232,7 +1248,7 @@ public:
     void PrepareRemount(
         TTabletOwnerBase* table,
         int firstTabletIndex,
-        int lastTabletIndex)
+        int lastTabletIndex) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -1277,7 +1293,7 @@ public:
     void Remount(
         TTabletOwnerBase* table,
         int firstTabletIndex,
-        int lastTabletIndex)
+        int lastTabletIndex) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -1307,7 +1323,7 @@ public:
     void PrepareFreeze(
         TTabletOwnerBase* table,
         int firstTabletIndex,
-        int lastTabletIndex)
+        int lastTabletIndex) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -1337,7 +1353,7 @@ public:
     void Freeze(
         TTabletOwnerBase* table,
         int firstTabletIndex,
-        int lastTabletIndex)
+        int lastTabletIndex) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -1360,7 +1376,7 @@ public:
     void PrepareUnfreeze(
         TTabletOwnerBase* table,
         int firstTabletIndex,
-        int lastTabletIndex)
+        int lastTabletIndex) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -1390,7 +1406,7 @@ public:
     void Unfreeze(
         TTabletOwnerBase* table,
         int firstTabletIndex,
-        int lastTabletIndex)
+        int lastTabletIndex) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -1417,7 +1433,7 @@ public:
         int newTabletCount,
         const std::vector<TLegacyOwningKey>& pivotKeys,
         const std::vector<i64>& trimmedRowCounts,
-        bool create = false)
+        bool create = false) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -1494,7 +1510,7 @@ public:
         int lastTabletIndex,
         int newTabletCount,
         const std::vector<TLegacyOwningKey>& pivotKeys,
-        const std::vector<i64>& trimmedRowCounts)
+        const std::vector<i64>& trimmedRowCounts) override
     {
         if (table->IsExternal()) {
             UpdateTabletState(table);
@@ -1512,7 +1528,7 @@ public:
         UpdateTabletState(table);
     }
 
-    void CancelTabletTransition(TTablet* tablet)
+    void CancelTabletTransition(TTablet* tablet) override
     {
         auto* table = tablet->GetTable();
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -1573,7 +1589,7 @@ public:
         hiveManager->PostMessage(mailbox, req);
     }
 
-    void SetCustomRuntimeData(TTableNode* table, NYson::TYsonString data)
+    void SetCustomRuntimeData(TTableNode* table, NYson::TYsonString data) override
     {
         if (table->IsExternal()) {
             return;
@@ -1590,13 +1606,13 @@ public:
             TReqSetCustomRuntimeData req;
             ToProto(req.mutable_tablet_id(), tablet->GetId());
             if (data) {
-                req.set_custom_runtime_data(data.ToString());
+                req.set_custom_runtime_data(ToProto(data));
             }
             hiveManager->PostMessage(mailbox, req);
         }
     }
 
-    void DestroyTabletOwner(TTabletOwnerBase* table)
+    void DestroyTabletOwner(TTabletOwnerBase* table) override
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -1658,7 +1674,7 @@ public:
         }
     }
 
-    void MergeTable(TTableNode* originatingNode, TTableNode* branchedNode)
+    void MergeTable(TTableNode* originatingNode, TTableNode* branchedNode) override
     {
         YT_VERIFY(originatingNode->IsTrunk());
 
@@ -1726,31 +1742,28 @@ public:
                 auto* appendChunkList = branchedChunkLists[contentType]->Children()[index]->AsChunkList();
                 auto* tabletChunkList = originatingChunkLists[contentType]->Children()[index]->AsChunkList();
 
-                if (updateMode == EUpdateMode::Overwrite && contentType == EChunkListContentType::Main) {
-                    YT_VERIFY(appendChunkList->GetKind() == EChunkListKind::SortedDynamicTablet);
-                    appendChunkList->SetPivotKey(tabletChunkList->GetPivotKey());
-                }
-
                 if (updateMode == EUpdateMode::Append) {
+                    // COMPAT(dave11ar): Remove when all branched append chunk lists will be in new format.
+                    if (appendChunkList->IsNewAppendTabletChunkList()) {
+                        appendChunkList = appendChunkList->GetAppendTabletChunkLists().DeltaChunkList;
+                    }
+
                     if (!appendChunkList->Children().empty()) {
                         chunkManager->AttachToChunkList(tabletChunkList, {appendChunkList});
                     }
-                }
-
-                if (originatingNode->GetInMemoryMode() != EInMemoryMode::None &&
-                    tablet->GetState() != ETabletState::Unmounted &&
-                    contentType == EChunkListContentType::Main)
-                {
-                    auto& nodeStatistics = tablet->NodeStatistics();
-                    nodeStatistics.set_preload_pending_store_count(
-                        nodeStatistics.preload_pending_store_count() +
-                        ssize(appendChunkList->Children()));
                 }
 
                 if (tablet->GetState() != ETabletState::Unmounted &&
                     contentType == EChunkListContentType::Main)
                 {
                     EnumerateStoresInChunkTree(appendChunkList, &stores);
+
+                    if (originatingNode->GetInMemoryMode() != EInMemoryMode::None) {
+                        auto& nodeStatistics = tablet->NodeStatistics();
+                        nodeStatistics.set_preload_pending_store_count(updateMode == EUpdateMode::Append
+                            ? nodeStatistics.preload_pending_store_count() + ssize(stores)
+                            : ssize(stores));
+                    }
                 }
             }
 
@@ -1913,7 +1926,7 @@ public:
     std::vector<TTabletActionId> SyncBalanceCells(
         TTabletCellBundle* bundle,
         const std::optional<std::vector<TTableNode*>>& tables,
-        bool keepActions)
+        bool keepActions) override
     {
         if (bundle->GetActiveTabletActionCount() > 0) {
             THROW_ERROR_EXCEPTION("Bundle is already being balanced, try again later");
@@ -1946,7 +1959,7 @@ public:
 
     std::vector<TTabletActionId> SyncBalanceTablets(
         TTableNode* table,
-        bool keepActions)
+        bool keepActions) override
     {
         ValidateSyncBalanceTablets(table);
 
@@ -1998,7 +2011,7 @@ public:
     void ValidateCloneTabletOwner(
         TTabletOwnerBase* sourceNode,
         ENodeCloneMode mode,
-        TAccount* account)
+        TAccount* account) override
     {
         if (sourceNode->IsForeign()) {
             return;
@@ -2016,13 +2029,13 @@ public:
         ValidateResourceUsageIncrease(
             trunkSourceNode,
             TTabletResources().SetTabletCount(
-                trunkSourceNode->GetTabletResourceUsage().TabletCount),
+                trunkSourceNode->GetTabletResourceUsage().GetTabletCount()),
             account);
     }
 
     void ValidateSerializeTabletOwner(
         TTabletOwnerBase* sourceNode,
-        ENodeCloneMode mode)
+        ENodeCloneMode mode) override
     {
         YT_VERIFY(sourceNode->IsNative());
 
@@ -2050,7 +2063,7 @@ public:
     void CloneTabletOwner(
         TTabletOwnerBase* sourceNode,
         TTabletOwnerBase* clonedNode,
-        ENodeCloneMode mode)
+        ENodeCloneMode mode) override
     {
         if (IsTableType(sourceNode->GetType())) {
             CloneTable(
@@ -2240,7 +2253,7 @@ public:
                     committedReplicationRowIndexes.push_back(replicationRowIndex);
                 }
 
-                TString newReplicaPath = isBackupAction
+                auto newReplicaPath = isBackupAction
                     ? replicaBackupDescriptor->ReplicaPath
                     : replica->GetReplicaPath();
 
@@ -2292,7 +2305,7 @@ public:
     }
 
 
-    void ValidateMakeTableDynamic(TTableNode* table)
+    void ValidateMakeTableDynamic(TTableNode* table) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -2304,7 +2317,7 @@ public:
         ValidateResourceUsageIncrease(table, TTabletResources().SetTabletCount(1));
     }
 
-    void MakeTableDynamic(TTableNode* table, i64 trimmedRowCount)
+    void MakeTableDynamic(TTableNode* table, i64 trimmedRowCount) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -2343,7 +2356,7 @@ public:
             table->GetId());
     }
 
-    void ValidateMakeTableStatic(TTableNode* table)
+    void ValidateMakeTableStatic(TTableNode* table) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -2370,7 +2383,7 @@ public:
         }
     }
 
-    void MakeTableStatic(TTableNode* table)
+    void MakeTableStatic(TTableNode* table) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -2417,7 +2430,7 @@ public:
     void LockDynamicTable(
         TTableNode* table,
         TTransaction* transaction,
-        TTimestamp timestamp)
+        TTimestamp timestamp) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
@@ -2464,7 +2477,7 @@ public:
     void CheckDynamicTableLock(
         TTableNode* table,
         TTransaction* transaction,
-        NTableClient::NProto::TRspCheckDynamicTableLock* response)
+        NTableClient::NProto::TRspCheckDynamicTableLock* response) override
     {
         VerifyPersistentStateRead();
 
@@ -2482,7 +2495,7 @@ public:
         }
     }
 
-    void OnNodeStorageParametersUpdated(TChunkOwnerBase* node)
+    void OnNodeStorageParametersUpdated(TChunkOwnerBase* node) override
     {
         if (!IsTabletOwnerType(node->GetType())) {
             return;
@@ -2499,7 +2512,7 @@ public:
         RecomputeTableTabletStatistics(tabletOwner);
     }
 
-    TTabletCell* GetTabletCellOrThrow(TTabletCellId id)
+    TTabletCell* GetTabletCellOrThrow(TTabletCellId id) override
     {
         auto* cell = FindTabletCell(id);
         if (!IsObjectAlive(cell)) {
@@ -2511,7 +2524,7 @@ public:
         return cell;
     }
 
-    void ZombifyTabletCell(TTabletCell* cell)
+    void ZombifyTabletCell(TTabletCell* cell) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -2524,7 +2537,7 @@ public:
         YT_VERIFY(cell->Actions().empty());
     }
 
-    TNode* FindTabletLeaderNode(const TTabletBase* tablet) const
+    TNode* FindTabletLeaderNode(const TTabletBase* tablet) const override
     {
         if (!tablet) {
             return nullptr;
@@ -2545,7 +2558,7 @@ public:
         return cell->Peers()[leadingPeerId].Node;
     }
 
-    TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id)
+    TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id) override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cellBundle = cellManager->FindCellBundle(id);
@@ -2557,7 +2570,7 @@ public:
             : nullptr;
     }
 
-    TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id, bool activeLifeStageOnly)
+    TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id, bool activeLifeStageOnly) override
     {
         auto* cellBundle = FindTabletCellBundle(id);
         if (!cellBundle) {
@@ -2575,7 +2588,7 @@ public:
         return cellBundle;
     }
 
-    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const std::string& name, bool activeLifeStageOnly)
+    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const std::string& name, bool activeLifeStageOnly) override
     {
         auto* cellBundle = DoFindTabletCellBundleByName(name);
         if (!cellBundle) {
@@ -2593,12 +2606,12 @@ public:
         return cellBundle;
     }
 
-    TTabletCellBundle* GetDefaultTabletCellBundle()
+    TTabletCellBundle* GetDefaultTabletCellBundle() override
     {
         return GetBuiltin(DefaultTabletCellBundle_);
     }
 
-    void SetTabletCellBundle(TTabletOwnerBase* table, TTabletCellBundle* newBundle)
+    void SetTabletCellBundle(TTabletOwnerBase* table, TTabletCellBundle* newBundle) override
     {
         YT_VERIFY(table->IsTrunk());
 
@@ -2672,7 +2685,7 @@ public:
         }
     }
 
-    void RecomputeTabletCellStatistics(TCellBase* cellBase)
+    void RecomputeTabletCellStatistics(TCellBase* cellBase) override
     {
         if (!IsObjectAlive(cellBase) || cellBase->GetType() != EObjectType::TabletCell) {
             return;
@@ -2705,7 +2718,7 @@ public:
         }
     }
 
-    void OnHunkJournalChunkSealed(TChunk* chunk)
+    void OnHunkJournalChunkSealed(TChunk* chunk) override
     {
         YT_VERIFY(chunk->IsSealed());
 
@@ -2760,7 +2773,7 @@ public:
         }
     }
 
-    void AttachDynamicStoreToTablet(TTablet* tablet, TDynamicStore* dynamicStore)
+    void AttachDynamicStoreToTablet(TTablet* tablet, TDynamicStore* dynamicStore) override
     {
         auto* table = tablet->GetTable();
 
@@ -2791,7 +2804,7 @@ public:
         }
     }
 
-    void FireUponTableReplicaUpdate(TTableReplica* replica)
+    void FireUponTableReplicaUpdate(TTableReplica* replica) override
     {
         ReplicaCreated_.Fire(TReplicaData{
             .TableId = replica->GetTable()->GetId(),
@@ -2805,35 +2818,14 @@ public:
         });
     }
 
-    void UpdateExtraMountConfigKeys(std::vector<TString> keys)
-    {
-        for (auto&& key : keys) {
-            auto [it, inserted] = MountConfigKeysFromNodes_.insert(std::move(key));
-            if (inserted) {
-                YT_LOG_DEBUG(
-                    "Registered new mount config key (Key: %v)",
-                    *it);
-            }
-        }
-    }
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Tablet, TTabletBase);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(TableReplica, TTableReplica);
+    DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(TabletAction, TTabletAction);
 
-    void MaterizlizeExtraMountConfigKeys(TCellTag cellTag) const
-    {
-        NProto::TReqMaterializeExtraMountConfigKeys request;
-        ToProto(request.mutable_table_mount_config_keys(), MountConfigKeysFromNodes_);
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToMaster(request, cellTag);
-    }
-
-    DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTabletBase);
-    DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
-    DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
-
-    DEFINE_SIGNAL_WITH_ACCESSOR(void(TReplicatedTableData), ReplicatedTableCreated);
-    DEFINE_SIGNAL_WITH_ACCESSOR(void(TTableId), ReplicatedTableDestroyed);
-    DEFINE_SIGNAL(void(TReplicaData), ReplicaCreated);
-    DEFINE_SIGNAL(void(TTableReplicaId), ReplicaDestroyed);
+    DEFINE_SIGNAL_WITH_ACCESSOR_OVERRIDE(void(TReplicatedTableData), ReplicatedTableCreated);
+    DEFINE_SIGNAL_WITH_ACCESSOR_OVERRIDE(void(TTableId), ReplicatedTableDestroyed);
+    DEFINE_SIGNAL_OVERRIDE(void(TReplicaData), ReplicaCreated);
+    DEFINE_SIGNAL_OVERRIDE(void(TTableReplicaId), ReplicaDestroyed);
 
 private:
     template <class T>
@@ -2857,10 +2849,10 @@ private:
         TBootstrap* const Bootstrap_;
     };
 
-    const TTabletServicePtr TabletService_;
-    const TTabletBalancerPtr TabletBalancer_;
-    const TTabletCellDecommissionerPtr TabletCellDecommissioner_;
-    const TTabletActionManagerPtr TabletActionManager_;
+    const ITabletServicePtr TabletService_;
+    const ITabletBalancerPtr TabletBalancer_;
+    const ITabletCellDecommissionerPtr TabletCellDecommissioner_;
+    const ITabletActionManagerPtr TabletActionManager_;
     const ITabletChunkManagerPtr TabletChunkManager_;
 
     TEntityMap<TTabletBase, TEntityMapTypeTraits<TTabletBase>> TabletMap_;
@@ -2873,35 +2865,10 @@ private:
 
     TTimeCounter TabletNodeHeartbeatCounter_ = TabletServerProfiler().TimeCounter("/tablet_node_heartbeat");
 
-    // Mount config keys received from nodes. Persisted.
-    THashSet<std::string> MountConfigKeysFromNodes_;
-    // Mount config keys known to the binary (by the moment of most recent reign change). Persisted.
-    THashSet<std::string> LocalMountConfigKeys_;
-
     INodePtr BuildOrchidYson() const
     {
-        std::vector<std::string> extraMountConfigKeys;
-        for (const auto& key : MountConfigKeysFromNodes_) {
-            if (!LocalMountConfigKeys_.contains(key)) {
-                extraMountConfigKeys.push_back(key);
-            }
-        }
-
-        // NB: Orchid node is materialized explicitly because |opaque| is not applied
-        // if BuildYsonFluently(consumer) is used, and we want to save some screen space.
         return BuildYsonNodeFluently()
             .BeginMap()
-                .Item("extra_mount_config_keys").Value(extraMountConfigKeys)
-                .Item("local_mount_config_keys")
-                    .BeginAttributes()
-                        .Item("opaque").Value(true)
-                    .EndAttributes()
-                    .Value(LocalMountConfigKeys_)
-                .Item("mount_config_keys_from_nodes")
-                    .BeginAttributes()
-                        .Item("opaque").Value(true)
-                    .EndAttributes()
-                    .Value(MountConfigKeysFromNodes_)
                 .Item("non_avenue_tablet_count").Value(NonAvenueTabletCount_)
             .EndMap();
     }
@@ -2917,9 +2884,6 @@ private:
 
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
 
-    // Not a compat, actually.
-    bool FillMountConfigKeys_ = false;
-
     //! Hash parts of the avenue ids generated in current mutation.
     THashSet<ui32> GeneratedAvenueIdEntropies_;
 
@@ -2933,6 +2897,9 @@ private:
 
     // COMPAT(ifsmirnov)
     bool ForbidAvenuesDuringMigration_ = false;
+
+    // COMPAT(ifsmirnov)
+    bool InternalizeBundleResourceQuotaAttribute_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -3272,7 +3239,7 @@ private:
         TTabletOwnerBase* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        const TString& request)
+        TStringBuf request)
     {
         YT_VERIFY(firstTabletIndex >= 0 && firstTabletIndex <= lastTabletIndex && lastTabletIndex < std::ssize(table->Tablets()));
 
@@ -3909,7 +3876,8 @@ private:
             }
 
             tablet->SetInMemoryMode(table->GetInMemoryMode());
-            resourceUsageDelta.TabletStaticMemory += tablet->GetTabletStaticMemorySize();
+            resourceUsageDelta.SetTabletStaticMemory(
+                resourceUsageDelta.GetTabletStaticMemory() + tablet->GetTabletStaticMemorySize());
 
             cell->GossipStatistics().Local() += tablet->GetTabletStatistics();
             table->AccountTabletStatistics(tablet->GetTabletStatistics());
@@ -4052,7 +4020,7 @@ private:
             }
 
             if (const auto& customRuntimeData = table->CustomRuntimeData()) {
-                reqReplicatable.set_custom_runtime_data(customRuntimeData.ToString());
+                reqReplicatable.set_custom_runtime_data(ToProto(customRuntimeData));
             }
 
             req.set_mount_revision(ToProto(tablet->Servant().GetMountRevision()));
@@ -4062,7 +4030,7 @@ private:
                 auto* replicatedTable = table->As<TReplicatedTableNode>();
                 for (auto replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                     const auto* replicaInfo = tablet->GetReplicaInfo(replica);
-                    PopulateTableReplicaDescriptor(req.add_replicas(), replica, *replicaInfo);
+                    PopulateTableReplicaDescriptor(reqReplicatable.add_replicas(), replica, *replicaInfo);
                 }
             }
 
@@ -4085,8 +4053,11 @@ private:
                     }
                 }
 
-                ToProto(req.mutable_replication_progress(), tablet->ReplicationProgress());
+                ToProto(reqReplicatable.mutable_replication_progress(), tablet->ReplicationProgress());
             }
+
+            // COMPAT(ifsmirnov)
+            reqReplicatable.set_has_replicas_and_replication_progress(true);
 
             auto* chunkList = tablet->GetChunkList();
             const auto& chunkListStatistics = chunkList->Statistics();
@@ -4875,9 +4846,6 @@ private:
         TabletMap_.SaveValues(context);
         TableReplicaMap_.SaveValues(context);
         TabletActionMap_.SaveValues(context);
-
-        Save(context, MountConfigKeysFromNodes_);
-        Save(context, LocalMountConfigKeys_);
     }
 
 
@@ -4898,13 +4866,18 @@ private:
         TableReplicaMap_.LoadValues(context);
         TabletActionMap_.LoadValues(context);
 
-        Load(context, MountConfigKeysFromNodes_);
-        Load(context, LocalMountConfigKeys_);
-
-        // Update mount config keys whenever the reign changes.
-        FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(GetCurrentReign());
+        // COMPAT(ifsmirnov)
+        if (context.GetVersion() < EMasterReign::DropOldMountConfigKeyLists) {
+            // MountConfigKeysFromNodes_
+            Load<THashSet<std::string>>(context);
+            // LocalMountConfigKeys_
+            Load<THashSet<std::string>>(context);
+        }
 
         ForbidAvenuesDuringMigration_ = context.GetVersion() < EMasterReign::NoAvenuesDuringMigrationTo24_2;
+
+        // COMPAT(ifsmirnov)
+        InternalizeBundleResourceQuotaAttribute_ = context.GetVersion() < EMasterReign::ResourceQuotaAttributeForBundles;
     }
 
     void RecomputeHunkResourceUsage()
@@ -4960,8 +4933,8 @@ private:
 
         RecomputeAggregateTabletStatistics_ = false;
         RecomputeHunkResourceUsage_ = false;
-        FillMountConfigKeys_ = false;
         ForbidAvenuesDuringMigration_ = false;
+        InternalizeBundleResourceQuotaAttribute_ = false;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -4992,11 +4965,6 @@ private:
             }
         }
 
-        if (FillMountConfigKeys_) {
-            auto mountConfig = New<NTabletNode::TTableMountConfig>();
-            LocalMountConfigKeys_ = mountConfig->GetRegisteredKeys();
-        }
-
         NonAvenueTabletCount_ = 0;
         for (auto [id, tablet] : Tablets()) {
             if (tablet->GetState() != ETabletState::Unmounted && !tablet->IsMountedWithAvenue()) {
@@ -5010,6 +4978,53 @@ private:
                     YT_LOG_FATAL("Tablets mounted with avenues are not allowed during this migration "
                         "(TabletId: %v)",
                         id);
+                }
+            }
+        }
+
+        if (InternalizeBundleResourceQuotaAttribute_) {
+            const auto& cellManager = Bootstrap_->GetTamedCellManager();
+            for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
+                YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
+                auto* bundle = bundleBase->As<TTabletCellBundle>();
+
+                TYsonString resourceQuotaAttribute;
+
+                if (auto* attribute = bundle->FindAttribute("resource_quota")) {
+                    resourceQuotaAttribute = *attribute;
+                    YT_VERIFY(bundle->GetMutableAttributes()->TryRemove("resource_quota"));
+                } else {
+                    continue;
+                }
+
+                auto resourceQuotaNode = ConvertToNode(resourceQuotaAttribute);
+
+                try {
+                    auto resourceQuota = ConvertTo<TTabletCellBundleQuota>(
+                        *resourceQuotaNode);
+                    static_cast<TTabletCellBundleQuota&>(bundle->ResourceLimits())
+                        = resourceQuota;
+
+                    auto schemafulNode = ConvertToNode(resourceQuota);
+                    if (!AreNodesEqual(resourceQuotaNode, schemafulNode)) {
+                        THROW_ERROR_EXCEPTION("Unrecognized fields found")
+                            << TErrorAttribute(
+                                "original_resource_quota",
+                                ConvertToYsonString(resourceQuotaNode, EYsonFormat::Text))
+                            << TErrorAttribute(
+                                "converted_resource_quota",
+                                ConvertToYsonString(schemafulNode, EYsonFormat::Text));
+
+                    }
+                } catch (const std::exception& ex) {
+                    // QWFP alert
+                    YT_LOG_INFO(ex, "Failed to internalize \"resource_quota\" attribute "
+                        "(BundleName: %v, ResourceQuota: %v)",
+                        bundle->GetName(),
+                        ConvertToYsonString(*resourceQuotaNode, EYsonFormat::Text));
+                    bundle->GetMutableAttributes()->Set(
+                        "resource_quota_backup_after_failed_migration",
+                        resourceQuotaAttribute);
                 }
             }
         }
@@ -5083,9 +5098,6 @@ private:
     void SetZeroState() override
     {
         InitBuiltins();
-
-        auto mountConfig = New<NTabletNode::TTableMountConfig>();
-        LocalMountConfigKeys_ = mountConfig->GetRegisteredKeys();
     }
 
     template <class T>
@@ -5110,8 +5122,8 @@ private:
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
-            DefaultTabletCellBundle_->ResourceLimits().TabletCount = 100'000;
-            DefaultTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
+            DefaultTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
+            DefaultTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
         }
 
         // sequoia
@@ -5120,8 +5132,8 @@ private:
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
-            SequoiaTabletCellBundle_->ResourceLimits().TabletCount = 100'000;
-            SequoiaTabletCellBundle_->ResourceLimits().TabletStaticMemory = 1_TB;
+            SequoiaTabletCellBundle_->ResourceLimits().SetTabletCount(100'000);
+            SequoiaTabletCellBundle_->ResourceLimits().SetTabletStaticMemory(1_TB);
 
             auto options = SequoiaTabletCellBundle_->GetOptions();
             options->ChangelogAccount = NSecurityClient::SequoiaAccountName;
@@ -5240,7 +5252,7 @@ private:
             auto tabletId = FromProto<TTabletId>(tabletInfo.tablet_id());
             auto mountRevision = FromProto<NHydra::TRevision>(tabletInfo.mount_revision());
 
-            auto* tabletBase = FindTablet(tabletId)->As<TTablet>();
+            auto* tabletBase = FindTablet(tabletId);
             if (!IsObjectAlive(tabletBase)) {
                 continue;
             }
@@ -5727,11 +5739,12 @@ private:
     {
         auto tabletId = FromProto<TTabletId>(response->tablet_id());
         YT_VERIFY(TypeFromId(tabletId) == EObjectType::Tablet);
-        auto* tablet = FindTablet(tabletId)->As<TTablet>();
-        if (!IsObjectAlive(tablet)) {
+        auto* tabletBase = FindTablet(tabletId);
+        if (!IsObjectAlive(tabletBase)) {
             return;
         }
 
+        auto* tablet = tabletBase->As<TTablet>();
         auto senderId = GetHiveMutationSenderId();
         auto* servant = FindServantForStateTransition(
             tablet,
@@ -5759,10 +5772,10 @@ private:
         }
 
         TabletChunkManager_->SetTabletEdenStoreIds(
-            tablet->As<TTablet>(),
+            tablet,
             FromProto<std::vector<TStoreId>>(response->mount_hint().eden_store_ids()));
 
-        DiscardDynamicStores(tablet->As<TTablet>());
+        DiscardDynamicStores(tablet);
 
         YT_LOG_DEBUG("Tablet frozen (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
@@ -5878,7 +5891,7 @@ private:
         auto targetMountRevision = FromProto<NHydra::TRevision>(request->target_mount_revision());
 
         auto* tablet = FindTablet(tabletId);
-        if (!tablet) {
+        if (!IsObjectAlive(tablet)) {
             return;
         }
 
@@ -6037,12 +6050,9 @@ private:
         }
     }
 
-    void HydraMaterializeExtraMountConfigKeys(NProto::TReqMaterializeExtraMountConfigKeys* request)
+    void HydraMaterializeExtraMountConfigKeys(NProto::TReqMaterializeExtraMountConfigKeys* /*request*/)
     {
         YT_VERIFY(Bootstrap_->IsSecondaryMaster());
-
-        auto tableMountConfigKeys = FromProto<std::vector<TString>>(request->table_mount_config_keys());
-        UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
     }
 
     void HydraUpdateTableReplicaStatistics(NProto::TReqUpdateTableReplicaStatistics* request)
@@ -7104,19 +7114,19 @@ private:
 
         TabletCellStatisticsGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
-            BIND(&TImpl::OnTabletCellStatisticsGossip, MakeWeak(this)),
+            BIND(&TTabletManager::OnTabletCellStatisticsGossip, MakeWeak(this)),
             dynamicConfig->MulticellGossip->TabletCellStatisticsGossipPeriod);
         TabletCellStatisticsGossipExecutor_->Start();
 
         BundleResourceUsageGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
-            BIND(&TImpl::OnTabletCellBundleResourceUsageGossip, MakeWeak(this)),
+            BIND(&TTabletManager::OnTabletCellBundleResourceUsageGossip, MakeWeak(this)),
             dynamicConfig->MulticellGossip->BundleResourceUsageGossipPeriod);
         BundleResourceUsageGossipExecutor_->Start();
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic),
-            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            BIND(&TTabletManager::OnProfiling, MakeWeak(this)),
             dynamicConfig->ProfilingPeriod);
         ProfilingExecutor_->Start();
 
@@ -7190,7 +7200,7 @@ private:
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
         auto* cell = cellManager->FindCell(id);
-        if (cell && cell->GetType() != EObjectType::TabletCell) {
+        if (!IsObjectAlive(cell) || cell->GetType() != EObjectType::TabletCell) {
             return nullptr;
         }
         return cell->As<TTabletCell>();
@@ -7620,6 +7630,38 @@ private:
         }
     }
 
+    std::vector<TError> GetAlerts()
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        std::vector<TError> result;
+
+        // COMPAT(ifsmirnov): EMasterReign::ResourceQuotaAttributeForBundles
+        {
+            std::vector<std::string> badBundles;
+
+            const auto& cellManager = Bootstrap_->GetTamedCellManager();
+            for (auto* bundleBase : cellManager->CellBundles(ECellarType::Tablet)) {
+                YT_VERIFY(bundleBase->GetType() == EObjectType::TabletCellBundle);
+                auto* bundle = bundleBase->As<TTabletCellBundle>();
+
+                if (bundle->FindAttribute("resource_quota_backup_after_failed_migration")) {
+                    badBundles.push_back(bundle->GetName());
+                }
+            }
+
+            if (!badBundles.empty()) {
+                result.push_back(TError(
+                    "Failed to internalize \"resource_quota\" attribute for tablet cell bundles %v, "
+                    "see the old value in the \"resource_quota_backup_after_failed_migration\" "
+                    "attribute, fix the issue manually and remove it",
+                    badBundles));
+            }
+        }
+
+        return result;
+    }
+
     static void PopulateTableReplicaDescriptor(TTableReplicaDescriptor* descriptor, const TTableReplica* replica, const TTableReplicaInfo& info)
     {
         ToProto(descriptor->mutable_replica_id(), replica->GetId());
@@ -7646,469 +7688,16 @@ private:
     }
 };
 
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, Tablet, TTabletBase, TabletMap_);
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TableReplica, TTableReplica, TableReplicaMap_);
-DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager::TImpl, TabletAction, TTabletAction, TabletActionMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTabletBase, TabletMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager, TableReplica, TTableReplica, TableReplicaMap_);
+DEFINE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletAction, TTabletAction, TabletActionMap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTabletManager::TTabletManager(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
-{ }
-
-TTabletManager::~TTabletManager() = default;
-
-void TTabletManager::Initialize()
+ITabletManagerPtr CreateTabletManager(NCellMaster::TBootstrap* bootstrap)
 {
-    return Impl_->Initialize();
+    return New<TTabletManager>(bootstrap);
 }
-
-IYPathServicePtr TTabletManager::GetOrchidService()
-{
-    return Impl_->GetOrchidService();
-}
-
-const ITabletChunkManagerPtr& TTabletManager::GetTabletChunkManager() const
-{
-    return Impl_->GetTabletChunkManager();
-}
-
-void TTabletManager::PrepareMount(
-    TTabletOwnerBase* table,
-    int firstTabletIndex,
-    int lastTabletIndex,
-    TTabletCellId hintCellId,
-    const std::vector<TTabletCellId>& targetCellIds,
-    bool freeze)
-{
-    Impl_->PrepareMount(
-        table,
-        firstTabletIndex,
-        lastTabletIndex,
-        hintCellId,
-        targetCellIds,
-        freeze);
-}
-
-void TTabletManager::PrepareUnmount(
-    TTabletOwnerBase* table,
-    bool force,
-    int firstTabletIndex,
-    int lastTabletIndex)
-{
-    Impl_->PrepareUnmount(
-        table,
-        force,
-        firstTabletIndex,
-        lastTabletIndex);
-}
-
-void TTabletManager::PrepareRemount(
-    TTabletOwnerBase* table,
-    int firstTabletIndex,
-    int lastTabletIndex)
-{
-    Impl_->PrepareRemount(
-        table,
-        firstTabletIndex,
-        lastTabletIndex);
-}
-
-void TTabletManager::PrepareFreeze(
-    TTabletOwnerBase* table,
-    int firstTabletIndex,
-    int lastTabletIndex)
-{
-    Impl_->PrepareFreeze(
-        table,
-        firstTabletIndex,
-        lastTabletIndex);
-}
-
-void TTabletManager::PrepareUnfreeze(
-    TTabletOwnerBase* table,
-    int firstTabletIndex,
-    int lastTabletIndex)
-{
-    Impl_->PrepareUnfreeze(
-        table,
-        firstTabletIndex,
-        lastTabletIndex);
-}
-
-void TTabletManager::PrepareReshard(
-    TTabletOwnerBase* table,
-    int firstTabletIndex,
-    int lastTabletIndex,
-    int newTabletCount,
-    const std::vector<TLegacyOwningKey>& pivotKeys,
-    const std::vector<i64>& trimmedRowCounts,
-    bool create)
-{
-    Impl_->PrepareReshard(
-        table,
-        firstTabletIndex,
-        lastTabletIndex,
-        newTabletCount,
-        pivotKeys,
-        trimmedRowCounts,
-        create);
-}
-
-void TTabletManager::CancelTabletTransition(TTablet* tablet)
-{
-    Impl_->CancelTabletTransition(tablet);
-}
-
-void TTabletManager::ValidateMakeTableDynamic(TTableNode* table)
-{
-    Impl_->ValidateMakeTableDynamic(table);
-}
-
-void TTabletManager::ValidateMakeTableStatic(TTableNode* table)
-{
-    Impl_->ValidateMakeTableStatic(table);
-}
-
-void TTabletManager::Mount(
-    TTabletOwnerBase* table,
-    const TString& path,
-    int firstTabletIndex,
-    int lastTabletIndex,
-    TTabletCellId hintCellId,
-    const std::vector<TTabletCellId>& targetCellIds,
-    bool freeze,
-    TTimestamp mountTimestamp)
-{
-    Impl_->Mount(
-        table,
-        path,
-        firstTabletIndex,
-        lastTabletIndex,
-        hintCellId,
-        targetCellIds,
-        freeze,
-        mountTimestamp);
-}
-
-void TTabletManager::Unmount(
-    TTabletOwnerBase* table,
-    bool force,
-    int firstTabletIndex,
-    int lastTabletIndex)
-{
-    Impl_->Unmount(
-        table,
-        force,
-        firstTabletIndex,
-        lastTabletIndex);
-}
-
-void TTabletManager::Remount(
-    TTabletOwnerBase* table,
-    int firstTabletIndex,
-    int lastTabletIndex)
-{
-    Impl_->Remount(
-        table,
-        firstTabletIndex,
-        lastTabletIndex);
-}
-
-void TTabletManager::Freeze(
-    TTabletOwnerBase* table,
-    int firstTabletIndex,
-    int lastTabletIndex)
-{
-    Impl_->Freeze(
-        table,
-        firstTabletIndex,
-        lastTabletIndex);
-}
-
-void TTabletManager::Unfreeze(
-    TTabletOwnerBase* table,
-    int firstTabletIndex,
-    int lastTabletIndex)
-{
-    Impl_->Unfreeze(
-        table,
-        firstTabletIndex,
-        lastTabletIndex);
-}
-
-void TTabletManager::Reshard(
-    TTabletOwnerBase* table,
-    int firstTabletIndex,
-    int lastTabletIndex,
-    int newTabletCount,
-    const std::vector<TLegacyOwningKey>& pivotKeys,
-    const std::vector<i64>& trimmedRowCounts)
-{
-    Impl_->Reshard(
-        table,
-        firstTabletIndex,
-        lastTabletIndex,
-        newTabletCount,
-        pivotKeys,
-        trimmedRowCounts);
-}
-
-void TTabletManager::SetCustomRuntimeData(TTableNode* table, NYson::TYsonString data)
-{
-    Impl_->SetCustomRuntimeData(table, std::move(data));
-}
-
-void TTabletManager::ValidateCloneTabletOwner(
-    TTabletOwnerBase* sourceNode,
-    ENodeCloneMode mode,
-    TAccount* account)
-{
-    return Impl_->ValidateCloneTabletOwner(
-        sourceNode,
-        mode,
-        account);
-}
-
-void TTabletManager::ValidateSerializeTabletOwner(
-    TTabletOwnerBase* sourceNode,
-    ENodeCloneMode mode)
-{
-    return Impl_->ValidateSerializeTabletOwner(
-        sourceNode,
-        mode);
-}
-
-void TTabletManager::CloneTabletOwner(
-    TTabletOwnerBase* sourceNode,
-    TTabletOwnerBase* clonedNode,
-    ENodeCloneMode mode)
-{
-    return Impl_->CloneTabletOwner(
-        sourceNode,
-        clonedNode,
-        mode);
-}
-
-void TTabletManager::MakeTableDynamic(TTableNode* table, i64 trimmedRowCount)
-{
-    Impl_->MakeTableDynamic(table, trimmedRowCount);
-}
-
-void TTabletManager::MakeTableStatic(TTableNode* table)
-{
-    Impl_->MakeTableStatic(table);
-}
-
-void TTabletManager::LockDynamicTable(
-    TTableNode* table,
-    TTransaction* transaction,
-    TTimestamp timestamp)
-{
-    Impl_->LockDynamicTable(table, transaction, timestamp);
-}
-
-void TTabletManager::CheckDynamicTableLock(
-    TTableNode* table,
-    TTransaction* transaction,
-    NTableClient::NProto::TRspCheckDynamicTableLock* response)
-{
-    Impl_->CheckDynamicTableLock(table, transaction, response);
-}
-
-TTabletBase* TTabletManager::GetTabletOrThrow(TTabletId id)
-{
-    return Impl_->GetTabletOrThrow(id);
-}
-
-TTabletCell* TTabletManager::GetTabletCellOrThrow(TTabletCellId id)
-{
-    return Impl_->GetTabletCellOrThrow(id);
-}
-
-TTabletCellBundle* TTabletManager::GetTabletCellBundleOrThrow(TTabletCellBundleId id, bool activeLifeStageOnly)
-{
-    return Impl_->GetTabletCellBundleOrThrow(id, activeLifeStageOnly);
-}
-
-TTabletCellBundle* TTabletManager::FindTabletCellBundle(TTabletCellBundleId id)
-{
-    return Impl_->FindTabletCellBundle(id);
-}
-
-TTabletCellBundle* TTabletManager::GetTabletCellBundleByNameOrThrow(const std::string& name, bool activeLifeStageOnly)
-{
-    return Impl_->GetTabletCellBundleByNameOrThrow(name, activeLifeStageOnly);
-}
-
-TTabletCellBundle* TTabletManager::GetDefaultTabletCellBundle()
-{
-    return Impl_->GetDefaultTabletCellBundle();
-}
-
-void TTabletManager::SetTabletCellBundle(TTabletOwnerBase* owner, TTabletCellBundle* cellBundle)
-{
-    Impl_->SetTabletCellBundle(owner, cellBundle);
-}
-
-void TTabletManager::ZombifyTabletCell(TTabletCell* cell)
-{
-    Impl_->ZombifyTabletCell(cell);
-}
-
-void TTabletManager::DestroyTablet(TTabletBase* tablet)
-{
-    Impl_->DestroyTablet(tablet);
-}
-
-void TTabletManager::DestroyTabletOwner(TTabletOwnerBase* table)
-{
-    Impl_->DestroyTabletOwner(table);
-}
-
-TNode* TTabletManager::FindTabletLeaderNode(const TTabletBase* tablet) const
-{
-    return Impl_->FindTabletLeaderNode(tablet);
-}
-
-void TTabletManager::UpdateExtraMountConfigKeys(std::vector<TString> keys)
-{
-    Impl_->UpdateExtraMountConfigKeys(std::move(keys));
-}
-
-void TTabletManager::MaterizlizeExtraMountConfigKeys(TCellTag cellTag) const
-{
-    Impl_->MaterizlizeExtraMountConfigKeys(cellTag);
-}
-
-TTableReplica* TTabletManager::CreateTableReplica(
-    TReplicatedTableNode* table,
-    const std::string& clusterName,
-    const TYPath& replicaPath,
-    ETableReplicaMode mode,
-    bool preserveTimestamps,
-    EAtomicity atomicity,
-    bool enabled,
-    TTimestamp startReplicationTimestamp,
-    const std::optional<std::vector<i64>>& startReplicationRowIndexes,
-    bool enableReplicatedTableTracker)
-{
-    return Impl_->CreateTableReplica(
-        table,
-        clusterName,
-        replicaPath,
-        mode,
-        preserveTimestamps,
-        atomicity,
-        enabled,
-        startReplicationTimestamp,
-        startReplicationRowIndexes,
-        enableReplicatedTableTracker);
-}
-
-void TTabletManager::ZombifyTableReplica(TTableReplica* replica)
-{
-    Impl_->ZombifyTableReplica(replica);
-}
-
-void TTabletManager::AlterTableReplica(
-    TTableReplica* replica,
-    std::optional<bool> enabled,
-    std::optional<ETableReplicaMode> mode,
-    std::optional<EAtomicity> atomicity,
-    std::optional<bool> preserveTimestamps,
-    std::optional<bool> enableReplicatedTableTracker)
-{
-    Impl_->AlterTableReplica(
-        replica,
-        std::move(enabled),
-        std::move(mode),
-        std::move(atomicity),
-        std::move(preserveTimestamps),
-        std::move(enableReplicatedTableTracker));
-}
-
-std::vector<TTabletActionId> TTabletManager::SyncBalanceCells(
-    TTabletCellBundle* bundle,
-    const std::optional<std::vector<TTableNode*>>& tables,
-    bool keepActions)
-{
-    return Impl_->SyncBalanceCells(bundle, tables, keepActions);
-}
-
-std::vector<TTabletActionId> TTabletManager::SyncBalanceTablets(TTableNode* table, bool keepActions)
-{
-    return Impl_->SyncBalanceTablets(table, keepActions);
-}
-
-TTabletAction* TTabletManager::CreateTabletAction(
-    NObjectClient::TObjectId hintId,
-    ETabletActionKind kind,
-    const std::vector<TTabletBaseRawPtr>& tablets,
-    const std::vector<TTabletCellRawPtr>& cells,
-    const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
-    const std::optional<int>& tabletCount,
-    bool skipFreezing,
-    TGuid correlationId,
-    TInstant expirationTime,
-    std::optional<TDuration> expirationTimeout)
-{
-    return Impl_->CreateTabletAction(
-        hintId,
-        kind,
-        tablets,
-        cells,
-        pivotKeys,
-        tabletCount,
-        skipFreezing,
-        correlationId,
-        expirationTime,
-        expirationTimeout);
-}
-
-void TTabletManager::ZombifyTabletAction(TTabletAction* action)
-{
-    Impl_->ZombifyTabletAction(action);
-}
-
-void TTabletManager::MergeTable(TTableNode* originatingNode, NTableServer::TTableNode* branchedNode)
-{
-    Impl_->MergeTable(originatingNode, branchedNode);
-}
-
-void TTabletManager::OnNodeStorageParametersUpdated(TChunkOwnerBase* node)
-{
-    Impl_->OnNodeStorageParametersUpdated(node);
-}
-
-void TTabletManager::RecomputeTabletCellStatistics(TCellBase* cellBase)
-{
-    return Impl_->RecomputeTabletCellStatistics(cellBase);
-}
-
-void TTabletManager::OnHunkJournalChunkSealed(TChunk* chunk)
-{
-    Impl_->OnHunkJournalChunkSealed(chunk);
-}
-
-void TTabletManager::AttachDynamicStoreToTablet(TTablet* tablet, TDynamicStore* dynamicStore)
-{
-    Impl_->AttachDynamicStoreToTablet(tablet, dynamicStore);
-}
-
-void TTabletManager::FireUponTableReplicaUpdate(TTableReplica* replica)
-{
-    Impl_->FireUponTableReplicaUpdate(replica);
-}
-
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTabletBase, *Impl_);
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TableReplica, TTableReplica, *Impl_);
-DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TabletAction, TTabletAction, *Impl_);
-
-DELEGATE_SIGNAL_WITH_ACCESSOR(TTabletManager, void(TReplicatedTableData), ReplicatedTableCreated, *Impl_);
-DELEGATE_SIGNAL_WITH_ACCESSOR(TTabletManager, void(TTableId), ReplicatedTableDestroyed, *Impl_);
-DELEGATE_SIGNAL(TTabletManager, void(TReplicaData), ReplicaCreated, *Impl_);
-DELEGATE_SIGNAL(TTabletManager, void(TTableReplicaId), ReplicaDestroyed, *Impl_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

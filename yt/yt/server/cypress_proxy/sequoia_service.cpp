@@ -4,8 +4,8 @@
 
 #include "bootstrap.h"
 #include "helpers.h"
+#include "master_proxy.h"
 #include "node_proxy.h"
-#include "node_proxy_base.h"
 #include "path_resolver.h"
 #include "rootstock_proxy.h"
 
@@ -23,6 +23,8 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
+
+#include <yt/yt/core/ytree/ypath_detail.h>
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
@@ -128,6 +130,8 @@ private:
         YT_LOG_DEBUG(logMessage);
 
         Timer_.emplace();
+
+        RequestInfoState_ = ERequestInfoState::Flushed;
     }
 
     void LogResponse() override
@@ -193,9 +197,9 @@ public:
         const TSequoiaSessionPtr& session,
         const TResolveResult& resolveResult) override
     {
-        static_assert(std::variant_size<std::decay_t<decltype(resolveResult)>>() == 2);
+        static_assert(std::variant_size<std::decay_t<decltype(resolveResult)>>() == 3);
 
-        TNodeProxyBasePtr proxy;
+        INodeProxyPtr proxy;
         if (const auto* cypressResolveResult = std::get_if<TCypressResolveResult>(&resolveResult)) {
             if (context->GetRequestHeader().method() != "Create") {
                 return EInvokeResult::ForwardToMaster;
@@ -213,10 +217,17 @@ public:
                 // path is correct, if this is not the case - prepare in 2PC
                 // will fail and the error will be propagated to the user.
                 case EObjectType::Rootstock:
-                    proxy = CreateRootstockProxy(
-                        Bootstrap_,
-                        session,
-                        TAbsoluteYPath(cypressResolveResult->Path));
+                    try {
+                        proxy = CreateRootstockProxy(
+                            Bootstrap_,
+                            session,
+                            TAbsolutePath::MakeCanonicalPathOrThrow(
+                                cypressResolveResult->Path));
+                    } catch (const std::exception& ex) {
+                        // TODO(danilalexeev): Implement the top-level #GuardedTryInvoke.
+                        context->Reply(ex);
+                        return EInvokeResult::Executed;
+                    }
                     break;
 
                 // Link may point into Sequoia we cannot check it's cyclicity in
@@ -226,10 +237,12 @@ public:
                 // (subtree copy?).
                 case EObjectType::Link:
                     try {
+                        auto targetPath = ValidateAndMakeYPath(
+                            reqCreate->ExplicitAttributes->Get<TRawYPath>(
+                                EInternedAttributeKey::TargetPath.Unintern()));
                         ValidateLinkNodeCreation(
                             session,
-                            reqCreate->ExplicitAttributes->Get<TRawYPath>(
-                                EInternedAttributeKey::TargetPath.Unintern()),
+                            targetPath,
                             resolveResult);
                         // Link should be created in master.
                         return EInvokeResult::ForwardToMaster;
@@ -242,6 +255,8 @@ public:
                 default:
                     return EInvokeResult::ForwardToMaster;
             }
+        } else if (std::holds_alternative<TMasterResolveResult>(resolveResult)) {
+            proxy = CreateMasterProxy(Bootstrap_, session);
         } else {
             const auto& sequoiaResolveResult = std::get<TSequoiaResolveResult>(resolveResult);
             proxy = CreateNodeProxy(Bootstrap_, session, sequoiaResolveResult);

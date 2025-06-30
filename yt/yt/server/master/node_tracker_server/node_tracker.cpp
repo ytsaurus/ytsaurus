@@ -13,6 +13,7 @@
 #include "node_disposal_manager.h"
 #include "data_center_type_handler.h"
 #include "node_tracker_cache.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
@@ -42,7 +43,6 @@
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_node_tracker.h>
-#include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
@@ -90,6 +90,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <library/cpp/yt/containers/expiring_set.h>
@@ -122,7 +124,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = NodeTrackerServerLogger;
+constinit const auto Logger = NodeTrackerServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -882,6 +884,21 @@ public:
         return {};
     }
 
+    std::optional<TAggregatedNodeStatistics> GetDataCenterFlavoredNodeStatistics(
+        const TDataCenter* dataCenter,
+        ENodeFlavor flavor) override
+    {
+        MaybeRebuildAggregatedNodeStatistics();
+
+        auto guard = ReaderGuard(NodeStatisticsLock_);
+        auto dataCenterStatistics = DataCenterFlavoredNodeStatistics_.find(dataCenter);
+        if (dataCenterStatistics != DataCenterFlavoredNodeStatistics_.end()) {
+            return dataCenterStatistics->second[flavor];
+        }
+
+        return {};
+    }
+
     int GetOnlineNodeCount() override
     {
         return AggregatedOnlineNodeCount_;
@@ -984,8 +1001,13 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, NodeStatisticsLock_);
     TCpuInstant NodeStatisticsUpdateDeadline_ = 0;
     TAggregatedNodeStatistics AggregatedNodeStatistics_;
-    TEnumIndexedArray<ENodeFlavor, TAggregatedNodeStatistics> FlavoredNodeStatistics_;
+    using TFlavoredNodeStatistics = TEnumIndexedArray<ENodeFlavor, TAggregatedNodeStatistics>;
+    TFlavoredNodeStatistics FlavoredNodeStatistics_;
+    TCpuInstant LocalStateToNodeCountUpdateDeadline_ = 0;
+    using TLocalStateToNodeCount = TEnumIndexedArray<ENodeState, int>;
+    TLocalStateToNodeCount LocalStateToNodeCount_;
     THashMap<const TDataCenter*, TAggregatedNodeStatistics> DataCenterNodeStatistics_;
+    THashMap<const TDataCenter*, TFlavoredNodeStatistics> DataCenterFlavoredNodeStatistics_;
 
     // Cf. YT-7009.
     // Maintain a dedicated counter of alive racks since RackMap_ may contain zombies.
@@ -1043,7 +1065,7 @@ private:
         bool ExecNodeIsNotDataNode;
         std::string HostName;
         std::optional<TYsonString> CypressAnnotations;
-        std::optional<TString> BuildVersion;
+        std::optional<std::string> BuildVersion;
         std::optional<std::string> Rack;
         std::optional<std::string> DataCenter;
     };
@@ -1057,21 +1079,8 @@ private:
 
     TNodeId GenerateNodeId()
     {
-        TNodeId id;
-        while (true) {
-            id = TNodeId(NodeIdGenerator_.Next());
-            // Beware of sentinels!
-            if (id == InvalidNodeId) {
-                // Just wait for the next attempt.
-            } else if (id > MaxNodeId) {
-                NodeIdGenerator_.Reset();
-            } else {
-                break;
-            }
-        }
-        return id;
+        return GenerateCounterId(NodeIdGenerator_, InvalidNodeId, MaxNodeId);
     }
-
 
     static TYPath GetNodePath(const std::string& address)
     {
@@ -1357,10 +1366,6 @@ private:
             const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
             dataNodeTracker->ProcessRegisterNode(node, request, response);
         }
-
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto tableMountConfigKeys = FromProto<std::vector<TString>>(request->table_mount_config_keys());
-        tabletManager->UpdateExtraMountConfigKeys(std::move(tableMountConfigKeys));
 
         UpdateLastSeenTime(node);
         UpdateRegisterTime(node);
@@ -1883,7 +1888,7 @@ private:
             node->RebuildTags();
             SubscribeToAggregatedNodeStateChanged(node);
             InitializeNodeStates(node);
-            InitializeNodeIOWeights(node);
+            InitializeNodeMediumStatistics(node);
             InsertToAddressMaps(node);
             InsertToFlavorSets(node);
             UpdateNodeCounters(node, +1);
@@ -2111,9 +2116,9 @@ private:
             Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
     }
 
-    void InitializeNodeIOWeights(TNode* node)
+    void InitializeNodeMediumStatistics(TNode* node)
     {
-        node->RecomputeIOWeights(Bootstrap_->GetChunkManager());
+        node->RecomputeMediumStatistics(Bootstrap_->GetChunkManager());
     }
 
     void UpdateNodeCounters(TNode* node, int delta)
@@ -2368,7 +2373,7 @@ private:
         request.set_node_id(ToProto(node->GetId()));
         ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
         ToProto(request.mutable_tags(), node->NodeTags());
-        request.set_cypress_annotations(node->GetAnnotations().ToString());
+        request.set_cypress_annotations(ToProto(node->GetAnnotations()));
         request.set_build_version(node->GetVersion());
         ToProto(request.mutable_flavors(), node->Flavors());
 
@@ -2378,8 +2383,6 @@ private:
         }
 
         request.set_host_name(node->GetHost()->GetName());
-
-        request.mutable_table_mount_config_keys()->CopyFrom(originalRequest->table_mount_config_keys());
 
         request.set_exec_node_is_not_data_node(originalRequest->exec_node_is_not_data_node());
 
@@ -2442,8 +2445,6 @@ private:
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-
         auto replicateValues = [&] (const auto& objectMap) {
             for (auto* object : GetValuesSortedByKey(objectMap)) {
                 objectManager->ReplicateObjectAttributesToSecondaryMaster(object, cellTag);
@@ -2473,7 +2474,6 @@ private:
         }
 
         replicateValues(NodeMap_);
-        tabletManager->MaterizlizeExtraMountConfigKeys(cellTag);
     }
 
     void ReplicateNode(const TNode* node, TCellTag cellTag)
@@ -2484,7 +2484,7 @@ private:
         request.set_node_id(ToProto(node->GetId()));
         ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
         ToProto(request.mutable_tags(), node->NodeTags());
-        request.set_cypress_annotations(node->GetAnnotations().ToString());
+        request.set_cypress_annotations(ToProto(node->GetAnnotations()));
         request.set_build_version(node->GetVersion());
         ToProto(request.mutable_flavors(), node->Flavors());
 
@@ -2583,62 +2583,66 @@ private:
 
         BufferedProducer_->SetEnabled(true);
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (!multicellManager->IsPrimaryMaster()) {
-            return;
-        }
-
         TSensorBuffer buffer;
-        auto statistics = GetAggregatedNodeStatistics();
+        NodeDisposalManager_->OnProfiling(&buffer);
 
-        auto profileStatistics = [&] (const TAggregatedNodeStatistics& statistics) {
-            buffer.AddGauge("/available_space", statistics.TotalSpace.Available);
-            buffer.AddGauge("/used_space", statistics.TotalSpace.Used);
-
-            const auto& chunkManager = Bootstrap_->GetChunkManager();
-            for (auto [mediumIndex, space] : statistics.SpacePerMedium) {
-                const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                if (!IsObjectAlive(medium)) {
-                    continue;
-                }
-                TWithTagGuard tagGuard(&buffer, "medium", medium->GetName());
-                buffer.AddGauge("/available_space_per_medium", space.Available);
-                buffer.AddGauge("/used_space_per_medium", space.Used);
-            }
-
-            buffer.AddGauge("/chunk_replica_count", statistics.ChunkReplicaCount);
-
-            buffer.AddGauge("/online_node_count", statistics.OnlineNodeCount);
-            buffer.AddGauge("/offline_node_count", statistics.OfflineNodeCount);
-            buffer.AddGauge("/banned_node_count", statistics.BannedNodeCount);
-            buffer.AddGauge("/decommissioned_node_count", statistics.DecommissinedNodeCount);
-            buffer.AddGauge("/with_alerts_node_count", statistics.WithAlertsNodeCount);
-            buffer.AddGauge("/full_node_count", statistics.FullNodeCount);
-
-            for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
-                TWithTagGuard tagGuard(&buffer, "node_role", FormatEnum(nodeRole));
-                buffer.AddGauge("/node_count", NodeListPerRole_[nodeRole].Nodes().size());
-            }
-        };
-
-        {
-            TWithTagGuard tagGuard(&buffer, "flavor", "cluster");
-            profileStatistics(GetAggregatedNodeStatistics());
+        const auto& localStateToNodeCount = GetLocalStateToNodeCount();
+        for (auto state : TEnumTraits<ENodeState>::GetDomainValues()) {
+            TWithTagGuard tagGuard(&buffer, "state", FormatEnum(state));
+            buffer.AddGauge("/node_count", localStateToNodeCount[state]);
         }
 
-        for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
-            TWithTagGuard tagGuard(&buffer, "flavor", FormatEnum(flavor));
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            auto statistics = GetAggregatedNodeStatistics();
 
-            profileStatistics(GetFlavoredNodeStatistics(flavor));
+            auto profileStatistics = [&] (const TAggregatedNodeStatistics& statistics) {
+                buffer.AddGauge("/available_space", statistics.TotalSpace.Available);
+                buffer.AddGauge("/used_space", statistics.TotalSpace.Used);
+
+                const auto& chunkManager = Bootstrap_->GetChunkManager();
+                for (auto [mediumIndex, space] : statistics.SpacePerMedium) {
+                    const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
+                    if (!IsObjectAlive(medium)) {
+                        continue;
+                    }
+                    TWithTagGuard tagGuard(&buffer, "medium", medium->GetName());
+                    buffer.AddGauge("/available_space_per_medium", space.Available);
+                    buffer.AddGauge("/used_space_per_medium", space.Used);
+                }
+
+                buffer.AddGauge("/chunk_replica_count", statistics.ChunkReplicaCount);
+
+                buffer.AddGauge("/online_node_count", statistics.OnlineNodeCount);
+                buffer.AddGauge("/offline_node_count", statistics.OfflineNodeCount);
+                buffer.AddGauge("/banned_node_count", statistics.BannedNodeCount);
+                buffer.AddGauge("/decommissioned_node_count", statistics.DecommissinedNodeCount);
+                buffer.AddGauge("/with_alerts_node_count", statistics.WithAlertsNodeCount);
+                buffer.AddGauge("/full_node_count", statistics.FullNodeCount);
+
+                for (auto nodeRole : TEnumTraits<ENodeRole>::GetDomainValues()) {
+                    TWithTagGuard tagGuard(&buffer, "node_role", FormatEnum(nodeRole));
+                    buffer.AddGauge("/node_count", NodeListPerRole_[nodeRole].Nodes().size());
+                }
+            };
 
             {
-                auto& addresses = FlavorToThrottledRegisterNodeAddresses_[flavor];
-                addresses.Expire(Now());
-                buffer.AddGauge("/throttled_register_node_count", addresses.GetSize());
+                TWithTagGuard tagGuard(&buffer, "flavor", "cluster");
+                profileStatistics(GetAggregatedNodeStatistics());
+            }
+
+            for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
+                TWithTagGuard tagGuard(&buffer, "flavor", FormatEnum(flavor));
+
+                profileStatistics(GetFlavoredNodeStatistics(flavor));
+
+                {
+                    auto& addresses = FlavorToThrottledRegisterNodeAddresses_[flavor];
+                    addresses.Expire(Now());
+                    buffer.AddGauge("/throttled_register_node_count", addresses.GetSize());
+                }
             }
         }
-
-        NodeDisposalManager_->OnProfiling(&buffer);
 
         BufferedProducer_->Update(buffer);
     }
@@ -2752,6 +2756,7 @@ private:
         for (auto flavor : TEnumTraits<ENodeFlavor>::GetDomainValues()) {
             FlavoredNodeStatistics_[flavor] = TAggregatedNodeStatistics();
         }
+        DataCenterFlavoredNodeStatistics_.clear();
         DataCenterNodeStatistics_.clear();
 
         auto increment = [] (
@@ -2801,6 +2806,7 @@ private:
 
             for (auto flavor : node->Flavors()) {
                 updateStatistics(&FlavoredNodeStatistics_[flavor]);
+                updateStatistics(&DataCenterFlavoredNodeStatistics_[node->GetDataCenter()][flavor]);
             }
             updateStatistics(&DataCenterNodeStatistics_[node->GetDataCenter()]);
         }
@@ -2808,6 +2814,41 @@ private:
         NodeStatisticsUpdateDeadline_ =
             GetCpuInstant() +
             DurationToCpuDuration(GetDynamicConfig()->TotalNodeStatisticsUpdatePeriod);
+    }
+
+    const TLocalStateToNodeCount& GetLocalStateToNodeCount()
+    {
+        MaybeRebuildLocalStateToNodeCount();
+
+        return LocalStateToNodeCount_;
+    }
+
+    void MaybeRebuildLocalStateToNodeCount()
+    {
+        auto now = GetCpuInstant();
+        if (now > LocalStateToNodeCountUpdateDeadline_) {
+            BuildLocalStateToNodeCount();
+        }
+    }
+
+    void BuildLocalStateToNodeCount()
+    {
+        for (auto state : TEnumTraits<ENodeState>::GetDomainValues()) {
+            LocalStateToNodeCount_[state] = 0;
+        }
+
+        for (auto [nodeId, node] : NodeMap_) {
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+
+            auto state = node->GetLocalState();
+            ++LocalStateToNodeCount_[state];
+        }
+
+        LocalStateToNodeCountUpdateDeadline_ =
+            GetCpuInstant() +
+            DurationToCpuDuration(GetDynamicConfig()->LocalStateToNodeCountUpdatePeriod);
     }
 
     const TDynamicNodeTrackerConfigPtr& GetDynamicConfig()

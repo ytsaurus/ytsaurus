@@ -23,6 +23,8 @@
 
 #include <yt/yt/core/ypath/tokenizer.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
@@ -35,7 +37,16 @@ using namespace NTabletClient;
 using namespace NSecurityClient;
 using namespace NTransactionClient;
 
+using NYT::ToProto;
+
 ////////////////////////////////////////////////////////////////////////////////
+
+TGetCurrentUserResultPtr TClient::DoGetCurrentUser(const TGetCurrentUserOptions& /*options*/)
+{
+    auto result = New<TGetCurrentUserResult>();
+    result->User = Options_.GetAuthenticatedUser();
+    return result;
+}
 
 TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     const std::optional<std::string>& user,
@@ -53,7 +64,7 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
         req->set_user(ToProto(*user));
     }
     req->set_permission(ToProto(permission));
-    req->set_acl(ConvertToYsonString(acl).ToString());
+    req->set_acl(ToProto(ConvertToYsonString(acl)));
     req->set_ignore_missing_subjects(options.IgnoreMissingSubjects);
     SetCachingHeader(req, options);
 
@@ -68,13 +79,13 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     result.Action = ESecurityAction(rsp->action());
     result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
     result.SubjectName = rsp->has_subject_name() ? std::make_optional(rsp->subject_name()) : std::nullopt;
-    result.MissingSubjects = FromProto<std::vector<TString>>(rsp->missing_subjects());
+    result.MissingSubjects = FromProto<std::vector<std::string>>(rsp->missing_subjects());
     return result;
 }
 
 void TClient::DoAddMember(
-    const TString& group,
-    const TString& member,
+    const std::string& group,
+    const std::string& member,
     const TAddMemberOptions& options)
 {
     auto proxy = CreateObjectServiceWriteProxy();
@@ -94,8 +105,8 @@ void TClient::DoAddMember(
 }
 
 void TClient::DoRemoveMember(
-    const TString& group,
-    const TString& member,
+    const std::string& group,
+    const std::string& member,
     const TRemoveMemberOptions& options)
 {
     auto proxy = CreateObjectServiceWriteProxy();
@@ -238,8 +249,8 @@ void TClient::ValidateTableReplicaPermission(
 }
 
 void TClient::DoTransferAccountResources(
-    const TString& srcAccount,
-    const TString& dstAccount,
+    const std::string& srcAccount,
+    const std::string& dstAccount,
     NYTree::INodePtr resourceDelta,
     const TTransferAccountResourcesOptions& options)
 {
@@ -248,7 +259,7 @@ void TClient::DoTransferAccountResources(
 
     auto req = TAccountYPathProxy::TransferAccountResources(GetAccountPath(dstAccount));
     req->set_src_account(srcAccount);
-    req->set_resource_delta(ConvertToYsonString(resourceDelta).ToString());
+    req->set_resource_delta(ToProto(ConvertToYsonString(resourceDelta)));
     SetMutationId(req, options);
 
     batchReq->AddRequest(req);

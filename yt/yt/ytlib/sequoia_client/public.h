@@ -82,23 +82,26 @@ DECLARE_REFCOUNTED_STRUCT(ISequoiaTransaction)
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_STRONG_TYPEDEF(TMangledSequoiaPath, TString);
+//! A canonical absolute path. The canonical path format restricts the YPath grammar,
+//! allowing only a sequence of segments without additional YPath features.
+YT_DEFINE_STRONG_TYPEDEF(TRealPath, TString);
+
 YT_DEFINE_STRONG_TYPEDEF(TRawYPath, TString);
 
+//! The following classes are the wrappers for the canonical path representation.
 template <bool Absolute>
-class TBasicYPath;
+class TBasicPathBuf;
 
-template <bool Absolute>
-class TBasicYPathBuf;
+class TRelativePath;
+using TRelativePathBuf = TBasicPathBuf<false>;
 
-using TYPath = TBasicYPath<false>;
-using TYPathBuf = TBasicYPathBuf<false>;
-
-using TAbsoluteYPath = TBasicYPath<true>;
-using TAbsoluteYPathBuf = TBasicYPathBuf<true>;
+//! An absolute path is a canonical path that starts with a slash root designator.
+class TAbsolutePath;
+using TAbsolutePathBuf = TBasicPathBuf<true>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSequoiaTransactionSequencingOptions;
+struct TSequoiaTransactionOptions;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -107,14 +110,6 @@ DEFINE_STRING_SERIALIZABLE_ENUM(EForkKind,
     ((Tombstone)    (1))
     ((Snapshot)     (2))
 );
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(ESequoiaReign,
-    ((InitialReign) (1))
-);
-
-ESequoiaReign GetCurrentSequoiaReign() noexcept;
 
 ////////////////////////////////////////////////////////////////////////////////
 

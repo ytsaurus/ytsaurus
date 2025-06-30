@@ -52,7 +52,7 @@ std::vector<TBlock> GetRpcAttachedBlocks(const TRpcPtr& rpc, bool validateChecks
         blocks.emplace_back(rpc->Attachments()[i], checksum);
 
         if (validateChecksums) {
-            auto error = blocks.back().ValidateChecksum();
+            auto error = blocks.back().CheckChecksum();
             if (!error.IsOK()) {
                 THROW_ERROR_EXCEPTION("Invalid block checksum in RPC attachment")
                     << TErrorAttribute("block_index", i)

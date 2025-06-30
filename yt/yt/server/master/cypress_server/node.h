@@ -13,7 +13,7 @@
 #include <yt/yt/server/master/security_server/cluster_resources.h>
 #include <yt/yt/server/master/security_server/detailed_master_memory.h>
 
-#include <yt/yt/server/master/tablet_server/tablet_resources.h>
+#include <yt/yt/server/master/tablet_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
@@ -231,6 +231,7 @@ public:
     //! Always null for non-trunk nodes.
     DEFINE_BYVAL_RW_PROPERTY(TResolveCacheNodePtr, ResolveCacheNode);
 
+    // NB: Store as TString to reduce memory footprint.
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TDuration, ExpirationTimeout);
 
     //! Used for both Sequoia nodes and Cypress link nodes. Note that link nodes

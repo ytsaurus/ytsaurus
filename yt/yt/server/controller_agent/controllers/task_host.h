@@ -56,7 +56,7 @@ struct ITaskHost
         NControllerAgent::NProto::TUserJobSpec* proto,
         const NScheduler::TUserJobSpecPtr& jobSpecConfig,
         const std::vector<TUserFile>& files,
-        const TString& debugArtifactsAccount) = 0;
+        const std::string& debugArtifactsAccount) = 0;
     // TODO(max42): get rid of this; serialize files either in tasks or in controller.
     virtual const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const = 0;
 
@@ -64,7 +64,7 @@ struct ITaskHost
      *  \note Invoker affinity: JobSpecBuildInvoker.
      */
     virtual void CustomizeJobSpec(const TJobletPtr& joblet, NControllerAgent::NProto::TJobSpec* jobSpec) const = 0;
-    virtual void CustomizeJoblet(const TJobletPtr& joblet) = 0;
+    virtual void CustomizeJoblet(const TJobletPtr& joblet, const TAllocation& allocation) = 0;
 
     virtual void AddValueToEstimatedHistogram(const TJobletPtr& joblet) = 0;
     virtual void RemoveValueFromEstimatedHistogram(const TJobletPtr& joblet) = 0;
@@ -107,9 +107,9 @@ struct ITaskHost
     virtual void RegisterJoblet(const TJobletPtr& joblet) = 0;
     virtual std::expected<TJobId, EScheduleFailReason> GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) = 0;
 
-    virtual std::optional<TJobMonitoringDescriptor> RegisterJobForMonitoring(
+    virtual std::optional<TJobMonitoringDescriptor> AcquireMonitoringDescriptorForJob(
         TJobId jobId,
-        const std::optional<TJobMonitoringDescriptor>& descriptorHint) = 0;
+        const TAllocation& allocation) = 0;
 
     virtual const std::optional<TJobResources>& CachedMaxAvailableExecNodeResources() const = 0;
 

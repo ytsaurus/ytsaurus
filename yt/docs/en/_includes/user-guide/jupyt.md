@@ -37,6 +37,6 @@ foo@bar:~$ yt jupyt ctl get-endpoint test-jupyt
 
 {% note warning "Warning" %}
 
-Notebooks and files created on filesystem are not preserved after job restart. For the reliable storage of the files you should store them in [Cypress](../user-guide/storage/cypress.md).
+Notebooks and files created on filesystem are not preserved after job restart. For the reliable storage of the files you should store them in [Cypress](../../user-guide/storage/cypress.md).
 
 {% endnote %}

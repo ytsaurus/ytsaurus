@@ -215,15 +215,49 @@ DECLARE_REFCOUNTED_STRUCT(IBackendChunkReadersHolder)
 
 DECLARE_REFCOUNTED_STRUCT(IErrorManager)
 
-DECLARE_REFCOUNTED_CLASS(TOverloadController)
-DECLARE_REFCOUNTED_STRUCT(IMeanWaitTimeTracker)
-DECLARE_REFCOUNTED_CLASS(TCongestionController)
+DECLARE_REFCOUNTED_CLASS(TMeanWaitTimeTracker)
+DECLARE_REFCOUNTED_CLASS(TContainerCpuThrottlingTracker)
+DECLARE_REFCOUNTED_CLASS(TLogDropTracker)
 DECLARE_REFCOUNTED_CLASS(TCompactionHintFetcher)
 
-DECLARE_REFCOUNTED_CLASS(TMediumThrottlerManager);
+DECLARE_REFCOUNTED_CLASS(TMediumThrottlerManager)
+
+DECLARE_REFCOUNTED_STRUCT(TTabletHydraManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TTransactionManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TTabletManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TTabletManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TTabletCellWriteManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TTabletHunkLockManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TStoreBackgroundActivityOrchidConfig)
+DECLARE_REFCOUNTED_STRUCT(TStoreFlusherConfig)
+DECLARE_REFCOUNTED_STRUCT(TStoreFlusherDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TStoreCompactorConfig)
+DECLARE_REFCOUNTED_STRUCT(TStoreCompactorDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TStoreTrimmerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(THunkChunkSweeperDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TInMemoryManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TInMemoryManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TPartitionBalancerConfig)
+DECLARE_REFCOUNTED_STRUCT(TPartitionBalancerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TMasterConnectorConfig)
+DECLARE_REFCOUNTED_STRUCT(TMasterConnectorDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TResourceLimitsConfig)
+DECLARE_REFCOUNTED_STRUCT(TBackupManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TStatisticsReporterConfig)
+DECLARE_REFCOUNTED_STRUCT(TErrorManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TMediumThrottlersConfig)
+DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderConfig)
+DECLARE_REFCOUNTED_STRUCT(TCompressionDictionaryBuilderDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TSmoothMovementTrackerTestingConfig)
+DECLARE_REFCOUNTED_STRUCT(TSmoothMovementTrackerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TTabletNodeDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(THintManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TTabletNodeConfig)
 
 struct TSortedDynamicRowHeader;
 class TSortedDynamicRow;
+
+DECLARE_REFCOUNTED_STRUCT(IRevisionProvider);
 
 struct ITabletContext;
 
@@ -240,8 +274,6 @@ DEFINE_ENUM(EObjectLockMode,
 
 DECLARE_REFCOUNTED_STRUCT(ICompressionDictionaryManager)
 
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_ENTITY_TYPE(THunkTablet, TTabletId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_REFCOUNTED_STRUCT(IHunkTabletHost)
@@ -249,6 +281,19 @@ DECLARE_REFCOUNTED_STRUCT(IHunkTabletManager)
 DECLARE_REFCOUNTED_STRUCT(IHunkTabletScanner)
 
 DECLARE_REFCOUNTED_CLASS(THunkStore)
+
+template <class TProto, class TState>
+using TTypedTransactionActionDescriptor = NTransactionSupervisor::TTypedTransactionActionDescriptor<
+    TTransaction,
+    TProto,
+    TState
+>;
+
+using TTypeErasedTransactionActionDescriptor = NTransactionSupervisor::TTypeErasedTransactionActionDescriptor<
+    TTransaction,
+    TSaveContext,
+    TLoadContext
+>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

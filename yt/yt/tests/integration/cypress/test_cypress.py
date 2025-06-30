@@ -1,8 +1,9 @@
-from yt_env_setup import YTEnvSetup, with_additional_threads
+from yt_env_setup import (
+    YTEnvSetup, with_additional_threads)
 
-from yt_type_helpers import (
-    make_schema
-)
+from yt_sequoia_helpers import not_implemented_in_sequoia
+
+from yt_type_helpers import make_schema
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, move, remove, link, exists,
@@ -29,7 +30,6 @@ import pytest
 import requests
 
 from copy import deepcopy
-import decorator
 from io import BytesIO
 import json
 from datetime import timedelta
@@ -56,15 +56,6 @@ class TestCypressRootCreationTime(YTEnvSetup):
         assert creation_time == get("//@creation_time")
 
 
-def not_implemented_in_sequoia(func):
-    def wrapper(func, self, *args, **kwargs):
-        if isinstance(self, TestSequoia):
-            pytest.skip("Not implemented in Sequoia")
-        return func(self, *args, **kwargs)
-
-    return decorator.decorate(func, wrapper)
-
-
 @pytest.mark.enabled_multidaemon
 class TestCypress(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
@@ -72,6 +63,7 @@ class TestCypress(YTEnvSetup):
 
     NUM_MASTERS = 3
     NUM_NODES = 0
+    NUM_CYPRESS_PROXIES = 2
 
     @authors("babenko")
     def test_root(self):
@@ -236,10 +228,24 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/list") == get("//tmp/old_list")
 
         set("//tmp/old_list/end", 123)
-        assert get("//tmp/old_list", [1, 2, "string", 123])
+        assert get("//tmp/old_list") == [1, 2, "string", 123]
 
         remove("//tmp/another_old_list")
         assert not exists("//tmp/another_old_list")
+
+    @authors("kvk1920")
+    @not_implemented_in_sequoia
+    def test_non_recursive_attribute_set(self):
+        set("//sys/@config/cypress_manager/forbid_list_node_creation", True)
+
+        create_user("u")
+        create("map_node", "//tmp/m1")
+
+        with raises_yt_error("Node //tmp/m1 has no child with key \"m2\""):
+            set("//tmp/m1/m2/@acl", [make_ace("allow", ["u"], ["read", "write"])])
+
+        set("//tmp/m1/m2", {})
+        set("//tmp/m1/m2/@acl", [make_ace("allow", ["u"], ["read", "write"])])
 
     @authors("babenko", "ignat")
     def test_list_command(self):
@@ -350,8 +356,10 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/t/@key2") == "value2"
 
         # error cases
+        # typo (extra slash)
         with raises_yt_error("Expected \"literal\" in YPath but found \"slash\" token"):
             get("//tmp/t/@/key1")
+        # change type
         with raises_yt_error("Attributes can only be set from a map"):
             set("//tmp/t/@", 1)
         with raises_yt_error("Attributes can only be set from a map"):
@@ -441,7 +449,6 @@ class TestCypress(YTEnvSetup):
         assert get(b"//tmp/json_out", is_raw=True, output_format="json") == b'{"list":[1,2,{"string":"this"}]}'
 
     @authors("ignat")
-    @not_implemented_in_sequoia
     def test_map_remove_all1(self):
         # remove items from map
         set("//tmp/map", {"a": "b", "c": "d"}, force=True)
@@ -451,15 +458,15 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/map/@count") == 0
 
     @authors("babenko", "ignat")
-    @not_implemented_in_sequoia
     def test_map_remove_all2(self):
         set("//tmp/map", {"a": 1}, force=True)
         tx = start_transaction()
         set("//tmp/map", {"b": 2}, tx=tx, force=True)
-        # TODO(kvk1920): implement remove(/*).
         remove("//tmp/map/*", tx=tx)
         assert get("//tmp/map", tx=tx) == {}
         assert get("//tmp/map/@count", tx=tx) == 0
+        assert get("//tmp/map") == {"a": 1}
+        assert get("//tmp/map/@count") == 1
         commit_transaction(tx)
         assert get("//tmp/map") == {}
         assert get("//tmp/map/@count") == 0
@@ -480,6 +487,17 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/d/@ref_counter") == 2
         commit_transaction(tx)
         assert get("//tmp/d/@ref_counter") == 1
+
+        remove("//tmp/d")
+        tx = start_transaction()
+        d = create("map_node", "//tmp/d", tx=tx)
+        if self.ENABLE_TMP_ROOTSTOCK:
+            assert get(f"#{d}/@ref_counter") == 2
+        else:
+            # parent + branch + transaction
+            assert get(f"#{d}/@ref_counter") == 3
+        commit_transaction(tx)
+        assert get(f"#{d}/@ref_counter") == 1
 
     @authors("aleksandra-zh")
     def test_ref_count_move(self):
@@ -624,6 +642,32 @@ class TestCypress(YTEnvSetup):
         with raises_yt_error("Expected \"literal\" in YPath but found \"at\" token \"@\""):
             copy("//tmp/a", "//tmp/b/c/d/@e", recursive=True)
         assert not exists("//tmp/b/c/d")
+
+    @authors("h0pless")
+    def test_child_count(self):
+        topmost_tx = start_transaction()
+        parent_tx = start_transaction(tx=topmost_tx)
+        child_tx = start_transaction(tx=parent_tx)
+        uncle_tx = start_transaction(tx=topmost_tx)
+
+        create("map_node", "//tmp/map_node")
+        create("map_node", "//tmp/map_node/child", tx=topmost_tx)
+        create("map_node", "//tmp/map_node/other_child", tx=parent_tx)
+        create("map_node", "//tmp/map_node/child", tx=child_tx, force=True)
+        create("map_node", "//tmp/map_node/nephew", tx=uncle_tx)
+
+        assert get("//tmp/map_node/@count") == 0
+        assert get("//tmp/map_node/@count", tx=topmost_tx) == 1
+        assert get("//tmp/map_node/@count", tx=parent_tx) == 2
+        assert get("//tmp/map_node/@count", tx=child_tx) == 2
+        assert get("//tmp/map_node/@count", tx=uncle_tx) == 2
+
+        remove("//tmp/map_node/other_child", tx=child_tx)
+        assert get("//tmp/map_node/@count") == 0
+        assert get("//tmp/map_node/@count", tx=topmost_tx) == 1
+        assert get("//tmp/map_node/@count", tx=parent_tx) == 2
+        assert get("//tmp/map_node/@count", tx=child_tx) == 1
+        assert get("//tmp/map_node/@count", tx=uncle_tx) == 2
 
     @authors("babenko", "ignat")
     def test_copy_tx1(self):
@@ -1040,8 +1084,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_move_force4(self):
-        error_message = "//tmp is not a local object" if self.ENABLE_TMP_ROOTSTOCK else "Node / cannot be replaced"
-        with raises_yt_error(error_message):
+        with raises_yt_error("Node / cannot be replaced"):
             copy("//tmp", "/", force=True)
 
     @authors("babenko")
@@ -1089,10 +1132,13 @@ class TestCypress(YTEnvSetup):
         tx1 = start_transaction()
         move("//tmp/t1", "//tmp/t2", tx=tx1)
         tx2 = start_transaction()
-        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/t1 "
-                             "since \"exclusive\" lock is taken by concurrent "
-                             f"transaction {tx1}"):
+        with raises_yt_error() as err:
             move("//tmp/t1", "//tmp/t3", tx=tx2)
+        assert \
+            f"Cannot take \"exclusive\" lock for node //tmp/t1 since \"exclusive\" lock is taken by concurrent transaction {tx1}" \
+            in str(err) or \
+            f"Cannot take lock for child \"t1\" of node //tmp since this child is locked by concurrent transaction {tx1}" \
+            in str(err)
 
     @authors("babenko")
     def test_move_tx_locking2(self):
@@ -1102,10 +1148,13 @@ class TestCypress(YTEnvSetup):
         tx3 = start_transaction(tx=tx1)
         move("//tmp/t1", "//tmp/t2", tx=tx1)
         move("//tmp/t2", "//tmp/t3", tx=tx2)
-        with raises_yt_error("Cannot take \"exclusive\" lock for node //tmp/t2 "
-                             "since \"exclusive\" lock is taken by concurrent "
-                             f"transaction {tx2}"):
+        with raises_yt_error() as err:
             move("//tmp/t2", "//tmp/t4", tx=tx3)
+        assert \
+            f"Cannot take \"exclusive\" lock for node //tmp/t2 since \"exclusive\" lock is taken by concurrent transaction {tx2}" \
+            in str(err) or \
+            f"Cannot take lock for child \"t2\" of node //tmp since this child is locked by concurrent transaction {tx2}" \
+            in str(err)
 
     @authors("ignat")
     def test_embedded_attributes(self):
@@ -1424,6 +1473,7 @@ class TestCypress(YTEnvSetup):
             link("//tmp/t1", "//tmp/t2")
 
     @authors("babenko", "danilalexeev")
+    @not_implemented_in_sequoia
     def test_link6(self):
         create("table", "//tmp/a")
         link("//tmp/a", "//tmp/b")
@@ -2843,8 +2893,7 @@ class TestCypress(YTEnvSetup):
         assert creation_time1 == get("//tmp/t2/@creation_time")
         assert creation_time2 == get("//tmp/t2/x/@creation_time")
 
-    @authors("ignat")
-    @not_implemented_in_sequoia
+    @authors("kvk1920", "ignat")
     def test_document(self):
         create("document", "//tmp/d1")
 
@@ -2860,9 +2909,22 @@ class TestCypress(YTEnvSetup):
 
         set("//tmp/d1/some/path", "hello", recursive=True)
         assert get("//tmp/d1") == {"value": 10, "some": {"path": "hello"}}
+        assert get("//tmp/d1/some") == {"path": "hello"}
 
-    @authors("shakurov")
-    @not_implemented_in_sequoia
+        copy("//tmp/d1", "//tmp/d2")
+        assert get("//tmp/d1") == get("//tmp/d2")
+
+        remove("//tmp/d1/some")
+        assert get("//tmp/d1") == {"value": 10}
+
+        set("//tmp/d1", 123)
+        assert get("//tmp/d1") == 123
+
+        remove("//tmp/d1")
+        gc_collect()
+        assert not exists("//tmp/d1")
+
+    @authors("kvk1920", "shakurov")
     def test_setting_document_node_increases_revision_yt_7829(self):
         create("document", "//tmp/d1")
         revision1 = get("//tmp/d1/@revision")
@@ -4225,6 +4287,63 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/map_node/table", tx=tx, force=True)
         assert get("//tmp/map_node/table/@compression_codec", tx=tx) == "zstd_17"
 
+    @authors("danilalexeev")
+    def test_node_reachability_basic(self):
+        assert get("//tmp/@reachable")
+
+        set("//tmp/n", 1)
+        assert get("//tmp/n/@reachable")
+
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        map_id = create("map_node", "//tmp/m", tx=tx2)
+        assert not get(f"#{map_id}/@reachable")
+        assert not get(f"#{map_id}/@reachable", tx=tx1)
+        assert get("//tmp/m/@reachable", tx=tx2)
+
+        commit_transaction(tx2)
+        assert not get(f"#{map_id}/@reachable")
+        assert get("//tmp/m/@reachable", tx=tx1)
+
+        commit_transaction(tx1)
+        assert get(f"#{map_id}/@reachable")
+
+    @authors("kvk1920")
+    def test_access_uncommitted_node(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        m = create("map_node", "//tmp/m", tx=tx2)
+
+        assert exists(f"#{m}", tx=tx2)
+        assert exists(f"#{m}", tx=tx1)
+        assert exists(f"#{m}")
+
+        assert m == get(f"#{m}/@id", tx=tx2)
+        assert m == get(f"#{m}/@id", tx=tx1)
+        assert m == get(f"#{m}/@id")
+
+        commit_transaction(tx2)
+
+        with raises_yt_error(f"No such transaction {tx2}"):
+            exists(f"#{m}", tx=tx2)
+        assert exists(f"#{m}", tx=tx1)
+        assert exists(f"#{m}")
+
+        with raises_yt_error(f"No such transaction {tx2}"):
+            get(f"#{m}/@id", tx=tx2)
+        assert m == get(f"#{m}/@id", tx=tx1)
+        assert m == get(f"#{m}/@id")
+
+    @authors("danilalexeev")
+    def test_nodes_do_not_leak_yt_24997(self):
+        tx = start_transaction()
+        table_id = create("map_node", "//tmp/t", tx=tx)
+        abort_transaction(tx)
+        gc_collect()
+        assert not exists(f"#{table_id}")
+
 
 ##################################################################
 
@@ -4278,6 +4397,26 @@ class TestCypressMulticell(TestCypress):
         # Unfortunately, it's difficult to actually check anything here.
         create("table", "//tmp/t", attributes={"external_cell_bias": 3.0})
         assert not exists("//tmp/t/@external_cell_bias")
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("use_offloading", [False, True])
+    def test_virtual_map_read_authenticated_user_propagation(self, use_offloading):
+        if use_offloading:
+            set("//sys/@config/cypress_manager/virtual_map_read_offload_batch_size", 2)
+        else:
+            remove("//sys/@config/cypress_manager/virtual_map_read_offload_batch_size", force=True)
+
+        create_user("u")
+        set("//sys/users/u/@banned", True, driver=get_driver(1))
+        set("//sys/users/u/@banned", True, driver=get_driver(2))
+
+        create_tablet_cell_bundle("tcb")
+
+        # Must not raise.
+        get("//sys/tablet_cell_bundles/@count") == 1
+
+        with raises_yt_error("is banned"):
+            ls("//sys/tablet_cell_bundles", attributes=["tablet_actions"], authenticated_user="u")
 
 
 ##################################################################
@@ -4457,44 +4596,11 @@ class TestCypressShardedTx(TestCypressPortal):
 
 
 @pytest.mark.enabled_multidaemon
-class TestCypressShardedTxCTxS(TestCypressShardedTx):
-    ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestCypressMirroredTx(TestCypressShardedTxCTxS):
+class TestCypressMirroredTx(TestCypressShardedTx):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 9
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        }
-    }
-
-
-@pytest.mark.enabled_multidaemon
-class TestCypressCypressProxy(TestCypressShardedTx):
-    ENABLE_MULTIDAEMON = True
-    NUM_CYPRESS_PROXIES = 2
 
 
 ##################################################################
@@ -5101,33 +5207,20 @@ class TestAccessControlObjects(YTEnvSetup):
 
 
 @pytest.mark.enabled_multidaemon
-class TestSequoia(TestCypressMulticell):
+class TestCypressSequoia(TestCypressMulticell):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 5
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
-    NUM_CYPRESS_PROXIES = 1
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_TEST_PARTITIONS = 12
-
+    NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
         # Master cell with tag 11 is reserved for portals.
         "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["sequoia_node_host"]},
         "13": {"roles": ["chunk_host"]},
-    }
-
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
     }
 
 

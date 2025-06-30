@@ -54,7 +54,7 @@ TIntrusivePtr<ICompositeNode> TNonversionedMapObjectProxyBase<TObject>::AsCompos
 template <class TObject>
 TYPath TNonversionedMapObjectProxyBase<TObject>::GetPath() const
 {
-    TCompactVector<TString, 32> tokens;
+    TCompactVector<std::string, 32> tokens;
 
     const auto* currentObject = TBase::GetThisImpl();
     for (; currentObject->GetParent(); currentObject = currentObject->GetParent()) {

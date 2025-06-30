@@ -8,6 +8,19 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**0.24.0**" %}
+
+**Release date:** 2025-05-20
+
+
+## Minor
+* Rerun init queue agent script during QA update by @savnadya in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/479
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.23.1...release/0.24.0
+
+{% endcut %}
+
+
 {% cut "**0.23.1**" %}
 
 **Release date:** 2025-04-04

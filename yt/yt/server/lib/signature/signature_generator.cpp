@@ -2,14 +2,11 @@
 
 #include "config.h"
 #include "key_info.h"
-#include "key_store.h"
 #include "private.h"
 #include "signature_header.h"
 #include "signature_preprocess.h"
 
 #include <yt/yt/client/signature/signature.h>
-
-#include <yt/yt/core/misc/error.h>
 
 namespace NYT::NSignature {
 
@@ -32,11 +29,11 @@ TSignatureGenerator::TSignatureGenerator(TSignatureGeneratorConfigPtr config)
 
 void TSignatureGenerator::SetKeyPair(TKeyPairPtr keyPair)
 {
+    bool isSane = keyPair->CheckSanity();
     auto keyId = GetKeyId(keyPair->KeyInfo()->Meta());
+
     YT_LOG_DEBUG("Setting new key pair (KeyId: %v)", keyId);
-
-    YT_VERIFY(keyPair->CheckSanity());
-
+    YT_VERIFY(isSane);
     KeyPair_.Store(std::move(keyPair));
 }
 
@@ -49,7 +46,7 @@ TKeyInfoPtr TSignatureGenerator::KeyInfo() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSignatureGenerator::Resign(const TSignaturePtr& signature) const
+void TSignatureGenerator::DoSign(const TSignaturePtr& signature) const
 {
     auto signatureId = TGuid::Create();
     auto now = Now();
@@ -58,7 +55,7 @@ void TSignatureGenerator::Resign(const TSignaturePtr& signature) const
     TKeyPairPtr signingKeyPair = KeyPair_.Acquire();
 
     if (!signingKeyPair) {
-        THROW_ERROR_EXCEPTION("Trying to sign with an uninitialized generator");
+        THROW_ERROR_EXCEPTION(NRpc::EErrorCode::TransientFailure, "Signature generator is not ready yet");
     }
 
     auto keyInfo = signingKeyPair->KeyInfo();

@@ -1,6 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/ytlib/sequoia_client/ypath_detail.h>
+#include <yt/yt/ytlib/sequoia_client/helpers.h>
 
 namespace NYT::NSequoiaClient {
 namespace {
@@ -9,46 +10,86 @@ namespace {
 
 TEST(TYPathTest, Correctness)
 {
-    auto p1 = TAbsoluteYPath("/");
-    auto p2 = TAbsoluteYPath("//foo");
-    auto p3 = TYPath("/foo");
-    auto p4 = TYPath("&");
+    auto p1 = TAbsolutePath::MakeCanonicalPathOrThrow("/");
+    auto p2 = TAbsolutePath::MakeCanonicalPathOrThrow("//foo");
+    auto p3 = TRelativePath::MakeCanonicalPathOrThrow("/foo");
+    auto p4 = TRelativePath::MakeCanonicalPathOrThrow("");
 
-    EXPECT_THROW_THAT(
-        auto p5 = TAbsoluteYPath("/bar"),
-        ::testing::HasSubstr("does not start with a valid root-designator"));
-    EXPECT_THROW_THAT(
-        auto p6 = TYPath("bar"),
-        ::testing::HasSubstr("Expected \"slash\" in YPath but found \"literal\""));
+    EXPECT_THROW_WITH_SUBSTRING(
+        auto p5 = TAbsolutePath::MakeCanonicalPathOrThrow("/bar"),
+        "Expected \"slash\" in YPath but found \"literal\"");
+    EXPECT_THROW_WITH_SUBSTRING(
+        auto p2 = TRelativePath::MakeCanonicalPathOrThrow("bar"),
+        "Expected \"slash\" in YPath but found \"literal\"");
+
+    auto raw = TRawYPath(std::string{'/', '/', 'f', '\\', '\0', 'o'});
+    EXPECT_THROW_WITH_SUBSTRING(
+        ValidateAndMakeYPath(std::move(raw)),
+        "Path contains a forbidden symbol");
 }
 
-TEST(TYPathTest, RootDesignator)
+TEST(TYPathTest, RemoveLastSegment)
 {
-    {
-        auto p = TAbsoluteYPath("//foo");
-        auto [r, s] = p.GetRootDesignator();
-        EXPECT_TRUE(std::holds_alternative<TSlashRootDesignatorTag>(r));
-        EXPECT_EQ(s, TYPath("/foo"));
-    }
-    {
-        auto p = TAbsoluteYPath("#0-0-0-0/foo");
-        auto [r, s] = p.GetRootDesignator();
-        EXPECT_TRUE(std::holds_alternative<NObjectClient::TObjectId>(r));
-        EXPECT_EQ(std::get<NObjectClient::TObjectId>(r), NObjectClient::TObjectId{});
-        EXPECT_EQ(s, TYPath("/foo"));
-    }
+    // Basic tests.
+    auto path = TRelativePath::UnsafeMakeCanonicalPath("/first");
+    path.RemoveLastSegment();
+    EXPECT_EQ(path.Underlying(), "");
+    path = TRelativePath::UnsafeMakeCanonicalPath("/first/second/third");
+    path.RemoveLastSegment();
+    EXPECT_EQ(path.Underlying(), "/first/second");
+
+    // Edge cases.
+    path = TRelativePath::UnsafeMakeCanonicalPath("/first/second");
+    path.RemoveLastSegment();
+    path.RemoveLastSegment();
+    path.RemoveLastSegment();
+    EXPECT_EQ(path.Underlying(), "");
+
+    // Basic tests.
+    auto absolute = TAbsolutePath::UnsafeMakeCanonicalPath("//first");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute.Underlying(), "/");
+    absolute = TAbsolutePath::UnsafeMakeCanonicalPath("//first/second/third");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute.Underlying(), "//first/second");
+
+    // Edge cases.
+    absolute = TAbsolutePath::UnsafeMakeCanonicalPath("/");
+    absolute.RemoveLastSegment();
+    EXPECT_EQ(absolute.Underlying(), "/");
 }
 
-TEST(TYPathTest, Segments)
+TEST(TYPathTest, Append)
 {
-    auto p = TYPath("/foo/bar&/@baz");
-    auto segments = p.AsSegments();
-    auto it = segments.begin();
-    EXPECT_EQ(*it++, TYPath("/foo"));
-    EXPECT_EQ(*it++, TYPath("/bar"));
-    EXPECT_EQ(*it++, TYPath("&"));
-    EXPECT_EQ(*it++, TYPath("/@baz"));
-    EXPECT_EQ(it, segments.end());
+    auto path = TRelativePath::UnsafeMakeCanonicalPath("");
+    path.Append("first");
+    EXPECT_EQ(path.Underlying(), "/first");
+    path.Append("/second");
+    EXPECT_EQ(path.Underlying(), "/first/\\/second");
+
+    auto absolute = TRelativePath::UnsafeMakeCanonicalPath("/");
+    absolute.Append("first");
+    EXPECT_EQ(absolute.Underlying(), "//first");
+    absolute.Append("second");
+    EXPECT_EQ(absolute.Underlying(), "//first/second");
+}
+
+TEST(TYPathTest, Mangling)
+{
+    {
+        auto p = TAbsolutePath::UnsafeMakeCanonicalPath("//foo/bar");
+        auto m = p.ToMangledSequoiaPath();
+        auto r = std::string{'/', '\0', 'f', 'o', 'o', '\0', 'b', 'a', 'r', '\0'};
+        EXPECT_EQ(m.Underlying(), r);
+        EXPECT_EQ(TAbsolutePath(m), p);
+    }
+    {
+        auto p = TAbsolutePath::UnsafeMakeCanonicalPath(R"(//\\\/\@\&\*\[\{)");
+        auto m = p.ToMangledSequoiaPath();
+        auto r = std::string{'/', '\0', '\\', '/', '@', '&', '*', '[', '{', '\0'};
+        EXPECT_EQ(m.Underlying(), r);
+        EXPECT_EQ(TAbsolutePath(m), p);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

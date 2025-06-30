@@ -77,6 +77,18 @@ PEERDIR(
 
 )
 
+IF (NOT OPENSOURCE)
+    INCLUDE(ya_non_opensource.inc)
+ELSE()
+    SRCS(
+        dummy_secret_masker.cpp
+    )
+
+    PEERDIR(
+        yt/yql/providers/yt/lib/secret_masker/dummy
+    )
+ENDIF()
+
 YQL_LAST_ABI_VERSION()
 
 END()

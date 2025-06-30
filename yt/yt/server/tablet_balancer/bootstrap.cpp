@@ -6,26 +6,20 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
-
-#include <yt/yt/library/profiling/solomon/public.h>
-
-#include <yt/yt/library/program/build_attributes.h>
-#include <yt/yt/library/program/config.h>
-
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
-#include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 #include <yt/yt/server/lib/cypress_registrar/config.h>
+#include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
-#include <yt/yt/ytlib/api/native/helpers.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-
-#include <yt/yt/library/monitoring/http_integration.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
@@ -37,8 +31,6 @@
 
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/library/fusion/service_locator.h>
-
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
@@ -46,12 +38,24 @@
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/node.h>
 
+#include <yt/yt/library/coredumper/coredumper.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
+
+#include <yt/yt/library/monitoring/http_integration.h>
+
+#include <yt/yt/library/profiling/solomon/public.h>
+
+#include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/config.h>
+
 namespace NYT::NTabletBalancer {
 
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressElection;
+using namespace NHiveClient;
 using namespace NNodeTrackerClient;
 using namespace NYPath;
 using namespace NYTree;
@@ -60,7 +64,7 @@ using namespace NFusion;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletBalancerLogger;
+constinit const auto Logger = TabletBalancerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,6 +103,13 @@ public:
         return Client_;
     }
 
+    const TClientDirectoryPtr& GetClientDirectory() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return ClientDirectory_;
+    }
+
     const ICypressElectionManagerPtr& GetElectionManager() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -120,6 +131,14 @@ public:
         return DynamicConfigManager_;
     }
 
+    std::string GetClusterName() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_VERIFY(Config_);
+
+        return Config_->ClusterConnection->Static->ClusterName.value();
+    }
+
 private:
     const TTabletBalancerBootstrapConfigPtr Config_;
     const INodePtr ConfigNode_;
@@ -139,6 +158,7 @@ private:
 
     NNative::IConnectionPtr Connection_;
     NNative::IClientPtr Client_;
+    NHiveClient::TClientDirectoryPtr ClientDirectory_;
 
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
@@ -164,12 +184,22 @@ private:
         Connection_ = NNative::CreateConnection(
             Config_->ClusterConnection,
             connectionOptions);
+
+        SetupClusterConnectionDynamicConfigUpdate(
+            Connection_,
+            Config_->ClusterConnectionDynamicConfigPolicy,
+            ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"),
+            Logger());
+
+        Connection_->GetClusterDirectorySynchronizer()->Start();
         Connection_->GetMasterCellDirectorySynchronizer()->Start();
 
         NativeAuthenticator_ = NNative::CreateNativeAuthenticator(Connection_);
 
         auto clientOptions = TClientOptions::FromUser(Config_->ClusterUser);
         Client_ = Connection_->CreateNativeClient(clientOptions);
+
+        ClientDirectory_ = New<TClientDirectory>(Connection_->GetClusterDirectory(), clientOptions);
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
 

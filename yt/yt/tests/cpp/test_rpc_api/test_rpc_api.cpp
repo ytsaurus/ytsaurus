@@ -29,6 +29,8 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/yson/protobuf_helpers.h>
+
 #include <yt/yt/library/named_value/named_value.h>
 
 #include <contrib/libs/apache/arrow/cpp/src/arrow/api.h>
@@ -55,18 +57,18 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TryGetStickyProxyAddress(const ITransactionPtr& transaction)
+std::optional<std::string> TryGetStickyProxyAddress(const ITransactionPtr& transaction)
 {
     return transaction
         ->As<NRpcProxy::TTransaction>()
         ->GetStickyProxyAddress();
 }
 
-TString GetStickyProxyAddress(const ITransactionPtr& transaction)
+std::string GetStickyProxyAddress(const ITransactionPtr& transaction)
 {
     auto address = TryGetStickyProxyAddress(transaction);
     EXPECT_TRUE(address);
-    return address;
+    return *address;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -298,6 +300,19 @@ TEST_F(TModifyRowsTest, IgnoringSeqNumbers)
     SyncCommit();
 
     ValidateTableContent({{0, 14}, {1, 15}});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TModifyRowsTest, MaxAllowedCommitTimestamp)
+{
+    auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
+        .ValueOrThrow();
+    WriteSimpleRow(transaction, 0, 1, std::nullopt);
+    auto generatedTimestamp = WaitFor(Client_->GetTimestampProvider()->GenerateTimestamps())
+        .ValueOrThrow();
+    TTransactionCommitOptions commitOptions{.MaxAllowedCommitTimestamp = generatedTimestamp};
+    EXPECT_ANY_THROW(WaitFor(transaction->Commit(std::move(commitOptions))).ThrowOnError());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -598,7 +613,7 @@ TEST_F(TSkiffTest, EmptyTableSkiffReading_YT18817)
             .EndAttributes()
             .Value("skiff");
 
-        req->set_format(format.ToString());
+        req->set_format(ToProto(format));
 
         ToProto(req->mutable_path(), path);
         auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
@@ -661,7 +676,7 @@ TEST_F(TSkiffTest, ErroneousSkiffReading_YTADMINREQ_32428)
         .EndAttributes()
         .Value("skiff");
 
-    req->set_format(format.ToString());
+    req->set_format(ToProto(format));
 
     ToProto(req->mutable_path(), path);
     auto stream = WaitFor(NRpc::CreateRpcClientInputStream(req))
@@ -678,7 +693,7 @@ class TRpcProxyFormatTest
 
 TEST_F(TRpcProxyFormatTest, FordiddenFormat_YT_20098)
 {
-    TString userName = "foo";
+    std::string userName = "foo";
     if (!WaitFor(Client_->NodeExists("//sys/users/" + userName)).ValueOrThrow()) {
         TCreateObjectOptions options;
         auto attributes = CreateEphemeralAttributes();
@@ -725,7 +740,7 @@ TEST_F(TRpcProxyFormatTest, FordiddenFormat_YT_20098)
     req->set_desired_rowset_format(NRpcProxy::NProto::ERowsetFormat::RF_FORMAT);
     auto format = BuildYsonStringFluently().Value("arrow");
 
-    req->set_format(format.ToString());
+    req->set_format(ToProto(format));
 
     ToProto(req->mutable_path(), path);
 

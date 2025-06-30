@@ -26,7 +26,7 @@ public:
             return {};
         }
 
-        return CreateConsumerNode(Client_, path, options);
+        return CreateQueueConsumerNode(Client_, path, options);
     }
 };
 

@@ -5,9 +5,10 @@ from yt_helpers import profiler_factory
 from yt_commands import (
     ls, get, set, print_debug, authors, wait, run_test_vanilla, create_user,
     wait_breakpoint, with_breakpoint, release_breakpoint, create, remove, read_table,
+    raises_yt_error, get_driver
 )
 
-from yt.common import YtError, update_inplace
+from yt.common import update_inplace
 from yt.wrapper import YtClient
 
 import yt.yson
@@ -19,6 +20,8 @@ from hashlib import sha1
 import os.path
 import re
 import shutil
+import time
+
 import requests
 
 ##################################################################
@@ -80,8 +83,8 @@ class TestJobProxyBinary(JobProxyTestBase):
         assert len(get(service_path + "build_host")) > 0
         assert re.match(r"^[0-9]+\.[0-9]", get(service_path + "version"))
 
-        for time in ("build_time", "start_time"):
-            check_iso8601_date(get(service_path + time))
+        for time_name in ("build_time", "start_time"):
+            check_iso8601_date(get(service_path + time_name))
 
     @authors("galtsev")
     def test_job_proxy_build_attribute(self):
@@ -136,7 +139,7 @@ class TestJobProxyBinary(JobProxyTestBase):
         wait(lambda: check_direct(False))
         wait(lambda: check_discover_versions(False))
 
-    @authors("max42")
+    @authors("ermolovd")
     def test_slot_disabling_on_unavailable_job_proxy(self):
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 1)
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 1)
@@ -151,13 +154,25 @@ class TestJobProxyBinary(JobProxyTestBase):
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/total_node_count") == 1)
         wait(lambda: get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/user_slots") == 1)
 
-    @authors("alex-shishkin")
-    def test_rpc_proxy_socket_path_env_variable(self):
-        op = run_test_vanilla(with_breakpoint("echo $YT_JOB_PROXY_SOCKET_PATH >&2; BREAKPOINT"))
+    @authors("ermolovd")
+    @pytest.mark.parametrize('spec,expected_env_presence', [
+        ({"enable_rpc_proxy_in_job_proxy": False}, False),
+        ({"enable_rpc_proxy_in_job_proxy": True}, True),
+    ])
+    def test_rpc_proxy_socket_path_env_variable(self, spec: dict, expected_env_presence: bool):
+        op = run_test_vanilla(
+            with_breakpoint("echo $YT_JOB_PROXY_SOCKET_PATH >&2; BREAKPOINT"),
+            task_patch=spec,
+        )
         job_id = wait_breakpoint()[0]
         content = op.read_stderr(job_id).decode("ascii").strip()
+
+        if expected_env_presence:
+            assert re.match(r"^.*/pipes/.*-job-proxy-[0-9]+$", content)
+        else:
+            assert content == ""
+
         release_breakpoint()
-        assert re.match(r"^.*/pipes/.*-job-proxy-[0-9]+$", content)
 
 
 class TestJobProxyUserJobFlagRedirectStdoutToStderr(YTEnvSetup):
@@ -241,7 +256,7 @@ class TestJobProxyUserJobFlagRedirectStdoutToStderr(YTEnvSetup):
         release_breakpoint()
 
 
-class TestRpcProxyInJobProxy(YTEnvSetup):
+class TestRpcProxyInJobProxyBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -269,9 +284,14 @@ class TestRpcProxyInJobProxy(YTEnvSetup):
     }
 
     def setup_method(self, method):
-        super(TestRpcProxyInJobProxy, self).setup_method(method)
+        super(TestRpcProxyInJobProxyBase, self).setup_method(method)
+        self.work_dir = os.getcwd()
         create_user("tester_name")
         set("//sys/tokens/" + sha1(b"tester_token").hexdigest(), "tester_name")
+
+    def teardown_method(self, method):
+        os.chdir(self.work_dir)
+        super(TestRpcProxyInJobProxyBase, self).teardown_method(method)
 
     def create_client_from_uds(self, socket_file, config=None):
         default_config = {
@@ -301,35 +321,35 @@ class TestRpcProxyInJobProxy(YTEnvSetup):
         job_id = wait_breakpoint()[0]
         socket_file = op.read_stderr(job_id).decode("ascii").strip()
         release_breakpoint()
-        return socket_file
 
-    @authors("alex-shishkin")
-    def test_disabled_rpc_proxy(self):
-        with pytest.raises(YtError):
-            socket_file = self.run_job_proxy(enable_rpc_proxy=False)
-            client = self.create_client_from_uds(socket_file, config={"token": "tester_token"})
-            client.list("/")
+        # NB, we return path of unix domain socket. Its path cannot be longer than ~108 chars.
+        # So we go to directory of this socket and use short relative path.
+        socket_directory = os.path.dirname(socket_file)
+        os.chdir(socket_directory)
+        return os.path.basename(socket_file)
 
-    @authors("alex-shishkin")
+
+class TestRpcProxyInJobProxySingleCluster(TestRpcProxyInJobProxyBase):
+    @authors("ermolovd")
     def test_rpc_proxy_simple_query(self):
         socket_file = self.run_job_proxy(enable_rpc_proxy=True)
         client = self.create_client_from_uds(socket_file, config={"token": "tester_token"})
         root_listing = client.list("/")
         assert root_listing == ["sys", "tmp"]
 
-    @authors("alex-shishkin")
+    @authors("ermolovd")
     def test_failed_rpc_proxy_auth(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Request authentication failed"):
             socket_file = self.run_job_proxy(enable_rpc_proxy=True)
             client = self.create_client_from_uds(socket_file, config={"token": "wrong_token"})
             client.list("/")
 
-    @authors("alex-shishkin")
+    @authors("ermolovd")
     def test_incorrect_thread_count(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Error parsing vanilla operation spec"):
             self.run_job_proxy(enable_rpc_proxy=True, rpc_proxy_thread_pool_size=0)
 
-    @authors("alex-shishkin")
+    @authors("ermolovd")
     def test_metrics(self):
         def check_sensor_values(projections):
             return any('job_descriptor' in projection['tags'] and
@@ -388,6 +408,57 @@ class TestRpcProxyInJobProxy(YTEnvSetup):
 
         wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u1"}) is None)
         wait(lambda: rpc_proxy_in_job_proxy_gauge.get(tags={"user": "u2"}) is None)
+
+
+class TestRpcProxyInJobProxyMultiCluster(TestRpcProxyInJobProxyBase):
+    NUM_REMOTE_CLUSTERS = 1
+    REMOTE_CLUSTER_NAME = "remote_0"
+
+    @classmethod
+    def setup_class(cls):
+        super(TestRpcProxyInJobProxyMultiCluster, cls).setup_class()
+        cls.remote_driver = get_driver(cluster=cls.REMOTE_CLUSTER_NAME)
+        create_user("tester_name", driver=cls.remote_driver)
+
+    @authors("ermolovd")
+    def test_exe_node_multiproxy_mode(self):
+        config = {
+            "%true": {
+                "exec_node":  {
+                    "job_controller": {
+                        "job_proxy": {
+                            "job_proxy_api_service": {
+                                "multiproxy": {
+                                    "presets": {
+                                        "default": {
+                                            "enabled_methods": "read",
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+            },
+        }
+        set("//sys/cluster_nodes/@config", config)
+        time.sleep(5)
+
+        set("//tmp/name", "remote", driver=self.remote_driver)
+        set("//tmp/name", "local")
+
+        assert get("//tmp/name", driver=self.remote_driver) == "remote"
+        assert get("//tmp/name") == "local"
+
+        socket_file = self.run_job_proxy(enable_rpc_proxy=True)
+
+        local_client = self.create_client_from_uds(socket_file, config={"token": "tester_token"})
+        remote_client = self.create_client_from_uds(socket_file, config={
+            "token": "tester_token",
+            "driver_config": {"multiproxy_target_cluster": "remote_0"}
+        })
+        assert local_client.get("//tmp/name") == "local"
+        assert remote_client.get("//tmp/name") == "remote"
 
 
 class TestUnavailableJobProxy(JobProxyTestBase):
@@ -449,3 +520,36 @@ class TestJobProxyProfiling(YTEnvSetup):
         op.abort()
 
         wait(lambda: profiler.get_all("resource_tracker/thread_count") == [])
+
+
+@pytest.mark.enabled_multidaemon
+class TestJobProxySignatures(YTEnvSetup):
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "signature_validation": {
+                "cypress_key_reader": dict(),
+                "validator": dict(),
+            },
+            "signature_generation": {
+                "cypress_key_writer": {
+                    "owner_id": "test-job-proxy",
+                },
+                "generator": dict(),
+                "key_rotator": {
+                    "key_rotation_interval": "1s",
+                }
+            },
+            "job_proxy": {
+                "job_proxy_authentication_manager": {
+                    "enable_authentication": True,
+                    "cypress_token_authenticator": {
+                        "secure": True,
+                    },
+                },
+            },
+        }
+    }
+
+    @authors("pavook")
+    def test_key_rotates(self):
+        wait(lambda: len(ls("//sys/public_keys/by_owner/test-job-proxy")) > 1)

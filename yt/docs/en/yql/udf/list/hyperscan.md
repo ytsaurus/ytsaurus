@@ -6,22 +6,22 @@ The library features 4 implementations with different processor instruction sets
 
 By default, all functions work in the single-byte mode. However, if the regular expression is a valid UTF-8 string but is not a valid ASCII string, the UTF-8 mode is enabled automatically.
 
-**List of functions**
+## List of functions {#function-list}
 
-* ```Hyperscan::Grep(pattern:String) -> (string:String?) -> Bool```
-* ```Hyperscan::Match(pattern:String) -> (string:String?) -> Bool```
-* ```Hyperscan::BacktrackingGrep(pattern:String) -> (string:String?) -> Bool```
-* ```Hyperscan::BacktrackingMatch(pattern:String) -> (string:String?) -> Bool```
-* ```Hyperscan::MultiGrep(pattern:String) -> (string:String?) -> Tuple<Bool, Bool, ...>```
-* ```Hyperscan::MultiMatch(pattern:String) -> (string:String?) -> Tuple<Bool, Bool, ...>```
-* ```Hyperscan::Capture(pattern:String) -> (string:String?) -> String?```
-* ```Hyperscan::Replace(pattern:String) -> (string:String?, replacement:String) -> String?```
+* `Hyperscan::Grep(pattern:String) -> (string:String?) -> Bool`
+* `Hyperscan::Match(pattern:String) -> (string:String?) -> Bool`
+* `Hyperscan::BacktrackingGrep(pattern:String) -> (string:String?) -> Bool`
+* `Hyperscan::BacktrackingMatch(pattern:String) -> (string:String?) -> Bool`
+* `Hyperscan::MultiGrep(pattern:String) -> (string:String?) -> Tuple<Bool, Bool, ...>`
+* `Hyperscan::MultiMatch(pattern:String) -> (string:String?) -> Tuple<Bool, Bool, ...>`
+* `Hyperscan::Capture(pattern:String) -> (string:String?) -> String?`
+* `Hyperscan::Replace(pattern:String) -> (string:String?, replacement:String) -> String?`
 
 ## Call syntax {#syntax}
 
 To avoid compiling a regular expression at each table row at direct call, wrap the function call by a [named expression](../../syntax/expressions.md#named-nodes).
 
-```sql
+```yql
 $re = Hyperscan::Grep("\\d+");      -- we create a called value to test the specific regular expression
 SELECT * FROM table WHERE $re(key); -- we use the value to filter the table
 ```
@@ -30,7 +30,6 @@ SELECT * FROM table WHERE $re(key); -- we use the value to filter the table
 
 
 You can enable the case-insensitive mode by specifying, at the beginning of the regular expression, the flag `(?i)`.
-
 
 ## Grep {#grep}
 
@@ -56,9 +55,9 @@ However, if you want to match a string against any of the listed expressions (th
 
 When you call `MultiGrep`/`MultiMatch`, regular expressions are passed one per line using [multiline string literals](../../syntax/expressions.md#named-nodes):
 
-**Example**
+#### Example
 
-```sql
+```yql
 $multi_match = Hyperscan::MultiMatch(@@a.*
 .*x.*
 .*axa.*@@);
@@ -80,7 +79,7 @@ Hyperscan offers limited capabilities for such operations. This means that altho
 
 ## Usage example
 
-```sql
+```yql
 $value = "xaaxaaXaa";
 
 $match = Hyperscan::Match("a.*");

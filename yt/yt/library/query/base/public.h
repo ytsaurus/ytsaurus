@@ -63,6 +63,9 @@ using TConstProjectClausePtr = TIntrusivePtr<const TProjectClause>;
 DECLARE_REFCOUNTED_STRUCT(TWhenThenExpression)
 using TConstWhenThenExpressionPtr = TIntrusivePtr<const TWhenThenExpression>;
 
+DECLARE_REFCOUNTED_STRUCT(TSubqueryExpression)
+using TConstSubqueryExpressionPtr = TIntrusivePtr<const TSubqueryExpression>;
+
 DECLARE_REFCOUNTED_STRUCT(TBaseQuery)
 using TConstBaseQueryPtr = TIntrusivePtr<const TBaseQuery>;
 

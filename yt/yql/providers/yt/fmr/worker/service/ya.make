@@ -19,10 +19,10 @@ PEERDIR(
     yt/yql/providers/yt/fmr/coordinator/client
     yt/yql/providers/yt/fmr/job_factory/impl
     yt/yql/providers/yt/fmr/job/impl
-    yt/yql/providers/yt/fmr/table_data_service/client
-    yt/yql/providers/yt/fmr/table_data_service/local
+    yt/yql/providers/yt/fmr/table_data_service/client/impl
+    yt/yql/providers/yt/fmr/table_data_service/local/impl
     yt/yql/providers/yt/fmr/table_data_service/discovery/file
-    yt/yql/providers/yt/fmr/yt_service/impl
+    yt/yql/providers/yt/fmr/yt_job_service/impl
     yql/essentials/utils/log
 )
 

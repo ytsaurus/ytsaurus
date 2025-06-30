@@ -2,7 +2,7 @@
 
 [Apache Airflow](https://airflow.apache.org/) is a platform for creating, scheduling, and monitoring workflows. {{product-name}} Airflow Provider enables you to integrate Airflow with {{product-name}} and efficiently manage data processing tasks.
 
-This section provides instructions on how to connect to a {{product-name}} cluster in Apache Airflow and how to use operators to interact with Cypress, work with static tables, and execute queries in [Query Tracker](../../user-guide/query-tracker/about.md).
+This section provides instructions on how to connect to a {{product-name}} cluster in Apache Airflow and how to use operators to interact with Cypress, work with static tables, and execute queries in [Query Tracker](../../../user-guide/query-tracker/about.md).
 
 ## Installation
 

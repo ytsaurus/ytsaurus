@@ -1486,12 +1486,12 @@ class TestJobStderr(YTEnvSetup):
 
         command = "echo stderr 1>&2 ; exit 1"
 
-        op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command=command, fail_fast=False)
+        op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command=command, fail_fast=False, spec={"max_failed_job_count": 5})
 
         with pytest.raises(YtError):
             op.track()
 
-        check_all_stderrs(op, b"stderr\n", 10)
+        check_all_stderrs(op, b"stderr\n", 5)
 
     @authors("ignat")
     def test_stderr_limit(self):
@@ -2827,11 +2827,11 @@ class TestHealExecNode(YTEnvSetup):
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {
-        "data_node": {
-            "disk_health_checker": {
-                "check_period": 1000,
+        "exec_node": {
+            "slot_manager": {
+                "locations": [{"disk_health_checker": {"check_period": 1000}}],
             },
-        },
+        }
     }
 
     DELTA_DYNAMIC_NODE_CONFIG = {

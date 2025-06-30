@@ -1,6 +1,7 @@
 #include <library/cpp/getopt/last_getopt.h>
 #include <library/cpp/uri/http_url.h>
 #include <util/system/interrupt_signals.h>
+#include <yt/yql/providers/yt/fmr/table_data_service/local/impl/yql_yt_table_data_service_local.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/server/yql_yt_table_data_service_server.h>
 #include <yql/essentials/utils/log/log.h>
 #include <yql/essentials/utils/log/log_component.h>
@@ -55,11 +56,13 @@ int main(int argc, const char *argv[]) {
             .Host = options.Host,
             .Port = options.Port
         };
-        auto tableDataServiceServer = MakeTableDataServiceServer(tableDataServiceSettings);
+        auto tableDataService = MakeLocalTableDataService();
+        auto tableDataServiceServer = MakeTableDataServiceServer(tableDataService, tableDataServiceSettings);
         tableDataServiceServer->Start();
 
         while (!isInterrupted) {
-            Sleep(TDuration::Seconds(1));
+            YQL_CLOG(DEBUG, FastMapReduce) << tableDataService->GetStatistics().GetValueSync();
+            Sleep(TDuration::Seconds(2));
         }
         tableDataServiceServer->Stop();
     } catch (...) {

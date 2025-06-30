@@ -12,22 +12,17 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatedTableTracker
-    : public TRefCounted
-{
-public:
-    TReplicatedTableTracker(
-        NTabletServer::TReplicatedTableTrackerConfigPtr config,
-        NCellMaster::TBootstrap* bootstrap);
+struct IMasterReplicatedTableTracker
+    : public virtual TRefCounted
+{ };
 
-    ~TReplicatedTableTracker();
+DEFINE_REFCOUNTED_TYPE(IMasterReplicatedTableTracker)
 
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-};
+////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TReplicatedTableTracker)
+IMasterReplicatedTableTrackerPtr CreateMasterReplicatedTableTracker(
+    NTabletServer::TReplicatedTableTrackerConfigPtr config,
+    NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

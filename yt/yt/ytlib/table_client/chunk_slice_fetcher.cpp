@@ -91,7 +91,7 @@ public:
 
         // Note that we do not patch chunk slices limits anywhere in chunk pool as it is
         // a part of data slice physical representation. In future it is going to become
-        // hidden in physical data reigstry.
+        // hidden in physical data registry.
         //
         // As a consequence, by this moment limit in chunk slice may be longer than needed,
         // so we copy chunk slice for internal chunk slice fetcher needs and replace
@@ -237,7 +237,7 @@ private:
                 AddTrivialSlice(chunkIndex);
             } else {
                 requestedChunkIndexes.push_back(chunkIndex);
-                auto chunkId = EncodeChunkId(chunk, nodeId);
+                auto chunkId = chunk->EncodeReplica(nodeId);
 
                 auto* protoSliceRequest = req->add_slice_requests();
                 ToProto(protoSliceRequest->mutable_chunk_id(), chunkId);

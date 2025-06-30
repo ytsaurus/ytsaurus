@@ -865,6 +865,13 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
             self._create_replica_table(replica_path, replica_id, mount=mount, **attributes)
             sync_enable_table_replica(replica_id)
 
+    def _wait_until_locks_released(self, replica_count):
+        tables = [("//tmp/t", None)]
+        for i in range(replica_count):
+            tables.append((f"//tmp/r{i + 1}", self.replica_driver))
+        for path, driver in tables:
+            wait(lambda: len(get(f"{path}/@locks", driver=driver)) == 0)
+
     def _make_backup_manifest(self, table_count_or_list):
         if type(table_count_or_list) is int:
             table_list = range(1, table_count_or_list + 1)
@@ -1178,8 +1185,9 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
         assert_items_equal(list(select_rows("* from [//tmp/res]", verbose=False)), rows)
 
     def test_catching_up_sync_replica_fails(self):
+        replica_modes = ["async", "sync"]
         self._create_cells()
-        self._create_tables(["async", "sync"])
+        self._create_tables(replica_modes)
         set("//tmp/t/@replication_throttler", {"limit": 500})
         remount_table("//tmp/t")
         for i in range(15):
@@ -1199,6 +1207,10 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
         # Replica 1 of sync mode is not in sync and cannot be backed up.
         with raises_yt_error(yt_error_codes.BackupCheckpointRejected):
             create_table_backup(self._make_backup_manifest([1]))
+
+        # create_table_backup() doesn't wait for locks release on failure so
+        # wait here manually.
+        self._wait_until_locks_released(len(replica_modes))
 
         # But it should not prevent us from backing up only replica 2.
         create_table_backup(self._make_backup_manifest([2]))
@@ -1388,31 +1400,9 @@ class TestBackupsShardedTx(TestBackups):
 @pytest.mark.enabled_multidaemon
 class TestBackupsMirroredTx(TestBackupsShardedTx):
     ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 6
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        }
-    }
 
 
 @authors("ifsmirnov")
@@ -1437,30 +1427,8 @@ class TestReplicatedTableBackupsShardedTx(TestReplicatedTableBackups):
 @pytest.mark.enabled_multidaemon
 class TestReplicatedTableBackupsMirroredTx(TestReplicatedTableBackupsShardedTx):
     ENABLE_MULTIDAEMON = True
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
-    ENABLE_TMP_ROOTSTOCK = False
-    NUM_CYPRESS_PROXIES = 1
-
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "transaction_manager": {
-                "use_cypress_transaction_service": True,
-            }
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "commit_operation_cypress_node_changes_via_system_transaction": True,
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "transaction_manager": {
-            "forbid_transaction_actions_for_cypress_transactions": True,
-        }
-    }
 
 
 @authors("dave11ar")

@@ -226,8 +226,8 @@ private:
 
         YT_VERIFY(currentDecompressedSize == std::ssize(blob));
 
-        YT_LOG_DEBUG("Dictionary decompression session successfully decompressed rows "
-            "(DecompressionTime: %v, RowCount: %v/%v, CompressedSize: %v, DecompressedSize: %v, UncompressedSize: %v)",
+        YT_LOG_DEBUG("Dictionary decompression session successfully decompressed values "
+            "(DecompressionTime: %v, ProcessedValueCount: %v/%v, CompressedSize: %v, DecompressedSize: %v, UncompressedSize: %v)",
             decompressionTimer.GetElapsedTime(),
             newDecompressedValueCount,
             values.size(),
@@ -320,6 +320,7 @@ public:
                 chunkReadOptions,
                 NameTable_,
                 ChunkFragmentReader_,
+                /*suitableForCaching*/ false,
                 TableClientLogger()));
         }
 
@@ -378,6 +379,7 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
     TWallTimer metaWaitTimer,
     const TNameTablePtr& nameTable,
     const IChunkFragmentReaderPtr& chunkFragmentReader,
+    bool suitableForCaching,
     NLogging::TLogger logger,
     const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
 {
@@ -406,7 +408,14 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
     columnIdMapping.reserve(compressionDictionaryExt.column_infos_size());
     for (int index = 0; index < compressionDictionaryExt.column_infos_size(); ++index) {
         const auto& columnInfo = compressionDictionaryExt.column_infos(index);
-        columnIdMapping.push_back(nameTable->GetIdOrThrow(columnInfo.stable_name()));
+        if (suitableForCaching) {
+            columnIdMapping.push_back(nameTable->GetIdOrThrow(columnInfo.stable_name()));
+            YT_VERIFY(columnIdMapping.back() >= 0);
+        } else {
+            auto columnId = nameTable->FindId(columnInfo.stable_name());
+            YT_VERIFY(!columnId || columnId >= 0);
+            columnIdMapping.push_back(columnId.value_or(-1));
+        }
     }
 
     const auto& miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
@@ -422,6 +431,10 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
             .BlockIndex = columnInfo.block_index(),
             .BlockOffset = columnInfo.block_offset(),
         });
+        // Skip unnecessary column in case we are not going to cache the dictionary.
+        if (columnIdMapping[index] == -1) {
+            requests.back().Length = 0;
+        }
     }
 
     auto hunkChunkReaderStatistics = chunkReadOptions.HunkChunkReaderStatistics;
@@ -472,6 +485,9 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                 // as they all we be stored together and destroyed simultaneously.
                 i64 estimatedStorageSize = 0;
                 for (int index = 0; index < std::ssize(response.Fragments); ++index) {
+                    if (columnIdMapping[index] == -1) {
+                        continue;
+                    }
                     YT_VERIFY(response.Fragments[index]);
                     auto estimatedSize = GetDictionaryCompressionCodec()->EstimateDigestedDecompressionDictionarySize(
                         std::ssize(response.Fragments[index]));
@@ -487,7 +503,14 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                 rowDigestedDictionary.StorageSize = storage.Size();
                 // NB: Columns that are missing in the dictionary will be ignored here
                 // and no decompression will be performed either.
+                // Columns with id -1 refer to columns that are present in compression dictionary but are missing
+                // in name table and thus are to be omitted (important that this dictionary is not suitable for caching).
                 for (int index = 0; index < std::ssize(columnIdMapping); ++index) {
+                    auto columnId = columnIdMapping[index];
+                    if (columnId == -1) {
+                        continue;
+                    }
+
                     auto estimatedSize = GetDictionaryCompressionCodec()->EstimateDigestedDecompressionDictionarySize(
                         std::ssize(response.Fragments[index]));
                     estimatedSize = AlignUp<i64>(estimatedSize, 8);
@@ -500,7 +523,7 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                     } catch (const std::exception& ex) {
                         auto error = TError("Failed to construct digested decompression dictionary")
                             << TErrorAttribute("column_index", index)
-                            << TErrorAttribute("column_id", columnIdMapping[index])
+                            << TErrorAttribute("column_id", columnId)
                             << TErrorAttribute("dictionary_id", dictionaryId)
                             << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId);
                         YT_LOG_ALERT(error);
@@ -510,7 +533,7 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
 
                     EmplaceOrCrash(
                         rowDigestedDictionary.ColumnDictionaries,
-                        columnIdMapping[index],
+                        columnId,
                         std::move(digestedDictionary));
                 }
 
@@ -522,6 +545,9 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                 // as they all we be stored together and destroyed simultaneously.
                 i64 estimatedStorageSize = 0;
                 for (int index = 0; index < std::ssize(response.Fragments); ++index) {
+                    if (columnIdMapping[index] == -1) {
+                        continue;
+                    }
                     YT_VERIFY(response.Fragments[index]);
                     auto estimatedSize = GetDictionaryCompressionCodec()->EstimateDigestedCompressionDictionarySize(
                         std::ssize(response.Fragments[index]),
@@ -538,7 +564,14 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                 rowDigestedDictionary.StorageSize = storage.Size();
                 // NB: Columns that are missing in the dictionary will be ignored here
                 // and no compression will be performed either.
+                // Columns with id -1 refer to columns that are present in compression dictionary but are missing
+                // in name table and thus are to be omitted (important that this dictionary is not suitable for caching).
                 for (int index = 0; index < std::ssize(columnIdMapping); ++index) {
+                    auto columnId = columnIdMapping[index];
+                    if (columnId == -1) {
+                        continue;
+                    }
+
                     YT_VERIFY(response.Fragments[index]);
                     auto estimatedSize = GetDictionaryCompressionCodec()->EstimateDigestedCompressionDictionarySize(
                         std::ssize(response.Fragments[index]),
@@ -554,7 +587,7 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
                     } catch (const std::exception& ex) {
                         auto error = TError("Failed to construct digested compression dictionary")
                             << TErrorAttribute("column_index", index)
-                            << TErrorAttribute("column_id", columnIdMapping[index])
+                            << TErrorAttribute("column_id", columnId)
                             << TErrorAttribute("dictionary_id", dictionaryId)
                             << TErrorAttribute("read_session_id", chunkReadOptions.ReadSessionId);
                         YT_LOG_ALERT(error);
@@ -564,7 +597,7 @@ TFuture<TRowDigestedDictionary> OnDictionaryMetaRead(
 
                     EmplaceOrCrash(
                         rowDigestedDictionary.ColumnDictionaries,
-                        columnIdMapping[index],
+                        columnId,
                         std::move(digestedDictionary));
                 }
 
@@ -584,6 +617,7 @@ TFuture<TRowDigestedDictionary> ReadDigestedDictionary(
     TClientChunkReadOptions chunkReadOptions,
     TNameTablePtr nameTable,
     IChunkFragmentReaderPtr chunkFragmentReader,
+    bool suitableForCaching,
     NLogging::TLogger logger)
 {
     logger.AddTag("ReadSessionId: %v, DictionaryId: %v, IsDecompression: %v",
@@ -617,6 +651,7 @@ TFuture<TRowDigestedDictionary> ReadDigestedDictionary(
             metaWaitTimer,
             std::move(nameTable),
             std::move(chunkFragmentReader),
+            suitableForCaching,
             Passed(std::move(logger))));
 }
 

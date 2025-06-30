@@ -124,6 +124,7 @@ public:
             .OperationAttributes = options.OperationAttributes.AsStringBuf().data(),
             .OperationAttributesLength = options.OperationAttributes.AsStringBuf().size(),
             .YTTokenPath = options.YTTokenPath.data(),
+            .UIOrigin = options.UIOrigin.data(),
             .LogBackend = &options.LogBackend,
             .Libraries = options.Libraries.AsStringBuf().data(),
             .LibrariesLength = options.Libraries.AsStringBuf().size(),
@@ -175,6 +176,7 @@ public:
             .Statistics = ToString(bridgeQueryResult->Statistics, bridgeQueryResult->StatisticsLength),
             .Progress = ToString(bridgeQueryResult->Progress, bridgeQueryResult->ProgressLength),
             .TaskInfo = ToString(bridgeQueryResult->TaskInfo, bridgeQueryResult->TaskInfoLength),
+            .Ast = ToString(bridgeQueryResult->Ast, bridgeQueryResult->AstLength),
             .YsonError = ToString(bridgeQueryResult->YsonError, bridgeQueryResult->YsonErrorLength),
         };
         BridgeFreeQueryResult(bridgeQueryResult);
@@ -233,6 +235,7 @@ public:
         TQueryResult queryResult{
             .Plan = ToString(bridgeQueryResult->Plan, bridgeQueryResult->PlanLength),
             .Progress = ToString(bridgeQueryResult->Progress, bridgeQueryResult->ProgressLength),
+            .Ast = ToString(bridgeQueryResult->Ast, bridgeQueryResult->AstLength),
         };
         BridgeFreeQueryResult(bridgeQueryResult);
         return queryResult;

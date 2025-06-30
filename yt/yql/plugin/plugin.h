@@ -30,6 +30,7 @@ struct TYqlPluginOptions
     NYson::TYsonString Libraries;
 
     TString YTTokenPath;
+    TString UIOrigin;
 
     THolder<TLogBackend> LogBackend;
 
@@ -48,6 +49,7 @@ struct TQueryResult
     std::optional<TString> Statistics;
     std::optional<TString> Progress;
     std::optional<TString> TaskInfo;
+    std::optional<TString> Ast;
 
     //! YSON representation of a YT error.
     std::optional<TString> YsonError;

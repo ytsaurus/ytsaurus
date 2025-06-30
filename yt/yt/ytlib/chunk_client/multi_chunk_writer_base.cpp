@@ -149,6 +149,10 @@ void TNontemplateMultiChunkWriterBase::DoSwitchSession()
 
 void TNontemplateMultiChunkWriterBase::FinishSession()
 {
+    if (auto delay = Config_->TestingDelayBeforeChunkClose) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+
     if (CurrentSession_.TemplateWriter->GetCompressedDataSize() == 0) {
         return;
     }

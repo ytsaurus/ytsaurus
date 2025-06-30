@@ -1,5 +1,6 @@
 #include "cell_hydra_persistence_synchronizer.h"
 
+#include "helpers.h"
 #include "private.h"
 #include "tamed_cell_manager.h"
 
@@ -30,13 +31,12 @@
 
 #include <yt/yt/core/ypath/helpers.h>
 
-#include <library/cpp/iterator/enumerate.h>
-
 namespace NYT::NCellServer {
 
 using namespace NApi;
 using namespace NCellMaster;
 using namespace NCellarAgent;
+using namespace NCellarClient;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NElection;
@@ -51,7 +51,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CellServerLogger;
+constinit const auto Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -660,10 +660,24 @@ private:
             CachedHydraFileInfos_.begin() + NextCellIndexToFetchHydraFileIds_,
             CachedHydraFileInfos_.begin() + lastCellIndex);
 
+        // COMPAT(danilalexeev)
+        TEnumIndexedArray<ECellarType, bool> checkSecondaryStorage;
+        try {
+            checkSecondaryStorage = !Bootstrap_->GetDynamicConfig()->TabletManager->SafeCheckSecondaryCellStorage
+                ? CheckLegacyCellMapNodeTypesOrThrow(Bootstrap_->GetCypressManager())
+                : TEnumIndexedArray<ECellarType, bool>{
+                    {ECellarType::Tablet, true},
+                    {ECellarType::Chaos, true}
+                };
+        } catch (const TErrorException& ex) {
+            YT_LOG_WARNING(ex, "Error checking cell map node types");
+            return;
+        }
+
         auto asyncResult = BIND(
             &TCellHydraPersistenceSynchronizer::DoUpdateHydraFileIds,
             MakeWeak(this),
-            Passed(std::move(pickedCellInfos)))
+            Passed(std::move(pickedCellInfos)), checkSecondaryStorage)
             .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
             .Run();
 
@@ -676,7 +690,9 @@ private:
         }
     }
 
-    void DoUpdateHydraFileIds(std::vector<std::pair<TCellId, THydraFileInfo>> cellInfos)
+    void DoUpdateHydraFileIds(
+        std::vector<std::pair<TCellId, THydraFileInfo>> cellInfos,
+        TEnumIndexedArray<ECellarType, bool> checkSecondaryStorage)
     {
         std::vector<TCellId> cellIds;
         cellIds.reserve(cellInfos.size());
@@ -686,7 +702,7 @@ private:
 
         NProto::TReqSetMaxHydraFileIds request;
 
-        auto maxHydraFileIds = GetMaxHydraFileIds(cellIds);
+        auto maxHydraFileIds = GetMaxHydraFileIds(cellIds, checkSecondaryStorage);
         YT_VERIFY(ssize(maxHydraFileIds) == ssize(cellInfos));
 
         for (int index = 0; index < ssize(maxHydraFileIds); ++index) {
@@ -711,25 +727,33 @@ private:
             request.entries_size());
     }
 
-    std::vector<THydraFileInfo> GetMaxHydraFileIds(const std::vector<TCellId>& cellIds) const
+    std::vector<THydraFileInfo> GetMaxHydraFileIds(
+        const std::vector<TCellId>& cellIds,
+        TEnumIndexedArray<ECellarType, bool> checkSecondaryStorage) const
     {
         auto proxy = CreateObjectServiceReadProxy(
             Bootstrap_->GetRootClient(),
             EMasterChannelKind::Follower);
 
-        // Batch request contains four requests for each cell:
-        // - cell Hydra persistence path -> snapshots
-        // - cell path -> snapshots
-        // - cell Hydra persistence path -> changelogs
-        // - cell path -> changelogs
+        // For each cell, requests the following directory listings:
+        //   - Primary storage path:
+        //       * <primary_path>/snapshots
+        //       * <primary_path>/changelogs
+        //   - Secondary storage path (if relevant):
+        //       * <secondary_path>/snapshots
+        //       * <secondary_path>/changelogs
         auto batchReq = proxy.ExecuteBatch();
 
         for (auto cellId : cellIds) {
-            for (const char* fileType : {"snapshots", "changelogs"}) {
+            batchReq->AddRequest(TYPathProxy::List(
+                GetCellHydraPersistencePath(cellId) + "/snapshots"));
+            batchReq->AddRequest(TYPathProxy::List(
+                GetCellHydraPersistencePath(cellId) + "/changelogs"));
+            if (checkSecondaryStorage[GetCellarTypeFromCellId(cellId)]) {
                 batchReq->AddRequest(TYPathProxy::List(
-                    GetCellHydraPersistencePath(cellId) + "/" + fileType));
+                    GetCellPath(cellId) + "/snapshots"));
                 batchReq->AddRequest(TYPathProxy::List(
-                    GetCellPath(cellId) + "/" + fileType));
+                    GetCellPath(cellId) + "/changelogs"));
             }
         }
 
@@ -747,7 +771,7 @@ private:
             auto listNode = ConvertToNode(TYsonString(rspOrError.ValueOrThrow()->value()));
             auto list = listNode->AsList();
             for (const auto& item : list->GetChildren()) {
-                auto key = item->GetValue<TString>();
+                auto key = item->GetValue<std::string>();
                 int id;
                 if (!TryFromString<int>(key, id)) {
                     continue;
@@ -760,11 +784,18 @@ private:
         std::vector<THydraFileInfo> result;
         result.reserve(ssize(cellIds));
 
-        for (auto [index, cellId] : Enumerate(cellIds)) {
+        int currentIndex = 0;
+        for (auto cellId : cellIds) {
+            auto requestExtended = checkSecondaryStorage[GetCellarTypeFromCellId(cellId)];
             result.push_back({
-                .MaxSnapshotId = std::max(getMaxId(index * 4 + 0), getMaxId(index * 4 + 1)),
-                .MaxChangelogId = std::max(getMaxId(index * 4 + 2), getMaxId(index * 4 + 3)),
+                .MaxSnapshotId = std::max(
+                    getMaxId(currentIndex + 0),
+                    requestExtended ? getMaxId(currentIndex + 2) : -1),
+                .MaxChangelogId = std::max(
+                    getMaxId(currentIndex + 1),
+                    requestExtended ? getMaxId(currentIndex + 3) : -1),
             });
+            currentIndex += requestExtended ? 4 : 2;
         }
 
         return result;

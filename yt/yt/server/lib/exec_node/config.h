@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/nbd/config.h>
 
+#include <yt/yt/server/lib/signature/public.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/library/dns_over_rpc/client/config.h>
@@ -37,10 +39,12 @@ struct TSlotLocationConfig
     //! Reserve subtracted from disk capacity.
     i64 DiskUsageWatermark;
 
-    TString MediumName;
+    std::string MediumName;
 
     //! Enforce disk space limits using disk quota.
     bool EnableDiskQuota;
+
+    NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
     REGISTER_YSON_STRUCT(TSlotLocationConfig);
 
@@ -115,7 +119,7 @@ struct TSlotManagerConfig
     TDuration SlotLocationStatisticsUpdatePeriod;
 
     //! Default medium used to run jobs without disk requests.
-    TString DefaultMediumName;
+    std::string DefaultMediumName;
 
     TSlotManagerTestingConfigPtr Testing;
 
@@ -168,6 +172,8 @@ struct TSlotManagerDynamicConfig
 
     bool RestartContainerAfterFailedDeviceCheck;
 
+    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
+
     //! Polymorphic job environment configuration.
     NJobProxy::TJobEnvironmentConfig JobEnvironment;
 
@@ -194,6 +200,8 @@ struct TVolumeManagerDynamicConfig
 
     //! For testing purpuses.
     bool ThrowOnPrepareVolume;
+
+    NServer::TDiskHealthCheckerDynamicConfigPtr DiskHealthChecker;
 
     REGISTER_YSON_STRUCT(TVolumeManagerDynamicConfig);
 
@@ -284,7 +292,7 @@ struct TControllerAgentConnectorDynamicConfig
     NConcurrency::TThroughputThrottlerConfigPtr StatisticsThrottler;
     TDuration RunningJobStatisticsSendingBackoff;
 
-    bool ResendFullJobInfo = true;
+    bool ResendFullJobInfo;
 
     REGISTER_YSON_STRUCT(TControllerAgentConnectorDynamicConfig);
 
@@ -332,6 +340,8 @@ struct TSchedulerConnectorDynamicConfig
 
     bool UseProfilingTagsFromScheduler;
 
+    TDuration RequestNewAgentDelay;
+
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -350,6 +360,7 @@ struct TJobInputCacheDynamicConfig
 
     NChunkClient::TBlockCacheDynamicConfigPtr BlockCache;
     TSlruCacheDynamicConfigPtr MetaCache;
+    NChunkClient::TErasureReaderConfigPtr Reader;
 
     i64 TotalInFlightBlockSize;
 
@@ -434,6 +445,9 @@ struct TGpuManagerDynamicConfig
 
     //! This option is specific to nvidia-container-runtime.
     TString DefaultNvidiaDriverCapabilities;
+
+    bool EnableNetworkServiceLevel;
+    TDuration ApplyNetworkServiceLevelTimeout;
 
     REGISTER_YSON_STRUCT(TGpuManagerDynamicConfig);
 
@@ -551,12 +565,7 @@ DEFINE_REFCOUNTED_TYPE(TAllocationConfig)
 struct TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
-    TConstantBackoffOptions OperationInfoRequestBackoffStrategy;
-
     TDuration WaitingForResourcesTimeout;
-    // COMPAT(arkady-e1ppa): Remove when CA&Sched are update to
-    // a proper version of 24.1/24.2
-    bool DisableLegacyAllocationPreparation;
 
     TDuration CpuOverdraftTimeout;
 
@@ -791,6 +800,10 @@ struct TExecNodeConfig
     TJobProxyConfigPtr JobProxy;
 
     TJobProxyLogManagerConfigPtr JobProxyLogManager;
+
+    NSignature::TSignatureGenerationConfigPtr SignatureGeneration;
+
+    NSignature::TSignatureValidationConfigPtr SignatureValidation;
 
     REGISTER_YSON_STRUCT(TExecNodeConfig);
 

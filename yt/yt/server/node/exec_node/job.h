@@ -3,8 +3,10 @@
 #include "chunk_cache.h"
 #include "controller_agent_connector.h"
 #include "gpu_manager.h"
+#include "helpers.h"
 #include "job_info.h"
 #include "public.h"
+#include "private.h"
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
@@ -17,9 +19,9 @@
 #include <yt/yt/server/lib/job_agent/public.h>
 #include <yt/yt/server/lib/job_agent/structs.h>
 
-#include <yt/yt/server/lib/job_proxy/public.h>
-
 #include <yt/yt/server/lib/scheduler/structs.h>
+
+#include <yt/yt/server/lib/controller_agent/network_project.h>
 
 #include <yt/yt/client/api/client.h>
 
@@ -121,7 +123,9 @@ public:
 
     const TControllerAgentDescriptor& GetControllerAgentDescriptor() const;
 
-    void UpdateControllerAgentDescriptor(TControllerAgentDescriptor agentInfo);
+    void UpdateControllerAgentDescriptor(TControllerAgentDescriptor agentDescriptor);
+
+    TInstant GetControllerAgentResetTime() const;
 
     EJobType GetType() const;
 
@@ -130,6 +134,8 @@ public:
     NControllerAgent::NProto::TJobSpec GetSpec() const;
 
     const std::vector<int>& GetPorts() const;
+
+    std::optional<int> GetJobProxyRpcServerPort() const;
 
     EJobState GetState() const;
 
@@ -254,6 +260,7 @@ public:
     const std::optional<NScheduler::TPreemptedFor>& GetPreemptedFor() const noexcept;
 
     bool IsFinished() const noexcept;
+    bool IsFinishedUnsuccessfully() const noexcept;
 
     TFuture<void> GetCleanupFinishedEvent();
 
@@ -271,9 +278,9 @@ private:
 
     const TJobId Id_;
     const TOperationId OperationId_;
-    IBootstrap* const Bootstrap_;
+    const EJobType Type_;
 
-    const EJobType JobType_;
+    IBootstrap* const Bootstrap_;
 
     const NLogging::TLogger Logger;
 
@@ -282,7 +289,7 @@ private:
 
     const NClusterNode::TJobResources InitialResourceDemand_;
 
-    TControllerAgentDescriptor ControllerAgentDescriptor_;
+    TControllerAgentAffiliationInfo ControllerAgentInfo_;
     TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
 
     const TJobCommonConfigPtr CommonConfig_;
@@ -369,7 +376,7 @@ private:
 
     int SetupCommandCount_ = 0;
 
-    std::optional<ui32> NetworkProjectId_;
+    std::optional<NControllerAgent::TNetworkProject> NetworkProject_;
     std::vector<TString> TmpfsPaths_;
 
     std::atomic<bool> UseJobInputCache_ = false;
@@ -380,6 +387,7 @@ private:
     std::vector<NDataNode::TArtifactKey> RootVolumeLayerArtifactKeys_;
     std::vector<NDataNode::TArtifactKey> GpuCheckVolumeLayerArtifactKeys_;
     std::optional<TString> DockerImage_;
+    std::optional<TString> DockerImageId_;
 
     std::optional<TVirtualSandboxData> VirtualSandboxData_;
 
@@ -419,6 +427,7 @@ private:
     NRpc::IChannelPtr JobProxyChannel_;
 
     std::vector<TNameWithAddress> ResolvedNodeAddresses_;
+    TNetworkAttributes NetworkAttributes_;
 
     // Artifact statistics.
     NJobAgent::TChunkCacheStatistics ChunkCacheStatistics_;
@@ -498,7 +507,7 @@ private:
 
     void OnSetupCommandsFinished(const TError& error);
 
-    std::vector<NContainers::TDevice> GetGpuDevices();
+    std::vector<NContainers::TDevice> GetGpuDevices() const;
 
     bool IsFullHostGpuJob() const;
 
@@ -546,7 +555,7 @@ private:
 
     std::vector<NContainers::TBind> GetRootFSBinds();
 
-    void PrepareSandboxDirectories();
+    TNetworkAttributes BuildNetworkAttributes(NControllerAgent::TNetworkProject networkProject) const;
 
     bool CanBeAccessedViaBind(const TArtifact& artifact) const;
     bool CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const;
@@ -606,6 +615,10 @@ private:
 
     bool NeedGpu();
 
+    bool NeedsGpuCheck() const;
+
+    TGpuCheckOptions GetGpuCheckOptions() const;
+
     void CollectSensorsFromStatistics(NProfiling::ISensorWriter* writer);
     void CollectSensorsFromGpuAndRdmaDeviceInfo(NProfiling::ISensorWriter* writer);
 
@@ -624,8 +637,6 @@ private:
     void OnJobFinalized();
 
     void DeduceAndSetFinishedJobState();
-
-    bool NeedsGpuCheck() const;
 
     static std::vector<NScheduler::TTmpfsVolumeConfigPtr> ParseTmpfsVolumeInfos(
         const NControllerAgent::NProto::TUserJobSpec* maybeUserJobSpec);

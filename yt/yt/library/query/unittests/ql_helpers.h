@@ -75,7 +75,7 @@ public:
 
     MOCK_METHOD(TFuture<TDataSplit>, GetInitialSplit, (const TYPath&), (override));
 
-    void FetchFunctions(TRange<TString>, const TTypeInferrerMapPtr& typeInferrers) override
+    void FetchFunctions(TRange<std::string>, const TTypeInferrerMapPtr& typeInferrers) override
     {
         MergeFrom(typeInferrers.Get(), *TypeInferrers_);
     }

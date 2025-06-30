@@ -18,7 +18,7 @@
 
 #include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/cypress_key_store.h>
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_rotator.h>
 #include <yt/yt/server/lib/signature/signature_generator.h>
 #include <yt/yt/server/lib/signature/signature_validator.h>
@@ -114,7 +114,7 @@ using namespace NSignature;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = HttpProxyLogger;
+constinit const auto Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -258,9 +258,7 @@ void TBootstrap::DoInitialize()
         auto cypressKeyReader = CreateCypressKeyReader(
             Config_->SignatureValidation->CypressKeyReader,
             RootClient_);
-        SignatureValidator_ = New<TSignatureValidator>(
-            Config_->SignatureValidation->Validator,
-            std::move(cypressKeyReader));
+        SignatureValidator_ = New<TSignatureValidator>(std::move(cypressKeyReader));
     } else {
         // NB(pavook): we cannot do any meaningful signature operations safely.
         SignatureValidator_ = CreateAlwaysThrowingSignatureValidator();
@@ -277,10 +275,10 @@ void TBootstrap::DoInitialize()
             GetControlInvoker(),
             std::move(cypressKeyWriter),
             signatureGenerator);
-        SignatureGenerator_ = std::move(signatureGenerator);
+        Connection_->SetSignatureGenerator(std::move(signatureGenerator));
     } else {
         // NB(pavook): we cannot do any meaningful signature operations safely.
-        SignatureGenerator_ = CreateAlwaysThrowingSignatureGenerator();
+        Connection_->SetSignatureGenerator(CreateAlwaysThrowingSignatureGenerator());
     }
 
     auto driverV3Config = CloneYsonStruct(Config_->Driver);
@@ -288,7 +286,6 @@ void TBootstrap::DoInitialize()
     DriverV3_ = CreateDriver(
         Connection_,
         driverV3Config,
-        SignatureGenerator_,
         SignatureValidator_);
 
     auto driverV4Config = CloneYsonStruct(Config_->Driver);
@@ -296,7 +293,6 @@ void TBootstrap::DoInitialize()
     DriverV4_ = CreateDriver(
         Connection_,
         driverV4Config,
-        SignatureGenerator_,
         SignatureValidator_);
 
     AuthenticationManager_ = CreateAuthenticationManager(
@@ -356,8 +352,7 @@ void TBootstrap::DoInitialize()
     ApiHttpServer_ = NHttp::CreateServer(
         Config_->HttpServer,
         Poller_,
-        Acceptor_,
-        WithCategory(MemoryUsageTracker_, EMemoryCategory::Http));
+        Acceptor_);
     RegisterRoutes(ApiHttpServer_);
 
     if (Config_->HttpsServer) {
@@ -366,8 +361,7 @@ void TBootstrap::DoInitialize()
             Config_->HttpsServer,
             Poller_,
             Acceptor_,
-            GetControlInvoker(),
-            WithCategory(MemoryUsageTracker_, EMemoryCategory::Http));
+            GetControlInvoker());
         RegisterRoutes(ApiHttpsServer_);
     }
 
@@ -376,8 +370,7 @@ void TBootstrap::DoInitialize()
         TvmOnlyApiHttpServer_ = NHttp::CreateServer(
             Config_->TvmOnlyHttpServer,
             Poller_,
-            Acceptor_,
-            WithCategory(MemoryUsageTracker_, EMemoryCategory::Http));
+            Acceptor_);
         RegisterRoutes(TvmOnlyApiHttpServer_);
     }
 
@@ -387,8 +380,7 @@ void TBootstrap::DoInitialize()
             Config_->TvmOnlyHttpsServer,
             Poller_,
             Acceptor_,
-            GetControlInvoker(),
-            WithCategory(MemoryUsageTracker_, EMemoryCategory::Http));
+            GetControlInvoker());
         RegisterRoutes(TvmOnlyApiHttpsServer_);
     }
 
@@ -429,7 +421,7 @@ void TBootstrap::SetupClients()
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 }
 
-void TBootstrap::ReconfigureMemoryLimits(const TProxyMemoryLimitsConfigPtr& memoryLimits)
+void TBootstrap::ReconfigureMemoryLimits(const TMemoryLimitsConfigPtr& memoryLimits)
 {
     if (memoryLimits->Total) {
         MemoryUsageTracker_->SetTotalLimit(*memoryLimits->Total);
@@ -490,8 +482,11 @@ void TBootstrap::DoStart()
     MonitoringServer_->Start();
 
     if (SignatureKeyRotator_) {
-        WaitFor(SignatureKeyRotator_->Start())
-            .ThrowOnError();
+        // NB(pavook):
+        // We don't wait for key rotation completion anywhere in bootstrap, because proxy bootstrap
+        // should be possible even in master read-only mode.
+        // So, we just throw on all signature-requiring operations until the key rotation actually happens.
+        YT_UNUSED_FUTURE(SignatureKeyRotator_->Start());
     }
 
     ApiHttpServer_->Start();

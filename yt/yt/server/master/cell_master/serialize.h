@@ -34,106 +34,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMasterReign,
-    // 24.1 starts here.
-    ((SecondaryIndex)                                               (2500))  // sabdenovch
-    ((SecondaryIndexReplication)                                    (2501))  // sabdenovch
-    ((RemoveChunkJobDynamicConfig)                                  (2502))  // danilalexeev
-    ((SecondaryIndexUnmountedCheck)                                 (2503))  // sabdenovch
-    ((ReinitializeRootResourceLimits)                               (2504))  // kvk1920
-    ((NoMountRevisionCheckInBulkInsert)                             (2505))  // ifsmirnov
-    ((FixSharedRangeMove)                                           (2506))  // ponasenko-rs
-    ((TabletSharedWriteLocks)                                       (2507))  // ponasenko-rs
-    ((HunksForever)                                                 (2508))  // babenko
-    ((ConfigurablePoolNameValidationRegex)                          (2509))  // renadeen
-    ((ChunkReincarnatorTestingUtilities)                            (2510))  // kvk1920
-    ((SecondaryIndexForbidsPortal)                                  (2511))  // sabdenovch
-    ((SchedulerSystemOutputCompletionTransaction)                   (2512))  // kvk1920
-    ((SequoiaPropertiesBeingCreated)                                (2513))  // danilalexeev
-    ((TabletPrerequisites)                                          (2514))  // gritukan
-    ((FixErrorSerialization)                                        (2515))  // gritukan
-    ((Uint32ForNodeId)                                              (2516))  // babenko
-    ((HiveManagerLamportTimestamp)                                  (2517))  // danilalexeev
-    ((FixAsyncTableStatisticsUpdate)                                (2518))  // danilalexeev
-    ((CreateHunkStorageWithProperAttributes)                        (2519))  // akozhikhov
-    ((SecondaryIndexOverReplicatedTables)                           (2520))  // sabdenovch
-    ((MakeRequisitionComputationSharded)                            (2521))  // danilalexeev
-    ((FixMutationTypeNaming)                                        (2522))  // babenko
-    ((FixListNodeDeprecation)                                       (2523))  // kvk1920
-    ((IncreasedMaxKeyColumnInDynamicTable)                          (2524))  // sabdenovch
-    ((EnableRealChunkLocationsByDefault)                            (2525))  // kvk1920
-    ((SaneTxActionAbort)                                            (2526))  // kvk1920
-    ((ValueDictionaryCompression)                                   (2527))  // akozhikhov
-    ((SaneTxActionAbortFix)                                         (2528))  // kvk1920
-    ((FixResponseHash)                                              (2529))  // babenko
-    ((SmoothTabletMovement)                                         (2530))  // ifsmirnov
-    ((DistributedTabletPrerequisites)                               (2531))  // gritukan
-    ((SecondaryIndexUnfolding)                                      (2532))  // sabdenovch
-    ((TablesInSequoia)                                              (2533))  // h0pless
-    ((CheckChunkCountPerTabletBeforeMount)                          (2534))  // alexelexa
-    ((ErasureHunkStorage_24_1)                                      (2535))  // akozhikhov
-    ((TabletCellsHydraPersistenceMigration)                         (2536))  // danilalexeev
-    ((ErasureHunkCodecInDoCopy)                                     (2537))  // akozhikhov
-    ((CachedMaxSnapshotId)                                          (2538))  // ifsmirnov
-    ((MasterCellsCompositionReconfigurationOnNodes)                 (2539))  // cherepashka
-    ((ImproveMaintenanceRequestsApi)                                (2540))  // kvk1920
-    ((PersistLastSeenLeaseTransactionTimeout)                       (2541))  // danilalexeev
-    ((WideDateTimeTypes)                                            (2542))  // whatsername
-    ((HunkMedia)                                                    (2543))  // kivedernikov
-    ((SequoiaQueues)                                                (2544))  // aleksandra-zh
-    ((ChunkListTraversalIncumbency)                                 (2545))  // danilalexeev
-    ((UsersInSequoia)                                               (2546))  // cherepashka
-    ((RemoveEnableSharedWriteLocksFlag_24_1)                        (2547))  // ponasenko-rs
-    ((AddTtlSystemColumn_24_1)                                      (2548))  // alexelexa
-    ((ChunkMergerModeFix)                                           (2549))  // cherepashka
-    ((DynamizeLocalJanitorConfig)                                   (2550))  // danilalexeev
-    ((SchemalessEndUploadPreservesTableSchemaByDefault)             (2551))  // shakurov
-    ((MirrorCypressTransactionsToSequoia)                           (2552))  // kvk1920
-    ((SecondaryIndexUser_24_1)                                      (2553))  // sabdenovch
-    ((RemoveEnableSharedWriteLocksFlagLeftovers_24_1)               (2554))  // ponasenko-rs
-    ((BundleResourceUsageGossipNotToIncludeSelfUsage)               (2555))  // ifsmirnov
-    ((RemoveChaosIndependentPeersAssumption_24_1)                   (2556))  // ponasenko-rs
-    ((ZombifyTabletAction)                                          (2557))  // ifsmirnov
-    ((AccountProfilingIncumbency_24_1)                              (2558))  // h0pless
-    ((RemoveParameterizedBalancingMetricSetting_24_1)               (2559))  // alexelexa
-    ((SecondaryIndexSchemaValidation_24_1)                          (2560))  // sabdenovch
-    ((NodeReplicationMutation)                                      (2561))  // cherepashka
-    ((TraceIdInSequoia)                                             (2562))  // cherepashka
-    ((DynamicMasterCellReconfigurationOnNodes)                      (2563))  // cherepashka
-    ((MissingRackAttribute_24_1)                                    (2564))  // danilalexeev
-    ((FixMakeChunkLocationsOnline)                                  (2565))  // cherepashka
-    ((FixLastSeenPersistance)                                       (2566))  // cherepashka
-    ((AnyTypedKeysInSortedTables)                                   (2567))  // whatsername
-    ((SecondaryIndexPredicate_24_1)                                 (2568))  // sabdenovch
-    ((IncreasedMaxKeyColumnInDynamicTableTo128_24_1)                (2569))  // sabdenovch
-    ((FixEarlyInitializingUnregisteredMasters)                      (2570))  // cherepashka
-    ((ForceRackAwarenessForErasureParts)                            (2571))  // danilalexeev
-    ((FixCypressTransactionMirroring_24_1)                          (2572))  // kvk1920
-    ((QueueProducers_24_1)                                          (2573))  // apachee
-    ((PendingRemovalUserAttribute)                                  (2574))  // cherepashka
-    ((DynamizationCypressConfig)                                    (2575))  // kivedernikov
-    ((ChunkMetaLimit)                                               (2576))  // kivedernikov
-    ((RemovedRedundantStatisticsFromChunkOwnerBase)                 (2577))  // cherepashka
-    ((SerializationOfDataStatistics)                                (2578))  // cherepashka
-    ((ReturnedHandleOfInvalidDataWeight)                            (2579))  // cherepashka
-    ((SequoiaReplicasConfig)                                        (2580))  // aleksandra-zh
-    ((HunkStorageRemovalInTableZombify)                             (2581))  // akozhikhov
-    ((DeltaStatisticsPointer)                                       (2582))  // cherepashka
-    ((InheritChunkMergerModeWhenCopy_24_1)                          (2583))  // cherepashka
-    ((ForbidExportChunkWithHunks)                                   (2584))  // kivedernikov
-    ((RemovedDuplicateChunkCountFromSnapshot)                       (2585))  // cherepashka
-    ((UnapprovedSequoiaReplicas)                                    (2586))  // aleksandra-zh
-    ((ChunkMergerBackoff)                                           (2587))  // cherepashka
-    ((ForbiddenErasureCodecs_ForbiddenComprCodecsRefactoring_24_1)  (2588))  // abogutskiy, shakurov
-    ((MediumIndexSizeofReduction)                                   (2589))  // cherepashka
-    ((SecondaryIndexPerUserValidation_24_1)                         (2590))  // sabdenovch
-    ((SecondaryIndexUnique_24_1)                                    (2591))  // sabdenovch
-    ((FixMergerStatisticsOnceAgain)                                 (2592))  // aleksandra-zh
-    ((IntraCellCrossShardLinks)                                     (2593))  // shakurov
-    ((NonrecursivePermissionCheckOnExpirationSettingsUpdate_24_1)   (2594))  // babenko
-    ((ReplicationCollocationOptions_24_1)                           (2595))  // akozhikhov
-    ((NestedAggregateColumns_24_1)                                  (2596))  // lukyan
-    ((DynamicTableSchemaContraint)                                  (2597))  // whatsername
-    ((RemoveSchemalessEndUploadPreservesTableSchema_24_1)           (2598))  // h0pless
     // 24.2 starts here.
     ((Start_24_2)                                                   (2700))  //
     ((DropLegacyClusterNodeMap)                                     (2701))  // babenko
@@ -232,6 +132,8 @@ DEFINE_ENUM(EMasterReign,
     ((GlobalObjectReplicationRespectsTypeHandlers)                  (2843))  // shakurov
     ((LostVitalChunksSample_25_1)                                   (2844))  // koloshmet
     ((SecondaryIndexOuroboros)                                      (2845))  // sabdenovch
+    ((FixDetachmentOfJournalHunkChunk_25_1)                         (2846))  // akozhikhov
+    ((CheckReplicationProgressSchema_25_1)                          (2847))  // savrus
     // 25.2 starts here.
     ((Start_25_2)                                                   (2900))  // ponasenko-rs
     ((TabletTransactionSerializationType)                           (2901))  // ponasenko-rs
@@ -246,7 +148,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropChunkMergerCompats)                                       (2910))  // cherepashka
     ((SecondaryIndexEvaluated)                                      (2911))  // sabdenovch
     ((ResetHunkMediaOnBranchedNodes)                                (2912))  // shakurov
-    ((PerChunkReplicaDataNodeRegistrationTrottling)                 (2913))  // cherepashka
+    ((PerChunkReplicaDataNodeRegistrationThrottling)                (2913))  // cherepashka
     ((MissingObjectErrorAttribute)                                  (2914))  // kvk1920
     ((FixAttributeInheritanceInCreateVerb)                          (2915))  // h0pless
     ((FixLastSeenReplicas)                                          (2916))  // kvk1920
@@ -256,6 +158,44 @@ DEFINE_ENUM(EMasterReign,
     ((DeterministicStateHashComputationInResponseKeeper)            (2920))  // koloshmet
     ((CypressProxyVersion)                                          (2921))  // kvk1920
     ((AddEscapingInCrossCellCopy)                                   (2922))  // h0pless
+    ((MinorRefactoringInExpirationTracker)                          (2923))  // h0pless
+    ((FixTransactionActionAbort)                                    (2924))  // kvk1920
+    ((ResetHunkMediaOnBranchedNodesOnly)                            (2925))  // shakurov
+    ((ResetInheritACLInCrossCellCopy)                               (2926))  // h0pless
+    ((FixDetachmentOfJournalHunkChunk)                              (2927))  // akozhikhov
+    ((AutomaticCellMapMigration)                                    (2928))  // danilalexeev
+    ((ReplicaDataInReplicatableTabletContent)                       (2929))  // ifsmirnov
+    ((TransactionActionStates)                                      (2930))  // babenko
+    ((SupportTzTypes)                                               (2931))  // nadya02
+    ((ResourceQuotaAttributeForBundles)                             (2932))  // ifsmirnov
+    ((FixSettingListAttributeForUnexistingNode)                     (2933))  // kvk1920
+    ((IntroduceCypressToSequoiaCopy)                                (2934))  // h0pless
+    ((TableSchemaCache)                                             (2935))  // cherepashka
+    ((DestroyTransactionActionStateInCommit)                        (2936))  // kvk1920
+    ((ReachabilityBasedSequoiaNodeRefCount)                         (2937))  // kvk1920
+    ((OrchidInSequoia)                                              (2938))  // kvk1920
+    ((TransientCypressProxyRegistration)                            (2939))  // kvk1920
+    ((TablesInSequoia)                                              (2940))  // kvk1920
+    ((SequoiaTransactionTitle)                                      (2941))  // kvk1920
+    ((SequoiaPathMangling)                                          (2942))  // danilalexeev
+    ((RemoveCompatsInEndUpload)                                     (2943))  // h0pless
+    ((MoveRetainedTimestampAndOthersToExtraAttributes)              (2944))  // ifsmirnov
+    ((ChunkLocationCounterId)                                       (2945))  // aleksandra-zh
+    ((SysOperationsInSequoia)                                       (2946))  // kvk1920
+    ((CheckNodeWriteSessions)                                       (2947))  // koloshmet
+    ((DontValidateLockCountOnExternalCells)                         (2948))  // h0pless
+    ((DedicatedChunkHostInRoleValidation)                           (2949))  // cherepashka
+    ((DocumentInSequoia)                                            (2950))  // kvk1920
+    ((CheckReplicationProgressSchema)                               (2951))  // savrus
+    ((EnableSmoothTabletMovementFlag)                               (2952))  // ifsmirnov
+    ((PerRowSequencerFixes)                                         (2953))  // ponasenko-rs
+    ((AutomaticCellMapMigration_25_2)                               (2954))  // danilalexeev
+    ((FixUseAsWithNullObjects)                                      (2955))  // cherepashka
+    ((MakeCompactTableSchemaRefCounted)                             (2956))  // cherepashka
+    ((CrossCellCopyFinalFixes)                                      (2957))  // shakurov
+    // 25.3 starts here.
+    ((Start_25_3)                                                   (3000))  // community bot
+    ((DropOldMountConfigKeyLists)                                   (3001))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

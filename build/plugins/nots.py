@@ -194,6 +194,7 @@ TS_TEST_SPECIFIC_FIELDS = {
         df.TsTestDataDirsRename.value,
         df.TsResources.value,
         df.TsTestForPath.value,
+        df.DockerImage.value,
     ),
     TsTestType.PLAYWRIGHT: (
         df.Size.from_unit,
@@ -204,6 +205,7 @@ TS_TEST_SPECIFIC_FIELDS = {
         df.TsTestDataDirsRename.value,
         df.TsResources.value,
         df.TsTestForPath.value,
+        df.DockerImage.value,
     ),
     TsTestType.PLAYWRIGHT_LARGE: (
         df.ConfigPath.value,
@@ -270,6 +272,10 @@ class PluginLogger(object):
 
 
 logger = PluginLogger()
+
+
+def _parse_list_var(unit: UnitType, var_name: str, sep: str) -> list[str]:
+    return [x.strip() for x in unit.get(var_name).removeprefix(f"${var_name}").split(sep) if x.strip()]
 
 
 def _with_report_configure_error(fn):
@@ -409,16 +415,16 @@ def on_set_append_with_directive(unit: NotsUnitType, var_name: str, directive: s
 
 
 def _check_nodejs_version(unit: NotsUnitType, major: int) -> None:
-    if major < 14:
+    if major < 16:
         raise Exception(
             "Node.js {} is unsupported. Update Node.js please. See https://nda.ya.ru/t/joB9Mivm6h4znu".format(major)
         )
 
-    if major < 18:
+    if major < 20:
         unit.message(
             [
                 "WARN",
-                "Node.js {} is deprecated. Update Node.js please. See https://nda.ya.ru/t/joB9Mivm6h4znu".format(major),
+                "Node.js {} is deprecated. Update Node.js please. See https://nda.ya.ru/t/Yk0qYZe17DeVKP".format(major),
             ]
         )
 
@@ -523,20 +529,33 @@ def on_ts_configure(unit: NotsUnitType) -> None:
 @_with_report_configure_error
 def on_setup_build_env(unit: NotsUnitType) -> None:
     build_env_var = unit.get("TS_BUILD_ENV")
-    if not build_env_var:
-        return
+    build_env_defaults_list = _parse_list_var(
+        unit, "TS_BUILD_ENV_DEFAULTS_LIST", unit.get("TS_BUILD_ENV_DEFAULTS_LIST_SEP")
+    )
 
     options = []
-    for name in build_env_var.split(","):
-        options.append("--env")
-        value = unit.get(f"TS_ENV_{name}")
-        if value is None:
-            ymake.report_configure_error(f"Env var '{name}' is provided in a list, but var value is not provided")
+    names = set()
+    if build_env_var:
+        for name in build_env_var.split(","):
+            value = unit.get(f"TS_ENV_{name}")
+            if value is None:
+                ymake.report_configure_error(f"Env var '{name}' is provided in a list, but var value is not provided")
+                continue
+            double_quote_escaped_value = value.replace('"', '\\"')
+            options.append("--env")
+            options.append(f'"{name}={double_quote_escaped_value}"')
+            names.add(name)
+
+    for env_default in build_env_defaults_list:
+        name, value = env_default.split("=", 1)
+        if name in names:
             continue
         double_quote_escaped_value = value.replace('"', '\\"')
+        options.append("--env")
         options.append(f'"{name}={double_quote_escaped_value}"')
 
     unit.set(["NOTS_TOOL_BUILD_ENV", " ".join(options)])
+    logger.print_vars("NOTS_TOOL_BUILD_ENV")
 
 
 def __set_append(unit: NotsUnitType, var_name: str, value: UnitType.PluginArgs, delimiter: str = " ") -> None:
@@ -653,7 +672,6 @@ def _setup_tsc_typecheck(unit: NotsUnitType) -> None:
     unit.on_peerdir_ts_resource("typescript")
     user_recipes = unit.get("TEST_RECIPES_VALUE")
     unit.on_setup_install_node_modules_recipe()
-    unit.on_setup_extract_output_tars_recipe([unit.get("MODDIR")])
 
     test_type = TsTestType.TSC_TYPECHECK
 
@@ -706,7 +724,6 @@ def _setup_stylelint(unit: NotsUnitType) -> None:
 
     recipes_value = unit.get("TEST_RECIPES_VALUE")
     unit.on_setup_install_node_modules_recipe()
-    unit.on_setup_extract_output_tars_recipe([unit.get("MODDIR")])
 
     test_type = TsTestType.TS_STYLELINT
 
@@ -892,8 +909,13 @@ def on_ts_test_for_configure(
 
     for_mod_path = df.TsTestForPath.value(unit, (), {})[df.TsTestForPath.KEY]
     unit.onpeerdir([for_mod_path])
+
+    # user-defined recipes should be in the end
+    user_recipes = unit.get("TEST_RECIPES_VALUE").replace("$TEST_RECIPES_VALUE", "").strip()
+    unit.set(["TEST_RECIPES_VALUE", ""])
     unit.on_setup_extract_node_modules_recipe([for_mod_path])
     unit.on_setup_extract_output_tars_recipe([for_mod_path])
+    __set_append(unit, "TEST_RECIPES_VALUE", user_recipes)
 
     build_root = "$B" if test_runner in [TsTestType.HERMIONE, TsTestType.PLAYWRIGHT_LARGE] else "$(BUILD_ROOT)"
     unit.set(["TS_TEST_NM", os.path.join(build_root, for_mod_path, node_modules_filename)])
@@ -905,7 +927,7 @@ def on_ts_test_for_configure(
 
     test_files = df.TestFiles.ts_test_srcs(unit, (), {})[df.TestFiles.KEY]
     if not test_files:
-        ymake.report_configure_error("No tests found")
+        ymake.report_configure_error(f"No tests found for {test_runner}")
         return
 
     from lib.nots.package_manager import constants
@@ -943,7 +965,10 @@ def on_ts_test_for_configure(
 # noinspection PyUnusedLocal
 @_with_report_configure_error
 def on_validate_ts_test_for_args(unit: NotsUnitType, for_mod: str, root: str) -> None:
-    # FBP-1085
+    if for_mod == "." or for_mod == "./":
+        ymake.report_configure_error(f"Tests should be for parent module but got path '{for_mod}'")
+        return
+
     is_arc_root = root == "${ARCADIA_ROOT}"
     is_rel_for_mod = for_mod.startswith(".")
 

@@ -504,7 +504,7 @@ protected:
                 childChunkList,
                 childIndex,
                 rowIndex,
-                {} /*tabletIndex*/,
+                /*tabletIndex*/ {},
                 subtreeStartLimit,
                 subtreeEndLimit);
         } else if (IsPhysicalChunkType(childType)) {
@@ -519,10 +519,10 @@ protected:
                 childChunk,
                 chunkList.Get(),
                 rowIndex,
-                {} /*tabletIndex*/,
+                /*tabletIndex*/ {},
                 subtreeStartLimit,
                 subtreeEndLimit,
-                nullptr /*modifier*/))
+                /*modifier*/ nullptr))
             {
                 Shutdown();
                 return {};
@@ -765,7 +765,8 @@ protected:
                 if (entry->LowerLimit.KeyBound() || entry->UpperLimit.KeyBound()) {
                     // NB: If child is a chunk list, its children can be unsorted, so we can't prune by lower or upper key bounds.
                     if (childType == EObjectType::ChunkList) {
-                        YT_ASSERT(child->AsChunkList()->GetKind() == EChunkListKind::SortedDynamicSubtablet);
+                        auto kind = child->AsChunkList()->GetKind();
+                        YT_ASSERT(kind == EChunkListKind::SortedDynamicTablet || kind == EChunkListKind::SortedDynamicSubtablet);
                         childLowerLimit.KeyBound() = TOwningKeyBound::MakeUniversal(false);
                         childUpperLimit.KeyBound() = TOwningKeyBound::MakeUniversal(true);
                     } else {
@@ -775,12 +776,16 @@ protected:
                         // NB: Tablet children are NOT sorted by keys, so we should not perform pruning in
                         // any of two branches below, full scan is intended.
 
-                        if (entry->UpperLimit.KeyBound() && Comparator_.IsRangeEmpty(childLowerLimit.KeyBound(), entry->UpperLimit.KeyBound())) {
+                        if (entry->UpperLimit.KeyBound() &&
+                            Comparator_.IsRangeEmpty(childLowerLimit.KeyBound(), entry->UpperLimit.KeyBound()))
+                        {
                             ++entry->ChildIndex;
                             return;
                         }
 
-                        if (entry->LowerLimit.KeyBound() && Comparator_.IsRangeEmpty(entry->LowerLimit.KeyBound(), childUpperLimit.KeyBound())) {
+                        if (entry->LowerLimit.KeyBound() &&
+                            Comparator_.IsRangeEmpty(entry->LowerLimit.KeyBound(), childUpperLimit.KeyBound()))
+                        {
                             ++entry->ChildIndex;
                             return;
                         }
@@ -846,8 +851,14 @@ protected:
                             legacySubtreeStartLimit = chunkView->Modifier().GetAdjustedLowerReadLimit(legacySubtreeStartLimit);
                             legacySubtreeEndLimit = chunkView->Modifier().GetAdjustedUpperReadLimit(legacySubtreeEndLimit);
 
-                            subtreeStartLimit = ReadLimitFromLegacyReadLimit(legacySubtreeStartLimit, /*isUpper*/ false, Comparator_.GetLength());
-                            subtreeEndLimit = ReadLimitFromLegacyReadLimit(legacySubtreeEndLimit, /*isUpper*/ true, Comparator_.GetLength());
+                            subtreeStartLimit = ReadLimitFromLegacyReadLimit(
+                                legacySubtreeStartLimit,
+                                /*isUpper*/ false,
+                                Comparator_.GetLength());
+                            subtreeEndLimit = ReadLimitFromLegacyReadLimit(
+                                legacySubtreeEndLimit,
+                                /*isUpper*/ true,
+                                Comparator_.GetLength());
 
                             YT_LOG_TRACE(
                                 "Adjusting subtree limits using chunk view (SubtreeStartLimit: %v, SubtreeEndLimit: %v)",
@@ -916,7 +927,10 @@ protected:
                     childChunkListKind == EChunkListKind::Hunk ||
                     childChunkListKind == EChunkListKind::HunkRoot;
 
-                if (childChunkListKind != EChunkListKind::SortedDynamicSubtablet && !isHunkChunkList) {
+                if (childChunkListKind != EChunkListKind::SortedDynamicTablet &&
+                    childChunkListKind != EChunkListKind::SortedDynamicSubtablet &&
+                    !isHunkChunkList)
+                {
                     THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv",
                         childChunkList->GetId(),
                         childChunkListKind);
@@ -1320,7 +1334,8 @@ protected:
             auto physicalStartRowIndex = *startLimit->GetRowIndex();
             auto physicalEndRowIndex = *endLimit->GetRowIndex();
 
-            YT_LOG_DEBUG("Journal chunk fetched (ChunkId: %v, Overlayed: %v, LogicalRowIndexes: %v-%v, PhysicalRowIndexes: %v-%v, JournalRowIndexes: %v-%v)",
+            YT_LOG_DEBUG("Journal chunk fetched "
+                "(ChunkId: %v, Overlayed: %v, LogicalRowIndexes: %v-%v, PhysicalRowIndexes: %v-%v, JournalRowIndexes: %v-%v)",
                 chunk->GetId(),
                 chunk->GetOverlayed(),
                 logicalStartRowIndex,

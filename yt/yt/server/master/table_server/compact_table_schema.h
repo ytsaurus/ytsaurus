@@ -4,23 +4,20 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <library/cpp/yt/threading/atomic_object.h>
-#include <library/cpp/yt/threading/rw_spin_lock.h>
-
 namespace NYT::NTableServer {
 
 ///////////////////////////////////////////////////////////////////////////////
 
 //! TCompactTableSchema is a light version of NTableClient::TTableSchema.
 //! It stores minimum lightweighted and most-used fields of TTableSchema and compactified wire protobuf representation of schema itself.
-class TCompactTableSchema final
+//! This class is not formattable intentionally, since for formatting heavy TTableSchema should be parsed.
+class TCompactTableSchema
+    : public TRefCounted
 {
 public:
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Empty, true);
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(Strict, false);
     DEFINE_BYVAL_RO_BOOLEAN_PROPERTY(UniqueKeys, false);
-
-    static NThreading::TAtomicObject<TDuration> CacheExpirationTimeout;
 
 public:
     //! Constructs an empty non-strict schema.
@@ -28,12 +25,10 @@ public:
 
     explicit TCompactTableSchema(const NTableClient::NProto::TTableSchemaExt& schema);
     explicit TCompactTableSchema(const NTableClient::TTableSchema& schema);
+    explicit TCompactTableSchema(const NTableClient::TTableSchemaPtr& schema);
 
-    bool operator==(const TCompactTableSchema& other) const = default;
+    bool operator==(const TCompactTableSchema& other) const;
 
-    // Triggers deserialization from wire protobuf and caching with expiration of the result.
-    // It is important to return copy of TIntrusivePtr for correct lifetime management of TTableSchema object.
-    NTableClient::TTableSchemaPtr AsHeavyTableSchema() const;
     const std::string& AsWireProto() const;
 
     bool IsSorted() const;
@@ -48,28 +43,14 @@ public:
     i64 GetMemoryUsage() const;
 
     NTableClient::TComparator ToComparator(TCallback<NTableClient::TUUComparerSignature> cgComparator = {}) const;
-    TCompactTableSchemaPtr ToModifiedSchema(NTableClient::ETableSchemaModification modification) const;
-    TCompactTableSchemaPtr ToUniqueKeys() const;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+    friend void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactTableSchema& schema);
+
 private:
     std::string TableSchema_;
-
-    // Should have no impact on comparison of TCompactTableSchema.
-    struct TCachedTableSchema
-    {
-        TCachedTableSchema() = default;
-        TCachedTableSchema(const TCachedTableSchema& other);
-        TCachedTableSchema operator=(const TCachedTableSchema& other);
-        bool operator==(const TCachedTableSchema& other);
-
-        NTableClient::TTableSchemaPtr TableSchema;
-        YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TableSchemaLock);
-    };
-
-    mutable TCachedTableSchema Cache_;
 
     bool HasHunkColumns_ = false;
     bool HasNontrivialSchemaModification_ = false;
@@ -85,8 +66,6 @@ private:
     void InitializeFromProto(const NTableClient::NProto::TTableSchemaExt& protoSchema);
 
     void SerializeToProto(NTableClient::NProto::TTableSchemaExt* protoSchema) const;
-
-    friend void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactTableSchema& schema);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompactTableSchema)
@@ -95,12 +74,6 @@ DEFINE_REFCOUNTED_TYPE(TCompactTableSchema)
 
 void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactTableSchema& schema);
 void ToProto(NTableClient::NProto::TTableSchemaExt* protoSchema, const TCompactTableSchemaPtr& schema);
-void FromProto(TCompactTableSchema* schema, const NTableClient::NProto::TTableSchemaExt& protoSchema);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void FormatValue(TStringBuilderBase* builder, const TCompactTableSchema& schema, TStringBuf spec);
-void FormatValue(TStringBuilderBase* builder, const TCompactTableSchemaPtr& schema, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

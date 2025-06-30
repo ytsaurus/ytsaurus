@@ -172,13 +172,21 @@ TYPES_MAP = {t.str(): t for t in TYPES}
 
 ################################################################################
 
+class TCompressibleString(TString):
+    def random():
+        length = random.randint(1,100)
+        return "a" * length
+
+
+################################################################################
+
 class Column():
     def __init__(self, ttype, name, sort_order=None, aggregate=None, max_inline_hunk_size=None):
         self.type = ttype
         self.name = name
         self.sort_order = sort_order
         self.aggregate = aggregate
-        if self.type.is_string_like() and random.randint(0, 1):
+        if self.type.is_string_like() and random.randint(0, 1) or self.type == TCompressibleString:
             self.max_inline_hunk_size = max_inline_hunk_size
         else:
             self.max_inline_hunk_size = None
@@ -213,6 +221,7 @@ class Schema():
         value_column_types=None,
         allow_aggregates=True,
         mode=None,
+        use_compression_dictionary=False,
     ):
         sorted = bool(key_column_count)
         assert value_column_count > 0
@@ -224,6 +233,9 @@ class Schema():
 
         key_columns = _pick_columns(KEY_TYPES, key_column_types, key_column_count)
         data_columns = _pick_columns(TYPES, value_column_types, value_column_count)
+        if use_compression_dictionary:
+            data_columns[-1] = TCompressibleString
+
         key_names = ["k%s" % str(i) for i in range(len(key_columns))]
         data_names = ["v%s" % str(i) for i in range(len(data_columns))]
 
@@ -247,11 +259,12 @@ class Schema():
         return Schema.from_parameters(
             spec.schema.key_column_count or random.randint(3, 5) if is_sorted else 0,
             spec.schema.value_column_count or random.randint(5, 10),
-            spec.sorted.max_inline_hunk_size if hasattr(spec, "sorted") else None,
+            spec.schema.max_inline_hunk_size,
             spec.schema.key_column_types,
             spec.schema.value_column_types,
             spec.schema.allow_aggregates,
             spec.mode,
+            spec.sorted.enable_value_dictionary_compression,
         )
 
     @staticmethod

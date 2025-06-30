@@ -45,6 +45,10 @@ public:
 
     void Initialize() override
     {
+        auto dynamicConfig = New<TChaosNodeDynamicConfig>();
+        dynamicConfig->ReplicationCardAutomatonCacheExpirationTime = GetConfig()->ChaosNode->ReplicationCardAutomatonCacheExpirationTime;
+        Config_.Store(std::move(dynamicConfig));
+
         SnapshotStoreReadPool_ = CreateThreadPool(
             GetConfig()->ChaosNode->SnapshotStoreReadPoolSize,
             "ShortcutRead");
@@ -96,6 +100,11 @@ public:
         return ReplicatedTableTrackerConfigFetcher_->GetConfig();
     }
 
+    TChaosNodeDynamicConfigPtr GetDynamicConfig() const override
+    {
+        return Config_.Acquire();
+    }
+
 private:
     class TReplicatedTableTrackerConfigFetcher
         : public TDynamicConfigManagerBase<TDynamicReplicatedTableTrackerConfig>
@@ -121,6 +130,7 @@ private:
     IThreadPoolPtr SnapshotStoreReadPool_;
     ISlotManagerPtr SlotManager_;
     TIntrusivePtr<TReplicatedTableTrackerConfigFetcher> ReplicatedTableTrackerConfigFetcher_;
+    TAtomicIntrusivePtr<TChaosNodeDynamicConfig> Config_ = TAtomicIntrusivePtr<TChaosNodeDynamicConfig>(New<TChaosNodeDynamicConfig>());
 
     NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override
     {
@@ -140,6 +150,8 @@ private:
                 occupant->GetTypedOccupier<IChaosSlot>()->Reconfigure(config);
             }
         }
+
+        Config_.Store(config);
     }
 
     static void OnDynamicConfigChanged(

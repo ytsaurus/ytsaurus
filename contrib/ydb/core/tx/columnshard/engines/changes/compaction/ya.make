@@ -10,6 +10,7 @@ PEERDIR(
     contrib/ydb/core/tx/columnshard/engines/changes/compaction/common
     contrib/ydb/core/tx/columnshard/engines/changes/compaction/plain
     contrib/ydb/core/tx/columnshard/engines/changes/compaction/sparsed
+    contrib/ydb/core/tx/columnshard/engines/changes/compaction/dictionary
     contrib/ydb/core/tx/columnshard/engines/changes/compaction/sub_columns
 )
 

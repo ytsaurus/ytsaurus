@@ -114,6 +114,7 @@ struct IInstanceLauncher
     virtual void EnableMemoryTracking() = 0;
     virtual void SetGroup(int groupId) = 0;
     virtual void SetUser(const std::string& user) = 0;
+    virtual void SetNetworkInterface(const TString& networkInterface) = 0;
     virtual void SetIPAddresses(
         const std::vector<NNet::TIP6Address>& addresses,
         bool enableNat64 = false) = 0;
@@ -183,7 +184,7 @@ TString GetSelfContainerName(const IPortoExecutorPtr& executor);
 
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor);
 IInstancePtr GetRootPortoInstance(IPortoExecutorPtr executor);
-IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name);
+IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name, const std::optional<TString>& networkInterface = std::nullopt);
 
 //! Works only in Yandex.Deploy pod environment where env DEPLOY_VCPU_LIMIT is set.
 //! Throws if this env is absent.

@@ -437,6 +437,10 @@ func writeWriteTableOptions(w *yson.Writer, o *yt.WriteTableOptions) {
 	}
 	w.MapKeyString("table_writer")
 	w.Any(o.TableWriter)
+	if o.Format != nil {
+		w.MapKeyString("input_format")
+		w.Any(o.Format)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 }
@@ -449,6 +453,10 @@ func writeReadTableOptions(w *yson.Writer, o *yt.ReadTableOptions) {
 	w.Any(o.Unordered)
 	w.MapKeyString("table_reader")
 	w.Any(o.TableReader)
+	if o.Format != nil {
+		w.MapKeyString("output_format")
+		w.Any(o.Format)
+	}
 	if o.ControlAttributes != nil {
 		w.MapKeyString("control_attributes")
 		w.Any(o.ControlAttributes)
@@ -603,6 +611,10 @@ func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
 		w.MapKeyString("with_interruption_info")
 		w.Any(o.WithInterruptionInfo)
 	}
+	if o.TaskName != nil {
+		w.MapKeyString("task_name")
+		w.Any(o.TaskName)
+	}
 	if o.Attributes != nil {
 		w.MapKeyString("attributes")
 		w.Any(o.Attributes)
@@ -626,6 +638,16 @@ func writeListJobsOptions(w *yson.Writer, o *yt.ListJobsOptions) {
 	if o.DataSource != nil {
 		w.MapKeyString("data_source")
 		w.Any(o.DataSource)
+	}
+}
+
+func writeGetJobOptions(w *yson.Writer, o *yt.GetJobOptions) {
+	if o == nil {
+		return
+	}
+	if o.Attributes != nil {
+		w.MapKeyString("attributes")
+		w.Any(o.Attributes)
 	}
 }
 
@@ -3041,6 +3063,57 @@ func (p *ListJobsParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("operation_id")
 	w.Any(p.opID)
 	writeListJobsOptions(w, p.options)
+}
+
+type GetJobParams struct {
+	verb    Verb
+	opID    yt.OperationID
+	jobID   yt.JobID
+	options *yt.GetJobOptions
+}
+
+func NewGetJobParams(
+	opID yt.OperationID,
+	jobID yt.JobID,
+	options *yt.GetJobOptions,
+) *GetJobParams {
+	if options == nil {
+		options = &yt.GetJobOptions{}
+	}
+	optionsCopy := *options
+	return &GetJobParams{
+		Verb("get_job"),
+		opID,
+		jobID,
+		&optionsCopy,
+	}
+}
+
+func (p *GetJobParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *GetJobParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *GetJobParams) Log() []log.Field {
+	fields := []log.Field{
+		log.Any("opID", p.opID),
+		log.Any("jobID", p.jobID),
+	}
+	if v, ok := any(p.options).(interface {
+		Log() []log.Field
+	}); ok {
+		fields = append(fields, v.Log()...)
+	}
+	return fields
+}
+
+func (p *GetJobParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("operation_id")
+	w.Any(p.opID)
+	w.MapKeyString("job_id")
+	w.Any(p.jobID)
+	writeGetJobOptions(w, p.options)
 }
 
 type GetJobStderrParams struct {

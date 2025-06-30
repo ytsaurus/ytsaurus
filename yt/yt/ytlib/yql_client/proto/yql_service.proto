@@ -53,6 +53,7 @@ message TYqlResponse
     optional bytes statistics = 3; // YSON
     optional bytes task_info = 4; // YSON
     optional bytes progress = 5; // YSON
+    optional bytes ast = 6; // YSON
 }
 
 ////////////////////////////////////////////////////////////////////////////////

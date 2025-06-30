@@ -64,7 +64,7 @@ using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TableClientLogger;
+constinit const auto Logger = TableClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2388,6 +2388,8 @@ public:
 
     std::optional<TChunkId> GetCompressionDictionaryId() const override
     {
+        auto guard = Guard(Lock_);
+
         return CompressionDictionaryId_;
     }
 

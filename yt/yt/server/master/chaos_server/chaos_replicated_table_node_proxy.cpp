@@ -195,6 +195,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::Replicas);
         descriptors->push_back(EInternedAttributeKey::ReplicationCollocationId);
         descriptors->push_back(EInternedAttributeKey::ReplicatedTableOptions);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Sorted)
+            .SetPresent(hasNonEmptySchema));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
             .SetWritable(true)
             .SetReplicated(true)
@@ -291,6 +293,15 @@ private:
 
                 BuildYsonFluently(consumer)
                     .Value(GetEffectiveQueueAgentStage(Bootstrap_, node->GetQueueAgentStage()));
+                return true;
+
+            case EInternedAttributeKey::Sorted:
+                if (!hasNonEmptySchema) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(node->IsSorted());
                 return true;
 
             default:
@@ -461,11 +472,13 @@ private:
                     }));
             }
 
-            case EInternedAttributeKey::Schema:
+            case EInternedAttributeKey::Schema: {
                 if (!table->GetSchema()) {
                     break;
                 }
-                return table->GetSchema()->AsYsonAsync();
+                const auto& tableManager = Bootstrap_->GetTableManager();
+                return tableManager->GetYsonTableSchemaAsync(table->GetSchema());
+            }
 
             case EInternedAttributeKey::ReplicatedTableOptions:
                 return GetReplicationCard({.IncludeReplicatedTableOptions = true})
@@ -574,6 +587,8 @@ private:
         NNative::IConnectionPtr connection)
     {
         auto proxy = TChaosNodeServiceProxy(connection->GetChaosChannelByCardId(replicationCardId));
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
         auto req = proxy.GetReplicationCardCollocation();
         ToProto(req->mutable_replication_card_collocation_id(), collocationId);
         return req->Invoke()
@@ -653,12 +668,12 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
         THROW_ERROR_EXCEPTION("Chaos replicated table could not be altered in this way");
     }
 
+    const auto& tableManager = Bootstrap_->GetTableManager();
     context->SetRequestInfo("Schema: %v",
-        schema);
+        tableManager->GetHeavyTableSchemaSync(schema));
 
     auto* table = LockThisImpl();
 
-    const auto& tableManager = Bootstrap_->GetTableManager();
     // NB: Chaos replicated table is always native.
     auto schemaReceived = schemaId || schema;
     if (schemaReceived) {
@@ -679,7 +694,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (schemaReceived && effectiveSchema->IsSorted() && !effectiveSchema->IsUniqueKeys()) {
-        effectiveSchema = effectiveSchema->ToUniqueKeys();
+        auto heavySchema = tableManager->GetHeavyTableSchemaSync(effectiveSchema);
+        effectiveSchema = New<TCompactTableSchema>(heavySchema->ToUniqueKeys());
     }
 
     if (schemaReceived) {
@@ -716,7 +732,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, Alter)
 
     bool isQueueObjectBefore = table->IsTrackedQueueObject();
 
-    tableManager->GetOrCreateNativeMasterTableSchema(*effectiveSchema, table);
+    tableManager->GetOrCreateNativeMasterTableSchema(effectiveSchema, table);
 
     bool isQueueObjectAfter = table->IsTrackedQueueObject();
     const auto& chaosManager = Bootstrap_->GetChaosManager();

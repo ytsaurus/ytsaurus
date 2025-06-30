@@ -9,6 +9,7 @@ Y_WEAK IChunkPoolPtr CreateChunkPool(
     i64 /*dataWeightPerJob*/,
     std::optional<int> /*maxPartitionCount*/,
     bool /*useNewSlicingImplementationInOrderedPool*/,
+    bool /*useNewSlicingImplementationInUnorderedPool*/,
     NLogging::TLogger /*logger*/)
 {
     THROW_ERROR_EXCEPTION("Partition table functionality is not linked in");

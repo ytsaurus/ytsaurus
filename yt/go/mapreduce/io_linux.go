@@ -15,14 +15,42 @@ import (
 )
 
 type skiffReader struct {
-	*skiff.Decoder
+	d   *skiff.Decoder
 	ctx *jobContext
 }
 
+func (r *skiffReader) TableIndex() int {
+	return r.d.TableIndex()
+}
+
+func (r *skiffReader) KeySwitch() bool {
+	return r.d.KeySwitch()
+}
+
+func (r *skiffReader) RowIndex() int64 {
+	return r.d.RowIndex()
+}
+
+func (r *skiffReader) RangeIndex() int {
+	return r.d.RangeIndex()
+}
+
+func (r *skiffReader) Scan(value any) error {
+	return r.d.Scan(value)
+}
+
 func (r *skiffReader) MustScan(value any) {
-	if err := r.Scan(value); err != nil {
+	if err := r.d.Scan(value); err != nil {
 		r.ctx.onError(err)
 	}
+}
+
+func (r *skiffReader) Next() bool {
+	return r.d.Next()
+}
+
+func (r *skiffReader) Err() error {
+	return r.d.Err()
 }
 
 func (c *jobContext) initPipes(nOutputPipes int) error {
@@ -63,7 +91,7 @@ func (c *jobContext) createReader(state *jobState) (Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &skiffReader{Decoder: in, ctx: c}, nil
+	return &skiffReader{d: in, ctx: c}, nil
 }
 
 func (c *jobContext) createWriters() []Writer {

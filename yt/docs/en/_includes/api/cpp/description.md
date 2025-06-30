@@ -21,22 +21,20 @@ The C++ client is currently provided as is, so:
 
 - The entire code is in the `NYT` namespace.
 - All the interfaces that the user might need can be found [here]({{source-root}}/yt/cpp/mapreduce/interface).
-- The implementation of all the interfaces is available [here]({{source-root}}/yt/cpp/mapreduce/client). Libraries need to be linked with `interface`, and executable binaries must be linked with `client`.
+- The implementation of all the interfaces is available [here]({{source-root}}/yt/cpp/mapreduce/client). Libraries need to be linked with `interface`, and executable binaries must be linked with `client`.
 - `ISomethingPtr` is usually defined as `TIntrusivePtr` for interfaces.
 - All mandatory parameters are explicitly present in the signatures of the corresponding functions. All optional command parameters are presented as auxiliary structures within `TOptions`. These structures have a builder-like interface that allows for specifying parameters as `TWhateverOptions().Parameter1(value1).Parameter2(value2)` for single-line writing, if convenient.
 
 ## Logging { #logging }
 
-Logging is toggled with the `YT_LOG_LEVEL` environment variable, which can take one of the following values: `ERROR`, `WARNING` (equivalent to `ERROR` for compatibility with the [Python API](../../../api/python/userdoc.md)), `INFO`, `DEBUG`.
+Logging is toggled with the `YT_LOG_LEVEL` environment variable, which can take one of the following values: `ERROR`, `WARNING` (equivalent to `ERROR` for compatibility with the [Python API](../../../api/python/userdoc.md)), `INFO`, `DEBUG`.
 In addition, you need to call the `NYT::Initialize()` function at the start of the program (see the next section).
 
-If possible, saving logs at the `DEBUG` level is recommended, especially for production processes. Should any issues occur, such logs will make fixing them much easier and faster. Attaching these logs to emails about API-related problems is recommended.
+If possible, saving logs at the `DEBUG` level is recommended, especially for production processes. Should there be any issues with the API, such logs will make fixing them much easier and faster. Attaching these logs to emails about API-related problems is recommended.
 
 ## Initializing { #init }
 
-You need to call the `Initialize` method before starting client actions.
-
-This function performs initialization of required subsystems (logging, etc), it also checks if binary is launched on the {{product-name}} Node inside the job and if it is the case function switches execution into the job mode.
+You need to call the `Initialize` method before starting client actions. This method performs initialization of required subsystems (logging and so on), as well as checks if binary is launched on the {{product-name}} node inside the job and, if it is the case, switches execution to the job mode.
 
 The client entry point is the `CreateClient(serverName)` function, which returns a pointer to the `IClient` interface.
 
@@ -106,7 +104,7 @@ The `ITransaction::GetId()` method returns `TGUID` — the ID of this transactio
 
 The transaction created using `StartTransaction()` is automatically pinged and managed by the C++ client.
 
-In order to work with externally created transaction you can use `IClient::AttachTransaction(transactionId)` method. It returns transaction object that can be used to execute commands with specified transactionId, but this transaction is not pinged by the client.
+There is a way to work under an externally created transaction. To do this, call the `IClient::AttachTransaction(transactionId)` method. All commands called in such an object will be executed in the context of the transaction with this ID, but this transaction will not be pinged by the client.
 
 For more information on transactions, see the [Transactions](../../../user-guide/storage/transactions.md) section.
 
@@ -198,7 +196,7 @@ TNodeId Create(
 | **Parameter** | **Type** | **Default value** | **Description** |
 | --------------|--------------|------------|---------------------------------- |
 | `path` | `TYPath` | - | Node path |
-| `type` | `ENodeType` | - | [Type](../../../user-guide/storage/objects.md#object_types) of node created: <br/>  `NT_STRING` — string (`string_node`);<br/> `NT_INT64` — signed integer (`int64_node`); <br/>`NT_UINT64` — unsigned integer (`uint64_node`); <br/>`NT_DOUBLE` — double (decimal) (`double_node`); <br/>`NT_BOOLEAN` — Boolean value (`boolean_node`); <br/>`NT_MAP` — a Cypress dictionary (keys — strings, values — other nodes, `map_node`); <br/> `NT_FILE` — [file](../../../user-guide/storage/objects.md#files) (`file`); <br/>`NT_TABLE` — [table](../../../user-guide/storage/objects.md#tables) (`table`);<br/> `NT_DOCUMENT` — [document](../../../user-guide/storage/objects.md#yson_doc) (`document`); <br/>`NT_REPLICATED_TABLE` — [replicated table](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md) (`replicated_table`); <br/>`NT_TABLE_REPLICA` — (`table_replica`); |
+| `type` | `ENodeType` | - | [Type](../../../user-guide/storage/objects.md#object_types) of node created: <br/>  `NT_STRING` — string (`string_node`);<br/> `NT_INT64` — signed integer (`int64_node`); <br/>`NT_UINT64` — unsigned integer (`uint64_node`); <br/>`NT_DOUBLE` — real number (`double_node`); <br/>`NT_BOOLEAN` — Boolean value (`boolean_node`); <br/>`NT_MAP` — map in Cypress (keys are strings, and values are other nodes, `map_node`); <br/> `NT_FILE` — [file](../../../user-guide/storage/objects.md#files) (`file`); <br/>`NT_TABLE` — [table](../../../user-guide/storage/objects.md#tables) (`table`);<br/> `NT_DOCUMENT` — [document](../../../user-guide/storage/objects.md#yson_doc) (`document`); <br/>`NT_REPLICATED_TABLE` — [replicated table](../../../user-guide/dynamic-tables/replicated-dynamic-tables.md) (`replicated_table`); <br/>`NT_TABLE_REPLICA` — (`table_replica`); |
 | `options` &mdash; optional settings: | | |                                  |
 | `Recursive` | `bool` | `false` | Whether to create intermediate directories. |
 | `IgnoreExisting` | `bool` | `false` | If the node exists, do nothing and show no error. |
@@ -451,7 +449,7 @@ You should not use the `proto3` version. The [proto3 implementation](https://dev
 {% endnote %}
 
 
-## Table reading and writing
+## Reading and writing tables
 
 See [yt/cpp/mapreduce/interface/io.h]({{source-root}}/yt/cpp/mapreduce/interface/io.h).
 
@@ -463,7 +461,7 @@ writer->AddRow(TNode()("x", 0.)("y", 1.));
 writer->Finish();
 ```
 
-Block writing. When `AddRow()` is called, the data is stored in the internal buffer, and if this buffer is larger than 64 MB, a separate thread is triggered that transmits the accumulated data.
+Block writing. When `AddRow()` is called, the data is stored in the internal buffer, and if this buffer is larger than 64 MB, a separate thread is triggered that transmits the accumulated data.
 
 The `Finish()` method is guaranteed to reset all the accumulated records or show an error. When destroying a writer without calling `Finish()`, a reset attempt will be made in the destructor without a guaranteed result. If the table did not exist before the creation of the writer, it will be created in the context of the same client or transaction with all the default attributes. If you need a different replication factor, you should create a table and give it the required attributes beforehand.
 
@@ -561,7 +559,7 @@ Renaming columns:
 auto path = TRichYPath("//tmp/table").RenameColumns({{"a", "b"}, {"c", "d"}});
 ```
 
-The table column *a* will display under the name *b*, and column *c* &mdash; as *d*. The function resets the full list of renamed columns, so calling `RenameColumns` again will erase the results of the previous one. `Columns` is applied after `RenameColumns`, meaning in this case *b* and *d* will be suitable for `Columns`, while *a* and *c* &mdash; are not suitable.
+The table column *a* will display under the name *b*, and column *c* &mdash; as *d*. The function resets the full list of renamed columns, so calling `RenameColumns` again will erase the results of the previous one. `Columns` is applied after `RenameColumns`, meaning in this case *b* and *d* will be suitable for `Columns`, while *a* and *c* &mdash; are not suitable.
 
 Reading from a remote cluster:
 ```c++
@@ -630,7 +628,7 @@ Next, you need to create a macro that registers the custom class:
 REGISTER_MAPPER(TExtractKeyMapper).
 ```
 
-There is no need to generate unique IDs — the type_info mechanism is used for identification. The job type will be explicitly displayed within the operation web interface in the custom job start string:
+There is no need to generate unique IDs — the type_info mechanism is used for identification. The job type will be explicitly displayed within the operation web interface in the custom job start string:
 
 ```c++
 ./cppbinary --yt-map "TExtractKeyMapper" 1 0
@@ -674,7 +672,7 @@ Join-Reduce:
        const TOperationOptions& options = TOperationOptions())
    ```
 
- MapReduce:
+ MapReduce:
 
 -
    ```c++
@@ -918,6 +916,7 @@ TListJobsResult ListJobs(
 | `WithSpec` | `TMaybe<bool>` | none | Whether the job specification was saved. |
 | `WithFailContext` | `TMaybe<bool>` | none | Whether the job's fail context was saved. |
 | `WithMonitoringDescriptor` | `TMaybe<bool>` | none | Whether the job was assigned a monitoring descriptor. |
+| `WithInterruptionInfo` | `TMaybe<bool>` | none | Whether the job has interruption info |
 | `SortField` | `TMaybe<EJobSortField>` | none | The field jobs are sorted by in the response. |
 | `SortOrder` | `TMaybe<ESortOrder>` | none | Ascending or descending job sorting order. |
 | `DataSource` | `TMaybe<EListJobsDataSource>` | none | Where to look for jobs: in the controller agent and Cypress (`Runtime`), in the archive of jobs (`Archive`), automatically depending on whether the operation is in Cypress (`Auto`), or other (`Manual`). |
@@ -978,9 +977,9 @@ IFileReaderPtr GetJobStderr(
 
 ## Working with file cache
 
-Clusters have a common file cache that stores files by key, which is their MD5 hash. It is currently
+Clusters have a common file cache that stores files by key, which is their MD5 hash. It is currently
 at `//tmp/yt_wrapper/file_storage/new_cache`.
-You can use the `PutFileToCache` and `GetFileFromCache` methods to work with it.
+You can use the `PutFileToCache` and `GetFileFromCache` methods to work with it.
 The same methods can be used to work with your cache that is located at a different path (but you will also need to clean it yourself).
 
 {% note warning %}
@@ -1105,7 +1104,7 @@ END()
 
 ## Using old and new C++ API at the same time
 
-The use of the old YaMR API and the new C++ API in one program is technically possible, but not recommended. A potential case where such combined use is justified would be ensuring a smooth transition of the program from one API to the other.
+The use of the old YaMR API and the new C++ API in one program is technically possible, but not recommended. A potential case where such combined use is justified would be ensuring a smooth transition of the program from one API to the other.
 
 At the top of the program, both APIs must be initialized, for example this way:
 

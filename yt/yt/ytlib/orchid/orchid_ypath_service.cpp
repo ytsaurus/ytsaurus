@@ -17,7 +17,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = OrchidLogger;
+constinit const auto Logger = OrchidLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,9 +47,9 @@ public:
         }
 
         TOrchidServiceProxy proxy(Options_.Channel);
-        if (Options_.Timeout) {
-            proxy.SetDefaultTimeout(*Options_.Timeout);
-        }
+
+        // TODO(nadya02): Set the correct timeout here.
+        proxy.SetDefaultTimeout(Options_.Timeout.value_or(NRpc::DefaultRpcRequestTimeout));
 
         const auto& path = GetRequestTargetYPath(context->RequestHeader());
         const auto& method = context->GetMethod();

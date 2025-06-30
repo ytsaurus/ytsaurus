@@ -50,7 +50,10 @@ message TAllocationStartInfo
     required NNodeTrackerClient.NProto.TNodeResources resource_limits = 3;
 
     required NControllerAgent.NProto.TControllerAgentDescriptor controller_agent_descriptor = 4;
-    optional TAllocationAttributes allocation_attributes = 10;
+
+    optional int32 network_priority = 5;
+
+    required TAllocationAttributes allocation_attributes = 10;
 }
 
 message TAllocationToAbort

@@ -359,23 +359,7 @@ class TTableDescription::TImpl {
         }
 
         // read replicas settings
-        if (proto.has_read_replicas_settings()) {
-            const auto settings = proto.read_replicas_settings();
-            switch (settings.settings_case()) {
-            case Ydb::Table::ReadReplicasSettings::kPerAzReadReplicasCount:
-                ReadReplicasSettings_ = TReadReplicasSettings(
-                    TReadReplicasSettings::EMode::PerAz,
-                    settings.per_az_read_replicas_count());
-                break;
-            case Ydb::Table::ReadReplicasSettings::kAnyAzReadReplicasCount:
-                ReadReplicasSettings_ = TReadReplicasSettings(
-                    TReadReplicasSettings::EMode::AnyAz,
-                    settings.any_az_read_replicas_count());
-                break;
-            default:
-                break;
-            }
-        }
+        ReadReplicasSettings_ = TReadReplicasSettings::FromProto(proto.read_replicas_settings());
     }
 
 public:
@@ -973,16 +957,7 @@ void TTableDescription::SerializeTo(Ydb::Table::CreateTableRequest& request) con
     }
 
     if (const auto& settings = Impl_->GetReadReplicasSettings()) {
-        switch (settings->GetMode()) {
-        case TReadReplicasSettings::EMode::PerAz:
-            request.mutable_read_replicas_settings()->set_per_az_read_replicas_count(settings->GetReadReplicasCount());
-            break;
-        case TReadReplicasSettings::EMode::AnyAz:
-            request.mutable_read_replicas_settings()->set_any_az_read_replicas_count(settings->GetReadReplicasCount());
-            break;
-        default:
-            break;
-        }
+        settings->SerializeTo(*request.mutable_read_replicas_settings());
     }
 }
 
@@ -1745,18 +1720,7 @@ static Ydb::Table::AlterTableRequest MakeAlterTableProtoRequest(
 
     if (settings.SetReadReplicasSettings_.has_value()) {
         const auto& replSettings = settings.SetReadReplicasSettings_.value();
-        switch (replSettings.GetMode()) {
-        case TReadReplicasSettings::EMode::PerAz:
-            request.mutable_set_read_replicas_settings()->set_per_az_read_replicas_count(
-                replSettings.GetReadReplicasCount());
-            break;
-        case TReadReplicasSettings::EMode::AnyAz:
-            request.mutable_set_read_replicas_settings()->set_any_az_read_replicas_count(
-                replSettings.GetReadReplicasCount());
-            break;
-        default:
-            break;
-        }
+        replSettings.SerializeTo(*request.mutable_set_read_replicas_settings());
     }
 
     return request;
@@ -2373,6 +2337,34 @@ uint64_t TIndexDescription::GetSizeBytes() const {
     return SizeBytes_;
 }
 
+std::optional<TReadReplicasSettings> TReadReplicasSettings::FromProto(const Ydb::Table::ReadReplicasSettings& proto) {
+    switch (proto.settings_case()) {
+    case Ydb::Table::ReadReplicasSettings::kPerAzReadReplicasCount:
+        return TReadReplicasSettings(
+            TReadReplicasSettings::EMode::PerAz,
+            proto.per_az_read_replicas_count());
+    case Ydb::Table::ReadReplicasSettings::kAnyAzReadReplicasCount:
+        return TReadReplicasSettings(
+            TReadReplicasSettings::EMode::AnyAz,
+            proto.any_az_read_replicas_count());
+    default:
+        return { };
+    }
+}
+
+void TReadReplicasSettings::SerializeTo(Ydb::Table::ReadReplicasSettings& proto) const {
+    switch (GetMode()) {
+    case TReadReplicasSettings::EMode::PerAz:
+        proto.set_per_az_read_replicas_count(GetReadReplicasCount());
+        break;
+    case TReadReplicasSettings::EMode::AnyAz:
+        proto.set_any_az_read_replicas_count(GetReadReplicasCount());
+        break;
+    default:
+        break;
+    }
+}
+
 TGlobalIndexSettings TGlobalIndexSettings::FromProto(const Ydb::Table::GlobalIndexSettings& proto) {
     auto partitionsFromProto = [](const Ydb::Table::GlobalIndexSettings& proto) -> TUniformOrExplicitPartitions {
         switch (proto.partitions_case()) {
@@ -2387,7 +2379,8 @@ TGlobalIndexSettings TGlobalIndexSettings::FromProto(const Ydb::Table::GlobalInd
 
     return {
         .PartitioningSettings = TPartitioningSettings(proto.partitioning_settings()),
-        .Partitions = partitionsFromProto(proto)
+        .Partitions = partitionsFromProto(proto),
+        .ReadReplicasSettings = TReadReplicasSettings::FromProto(proto.read_replicas_settings())
     };
 }
 
@@ -2403,6 +2396,10 @@ void TGlobalIndexSettings::SerializeTo(Ydb::Table::GlobalIndexSettings& settings
         }
     };
     std::visit(std::move(variantVisitor), Partitions);
+
+    if (ReadReplicasSettings) {
+        ReadReplicasSettings->SerializeTo(*settings.mutable_read_replicas_settings());
+    }
 }
 
 TVectorIndexSettings TVectorIndexSettings::FromProto(const Ydb::Table::VectorIndexSettings& proto) {
@@ -2534,6 +2531,10 @@ TIndexDescription TIndexDescription::FromProto(const TProto& proto) {
         const auto &vectorProto = proto.global_vector_kmeans_tree_index();
         globalIndexSettings.emplace_back(TGlobalIndexSettings::FromProto(vectorProto.level_table_settings()));
         globalIndexSettings.emplace_back(TGlobalIndexSettings::FromProto(vectorProto.posting_table_settings()));
+        const bool prefixVectorIndex = indexColumns.size() > 1;
+        if (prefixVectorIndex) {
+            globalIndexSettings.emplace_back(TGlobalIndexSettings::FromProto(vectorProto.prefix_table_settings()));
+        }
         specializedIndexSettings = TKMeansTreeSettings::FromProto(vectorProto.vector_settings());
         break;
     }
@@ -2686,6 +2687,11 @@ TChangefeedDescription& TChangefeedDescription::WithVirtualTimestamps() {
     return *this;
 }
 
+TChangefeedDescription& TChangefeedDescription::WithSchemaChanges() {
+    SchemaChanges_ = true;
+    return *this;
+}
+
 TChangefeedDescription& TChangefeedDescription::WithResolvedTimestamps(const TDuration& value) {
     ResolvedTimestamps_ = value;
     return *this;
@@ -2739,6 +2745,10 @@ EChangefeedState TChangefeedDescription::GetState() const {
 
 bool TChangefeedDescription::GetVirtualTimestamps() const {
     return VirtualTimestamps_;
+}
+
+bool TChangefeedDescription::GetSchemaChanges() const {
+    return SchemaChanges_;
 }
 
 const std::optional<TDuration>& TChangefeedDescription::GetResolvedTimestamps() const {
@@ -2805,6 +2815,9 @@ TChangefeedDescription TChangefeedDescription::FromProto(const TProto& proto) {
     if (proto.virtual_timestamps()) {
         ret.WithVirtualTimestamps();
     }
+    if (proto.schema_changes()) {
+        ret.WithSchemaChanges();
+    }
     if (proto.has_resolved_timestamps_interval()) {
         ret.WithResolvedTimestamps(TDuration::MilliSeconds(
             ::google::protobuf::util::TimeUtil::DurationToMilliseconds(proto.resolved_timestamps_interval())));
@@ -2848,6 +2861,7 @@ template <typename TProto>
 void TChangefeedDescription::SerializeCommonFields(TProto& proto) const {
     proto.set_name(TStringType{Name_});
     proto.set_virtual_timestamps(VirtualTimestamps_);
+    proto.set_schema_changes(SchemaChanges_);
     proto.set_aws_region(TStringType{AwsRegion_});
 
     switch (Mode_) {
@@ -2931,7 +2945,8 @@ void TChangefeedDescription::Out(IOutputStream& o) const {
     o << "{ name: \"" << Name_ << "\""
       << ", mode: " << Mode_ << ""
       << ", format: " << Format_ << ""
-      << ", virtual_timestamps: " << (VirtualTimestamps_ ? "on": "off") << "";
+      << ", virtual_timestamps: " << (VirtualTimestamps_ ? "on": "off") << ""
+      << ", schema_changes: " << (SchemaChanges_ ? "on": "off") << "";
 
     if (ResolvedTimestamps_) {
         o << ", resolved_timestamps: " << *ResolvedTimestamps_;
@@ -2957,6 +2972,7 @@ bool operator==(const TChangefeedDescription& lhs, const TChangefeedDescription&
         && lhs.GetMode() == rhs.GetMode()
         && lhs.GetFormat() == rhs.GetFormat()
         && lhs.GetVirtualTimestamps() == rhs.GetVirtualTimestamps()
+        && lhs.GetSchemaChanges() == rhs.GetSchemaChanges()
         && lhs.GetResolvedTimestamps() == rhs.GetResolvedTimestamps()
         && lhs.GetAwsRegion() == rhs.GetAwsRegion();
 }

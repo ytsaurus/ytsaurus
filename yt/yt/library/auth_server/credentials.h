@@ -8,7 +8,7 @@ namespace NYT::NAuth {
 
 struct TTokenCredentials
 {
-    TString Token;
+    std::string Token;
     NNet::TNetworkAddress UserIP;
 
     bool operator==(const TTokenCredentials&) const = default;
@@ -20,6 +20,7 @@ struct TCookieCredentials
     // subset of cookies here.
     THashMap<TString, TString> Cookies;
     NNet::TNetworkAddress UserIP;
+    std::optional<std::string> Origin;
 
     bool operator==(const TCookieCredentials&) const = default;
 };

@@ -69,7 +69,7 @@ set_property(
   cpp-integration-test-sequoia
   PROPERTY
   LABELS
-  MEDIUM
+  LARGE
 )
 
 set_property(

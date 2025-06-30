@@ -7,24 +7,62 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"go.ytsaurus.tech/yt/go/schema"
+	"go.ytsaurus.tech/yt/go/skiff"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal/smartreader"
 )
 
-type tableReader struct {
-	raw     io.ReadCloser
-	y       *yson.Reader
-	value   []byte
-	err     error
-	end     bool
-	started bool
-
+type rawTableReader struct {
+	raw       io.ReadCloser
 	rspParams tableReaderRspParams
+	err       error
 }
 
-func (r *tableReader) Scan(value any) error {
+func (r *rawTableReader) setRspParams(params *tableReaderRspParams) error {
+	r.rspParams = *params
+	return nil
+}
+
+func (r *rawTableReader) StartRowIndex() (int64, bool) {
+	if r.rspParams.StartRowIndex != nil {
+		return *r.rspParams.StartRowIndex, true
+	} else {
+		return 0, false
+	}
+}
+
+func (r *rawTableReader) ApproximateRowCount() (int64, bool) {
+	if r.rspParams.ApproximateRowCount != nil {
+		return *r.rspParams.ApproximateRowCount, true
+	} else {
+		return 0, false
+	}
+}
+
+func (r *rawTableReader) Close() error {
+	if r.raw != nil {
+		err := r.raw.Close()
+		if r.err != nil {
+			r.err = err
+		}
+		r.raw = nil
+	}
+
+	return r.err
+}
+
+type ysonTableReader struct {
+	rawTableReader
+	y       *yson.Reader
+	value   []byte
+	end     bool
+	started bool
+}
+
+func (r *ysonTableReader) Scan(value any) error {
 	if r.err != nil {
 		return r.err
 	}
@@ -40,7 +78,7 @@ func (r *tableReader) Scan(value any) error {
 	return r.err
 }
 
-func (r *tableReader) Next() bool {
+func (r *ysonTableReader) Next() bool {
 	r.started = true
 
 	if r.err != nil {
@@ -62,30 +100,74 @@ func (r *tableReader) Next() bool {
 	return r.err == nil
 }
 
-func (r *tableReader) Err() error {
+func (r *ysonTableReader) Err() error {
 	return r.err
 }
 
-func (r *tableReader) Close() error {
-	if r.raw != nil {
-		err := r.raw.Close()
-		if r.err != nil {
-			r.err = err
-		}
-		r.raw = nil
+type skiffTableReader struct {
+	rawTableReader
+	skiffDecoder *skiff.Decoder
+	end          bool
+}
+
+func newSkiffTableReader(r io.ReadCloser, format skiff.Format, tableSchema *schema.Schema) (*skiffTableReader, error) {
+	skiffDecoder, err := skiff.NewDecoder(r, format, skiff.WithDecoderTableSchemas(tableSchema))
+	if err != nil {
+		return nil, err
+	}
+	return &skiffTableReader{rawTableReader: rawTableReader{raw: r}, skiffDecoder: skiffDecoder}, nil
+}
+
+func (r *skiffTableReader) Scan(value any) error {
+	if r.err != nil {
+		return r.err
+	}
+	if r.end {
+		return xerrors.New("call to Scan() after EOF")
 	}
 
+	zeroInitialize(value)
+	r.err = r.skiffDecoder.Scan(value)
 	return r.err
+}
+
+func (r *skiffTableReader) Next() bool {
+	if r.err != nil {
+		return false
+	} else if r.end {
+		return false
+	}
+
+	r.end = !r.skiffDecoder.Next()
+	r.err = r.skiffDecoder.Err()
+	return !r.end
+}
+
+func (r *skiffTableReader) Err() error {
+	if r.err == nil {
+		r.err = r.skiffDecoder.Err()
+	}
+	return r.err
+}
+
+type tableReader interface {
+	yt.TableReader
+	setRspParams(params *tableReaderRspParams) error
+}
+
+func newTableReader(r io.ReadCloser, outputFormat any, tableSchema *schema.Schema) (tr tableReader, err error) {
+	if outputFormat != nil {
+		if skiffFormat, ok := outputFormat.(skiff.Format); ok {
+			return newSkiffTableReader(r, skiffFormat, tableSchema)
+		}
+		return nil, xerrors.Errorf("unexpected output format: %+v", outputFormat)
+	}
+	return &ysonTableReader{rawTableReader: rawTableReader{raw: r}, y: yson.NewReaderKind(r, yson.StreamListFragment)}, nil
 }
 
 type tableReaderRspParams struct {
 	StartRowIndex       *int64 `yson:"start_row_index"`
 	ApproximateRowCount *int64 `yson:"approximate_row_count"`
-}
-
-func (r *tableReader) setRspParams(params *tableReaderRspParams) error {
-	r.rspParams = *params
-	return nil
 }
 
 func decodeRspParams(ys []byte) (*tableReaderRspParams, error) {
@@ -94,28 +176,6 @@ func decodeRspParams(ys []byte) (*tableReaderRspParams, error) {
 		return nil, err
 	}
 	return &params, nil
-}
-
-func (r *tableReader) StartRowIndex() (int64, bool) {
-	if r.rspParams.StartRowIndex != nil {
-		return *r.rspParams.StartRowIndex, true
-	} else {
-		return 0, false
-	}
-}
-
-func (r *tableReader) ApproximateRowCount() (int64, bool) {
-	if r.rspParams.ApproximateRowCount != nil {
-		return *r.rspParams.ApproximateRowCount, true
-	} else {
-		return 0, false
-	}
-}
-
-var _ yt.TableReader = (*tableReader)(nil)
-
-func newTableReader(r io.ReadCloser) *tableReader {
-	return &tableReader{raw: r, y: yson.NewReaderKind(r, yson.StreamListFragment)}
 }
 
 func zeroInitialize(v any) {

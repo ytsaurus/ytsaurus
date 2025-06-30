@@ -164,7 +164,7 @@ private:
 
         YT_LOG_INFO("Requesting query tracker state version");
         TGetNodeOptions options;
-        options.ReadFrom = EMasterChannelKind::MasterCache;
+        options.ReadFrom = EMasterChannelKind::Cache;
         auto asyncResult = StateClient_->GetNode(StateRoot_ + "/@version", options);
         auto rspOrError = WaitFor(asyncResult);
         if (!rspOrError.IsOK()) {
@@ -613,7 +613,7 @@ private:
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time,
                 // finished_queries_by_user_and_start_time, finished_queries_by_aco_and_start_time tables).
-                static_assert(TActiveQueryDescriptor::FieldCount == 21 && TFinishedQueryDescriptor::FieldCount == 15);
+                static_assert(TActiveQueryDescriptor::FieldCount == 21 && TFinishedQueryDescriptor::FieldCount == 16);
                 TFinishedQuery newRecord{
                     .Key = TFinishedQueryKey{.QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -630,6 +630,7 @@ private:
                     .FinishTime = activeQueryRecord->FinishTime,
                     .Annotations = activeQueryRecord->Annotations,
                     .Secrets = activeQueryRecord->Secrets.value_or(TYsonString(TString("[]"))),
+                    .AssignedTracker = activeQueryRecord->AssignedTracker,
                 };
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),

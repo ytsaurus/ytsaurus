@@ -2,6 +2,8 @@
 
 #include "disk_location.h"
 
+#include <yt/yt/orm/library/query/public.h>
+
 #include <yt/yt/server/node/data_node/public.h>
 
 #include <yt/yt/server/node/cluster_node/public.h>
@@ -21,10 +23,9 @@
 
 #include <yt/yt/core/misc/atomic_ptr.h>
 #include <yt/yt/core/misc/fair_share_hierarchical_queue.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/profiling/sensor.h>
-
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
 
@@ -108,6 +109,7 @@ struct TLocationPerformanceCounters
 
     TEnumIndexedArray<ESessionType, std::atomic<int>> SessionCount;
 
+    NProfiling::TGauge IOWeight;
     NProfiling::TGauge UsedSpace;
     NProfiling::TGauge AvailableSpace;
     NProfiling::TGauge ChunkCount;
@@ -253,7 +255,7 @@ public:
     i64 GetCoalescedReadMaxGapSize() const;
 
     //! Returns the medium name.
-    TString GetMediumName() const;
+    std::string GetMediumName() const;
 
     //! Sets medium descriptor.
     //! #onInitialize indicates whether this method called before any data node heartbeat or on heartbeat response.
@@ -501,7 +503,7 @@ public:
     double GetFairShareWorkloadCategoryWeight(EWorkloadCategory category) const;
 
     //! Push supplier to the queue.
-    void PushProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier);
+    void PushProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier);
 
     //! Try to acquire memory for top requests.
     void CheckProbePutBlocksRequests();
@@ -511,6 +513,8 @@ public:
 
     //! Returns size of requests queue.
     i64 GetRequestedQueueSize() const;
+
+    TError GetLocationDisableError() const;
 
 protected:
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
@@ -559,12 +563,14 @@ private:
     const ELocationType Type_;
     const TChunkLocationConfigPtr StaticConfig_;
 
+    TAtomicIntrusivePtr<NOrm::NQuery::IExpressionEvaluator> IOWeightEvaluator_;
+
     TLocationPerformanceCountersPtr PerformanceCounters_;
 
     // TODO(vvshlyaga): Change to fair share queue.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ProbePutBlocksRequestsLock_);
     std::deque<TProbePutBlocksRequestSupplierPtr> ProbePutBlocksRequests_;
-    THashSet<TSessionId> ProbePutBlocksSuppliers_;
+    THashSet<TSessionId> ProbePutBlocksSessionIds_;
 
     const IMemoryUsageTrackerPtr ReadMemoryTracker_;
     const IMemoryUsageTrackerPtr WriteMemoryTracker_;
@@ -591,6 +597,7 @@ private:
     NIO::IIOEnginePtr IOEngine_;
 
     TFairShareHierarchicalSlotQueuePtr<std::string> IOFairShareQueue_;
+    NIO::IHugePageManagerPtr HugePageManager_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, LockedChunksLock_);
     THashSet<TChunkId> LockedChunkIds_;
@@ -600,7 +607,7 @@ private:
     THazardPtr<TChunkLocationConfig> GetRuntimeConfig() const;
 
     void DoCheckProbePutBlocksRequests();
-    bool ContainsProbePutBlocksRequestSupplier(TProbePutBlocksRequestSupplierPtr supplier) const;
+    bool ContainsProbePutBlocksRequestSupplier(const TProbePutBlocksRequestSupplierPtr& supplier) const;
 
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     void IncreaseUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
@@ -608,6 +615,9 @@ private:
     void DecreaseUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
     // TODO(vvshlyaga): Remove flag useLegacyUsedMemory after rolling writer with probing on all nodes.
     void UpdateUsedMemory(bool useLegacyUsedMemory, EIODirection direction, EIOCategory category, i64 delta);
+
+    void UpdateIOWeightEvaluator(const std::optional<std::string>& formula);
+    TErrorOr<double> EvaluateIOWeight(const NOrm::NQuery::IExpressionEvaluatorPtr& evaluator) const;
 
     void ValidateWritable();
     void InitializeCellId();

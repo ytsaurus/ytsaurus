@@ -58,6 +58,8 @@ struct IJobEnvironment
         const NContainers::TRootFS& rootFS,
         const std::string& user,
         const std::optional<std::vector<NContainers::TDevice>>& devices,
+        const std::optional<TString>& hostName,
+        const std::vector<NNet::TIP6Address>& ipAddresses,
         std::string tag) = 0;
 
     virtual TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(

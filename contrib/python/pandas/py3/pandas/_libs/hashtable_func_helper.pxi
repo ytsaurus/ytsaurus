@@ -9,7 +9,7 @@ WARNING: DO NOT edit .pxi FILE directly, .pxi is generated from .pxi.in
 @cython.boundscheck(False)
 cdef value_count_complex128(const complex128_t[:] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_complex128_t *table
 
@@ -21,9 +21,6 @@ cdef value_count_complex128(const complex128_t[:] values, bint dropna, const uin
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -38,32 +35,42 @@ cdef value_count_complex128(const complex128_t[:] values, bint dropna, const uin
     for i in range(n):
         val = to_khcomplex128_t(values[i])
 
+        if uses_mask:
+            isna_entry = mask[i]
+
         if dropna:
-            if uses_mask:
-                isna_entry = mask[i]
-            else:
+            if not uses_mask:
                 isna_entry = is_nan_khcomplex128_t(val)
 
         if not dropna or not isna_entry:
-            k = kh_get_complex128(table, val)
-            if k != table.n_buckets:
-                table.vals[k] += 1
+            if uses_mask and isna_entry:
+                na_counter += 1
             else:
-                k = kh_put_complex128(table, val, &ret)
-                table.vals[k] = 1
-                result_keys.append(val)
+                k = kh_get_complex128(table, val)
+                if k != table.n_buckets:
+                    table.vals[k] += 1
+                else:
+                    k = kh_put_complex128(table, val, &ret)
+                    table.vals[k] = 1
+                    result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_complex128(table, result_keys.data.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_complex128(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -203,7 +210,7 @@ cdef ismember_complex128(const complex128_t[:] arr, const complex128_t[:] values
 @cython.boundscheck(False)
 cdef value_count_complex64(const complex64_t[:] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_complex64_t *table
 
@@ -215,9 +222,6 @@ cdef value_count_complex64(const complex64_t[:] values, bint dropna, const uint8
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -232,32 +236,42 @@ cdef value_count_complex64(const complex64_t[:] values, bint dropna, const uint8
     for i in range(n):
         val = to_khcomplex64_t(values[i])
 
+        if uses_mask:
+            isna_entry = mask[i]
+
         if dropna:
-            if uses_mask:
-                isna_entry = mask[i]
-            else:
+            if not uses_mask:
                 isna_entry = is_nan_khcomplex64_t(val)
 
         if not dropna or not isna_entry:
-            k = kh_get_complex64(table, val)
-            if k != table.n_buckets:
-                table.vals[k] += 1
+            if uses_mask and isna_entry:
+                na_counter += 1
             else:
-                k = kh_put_complex64(table, val, &ret)
-                table.vals[k] = 1
-                result_keys.append(val)
+                k = kh_get_complex64(table, val)
+                if k != table.n_buckets:
+                    table.vals[k] += 1
+                else:
+                    k = kh_put_complex64(table, val, &ret)
+                    table.vals[k] = 1
+                    result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_complex64(table, result_keys.data.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_complex64(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -397,7 +411,7 @@ cdef ismember_complex64(const complex64_t[:] arr, const complex64_t[:] values):
 @cython.boundscheck(False)
 cdef value_count_float64(const float64_t[:] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_float64_t *table
 
@@ -409,9 +423,6 @@ cdef value_count_float64(const float64_t[:] values, bint dropna, const uint8_t[:
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -426,32 +437,42 @@ cdef value_count_float64(const float64_t[:] values, bint dropna, const uint8_t[:
     for i in range(n):
         val = (values[i])
 
+        if uses_mask:
+            isna_entry = mask[i]
+
         if dropna:
-            if uses_mask:
-                isna_entry = mask[i]
-            else:
+            if not uses_mask:
                 isna_entry = is_nan_float64_t(val)
 
         if not dropna or not isna_entry:
-            k = kh_get_float64(table, val)
-            if k != table.n_buckets:
-                table.vals[k] += 1
+            if uses_mask and isna_entry:
+                na_counter += 1
             else:
-                k = kh_put_float64(table, val, &ret)
-                table.vals[k] = 1
-                result_keys.append(val)
+                k = kh_get_float64(table, val)
+                if k != table.n_buckets:
+                    table.vals[k] += 1
+                else:
+                    k = kh_put_float64(table, val, &ret)
+                    table.vals[k] = 1
+                    result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_float64(table, result_keys.data.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_float64(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -591,7 +612,7 @@ cdef ismember_float64(const float64_t[:] arr, const float64_t[:] values):
 @cython.boundscheck(False)
 cdef value_count_float32(const float32_t[:] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_float32_t *table
 
@@ -603,9 +624,6 @@ cdef value_count_float32(const float32_t[:] values, bint dropna, const uint8_t[:
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -620,32 +638,42 @@ cdef value_count_float32(const float32_t[:] values, bint dropna, const uint8_t[:
     for i in range(n):
         val = (values[i])
 
+        if uses_mask:
+            isna_entry = mask[i]
+
         if dropna:
-            if uses_mask:
-                isna_entry = mask[i]
-            else:
+            if not uses_mask:
                 isna_entry = is_nan_float32_t(val)
 
         if not dropna or not isna_entry:
-            k = kh_get_float32(table, val)
-            if k != table.n_buckets:
-                table.vals[k] += 1
+            if uses_mask and isna_entry:
+                na_counter += 1
             else:
-                k = kh_put_float32(table, val, &ret)
-                table.vals[k] = 1
-                result_keys.append(val)
+                k = kh_get_float32(table, val)
+                if k != table.n_buckets:
+                    table.vals[k] += 1
+                else:
+                    k = kh_put_float32(table, val, &ret)
+                    table.vals[k] = 1
+                    result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_float32(table, result_keys.data.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_float32(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -785,7 +813,7 @@ cdef ismember_float32(const float32_t[:] arr, const float32_t[:] values):
 @cython.boundscheck(False)
 cdef value_count_uint64(const uint64_t[:] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_uint64_t *table
 
@@ -797,9 +825,6 @@ cdef value_count_uint64(const uint64_t[:] values, bint dropna, const uint8_t[:] 
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -814,32 +839,42 @@ cdef value_count_uint64(const uint64_t[:] values, bint dropna, const uint8_t[:] 
     for i in range(n):
         val = (values[i])
 
+        if uses_mask:
+            isna_entry = mask[i]
+
         if dropna:
-            if uses_mask:
-                isna_entry = mask[i]
-            else:
+            if not uses_mask:
                 isna_entry = is_nan_uint64_t(val)
 
         if not dropna or not isna_entry:
-            k = kh_get_uint64(table, val)
-            if k != table.n_buckets:
-                table.vals[k] += 1
+            if uses_mask and isna_entry:
+                na_counter += 1
             else:
-                k = kh_put_uint64(table, val, &ret)
-                table.vals[k] = 1
-                result_keys.append(val)
+                k = kh_get_uint64(table, val)
+                if k != table.n_buckets:
+                    table.vals[k] += 1
+                else:
+                    k = kh_put_uint64(table, val, &ret)
+                    table.vals[k] = 1
+                    result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_uint64(table, result_keys.data.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_uint64(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -979,7 +1014,7 @@ cdef ismember_uint64(const uint64_t[:] arr, const uint64_t[:] values):
 @cython.boundscheck(False)
 cdef value_count_uint32(const uint32_t[:] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_uint32_t *table
 
@@ -991,9 +1026,6 @@ cdef value_count_uint32(const uint32_t[:] values, bint dropna, const uint8_t[:] 
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -1008,32 +1040,42 @@ cdef value_count_uint32(const uint32_t[:] values, bint dropna, const uint8_t[:] 
     for i in range(n):
         val = (values[i])
 
+        if uses_mask:
+            isna_entry = mask[i]
+
         if dropna:
-            if uses_mask:
-                isna_entry = mask[i]
-            else:
+            if not uses_mask:
                 isna_entry = is_nan_uint32_t(val)
 
         if not dropna or not isna_entry:
-            k = kh_get_uint32(table, val)
-            if k != table.n_buckets:
-                table.vals[k] += 1
+            if uses_mask and isna_entry:
+                na_counter += 1
             else:
-                k = kh_put_uint32(table, val, &ret)
-                table.vals[k] = 1
-                result_keys.append(val)
+                k = kh_get_uint32(table, val)
+                if k != table.n_buckets:
+                    table.vals[k] += 1
+                else:
+                    k = kh_put_uint32(table, val, &ret)
+                    table.vals[k] = 1
+                    result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_uint32(table, result_keys.data.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_uint32(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -1173,7 +1215,7 @@ cdef ismember_uint32(const uint32_t[:] arr, const uint32_t[:] values):
 @cython.boundscheck(False)
 cdef value_count_uint16(const uint16_t[:] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_uint16_t *table
 
@@ -1185,9 +1227,6 @@ cdef value_count_uint16(const uint16_t[:] values, bint dropna, const uint8_t[:] 
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -1202,32 +1241,42 @@ cdef value_count_uint16(const uint16_t[:] values, bint dropna, const uint8_t[:] 
     for i in range(n):
         val = (values[i])
 
+        if uses_mask:
+            isna_entry = mask[i]
+
         if dropna:
-            if uses_mask:
-                isna_entry = mask[i]
-            else:
+            if not uses_mask:
                 isna_entry = is_nan_uint16_t(val)
 
         if not dropna or not isna_entry:
-            k = kh_get_uint16(table, val)
-            if k != table.n_buckets:
-                table.vals[k] += 1
+            if uses_mask and isna_entry:
+                na_counter += 1
             else:
-                k = kh_put_uint16(table, val, &ret)
-                table.vals[k] = 1
-                result_keys.append(val)
+                k = kh_get_uint16(table, val)
+                if k != table.n_buckets:
+                    table.vals[k] += 1
+                else:
+                    k = kh_put_uint16(table, val, &ret)
+                    table.vals[k] = 1
+                    result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_uint16(table, result_keys.data.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_uint16(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -1367,7 +1416,7 @@ cdef ismember_uint16(const uint16_t[:] arr, const uint16_t[:] values):
 @cython.boundscheck(False)
 cdef value_count_uint8(const uint8_t[:] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_uint8_t *table
 
@@ -1379,9 +1428,6 @@ cdef value_count_uint8(const uint8_t[:] values, bint dropna, const uint8_t[:] ma
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -1396,32 +1442,42 @@ cdef value_count_uint8(const uint8_t[:] values, bint dropna, const uint8_t[:] ma
     for i in range(n):
         val = (values[i])
 
+        if uses_mask:
+            isna_entry = mask[i]
+
         if dropna:
-            if uses_mask:
-                isna_entry = mask[i]
-            else:
+            if not uses_mask:
                 isna_entry = is_nan_uint8_t(val)
 
         if not dropna or not isna_entry:
-            k = kh_get_uint8(table, val)
-            if k != table.n_buckets:
-                table.vals[k] += 1
+            if uses_mask and isna_entry:
+                na_counter += 1
             else:
-                k = kh_put_uint8(table, val, &ret)
-                table.vals[k] = 1
-                result_keys.append(val)
+                k = kh_get_uint8(table, val)
+                if k != table.n_buckets:
+                    table.vals[k] += 1
+                else:
+                    k = kh_put_uint8(table, val, &ret)
+                    table.vals[k] = 1
+                    result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_uint8(table, result_keys.data.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_uint8(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -1561,7 +1617,7 @@ cdef ismember_uint8(const uint8_t[:] arr, const uint8_t[:] values):
 @cython.boundscheck(False)
 cdef value_count_object(ndarray[object] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_pymap_t *table
 
@@ -1573,9 +1629,6 @@ cdef value_count_object(ndarray[object] values, bint dropna, const uint8_t[:] ma
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -1602,16 +1655,22 @@ cdef value_count_object(ndarray[object] values, bint dropna, const uint8_t[:] ma
                 result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_pymap(table, result_keys.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_pymap(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -1751,7 +1810,7 @@ cdef ismember_object(ndarray[object] arr, ndarray[object] values):
 @cython.boundscheck(False)
 cdef value_count_int64(const int64_t[:] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_int64_t *table
 
@@ -1763,9 +1822,6 @@ cdef value_count_int64(const int64_t[:] values, bint dropna, const uint8_t[:] ma
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -1780,32 +1836,42 @@ cdef value_count_int64(const int64_t[:] values, bint dropna, const uint8_t[:] ma
     for i in range(n):
         val = (values[i])
 
+        if uses_mask:
+            isna_entry = mask[i]
+
         if dropna:
-            if uses_mask:
-                isna_entry = mask[i]
-            else:
+            if not uses_mask:
                 isna_entry = is_nan_int64_t(val)
 
         if not dropna or not isna_entry:
-            k = kh_get_int64(table, val)
-            if k != table.n_buckets:
-                table.vals[k] += 1
+            if uses_mask and isna_entry:
+                na_counter += 1
             else:
-                k = kh_put_int64(table, val, &ret)
-                table.vals[k] = 1
-                result_keys.append(val)
+                k = kh_get_int64(table, val)
+                if k != table.n_buckets:
+                    table.vals[k] += 1
+                else:
+                    k = kh_put_int64(table, val, &ret)
+                    table.vals[k] = 1
+                    result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_int64(table, result_keys.data.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_int64(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -1945,7 +2011,7 @@ cdef ismember_int64(const int64_t[:] arr, const int64_t[:] values):
 @cython.boundscheck(False)
 cdef value_count_int32(const int32_t[:] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_int32_t *table
 
@@ -1957,9 +2023,6 @@ cdef value_count_int32(const int32_t[:] values, bint dropna, const uint8_t[:] ma
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -1974,32 +2037,42 @@ cdef value_count_int32(const int32_t[:] values, bint dropna, const uint8_t[:] ma
     for i in range(n):
         val = (values[i])
 
+        if uses_mask:
+            isna_entry = mask[i]
+
         if dropna:
-            if uses_mask:
-                isna_entry = mask[i]
-            else:
+            if not uses_mask:
                 isna_entry = is_nan_int32_t(val)
 
         if not dropna or not isna_entry:
-            k = kh_get_int32(table, val)
-            if k != table.n_buckets:
-                table.vals[k] += 1
+            if uses_mask and isna_entry:
+                na_counter += 1
             else:
-                k = kh_put_int32(table, val, &ret)
-                table.vals[k] = 1
-                result_keys.append(val)
+                k = kh_get_int32(table, val)
+                if k != table.n_buckets:
+                    table.vals[k] += 1
+                else:
+                    k = kh_put_int32(table, val, &ret)
+                    table.vals[k] = 1
+                    result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_int32(table, result_keys.data.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_int32(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -2139,7 +2212,7 @@ cdef ismember_int32(const int32_t[:] arr, const int32_t[:] values):
 @cython.boundscheck(False)
 cdef value_count_int16(const int16_t[:] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_int16_t *table
 
@@ -2151,9 +2224,6 @@ cdef value_count_int16(const int16_t[:] values, bint dropna, const uint8_t[:] ma
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -2168,32 +2238,42 @@ cdef value_count_int16(const int16_t[:] values, bint dropna, const uint8_t[:] ma
     for i in range(n):
         val = (values[i])
 
+        if uses_mask:
+            isna_entry = mask[i]
+
         if dropna:
-            if uses_mask:
-                isna_entry = mask[i]
-            else:
+            if not uses_mask:
                 isna_entry = is_nan_int16_t(val)
 
         if not dropna or not isna_entry:
-            k = kh_get_int16(table, val)
-            if k != table.n_buckets:
-                table.vals[k] += 1
+            if uses_mask and isna_entry:
+                na_counter += 1
             else:
-                k = kh_put_int16(table, val, &ret)
-                table.vals[k] = 1
-                result_keys.append(val)
+                k = kh_get_int16(table, val)
+                if k != table.n_buckets:
+                    table.vals[k] += 1
+                else:
+                    k = kh_put_int16(table, val, &ret)
+                    table.vals[k] = 1
+                    result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_int16(table, result_keys.data.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_int16(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -2333,7 +2413,7 @@ cdef ismember_int16(const int16_t[:] arr, const int16_t[:] values):
 @cython.boundscheck(False)
 cdef value_count_int8(const int8_t[:] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
-        Py_ssize_t i = 0
+        Py_ssize_t i = 0, na_counter = 0, na_add = 0
         Py_ssize_t n = len(values)
         kh_int8_t *table
 
@@ -2345,9 +2425,6 @@ cdef value_count_int8(const int8_t[:] values, bint dropna, const uint8_t[:] mask
         int ret = 0
         bint uses_mask = mask is not None
         bint isna_entry = False
-
-    if uses_mask and not dropna:
-        raise NotImplementedError("uses_mask not implemented with dropna=False")
 
     # we track the order in which keys are first seen (GH39009),
     # khash-map isn't insertion-ordered, thus:
@@ -2362,32 +2439,42 @@ cdef value_count_int8(const int8_t[:] values, bint dropna, const uint8_t[:] mask
     for i in range(n):
         val = (values[i])
 
+        if uses_mask:
+            isna_entry = mask[i]
+
         if dropna:
-            if uses_mask:
-                isna_entry = mask[i]
-            else:
+            if not uses_mask:
                 isna_entry = is_nan_int8_t(val)
 
         if not dropna or not isna_entry:
-            k = kh_get_int8(table, val)
-            if k != table.n_buckets:
-                table.vals[k] += 1
+            if uses_mask and isna_entry:
+                na_counter += 1
             else:
-                k = kh_put_int8(table, val, &ret)
-                table.vals[k] = 1
-                result_keys.append(val)
+                k = kh_get_int8(table, val)
+                if k != table.n_buckets:
+                    table.vals[k] += 1
+                else:
+                    k = kh_put_int8(table, val, &ret)
+                    table.vals[k] = 1
+                    result_keys.append(val)
 
     # collect counts in the order corresponding to result_keys:
+    if na_counter > 0:
+        na_add = 1
     cdef:
-        int64_t[::1] result_counts = np.empty(table.size, dtype=np.int64)
+        int64_t[::1] result_counts = np.empty(table.size + na_add, dtype=np.int64)
 
     for i in range(table.size):
         k = kh_get_int8(table, result_keys.data.data[i])
         result_counts[i] = table.vals[k]
 
+    if na_counter > 0:
+        result_counts[table.size] = na_counter
+        result_keys.append(val)
+
     kh_destroy_int8(table)
 
-    return result_keys.to_array(), result_counts.base
+    return result_keys.to_array(), result_counts.base, na_counter
 
 
 @cython.wraparound(False)
@@ -2645,12 +2732,13 @@ def mode(ndarray[htfunc_t] values, bint dropna, const uint8_t[:] mask=None):
     cdef:
         ndarray[htfunc_t] keys
         ndarray[htfunc_t] modes
+        ndarray[uint8_t] res_mask = None
 
         int64_t[::1] counts
-        int64_t count, max_count = -1
-        Py_ssize_t nkeys, k, j = 0
+        int64_t count, _, max_count = -1
+        Py_ssize_t nkeys, k, na_counter, j = 0
 
-    keys, counts = value_count(values, dropna, mask=mask)
+    keys, counts, na_counter = value_count(values, dropna, mask=mask)
     nkeys = len(keys)
 
     modes = np.empty(nkeys, dtype=values.dtype)
@@ -2681,7 +2769,10 @@ def mode(ndarray[htfunc_t] values, bint dropna, const uint8_t[:] mask=None):
 
             modes[j] = keys[k]
 
-    return modes[:j + 1]
+    if na_counter > 0:
+        res_mask = np.zeros(j+1, dtype=np.bool_)
+        res_mask[j] = True
+    return modes[:j + 1], res_mask
 
 
 

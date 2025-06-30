@@ -119,6 +119,8 @@ struct TDiskHealthCheckerConfig
     //! Maximum time allowed for waiting for execution.
     TDuration WaitTimeout;
 
+    TDiskHealthCheckerConfigPtr ApplyDynamic(const TDiskHealthCheckerDynamicConfig& dynamicConfig);
+
     REGISTER_YSON_STRUCT(TDiskHealthCheckerConfig);
 
     static void Register(TRegistrar registrar);
@@ -272,6 +274,22 @@ struct THeapProfilerTestingOptions
 };
 
 DEFINE_REFCOUNTED_TYPE(THeapProfilerTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOperationEventReporterConfig
+    : public TArchiveReporterConfig
+{
+    NServer::TArchiveHandlerConfigPtr Handler;
+
+    std::string User;
+
+    REGISTER_YSON_STRUCT(TOperationEventReporterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TOperationEventReporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

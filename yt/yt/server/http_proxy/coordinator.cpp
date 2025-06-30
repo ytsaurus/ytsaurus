@@ -62,7 +62,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = HttpProxyLogger;
+constinit const auto Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -333,17 +333,17 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListCypressProxies()
 void TCoordinator::UpdateReadOnly()
 {
     TGetNodeOptions options;
-    options.ReadFrom = EMasterChannelKind::Follower;
+    options.ReadFrom = EMasterChannelKind::Cache;
     options.Timeout = Config_->OrchidTimeout;
 
-    auto instances = TComponentDiscoverer::GetCypressPaths(Client_, /*masterReadOptions*/ options, EClusterComponentType::PrimaryMaster);
-    std::vector<TFuture<TYsonString>> responses;
+    auto instances = TComponentDiscoverer::GetCypressPaths(Client_, options, EClusterComponentType::PrimaryMaster);
+    std::vector<TFuture<TYsonString>> futures;
     for (const auto& instance : instances) {
-        responses.push_back(Client_->GetNode(instance + "/orchid/monitoring/hydra", options));
+        futures.push_back(Client_->GetNode(instance + "/orchid/monitoring/hydra", options));
     }
 
-    std::optional<bool> readOnly = std::nullopt;
-    for (const auto& future : responses) {
+    std::optional<bool> readOnly;
+    for (const auto& future : futures) {
         auto ysonOrError = WaitFor(future);
         if (!ysonOrError.IsOK()) {
             continue;
@@ -355,15 +355,15 @@ void TCoordinator::UpdateReadOnly()
             continue;
         }
 
-        if (!ConvertTo<bool>(rspMap->GetChildOrThrow("active"))) {
+        if (!rspMap->GetChildValueOrThrow<bool>("active")) {
             continue;
         }
 
-        auto peerReadOnly = ConvertTo<bool>(rspMap->GetChildOrThrow("read_only"));
+        auto peerReadOnly = rspMap->GetChildValueOrThrow<bool>("read_only");
         readOnly = readOnly ? (*readOnly || peerReadOnly) : peerReadOnly;
     }
 
-    MastersInReadOnly_ = readOnly ? *readOnly : true;
+    MastersInReadOnly_ = readOnly.value_or(true);
 }
 
 void TCoordinator::UpdateState()

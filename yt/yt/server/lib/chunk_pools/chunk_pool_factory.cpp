@@ -89,6 +89,11 @@ public:
         return InfiniteWeight;
     }
 
+    i64 GetCompressedDataSizePerJob() const override
+    {
+        return InfiniteWeight;
+    }
+
     i64 GetMaxCompressedDataSizePerJob() const override
     {
         return InfiniteWeight;
@@ -182,6 +187,7 @@ IChunkPoolPtr CreateChunkPool(
     i64 dataWeightPerPartition,
     std::optional<int> maxPartitionCount,
     bool useNewSlicingImplementationInOrderedPool,
+    bool useNewSlicingImplementationInUnorderedPool,
     TLogger logger)
 {
     auto jobSizeConstraints = CreateJobSizeConstraints(dataWeightPerPartition, maxPartitionCount);
@@ -209,6 +215,7 @@ IChunkPoolPtr CreateChunkPool(
                     .JobSizeConstraints = jobSizeConstraints,
                     .RowBuffer = New<TRowBuffer>(),
                     .Logger = std::move(logger),
+                    .UseNewSlicingImplementation = useNewSlicingImplementationInUnorderedPool,
                 },
                 TInputStreamDirectory());
 

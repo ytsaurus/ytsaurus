@@ -11,7 +11,7 @@
 #include <yt/yt/server/lib/rpc_proxy/profilers.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_rotator.h>
 #include <yt/yt/server/lib/signature/signature_generator.h>
 #include <yt/yt/server/lib/signature/signature_validator.h>
@@ -113,7 +113,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = RpcProxyLogger;
+constinit const auto Logger = RpcProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -205,9 +205,7 @@ void TBootstrap::DoInitialize()
         CypressKeyReader_ = CreateCypressKeyReader(
             Config_->SignatureValidation->CypressKeyReader,
             RootClient_);
-        SignatureValidator_ = New<TSignatureValidator>(
-            Config_->SignatureValidation->Validator,
-            CypressKeyReader_);
+        SignatureValidator_ = New<TSignatureValidator>(CypressKeyReader_);
     }
 
     if (Config_->SignatureGeneration) {
@@ -215,12 +213,13 @@ void TBootstrap::DoInitialize()
             Config_->SignatureGeneration->CypressKeyWriter,
             RootClient_))
             .ValueOrThrow();
-        SignatureGenerator_ = New<TSignatureGenerator>(Config_->SignatureGeneration->Generator);
+        auto signatureGenerator = New<TSignatureGenerator>(Config_->SignatureGeneration->Generator);
         SignatureKeyRotator_ = New<TKeyRotator>(
             Config_->SignatureGeneration->KeyRotator,
             GetControlInvoker(),
             CypressKeyWriter_,
-            SignatureGenerator_);
+            signatureGenerator);
+        Connection_->SetSignatureGenerator(std::move(signatureGenerator));
     }
 
     ProxyCoordinator_ = CreateProxyCoordinator();
@@ -316,8 +315,11 @@ void TBootstrap::DoStart()
     QueryCorpusReporter_ = MakeQueryCorpusReporter(RootClient_);
 
     if (SignatureKeyRotator_) {
-        WaitFor(SignatureKeyRotator_->Start())
-            .ThrowOnError();
+        // NB(pavook):
+        // We don't wait for key rotation completion anywhere in bootstrap, because proxy bootstrap
+        // should be possible even in master read-only mode.
+        // So, we just throw on all signature-requiring operations until the key rotation actually happens.
+        YT_UNUSED_FUTURE(SignatureKeyRotator_->Start());
     }
 
     auto createApiService = [&] (const NAuth::IAuthenticationManagerPtr& authenticationManager) {
@@ -333,7 +335,6 @@ void TBootstrap::DoStart()
             RpcProxyLogger(),
             RpcProxyProfiler(),
             (SignatureValidator_ ? SignatureValidator_ : CreateAlwaysThrowingSignatureValidator()),
-            (SignatureGenerator_ ? SignatureGenerator_ : CreateAlwaysThrowingSignatureGenerator()),
             MemoryUsageTracker_,
             /*stickyTransactionPool*/ {},
             QueryCorpusReporter_);

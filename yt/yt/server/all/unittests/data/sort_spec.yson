@@ -48,7 +48,6 @@
         "tmpfs_size" = 536870912;
         "memory_limit" = 1073741824;
     };
-    "min_share_preemption_timeout" = 0;
     "sort_job_io" = {
         "table_reader" = {
             "workload_descriptor" = {

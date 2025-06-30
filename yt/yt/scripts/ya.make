@@ -2,6 +2,7 @@ RECURSE(
     dynamic_tables
     generate_documentation_release_notes
     generate_github_release_notes
+    remove_master_unrecognized_options
 )
 
 IF (NOT OPENSOURCE)

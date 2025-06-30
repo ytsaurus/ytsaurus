@@ -21,6 +21,10 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Coordinator");
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::pair<TConstFrontQueryPtr, TConstQueryPtr> GetDistributedQueryPattern(const TConstQueryPtr& query)
 {
     auto bottomQuery = New<TQuery>();
@@ -155,86 +159,59 @@ class TAdaptiveReaderGenerator
 public:
     TAdaptiveReaderGenerator(
         std::function<ISchemafulUnversionedReaderPtr()> getNextReader,
-        const TSubplanHoldersPtr& subplanHolders,
-        i64 offset,
-        i64 limit)
+        const TSubplanHoldersPtr& subplanHolders)
         : GetNextReader_(getNextReader)
         , SubplanHolders_(subplanHolders)
-        , Offset_(offset)
-        , Limit_(limit)
-    {
-        YT_VERIFY(Limit_ != UnorderedReadHint && Limit_ != OrderedReadWithPrefetchHint);
-    }
+    { }
 
     ISchemafulUnversionedReaderPtr Next()
     {
-        if (EstimateProcessedRowCount() < (Limit_ + Offset_) * FullPrefetchThreshold) {
-            return GetNextReader_();
+        if (PrefetchWindow_.empty()) {
+            for (i64 i = 0; i < PrefetchWindowSize_; ++i) {
+                if (auto nextReader = GetNextReader_()) {
+                    PrefetchWindow_.push(nextReader);
+                }
+            }
+            PrefetchWindowSize_ *= PrefetchWindowGrowthFactor;
         }
 
-        while (auto nextReader = GetNextReader_()) {
-            FullPrefetch_.push_back(nextReader);
-        }
-
-        if (FullPrefetchIndex_ == std::ssize(FullPrefetch_)) {
+        if (PrefetchWindow_.empty()) {
             return nullptr;
         }
 
-        return FullPrefetch_[FullPrefetchIndex_++];
+        auto result = PrefetchWindow_.front();
+        PrefetchWindow_.pop();
+        return result;
     }
 
 private:
-    // We will switch to a full parallel prefetch after we have read `(OFFSET + LIMIT) * FullPrefetchThreshold` rows,
-    // because the predicate turned out to be too selective.
-    static constexpr i64 FullPrefetchThreshold = 3;
+    static constexpr i64 PrefetchWindowGrowthFactor = 2;
 
     const std::function<ISchemafulUnversionedReaderPtr()> GetNextReader_;
     const TSubplanHoldersPtr SubplanHolders_;
-    const i64 Offset_ = 0;
-    const i64 Limit_ = 0;
 
-    std::vector<ISchemafulUnversionedReaderPtr> FullPrefetch_;
-    i64 FullPrefetchIndex_ = 0;
-
-    i64 EstimateProcessedRowCount()
-    {
-        i64 rowCount = 0;
-
-        for (auto& subplan : *SubplanHolders_) {
-            if (!subplan->IsSet()) {
-                continue;
-            }
-
-            auto statisticsOrError = WaitForFast(subplan.Get());
-            if (!statisticsOrError.IsOK()) {
-                continue;
-            }
-
-            rowCount += statisticsOrError.Value().RowsRead;
-        }
-
-        return rowCount;
-    }
+    std::queue<ISchemafulUnversionedReaderPtr> PrefetchWindow_;
+    i64 PrefetchWindowSize_ = 1;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
 
-// If the query text uses `LIMIT` without `ORDER BY`, we will first try to read the minimum required number of rows.
-// If the filtering predicate turns out to be too selective, we switch to full prefetching.
 ISchemafulUnversionedReaderPtr CreateAdaptiveOrderedSchemafulReader(
     std::function<ISchemafulUnversionedReaderPtr()> getNextReader,
     const NDetail::TSubplanHoldersPtr& subplanHolders,
-    i64 offset,
-    i64 limit,
+    i64 /*offset*/,
+    i64 /*limit*/,
     bool useAdaptiveOrderedSchemafulReader)
 {
     if (!useAdaptiveOrderedSchemafulReader) {
         return CreateOrderedSchemafulReader(std::move(getNextReader));
     }
 
-    auto generator = NDetail::TAdaptiveReaderGenerator(getNextReader, subplanHolders, offset, limit);
+    YT_LOG_DEBUG("Use adaptive ordered schemaful reader");
+
+    auto generator = NDetail::TAdaptiveReaderGenerator(getNextReader, subplanHolders);
     auto readerGenerator = [generator = std::move(generator)] () mutable -> ISchemafulUnversionedReaderPtr {
         return generator.Next();
     };
@@ -276,6 +253,14 @@ TQueryStatistics CoordinateAndExecute(
         return evaluateResult.Reader;
     };
 
+    YT_LOG_DEBUG("Creating reader (Ordered: %v, Prefetch: %v, SplitCount: %v, Offset: %v, Limit: %v, UseAdaptiveOrderedSchemafulReader: %v)",
+        ordered,
+        prefetch,
+        splitCount,
+        offset,
+        limit,
+        useAdaptiveOrderedSchemafulReader);
+
     // TODO: Use separate condition for prefetch after protocol update
     auto topReader = ordered
         ? (prefetch
@@ -290,6 +275,8 @@ TQueryStatistics CoordinateAndExecute(
         if (subqueryStatisticsOrError.IsOK()) {
             auto subqueryStatistics = std::move(subqueryStatisticsOrError).ValueOrThrow();
             queryStatistics.AddInnerStatistics(std::move(subqueryStatistics));
+        } else {
+            queryStatistics.AddInnerStatistics({});
         }
     }
 

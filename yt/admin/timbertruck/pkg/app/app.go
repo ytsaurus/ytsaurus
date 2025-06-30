@@ -89,6 +89,11 @@ type Config struct {
 	// File for error logs of timbertruck itself
 	ErrorLogFile string `yaml:"error_log_file"`
 
+	// LoggerBufferSize is the buffer size in bytes for the timbertruck logger.
+	//
+	// Default value is 32768 (32 KiB).
+	LoggerBufferSize int `yaml:"logger_buffer_size"`
+
 	// ReopenLogFileInterval defines the interval before reopening the log file,
 	// e.g., "5s" for 5 seconds, "10m" for 10 minutes.
 	ReopenLogFileInterval time.Duration `yaml:"reopen_log_file_interval"`
@@ -129,11 +134,11 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 	var configPath string
 	var oneShotConfigPath string
 	var version bool
-	var isRestart bool
+	var prevExitCode int
 	flag.BoolVar(&version, "version", false, "print version and exit")
 	flag.StringVar(&configPath, "config", "", "path to configuration, timbertruck will be launched as daemon")
 	flag.StringVar(&oneShotConfigPath, "one-shot-config", "", "path to task configuration, timbertruck executes tasks and exits")
-	flag.BoolVar(&isRestart, "is-restart", false, "indicates that the timbertruck daemon process has been restarted")
+	flag.IntVar(&prevExitCode, "prev-exit-code", -1, "exit code of the previous timbertruck process on restart")
 	flag.Parse()
 
 	if version {
@@ -180,7 +185,7 @@ func NewApp[UserConfigType any]() (app App, userConfig *UserConfigType, err erro
 				return
 			}
 		}
-		app, err = newDaemonApp(*appConfig, isRestart)
+		app, err = newDaemonApp(*appConfig, prevExitCode)
 	} else if oneShotConfigPath != "" {
 		err = readConfiguration(oneShotConfigPath, userConfig)
 		if err != nil {
@@ -216,7 +221,7 @@ type daemonApp struct {
 	adminPanel  *adminPanel
 }
 
-func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
+func newDaemonApp(config Config, prevExitCode int) (app *daemonApp, err error) {
 	app = &daemonApp{
 		config: config,
 	}
@@ -259,7 +264,7 @@ func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 	var logFile io.WriteCloser = os.Stderr
 	closeLogFile := func() {}
 	if config.LogFile != "" {
-		logFile, err = misc.NewLogrotatingFile(config.LogFile, reopenLogFileInterval)
+		logFile, err = misc.NewLogrotatingFile(config.LogFile, config.LoggerBufferSize, reopenLogFileInterval)
 		if err != nil {
 			err = fmt.Errorf("cannot open log file: %v", err)
 			return
@@ -271,7 +276,7 @@ func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 	closeErrorLogFile := func() {}
 	if config.ErrorLogFile != "" {
 		var logrotatingFile io.WriteCloser
-		logrotatingFile, err = misc.NewLogrotatingFile(config.ErrorLogFile, reopenLogFileInterval)
+		logrotatingFile, err = misc.NewLogrotatingFile(config.ErrorLogFile, config.LoggerBufferSize, reopenLogFileInterval)
 		if err != nil {
 			err = fmt.Errorf("cannot open error log file: %v", err)
 			return
@@ -298,8 +303,13 @@ func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 
 	restartCounter := app.metrics.Counter("tt.application.restart_count")
 	restartCounter.Add(0)
-	if isRestart {
-		restartCounter.Inc()
+	if prevExitCode >= 0 {
+		if prevExitCode >= 128 {
+			app.logger.Warn("Timbertruck process was restarted after being killed by signal", "signal", prevExitCode-128)
+		} else {
+			app.logger.Warn("Timbertruck process was restarted", "exit_code", prevExitCode)
+			restartCounter.Inc()
+		}
 	}
 
 	app.ctx, app.cancelFunc = context.WithCancel(context.Background())

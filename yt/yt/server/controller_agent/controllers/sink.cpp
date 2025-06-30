@@ -22,7 +22,7 @@ IChunkPoolInput::TCookie TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeK
     if (table->TableUploadOptions.TableSchema->IsSorted() && Controller_->ShouldVerifySortedOutput()) {
         // We override the key suggested by the task with the one formed by the stripe boundary keys.
         YT_VERIFY(stripe->BoundaryKeys);
-        key = stripe->BoundaryKeys;
+        key = TChunkStripeKey(stripe->BoundaryKeys);
     }
 
     if (Controller_->IsLegacyOutputLivePreviewSupported()) {
@@ -33,14 +33,16 @@ IChunkPoolInput::TCookie TSink::AddWithKey(TChunkStripePtr stripe, TChunkStripeK
         Controller_->AttachToLivePreview(table->LivePreviewTableName, stripe);
     }
 
-    table->ChunkCount += stripe->GetStatistics().ChunkCount;
+    auto statistics = stripe->GetStatistics();
+    table->ChunkCount += statistics.ChunkCount;
 
     const auto& Logger = Controller_->Logger;
-    YT_LOG_DEBUG("Output stripe registered (Table: %v, ChunkListId: %v, Key: %v, ChunkCount: %v)",
+    YT_LOG_DEBUG("Output stripe registered (Table: %v, ChunkListId: %v, Key: %v, ChunkCount: %v, RowCount: %v)",
         OutputTableIndex_,
         chunkListId,
         key,
-        stripe->GetStatistics().ChunkCount);
+        statistics.ChunkCount,
+        statistics.RowCount);
 
     bool isHunk = false;
     if (table->Dynamic) {

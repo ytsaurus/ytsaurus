@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.33.0)
+VERSION(v0.38.0)
 
 SRCS(
     poly1305.go
@@ -16,12 +16,18 @@ GO_TEST_SRCS(
 
 IF (ARCH_X86_64)
     SRCS(
-        sum_amd64.go
         sum_amd64.s
+        sum_asm.go
     )
 ENDIF()
 
 IF (ARCH_ARM64)
+    SRCS(
+        mac_noasm.go
+    )
+ENDIF()
+
+IF (OS_LINUX AND ARCH_ARM6 OR OS_LINUX AND ARCH_ARM7)
     SRCS(
         mac_noasm.go
     )

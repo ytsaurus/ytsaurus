@@ -96,6 +96,7 @@ target_link_libraries(clickhouse-src-Common PUBLIC
   contrib-libs-snappy
   contrib-libs-sparsehash
   contrib-libs-zstd
+  contrib-restricted-abseil-cpp
   restricted-aws-aws-c-auth
   restricted-aws-aws-c-common
   restricted-aws-aws-c-io
@@ -276,6 +277,7 @@ target_sources(clickhouse-src-Common PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/checkStackSize.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/clearPasswordFromCommandLine.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/clickhouse_malloc.cpp
+  ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/computeMaxTableNameLength.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/createHardLink.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/escapeForFileName.cpp
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Common/escapeString.cpp

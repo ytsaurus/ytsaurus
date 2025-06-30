@@ -811,6 +811,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 @pytest.mark.enabled_multidaemon
 class TestSecondaryIndexModifications(TestSecondaryIndexBase):
     ENABLE_MULTIDAEMON = True
+    NUM_TEST_PARTITIONS = 2
 
     def _insert_rows(self, rows, table="//tmp/table", **kwargs):
         insert_rows(table, rows, **kwargs)
@@ -836,6 +837,26 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             self._insert_rows([row])
 
         self._expect_from_index(rows)
+
+    @authors("sabdenovch")
+    def test_leaks(self):
+        table_schema = [
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ]
+        index_table_schema = [
+            {"name": "value", "type": "string", "sort_order": "ascending"},
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "$empty", "type": "int64"},
+        ]
+        self._create_basic_tables(
+            table_schema=table_schema,
+            index_schema=index_table_schema,
+            mount=True)
+
+        for shift in [0, 1, 2, 2, 2, -1, 5]:
+            rows = [{"key": f"{i}", "value": f"{i + shift}"} for i in range(100)]
+            self._insert_rows(rows)
 
     @authors("sabdenovch")
     def test_update_partial(self):

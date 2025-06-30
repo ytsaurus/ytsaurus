@@ -109,6 +109,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((UnavailableNetworkBandwidthToClusters)       (40))
     ((WriteBufferMemoryOverrun)                    (41))
     ((Unknown)                                     (42))
+    ((SpecifiedCpuLimitIsTooSmall)                 (43))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EOperationAlertType, Unknown);
@@ -188,6 +189,16 @@ static constexpr int MaxNodeShardCount = 64;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EOperationManagementAction,
+    (Suspend)
+    (Resume)
+    (Abort)
+    (Complete)
+    (UpdateParameters)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(TStrategyTestingOptions)
 DECLARE_REFCOUNTED_STRUCT(TOperationStuckCheckOptions)
 DECLARE_REFCOUNTED_STRUCT(TFairShareStrategyConfig)
@@ -242,6 +253,10 @@ extern const TString CommittedAttribute;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TNetworkPriority = i8;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const TString DefaultTreeAttributeName;
 extern const TString TreeConfigAttributeName;
 extern const TString IdAttributeName;
@@ -253,6 +268,10 @@ extern const TString LastMeteringLogTimePath;
 ////////////////////////////////////////////////////////////////////////////////
 
 inline const TString ProfilingPoolTreeKey{"tree"};
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline const TString InfinibandClusterNameKey{"infiniband_cluster_tag"};
 
 ////////////////////////////////////////////////////////////////////////////////
 

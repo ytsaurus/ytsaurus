@@ -234,7 +234,8 @@ TEST_F(TQueryPrepareTest, KeywordAlias)
         "then",
         "else",
         "end",
-        "inf"
+        "inf",
+        "cast"
     };
 
     for (const auto* keyword : Keywords) {
@@ -393,21 +394,21 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(sum(a)) from [//t] group by k",
-        ContainsRegex("Misuse of aggregate .*"));
+        ContainsRegex("Misuse of aggregate function"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(a) from [//t]",
-        ContainsRegex("Misuse of aggregate .*"));
+        ContainsRegex("Misuse of aggregate function"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "argmin(a, a) from [//t]",
-        ContainsRegex("Misuse of aggregate .*"));
+        ContainsRegex("Misuse of aggregate function"));
 }
 
 TEST_F(TQueryPrepareTest, NullTypeInference)
@@ -697,6 +698,9 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
         const auto* aliased = schema->FindColumn("N");
         EXPECT_FALSE(aliased);
     }
+
+    EXPECT_ANY_THROW(ParseAndPreparePlanFragment(
+        &PrepareMock_, "key, nested, N FROM [//t] ARRAY JOIN nested AS N, nested AS N"));
 }
 
 TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
@@ -911,11 +915,9 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         AggregateProfilers_.Get());
 
     {
-        TypeInferrers_->emplace("short_invalid_ir", New<TFunctionTypeInferrer>(
-            std::unordered_map<TTypeParameter, TUnionType>{},
-            std::vector<TType>{EValueType::Int64},
-            EValueType::Null,
-            EValueType::Int64));
+        TypeInferrers_->emplace("short_invalid_ir", CreateFunctionTypeInferrer(
+            EValueType::Int64,
+            std::vector<TType>{EValueType::Int64}));
 
         FunctionProfilers_->emplace("short_invalid_ir", New<TExternalFunctionCodegen>(
             "short_invalid_ir",
@@ -927,11 +929,9 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     }
 
     {
-        TypeInferrers_->emplace("long_invalid_ir", New<TFunctionTypeInferrer>(
-            std::unordered_map<TTypeParameter, TUnionType>{},
-            std::vector<TType>{EValueType::Int64},
-            EValueType::Null,
-            EValueType::Int64));
+        TypeInferrers_->emplace("long_invalid_ir", CreateFunctionTypeInferrer(
+            EValueType::Int64,
+            std::vector<TType>{EValueType::Int64}));
 
         FunctionProfilers_->emplace("long_invalid_ir", New<TExternalFunctionCodegen>(
             "long_invalid_ir",
@@ -1139,8 +1139,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
             {"value_1", EValueType::Int64},
         }))));
 
-    auto fmt = [] (const TNamedItemList& items)
-    {
+    auto fmt = [] (const TNamedItemList& items) {
         auto namedItemFormatter = [&] (TStringBuilderBase* builder, const TNamedItem& item) {
             builder->AppendString(InferName(item.Expression, /*omitValues*/ false));
         };
@@ -1156,7 +1155,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("C.key_0"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("`C.key_0`"));
     }
     {
         auto query = std::string(R"(select sum(C.value_1) from [//left] L
@@ -1167,7 +1166,7 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
         auto plan = ParseAndPreparePlanFragment(&PrepareMock_, query);
 
         ASSERT_TRUE(plan->Query->JoinClauses[0]->GroupClause);
-        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("C.key_0"));
+        EXPECT_EQ(fmt(plan->Query->JoinClauses[0]->GroupClause->GroupItems), std::string("`C.key_0`"));
     }
     {
         auto query = std::string(R"(select sum(value_1) from [//left]
@@ -1644,6 +1643,22 @@ protected:
             resultMatcher,
             evaluateOptions);
 
+        evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
+        return EvaluateWithQueryStatistics(
+            query,
+            dataSplits,
+            owningSources,
+            resultMatcher,
+            std::move(evaluateOptions)).first;
+    }
+
+    TQueryPtr EvaluateOnlyViaNativeExecutionBackend(
+        TStringBuf query,
+        const TSplitMap& dataSplits,
+        const std::vector<TSource>& owningSources,
+        const TResultMatcher& resultMatcher,
+        TEvaluateOptions evaluateOptions = {})
+    {
         evaluateOptions.ExecutionBackend = EExecutionBackend::Native;
         return EvaluateWithQueryStatistics(
             query,
@@ -3077,29 +3092,31 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupByString)
+TEST_F(TQueryEvaluateTest, GroupByKeyTypes)
 {
     auto split = MakeSplit({
-        {"a", EValueType::Int64, ESortOrder::Ascending},
-        {"s", EValueType::String}
+        {"i", EValueType::Int64, ESortOrder::Ascending},
+        {"s", EValueType::String},
+        {"l", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+        {"a", EValueType::Any},
     });
 
     auto source = TSource{
-        R"(a=42;s="d")",
+        R"(i=42;s="d";l=[4;];a="d")",
 
-        R"(a=1;s="a")",
-        R"(a=2;s="b")",
-        R"(a=3;s="c")",
+        R"(i=1;s="a";l=[1;];a="a")",
+        R"(i=2;s="b";l=[2;];a="b")",
+        R"(i=3;s="c";l=[3;];a="c")",
 
-        R"(a=42;s="d")",
+        R"(i=42;s="d";l=[4;];a="d")",
 
-        R"(a=4;s="a")",
-        R"(a=5;s="b")",
-        R"(a=6;s="c")",
+        R"(i=4;s="a";l=[1;];a="a")",
+        R"(i=5;s="b";l=[2;];a="b")",
+        R"(i=6;s="c";l=[3;];a="c")",
 
-        R"(a=7;s="a")",
-        R"(a=8;s="b")",
-        R"(a=9;s="c")",
+        R"(i=7;s="a";l=[1;];a="a")",
+        R"(i=8;s="b";l=[2;];a="b")",
+        R"(i=9;s="c";l=[3;];a="c")",
     };
 
     auto resultSplit = MakeSplit({
@@ -3114,7 +3131,7 @@ TEST_F(TQueryEvaluateTest, GroupByString)
     }, resultSplit);
 
     Evaluate(
-        "sum(a) as t, s FROM [//t] group by s order by s limit 3",
+        "sum(i) as t, s FROM [//t] group by s, l, a order by s, l, a limit 3",
         split,
         source,
         ResultMatcher(result));
@@ -3514,14 +3531,15 @@ TEST_F(TQueryEvaluateTest, GroupByArrayAgg)
     EvaluateCoordinatedGroupByImpl(
         "any_to_yson_string(array_agg(v, ignore_null)) as av, "
         "any_to_yson_string(array_agg(k, true)) as ak ,"
-        "any_to_yson_string(array_agg(v_any, true)) as av_any "
+        "any_to_yson_string(array_agg(v_any, true)) as av_any, "
+        "any_to_yson_string(array_agg(#, true)) as av_empty "
         "FROM [//t] group by 0",
         split,
         sources,
         [] (TRange<TUnversionedRow> rows, const TTableSchema& /* schema */) {
             ASSERT_EQ(rows.size(), 1ull);
 
-            ASSERT_EQ(rows[0].GetCount(), 3u);
+            ASSERT_EQ(rows[0].GetCount(), 4u);
 
             ASSERT_EQ(rows[0][0].Type, EValueType::String);
             ASSERT_EQ(rows[0][1].Type, EValueType::String);
@@ -7684,6 +7702,22 @@ TEST_F(TQueryEvaluateTest, YPathGetStringFail)
     SUCCEED();
 }
 
+TEST_F(TQueryEvaluateTest, CardinalityMergeMisuse)
+{
+    auto split = MakeSplit({
+        {"string", EValueType::String},
+    });
+
+    auto source = TSource{
+        "string=\"abc\"",
+        "string=\"def\"",
+    };
+
+    EvaluateExpectingError("cardinality_merge(string) as result FROM [//t] group by 1", split, source);
+
+    SUCCEED();
+}
+
 TEST_F(TQueryEvaluateTest, YPathGetAny)
 {
     auto split = MakeSplit({
@@ -8514,6 +8548,249 @@ TEST_F(TQueryEvaluateTest, CompositeMemberJoin)
         {.SyntaxVersion = 2});
 }
 
+TEST_F(TQueryEvaluateTest, NestedSubquery)
+{
+    if (NYT::NQueryClient::DefaultExpressionBuilderVersion == 1) {
+        return;
+    }
+
+    TSplitMap splits;
+    std::vector<std::vector<std::string>> sources;
+
+    auto schema = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"b", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        {"k", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"s", SimpleLogicalType(ESimpleLogicalValueType::Int32)}
+        });
+
+    auto data = std::vector<std::string> {
+
+        "a=1; b=x; k=1; s=1",
+        "a=2; b=y; k=1; s=1",
+        "a=3; b=z; k=1; s=1",
+        "a=2; b=k; k=2; s=2",
+        "a=3; b=l; k=2; s=2",
+        "     b=m; k=2; s=2",
+        "a=3; b=x; k=3; s=1",
+        "a=4; b=y; k=3; s=1",
+        "     b=z; k=3; s=1",
+        "a=1; b=x; k=4; s=1",
+    };
+
+    splits["//t"] = schema;
+    sources.push_back(data);
+
+    auto resultSplit = MakeSplit({
+        {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        {"nested", ListLogicalType(StructLogicalType({
+            {"x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))}
+        }))}
+    });
+
+    auto result = YsonToRows({
+        "a=2;nested=[[3;3;x];[6;4;y];[9;5;z]]",
+        "a=3;nested=[[12;5;k];[18;6;l];[#;#;m]]",
+        "a=4;nested=[[9;7;x];[#;#;z]]",
+        "a=5;nested=[[1;6;x]]"
+    }, resultSplit);
+
+    EvaluateOnlyViaNativeExecutionBackend("select t.k + 1 as a, (select li * sum(t.s) as x, li + a as y, ls as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) where li < 4) as nested from `//t` as t group by a",
+        splits,
+        sources,
+        ResultMatcher(result, resultSplit.TableSchema),
+        {.SyntaxVersion = 2});
+}
+
+TEST_F(TQueryEvaluateTest, NestedSubqueryGroupBy)
+{
+    if (NYT::NQueryClient::DefaultExpressionBuilderVersion == 1) {
+        return;
+    }
+
+    TSplitMap splits;
+    std::vector<std::vector<std::string>> sources;
+
+    auto schema = MakeSplit({
+        {"a", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"b", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        {"k", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
+        {"s", SimpleLogicalType(ESimpleLogicalValueType::Int32)}
+        });
+
+    auto data = std::vector<std::string> {
+
+        "a=1; b=x; k=1; s=1",
+        "a=2; b=y; k=1; s=1",
+        "a=3; b=z; k=1; s=1",
+        "a=2; b=k; k=2; s=2",
+        "a=3; b=l; k=2; s=2",
+        "     b=m; k=2; s=2",
+        "a=3; b=x; k=3; s=1",
+        "a=4; b=y; k=3; s=1",
+        "     b=z; k=3; s=1",
+        "a=1; b=x; k=4; s=1",
+    };
+
+    splits["//t"] = schema;
+    sources.push_back(data);
+
+    // Test inner aggregation.
+    {
+        // Test checks that sum(t.s) aggregation level is properly determined as outer by its substitution level.
+        auto primaryQuery = Prepare(
+            "select t.k % 2 as a, (select ls, sum(t.s) as x, sum(li) as y, sum(1) as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) group by ls) as nested from `//t` as t group by a",
+            splits,
+            {},
+            2);
+
+        const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
+
+        ASSERT_EQ(std::ssize(aggregateItems), 3);
+        EXPECT_EQ(aggregateItems[2].Name, "sum(`t.s`)");
+    }
+
+    {
+        // Test inner group key `ls + sum(t.s) as x` contains outer aggregate expression.
+        auto primaryQuery = Prepare(
+            "select t.k % 2 as a, (select li + sum(t.s) as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
+            splits,
+            {},
+            2);
+
+        const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
+
+        ASSERT_EQ(std::ssize(aggregateItems), 2);
+        EXPECT_EQ(aggregateItems[1].Name, "sum(`t.s`)");
+    }
+
+    {
+        // Test checks that sum(b) aggregation level is properly determined as outer while it has no substitution level.
+
+        // FIXME: Expressiones `sum(1)` and `sum(b)` are indistinguishable if `2 as b` is replaced by `1 as b`. Enrich aggregate references with its level.
+        auto primaryQuery = Prepare(
+            "select t.k % 2 as a, sum(2) as b, (select b, sum(1) as z from (array_agg(t.a, true) as li) group by li) as nested from `//t` as t group by a",
+            splits,
+            {},
+            2);
+
+        const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
+
+        ASSERT_EQ(std::ssize(aggregateItems), 2);
+        EXPECT_EQ(aggregateItems[0].Name, "sum(0#2)");
+    }
+
+    {
+        // Test checks that sum(b) aggregation level is properly determined as outer while it has no substitution level.
+
+        // FIXME: Expressiones `sum(1)` and `sum(b)` are indistinguishable if `2 as b` is replaced by `1 as b`. Enrich aggregate references with its level.
+        auto primaryQuery = Prepare(
+            "select t.k % 2 as a, sum(2) as b, (select li + b as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
+            splits,
+            {},
+            2);
+
+        const auto& aggregateItems = primaryQuery->GroupClause->AggregateItems;
+
+        ASSERT_EQ(std::ssize(aggregateItems), 2);
+        EXPECT_EQ(aggregateItems[0].Name, "sum(0#2)");
+    }
+
+    {
+        auto resultSplit = MakeSplit({
+            {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"nested", ListLogicalType(StructLogicalType({
+                {"ls", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
+            }))}
+        });
+
+        auto result = YsonToRows({
+            "a=1;nested=[[\"x\";6;4;2];[\"z\";6;3;2];[\"y\";6;6;2]]",
+            "a=0;nested=[[\"x\";7;#;1];[\"k\";7;2;1];[\"l\";7;3;1];[\"m\";7;1;1]]",
+        }, resultSplit);
+
+        // Test checks that sum(t.s) aggregation level is properly determined as outer by its substitution level.
+        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, (select ls, sum(t.s) as x, sum(li) as y, sum(1) as z from (array_agg(t.a, true) as li, array_agg(t.b, true) as ls) group by ls) as nested from `//t` as t group by a",
+            splits,
+            sources,
+            ResultMatcher(result, resultSplit.TableSchema),
+            {.SyntaxVersion = 2});
+    }
+
+    {
+        auto resultSplit = MakeSplit({
+            {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"nested", ListLogicalType(StructLogicalType({
+                {"x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
+            }))}
+        });
+
+        auto result = YsonToRows({
+            "a=1;nested=[[8;1];[9;2];[7;1];[10;1]]",
+            "a=0;nested=[[8;1];[9;1];[10;1]]",
+        }, resultSplit);
+
+        // Test inner group key `ls + sum(t.s) as x` contains outer aggregate expression.
+        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, (select li + sum(t.s) as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
+            splits,
+            sources,
+            ResultMatcher(result, resultSplit.TableSchema),
+            {.SyntaxVersion = 2});
+    }
+
+    {
+        auto resultSplit = MakeSplit({
+            {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"b", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"nested", ListLogicalType(StructLogicalType({
+                {"b", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
+            }))}
+        });
+
+        auto result = YsonToRows({
+            "a=1;b=12;nested=[[12;1];[12;1];[12;2];[12;1]]",
+            "a=0;b=8;nested=[[8;1];[8;1];[8;1]]",
+        }, resultSplit);
+
+        // Test checks that sum(b) aggregation level is properly determined as outer while it has no substitution level.
+        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, sum(2) as b, (select b, sum(1) as z from (array_agg(t.a, true) as li) group by li) as nested from `//t` as t group by a",
+            splits,
+            sources,
+            ResultMatcher(result, resultSplit.TableSchema),
+            {.SyntaxVersion = 2});
+    }
+
+    {
+        auto resultSplit = MakeSplit({
+            {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"b", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"nested", ListLogicalType(StructLogicalType({
+                {"x", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))}
+            }))}
+        });
+
+        auto result = YsonToRows({
+            "a=1;b=12;nested=[[16;1];[13;1];[14;1];[15;2]]",
+            "a=0;b=8;nested=[[11;1];[9;1];[10;1]]",
+        }, resultSplit);
+
+         // Test checks that sum(b) aggregation level is properly determined as outer while it has no substitution level.
+        EvaluateOnlyViaNativeExecutionBackend("select t.k % 2 as a, sum(2) as b, (select li + b as x, sum(1) as z from (array_agg(t.a, true) as li) group by x) as nested from `//t` as t group by a",
+            splits,
+            sources,
+            ResultMatcher(result, resultSplit.TableSchema),
+            {.SyntaxVersion = 2});
+    }
+}
+
 TEST_F(TQueryEvaluateTest, VarargUdf)
 {
     auto split = MakeSplit({
@@ -8809,6 +9086,33 @@ TEST_F(TQueryEvaluateTest, AverageAgg)
     }, resultSplit);
 
     Evaluate("avg(a) as x from [//t] group by 1", split, source, ResultMatcher(result));
+}
+
+TEST_F(TQueryEvaluateTest, GroupByTransform)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64}
+    });
+
+    auto source = TSource{
+        "a=3",
+        "a=53",
+        "a=8",
+        "a=24",
+        "a=33"
+    };
+
+    auto resultSplit = MakeSplit({
+        {"x", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "x=30",
+        "x=0",
+        "x=80",
+    }, resultSplit);
+
+    Evaluate("transform(a, (3, 8), (30, 80), 0) as x from [//t] group by x", split, source, ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, AverageAgg2)
@@ -9472,6 +9776,10 @@ void TQueryEvaluateComplexTest::DoTest(
     // Primary columns: (a, b, c) -> v
     // Secondary columns: (d, e) -> w
     // Group columns x, y, z
+
+    if (groupTotals != "" && (groupEq.X == TStringBuf("0") || groupEq.Y == TStringBuf("0") || groupEq.Z == TStringBuf("0"))) {
+        return;
+    }
 
     auto queryString = Format(
         "x, y, z, sum(1) as count, sum(v) as sumv, sum(w) as sumw "

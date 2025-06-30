@@ -25,6 +25,7 @@ import os
 import re
 import socket
 import sys
+import time
 from copy import deepcopy
 
 try:
@@ -128,10 +129,6 @@ def yt_env_multicluster_v4(request):
                     "use_remote_master_caches": True,
                 },
             },
-            "disallow_remote_operations": {
-                "allowed_users": ["root"],
-                "allowed_clusters": ["first", "second"],
-            }
         }
     }
     environments = (
@@ -161,12 +158,16 @@ def yt_env_multicluster_v4(request):
     client_2.set("//sys/clusters/first", client_1.get("//sys/@cluster_connection"))
 
     # create fake clusters (cluster_name == proxy_url)
-    client_1.set("//sys/controller_agents/config/disallow_remote_operations/allowed_clusters", [client_2.config["proxy"]["url"]], recursive=True)
-    client_2.set("//sys/controller_agents/config/disallow_remote_operations/allowed_clusters", [client_1.config["proxy"]["url"]], recursive=True)
+    client_1.set("//sys/controller_agents/config/remote_operations/{}/allowed_for_everyone".format(client_2.config["proxy"]["url"]), True, recursive=True)
+    client_2.set("//sys/controller_agents/config/remote_operations/{}/allowed_for_everyone".format(client_1.config["proxy"]["url"]), True, recursive=True)
     client_1.set("//sys/clusters/{}".format(client_2.config["proxy"]["url"]), client_2.get("//sys/@cluster_connection"))
     client_2.set("//sys/clusters/{}".format(client_1.config["proxy"]["url"]), client_1.get("//sys/@cluster_connection"))
     client_1.remove("//sys/clusters/second", recursive=True)
     client_2.remove("//sys/clusters/first", recursive=True)
+
+    time.sleep(2)
+    wait(lambda: client_1.exists("//sys/clusters/{}".format(client_2.config["proxy"]["url"])))
+    wait(lambda: client_2.exists("//sys/clusters/{}".format(client_1.config["proxy"]["url"])))
 
     return environments
 
@@ -223,6 +224,18 @@ def test_environment_with_authentication(request):
         request,
         request.param,
         delta_proxy_config={"auth": {"enable_authentication": True, "cypress_token_authenticator": {"secure": False}}},
+        delta_node_config={
+            "exec_node": {
+                "job_proxy": {
+                    "job_proxy_authentication_manager": {
+                        "enable_authentication": True,
+                        "cypress_token_authenticator": {
+                            "secure": False,
+                        },
+                    },
+                },
+            },
+        },
         env_options={
             "create_admin_user": True,
             "enable_auth": True,

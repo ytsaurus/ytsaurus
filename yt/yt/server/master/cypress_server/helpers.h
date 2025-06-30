@@ -95,13 +95,13 @@ int FindListNodeChildIndex(
     TListNode* parentNode,
     TCypressNode* trunkChildNode);
 
-THashMap<TString, NYson::TYsonString> GetNodeAttributes(
+THashMap<std::string, NYson::TYsonString> GetNodeAttributes(
     const ICypressManagerPtr& cypressManager,
     TCypressNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
 
-std::vector<std::pair<TString, NYson::TYsonString>> SortKeyToAttribute(
-    const THashMap<TString, NYson::TYsonString>& keyToAttributeMap);
+std::vector<std::pair<std::string, NYson::TYsonString>> SortKeyToAttribute(
+    const THashMap<std::string, NYson::TYsonString>& keyToAttributeMap);
 
 THashSet<std::string> ListNodeAttributes(
     const ICypressManagerPtr& cypressManager,
@@ -172,7 +172,7 @@ NSecurityServer::TRichClusterResources GetNodeResourceUsage(const TCypressNode* 
 TCypressNode* FindClosestAncestorWithAnnotation(TCypressNode* node);
 
 //! Returns annotation or std::nullopt if there are no annotations available.
-std::optional<TString> GetEffectiveAnnotation(TCypressNode* node);
+std::optional<std::string> GetEffectiveAnnotation(TCypressNode* node);
 
 void ValidateAccessControlObjectNamespaceName(const std::string& name);
 void ValidateAccessControlObjectName(const std::string& name);
@@ -191,8 +191,8 @@ void MaybeTouchNode(
 
 TLockRequest CreateLockRequest(
     ELockMode mode,
-    const std::optional<TString>& childKey,
-    const std::optional<TString>& attributeKey,
+    const std::optional<std::string>& childKey,
+    const std::optional<std::string>& attributeKey,
     NTransactionServer::TTimestamp timestamp);
 
 ////////////////////////////////////////////////////////////////////////////////

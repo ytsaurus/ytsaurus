@@ -40,7 +40,7 @@ class TJobShellInfo
 public:
     TJobShellInfo(TJobShellPtr jobShell, TOperationJobShellRuntimeParametersPtr jobShellRuntimeParameters);
 
-    const std::vector<TString>& GetOwners();
+    const std::vector<std::string>& GetOwners();
 
     const TString& GetSubcontainerName();
 
@@ -66,7 +66,7 @@ NYPath::TYPath GetSchedulerOrchidAliasPath(const TString& alias);
 NYPath::TYPath GetControllerAgentOrchidOperationPath(
     TStringBuf controllerAgentAddress,
     TOperationId operationId);
-std::optional<TString> FindControllerAgentAddressFromCypress(
+std::optional<std::string> FindControllerAgentAddressFromCypress(
     TOperationId operationId,
     const NApi::NNative::IClientPtr& client);
 
@@ -90,6 +90,7 @@ const NYPath::TYPath& GetOperationsArchiveJobProfilesPath();
 const NYPath::TYPath& GetOperationsArchiveJobFailContextsPath();
 const NYPath::TYPath& GetOperationsArchiveOperationIdsPath();
 const NYPath::TYPath& GetOperationsArchiveJobTraceEventsPath();
+const NYPath::TYPath& GetOperationsArchiveOperationEventsPath();
 
 const NYPath::TYPath& GetUserToDefaultPoolMapPath();
 
@@ -106,11 +107,13 @@ TError GetUserTransactionAbortedError(NObjectClient::TTransactionId transactionI
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetOperationsAcoPrincipalPath(const TString& acoName);
+NYPath::TYPath GetOperationsAcoPrincipalPath(TStringBuf acoName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYson::TYsonString GetAclFromAcoName(const NApi::NNative::IClientPtr& client, const TString& acoName);
+NYson::TYsonString GetAclFromAcoName(
+    const NApi::NNative::IClientPtr& client,
+    const std::string& acoName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,14 +128,14 @@ public:
     TAccessControlRule& operator=(const TAccessControlRule&) = default;
     TAccessControlRule& operator=(TAccessControlRule&&) = default;
 
-    TAccessControlRule(NSecurityClient::TSerializableAccessControlList acl);
-    TAccessControlRule(TString acoName);
+    explicit TAccessControlRule(NSecurityClient::TSerializableAccessControlList acl);
+    explicit TAccessControlRule(std::string acoName);
 
     bool IsAcoName() const;
     bool IsAcl() const;
 
-    TString GetAcoName() const;
-    void SetAcoName(TString aco);
+    std::string GetAcoName() const;
+    void SetAcoName(std::string aco);
 
     NSecurityClient::TSerializableAccessControlList GetAcl() const;
     void SetAcl(NSecurityClient::TSerializableAccessControlList acl);
@@ -142,7 +145,7 @@ public:
     TString GetAclString() const;
 
 private:
-    std::variant<NSecurityClient::TSerializableAccessControlList, TString> AccessControlRule_;
+    std::variant<NSecurityClient::TSerializableAccessControlList, std::string> AccessControlRule_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,7 +155,7 @@ void ValidateOperationAccessByAco(
     TOperationId operationId,
     TJobId jobId,
     NYTree::EPermissionSet permissionSet,
-    const TString& acoName,
+    const std::string& acoName,
     const NApi::NNative::IClientPtr& client,
     const NLogging::TLogger& logger);
 
@@ -202,7 +205,7 @@ struct TAllocationBriefInfo
     NScheduler::TAllocationId AllocationId;
     NJobTrackerClient::TOperationId OperationId;
     std::optional<NSecurityClient::TSerializableAccessControlList> OperationAcl;
-    std::optional<TString> OperationAcoName;
+    std::optional<std::string> OperationAcoName;
     NControllerAgent::TControllerAgentDescriptor ControllerAgentDescriptor;
     NNodeTrackerClient::TNodeDescriptor NodeDescriptor;
 };

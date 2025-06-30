@@ -101,9 +101,9 @@ public:
         ESecondaryIndexKind kind,
         const TTableSchema& tableSchema,
         const TTableSchema& indexTableSchema,
-        const std::optional<TString>& predicate,
+        const std::optional<std::string>& predicate,
         const TTableSchemaPtr& evaluatedColumnsSchema,
-        const std::optional<TString>& unfoldedColumnName)
+        const std::optional<std::string>& unfoldedColumnName)
         : Kind_(kind)
         , TableSchema_(tableSchema)
         , IndexTableSchema_(indexTableSchema)
@@ -169,9 +169,9 @@ private:
     const ESecondaryIndexKind Kind_;
     const TTableSchema& TableSchema_;
     const TTableSchema& IndexTableSchema_;
-    const std::optional<TString>& Predicate_;
+    const std::optional<std::string>& Predicate_;
     const TTableSchemaPtr& EvaluatedColumnsSchema_;
-    const std::optional<TString>& UnfoldedColumnName_;
+    const std::optional<std::string>& UnfoldedColumnName_;
 
     TLockGroupValidator LockValidator_;
 
@@ -315,7 +315,7 @@ private:
         }
     }
 
-    void ValidatePredicate(const std::optional<TString>& predicate)
+    void ValidatePredicate(const std::optional<std::string>& predicate)
     {
         if (!predicate) {
             return;
@@ -376,9 +376,9 @@ void ValidateIndexSchema(
     ESecondaryIndexKind kind,
     const TTableSchema& tableSchema,
     const TTableSchema& IndexTableSchema_,
-    const std::optional<TString>& predicate,
+    const std::optional<std::string>& predicate,
     const TTableSchemaPtr& evaluatedColumnsSchema,
-    const std::optional<TString> UnfoldedColumnName_)
+    const std::optional<std::string> UnfoldedColumnName_)
 {
     TIndexSchemaValidator(
         kind,
@@ -393,7 +393,7 @@ void ValidateIndexSchema(
 const TColumnSchema& FindUnfoldingColumnAndValidate(
     const TTableSchema& tableSchema,
     const TTableSchema& indexTableSchema,
-    const std::optional<TString>& predicate,
+    const std::optional<std::string>& predicate,
     const TTableSchemaPtr& evaluatedColumnsSchema)
 {
     return TIndexSchemaValidator(

@@ -6,11 +6,9 @@ from csv import (
     QUOTE_NONE,
     QUOTE_NONNUMERIC,
 )
-import sys
 import time
 import warnings
 
-from pandas.errors import ParserError
 from pandas.util._exceptions import find_stack_level
 
 from pandas import StringDtype
@@ -36,6 +34,7 @@ from cpython.unicode cimport (
     PyUnicode_AsUTF8String,
     PyUnicode_Decode,
     PyUnicode_DecodeUTF8,
+    PyUnicode_FromString,
 )
 from cython cimport Py_ssize_t
 from libc.stdlib cimport free
@@ -44,11 +43,6 @@ from libc.string cimport (
     strlen,
     strncpy,
 )
-
-
-cdef extern from "Python.h":
-    # TODO(cython3): get this from cpython.unicode
-    object PyUnicode_FromString(char *v)
 
 
 import numpy as np
@@ -106,15 +100,10 @@ from pandas.errors import (
     ParserWarning,
 )
 
-from pandas.core.dtypes.common import (
-    is_bool_dtype,
-    is_datetime64_dtype,
-    is_extension_array_dtype,
-    is_float_dtype,
-    is_integer_dtype,
-    is_object_dtype,
+from pandas.core.dtypes.dtypes import (
+    CategoricalDtype,
+    ExtensionDtype,
 )
-from pandas.core.dtypes.dtypes import CategoricalDtype
 from pandas.core.dtypes.inference import is_dict_like
 
 from pandas.core.arrays.boolean import BooleanDtype
@@ -124,8 +113,10 @@ cdef:
     float64_t NEGINF = -INF
     int64_t DEFAULT_CHUNKSIZE = 256 * 1024
 
+DEFAULT_BUFFER_HEURISTIC = 2 ** 20
 
-cdef extern from "headers/portable.h":
+
+cdef extern from "pandas/portable.h":
     # I *think* this is here so that strcasecmp is defined on Windows
     # so we don't get
     # `parsers.obj : error LNK2001: unresolved external symbol strcasecmp`
@@ -135,7 +126,7 @@ cdef extern from "headers/portable.h":
     pass
 
 
-cdef extern from "parser/tokenizer.h":
+cdef extern from "pandas/parser/tokenizer.h":
 
     ctypedef enum ParserState:
         START_RECORD
@@ -161,9 +152,9 @@ cdef extern from "parser/tokenizer.h":
         WARN,
         SKIP
 
-    ctypedef void* (*io_callback)(void *src, size_t nbytes, size_t *bytes_read,
+    ctypedef char* (*io_callback)(void *src, size_t nbytes, size_t *bytes_read,
                                   int *status, const char *encoding_errors)
-    ctypedef int (*io_cleanup)(void *src)
+    ctypedef void (*io_cleanup)(void *src)
 
     ctypedef struct parser_t:
         void *source
@@ -231,9 +222,9 @@ cdef extern from "parser/tokenizer.h":
         int64_t skip_first_N_rows
         int64_t skipfooter
         # pick one, depending on whether the converter requires GIL
-        float64_t (*double_converter)(const char *, char **,
-                                      char, char, char,
-                                      int, int *, int *) nogil
+        double (*double_converter)(const char *, char **,
+                                   char, char, char,
+                                   int, int *, int *) noexcept nogil
 
         #  error handling
         char *warn_msg
@@ -251,6 +242,16 @@ cdef extern from "parser/tokenizer.h":
         int seen_uint
         int seen_null
 
+    void COLITER_NEXT(coliter_t, const char *) nogil
+
+cdef extern from "pandas/parser/pd_parser.h":
+    void *new_rd_source(object obj) except NULL
+
+    void del_rd_source(void *src)
+
+    char* buffer_rd_bytes(void *source, size_t nbytes,
+                          size_t *bytes_read, int *status, const char *encoding_errors)
+
     void uint_state_init(uint_state *self)
     int uint64_conflict(uint_state *self)
 
@@ -265,7 +266,7 @@ cdef extern from "parser/tokenizer.h":
     void parser_del(parser_t *self) nogil
     int parser_add_skiprow(parser_t *self, int64_t row)
 
-    int parser_set_skipfirstnrows(parser_t *self, int64_t nrows)
+    void parser_set_skipfirstnrows(parser_t *self, int64_t nrows)
 
     void parser_set_default_options(parser_t *self)
 
@@ -281,26 +282,49 @@ cdef extern from "parser/tokenizer.h":
     uint64_t str_to_uint64(uint_state *state, char *p_item, int64_t int_max,
                            uint64_t uint_max, int *error, char tsep) nogil
 
-    float64_t xstrtod(const char *p, char **q, char decimal,
+    double xstrtod(const char *p, char **q, char decimal,
+                   char sci, char tsep, int skip_trailing,
+                   int *error, int *maybe_int) nogil
+    double precise_xstrtod(const char *p, char **q, char decimal,
+                           char sci, char tsep, int skip_trailing,
+                           int *error, int *maybe_int) nogil
+    double round_trip(const char *p, char **q, char decimal,
                       char sci, char tsep, int skip_trailing,
                       int *error, int *maybe_int) nogil
-    float64_t precise_xstrtod(const char *p, char **q, char decimal,
-                              char sci, char tsep, int skip_trailing,
-                              int *error, int *maybe_int) nogil
-    float64_t round_trip(const char *p, char **q, char decimal,
-                         char sci, char tsep, int skip_trailing,
-                         int *error, int *maybe_int) nogil
 
     int to_boolean(const char *item, uint8_t *val) nogil
 
+    void PandasParser_IMPORT()
 
-cdef extern from "parser/io.h":
-    void *new_rd_source(object obj) except NULL
+PandasParser_IMPORT
 
-    int del_rd_source(void *src)
+# When not invoked directly but rather assigned as a function,
+# cdef extern'ed declarations seem to leave behind an undefined symbol
+cdef double xstrtod_wrapper(const char *p, char **q, char decimal,
+                            char sci, char tsep, int skip_trailing,
+                            int *error, int *maybe_int) noexcept nogil:
+    return xstrtod(p, q, decimal, sci, tsep, skip_trailing, error, maybe_int)
 
-    void* buffer_rd_bytes(void *source, size_t nbytes,
-                          size_t *bytes_read, int *status, const char *encoding_errors)
+
+cdef double precise_xstrtod_wrapper(const char *p, char **q, char decimal,
+                                    char sci, char tsep, int skip_trailing,
+                                    int *error, int *maybe_int) noexcept nogil:
+    return precise_xstrtod(p, q, decimal, sci, tsep, skip_trailing, error, maybe_int)
+
+
+cdef double round_trip_wrapper(const char *p, char **q, char decimal,
+                               char sci, char tsep, int skip_trailing,
+                               int *error, int *maybe_int) noexcept nogil:
+    return round_trip(p, q, decimal, sci, tsep, skip_trailing, error, maybe_int)
+
+
+cdef char* buffer_rd_bytes_wrapper(void *source, size_t nbytes,
+                                   size_t *bytes_read, int *status,
+                                   const char *encoding_errors) noexcept:
+    return buffer_rd_bytes(source, nbytes, bytes_read, status, encoding_errors)
+
+cdef void del_rd_source_wrapper(void *src) noexcept:
+    del_rd_source(src)
 
 
 cdef class TextReader:
@@ -487,11 +511,11 @@ cdef class TextReader:
 
         if float_precision == "round_trip":
             # see gh-15140
-            self.parser.double_converter = round_trip
+            self.parser.double_converter = round_trip_wrapper
         elif float_precision == "legacy":
-            self.parser.double_converter = xstrtod
+            self.parser.double_converter = xstrtod_wrapper
         elif float_precision == "high" or float_precision is None:
-            self.parser.double_converter = precise_xstrtod
+            self.parser.double_converter = precise_xstrtod_wrapper
         else:
             raise ValueError(f"Unrecognized float_precision option: "
                              f"{float_precision}")
@@ -557,7 +581,7 @@ cdef class TextReader:
             raise EmptyDataError("No columns to parse from file")
 
         # Compute buffer_lines as function of table width.
-        heuristic = 2**20 // self.table_width
+        heuristic = DEFAULT_BUFFER_HEURISTIC // self.table_width
         self.buffer_lines = 1
         while self.buffer_lines * 2 < heuristic:
             self.buffer_lines *= 2
@@ -609,8 +633,8 @@ cdef class TextReader:
 
         ptr = new_rd_source(source)
         self.parser.source = ptr
-        self.parser.cb_io = &buffer_rd_bytes
-        self.parser.cb_cleanup = &del_rd_source
+        self.parser.cb_io = buffer_rd_bytes_wrapper
+        self.parser.cb_cleanup = del_rd_source_wrapper
 
     cdef _get_header(self, list prelim_header):
         # header is now a list of lists, so field_count should use header[0]
@@ -851,9 +875,15 @@ cdef class TextReader:
 
     cdef _check_tokenize_status(self, int status):
         if self.parser.warn_msg != NULL:
-            print(PyUnicode_DecodeUTF8(
-                self.parser.warn_msg, strlen(self.parser.warn_msg),
-                self.encoding_errors), file=sys.stderr)
+            warnings.warn(
+                PyUnicode_DecodeUTF8(
+                    self.parser.warn_msg,
+                    strlen(self.parser.warn_msg),
+                    self.encoding_errors
+                ),
+                ParserWarning,
+                stacklevel=find_stack_level()
+            )
             free(self.parser.warn_msg)
             self.parser.warn_msg = NULL
 
@@ -959,7 +989,7 @@ cdef class TextReader:
             missing_usecols = [col for col in self.usecols if col >= num_cols]
             if missing_usecols:
                 raise ParserError(
-                    "Defining usecols without of bounds indices is not allowed. "
+                    "Defining usecols with out-of-bounds indices is not allowed. "
                     f"{missing_usecols} are out of bounds.",
                 )
 
@@ -1046,7 +1076,7 @@ cdef class TextReader:
 
             # don't try to upcast EAs
             if (
-                na_count > 0 and not is_extension_array_dtype(col_dtype)
+                na_count > 0 and not isinstance(col_dtype, ExtensionDtype)
                 or self.dtype_backend != "numpy"
             ):
                 use_dtype_backend = self.dtype_backend != "numpy" and col_dtype is None
@@ -1111,14 +1141,14 @@ cdef class TextReader:
             # (see _try_bool_flex()). Usually this would be taken care of using
             # _maybe_upcast(), but if col_dtype is a floating type we should just
             # take care of that cast here.
-            if col_res.dtype == np.bool_ and is_float_dtype(col_dtype):
+            if col_res.dtype == np.bool_ and col_dtype.kind == "f":
                 mask = col_res.view(np.uint8) == na_values[np.uint8]
                 col_res = col_res.astype(col_dtype)
                 np.putmask(col_res, mask, np.nan)
                 return col_res, na_count
 
             # NaNs are already cast to True here, so can not use astype
-            if col_res.dtype == np.bool_ and is_integer_dtype(col_dtype):
+            if col_res.dtype == np.bool_ and col_dtype.kind in "iu":
                 if na_count > 0:
                     raise ValueError(
                         f"cannot safely convert passed user dtype of "
@@ -1162,7 +1192,7 @@ cdef class TextReader:
                 cats, codes, dtype, true_values=true_values)
             return cat, na_count
 
-        elif is_extension_array_dtype(dtype):
+        elif isinstance(dtype, ExtensionDtype):
             result, na_count = self._string_convert(i, start, end, na_filter,
                                                     na_hashset)
 
@@ -1187,7 +1217,7 @@ cdef class TextReader:
 
             return result, na_count
 
-        elif is_integer_dtype(dtype):
+        elif dtype.kind in "iu":
             try:
                 result, na_count = _try_int64(self.parser, i, start,
                                               end, na_filter, na_hashset)
@@ -1204,14 +1234,14 @@ cdef class TextReader:
 
             return result, na_count
 
-        elif is_float_dtype(dtype):
+        elif dtype.kind == "f":
             result, na_count = _try_double(self.parser, i, start, end,
                                            na_filter, na_hashset, na_flist)
 
             if result is not None and dtype != "float64":
                 result = result.astype(dtype)
             return result, na_count
-        elif is_bool_dtype(dtype):
+        elif dtype.kind == "b":
             result, na_count = _try_bool_flex(self.parser, i, start, end,
                                               na_filter, na_hashset,
                                               self.true_set, self.false_set)
@@ -1238,10 +1268,10 @@ cdef class TextReader:
             # unicode variable width
             return self._string_convert(i, start, end, na_filter,
                                         na_hashset)
-        elif is_object_dtype(dtype):
+        elif dtype == object:
             return self._string_convert(i, start, end, na_filter,
                                         na_hashset)
-        elif is_datetime64_dtype(dtype):
+        elif dtype.kind == "M":
             raise TypeError(f"the dtype {dtype} is not supported "
                             f"for parsing, pass this column "
                             f"using parse_dates instead")
@@ -1409,7 +1439,7 @@ def _maybe_upcast(
     -------
     The casted array.
     """
-    if is_extension_array_dtype(arr.dtype):
+    if isinstance(arr.dtype, ExtensionDtype):
         # TODO: the docstring says arr is an ndarray, in which case this cannot
         #  be reached. Is that incorrect?
         return arr
@@ -1441,13 +1471,15 @@ def _maybe_upcast(
 
     elif arr.dtype == np.object_:
         if use_dtype_backend:
-            arr = StringDtype().construct_array_type()._from_sequence(arr)
+            dtype = StringDtype()
+            cls = dtype.construct_array_type()
+            arr = cls._from_sequence(arr, dtype=dtype)
 
     if use_dtype_backend and dtype_backend == "pyarrow":
         import pyarrow as pa
         if isinstance(arr, IntegerArray) and arr.isna().all():
             # use null instead of int64 in pyarrow
-            arr = arr.to_numpy()
+            arr = arr.to_numpy(na_value=None)
         arr = ArrowExtensionArray(pa.array(arr, from_pandas=True))
 
     return arr
@@ -1571,7 +1603,7 @@ cdef _categorical_convert(parser_t *parser, int64_t col,
 
 # -> ndarray[f'|S{width}']
 cdef _to_fw_string(parser_t *parser, int64_t col, int64_t line_start,
-                   int64_t line_end, int64_t width):
+                   int64_t line_end, int64_t width) noexcept:
     cdef:
         char *data
         ndarray result
@@ -1587,7 +1619,7 @@ cdef _to_fw_string(parser_t *parser, int64_t col, int64_t line_start,
 
 cdef void _to_fw_string_nogil(parser_t *parser, int64_t col,
                               int64_t line_start, int64_t line_end,
-                              size_t width, char *data) nogil:
+                              size_t width, char *data) noexcept nogil:
     cdef:
         int64_t i
         coliter_t it
@@ -1643,7 +1675,7 @@ cdef _try_double(parser_t *parser, int64_t col,
 cdef int _try_double_nogil(parser_t *parser,
                            float64_t (*double_converter)(
                                const char *, char **, char,
-                               char, char, int, int *, int *) nogil,
+                               char, char, int, int *, int *) noexcept nogil,
                            int64_t col, int64_t line_start, int64_t line_end,
                            bint na_filter, kh_str_starts_t *na_hashset,
                            bint use_na_flist,

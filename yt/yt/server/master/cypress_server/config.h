@@ -76,6 +76,8 @@ struct TDynamicCypressManagerConfig
     int MaxLocksPerTransactionSubtree;
 
     std::optional<i64> VirtualMapReadOffloadBatchSize;
+    // COMPAT(shakurov)
+    bool EnableVirtualMapReadOffloadAuthenticatedUserPropagation;
 
     int CrossCellCopyMaxSubtreeSize;
 
@@ -98,6 +100,9 @@ struct TDynamicCypressManagerConfig
 
     // COMPAT(h0pless)
     bool UseProperBranchedParentInLockCopyDestination;
+
+    // COMPAT(h0pless)
+    bool AlertOnListNodeLoad;
 
     NTableClient::EOptimizeFor DefaultOptimizeFor;
     NTableClient::EOptimizeFor DefaultDynamicTableOptimizeFor;

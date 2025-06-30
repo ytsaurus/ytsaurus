@@ -86,7 +86,7 @@ private:
     const bool IsDeltaTracker_;
     const bool IsForceUpdate_;
 
-    mutable std::atomic<TInstant> LastUpdateTime_ = {};
+    mutable std::atomic<TInstant> LastUpdateTime_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     mutable TResourceUsage ResourceUsage_;

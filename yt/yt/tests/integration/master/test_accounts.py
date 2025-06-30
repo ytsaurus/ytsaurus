@@ -3650,6 +3650,8 @@ class TestAccountTree(AccountsTestSuiteBase):
         no_violated_limits = self._build_resource_limits()
         no_violated_limits["disk_space_per_medium"] = {"default": 0}
 
+        set("//sys/@config/security_manager/enable_tablet_resource_validation", True)
+
         assert get("//sys/accounts/yt/@recursive_violated_resource_limits") == no_violated_limits
         assert get("//sys/accounts/yt-dev/@recursive_violated_resource_limits") == no_violated_limits
         assert get("//sys/accounts/yt-dyntables/@recursive_violated_resource_limits") == no_violated_limits

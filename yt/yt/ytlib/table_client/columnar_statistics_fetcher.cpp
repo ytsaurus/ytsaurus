@@ -96,7 +96,7 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
         }
 
         subrequest->set_enable_read_size_estimation(Options_.EnableReadSizeEstimation);
-        auto chunkId = EncodeChunkId(Chunks_[chunkIndex], nodeId);
+        auto chunkId = Chunks_[chunkIndex]->EncodeReplica(nodeId);
         ToProto(subrequest->mutable_chunk_id(), chunkId);
     }
 

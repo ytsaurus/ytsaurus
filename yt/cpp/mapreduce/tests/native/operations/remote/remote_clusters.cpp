@@ -10,6 +10,8 @@
 
 #include <library/cpp/testing/gtest/gtest.h>
 
+#include <library/cpp/yt/string/format.h>
+
 #include <util/system/env.h>
 
 using namespace NYT;
@@ -48,7 +50,7 @@ TNode GetClusterName(const IClientPtr& client)
     return client->Get("//sys/@cluster_name");
 }
 
-void DisallowRemoteOperations(const IClientPtr& client, const TVector<TNode>& allowedClusters)
+void AllowRemoteOperations(const IClientPtr& client, const TVector<TNode>& allowedClusters)
 {
     static const TString ControllerAgentsConfigPath = "//sys/controller_agents/config";
 
@@ -57,14 +59,20 @@ void DisallowRemoteOperations(const IClientPtr& client, const TVector<TNode>& al
         client->Create(ControllerAgentsConfigPath, ENodeType::NT_DOCUMENT, TCreateOptions().Recursive(true));
     }
 
-    client->Set(ControllerAgentsConfigPath + "/disallow_remote_operations",
-        TNode()("allowed_for_everyone_clusters", TNode::CreateList(allowedClusters)));
+    client->Set(NYT::Format("%v/remote_operations", ControllerAgentsConfigPath), TNode::CreateMap());
+
+    for (const auto& cluster : allowedClusters) {
+        client->Set(
+            NYT::Format("%v/remote_operations/%v/allowed_for_everyone", ControllerAgentsConfigPath, cluster.AsString()),
+            TNode(true),
+            TSetOptions().Recursive(true));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
-TIntrusivePtr<IMapperBase> GetMapper()
+::TIntrusivePtr<IMapperBase> GetMapper()
 {
     if constexpr (std::is_same_v<T, TNode>) {
         return new TIdMapper;
@@ -76,7 +84,7 @@ TIntrusivePtr<IMapperBase> GetMapper()
 }
 
 template <typename T>
-TIntrusivePtr<IReducerBase> GetReducer()
+::TIntrusivePtr<IReducerBase> GetReducer()
 {
     if constexpr (std::is_same_v<T, TNode>) {
         return new TIdReducer;
@@ -114,7 +122,7 @@ void TestOperations(ENodeReaderFormat format)
     CreateTable(secondClient, secondTestingDir + "/input2", tableSchema);
     WriteTable(secondClient, secondTestingDir + "/input2", {TNode()("number", 7), TNode()("number", 8)});
 
-    DisallowRemoteOperations(thirdClient, {GetClusterName(firstClient), GetClusterName(secondClient)});
+    AllowRemoteOperations(thirdClient, {GetClusterName(firstClient), GetClusterName(secondClient)});
 
     const std::vector<TNode> expectedRows{
         TNode()("number", 1), TNode()("number", 2), TNode()("number", 3), TNode()("number", 4),
@@ -237,7 +245,7 @@ TEST(RemoteClusters, OperationsWithTransaction)
     CreateTable(firstClient, firstTestingDir + "/input1", tableSchema);
     WriteTable(firstClient, firstTestingDir + "/input1", {TNode()("number", 1), TNode()("number", 2)});
 
-    DisallowRemoteOperations(secondClient, {GetClusterName(firstClient)});
+    AllowRemoteOperations(secondClient, {GetClusterName(firstClient)});
 
     const std::vector<TNode> expectedRows{TNode()("number", 1), TNode()("number", 2)};
 
@@ -283,7 +291,7 @@ TEST(RemoteClusters, OperationsWithObjectId)
     CreateTable(firstClient, inputTablePath, tableSchema);
     WriteTable(firstClient, inputTablePath, {TNode()("number", 1), TNode()("number", 2)});
 
-    DisallowRemoteOperations(secondClient, {GetClusterName(firstClient)});
+    AllowRemoteOperations(secondClient, {GetClusterName(firstClient)});
 
     const std::vector<TNode> expectedRows{TNode()("number", 1), TNode()("number", 2)};
 

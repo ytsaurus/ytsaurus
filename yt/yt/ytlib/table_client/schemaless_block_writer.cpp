@@ -17,7 +17,7 @@ struct THorizontalSchemalessBlockWriterTag { };
 const i64 THorizontalBlockWriter::MinReserveSize = 64_KB + 1;
 const i64 THorizontalBlockWriter::MaxReserveSize = 2_MB;
 
-THorizontalBlockWriter::THorizontalBlockWriter(TTableSchemaPtr schema, i64 reserveSize, IMemoryUsageTrackerPtr memoryUsageTracker)
+THorizontalBlockWriter::THorizontalBlockWriter(TTableSchemaPtr schema, IMemoryUsageTrackerPtr memoryUsageTracker, i64 reserveSize)
     : ReserveSize_(std::min(
         std::max(MinReserveSize, reserveSize),
         MaxReserveSize))

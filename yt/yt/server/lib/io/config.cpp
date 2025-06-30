@@ -163,4 +163,24 @@ void TGentleLoaderConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void THugePageManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+    registrar.Parameter("pages_per_blob", &TThis::PagesPerBlob)
+        .Default(16);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void THugePageManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default();
+    registrar.Parameter("pages_per_blob", &TThis::PagesPerBlob)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NIO

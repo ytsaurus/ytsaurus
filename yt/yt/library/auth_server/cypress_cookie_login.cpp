@@ -24,7 +24,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = AuthLogger;
+constinit const auto Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,8 +78,18 @@ private:
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp)
     {
-        auto replyAndLogError = [&] (const TError& error, const std::optional<std::string>& user = {}) {
-            ReplyError(rsp, error);
+        auto replyAndLogError = [&] (
+            const TError& error,
+            bool maskError,
+            const std::optional<std::string>& user = {})
+        {
+            if (maskError) {
+                // Hide details about unsuccessful login attempts for security reasons.
+                ReplyError(rsp, TError("Incorrect login or password"));
+            } else {
+                ReplyError(rsp, error);
+            }
+
             YT_LOG_DEBUG(error, "Failed to login user using password (ConnectionId: %v, User: %v)",
                 req->GetConnectionId(),
                 user);
@@ -91,7 +101,7 @@ private:
             rsp->SetStatus(EStatusCode::BadRequest);
 
             auto error = TError("Malformed \"Authorization\" header: failed to parse authorization method");
-            replyAndLogError(error);
+            replyAndLogError(error, /*maskError*/ false);
             return;
         }
 
@@ -99,7 +109,7 @@ private:
             rsp->SetStatus(EStatusCode::BadRequest);
 
             auto error = TError("Unsupported authorization method %Qlv", authorizationMethod);
-            replyAndLogError(error);
+            replyAndLogError(error, /*maskError*/ false);
             return;
         }
 
@@ -110,7 +120,7 @@ private:
             rsp->SetStatus(EStatusCode::BadRequest);
 
             auto error = TError("Failed to parse user credentials");
-            replyAndLogError(error);
+            replyAndLogError(error, /*maskError*/ false);
             return;
         }
 
@@ -123,13 +133,13 @@ private:
                 HandleRegularRequest(rsp);
 
                 error = TError("No such user %Qlv or user has no password set", user) << error;
-                replyAndLogError(error, TString{user});
+                replyAndLogError(error, /*maskError*/ true, TString{user});
                 return;
             }
 
             // Unknown error, reply 500.
             error = TError("Failed to fetch info for user %Qlv during logging", user) << error;
-            replyAndLogError(error, TString{user});
+            replyAndLogError(error, /*maskError*/ false, TString{user});
             throw;
         }
 
@@ -137,7 +147,7 @@ private:
             HandleRegularRequest(rsp);
 
             auto error = TError("Invalid password");
-            replyAndLogError(error, TString{user});
+            replyAndLogError(error, /*maskError*/ true, TString{user});
             return;
         }
 
@@ -150,7 +160,7 @@ private:
         auto error = WaitFor(CookieStore_->RegisterCookie(cookie));
         if (!error.IsOK()) {
             error = TError("Failed to register cookie in cookie store");
-            replyAndLogError(error, TString{user});
+            replyAndLogError(error, /*maskError*/ false, TString{user});
             // Will return 500.
             error.ThrowOnError();
         }

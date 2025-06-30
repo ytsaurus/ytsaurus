@@ -8,6 +8,39 @@ Is released as a docker image.
 
 **Releases:**
 
+{% cut "**2.6.5**" %}
+
+**Release date:** 2025-06-08
+
+
+Maintenance release with minor enhancements
+
+- Support for Spark 3.5.6
+- Minor improvements for Spark Streaming support in YTsaurus
+
+
+
+{% endcut %}
+
+
+{% cut "**2.6.4**" %}
+
+**Release date:** 2025-05-16
+
+
+Maintenance release with minor enhancements and bug fixes
+
+- Support for retrieving driver operation id in direct submit scenarios
+- Reducing YTsaurusClient threads by reusing client instances
+- Fix JSON layout for log4j2
+- Transaction titles for SPYT transactions
+- Fix prometeus metrics configuration
+- Fix dedicated driver mode for standalone cluster
+
+
+{% endcut %}
+
+
 {% cut "**2.6.0**" %}
 
 **Release date:** 2025-04-23
@@ -24,6 +57,7 @@ Is released as a docker image.
 - Many stability and other bug fixes
 
 {% endcut %}
+
 
 {% cut "**2.5.0**" %}
 

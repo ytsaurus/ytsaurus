@@ -420,7 +420,7 @@ std::vector<NProto::TChunkSpec> FetchTabletStores(
 
     // Visit all tablets and group tablet subrequests by nodes.
     using TSubrequest = NQueryClient::NProto::TReqFetchTabletStores::TSubrequest;
-    THashMap<TString, std::vector<TSubrequest>> addressToSubrequests;
+    THashMap<std::string, std::vector<TSubrequest>> addressToSubrequests;
 
     const auto& connection = client->GetNativeConnection();
     const auto& cellDirectory = connection->GetCellDirectory();
@@ -694,7 +694,7 @@ IChunkReaderPtr CreateRemoteReader(
         YT_LOG_DEBUG("Creating erasure remote reader (Codec: %v)",
             erasureCodecId);
 
-        std::array<TChunkReplicaWithMedium, ::NErasure::MaxTotalPartCount> partIndexToReplica;
+        std::array<TChunkReplica, ::NErasure::MaxTotalPartCount> partIndexToReplica;
         std::fill(partIndexToReplica.begin(), partIndexToReplica.end(), TChunkReplicaWithMedium());
         for (auto replica : replicas) {
             partIndexToReplica[replica.GetReplicaIndex()] = replica;
@@ -712,7 +712,7 @@ IChunkReaderPtr CreateRemoteReader(
         readers.reserve(partCount);
 
         for (int index = 0; index < partCount; ++index) {
-            TChunkReplicaWithMediumList partReplicas;
+            TChunkReplicaList partReplicas;
             auto replica = partIndexToReplica[index];
             if (replica.GetNodeId() != InvalidNodeId) {
                 partReplicas.push_back(replica);
@@ -860,13 +860,13 @@ const NYPath::TYPath& TUserObject::GetPath() const
     return Path.GetPath();
 }
 
-TString TUserObject::GetObjectIdPath() const
+TYPath TUserObject::GetObjectIdPath() const
 {
     YT_VERIFY(IsPrepared());
     return FromObjectId(ObjectId);
 }
 
-TString TUserObject::GetObjectIdPathIfAvailable() const
+TYPath TUserObject::GetObjectIdPathIfAvailable() const
 {
     return ObjectId ? FromObjectId(ObjectId) : Path.GetPath();
 }
@@ -1022,6 +1022,20 @@ void TChunkWriterCounters::Increment(
 
 TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
     const TChunkReplicaWithMediumList& chunkReplicas,
+    NHydra::TRevision revision)
+{
+    TAllyReplicasInfo result;
+    result.Replicas.reserve(chunkReplicas.size());
+    for (auto replica : chunkReplicas) {
+        result.Replicas.emplace_back(replica);
+    }
+    result.Revision = revision;
+
+    return result;
+}
+
+TAllyReplicasInfo TAllyReplicasInfo::FromChunkReplicas(
+    const TChunkReplicaList& chunkReplicas,
     NHydra::TRevision revision)
 {
     TAllyReplicasInfo result;

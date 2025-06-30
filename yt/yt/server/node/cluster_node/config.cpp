@@ -6,9 +6,9 @@
 
 #include <yt/yt/server/node/query_agent/config.h>
 
-#include <yt/yt/server/lib/exec_node/config.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
@@ -361,6 +361,9 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("out_throttlers", &TThis::OutThrottlers)
         .Default();
 
+    registrar.Parameter("huge_page_manager", &TThis::HugePageManager)
+        .DefaultNew();
+
     registrar.Parameter("rack", &TThis::Rack)
         .Default();
     registrar.Parameter("data_center", &TThis::DataCenter)
@@ -368,6 +371,9 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
         .DefaultNew();
+
+    registrar.Parameter("delay_master_cell_directory_start", &TThis::DelayMasterCellDirectoryStart)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         NNodeTrackerClient::ValidateNodeTags(config->Tags);
@@ -445,6 +451,10 @@ void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
         if (!config->Rack && config->DataCenter) {
             THROW_ERROR_EXCEPTION("\"data_center\" should be defined with \"rack\"");
         }
+
+        //! NB: LeaseTransactionPingPeriod and LeaseTransactionTimeout should be ensured to be initialized by compat above.
+        THROW_ERROR_EXCEPTION_UNLESS(*config->MasterConnector->LeaseTransactionPingPeriod < *config->MasterConnector->LeaseTransactionTimeout,
+            "Lease transaction ping period must be less than lease transaction timeout");
     });
 }
 
@@ -528,6 +538,12 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("memory_limit_exceeded_for_category_threshold", &TThis::MemoryLimitExceededForCategoryThreshold)
         .Default(1.1);
     registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCache)
+        .DefaultNew();
+    registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
+        .DefaultNew();
+    registrar.Parameter("huge_page_manager", &TThis::HugePageManager)
+        .DefaultNew();
+    registrar.Parameter("fair_share_hierarchical_scheduler", &TThis::FairShareHierarchicalScheduler)
         .DefaultNew();
 }
 

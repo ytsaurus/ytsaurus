@@ -56,6 +56,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 set -u
+ytsaurus_source_path=$(realpath $ytsaurus_source_path)
+ytsaurus_build_path=$(realpath $ytsaurus_build_path)
 
 ytsaurus_python=$(realpath "${ytsaurus_build_path}/ytsaurus_python")
 
@@ -119,7 +121,7 @@ for package in ${packages[@]}; do
         python3 setup.py bdist_wheel --py-limited-api cp34 --dist-dir ${dist_dir}
         if [[ ${apply_auditwheel} == "true" ]]; then
             for wheel in ${dist_dir}/${package_undescored}*.whl; do
-                auditwheel repair "$wheel" -w "${dist_dir}" --plat manylinux2014_x86_64
+                auditwheel repair "$wheel" -w "${dist_dir}" --plat "manylinux2014_$(uname -m)"
                 # Remove original wheel.
                 rm "$wheel"
             done

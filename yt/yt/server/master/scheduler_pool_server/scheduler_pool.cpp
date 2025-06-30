@@ -28,7 +28,7 @@ using NVectorHdrf::TJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SchedulerPoolServerLogger;
+constinit const auto Logger = SchedulerPoolServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -187,7 +187,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
     if (ToUnderlying(context.GetVersion()) != NCellMaster::GetCurrentReign() && !IsRoot_) {
         // Some attributes could become unknown.
         // We will move them from known attributes map to unknown attributes map.
-        THashMap<TString, TYsonString> oldSpecifiedAttributes;
+        THashMap<std::string, TYsonString> oldSpecifiedAttributes;
         Load(context, oldSpecifiedAttributes);
 
         for (auto& [uninternedKey, value]: oldSpecifiedAttributes) {
@@ -256,7 +256,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
 
 void TSchedulerPool::GuardedUpdatePoolAttribute(
     TInternedAttributeKey key,
-    const std::function<void(const TPoolConfigPtr&, const TString&)>& update)
+    const std::function<void(const TPoolConfigPtr&, const std::string&)>& update)
 {
     const auto& uninternedKey = key.Unintern();
     update(FullConfig_, uninternedKey);

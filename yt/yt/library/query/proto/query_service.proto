@@ -60,6 +60,7 @@ message TReqMultireadExt
     }
 
     optional int32 in_memory_mode = 1 [default = 0]; // EInMemoryMode, EInMemoryMode::None by default
+    optional bool has_hunk_columns = 2;
 }
 
 message TReqMultiread

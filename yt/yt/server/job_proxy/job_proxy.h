@@ -83,7 +83,7 @@ public:
     NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const override;
     NConcurrency::IThroughputThrottlerPtr GetUserJobContainerCreationThrottler() const override;
 
-    NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) override;
+    NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) const override;
 
     TDuration GetSpentCpuTime() const;
 
@@ -107,27 +107,27 @@ private:
     // job proxy memory reserve factor) by the scheduler.
     i64 JobProxyMemoryReserve_ = 0;
     // Job proxy peak memory usage.
-    std::atomic<i64> JobProxyMaxMemoryUsage_ = {0};
+    std::atomic<i64> JobProxyMaxMemoryUsage_ = 0;
     // Job proxy cumulative memory usage in bytes * seconds.
-    std::atomic<i64> CumulativeMemoryUsageMBSec_ = {0};
+    std::atomic<i64> CumulativeMemoryUsageMBSec_ = 0;
     TInstant LastMemoryMeasureTime_;
     // If this limit for job proxy memory overcommit is exceeded, the job proxy is terminated.
     std::optional<i64> JobProxyMemoryOvercommitLimit_;
 
-    std::atomic<i64> UserJobCurrentMemoryUsage_ = {0};
+    std::atomic<i64> UserJobCurrentMemoryUsage_ = 0;
 
-    std::atomic<bool> Prepared_ = {false};
+    std::atomic<bool> Prepared_ = false;
 
     // Job proxy and possibly user job peak memory usage.
     i64 TotalMaxMemoryUsage_ = 0;
 
     // Memory reserve approved by the node.
-    std::atomic<i64> ApprovedMemoryReserve_ = {0};
-    std::atomic<i64> RequestedMemoryReserve_ = {0};
+    std::atomic<i64> ApprovedMemoryReserve_ = 0;
+    std::atomic<i64> RequestedMemoryReserve_ = 0;
 
-    std::atomic<i32> NetworkUsage_ = {0};
+    std::atomic<i32> NetworkUsage_ = 0;
 
-    std::atomic<double> CpuGuarantee_ = {0};
+    std::atomic<double> CpuGuarantee_ = 0;
 
     const NConcurrency::TActionQueuePtr JobThread_;
     const NConcurrency::TActionQueuePtr ControlThread_;
@@ -136,7 +136,12 @@ private:
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 
+    // Local RPC server accessible only via Unix domain socket.
     NRpc::IServerPtr RpcServer_;
+
+    // Public RPC server that listens on TCP port for external access.
+    // Separated from the private server to limit exposed services.
+    NRpc::IServerPtr PublicRpcServer_;
 
     NConcurrency::IThreadPoolPtr ApiServiceThreadPool_;
 
@@ -159,6 +164,7 @@ private:
     IJobSpecHelperPtr JobSpecHelper_;
 
     std::vector<int> Ports_;
+    std::optional<int> JobProxyRpcServerPort_;
 
     NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
@@ -179,6 +185,8 @@ private:
 
     i64 HeartbeatEpoch_ = 0;
 
+    NChunkClient::TMultiChunkReaderHostPtr MultiChunkReaderHost_;
+
     NYTree::IYPathServicePtr CreateOrchidService();
     void InitializeOrchid();
 
@@ -191,7 +199,7 @@ private:
     void SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment);
     IJobProxyEnvironmentPtr FindJobProxyEnvironment() const;
 
-    void EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize);
+    void EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize, bool enableShuffleService);
 
     void DoRun();
     NControllerAgent::NProto::TJobResult RunJob();
@@ -205,6 +213,8 @@ private:
         const NControllerAgent::NProto::TJobResult& result,
         TInstant startTime,
         TInstant finishTime);
+
+    void InitializeChunkReaderHost();
 
     TStatistics GetEnrichedStatistics() const;
 
@@ -242,7 +252,7 @@ private:
 
     void OnJobMemoryThrashing() override;
 
-    NChunkClient::TChunkReaderHostPtr GetChunkReaderHost() const override;
+    const NChunkClient::TMultiChunkReaderHostPtr& GetChunkReaderHost() const override;
 
     NChunkClient::IBlockCachePtr GetReaderBlockCache() const override;
     NChunkClient::IBlockCachePtr GetWriterBlockCache() const override;

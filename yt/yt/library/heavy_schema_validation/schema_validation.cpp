@@ -283,11 +283,11 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
             }
 
             auto typeInferrer = GetBuiltinTypeInferrers()->GetFunction(aggregateName);
-            if (auto descriptor = typeInferrer->As<TAggregateFunctionTypeInferrer>()) {
+            if (typeInferrer->IsAggregate()) {
                 std::vector<TTypeSet> typeConstraints;
                 std::vector<int> argumentIndexes;
 
-                auto [_, resultIndex] = descriptor->GetNormalizedConstraints(
+                auto [_, resultIndex] = typeInferrer->GetNormalizedConstraints(
                     &typeConstraints,
                     &argumentIndexes);
                 auto& resultConstraint = typeConstraints[resultIndex];
@@ -380,10 +380,11 @@ void ValidateTableSchemaUpdateInternal(
     TSchemaUpdateEnabledFeatures enabledFeatures,
     bool isTableDynamic,
     bool isTableEmpty,
-    bool allowAlterKeyColumnToAny)
+    bool allowAlterKeyColumnToAny,
+    const TSchemaValidationOptions& options)
 {
     try {
-        ValidateTableSchemaHeavy(newSchema, isTableDynamic);
+        ValidateTableSchemaHeavy(newSchema, isTableDynamic, options);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::InvalidSchemaValue, "New table schema is not valid")
             << TErrorAttribute("old_schema", oldSchema)
@@ -473,9 +474,10 @@ void ValidateTableSchemaUpdate(
 
 void ValidateTableSchemaHeavy(
     const TTableSchema& schema,
-    bool isTableDynamic)
+    bool isTableDynamic,
+    const TSchemaValidationOptions& options)
 {
-    ValidateTableSchema(schema, isTableDynamic);
+    ValidateTableSchema(schema, isTableDynamic, options);
     ValidateComputedColumns(schema, isTableDynamic);
     ValidateAggregatedColumns(schema);
 }

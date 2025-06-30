@@ -16,6 +16,7 @@
     sudo apt-get install openjdk-11-jdk
 
     ```
+    Примечание: начиная с версии 2.6.0 вместо openjdk-11-jdk можно устанавливать openjdk-17-jdk
 4. Поставьте pip-пакет:
 
     ```bash

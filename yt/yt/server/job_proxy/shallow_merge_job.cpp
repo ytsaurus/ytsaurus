@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/confirming_writer.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
@@ -53,7 +54,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = JobProxyLogger;
+constinit const auto Logger = JobProxyLogger;
 
 constexpr auto ShallowMergeStatisticsUpdatePeriod = TDuration::Seconds(1);
 
@@ -169,7 +170,6 @@ public:
     TStatistics GetStatistics() const override
     {
         return {
-            .ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics,
             .ChunkWriterStatistics = {WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics},
             .TotalInputStatistics = {
                 .DataStatistics = InputDataStatistics_.Load(),
@@ -299,7 +299,7 @@ private:
             chunkSpec,
             ReaderConfig_,
             ReaderOptions_,
-            Host_->GetChunkReaderHost());
+            Host_->GetChunkReaderHost()->CreateHostForCluster(NScheduler::LocalClusterName));
     }
 
     TDeferredChunkMetaPtr GetChunkMeta(const IChunkReaderPtr& reader)

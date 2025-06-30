@@ -289,8 +289,8 @@ public:
     {
         TJob::Initialize();
 
-        IOStartTime_ = GetCpuInstant();
-        YT_LOG_INFO("Starting to count I/O time (IOStartTime: %v)", CpuDurationToDuration(IOStartTime_));
+        IOStartTime_ = GetInstant();
+        YT_LOG_INFO("Started measuring I/O time (IOStartTime: %v)", IOStartTime_);
 
         UserJobReadController_ = CreateUserJobReadController(
             Host_->GetJobSpecHelper(),
@@ -958,11 +958,12 @@ private:
         const TJobShellDescriptor& jobShellDescriptor,
         const TYsonString& parameters) override
     {
-        ValidatePrepared();
+        ValidateStarted();
 
         if (!ShellManager_) {
-            THROW_ERROR_EXCEPTION("Job shell polling is not supported in non-Porto environment");
+            THROW_ERROR_EXCEPTION("Job shell polling is not supported");
         }
+
         auto response = ShellManager_->PollJobShell(jobShellDescriptor, parameters);
         if (response.LoggingContext) {
             response.LoggingContext = BuildYsonStringFluently<EYsonType::MapFragment>(EYsonFormat::Text)
@@ -1065,6 +1066,13 @@ private:
         }
     }
 
+    void ValidateStarted()
+    {
+        if (!JobStarted_) {
+            THROW_ERROR_EXCEPTION(NJobProxy::EErrorCode::JobNotPrepared, "Cannot operate on job: job has not been started yet");
+        }
+    }
+
     void PrepareOutputTablePipes()
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
@@ -1151,12 +1159,26 @@ private:
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
 
+        EDeliveryFencedMode deliveryFencedMode = EDeliveryFencedMode::None;
+        if (JobIOConfig_->UseDeliveryFencedPipeWriter) {
+            deliveryFencedMode = Config_->UseNewDeliveryFencedConnection
+                    ? EDeliveryFencedMode::New
+                    : EDeliveryFencedMode::Old;
+        }
+
+        if (deliveryFencedMode == EDeliveryFencedMode::New) {
+            if (!DeliveyFencedWriteEnabled) {
+                YT_LOG_DEBUG("Delivery fenced write is disabled, fail job");
+                THROW_ERROR_EXCEPTION("Delivery fenced write is disabled on the node");
+            }
+        }
+
         YT_LOG_DEBUG(
-            "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v, UseDeliveryFencedPipeWriter: %v)",
+            "Creating input table pipe (Path: %v, Permission: %v, CustomCapacity: %v, DeliveryFencedMode: %v)",
             InputPipePath_,
             DefaultArtifactPermissions,
             JobIOConfig_->PipeCapacity,
-            JobIOConfig_->UseDeliveryFencedPipeWriter);
+            deliveryFencedMode);
 
         auto pipe = TNamedPipe::Create(InputPipePath_, DefaultArtifactPermissions, JobIOConfig_->PipeCapacity);
         auto pipeConfig = TNamedPipeConfig::Create(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
@@ -1164,7 +1186,12 @@ private:
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
         auto reader = pipe->CreateAsyncReader();
-        auto asyncOutput = pipe->CreateAsyncWriter(JobIOConfig_->UseDeliveryFencedPipeWriter);
+        auto asyncOutput = pipe->CreateAsyncWriter(
+            JobIOConfig_->UseDeliveryFencedPipeWriter
+                ? Config_->UseNewDeliveryFencedConnection
+                    ? EDeliveryFencedMode::New
+                    : EDeliveryFencedMode::Old
+                : EDeliveryFencedMode::None);
 
         TablePipeWriters_.push_back(asyncOutput);
 
@@ -1342,7 +1369,9 @@ private:
             SetEnvironment(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project_id()));
         }
 
-        SetEnvironment(Format("YT_JOB_PROXY_SOCKET_PATH=%v", Host_->GetJobProxyUnixDomainSocketPath()));
+        if (UserJobSpec_.enable_rpc_proxy_in_job_proxy()) {
+            SetEnvironment(Format("YT_JOB_PROXY_SOCKET_PATH=%v", Host_->GetJobProxyUnixDomainSocketPath()));
+        }
 
         for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
             SetEnvironment(formatter.Format(UserJobSpec_.environment(i)));
@@ -1438,20 +1467,16 @@ private:
             result.TimingStatistics = *timingStatistics;
         }
 
-        result.LatencyStatistics.InputTimeToFirstReadBatch = OptionalCpuDurationToDuration(
-            UserJobReadController_->GetReaderTimeToFirstBatch());
-        result.LatencyStatistics.InputTimeToFirstWrittenBatch = OptionalCpuDurationToDuration(
-            UserJobReadController_->GetWriterTimeToFirstBatch());
+        result.LatencyStatistics.InputTimeToFirstReadBatch = UserJobReadController_->GetReaderTimeToFirstBatch();
+        result.LatencyStatistics.InputTimeToFirstWrittenBatch = UserJobReadController_->GetWriterTimeToFirstBatch();
 
         auto writers = UserJobWriteController_->GetWriters();
         result.LatencyStatistics.OutputTimeToFirstReadBatch.reserve(writers.size());
         for (const auto& writer : writers) {
             result.LatencyStatistics.OutputTimeToFirstReadBatch.emplace_back(
-                OptionalCpuDurationToDuration(
-                    writer->GetTimeToFirstBatch()));
+                    writer->GetTimeToFirstBatch());
         }
 
-        result.ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics;
         for (const auto& writeBlocksOptions : UserJobWriteController_->GetOutputWriteBlocksOptions()) {
             result.ChunkWriterStatistics.push_back(writeBlocksOptions.ClientOptions.ChunkWriterStatistics);
         }

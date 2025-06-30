@@ -405,7 +405,7 @@ private:
 
     TSharedMutableRef WriteData_;
 
-    std::atomic<int> Inflight_ = {0};
+    std::atomic<int> Inflight_ = 0;
 
     i64 Position_;
     i64 MaxPosition_;

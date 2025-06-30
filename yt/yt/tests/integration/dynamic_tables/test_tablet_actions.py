@@ -69,6 +69,7 @@ class TabletActionsBase(DynamicTablesBase):
                 "min_in_memory_tablet_size": 0,
                 "max_in_memory_tablet_size": 512,
                 "desired_in_memory_tablet_size": 256,
+                "enable_verbose_logging": True
             },
         )
 

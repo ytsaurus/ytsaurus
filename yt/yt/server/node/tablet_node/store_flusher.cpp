@@ -1,6 +1,8 @@
 #include "store_flusher.h"
 
 #include "bootstrap.h"
+#include "config.h"
+#include "error_manager.h"
 #include "public.h"
 #include "slot_manager.h"
 #include "store_detail.h"
@@ -71,7 +73,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = TabletNodeLogger;
+constinit const auto Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,8 +81,8 @@ TFlushTaskInfo::TFlushTaskInfo(
     TGuid taskId,
     TTabletId tabletId,
     NHydra::TRevision mountRevision,
-    TString tablePath,
-    TString tabletCellBundle,
+    NYPath::TYPath tablePath,
+    std::string tabletCellBundle,
     TStoreId storeId)
     : TBackgroundActivityTaskInfoBase(
         taskId,
@@ -243,13 +245,25 @@ private:
             return;
         }
 
-        if (slot->GetAutomatonState() != EPeerState::Leading) {
-            return;
+        bool isLeader = false;
+        switch (slot->GetAutomatonState()) {
+            case EPeerState::Leading:
+                isLeader = true;
+                break;
+
+            case EPeerState::LeaderRecovery:
+            case EPeerState::Following:
+            case EPeerState::FollowerRecovery:
+                isLeader = false;
+                break;
+
+            default:
+                return;
         }
 
         const auto& tabletManager = slot->GetTabletManager();
         for (auto [tabletId, tablet] : tabletManager->Tablets()) {
-            ScanTablet(slot, tablet);
+            ScanTablet(slot, tablet, isLeader);
         }
     }
 
@@ -265,11 +279,14 @@ private:
         DynamicMemoryUsageOtherCounter_.Update(otherUsage);
     }
 
-    void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet)
+    void ScanTablet(const ITabletSlotPtr& slot, TTablet* tablet, bool isLeader)
     {
-        ScanTabletForRotationErrors(tablet);
-        ScanTabletForFlush(slot, tablet);
-        ScanTabletForLookupCacheReallocation(tablet);
+        if (isLeader) {
+            ScanTabletForRotationErrors(tablet);
+            ScanTabletForFlush(slot, tablet);
+            ScanTabletForLookupCacheReallocation(tablet);
+        }
+
         ScanTabletForMemoryUsage(tablet);
     }
 
@@ -610,6 +627,8 @@ private:
             YT_LOG_ERROR(error, "Error flushing tablet store, backing off");
 
             storeManager->BackoffStoreFlush(store);
+
+            Bootstrap_->GetErrorManager()->HandleError(error, "Flush", tabletSnapshot);
 
             task->OnFailed(std::move(error));
         }

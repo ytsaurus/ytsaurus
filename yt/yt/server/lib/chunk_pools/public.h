@@ -13,6 +13,7 @@ namespace NYT::NChunkPools {
 DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcherFactory)
 
 DECLARE_REFCOUNTED_STRUCT(TJobSizeAdjusterConfig)
+DECLARE_REFCOUNTED_STRUCT(TDiscreteJobSizeAdjusterConfig)
 DECLARE_REFCOUNTED_CLASS(TInputChunkMapping)
 
 DECLARE_REFCOUNTED_STRUCT(IPersistentChunkPoolInput)
@@ -25,11 +26,13 @@ DECLARE_REFCOUNTED_STRUCT(IMultiChunkPoolOutput)
 DECLARE_REFCOUNTED_STRUCT(IMultiChunkPool)
 DECLARE_REFCOUNTED_STRUCT(IPersistentChunkPoolJobSplittingHost)
 DECLARE_REFCOUNTED_STRUCT(IVanillaChunkPoolOutput)
+DECLARE_REFCOUNTED_STRUCT(IOrderedChunkPool)
 
 YT_DEFINE_ERROR_ENUM(
-    ((DataSliceLimitExceeded)             (2000))
-    ((MaxDataWeightPerJobExceeded)        (2001))
-    ((MaxPrimaryDataWeightPerJobExceeded) (2002))
+    ((DataSliceLimitExceeded)              (2000))
+    ((MaxDataWeightPerJobExceeded)         (2001))
+    ((MaxPrimaryDataWeightPerJobExceeded)  (2002))
+    ((MaxCompressedDataSizePerJobExceeded) (2003))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

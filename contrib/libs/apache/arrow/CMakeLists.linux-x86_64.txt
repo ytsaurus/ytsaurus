@@ -67,8 +67,8 @@ target_link_libraries(libs-apache-arrow PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   libs-apache-orc
-  libs-brotli-dec
-  libs-brotli-enc
+  brotli-c-dec
+  brotli-c-enc
   contrib-libs-double-conversion
   contrib-libs-lz4
   contrib-libs-rapidjson

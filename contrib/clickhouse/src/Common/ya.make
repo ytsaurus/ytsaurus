@@ -37,6 +37,7 @@ PEERDIR(
     contrib/libs/snappy
     contrib/libs/sparsehash
     contrib/libs/zstd
+    contrib/restricted/abseil-cpp
     contrib/restricted/aws/aws-c-auth
     contrib/restricted/aws/aws-c-common
     contrib/restricted/aws/aws-c-io
@@ -122,12 +123,6 @@ CFLAGS(
     -D_LIBCPP_ENABLE_THREAD_SAFETY_ANNOTATIONS
     -D_LIBUNWIND_IS_NATIVE_ONLY
 )
-
-IF (MUSL)
-    CFLAGS(
-        -DUSE_MUSL
-    )
-ENDIF()
 
 SRCDIR(contrib/clickhouse)
 
@@ -289,6 +284,7 @@ SRCS(
     src/Common/checkStackSize.cpp
     src/Common/clearPasswordFromCommandLine.cpp
     src/Common/clickhouse_malloc.cpp
+    src/Common/computeMaxTableNameLength.cpp
     src/Common/createHardLink.cpp
     src/Common/escapeForFileName.cpp
     src/Common/escapeString.cpp

@@ -1,6 +1,9 @@
 #include "client_impl.h"
 
+#include <yt/yt/client/object_client/helpers.h>
+
 #include <yt/yt/library/re2/re2.h>
+
 #include <yt/yt/core/crypto/crypto.h>
 
 #include <util/string/hex.h>
@@ -25,7 +28,7 @@ using namespace NYTree;
 constexpr TStringBuf CypressTokenPrefixRegex = "ytct-[0-9a-f]{4}-";
 constexpr int CypressTokenPrefixLength = 10; // "ytct-abcd-"
 
-static TString GenerateToken()
+static std::string GenerateToken()
 {
     constexpr int TokenBodyBytesLength = 16;
     constexpr int TokenPrefixBytesLength = 2;
@@ -100,7 +103,7 @@ TIssueTokenResult TClient::DoIssueToken(
 
 TIssueTokenResult TClient::DoIssueSpecificTemporaryToken(
     const std::string& user,
-    const TString& token,
+    const std::string& token,
     const IAttributeDictionaryPtr& attributes,
     const TIssueTemporaryTokenOptions& options)
 {
@@ -129,7 +132,7 @@ TIssueTokenResult TClient::DoIssueTemporaryToken(
 
 TIssueTokenResult TClient::DoIssueTokenImpl(
     const std::string& user,
-    const TString& token,
+    const std::string& token,
     const IAttributeDictionaryPtr& attributes,
     const TIssueTokenOptions& options)
 {
@@ -142,7 +145,23 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
     TCreateNodeOptions createOptions;
     static_cast<TTimeoutOptions&>(createOptions) = options;
 
+    auto rootClient = CreateRootClient();
+    auto userIdRspOrError = WaitFor(rootClient->GetNode(
+        Format("//sys/users/%v/@id", ToYPathLiteral(user)),
+        /*options*/ {}));
+    if (!userIdRspOrError.IsOK()) {
+        YT_LOG_DEBUG(userIdRspOrError, "Failed to issue new token for user: "
+            "could not get user ID by username "
+            "(User: %v, TokenPrefix: %v, TokenHash: %v)",
+            user,
+            tokenPrefix,
+            tokenHash);
+        THROW_ERROR_EXCEPTION("Failed to issue new token for user")
+            << userIdRspOrError;
+    }
+
     attributes->Set("user", user);
+    attributes->Set("user_id", ConvertTo<std::string>(userIdRspOrError.Value()));
     attributes->Set("token_prefix", tokenPrefix);
 
     createOptions.Attributes = attributes;
@@ -152,7 +171,6 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
         tokenPrefix,
         tokenHash);
 
-    auto rootClient = CreateRootClient();
     auto path = Format("//sys/cypress_tokens/%v", ToYPathLiteral(tokenHash));
     auto rspOrError = WaitFor(rootClient->CreateNode(
         path,
@@ -165,8 +183,8 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
             user,
             tokenPrefix,
             tokenHash);
-        auto error = TError("Failed to issue new token for user") << rspOrError;
-        THROW_ERROR error;
+        THROW_ERROR_EXCEPTION("Failed to issue new token for user")
+            << rspOrError;
     }
 
     YT_LOG_DEBUG("Issued new token for user (User: %v, TokenPrefix: %v, TokenHash: %v)",
@@ -182,7 +200,7 @@ TIssueTokenResult TClient::DoIssueTokenImpl(
 
 void TClient::DoRefreshTemporaryToken(
     const std::string& user,
-    const TString& token,
+    const std::string& token,
     const TRefreshTemporaryTokenOptions& options)
 {
     auto tokenHash = GetSha256HexDigestLowerCase(token);
@@ -205,8 +223,8 @@ void TClient::DoRefreshTemporaryToken(
             "(User: %v, TokenHash: %v)",
             user,
             tokenHash);
-        auto error = TError("Failed to refresh token for user") << rspOrError;
-        THROW_ERROR error;
+        THROW_ERROR_EXCEPTION("Failed to refresh token for user")
+            << rspOrError;
     }
 
     YT_LOG_DEBUG("Successfully refreshed token for user (User: %v, TokenHash: %v)",
@@ -226,20 +244,45 @@ void TClient::DoRevokeToken(
 
     TGetNodeOptions getOptions;
     static_cast<TTimeoutOptions&>(getOptions) = options;
-    auto tokenUserOrError = WaitFor(rootClient->GetNode(Format("%v/@user", path), getOptions));
-    if (!tokenUserOrError.IsOK()) {
-        if (tokenUserOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            THROW_ERROR_EXCEPTION("Provided token is not recognized as a valid token for user %Qv", user);
-        }
+    getOptions.Attributes = TAttributeFilter({"user", "user_id"});
 
-        YT_LOG_DEBUG(tokenUserOrError, "Failed to get user for token (TokenHash: %v)",
+    auto tokenNodeOrError = WaitFor(rootClient->GetNode(path, getOptions));
+    if (!tokenNodeOrError.IsOK()) {
+        YT_LOG_DEBUG(tokenNodeOrError, "Failed to get token (TokenHash: %v)",
             tokenSha256);
-        auto error = TError("Failed to get user for token")
-            << tokenUserOrError;
-        THROW_ERROR error;
+        THROW_ERROR_EXCEPTION("Failed to get token")
+            << tokenNodeOrError;
+    }
+    auto tokenNode = ConvertTo<INodePtr>(tokenNodeOrError.Value());
+    const auto& tokenAttributes = tokenNode->Attributes();
+
+    getOptions.Attributes = {};
+    TString tokenUser;
+    auto userIdAttribute = tokenAttributes.Find<TObjectId>("user_id");
+    if (userIdAttribute) {
+        // Resolve the username with the retrieved user_id.
+        auto tokenUsernameOrError = WaitFor(rootClient->GetNode(
+            Format("%v/@name", FromObjectId(*userIdAttribute)),
+            getOptions));
+        if (!tokenUsernameOrError.IsOK()) {
+            YT_LOG_DEBUG(tokenUsernameOrError, "Failed to get user for token (TokenHash: %v)",
+                tokenSha256);
+            THROW_ERROR_EXCEPTION("Failed to get user for token")
+                << tokenUsernameOrError;
+        }
+        tokenUser = ConvertTo<TString>(tokenUsernameOrError.Value());
+    } else {
+        // This case means that the token was issued using the old schema (with @user attribute), and we already have the name.
+        auto userAttribute = tokenAttributes.Find<TString>("user");
+        if (userAttribute) {
+            tokenUser = *userAttribute;
+        } else {
+            YT_LOG_DEBUG("Failed to get both attributes of the token (TokenHash: %v)",
+                tokenSha256);
+            THROW_ERROR_EXCEPTION("Failed to get both attributes of the token");
+        }
     }
 
-    auto tokenUser = ConvertTo<TString>(tokenUserOrError.Value());
     if (tokenUser != user) {
         THROW_ERROR_EXCEPTION("Provided token is not recognized as a valid token for user %Qv", user);
     }
@@ -258,7 +301,8 @@ void TClient::DoRevokeToken(
         YT_LOG_DEBUG(error, "Failed to remove token (User: %v, TokenHash: %v)",
             tokenUser,
             tokenSha256);
-        THROW_ERROR TError("Failed to remove token") << error;
+        THROW_ERROR_EXCEPTION("Failed to remove token")
+            << error;
     }
 
     YT_LOG_DEBUG("Token removed successfully (User: %v, TokenHash: %v)",
@@ -284,21 +328,33 @@ TListUserTokensResult TClient::DoListUserTokens(
     TListNodeOptions listOptions;
     static_cast<TTimeoutOptions&>(listOptions) = options;
 
-    listOptions.Attributes = TAttributeFilter({"user"});
+    std::vector<IAttributeDictionary::TKey> keys = {"user", "user_id"};
     if (options.WithMetadata) {
-        listOptions.Attributes.AddKey("description");
-        listOptions.Attributes.AddKey("token_prefix");
-        listOptions.Attributes.AddKey("creation_time");
-        listOptions.Attributes.AddKey("effective_expiration");
+        keys.push_back("description");
+        keys.push_back("token_prefix");
+        keys.push_back("creation_time");
+        keys.push_back("effective_expiration");
     }
+    listOptions.Attributes = TAttributeFilter(std::move(keys));
 
     auto rootClient = CreateRootClient();
     auto rspOrError = WaitFor(rootClient->ListNode("//sys/cypress_tokens", listOptions));
     if (!rspOrError.IsOK()) {
         YT_LOG_DEBUG(rspOrError, "Failed to list tokens");
-        auto error = TError("Failed to list tokens") << rspOrError;
-        THROW_ERROR error;
+        THROW_ERROR_EXCEPTION("Failed to list tokens")
+            << rspOrError;
     }
+
+    auto userIdRspOrError = WaitFor(rootClient->GetNode(
+        Format("//sys/users/%v/@id", ToYPathLiteral(user)),
+        /*options*/ {}));
+    if (!userIdRspOrError.IsOK()) {
+        YT_LOG_DEBUG(userIdRspOrError, "Failed to list tokens: could not get user ID by username (User: %v)",
+            user);
+        THROW_ERROR_EXCEPTION("Failed to list tokens")
+            << userIdRspOrError;
+    }
+    auto userId = ConvertTo<std::string>(userIdRspOrError.Value());
 
     std::vector<TString> userTokens;
     THashMap<TString, NYson::TYsonString> tokenMetadata;
@@ -306,15 +362,16 @@ TListUserTokensResult TClient::DoListUserTokens(
     auto tokens = ConvertTo<IListNodePtr>(rspOrError.Value());
     for (const auto& tokenNode : tokens->GetChildren()) {
         const auto& attributes = tokenNode->Attributes();
-        auto userAttribute = attributes.Find<TString>("user");
-        if (userAttribute == user) {
-            userTokens.push_back(ConvertTo<TString>(tokenNode));
+        auto userIdAttribute = attributes.Find<std::string>("user_id");
+        auto userAttribute = attributes.Find<std::string>("user");
+        if (userIdAttribute == userId || userAttribute == user) {
+            userTokens.push_back(ConvertTo<std::string>(tokenNode));
             if (options.WithMetadata) {
                 auto metadata = BuildYsonStringFluently()
                     .BeginMap()
-                        .Item("description").Value(attributes.Find<TString>("description"))
-                        .Item("token_prefix").Value(attributes.Find<TString>("token_prefix"))
-                        .Item("creation_time").Value(attributes.Find<TString>("creation_time"))
+                        .Item("description").Value(attributes.Find<std::string>("description"))
+                        .Item("token_prefix").Value(attributes.Find<std::string>("token_prefix"))
+                        .Item("creation_time").Value(attributes.Find<std::string>("creation_time"))
                         .Item("effective_expiration").Value(attributes.GetYson("effective_expiration"))
                     .EndMap();
                 tokenMetadata[ConvertTo<TString>(tokenNode)] = ConvertToYsonString(metadata);

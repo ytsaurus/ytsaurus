@@ -148,6 +148,20 @@ message TCompositeMemberAccessor
     optional TExpression dict_or_list_item_accessor = 3;
 }
 
+message TSubqueryExpression
+{
+    extend TExpression
+    {
+        optional TSubqueryExpression subquery_expression = 114;
+    }
+
+    repeated TNamedItem from_expressions = 1;
+
+    optional TExpression where_clause = 2;
+    optional TGroupClause group_clause = 3;
+    optional TProjectClause project_clause = 6;
+}
+
 message TNamedItem
 {
     required TExpression expression = 1;

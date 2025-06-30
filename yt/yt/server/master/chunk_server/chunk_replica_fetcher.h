@@ -27,7 +27,7 @@ struct IChunkReplicaFetcher
 
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaLocationReplicas(
         TNodeId nodeId,
-        TChunkLocationUuid locationUuid) const = 0;
+        NNodeTrackerClient::TChunkLocationIndex locationIndex) const = 0;
     virtual TFuture<std::vector<NSequoiaClient::NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const = 0;
 
     using TChunkToLocationPtrWithReplicaInfoList = THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>>;

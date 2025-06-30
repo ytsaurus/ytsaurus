@@ -897,7 +897,7 @@ IAttributeDictionaryPtr ResolveExternalTable(
     const TYPath& path,
     TTableId* tableId,
     TCellTag* externalCellTag,
-    const std::vector<TString>& extraAttributeKeys)
+    const std::vector<std::string>& extraAttributeKeys)
 {
     TMasterReadOptions options;
     auto proxy = std::make_unique<TObjectServiceProxy>(CreateObjectServiceReadProxy(

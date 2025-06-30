@@ -46,6 +46,7 @@ target_link_libraries(yql-essentials-core PUBLIC
   library-cpp-random_provider
   cpp-threading-future
   library-cpp-time_provider
+  cpp-type_info-tz
   library-cpp-yson
   cpp-yson-node
   yql-essentials-ast
@@ -60,7 +61,6 @@ target_link_libraries(yql-essentials-core PUBLIC
   essentials-core-histogram
   yql-essentials-protos
   essentials-public-udf
-  public-udf-tz
   essentials-public-langver
   essentials-sql-settings
   yql-essentials-sql
@@ -75,11 +75,13 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_aggregate_expander.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_callable_transform.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_cost_function.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_default_valid_value.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_execution.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_constraint.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_csee.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_optimize.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_type_annotation.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_func_stack.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_gc_transformer.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_graph_transformer.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_holding_file_storage.cpp
@@ -102,11 +104,13 @@ target_sources(yql-essentials-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_user_data_storage.cpp
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_callable_transform.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_data_provider.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_default_valid_value.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_execution.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_constraint.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_csee.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_optimize.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_expr_type_annotation.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_func_stack.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_gc_transformer.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_graph_transformer.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/core/yql_holding_file_storage.h

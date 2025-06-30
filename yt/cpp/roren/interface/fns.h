@@ -82,6 +82,7 @@ public:
 private:
     bool IsPure_ = false; // Random function can not be implicitly pure. So default is false.
     bool IsMove_ = false;
+    THashSet<TString> TimerIds_;
     std::vector<TString> ResourceFileList_;
 
     friend NPrivate::TFnAttributesOps;

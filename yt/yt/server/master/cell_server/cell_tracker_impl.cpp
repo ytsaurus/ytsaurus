@@ -45,7 +45,7 @@ using namespace NTabletServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CellServerLogger;
+constinit const auto Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -308,7 +308,7 @@ void TCellTrackerImpl::OnCellPeersReassigned()
     WaitForCommit_ = false;
 }
 
-const TDynamicTabletManagerConfigPtr& TCellTrackerImpl::GetDynamicConfig()
+const TDynamicTabletManagerConfigPtr& TCellTrackerImpl::GetDynamicConfig() const
 {
     return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
 }
@@ -614,7 +614,7 @@ bool TCellTrackerImpl::IsDecommissioned(
     return false;
 }
 
-int TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
+int TCellTrackerImpl::FindGoodFollower(const TCellBase* cell) const
 {
     for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
         if (cell->IsAlienPeer(peerId)) {
@@ -631,11 +631,16 @@ int TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
         }
 
         auto* slot = cell->FindCellSlot(peerId);
-        if (slot &&
-            slot->PreloadPendingStoreCount == 0 &&
-            slot->PreloadFailedStoreCount == 0)
-        {
-            return peerId;
+        if (slot) {
+            bool preloadCompleted = slot->PreloadPendingStoreCount == 0 &&
+                slot->PreloadFailedStoreCount == 0;
+            if (preloadCompleted ||
+                cell->LastPeerCountUpdateTime() +
+                    GetDynamicConfig()->MaxPreloadWaitTimeBeforeLeaderSwitch <
+                        TInstant::Now())
+            {
+                return peerId;
+            }
         }
     }
 

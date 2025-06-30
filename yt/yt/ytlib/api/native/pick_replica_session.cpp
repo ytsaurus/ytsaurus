@@ -20,6 +20,12 @@ using namespace NQueryClient;
 
 using TClusterScoreMap = THashMap<std::string, TTimestamp>;
 
+////////////////////////////////////////////////////////////////////////////////
+
+constinit const auto Logger = ApiLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 const std::string UpstreamReplicaIdAttributeName = "upstream_replica_id";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -37,6 +43,9 @@ void TraverseQueryTables(NAst::TQuery* query, TCallback onTableDescriptor)
         },
         [&] (NAst::TQueryAstHeadPtr& subquery) {
             TraverseQueryTables(&subquery->Ast, onTableDescriptor);
+        },
+        [] (const NAst::TExpressionList& /*expression*/) {
+            THROW_ERROR_EXCEPTION("Unexpected expression in from clause");
         });
 
     for (auto& join : query->Joins) {
@@ -172,12 +181,14 @@ public:
     TPickReplicaSession(
         std::vector<TReplicaSynchronicityList> replicas,
         NAst::TQuery* query,
-        const TSelectRowsOptionsBase& baseOptions,
         std::vector<TTableMountInfoPtr> tableInfos,
         std::vector<NAst::TTableHintPtr> tableHints,
-        std::vector<IBannedReplicaTrackerPtr> bannedReplicaTrackers);
+        std::vector<IBannedReplicaTrackerPtr> bannedReplicaTrackers,
+        const IConnectionPtr& connection,
+        TTimestamp timestamp,
+        const TSelectRowsOptionsBase& baseOptions);
 
-    TResult Execute(const IConnectionPtr& connection, TExecuteCallback callback) override;
+    TResult Execute(TExecuteCallback callback) override;
 
     bool IsFallbackRequired() const override;
 
@@ -188,38 +199,42 @@ private:
     const std::vector<TTableMountInfoPtr> TableInfos_;
     const std::vector<NAst::TTableHintPtr> TableHints_;
     const std::vector<IBannedReplicaTrackerPtr> BannedReplicaTrackers_;
+    const IConnectionPtr Connection_;
+    const TTimestamp Timestamp_ = NullTimestamp;
     TSelectRowsOptionsBase BaseOptions_;
 
     // Returns a map without scores.
-    TClusterScoreMap PickViableClusters() const;
+    TClusterScoreMap PickViableClusters(const TConnectionDynamicConfigPtr& config) const;
     std::pair<std::string, TReplicaSynchronicityList> PickClusterAndReplicas(TClusterScoreMap viableClusters) const;
 };
 
 TPickReplicaSession::TPickReplicaSession(
     std::vector<TReplicaSynchronicityList> replicas,
     NAst::TQuery* query,
-    const TSelectRowsOptionsBase& baseOptions,
     std::vector<TTableMountInfoPtr> tableInfos,
     std::vector<NAst::TTableHintPtr> tableHints,
-    std::vector<IBannedReplicaTrackerPtr> bannedReplicaTrackers)
+    std::vector<IBannedReplicaTrackerPtr> bannedReplicaTrackers,
+    const IConnectionPtr& connection,
+    TTimestamp timestamp,
+    const TSelectRowsOptionsBase& baseOptions)
     : IsFallbackRequired_(true)
     , Replicas_(std::move(replicas))
     , AstQuery_(query)
     , TableInfos_(std::move(tableInfos))
     , TableHints_(std::move(tableHints))
     , BannedReplicaTrackers_(std::move(bannedReplicaTrackers))
+    , Connection_(std::move(connection))
+    , Timestamp_(timestamp)
     , BaseOptions_(baseOptions)
 { }
 
 TPickReplicaSession::TResult TPickReplicaSession::Execute(
-    const IConnectionPtr& connection,
     TExecuteCallback callback)
 {
-    const auto& Logger = connection->GetLogger();
-
     BaseOptions_.ReplicaConsistency = EReplicaConsistency::None;
 
-    const auto replicaFallbackRetryCount = connection->GetConfig()->ReplicaFallbackRetryCount;
+    const auto config = Connection_->GetConfig();
+    auto replicaFallbackRetryCount = config->ReplicaFallbackRetryCount;
     THashMap<TTableReplicaId, TTableId> replicaIdToTableId;
     int retryCountLimit = 0;
     for (int index = 0; index < std::ssize(TableInfos_); ++index) {
@@ -235,7 +250,7 @@ TPickReplicaSession::TResult TPickReplicaSession::Execute(
     TError error;
     for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
         try {
-            auto [cluster, replicas] = PickClusterAndReplicas(PickViableClusters());
+            auto [cluster, replicas] = PickClusterAndReplicas(PickViableClusters(config));
 
             YT_LOG_DEBUG("Fallback to replicas (Cluster: %v, Replicas: %v, Attempt: %v)",
                 cluster,
@@ -255,7 +270,7 @@ TPickReplicaSession::TResult TPickReplicaSession::Execute(
             if (auto schemaError = error.FindMatching(NTabletClient::EErrorCode::TableSchemaIncompatible)) {
                 if (auto replicaId = schemaError->Attributes().Find<TTableReplicaId>(UpstreamReplicaIdAttributeName)) {
                     if (auto it = replicaIdToTableId.find(*replicaId)) {
-                        auto bannedReplicaTracker = connection
+                        auto bannedReplicaTracker = Connection_
                             ->GetBannedReplicaTrackerCache()
                             ->GetTracker(it->second);
                         bannedReplicaTracker->BanReplica(*replicaId, error.Truncate());
@@ -275,7 +290,8 @@ bool TPickReplicaSession::IsFallbackRequired() const
     return IsFallbackRequired_;
 }
 
-TClusterScoreMap TPickReplicaSession::PickViableClusters() const
+TClusterScoreMap TPickReplicaSession::PickViableClusters(
+    const TConnectionDynamicConfigPtr& config) const
 {
     TClusterScoreMap viableClusters;
 
@@ -310,7 +326,12 @@ TClusterScoreMap TPickReplicaSession::PickViableClusters() const
                 continue;
             }
 
-            if (IsReplicaSyncEnough(requireSyncReplica, replica, BaseOptions_.Timestamp)) {
+            if (config->BannedInSyncReplicaClusters.contains(replica.ReplicaInfo->ClusterName)) {
+                bannedReplicaIds.push_back(replica.ReplicaInfo->ReplicaId);
+                continue;
+            }
+
+            if (IsReplicaSyncEnough(requireSyncReplica, replica, Timestamp_)) {
                 clusters[replica.ReplicaInfo->ClusterName] = {};
             }
         }
@@ -333,16 +354,18 @@ TClusterScoreMap TPickReplicaSession::PickViableClusters() const
 
         if (tableViableClusters.empty()) {
             for (auto id : bannedReplicaIds) {
-                if (const auto& error = BannedReplicaTrackers_[index]->GetReplicaError(id);
-                    !error.IsOK())
-                {
-                    replicaErrors.push_back(error);
+                if (BannedReplicaTrackers_[index]) {
+                    if (const auto& error = BannedReplicaTrackers_[index]->GetReplicaError(id);
+                        !error.IsOK())
+                    {
+                        replicaErrors.push_back(error);
+                    }
                 }
             }
 
             auto error = TError(
                 NTabletClient::EErrorCode::NoInSyncReplicas,
-                "No single cluster contains in-sync replicas for table %v",
+                "No cluster contains in-sync replicas for table %v",
                 TableInfos_[index]->Path)
                 << TErrorAttribute("banned_replicas", bannedReplicaIds);
 
@@ -370,6 +393,8 @@ TClusterScoreMap TPickReplicaSession::PickViableClusters() const
 
         THROW_ERROR error;
     }
+
+    YT_LOG_DEBUG("Picked viable clusters (Clusters: %v)", viableClusters);
 
     return viableClusters;
 }
@@ -416,7 +441,7 @@ std::pair<std::string, TReplicaSynchronicityList> TPickReplicaSession::PickClust
     TReplicaSynchronicityList replicas;
     for (int index = 0; index < std::ssize(Replicas_); ++index) {
         const auto requireSyncReplica = TableHints_[index]->RequireSyncReplica;
-        const auto userTimestamp = BaseOptions_.Timestamp;
+        const auto userTimestamp = Timestamp_;
 
         auto isGoodReplica = [&] (const TReplicaSynchronicity& replica) {
             return IsReplicaSyncEnough(requireSyncReplica, replica, userTimestamp) &&
@@ -460,10 +485,9 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
     const IConnectionPtr& connection,
     const ITableMountCachePtr& mountCache,
     const ITableReplicaSynchronicityCachePtr& replicaSynchronicityCache,
-    const TSelectRowsOptionsBase& options)
+    const TSelectRowsOptionsBase& options,
+    TTimestamp timestamp)
 {
-    const auto& Logger = connection->GetLogger();
-
     auto tableInfos = WaitForFast(AllSucceeded(GetQueryTableInfos(query, mountCache)))
         .ValueOrThrow();
     auto tableHints = GetQueryTableHints(query);
@@ -490,19 +514,25 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
     auto replicas = WaitFor(AllSucceeded(std::move(futureReplicas)))
         .ValueOrThrow();
 
-    YT_LOG_DEBUG("Fetched table replica synchronicities (TablePaths: %v, ReplicaSynchronicities: %v)",
+    YT_LOG_DEBUG("Picking replicas (TablePaths: %v, RequireSyncReplicas: %v, ReplicaSynchronicities: %v, Timestamp: %v)",
         MakeFormattableView(tableInfos, [] (TStringBuilderBase* builder, const TTableMountInfoPtr& tableInfo) {
             builder->AppendString(tableInfo->Path);
         }),
-        replicas);
+        MakeFormattableView(tableHints, [] (TStringBuilderBase* builder, const NAst::TTableHintPtr& tableHint) {
+            builder->AppendFormat("%v", tableHint->RequireSyncReplica);
+        }),
+        replicas,
+        timestamp);
 
     return New<TPickReplicaSession>(
         std::move(replicas),
         query,
-        options,
         std::move(tableInfos),
         std::move(tableHints),
-        std::move(bannedReplicaTrackers));
+        std::move(bannedReplicaTrackers),
+        connection,
+        timestamp,
+        options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

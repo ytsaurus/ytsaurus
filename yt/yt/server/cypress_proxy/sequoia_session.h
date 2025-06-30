@@ -2,9 +2,12 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
+
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/client/api/client_common.h>
+#include <yt/yt/client/api/cypress_client.h>
 
 #include <yt/yt/client/table_client/schema.h>
 
@@ -106,7 +109,7 @@ public:
     // Operations over subtree.
 
     //! Selects subtree from "path_to_node_id" Sequoia table.
-    TSubtree FetchSubtree(NSequoiaClient::TAbsoluteYPathBuf path);
+    TSubtree FetchSubtree(NSequoiaClient::TAbsolutePathBuf path);
 
     //! Removes the whole subtree (including its root) from all resolve tables.
     //! If subtree root is not a scion then it is detached from its parent and
@@ -122,7 +125,7 @@ public:
     //! parent. Does _not_ S-lock destination's parent.
     NCypressClient::TNodeId CopySubtree(
         const TSubtree& sourceSubtree,
-        NSequoiaClient::TAbsoluteYPathBuf destinationRoot,
+        NSequoiaClient::TAbsolutePathBuf destinationRoot,
         NCypressClient::TNodeId destinationParentId,
         const TCopyOptions& options);
 
@@ -134,7 +137,7 @@ public:
      *  NB: requires "late prepare" with subtree root's cell as a coordinator.
      */
     void ClearSubtree(
-        NSequoiaClient::TAbsoluteYPathBuf path,
+        NSequoiaClient::TAbsolutePathBuf path,
         const NApi::TSuppressableAccessTrackingOptions& options);
 
     // Miscelanous.
@@ -158,7 +161,7 @@ public:
     //! for setting node attributes.
     void SetNodeAttribute(
         NCypressClient::TNodeId nodeId,
-        NSequoiaClient::TYPathBuf path,
+        NYPath::TYPathBuf path,
         NYson::TYsonString value,
         bool force,
         const NApi::TSuppressableAccessTrackingOptions& options);
@@ -167,7 +170,7 @@ public:
     //! shared S-lock on row in "node_id_to_path" Sequoia table.
     void MultisetNodeAttributes(
         NCypressClient::TNodeId nodeId,
-        NSequoiaClient::TYPathBuf path,
+        NYPath::TYPathBuf path,
         const std::vector<TMultisetAttributesSubrequest>& subrequests,
         bool force,
         const NApi::TSuppressableAccessTrackingOptions& options);
@@ -176,7 +179,7 @@ public:
     //! in "node_id_to_path" Sequoia table.
     void RemoveNodeAttribute(
         NCypressClient::TNodeId nodeId,
-        NSequoiaClient::TYPathBuf path,
+        NYPath::TYPathBuf path,
         bool force);
 
     //! Removes single node. If it's map-node it has to be empty.
@@ -185,7 +188,7 @@ public:
     //! Requires late prepare on cell which owns |parentId|.
     void DetachAndRemoveSingleNode(
         NCypressClient::TNodeId nodeId,
-        NSequoiaClient::TAbsoluteYPathBuf path,
+        NSequoiaClient::TAbsolutePathBuf path,
         NCypressClient::TNodeId parentId);
 
     //! For parent P and node names [A_1, ..., A_n] creates P/A_1/.../A_n and
@@ -194,7 +197,7 @@ public:
     //! If #names is empty just returns #startId but still S-locks it.
     //! Requires late prepare on cell which owns |startId|.
     NCypressClient::TNodeId CreateMapNodeChain(
-        NSequoiaClient::TAbsoluteYPathBuf startPath,
+        NSequoiaClient::TAbsolutePathBuf startPath,
         NCypressClient::TNodeId startId,
         TRange<std::string> names,
         const NApi::TSuppressableAccessTrackingOptions& options);
@@ -207,10 +210,25 @@ public:
      */
     NCypressClient::TNodeId CreateNode(
         NObjectClient::EObjectType type,
-        NSequoiaClient::TAbsoluteYPathBuf path,
+        NSequoiaClient::TAbsolutePathBuf path,
         const NYTree::IAttributeDictionary* explicitAttributes,
         NCypressClient::TNodeId parentId,
         const NApi::TSuppressableAccessTrackingOptions& options);
+
+    //! Generates ID, registers tx action. Does _not_ modify Sequoia tables.
+    NCypressClient::TNodeId MaterializeNodeOnMaster(
+        NObjectClient::NProto::TReqMaterializeNode* originalRequest,
+        NObjectClient::TCellTag cellTagHint,
+        NObjectClient::EObjectType type,
+        NCypressClient::TNodeId existingNodeId);
+
+    void AssembleTreeCopy(
+        NCypressClient::TNodeId nodeId,
+        NCypressClient::TNodeId parentId,
+        NSequoiaClient::TAbsolutePath path,
+        bool preserveAcl,
+        bool preserveModificationTime,
+        THashMap<NCypressClient::TNodeId, std::vector<TCypressChildDescriptor>> nodeIdToChildInfo);
 
     // Map-node's children accessors.
 
@@ -230,7 +248,7 @@ public:
 
     struct TResolvedNodeId
     {
-        NSequoiaClient::TAbsoluteYPath Path;
+        NSequoiaClient::TAbsolutePath Path;
         bool IsSnapshot;
     };
 
@@ -247,8 +265,8 @@ public:
      *  NB: If this node was already fetched from "node_id_to_path" Sequoia
      *  table this method is no-op.
      */
-    NSequoiaClient::TAbsoluteYPath GetLinkTargetPath(NCypressClient::TNodeId linkId);
-    THashMap<NCypressClient::TNodeId, NSequoiaClient::TAbsoluteYPath> GetLinkTargetPaths(
+    NYPath::TYPath GetLinkTargetPath(NCypressClient::TNodeId linkId);
+    THashMap<NCypressClient::TNodeId, NYPath::TYPath> GetLinkTargetPaths(
         TRange<NCypressClient::TNodeId> linkIds);
 
     //! Looks up nodes in "path_to_node_id" Sequoia table.
@@ -257,7 +275,7 @@ public:
      *  #path[0] must always be "/".
      */
     std::vector<NCypressClient::TNodeId> FindNodeIds(
-        TRange<NSequoiaClient::TAbsoluteYPathBuf> paths);
+        TRange<NSequoiaClient::TAbsolutePathBuf> paths);
 
     // Low-level helpers.
 
@@ -267,7 +285,8 @@ public:
     //! Used only to implement "lock" verb (and mustn't be used in other verbs).
     //! Acquires shared S-lock in "node_id_to_path" table.
     //! Requires late prepare on cell which owns |nodeId|.
-    NCypressClient::TLockId LockNode(
+    //! Lock is considered to be explicit.
+    NCypressClient::TLockId LockNodeExplicitly(
         NCypressClient::TNodeId nodeId,
         NCypressClient::ELockMode lockMode,
         const std::optional<std::string>& childKey,
@@ -275,7 +294,18 @@ public:
         NTransactionClient::TTimestamp timestamp,
         bool waitable);
 
+    //! Used in implementations of verbs that require implicit locks
+    //! but don't have a dedicated master transaction action.
+    //! Lock is considered to be implicit.
+    void LockNodeImplicitly(
+        NCypressClient::TNodeId nodeId,
+        NCypressClient::ELockMode lockMode,
+        const std::optional<std::string>& childKey,
+        const std::optional<std::string>& attributeKey);
+
     void UnlockNode(NCypressClient::TNodeId nodeId, bool snapshot);
+
+    void ValidateTransactionPresence();
 
 private:
     IBootstrap* const Bootstrap_;
@@ -286,7 +316,7 @@ private:
 
     NObjectClient::TCellTag RequiredCoordinatorCellTag_ = {};
 
-    THashMap<NCypressClient::TNodeId, NSequoiaClient::TAbsoluteYPath> CachedLinkTargetPaths_;
+    THashMap<NCypressClient::TNodeId, NYPath::TYPath> CachedLinkTargetPaths_;
 
     // This cache is filled on every read of Sequoia resolve tables.
     TProgenitorTransactionCache ProgenitorTransactionCache_;
@@ -323,7 +353,7 @@ private:
 
     void DoSetNode(
         NCypressClient::TNodeId nodeId,
-        NSequoiaClient::TYPathBuf path,
+        NYPath::TYPathBuf path,
         NYson::TYsonString value,
         bool force,
         const NApi::TSuppressableAccessTrackingOptions& options);
@@ -333,7 +363,7 @@ private:
     void RequireLatePrepare(NObjectClient::TCellTag coordinatorCellTag);
     void RequireLatePrepareOnNativeCellFor(NCypressClient::TNodeId nodeId);
 
-    TFuture<TSubtree> DoFetchSubtree(NSequoiaClient::TAbsoluteYPathBuf path);
+    TFuture<TSubtree> DoFetchSubtree(NSequoiaClient::TAbsolutePathBuf path);
 
     // Locks rows in "node_id_to_path" Sequoia table.
     void AcquireCypressLockInSequoia(

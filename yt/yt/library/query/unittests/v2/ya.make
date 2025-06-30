@@ -4,6 +4,7 @@ ALLOCATOR(TCMALLOC)
 
 SRCS(
     init.cpp
+    ql_cast_ut.cpp
 )
 
 PEERDIR(

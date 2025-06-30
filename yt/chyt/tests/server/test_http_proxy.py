@@ -55,7 +55,7 @@ def _generate_session_id() -> str:
 
 
 class TestClickHouseHttpProxy(ClickHouseTestBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
 
     ENABLE_TLS = True
     ENABLE_CHYT_HTTPS_PROXIES = True
@@ -71,6 +71,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             },
             "operation_id_update_period": 100,
             "populate_user_with_token": True,
+            "read_operation_ids_from": "follower",
         },
     }
 

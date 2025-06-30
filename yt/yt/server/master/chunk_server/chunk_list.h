@@ -58,6 +58,13 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(int, Version);
 
 public:
+    struct TAppendTabletChunkLists
+    {
+        TChunkList* OriginatingChunkList;
+        TChunkList* DeltaChunkList;
+    };
+
+public:
     explicit TChunkList(TChunkListId id);
 
     TChunkListDynamicData* GetDynamicData() const;
@@ -106,6 +113,11 @@ public:
     bool HasChild(TChunkTree* child) const;
 
     NTableClient::TKeyBound GetPivotKeyBound() const;
+
+    // COMPAT(dave11ar): Remove when all branched append chunk lists will be in new format.
+    bool IsNewAppendTabletChunkList() const;
+
+    TAppendTabletChunkLists GetAppendTabletChunkLists() const;
 
 private:
     TIndexedVector<TChunkListRawPtr> Parents_;

@@ -9,7 +9,7 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = BundleControllerLogger;
+constinit const auto Logger = BundleControllerLogger;
 static constexpr bool LeaveNodesDecommissioned = true;
 static constexpr bool DoNotLeaveNodesDecommissioned = false;
 
@@ -156,14 +156,9 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
                 continue;
             }
 
-            TBundleControllerStatePtr bundleState;
-            if (const auto it = mutations->ChangedStates.find(bundleName); it != mutations->ChangedStates.end()) {
-                bundleState = it->second;
-            } else if (const auto it = input.BundleStates.find(bundleName); it != input.BundleStates.end()) {
-                bundleState = it->second;
-            }
+            auto bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
 
-            if (bundleState && bundleState->SpareNodeReleasements.count(spareNodeName) != 0) {
+            if (bundleState->SpareNodeReleasements.contains(spareNodeName)) {
                 spareNodes.ReleasingByBundle[bundleName].push_back(spareNodeName);
             } else {
                 spareNodes.UsedByBundle[bundleName].push_back(spareNodeName);
@@ -218,13 +213,14 @@ bool ProcessNodeAssignment(
     }
 
     const auto& targetConfig = bundleInfo->TargetConfig;
+    auto cpuLimits = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input);
 
-    if (isNodeOnline && targetConfig->CpuLimits->WriteThreadPoolSize != std::ssize(nodeInfo->TabletSlots)) {
+    if (isNodeOnline && cpuLimits->WriteThreadPoolSize != std::ssize(nodeInfo->TabletSlots)) {
         YT_LOG_DEBUG("Node has not applied dynamic bundle config yet "
             "(Bundle: %v, TabletNode: %v, ExpectedSlotCount: %v, ActualSlotCount: %v)",
             bundleName,
             nodeName,
-            targetConfig->CpuLimits->WriteThreadPoolSize,
+            cpuLimits->WriteThreadPoolSize,
             std::ssize(nodeInfo->TabletSlots));
 
         return false;
@@ -311,16 +307,19 @@ void TryCreateSpareNodesAssignment(
     const TBundleControllerStatePtr& bundleState)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
-    int perNodeSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
+    int perNodeSlotCount = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input)
+        ->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
     auto now = TInstant::Now();
 
     while (slotsToAdd > 0 && spareNodesAllocator.HasInstances(zoneName, dataCenterName)) {
         auto nodeName = spareNodesAllocator.Allocate(zoneName, dataCenterName, bundleName);
         auto nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
-        YT_LOG_INFO("Assigning spare node (Bundle: %v, NodeName: %v)",
+        YT_LOG_INFO("Assigning spare node (Bundle: %v, NodeName: %v, NodeSlotCount: %v, SlotsToAdd: %v)",
             bundleName,
-            nodeName);
+            nodeName,
+            perNodeSlotCount,
+            slotsToAdd);
 
         auto operation = New<TNodeTagFilterOperationState>();
         operation->CreationTime = now;
@@ -436,7 +435,7 @@ void ProcessNodesAssignments(
     std::vector<std::string> finished;
     auto now = TInstant::Now();
 
-    for (const auto& [nodeName,  operation] : *nodeAssignments) {
+    for (const auto& [nodeName, operation] : *nodeAssignments) {
         if (now - operation->CreationTime > input.Config->NodeAssignmentTimeout) {
             YT_LOG_WARNING("Assigning node is stuck (Bundle: %v, TabletNode: %v)",
                 bundleName,
@@ -478,7 +477,7 @@ void ProcessNodesReleasements(
     std::vector<std::string> finished;
     auto now = TInstant::Now();
 
-    for (const auto& [nodeName,  operation] : *nodeAssignments) {
+    for (const auto& [nodeName, operation] : *nodeAssignments) {
         if (now - operation->CreationTime > input.Config->NodeAssignmentTimeout) {
             YT_LOG_WARNING("Releasing node is stuck (Bundle: %v, Node: %v)",
                 bundleName,
@@ -666,12 +665,13 @@ THashSet<std::string> GetDataCentersToPopulate(
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     const auto& targetConfig = bundleInfo->TargetConfig;
     const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
-    const auto perNodeSlotCount = targetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
+    const auto perNodeSlotCount = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input)
+        ->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
 
     int activeDataCenterCount = std::ssize(zoneInfo->DataCenters) - zoneInfo->RedundantDataCenterCount;
     YT_VERIFY(activeDataCenterCount > 0);
 
-    int perDataCenterSlotCount = GetCeiledShare(std::ssize(bundleInfo->TabletCellIds) *  bundleInfo->Options->PeerCount, activeDataCenterCount);
+    int perDataCenterSlotCount = GetCeiledShare(std::ssize(bundleInfo->TabletCellIds) * bundleInfo->Options->PeerCount, activeDataCenterCount);
     int requiredPerDataCenterNodeCount = GetCeiledShare(perDataCenterSlotCount, perNodeSlotCount);
 
     std::vector<TDataCenterOrder> dataCentersOrder;
@@ -845,7 +845,8 @@ void SetNodeTagFilter(
 
     for (const auto& [dataCenterName, _] : zoneInfo->DataCenters) {
         const auto& aliveNodes = perDataCenterAliveNodes[dataCenterName];
-        int perNodeSlotCount = targetConfig->CpuLimits->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
+        int perNodeSlotCount = GetBundleEffectiveCpuLimits(bundleName, bundleInfo, input)
+            ->WriteThreadPoolSize.value_or(DefaultWriteThreadPoolSize);
         auto& spareNodes = perDataCenterSpareNodes[dataCenterName];
 
         auto getSpareSlotCount = [perNodeSlotCount, bundleName] (const auto& sparesByBundle) ->int {
@@ -869,19 +870,42 @@ void SetNodeTagFilter(
         int assigningSlotCount = requiredDataCenterSlotCount - usedSpareSlotCount - std::ssize(aliveNodes) * perNodeSlotCount;
 
         YT_LOG_DEBUG("Checking tablet cell slots for bundle "
-            "(Bundle: %v, DataCenter: %v, ReleasingSlotCount: %v, AssigningSlotCount: %v, "
-            "SpareSlotCount: %v, BundleSlotCount: %v, RequiredDataCenterSlotCount: %v)",
+            "(Bundle: %v, "
+            "DataCenter: %v, "
+            "BundleSlotCount: %v, "
+            "UsedSpareSlotCount: %v, "
+            "ReleasingSlotCount: %v, "
+            "AssigningSlotCount: %v, "
+            "RequiredDataCenterSlotCount: %v)",
             bundleName,
             dataCenterName,
+            actualSlotCount,
+            usedSpareSlotCount,
             releasingSlotCount,
             assigningSlotCount,
-            usedSpareSlotCount,
-            actualSlotCount,
             requiredDataCenterSlotCount);
 
+        if (!input.Config->EnableSpareNodeAssignment) {
+            YT_LOG_DEBUG("Spare node assignment/releasement is disabled (Bundle: %v, DataCenter: %v, ReleasingSlotCount: %v, AssigningSlotCount: %v)",
+                bundleName,
+                dataCenterName,
+                releasingSlotCount,
+                assigningSlotCount);
+
+            continue;
+        }
+
         if (releasingSlotCount > 0) {
+            YT_LOG_DEBUG("Creating spare nodes releasements (BundleName: %v, DataCenter: %v, ReleasingSlotCount: %v)",
+                bundleName,
+                dataCenterName,
+                releasingSlotCount);
             TryCreateSpareNodesReleasements(bundleName, input, releasingSlotCount, &spareNodes, bundleState);
         } else if (assigningSlotCount > 0) {
+            YT_LOG_DEBUG("Creating spare nodes assignment (BundleName: %v, DataCenter: %v, AssigningSlotCount: %v)",
+                bundleName,
+                dataCenterName,
+                assigningSlotCount);
             TryCreateSpareNodesAssignment(bundleName, zoneName, dataCenterName, input, assigningSlotCount, spareNodesAllocator, bundleState);
         }
     }
@@ -939,7 +963,9 @@ void ManageNodeTagFilters(
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         auto guard = mutations->MakeBundleNameGuard(bundleName);
 
-        if (!bundleInfo->EnableBundleController || !bundleInfo->EnableNodeTagFilterManagement) {
+        if (!bundleInfo->EnableBundleController ||
+            !bundleInfo->EnableNodeTagFilterManagement)
+        {
             continue;
         }
 

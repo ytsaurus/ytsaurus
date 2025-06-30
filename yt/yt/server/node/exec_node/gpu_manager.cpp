@@ -25,6 +25,8 @@
 
 #include <yt/yt/library/process/subprocess.h>
 
+#include <yt/yt/core/logging/fluent_log.h>
+
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/proc.h>
 
@@ -48,7 +50,7 @@ using namespace NDataNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ExecNodeLogger;
+constinit const auto Logger = ExecNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,9 +89,11 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         "{CumulativeUtilizationGpu: %v, CumulativeUtilizationMemory: %v, "
         "CumulativeMemory: %v, CumulativeMemoryMBSec: %v, "
         "MaxMemoryUsed: %v, CumulativeLoad: %v, CumulativeUtilizationPower: %v, CumulativePower: %v, "
-        "CumulativeUtilizationClocksSM: %v, CumulativeSMUtilization: %v, CumulativeSMOccupancy: %v, "
+        "CumulativeUtilizationClocksSM: %v, CumulativeSMClocks: %v, CumulativeSMUtilization: %v, CumulativeSMOccupancy: %v, "
         "NvlinkRxBytes: %v, NvlinkTxBytes: %v, PcieRxBytes: %v, PcieTxBytes: %v, "
-        "CumulativeTensorActivity: %v, CumulativeDramActivity: %v, MaxStuckDuration: %v}",
+        "CumulativeTensorActivity: %v, CumulativeDramActivity: %v, "
+        "CumulativeSwThermalSlowdown: %v, CumulativeHwThermalSlowdown: %v, CumulativeHwPowerBrakeSlowdown: %v, CumulativeHwSlowdown: %v, "
+        "MaxStuckDuration: %v}",
         gpuStatistics.CumulativeUtilizationGpu,
         gpuStatistics.CumulativeUtilizationMemory,
         gpuStatistics.CumulativeMemory,
@@ -99,6 +103,7 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         gpuStatistics.CumulativeUtilizationPower,
         gpuStatistics.CumulativePower,
         gpuStatistics.CumulativeUtilizationClocksSM,
+        gpuStatistics.CumulativeSMClocks,
         gpuStatistics.CumulativeSMUtilization,
         gpuStatistics.CumulativeSMOccupancy,
         gpuStatistics.NvlinkRxBytes,
@@ -107,6 +112,10 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         gpuStatistics.PcieTxBytes,
         gpuStatistics.CumulativeTensorActivity,
         gpuStatistics.CumulativeDramActivity,
+        gpuStatistics.CumulativeSwThermalSlowdown,
+        gpuStatistics.CumulativeHwThermalSlowdown,
+        gpuStatistics.CumulativeHwPowerBrakeSlowdown,
+        gpuStatistics.CumulativeHwSlowdown,
         gpuStatistics.MaxStuckDuration);
 }
 
@@ -133,6 +142,9 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         BIND_NO_PROPAGATE(&TGpuManager::OnTestGpuInfoUpdate, MakeWeak(this)),
         StaticConfig_->Testing->TestGpuInfoUpdatePeriod))
     , GpuInfoProvider_(CreateGpuInfoProvider(StaticConfig_->GpuInfoSource))
+{ }
+
+void TGpuManager::Initialize()
 {
     YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
@@ -436,15 +448,17 @@ void TGpuManager::OnRdmaDeviceInfoUpdate()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
+    std::vector<TRdmaDeviceInfo> rdmaDevices;
     try {
         auto timeout = DynamicConfig_.Acquire()->RdmaDeviceInfoUpdateTimeout;
-        auto rdmaDevices = GpuInfoProvider_.Acquire()->GetRdmaDeviceInfos(timeout);
-
-        auto guard = Guard(SpinLock_);
-        RdmaDevices_ = std::move(rdmaDevices);
+        rdmaDevices = GpuInfoProvider_.Acquire()->GetRdmaDeviceInfos(timeout);
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to fetch RDMA device infos");
+        return;
     }
+
+    auto guard = Guard(SpinLock_);
+    std::swap(RdmaDevices_, rdmaDevices);
 }
 
 void TGpuManager::OnTestGpuInfoUpdate()
@@ -555,6 +569,8 @@ void TGpuManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
 
     BuildYsonFluently(consumer).BeginMap()
         .Item("gpu_infos").Value(GetGpuInfoMap())
+        .Item("rdma_devices").Value(GetRdmaDevices())
+        .Item("current_network_priority").Value(CurrentNetworkPriority_)
     .EndMap();
 }
 
@@ -711,6 +727,53 @@ void TGpuManager::PopulateAlerts(std::vector<TError>* alerts) const
     }
 }
 
+
+void TGpuManager::ApplyNetworkPriority(std::optional<TNetworkPriority> networkPriority)
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    auto config = DynamicConfig_.Acquire();
+    if (!config->EnableNetworkServiceLevel) {
+        YT_LOG_DEBUG("Tuning of network service level is disabled");
+        return;
+    }
+
+    TNetworkPriority newNetworkPriority = networkPriority.value_or(DefaultNetworkPriority);
+
+    YT_LOG_DEBUG("Applying network priority (Old: %v, New: %v)", CurrentNetworkPriority_, networkPriority);
+
+    if (newNetworkPriority == CurrentNetworkPriority_) {
+        return;
+    }
+    // TODO(renadeen): Move this to testing GPU provider.
+    if (StaticConfig_->Testing->TestResource) {
+        NLogging::LogStructuredEventFluently(Logger(), NLogging::ELogLevel::Info)
+            .Item("event_type").Value("apply_network_priority_in_test")
+            .Item("network_priority").Value(newNetworkPriority);
+        CurrentNetworkPriority_ = newNetworkPriority;
+        return;
+    }
+
+    std::vector<TString> rdmaDeviceIds;
+    {
+        auto guard = Guard(SpinLock_);
+        rdmaDeviceIds.reserve(RdmaDevices_.size());
+        for (const auto& device : RdmaDevices_) {
+            rdmaDeviceIds.push_back(device.DeviceId);
+        }
+    }
+    try {
+        GpuInfoProvider_.Acquire()->ApplyNetworkServiceLevel(
+            std::move(rdmaDeviceIds),
+            newNetworkPriority,
+            config->ApplyNetworkServiceLevelTimeout);
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Failed to apply network priority");
+        return;
+    }
+
+    CurrentNetworkPriority_ = newNetworkPriority;
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

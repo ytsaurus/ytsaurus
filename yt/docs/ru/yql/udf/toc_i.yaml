@@ -1,0 +1,22 @@
+items:
+  - name: Предустановленные
+    href: preinstalled.md
+  - name: Разработка на Python
+    href: python.md
+  - name: Разработка на JavaScript
+    href: javascript.md
+    when: audience == "internal"
+  - name: Разработка на C++
+    href: cpp.md
+    items:
+     - name: Тестирование
+       href: cpp_testing.md
+       when: audience == "internal"
+     - name: Коротко о С++ UDF
+       href: cpp_about_udf.md
+     - name: Обработка данных в C++ UDF
+       href: cpp_data_processing.md
+     - name: Type-Aware UDF
+       href: cpp_type_aware_udf.md
+     - name: YQL-Stream в C++ UDF
+       href: cpp_stream.md

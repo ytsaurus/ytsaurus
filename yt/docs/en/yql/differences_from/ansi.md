@@ -14,7 +14,7 @@ In this table, we've put together the scenarios where the same query produces d
 | E011-04 | Arithmetic operators | YQL suppresses errors in arithmetic calculations. For example, the expression `1/0` has the type `Int32?` and the value `NULL`. ANSI SQL will throw an error in this case: |
 | E011-06 | Implicit casting among the numeric data types | YQL doesn't provide implicit casting between NUMERIC and INTEGER/FLOAT. |
 | E031-01 | Delimited identifiers | In YQL, the expression `SELECT "a" FROM foo` returns a string constant. In ANSI, `"a"` is treated as the ID (the `a` column) |
-| E071-02 | UNION ALL table operator | In ANSI SQL, columns are joined according to their positions; in YQL, they are joined by names. In YQL, `ORDER BY, OFFSET, LIMIT` apply to the last united item. In ANSI, it's applied to the `UNION ALL` result. |
+| E071-02 | UNION ALL table operator | In ANSI SQL, columns are joined according to their positions; in YQL, they are joined by names. Adding the `PositionalUnionAll` pragma enables the standard columnar execution for UNION ALL. In this case, column ordering is enabled automatically. |
 
 ## ANSI SQL support status
 | ID | Name | Support | Comment |
@@ -44,7 +44,7 @@ In this table, we've put together the scenarios where the same query produces d
 | E031-02 | Lower case identifiers | Yes |  |
 | E031-03 | Trailing underscore | Yes |  |
 | **E051** | **Basic query specification** | **Partial** |  |
-| E051-01 | SELECT DISTINCT | Partial | `SELECT DISTINCT *` isn't supported |
+| E051-01 | SELECT DISTINCT | Yes |  |
 | E051-02 | GROUP BY clause | Yes |  |
 | E051-04 | GROUP BY can contain columns not in \<select list\> | Yes | |
 | E051-05 | Select items can be renamed | Yes | `SELECT foo AS bar` |
@@ -54,7 +54,7 @@ In this table, we've put together the scenarios where the same query produces d
 | E051-09 | Rename columns in the FROM clause | No | `SELECT ... FROM T AS a (x AS foo, y AS bar)` |
 | **E061** | **Basic predicates and search conditions** | **Partial** |  |
 | E061-01 | Comparison predicate | Yes | Operators `<,>,=,<>,<=,>=` |
-| E061-02 | BETWEEN predicate | Partial |  |
+| E061-02 | BETWEEN predicate | Yes |  |
 | E061-03 | IN predicate with list of values | Yes |  |
 | E061-04 | LIKE predicate | Yes |  |
 | E061-05 | LIKE predicate: ESCAPE clause | Yes | |
@@ -118,7 +118,7 @@ Should be supported:
 It should also support the optional specifier `CHARACTER SET cs` and setting sorting rules by `COLLATE`
 
 These types aren't supported in YQL. The nearest analog is the `String` type
- which is a binary string of a variable length.
+which is a binary string of a variable length.
 
 ##### E021-03 Character literals
 According to the standard, string literals have the following format:
@@ -251,18 +251,6 @@ In YQL:
 ##### E061-01 Comparison predicate
 
 YQL supports operators  <,>,=,<>,<=,>= for compatible types
-
-##### E061-02 BETWEEN predicate
-
-```
-<between predicate> ::=
-  <row value predicand> <between predicate part 2>
-<between predicate part 2> ::=
-  [ NOT ] BETWEEN [ ASYMMETRIC | SYMMETRIC ]
-      <row value predicand> AND <row value predicand>
-```
-
-YQL doesn't support SYMMETRIC/ASSYMETRIC: `A BETWEEN B AND C` is equivalent to `A >= B AND A <= C`.
 
 ##### E061-07 Quantified comparison predicate
 

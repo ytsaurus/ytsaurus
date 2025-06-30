@@ -8,24 +8,21 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletCellDecommissioner
+struct ITabletCellDecommissioner
     : public TRefCounted
 {
 public:
-    explicit TTabletCellDecommissioner(NCellMaster::TBootstrap* bootstrap);
-    ~TTabletCellDecommissioner();
+    virtual void Start() const = 0;
+    virtual void Stop() const = 0;
 
-    void Start() const;
-    void Stop() const;
-
-    void Reconfigure(TTabletCellDecommissionerConfigPtr config) const;
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual void Reconfigure(TTabletCellDecommissionerConfigPtr config) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletCellDecommissioner)
+DEFINE_REFCOUNTED_TYPE(ITabletCellDecommissioner)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITabletCellDecommissionerPtr CreateTabletCellDecommissioner(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

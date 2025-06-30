@@ -108,7 +108,7 @@ public:
     void InitColumn(const DB::IColumn* column) override
     {
         Column_ = column;
-        Data_ = Column_->getDataAt(0).data;
+        Data_ = Column_->size() > 0 ? Column_->getDataAt(0).data : nullptr;
         ColumnString_ = DB::checkAndGetColumn<DB::ColumnString>(Column_);
 
         CurrentValueIndex_ = 0;

@@ -3,37 +3,38 @@
 #include "helpers.h"
 #include "job_size_adjuster.h"
 #include "new_job_manager.h"
-#include "config.h"
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
 
-#include <yt/yt/ytlib/chunk_client/helpers.h>
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/server/lib/chunk_pools/config.h>
 
-#include <yt/yt/ytlib/node_tracker_client/public.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
-#include <yt/yt/client/table_client/row_buffer.h>
-
 #include <yt/yt/core/logging/logger_owner.h>
 
-#include <library/cpp/yt/memory/ref_tracked.h>
-
 #include <library/cpp/yt/misc/numeric_helpers.h>
-
-#include <random>
 
 namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
 using namespace NControllerAgent;
-using namespace NScheduler;
-using namespace NNodeTrackerClient;
-using namespace NTableClient;
 using namespace NLogging;
+using namespace NNodeTrackerClient;
+using namespace NScheduler;
+using namespace NTableClient;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(apollo1321): Remove in 25.2.
+DEFINE_ENUM(EUnorderedChunkPoolMode,
+    (Normal)
+    (AutoMerge)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -60,7 +61,6 @@ public:
         TInputStreamDirectory directory)
         : JobSizeConstraints_(options.JobSizeConstraints)
         , Sampler_(JobSizeConstraints_->GetSamplingRate())
-        , Mode_(options.Mode)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , MinTeleportChunkDataWeight_(options.MinTeleportChunkDataWeight)
         , SliceErasureChunksByParts_(options.SliceErasureChunksByParts)
@@ -69,8 +69,10 @@ public:
         , JobManager_(New<TNewJobManager>(options.Logger))
         , FreeJobCounter_(New<TProgressCounter>())
         , FreeDataWeightCounter_(New<TProgressCounter>())
+        , FreeCompressedDataSizeCounter_(New<TProgressCounter>())
         , FreeRowCounter_(New<TProgressCounter>())
         , SingleChunkTeleportStrategy_(options.SingleChunkTeleportStrategy)
+        , UseNewSlicingImplementation_(options.UseNewSlicingImplementation)
     {
         Logger = options.Logger;
         ValidateLogger(Logger);
@@ -163,6 +165,9 @@ public:
             Unregister(cookie);
             const auto& statistics = suspendableStripe.GetStatistics();
             FreeDataWeightCounter_->AddSuspended(statistics.DataWeight);
+            if (FreeCompressedDataSizeCounter_) {
+                FreeCompressedDataSizeCounter_->AddSuspended(statistics.CompressedDataSize);
+            }
             FreeRowCounter_->AddSuspended(statistics.RowCount);
         }
 
@@ -192,6 +197,10 @@ public:
             const auto& statistics = suspendableStripe.GetStatistics();
             FreeDataWeightCounter_->AddSuspended(-statistics.DataWeight);
             YT_VERIFY(FreeDataWeightCounter_->GetSuspended() >= 0);
+            if (FreeCompressedDataSizeCounter_) {
+                FreeCompressedDataSizeCounter_->AddSuspended(-statistics.CompressedDataSize);
+                YT_VERIFY(FreeCompressedDataSizeCounter_->GetSuspended() >= 0);
+            }
             FreeRowCounter_->AddSuspended(-statistics.RowCount);
             YT_VERIFY(FreeRowCounter_->GetSuspended() >= 0);
         }
@@ -251,7 +260,8 @@ public:
             if (jobManagerJobCounter->GetPending() == 0) {
                 YT_VERIFY(!FreeStripes_.empty());
 
-                auto idealDataWeightPerJob = GetIdealDataWeightPerJob();
+                i64 idealDataWeightPerJob = UseNewSlicingImplementation_ ? GetAdjustedDataWeightPerJob() : GetDataWeightPerJobFromJobCounter();
+                i64 idealCompressedDataSizePerJob = UseNewSlicingImplementation_ ? GetAdjustedCompressedDataSizePerJob() : std::numeric_limits<i64>::max() / 4;
 
                 auto jobStub = std::make_unique<TNewJobStub>();
 
@@ -266,7 +276,8 @@ public:
                             jobStub.get(),
                             entry.StripeIndexes.begin(),
                             entry.StripeIndexes.end(),
-                            idealDataWeightPerJob);
+                            idealDataWeightPerJob,
+                            idealCompressedDataSizePerJob);
                     }
                 }
 
@@ -276,7 +287,8 @@ public:
                     jobStub.get(),
                     FreeStripes_.begin(),
                     FreeStripes_.end(),
-                    idealDataWeightPerJob);
+                    idealDataWeightPerJob,
+                    idealCompressedDataSizePerJob);
 
                 jobStub->Finalize();
 
@@ -381,14 +393,14 @@ public:
         i64 rowsToAdd = rowsPerJob;
         int sliceIndex = 0;
         auto currentDataSlice = dataSlices[0];
-        TChunkStripePtr stripe = New<TChunkStripe>(false /*foreign*/, true /*solid*/);
+        TChunkStripePtr stripe = New<TChunkStripe>(false /*foreign*/);
         std::vector<IChunkPoolOutput::TCookie> childCookies;
         auto flushStripe = [&] {
-            auto outputCookie = AddStripe(std::move(stripe));
+            auto outputCookie = AddStripe(std::move(stripe), /*solid*/ true);
             if (outputCookie != IChunkPoolOutput::NullCookie) {
                 childCookies.push_back(outputCookie);
             }
-            stripe = New<TChunkStripe>(false /*foreign*/, true /*solid*/);
+            stripe = New<TChunkStripe>(false /*foreign*/);
         };
         while (true) {
             i64 sliceRowCount = currentDataSlice->GetRowCount();
@@ -477,7 +489,6 @@ private:
 
     TIdGenerator OutputCookieGenerator_;
 
-    EUnorderedChunkPoolMode Mode_;
     i64 MinTeleportChunkSize_ = std::numeric_limits<i64>::max() / 4;
     i64 MinTeleportChunkDataWeight_ = std::numeric_limits<i64>::max() / 4;
     bool SliceErasureChunksByParts_ = false;
@@ -490,11 +501,14 @@ private:
 
     TProgressCounterPtr FreeJobCounter_;
     TProgressCounterPtr FreeDataWeightCounter_;
+    TProgressCounterPtr FreeCompressedDataSizeCounter_;
     TProgressCounterPtr FreeRowCounter_;
 
     bool IsCompleted_ = false;
 
     ESingleChunkTeleportStrategy SingleChunkTeleportStrategy_ = ESingleChunkTeleportStrategy::Disabled;
+
+    bool UseNewSlicingImplementation_ = false;
 
     //! Teleport (move to destination pool) trivial (complete), unversioned, teleportable chunk.
     bool TryTeleportChunk(const TLegacyDataSlicePtr& dataSlice)
@@ -522,7 +536,7 @@ private:
         return false;
     }
 
-    bool IsTrivialLimit(const TInputSliceLimit& limit, i64 defaultRowIndex)
+    static bool IsTrivialLimit(const TInputSliceLimit& limit, i64 defaultRowIndex)
     {
         return limit.RowIndex.value_or(defaultRowIndex) == defaultRowIndex && (!limit.KeyBound || limit.KeyBound.IsUniversal());
     };
@@ -540,7 +554,7 @@ private:
         dataSlice->Tag = inputCookie;
 
         if (dataSlice->Type == EDataSourceType::VersionedTable) {
-            AddStripe(New<TChunkStripe>(std::move(dataSlice)));
+            AddStripe(New<TChunkStripe>(std::move(dataSlice)), /*solid*/ false);
             return;
         }
 
@@ -584,7 +598,7 @@ private:
                 newDataSlice->CopyPayloadFrom(*dataSlice);
                 // XXX
                 newDataSlice->GetInputStreamIndex();
-                AddStripe(New<TChunkStripe>(std::move(newDataSlice)));
+                AddStripe(New<TChunkStripe>(std::move(newDataSlice)), /*solid*/ false);
             }
         } else {
             for (const auto& slice : CreateErasureInputChunkSlices(chunk, codecId)) {
@@ -616,7 +630,7 @@ private:
                     newDataSlice->CopyPayloadFrom(*dataSlice);
                     // XXX
                     newDataSlice->GetInputStreamIndex();
-                    AddStripe(New<TChunkStripe>(std::move(newDataSlice)));
+                    AddStripe(New<TChunkStripe>(std::move(newDataSlice)), /*solid*/ false);
                 }
             }
         }
@@ -630,9 +644,9 @@ private:
             Stripes_.size() - oldSize);
     }
 
-    IChunkPoolOutput::TCookie AddStripe(TChunkStripePtr stripe)
+    IChunkPoolOutput::TCookie AddStripe(TChunkStripePtr stripe, bool solid)
     {
-        if (!stripe->Solid && !Sampler_.Sample()) {
+        if (!solid && !Sampler_.Sample()) {
             return IChunkPoolOutput::NullCookie;
         }
 
@@ -644,7 +658,7 @@ private:
 
         GetDataSliceCounter()->AddUncategorized(Stripes_.back().GetStripe()->DataSlices.size());
 
-        if (Stripes_.back().GetStripe()->Solid) {
+        if (solid) {
             AddSolid(internalCookie);
         } else {
             Register(internalCookie);
@@ -663,17 +677,25 @@ private:
         return internalCookie;
     }
 
-    i64 GetFreeJobCount() const
+    i64 GetAdjustedDataWeightPerJob() const
     {
-        return FreeJobCounter_->GetPending() + FreeJobCounter_->GetSuspended();
+        return std::clamp<i64>(
+            JobSizeAdjuster_ ? JobSizeAdjuster_->GetDataWeightPerJob() : JobSizeConstraints_->GetDataWeightPerJob(),
+            1,
+            JobSizeConstraints_->GetMaxDataWeightPerJob());
     }
 
-    i64 GetIdealDataWeightPerJob() const
+    i64 GetAdjustedCompressedDataSizePerJob() const
     {
-        if (Mode_ == EUnorderedChunkPoolMode::AutoMerge) {
-            return JobSizeConstraints_->GetDataWeightPerJob();
-        }
-        i64 freePendingJobCount = GetFreeJobCount();
+        return std::clamp<i64>(
+            JobSizeConstraints_->GetCompressedDataSizePerJob(),
+            1,
+            JobSizeConstraints_->GetMaxCompressedDataSizePerJob());
+    }
+
+    i64 GetDataWeightPerJobFromJobCounter() const
+    {
+        i64 freePendingJobCount = FreeJobCounter_->GetTotal();
         YT_VERIFY(freePendingJobCount > 0);
         return std::max(
             static_cast<i64>(1),
@@ -682,43 +704,54 @@ private:
 
     void UpdateFreeJobCounter()
     {
-        auto oldFreeJobCount =
-            FreeJobCounter_->GetPending() +
-            FreeJobCounter_->GetBlocked() +
-            FreeJobCounter_->GetSuspended();
+        i64 blockedJobCount = !Finished && !JobSizeConstraints_->IsExplicitJobCount() ? 1 : 0;
 
-        FreeJobCounter_->SetPending(0);
-        FreeJobCounter_->SetBlocked(0);
-        FreeJobCounter_->SetSuspended(0);
-
-        i64 pendingJobCount = 0;
-        i64 blockedJobCount = 0;
-
-        i64 dataWeightLeft = FreeDataWeightCounter_->GetTotal();
-
-        if (JobSizeConstraints_->IsExplicitJobCount()) {
-            pendingJobCount = oldFreeJobCount;
-        } else {
-            i64 dataWeightPerJob = JobSizeAdjuster_
-                ? JobSizeAdjuster_->GetDataWeightPerJob()
-                : JobSizeConstraints_->GetDataWeightPerJob();
-            dataWeightPerJob = std::clamp<i64>(dataWeightPerJob, 1, JobSizeConstraints_->GetMaxDataWeightPerJob());
-            if (Finished) {
-                pendingJobCount = DivCeil<i64>(dataWeightLeft, dataWeightPerJob);
-            } else {
-                pendingJobCount = dataWeightLeft / dataWeightPerJob;
-                if (dataWeightLeft % dataWeightPerJob > 0) {
-                    blockedJobCount = 1;
-                }
+        auto computePendingJobCount = [&] (i64 sizeLeft, i64 sizePerJob) {
+            if (JobSizeConstraints_->IsExplicitJobCount()) {
+                return FreeJobCounter_->GetTotal();
             }
-            pendingJobCount = std::max<i64>(
+
+            i64 pendingJobCount = Finished ? DivCeil<i64>(sizeLeft, sizePerJob) : sizeLeft / sizePerJob;
+
+            return std::max<i64>(
                 pendingJobCount,
                 std::ssize(FreeStripes_) / JobSizeConstraints_->GetMaxDataSlicesPerJob() - blockedJobCount);
-        }
+        };
 
-        if (Finished && dataWeightLeft == 0) {
+        i64 pendingJobCountByDataWeight = computePendingJobCount(FreeDataWeightCounter_->GetTotal(), GetAdjustedDataWeightPerJob());
+        i64 pendingJobCountByCompressedDataSize = FreeCompressedDataSizeCounter_
+            ? computePendingJobCount(FreeCompressedDataSizeCounter_->GetTotal(), GetAdjustedCompressedDataSizePerJob())
+            : 0;
+
+        i64 pendingJobCount = std::max(pendingJobCountByDataWeight, pendingJobCountByCompressedDataSize);
+
+        if (Finished && FreeDataWeightCounter_->GetTotal() == 0) {
             pendingJobCount = 0;
             blockedJobCount = 0;
+        }
+
+        if (JobSizeConstraints_->IsExplicitJobCount() &&
+            pendingJobCount + blockedJobCount == 0 &&
+            FreeDataWeightCounter_->GetTotal() > 0)
+        {
+            // This abnormal case occurs when actual input data weight exceeds initial estimates,
+            // typically due to unanticipated input chunks or chunks with higher weight than predicted.
+            //
+            // Under normal conditions (all below hold):
+            // - Accurate data weight estimates
+            // - No Max..PerJob violations
+            // - Explicit job count >= row count
+            // the algorithm preserves explicit job count via two guarantees:
+            //
+            // 1. Sliced job count cannot exceed the explicit job count. This is enforced by calculating
+            //    dataWeightPerJob = ceil(TotalInputDataWeight / explicitJobCount), ensuring each job's
+            //    data weight is >= dataWeightPerJob. Thus, ceil(actualTotalInputDataWeight / dataWeightPerJob) <= explicitJobCount
+            //    when estimates are accurate.
+            //
+            // 2. Sliced jobs cannot be fewer than the explicit job count. The algorithm prioritizes this by finalizing
+            //    a stripe early if remaining chunks are insufficient to produce the required number of jobs.
+            YT_LOG_ALERT("Explicit job count guarantee cannot be satisfied; scheduling an extra job");
+            ++pendingJobCount;
         }
 
         bool canScheduleJobs = !FreeStripes_.empty();
@@ -732,18 +765,14 @@ private:
             canScheduleJobs = false;
         }
 
-        if (JobSizeConstraints_->IsExplicitJobCount() &&
-            pendingJobCount + blockedJobCount == 0 &&
-            FreeDataWeightCounter_->GetTotal() > 0)
-        {
-            YT_LOG_ALERT("Explicit job count guarantee cannot be satisfied; scheduling an extra job");
-        }
-
         if (canScheduleJobs) {
             FreeJobCounter_->SetPending(pendingJobCount);
+            FreeJobCounter_->SetSuspended(0);
             FreeJobCounter_->SetBlocked(blockedJobCount);
         } else {
+            FreeJobCounter_->SetPending(0);
             FreeJobCounter_->SetSuspended(pendingJobCount + blockedJobCount);
+            FreeJobCounter_->SetBlocked(0);
         }
     }
 
@@ -754,7 +783,7 @@ private:
         const auto& stripe = suspendableStripe.GetStripe();
         for (const auto& dataSlice : stripe->DataSlices) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
+                for (auto replica : chunkSlice->GetInputChunk()->GetReplicas()) {
                     auto locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
                         auto& entry = NodeIdToEntry_[replica.GetNodeId()];
@@ -769,6 +798,10 @@ private:
 
         const auto& statistics = suspendableStripe.GetStatistics();
         FreeDataWeightCounter_->AddPending(statistics.DataWeight);
+        if (FreeCompressedDataSizeCounter_) {
+            // NB(apollo1321): statistics.CompressedDataSize may be zero for dynamic tables.
+            FreeCompressedDataSizeCounter_->AddPending(statistics.CompressedDataSize);
+        }
         FreeRowCounter_->AddPending(statistics.RowCount);
 
         YT_VERIFY(FreeStripes_.insert(stripeIndex).second);
@@ -779,7 +812,6 @@ private:
         const auto& suspendableStripe = Stripes_[stripeIndex];
         YT_VERIFY(!FreeStripes_.contains(stripeIndex));
         YT_VERIFY(ExtractedStripes_.insert(stripeIndex).second);
-        YT_VERIFY(suspendableStripe.GetStripe()->Solid);
 
         auto jobStub = std::make_unique<TNewJobStub>();
         for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
@@ -797,7 +829,7 @@ private:
         const auto& stripe = suspendableStripe.GetStripe();
         for (const auto& dataSlice : stripe->DataSlices) {
             for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-                for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
+                for (auto replica : chunkSlice->GetInputChunk()->GetReplicas()) {
                     i64 locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
                         auto& entry = NodeIdToEntry_[replica.GetNodeId()];
@@ -814,6 +846,10 @@ private:
         const auto& statistics = suspendableStripe.GetStatistics();
         FreeDataWeightCounter_->AddPending(-statistics.DataWeight);
         YT_VERIFY(FreeDataWeightCounter_->GetPending() >= 0);
+        if (FreeCompressedDataSizeCounter_) {
+            FreeCompressedDataSizeCounter_->AddPending(-statistics.CompressedDataSize);
+            YT_VERIFY(FreeCompressedDataSizeCounter_->GetPending() >= 0);
+        }
         FreeRowCounter_->AddPending(-statistics.RowCount);
         YT_VERIFY(FreeRowCounter_->GetPending() >= 0);
 
@@ -824,13 +860,32 @@ private:
         TNewJobStub* jobStub,
         const THashSet<int>::const_iterator& begin,
         const THashSet<int>::const_iterator& end,
-        i64 idealDataWeightPerJob)
+        i64 idealDataWeightPerJob,
+        i64 idealCompressedDataSizePerJob)
     {
         const auto& jobCounter = GetJobCounter();
         i64 pendingStripesCount = std::ssize(FreeStripes_);
         std::vector<int> addedStripeIndexes;
         for (auto it = begin; it != end; ++it) {
-            if (jobStub->GetDataWeight() >= idealDataWeightPerJob) {
+            bool hasSufficientDataWeight = jobStub->GetDataWeight() >= idealDataWeightPerJob;
+            bool hasSufficientCompressedDataSize = jobStub->GetCompressedDataSize() >= idealCompressedDataSizePerJob;
+
+            if (JobSizeConstraints_->IsExplicitJobCount()) {
+                if (hasSufficientDataWeight) {
+                    if (FreeJobCounter_->GetPending() > 1) {
+                        break;
+                    } else {
+                        // TODO(apollo1321): Change to alert later.
+                        // This may happen if some input chunks were suspended.
+                        YT_LOG_WARNING_IF(
+                            pendingStripesCount > 1,
+                            "Last job will be bigger than expected (PendingStripesCount: %v, JobDataWeight: %v)",
+                            pendingStripesCount,
+                            jobStub->GetDataWeight());
+                    }
+
+                }
+            } else if (hasSufficientDataWeight || hasSufficientCompressedDataSize) {
                 break;
             }
 
@@ -917,7 +972,12 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(9, MaxBlockSize_);
     PHOENIX_REGISTER_FIELD(10, NodeIdToEntry_);
     PHOENIX_REGISTER_FIELD(11, OutputCookieGenerator_);
-    PHOENIX_REGISTER_FIELD(12, Mode_);
+    // COMPAT(apollo1321): Remove in 25.2.
+    registrar
+        .template VirtualField<12>("Mode_", [] (TThis* /*this_*/, auto& context) {
+            Load<EUnorderedChunkPoolMode>(context);
+        })
+        .BeforeVersion(ESnapshotVersion::NewUnorderedChunkPoolSlicing)();
     PHOENIX_REGISTER_FIELD(13, MinTeleportChunkSize_);
     PHOENIX_REGISTER_FIELD(14, MinTeleportChunkDataWeight_);
     PHOENIX_REGISTER_FIELD(15, SliceErasureChunksByParts_);
@@ -930,6 +990,12 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_,
         .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy));
+
+    PHOENIX_REGISTER_FIELD(23, UseNewSlicingImplementation_,
+        .SinceVersion(ESnapshotVersion::NewUnorderedChunkPoolSlicing));
+    PHOENIX_REGISTER_FIELD(24, FreeCompressedDataSizeCounter_,
+        // COMPAT(apollo1321): Make FreeCompressedDataSizeCounter_ non-null in 25.2.
+        .SinceVersion(ESnapshotVersion::CompressedDataSizePerJob));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);
@@ -947,24 +1013,6 @@ void TUnorderedChunkPool::TLocalityEntry::RegisterMetadata(auto&& registrar)
 }
 
 PHOENIX_DEFINE_TYPE(TUnorderedChunkPool::TLocalityEntry);
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TUnorderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
-{
-    PHOENIX_REGISTER_FIELD(1, Mode);
-    PHOENIX_REGISTER_FIELD(2, JobSizeAdjusterConfig);
-    PHOENIX_REGISTER_FIELD(3, JobSizeConstraints);
-    PHOENIX_REGISTER_FIELD(4, MinTeleportChunkSize);
-    PHOENIX_REGISTER_FIELD(5, MinTeleportChunkDataWeight);
-    PHOENIX_REGISTER_FIELD(6, SliceErasureChunksByParts);
-    PHOENIX_REGISTER_FIELD(7, Logger);
-
-    PHOENIX_REGISTER_FIELD(8, SingleChunkTeleportStrategy,
-        .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy));
-}
-
-PHOENIX_DEFINE_TYPE(TUnorderedChunkPoolOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

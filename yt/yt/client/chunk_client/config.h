@@ -244,6 +244,8 @@ struct TReplicationReaderConfig
     //! Use request batcher to reduce the number of get blocks requests.
     bool UseReadBlocksBatcher;
 
+    std::optional<i64> BlockSetSubrequestThreshold;
+
     REGISTER_YSON_STRUCT(TReplicationReaderConfig);
 
     static void Register(TRegistrar registrar);
@@ -418,6 +420,9 @@ struct TMultiChunkWriterConfig
     i64 DesiredChunkSize;
     i64 DesiredChunkWeight;
     i64 MaxMetaSize;
+
+    // For testing purposes only.
+    std::optional<TDuration> TestingDelayBeforeChunkClose;
 
     REGISTER_YSON_STRUCT(TMultiChunkWriterConfig);
 

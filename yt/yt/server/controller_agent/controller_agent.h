@@ -104,17 +104,17 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    const NServer::TOperationEventReporterPtr& GetOperationEventReporter() const;
+
+    /*!
+     *  \note Thread affinity: any
+     */
     TMasterConnector* GetMasterConnector();
 
     /*!
      *  \note Thread affinity: any
      */
     TJobTracker* GetJobTracker() const;
-
-    /*!
-     *  \note Thread affinity: any
-     */
-    TJobProfiler* GetJobProfiler() const;
 
     bool IsConnected() const;
     TIncarnationId GetIncarnationId() const;

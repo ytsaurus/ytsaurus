@@ -24,9 +24,9 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/profiling/timing.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
-#include <library/cpp/yt/memory/memory_usage_tracker.h>
+#include <yt/yt/core/profiling/timing.h>
 
 #include <util/system/align.h>
 
@@ -44,7 +44,7 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = DataNodeLogger;
+constinit const auto Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -503,6 +503,14 @@ void TBlobChunkBase::DoReadSession(
     if (!memoryGuardOrError.IsOK()) {
         YT_LOG_DEBUG("Read session aborted due to memory pressure");
         Location_->ReportThrottledRead();
+        auto error = TError("Read session aborted due to memory pressure");
+
+        for (auto i = 0; i < session->EntryCount; ++i) {
+            if (!session->Entries[i].Cached && session->Entries[i].Cookie) {
+                session->Entries[i].Cookie->SetBlock(error);
+            }
+        }
+
         session->DiskFetchPromise.TrySet();
         return;
     }
@@ -997,9 +1005,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     // Need blocks ext.
     auto blocksExt = FindCachedBlocksExt();
     if (blocksExt) {
-        YT_UNUSED_FUTURE(BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this), session, blocksExt)
-            .AsyncVia(session->Invoker)
-            .Run());
+        session->Invoker->Invoke(BIND(&TBlobChunkBase::OnBlocksExtLoaded, MakeStrong(this), session, blocksExt));
     } else {
         auto cookie = Context_->ChunkMetaManager->BeginInsertCachedBlocksExt(Id_);
         auto asyncBlocksExt = cookie.GetValue();

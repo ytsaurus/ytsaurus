@@ -88,7 +88,7 @@ class TJobSchedulingContext final
 public:
     TJobSchedulingContext(
         TAllocationId allocationId,
-        const NScheduler::TJobResourcesWithQuota& resources,
+        NScheduler::TDiskQuota diskQuota,
         NControllers::TJobNodeDescriptor nodeDescriptor,
         std::optional<TString> poolPath);
 
@@ -102,7 +102,7 @@ public:
     TString GetResourcesString(const NChunkClient::TMediumDirectoryPtr& mediumDirectory) const final;
 
 private:
-    NScheduler::TJobResourcesWithQuota Resources_;
+    NScheduler::TDiskQuota DiskQuota_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

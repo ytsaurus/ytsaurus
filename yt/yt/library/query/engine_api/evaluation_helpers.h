@@ -27,9 +27,9 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr i64 RowsetProcessingBatchSize = 1024;
-constexpr i64 WriteRowsetSize = 64 * RowsetProcessingBatchSize;
-constexpr i64 MaxJoinBatchSize = 128 * RowsetProcessingBatchSize;
+constexpr i64 RowsetProcessingBatchSize = 256;
+constexpr i64 WriteRowsetSize = 256 * RowsetProcessingBatchSize;
+constexpr i64 MaxJoinBatchSize = 512 * RowsetProcessingBatchSize;
 
 class TInterruptedIncompleteException
 { };
@@ -200,6 +200,17 @@ struct TWriteOpClosure
     explicit TWriteOpClosure(IMemoryChunkProviderPtr chunkProvider);
 };
 
+struct TSubqueryParameters
+{
+    std::vector<EValueType> FromTypes;
+};
+
+struct TSubqueryWriteOpClosure
+{
+    std::vector<TValue*> OutputRowsBatch;
+    int RowSize;
+};
+
 struct TExecutionContext
 {
     ISchemafulUnversionedReaderPtr Reader;
@@ -226,6 +237,15 @@ struct TExecutionContext
     const TFeatureFlags* const RequestFeatureFlags;
     // NB: It is safe to read value of this future only after subquery requests are sent.
     TFuture<TFeatureFlags> ResponseFeatureFlags;
+};
+
+using TNestedGroupByClosure = TLookupRows;
+
+struct TNestedExecutionContext
+{
+    TExpressionContext* ExpressionContext;
+    TPIValue* FromValues;
+    TPIValue Result;
 };
 
 struct TRowSchemaInformation

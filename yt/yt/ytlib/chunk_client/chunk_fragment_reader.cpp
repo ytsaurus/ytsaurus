@@ -72,7 +72,7 @@ struct TPeerProbingInfo
     struct TReplicaProbingInfo
     {
         NHydra::TRevision Revision;
-        TChunkIdWithIndexes ChunkIdWithIndexes;
+        TChunkIdWithIndex ChunkIdWithIndex;
     };
 
     TNodeId NodeId;
@@ -516,7 +516,7 @@ private:
                             peerInfo->Address,
                             suspicionMarkTime);
                         for (const auto& replicaProbingInfo : probingInfo.ReplicaProbingInfos) {
-                            TryDiscardChunkReplicas(replicaProbingInfo.ChunkIdWithIndexes.Id);
+                            TryDiscardChunkReplicas(replicaProbingInfo.ChunkIdWithIndex.Id);
                         }
                     }
                 }
@@ -559,14 +559,14 @@ private:
                 const auto& subresponse = probingRsp->subresponses(resultIndex);
 
                 const auto& replicaProbingInfo = probingInfo.ReplicaProbingInfos[resultIndex];
-                const auto& chunkIdWithIndexes = replicaProbingInfo.ChunkIdWithIndexes;
-                YT_VERIFY(chunkIdWithIndexes.Id == ChunkIds_[chunkIndex]);
+                const auto& chunkIdWithIndex = replicaProbingInfo.ChunkIdWithIndex;
+                YT_VERIFY(chunkIdWithIndex.Id == ChunkIds_[chunkIndex]);
 
-                TryUpdateChunkReplicas(chunkIdWithIndexes.Id, subresponse);
+                TryUpdateChunkReplicas(chunkIdWithIndex.Id, subresponse);
 
                 if (!subresponse.has_complete_chunk()) {
                     YT_LOG_WARNING("Chunk is missing from node (ChunkId: %v, Address: %v)",
-                        chunkIdWithIndexes,
+                        chunkIdWithIndex,
                         peerInfo->Address);
                     continue;
                 }
@@ -574,7 +574,7 @@ private:
                 if (subresponse.disk_throttling()) {
                     YT_LOG_DEBUG("Peer is disk-throttling (Address: %v, ChunkId: %v, DiskQueueSize: %v)",
                         peerInfo->Address,
-                        chunkIdWithIndexes,
+                        chunkIdWithIndex,
                         subresponse.disk_queue_size());
                 }
 
@@ -584,9 +584,9 @@ private:
                     .Penalty = ComputeProbingPenalty(
                         probingRsp->net_queue_size(),
                         subresponse.disk_queue_size(),
-                        chunkIdWithIndexes.MediumIndex),
+                        subresponse.medium_index()),
                     .PeerInfo = peerInfo,
-                    .ReplicaIndex = chunkIdWithIndexes.ReplicaIndex,
+                    .ReplicaIndex = chunkIdWithIndex.ReplicaIndex,
                 });
             }
         }
@@ -645,10 +645,9 @@ private:
             const auto& allyReplicas = allyReplicasInfos[chunkIndex];
             for (auto chunkReplica : allyReplicas.Replicas) {
                 auto nodeId = chunkReplica.GetNodeId();
-                auto chunkIdWithIndexes = TChunkIdWithIndexes(
+                auto chunkIdWithIndex = TChunkIdWithIndex(
                     chunkId,
-                    chunkReplica.GetReplicaIndex(),
-                    chunkReplica.GetMediumIndex());
+                    chunkReplica.GetReplicaIndex());
                 auto [it, emplaced] = nodeIdToNodeIndex.try_emplace(nodeId);
                 if (emplaced) {
                     it->second = probingInfos.size();
@@ -660,7 +659,7 @@ private:
                 probingInfos[it->second].ChunkIndexes.push_back(chunkIndex);
                 probingInfos[it->second].ReplicaProbingInfos.push_back({
                     .Revision = allyReplicas.Revision,
-                    .ChunkIdWithIndexes = chunkIdWithIndexes,
+                    .ChunkIdWithIndex = chunkIdWithIndex,
                 });
             }
         }
@@ -698,7 +697,7 @@ private:
         req->SetResponseHeavy(true);
         SetRequestWorkloadDescriptor(req, Options_.WorkloadDescriptor);
         for (const auto& replicaProbingInfo : probingInfo.ReplicaProbingInfos) {
-            ToProto(req->add_chunk_ids(), EncodeChunkId(replicaProbingInfo.ChunkIdWithIndexes));
+            ToProto(req->add_chunk_ids(), EncodeChunkId(replicaProbingInfo.ChunkIdWithIndex));
             req->add_ally_replicas_revisions(ToProto(replicaProbingInfo.Revision));
         }
         req->SetAcknowledgementTimeout(std::nullopt);
@@ -1472,7 +1471,8 @@ private:
     void HandleChunkReaderStatistics(const NProto::TChunkReaderStatistics& protoChunkReaderStatistics)
     {
         UpdateFromProto(&Options_.ChunkReaderStatistics, protoChunkReaderStatistics);
-        TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk();
+        TotalBytesReadFromDisk_ += protoChunkReaderStatistics.data_bytes_read_from_disk() +
+            protoChunkReaderStatistics.meta_bytes_read_from_disk();
     }
 
     i64 GetDataByteSize(const TReqGetChunkFragmentSetPtr& request) const

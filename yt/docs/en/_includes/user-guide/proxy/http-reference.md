@@ -126,7 +126,7 @@ Before you execute a heavy command, you need to query `/hosts` and get a list of
 {% if audience == "internal" %}
 {% note info "Note" %}
 
-If your application requires a large I/O from the cluster (say, comparable to LogBroker or exporting a search database), contact [{{admin-email}}](mailto:{{admin-email}}@{{internal-domain}}) for advice on load balancing.
+If your application requires a large I/O from the cluster (say, comparable to LogBroker or exporting a search database), contact {{admin-email}} for advice on load balancing.
 
 {% endnote %}
 {% endif %}

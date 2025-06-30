@@ -6,12 +6,14 @@ from yt_queue_agent_test_base import TestQueueAgentBase
 from yt_commands import (
     authors, get, ls, create, sync_mount_table, insert_rows, sync_create_cells,
     create_user, issue_token, raises_yt_error, pull_queue, pull_consumer, set,
-    make_ace, select_rows, sync_unmount_table, wait)
+    make_ace, select_rows, sync_unmount_table, wait, exists)
 
 import yt.yson
 
 from confluent_kafka import (
     Consumer, TopicPartition, Producer, KafkaError)
+
+from confluent_kafka.admin import AdminClient, NewTopic
 
 from confluent_kafka.serialization import StringSerializer
 
@@ -427,7 +429,7 @@ class TestKafkaProxy(KafkaProxyBase):
 
         def generic_queue_message(row):
             return {
-                "key": "",
+                "key": None,
                 "value": row,
             }
 
@@ -647,3 +649,52 @@ class TestKafkaProxy(KafkaProxyBase):
         assert len(messages) == 3
 
         assert select_rows("* from [//tmp/consumer]")[0]["offset"] == len(messages)
+
+    @authors("nadya73")
+    def test_create_topic(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
+
+        admin_client = AdminClient({
+            "bootstrap.servers": self.Env.get_kafka_proxy_address(),
+            "security.protocol": "SASL_PLAINTEXT",
+            "sasl.mechanisms": "PLAIN",
+            "client.id": "admin-client",
+            "group.id": "admin-client",
+            "debug": "all",
+            "sasl.username": "u",
+            "sasl.password": token,
+        })
+
+        create("map_node", "//tmp/queue")
+
+        set("//tmp/queue/@acl/end", make_ace("allow", "u", "mount"))
+
+        path_foo = "primary-..tmp.queue.foo"
+        path_bar = "primary-..tmp.queue.bar"
+
+        new_topic_foo = NewTopic(path_foo, num_partitions=2, replication_factor=2)
+        new_topic_bar = NewTopic(path_bar, num_partitions=1, replication_factor=3)
+
+        futures = admin_client.create_topics([new_topic_foo, new_topic_bar])
+
+        for topic, future in futures.items():
+            try:
+                future.result()
+            except Exception as e:
+                assert False, f"Failed to create topic '{topic}': {e}"
+
+        assert exists("//tmp/queue/foo")
+        assert exists("//tmp/queue/bar")
+
+        assert get("//tmp/queue/foo/@replication_factor", 2)
+        assert get("//tmp/queue/bar/@replication_factor", 3)
+
+        assert get("//tmp/queue/foo/@tablet_count", 2)
+        assert get("//tmp/queue/bar/@replication_factor", 1)
+
+        wait(lambda: get("//tmp/queue/foo/@tablet_count_by_state/mounted") == 2)
+        wait(lambda: get("//tmp/queue/bar/@tablet_count_by_state/mounted") == 1)

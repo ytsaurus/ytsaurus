@@ -18,6 +18,8 @@ public:
     static void SetIsMove(TFnAttributes& attributes, bool isMove = true);
     static bool GetIsMove(const TFnAttributes& attributes);
     static const std::vector<TString> GetResourceFileList(const TFnAttributes& attributes);
+    static void SetTimerIds(TFnAttributes& attributes, decltype(TFnAttributes::TimerIds_) timerIds);
+    static decltype(TFnAttributes::TimerIds_) GetTimerIds(const TFnAttributes& attributes);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

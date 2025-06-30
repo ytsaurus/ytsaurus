@@ -61,7 +61,8 @@ public:
     TFileReader(
         IClientPtr client,
         const TYPath& path,
-        const TFileReaderOptions& options)
+        const TFileReaderOptions& options,
+        IMemoryUsageTrackerPtr memoryUsageTracker = GetNullMemoryUsageTracker())
         : Client_(std::move(client))
         , Path_(path)
         , Options_(options)
@@ -70,6 +71,7 @@ public:
             .WorkloadDescriptor = Config_->WorkloadDescriptor,
             .ReadSessionId = TReadSessionId::Create(),
             .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
+            .MemoryUsageTracker = std::move(memoryUsageTracker),
         }
         , Logger(ApiLogger().WithTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
             Path_,
@@ -180,7 +182,7 @@ private:
 
             auto attributes = ConvertToAttributes(NYson::TYsonString(rsp->value()));
             Revision_ = attributes->Get<NHydra::TRevision>("revision", NHydra::NullRevision);
-            userObject.Account = attributes->Get<TString>("account");
+            userObject.Account = attributes->Get<std::string>("account");
         }
 
         auto nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
@@ -263,9 +265,10 @@ private:
 TFuture<IFileReaderPtr> CreateFileReader(
     IClientPtr client,
     const NYPath::TYPath& path,
-    const TFileReaderOptions& options)
+    const TFileReaderOptions& options,
+    IMemoryUsageTrackerPtr memoryUsageTracker)
 {
-    auto fileReader = New<TFileReader>(client, path, options);
+    auto fileReader = New<TFileReader>(client, path, options, std::move(memoryUsageTracker));
 
     return fileReader->Open().Apply(BIND([=] {
         return static_cast<IFileReaderPtr>(fileReader);

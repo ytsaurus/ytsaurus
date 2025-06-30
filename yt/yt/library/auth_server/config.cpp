@@ -111,6 +111,9 @@ void TOAuthAuthenticatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("create_user_if_not_exists", &TThis::CreateUserIfNotExists)
         .Default(true);
+
+    registrar.Parameter("default_user_tags", &TThis::DefaultUserTags)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,6 +130,15 @@ void TCachingOAuthTokenAuthenticatorConfig::Register(TRegistrar /*registrar*/)
 
 void TBlackboxCookieAuthenticatorConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("enable_sessguard", &TThis::EnableSessguard)
+        .Default(false);
+
+    registrar.Parameter("sessguard_origin_patterns", &TThis::SessguardOriginPatterns)
+        .Default();
+
+    registrar.Parameter("sessguard_origin_cache_size", &TThis::SessguardOriginCacheSize)
+        .Default(4_KB);
+
     registrar.Parameter("domain", &TThis::Domain)
         .Default("yt.yandex-team.ru");
 
@@ -203,6 +215,28 @@ void TOAuthServiceConfig::Register(TRegistrar registrar)
 
 void TCypressUserManagerConfig::Register(TRegistrar /*registrar*/)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUserExistenceCheckCacheConfig::Register(TRegistrar registrar)
+{
+    // We register parameters with names reflecting both, TAuthCache and TAsyncExpiringCache.
+    registrar.Parameter("expire_after_successful_update_time", &TThis::ExpireAfterSuccessfulUpdateTime)
+        .Alias("cache_ttl")
+        .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("expire_after_access_time", &TThis::ExpireAfterAccessTime)
+        .Alias("optimistic_cache_ttl")
+        .Default(TDuration::Minutes(10));
+}
+
+TAsyncExpiringCacheConfigPtr TUserExistenceCheckCacheConfig::ToAsyncExpiringCacheConfig() const
+{
+    auto config = New<TAsyncExpiringCacheConfig>();
+    config->ExpireAfterAccessTime = ExpireAfterAccessTime;
+    config->ExpireAfterSuccessfulUpdateTime = ExpireAfterSuccessfulUpdateTime;
+    return config;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -364,6 +398,9 @@ void TYCIAMTokenAuthenticatorConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("create_user_if_not_exists", &TThis::CreateUserIfNotExists)
         .Default(true);
+
+    registrar.Parameter("default_user_tags", &TThis::DefaultUserTags)
+        .Default({"iam_user"});
 
     registrar.Parameter("retry_all_server_errors", &TThis::RetryAllServerErrors)
         .Default(true);

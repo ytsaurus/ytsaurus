@@ -46,7 +46,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ControllerLogger;
+constinit const auto Logger = ControllerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,7 +130,7 @@ TDataSinkDirectoryPtr BuildDataSinkDirectoryFromOutputTables(const std::vector<T
 NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryWithAutoMerge(
     const std::vector<TOutputTablePtr>& outputTables,
     const std::vector<bool>& autoMergeEnabled,
-    const std::optional<TString>& intermediateAccountName)
+    const std::optional<std::string>& intermediateAccountName)
 {
     auto dataSinkDirectory = New<TDataSinkDirectory>();
     dataSinkDirectory->DataSinks().reserve(outputTables.size());
@@ -410,30 +410,6 @@ void GenerateDockerAuthFromToken(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IAttributeDictionaryPtr GetNetworkProject(
-    const NApi::NNative::IClientPtr& client,
-    const std::string& authenticatedUser,
-    TString networkProject)
-{
-    const auto networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(networkProject);
-    auto checkPermissionRsp = WaitFor(client->CheckPermission(authenticatedUser, networkProjectPath, EPermission::Use))
-        .ValueOrThrow();
-    if (checkPermissionRsp.Action == NSecurityClient::ESecurityAction::Deny) {
-        THROW_ERROR_EXCEPTION("User %Qv is not allowed to use network project %Qv",
-            authenticatedUser,
-            networkProject);
-    }
-
-    TGetNodeOptions options{
-        .Attributes = TAttributeFilter({"project_id", "enable_nat64", "disable_network"})
-    };
-    auto networkProjectNode = ConvertToNode(WaitFor(client->GetNode(networkProjectPath, options))
-        .ValueOrThrow());
-    return networkProjectNode->Attributes().Clone();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool IsStaticTableWithHunks(TInputTablePtr table)
 {
     if (!table->Dynamic) {
@@ -587,11 +563,13 @@ TYsonString MakeIntermediateTableWriterConfig(
 {
     auto uploadReplicationFactor = spec->IntermediateDataReplicationFactor;
     auto minUploadReplicationFactor = spec->MinIntermediateDataReplicationFactor;
+    auto directUploadNodeCount = spec->IntermediateDirectUploadNodeCount;
 
     auto tableWriterConfig = spec->FastIntermediateMediumTableWriterConfig;
     if (tableWriterConfig && fastIntermediateMediumEnabled) {
         uploadReplicationFactor = tableWriterConfig->UploadReplicationFactor;
         minUploadReplicationFactor = tableWriterConfig->MinUploadReplicationFactor;
+        directUploadNodeCount = tableWriterConfig->DirectUploadNodeCount;
     }
 
     return BuildYsonStringFluently()
@@ -604,6 +582,7 @@ TYsonString MakeIntermediateTableWriterConfig(
                 // Set reduced rpc_timeout if replication_factor is greater than one.
                 fluent.Item("node_rpc_timeout").Value(TDuration::Seconds(120));
             })
+            .OptionalItem("direct_upload_node_count", directUploadNodeCount)
         .EndMap();
 }
 

@@ -19,6 +19,8 @@ RECURSE(
 
     yt/cli
 
+    yt/data/pandas
+
     client
     client_lite
     client_with_rpc

@@ -32,7 +32,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ChaosNodeLogger;
+constinit const auto Logger = ChaosNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,9 +162,7 @@ private:
             }
         }
 
-        if (!replicationCard->IsMigrated()) {
-            chaosManager->UpdateReplicationCardLagTimes(*replicationCard);
-        }
+        chaosManager->UpdateReplicationCardLagTimes(*replicationCard);
     }
 };
 

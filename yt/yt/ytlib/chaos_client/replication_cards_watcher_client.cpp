@@ -29,7 +29,7 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ReplicationCardWatcherClientLogger;
+constinit const auto Logger = ReplicationCardWatcherClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,17 +133,22 @@ private:
 
         const auto& value = response.Value();
         auto guard = Guard(Lock_);
-        auto& [future, timestamp] = WatchingFutures_[replicationCardId];
-        auto localFuture = std::move(future);
+        auto it = WatchingFutures_.find(replicationCardId);
         if (value->has_replication_card_deleted()) {
-            WatchingFutures_.erase(replicationCardId);
+            if (it != WatchingFutures_.end()) {
+                WatchingFutures_.erase(it);
+            }
+
             guard.Release();
             Callbacks_->OnReplicationCardDeleted(replicationCardId);
             return;
         }
 
         if (value->has_unknown_replication_card()) {
-            WatchingFutures_.erase(replicationCardId);
+            if (it != WatchingFutures_.end()) {
+                WatchingFutures_.erase(it);
+            }
+
             guard.Release();
             YT_LOG_DEBUG("Unknown replication card (Response: %v)", response);
             Callbacks_->OnUnknownReplicationCard(replicationCardId);
@@ -155,24 +160,37 @@ private:
 
         if (value->has_replication_card_changed()) {
             const auto& newCardResponse = value->replication_card_changed();
-            timestamp = FromProto<TTimestamp>(newCardResponse.replication_card_cache_timestamp());
+            auto responseTimestamp = FromProto<TTimestamp>(newCardResponse.replication_card_cache_timestamp());
 
             auto replicationCard = New<TReplicationCard>();
             FromProto(replicationCard.Get(), newCardResponse.replication_card());
 
-            future = WatchUpstream(replicationCardId, timestamp);
+            auto future = WatchUpstream(replicationCardId, responseTimestamp);
+            if (it == WatchingFutures_.end()) {
+                EmplaceOrCrash(WatchingFutures_, replicationCardId, std::pair(std::move(future), responseTimestamp));
+            } else {
+                it->second.first = std::move(future);
+                it->second.second = responseTimestamp;
+            }
+
             guard.Release();
             YT_LOG_DEBUG("Replication card changed (Response: %v)", response);
             if (residencyCache) {
                 residencyCache->PingChaosObjectResidency(replicationCardId);
             }
 
-            Callbacks_->OnReplicationCardUpdated(replicationCardId, std::move(replicationCard), timestamp);
+            Callbacks_->OnReplicationCardUpdated(replicationCardId, std::move(replicationCard), responseTimestamp);
             return;
         }
 
         if (value->has_replication_card_not_changed()) {
-            future = WatchUpstream(replicationCardId, timestamp);
+            if (it != WatchingFutures_.end()) {
+                it->second.first = WatchUpstream(replicationCardId, it->second.second);
+            } else {
+                YT_LOG_ALERT("Unexpected nothing changed response (ReplicationCardId: %v)",
+                    replicationCardId);
+            }
+
             guard.Release();
             YT_LOG_DEBUG("Replication card not changed (Response: %v)", response);
             if (residencyCache) {
@@ -191,7 +209,13 @@ private:
                 residencyCache->UpdateChaosObjectResidency(replicationCardId, newCellTag);
             }
 
-            future = WatchUpstream(replicationCardId, timestamp);
+            if (it != WatchingFutures_.end()) {
+                it->second.first = WatchUpstream(replicationCardId, it->second.second);
+            } else {
+                YT_LOG_ALERT("Unexpected card migrated response (ReplicationCardId: %v)",
+                    replicationCardId);
+            }
+
             guard.Release();
             YT_LOG_DEBUG("Replication card migrated (Response: %v)", response);
             Callbacks_->OnNothingChanged(replicationCardId);
@@ -203,7 +227,13 @@ private:
                 residencyCache->RemoveChaosObjectResidency(replicationCardId);
             }
 
-            future = WatchUpstream(replicationCardId, timestamp);
+            if (it != WatchingFutures_.end()) {
+                it->second.first = WatchUpstream(replicationCardId, it->second.second);
+            } else {
+                YT_LOG_ALERT("Unexpected leader switch response (ReplicationCardId: %v)",
+                    replicationCardId);
+            }
+
             guard.Release();
             YT_LOG_DEBUG("Instance is not leader (Response: %v)", response);
             Callbacks_->OnNothingChanged(replicationCardId);

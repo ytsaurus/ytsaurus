@@ -81,20 +81,21 @@ public:
         TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> /*literalArgs*/,
-        std::vector<EValueType> /*argumentTypes*/,
-        EValueType type,
+        const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
+        const TLogicalTypePtr& type,
         const std::string& name,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         return [
             =,
-            argIds = std::move(argIds)
+            argIds = std::move(argIds),
+            wireResultType = GetWireType(type)
         ] (TCGExprContext& builder) {
             return CodegenValue(
                 builder,
                 argIds,
-                type,
+                wireResultType,
                 name);
         };
     }
@@ -218,8 +219,8 @@ public:
         TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> /*literalArgs*/,
-        std::vector<EValueType> /*argumentTypes*/,
-        EValueType type,
+        const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
+        const TLogicalTypePtr& type,
         const std::string& /*name*/,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* /*id*/) const override
@@ -228,7 +229,8 @@ public:
 
         return [
             =,
-            argIds = std::move(argIds)
+            argIds = std::move(argIds),
+            wireResultType = GetWireType(type)
         ] (TCGExprContext& builder) {
             if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
                 auto argValue = CodegenFragment(builder, argIds[0]);
@@ -237,14 +239,14 @@ public:
                     builder->getFalse(),
                     nullptr,
                     argValue.GetIsNull(builder),
-                    type);
+                    wireResultType);
             } else {
                 return TCGValue::Create(
                     builder,
                     builder->getFalse(),
                     nullptr,
                     builder->getFalse(),
-                    type);
+                    wireResultType);
             }
         };
     }
@@ -263,8 +265,8 @@ public:
         TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> /*literalArgs*/,
-        std::vector<EValueType> /*argumentTypes*/,
-        EValueType type,
+        const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
+        const TLogicalTypePtr& type,
         const std::string& /*name*/,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* /*id*/) const override
@@ -273,7 +275,8 @@ public:
 
         return [
             =,
-            argIds = std::move(argIds)
+            argIds = std::move(argIds),
+            resultWireType = GetWireType(type)
         ] (TCGExprContext& builder) {
             if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
                 auto argValue = CodegenFragment(builder, argIds[0]);
@@ -298,7 +301,7 @@ public:
                         argIsNull,
                         constant.GetTypedData(builder),
                         argValue.GetTypedData(builder)),
-                    type);
+                    resultWireType);
             } else {
                 return CodegenFragment(builder, argIds[0]);
             }
@@ -320,8 +323,8 @@ public:
         TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> /*literalArgs*/,
-        std::vector<EValueType> /*argumentTypes*/,
-        EValueType type,
+        const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
+        const TLogicalTypePtr& type,
         const std::string& /*name*/,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* /*id*/) const override
@@ -330,7 +333,8 @@ public:
 
         return [
             =,
-            argIds = std::move(argIds)
+            argIds = std::move(argIds),
+            wireResultType = GetWireType(type)
         ] (TCGExprContext& builder) {
             auto argValue = CodegenFragment(builder, argIds[0]);
             Value* data = CodegenFragment(builder, argIds[0]).GetTypedData(builder);
@@ -342,14 +346,14 @@ public:
                     builder->CreateAnd(
                         builder->CreateNot(argValue.GetIsNull(builder)),
                         builder->CreateFCmpUNO(data, data)),
-                    type);
+                    wireResultType);
             } else {
                 return TCGValue::Create(
                     builder,
                     builder->getFalse(),
                     nullptr,
                     builder->CreateFCmpUNO(data, data),
-                    type);
+                    wireResultType);
             }
         };
     }
@@ -368,21 +372,22 @@ public:
         TCGVariables* /*variables*/,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> /*literalArgs*/,
-        std::vector<EValueType> /*argumentTypes*/,
-        EValueType type,
+        const std::vector<TLogicalTypePtr>& /*argumentTypes*/,
+        const TLogicalTypePtr& type,
         const std::string& /*name*/,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         return [
             =,
-            argIds = std::move(argIds)
+            argIds = std::move(argIds),
+            wireResultType = GetWireType(type)
         ] (TCGExprContext& builder) -> TCGValue {
             return CoalesceRecursive(
                 builder,
                 argIds.begin(),
                 argIds.end(),
-                type);
+                wireResultType);
         };
     }
 
@@ -420,56 +425,47 @@ class TUserCastCodegen
     : public IFunctionCodegen
 {
 public:
-
-    TUserCastCodegen()
-    { }
+    TUserCastCodegen() = default;
 
     TCodegenExpression Profile(
-        TCGVariables* /*variables*/,
+        TCGVariables* variables,
         std::vector<size_t> argIds,
         std::unique_ptr<bool[]> /*literalArgs*/,
-        std::vector<EValueType> argumentTypes,
-        EValueType type,
+        const std::vector<TLogicalTypePtr>& argumentTypes,
+        const TLogicalTypePtr& targetType,
         const std::string& /*name*/,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* /*id*/) const override
     {
         YT_VERIFY(argIds.size() == 1);
 
-        if (argumentTypes[0] == EValueType::Any) {
+        const auto& sourceType = argumentTypes[0];
+
+        const auto [sourceSimpleType, sourceRequired] = CastToV1Type(sourceType);
+        const auto [targetSimpleType, targetRequired] = CastToV1Type(targetType);
+        const auto wireSourceType = GetWireType(sourceType);
+        const auto wireTargetType = GetWireType(targetType);
+
+        const auto throwBadCast = [&] {
+            THROW_ERROR_EXCEPTION("Cast from %v to %v is not supported at the moment",
+                *sourceType,
+                *targetType);
+        };
+
+        TCodegenExpression codegenCast;
+
+        auto codegenCastViaRoutine = [&] (const char* routineName) {
             return [
                 =,
-                argIds = std::move(argIds)
+                argId = argIds[0]
             ] (TCGExprContext& builder) {
                 auto unversionedValueType = TTypeBuilder<TValue>::Get(builder->getContext());
 
                 auto resultPtr = builder->CreateAlloca(unversionedValueType, nullptr, "resultPtr");
                 auto valuePtr = builder->CreateAlloca(unversionedValueType);
 
-                auto cgValue = CodegenFragment(builder, argIds[0]);
+                auto cgValue = CodegenFragment(builder, argId);
                 cgValue.StoreToValue(builder, valuePtr);
-
-                const char* routineName = nullptr;
-
-                switch (type) {
-                    case EValueType::Int64:
-                        routineName = "AnyToInt64";
-                        break;
-                    case EValueType::Uint64:
-                        routineName = "AnyToUint64";
-                        break;
-                    case EValueType::Double:
-                        routineName = "AnyToDouble";
-                        break;
-                    case EValueType::Boolean:
-                        routineName = "AnyToBoolean";
-                        break;
-                    case EValueType::String:
-                        routineName = "AnyToString";
-                        break;
-                    default:
-                        YT_ABORT();
-                }
 
                 builder->CreateCall(
                     builder.Module->GetRoutine(routineName),
@@ -482,23 +478,161 @@ public:
                 return TCGValue::LoadFromRowValue(
                     builder,
                     resultPtr,
-                    type);
+                    wireTargetType);
+            };
+        };
+
+        if (sourceSimpleType == ESimpleLogicalValueType::Any) {
+            switch (targetSimpleType) {
+                case ESimpleLogicalValueType::Any:
+                    if (wireTargetType == EValueType::Any) {
+                        codegenCast = [=, argId = argIds[0]] (TCGExprContext& builder) {
+                            auto value = CodegenFragment(builder, argId);
+                            if (wireSourceType == EValueType::Composite) {
+                                value = TCGValue::Create(
+                                    builder,
+                                    value.GetIsNull(builder),
+                                    value.GetLength(),
+                                    value.GetData(),
+                                    EValueType::Any);
+                            }
+                            return value;
+                        };
+                    } else {
+                        codegenCast = CodegenCastToV3TypeWithValidation(variables, argIds[0], targetType);
+                    }
+                    break;
+
+                case ESimpleLogicalValueType::Int64:
+                    codegenCast = codegenCastViaRoutine("AnyToInt64");
+                    break;
+
+                case ESimpleLogicalValueType::Uint64:
+                    codegenCast = codegenCastViaRoutine("AnyToUint64");
+                    break;
+
+                case ESimpleLogicalValueType::Double:
+                    codegenCast = codegenCastViaRoutine("AnyToDouble");
+                    break;
+
+                case ESimpleLogicalValueType::String:
+                    codegenCast = codegenCastViaRoutine("AnyToString");
+                    break;
+
+                case ESimpleLogicalValueType::Boolean:
+                    codegenCast = codegenCastViaRoutine("AnyToBoolean");
+                    break;
+
+                default:
+                    throwBadCast();
+            }
+        } else if (sourceSimpleType == ESimpleLogicalValueType::String) {
+            switch (targetSimpleType) {
+                case ESimpleLogicalValueType::Int64:
+                    codegenCast = codegenCastViaRoutine("StringToInt64PI");
+                    break;
+
+                case ESimpleLogicalValueType::Uint64:
+                    codegenCast = codegenCastViaRoutine("StringToUint64PI");
+                    break;
+
+                case ESimpleLogicalValueType::Double:
+                    codegenCast = codegenCastViaRoutine("StringToDoublePI");
+                    break;
+
+                case ESimpleLogicalValueType::String:
+                    codegenCast = [=, argId = argIds[0]] (TCGExprContext& builder) {
+                        return CodegenFragment(builder, argId);
+                    };
+                    break;
+
+                default:
+                    throwBadCast();
+            }
+        } else {
+            switch (targetSimpleType) {
+                case ESimpleLogicalValueType::Int64:
+                case ESimpleLogicalValueType::Uint64:
+                case ESimpleLogicalValueType::Double:
+                case ESimpleLogicalValueType::Boolean:
+                case ESimpleLogicalValueType::Null:
+                    codegenCast = [=, argId = argIds[0]] (TCGExprContext& builder) {
+                        return CodegenFragment(builder, argId).Cast(builder, wireTargetType);
+                    };
+                    break;
+
+                case ESimpleLogicalValueType::String:
+                    switch (sourceSimpleType) {
+                        case ESimpleLogicalValueType::Int64:
+                        case ESimpleLogicalValueType::Int32:
+                        case ESimpleLogicalValueType::Int16:
+                        case ESimpleLogicalValueType::Int8:
+                        case ESimpleLogicalValueType::Uint64:
+                        case ESimpleLogicalValueType::Uint32:
+                        case ESimpleLogicalValueType::Uint16:
+                        case ESimpleLogicalValueType::Uint8:
+                        case ESimpleLogicalValueType::Double:
+                        case ESimpleLogicalValueType::Float:
+                            codegenCast = codegenCastViaRoutine("NumericToStringPI");
+                            break;
+
+                        default:
+                            throwBadCast();
+                    }
+                    break;
+
+                default:
+                    throwBadCast();
+            }
+        }
+
+        if (!sourceRequired && targetRequired) {
+            return [=] (TCGExprContext& builder) {
+                auto value = codegenCast(builder);
+                CodegenIf<TCGBaseContext>(builder, value.GetIsNull(builder), [] (TCGBaseContext& builder) {
+                    builder->CreateCall(
+                        builder.Module->GetRoutine("ThrowQueryException"),
+                        {
+                            builder->CreateGlobalStringPtr("Encountered a null value during cast to a non-nullable type")
+                        });
+                });
+
+                return value;
             };
         } else {
-            YT_VERIFY(
-                type == EValueType::Int64 ||
-                type == EValueType::Uint64 ||
-                type == EValueType::Double ||
-                type == EValueType::Boolean ||
-                type == EValueType::String);
-
-            return [
-                =,
-                argIds = std::move(argIds)
-            ] (TCGExprContext& builder) {
-                return CodegenFragment(builder, argIds[0]).Cast(builder, type);
-            };
+            return codegenCast;
         }
+    }
+
+    TCodegenExpression CodegenCastToV3TypeWithValidation(
+        TCGVariables* variables,
+        size_t argumentFragmentId,
+        const TLogicalTypePtr& logicalType) const
+    {
+        int opaqueTypeIndex = variables->AddOpaque<TLogicalTypePtr>(logicalType);
+
+        return [=] (TCGExprContext& builder) {
+            auto unversionedValueType = TTypeBuilder<TValue>::Get(builder->getContext());
+
+            auto resultPtr = builder->CreateAlloca(unversionedValueType, nullptr, "resultPtr");
+            auto valuePtr = builder->CreateAlloca(unversionedValueType);
+
+            auto cgValue = CodegenFragment(builder, argumentFragmentId);
+            cgValue.StoreToValue(builder, valuePtr);
+
+            builder->CreateCall(
+                builder.Module->GetRoutine("CastToV3TypeWithValidation"),
+                {
+                    resultPtr,
+                    valuePtr,
+                    builder.GetOpaqueValue(opaqueTypeIndex),
+                });
+
+            return TCGValue::LoadFromRowValue(
+                builder,
+                resultPtr,
+                EValueType::Composite);
+        };
     }
 
     bool IsNullable(const std::vector<bool>& nullableArgs) const override
@@ -565,8 +699,8 @@ Value* CodegenCopyString(TCGBaseContext& builder, Value* buffer, Value* data, Va
 TCGValue PackValues(
     TCGBaseContext& builder,
     Value* buffer,
-    const std::vector<TCGValue>& args,
-    const std::vector<EValueType>& argTypes,
+    TRange<TCGValue> args,
+    TRange<EValueType> argTypes,
     TCGValue* reuseState = nullptr)
 {
     YT_VERIFY(args.size() == argTypes.size());
@@ -714,16 +848,16 @@ public:
     { }
 
     TCodegenAggregate Profile(
-        std::vector<EValueType> argumentTypes,
-        EValueType stateType,
-        EValueType /*resultType*/,
+        const std::vector<TLogicalTypePtr>& argumentTypes,
+        const TLogicalTypePtr& stateType,
+        const TLogicalTypePtr& /*resultType*/,
         const std::string& name,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* id) const override
     {
         YT_VERIFY(argumentTypes.size() == 1);
 
-        EValueType argumentType = argumentTypes[0];
+        EValueType argumentType = GetWireType(argumentTypes[0]);
 
         if (id) {
             id->AddString(ToStringRef(Function_ + "_aggregate"));
@@ -794,10 +928,10 @@ public:
         TCodegenAggregate codegenAggregate;
         codegenAggregate.Initialize = [
             this_ = MakeStrong(this),
-            stateType,
+            stateWireType = GetWireType(stateType),
             name
         ] (TCGBaseContext& builder, Value* /*buffer*/) {
-            return TCGValue::CreateNull(builder, stateType);
+            return TCGValue::CreateNull(builder, stateWireType);
         };
 
         codegenAggregate.Update = iteration;
@@ -924,9 +1058,9 @@ public:
     { }
 
     TCodegenAggregate Profile(
-        std::vector<EValueType> argumentTypes,
-        EValueType stateType,
-        EValueType resultType,
+        const std::vector<TLogicalTypePtr>& logicalArgumentTypes,
+        const TLogicalTypePtr& stateType,
+        const TLogicalTypePtr& resultType,
         const std::string& name,
         NCodegen::EExecutionBackend /*executionBackend*/,
         llvm::FoldingSetNodeID* id) const override
@@ -934,6 +1068,15 @@ public:
         if (id) {
             id->AddString(ToStringRef(Function_ + "_aggregate"));
         }
+
+        std::vector<EValueType> argumentTypes;
+        std::transform(
+            logicalArgumentTypes.begin(),
+            logicalArgumentTypes.end(),
+            std::back_inserter(argumentTypes),
+            [] (const TLogicalTypePtr& logicalType) {
+                return GetWireType(logicalType);
+            });
 
         auto iteration = [
             this,
@@ -1020,10 +1163,10 @@ public:
         TCodegenAggregate codegenAggregate;
         codegenAggregate.Initialize = [
             this_ = MakeStrong(this),
-            stateType,
+            stateWireType = GetWireType(stateType),
             name
         ] (TCGBaseContext& builder, Value* /*buffer*/) {
-            return TCGValue::CreateNull(builder, stateType);
+            return TCGValue::CreateNull(builder, stateWireType);
         };
 
         codegenAggregate.Update = iteration;
@@ -1034,7 +1177,7 @@ public:
             this_ = MakeStrong(this),
             name,
             argumentTypes,
-            resultType
+            resultType = GetWireType(resultType)
         ] (TCGBaseContext& builder, Value* buffer, TCGValue aggState) {
             return CodegenIf<TCGBaseContext, TCGValue>(
                 builder,
@@ -1430,6 +1573,7 @@ TConstFunctionProfilerMapPtr CreateBuiltinFunctionProfilers()
     result->emplace("double", New<NBuiltins::TUserCastCodegen>());
     result->emplace("boolean", New<NBuiltins::TUserCastCodegen>());
     result->emplace("string", New<NBuiltins::TUserCastCodegen>());
+    result->emplace("cast_operator", New<NBuiltins::TUserCastCodegen>());
     result->emplace("if_null", New<NBuiltins::TIfNullCodegen>());
     result->emplace("coalesce", New<NBuiltins::TCoalesceCodegen>());
 
@@ -1458,6 +1602,13 @@ TConstAggregateProfilerMapPtr CreateBuiltinAggregateProfilers()
     for (const auto& name : {"argmin", "argmax", "avg"}) {
         result->emplace(name, New<NBuiltins::TComplexAggregateCodegen>(name));
     }
+
+    result->emplace("array_agg", New<TExternalAggregateCodegen>(
+        "array_agg",
+        UDF_BC("array_agg"),
+        ECallingConvention::UnversionedValue,
+        false,
+        TSharedRef()));
 
     TProfilerFunctionRegistryBuilder builder{nullptr, result.Get()};
     RegisterBuiltinFunctions(&builder);

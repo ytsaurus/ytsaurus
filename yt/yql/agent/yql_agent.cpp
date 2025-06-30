@@ -34,7 +34,7 @@ using namespace NHiveClient;
 using namespace NSecurityClient;
 using namespace NLogging;
 
-static constexpr auto& Logger = YqlAgentLogger;
+constinit const auto Logger = YqlAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,6 +239,7 @@ public:
             .OperationAttributes = ConvertToYsonString(Config_->OperationAttributes),
             .Libraries = ConvertToYsonString(Config_->Libraries),
             .YTTokenPath = Config_->YTTokenPath,
+            .UIOrigin = Config_->UIOrigin,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
         };
@@ -317,6 +318,7 @@ public:
                 TYqlResponse yqlResponse;
                 ValidateAndFillYqlResponseField(yqlResponse, result.Plan, &TYqlResponse::mutable_plan);
                 ValidateAndFillYqlResponseField(yqlResponse, result.Progress, &TYqlResponse::mutable_progress);
+                ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
                 response.mutable_yql_response()->Swap(&yqlResponse);
             }
             return response;
@@ -426,6 +428,7 @@ private:
             ValidateAndFillYqlResponseField(yqlResponse, result.Statistics, &TYqlResponse::mutable_statistics);
             ValidateAndFillYqlResponseField(yqlResponse, result.Progress, &TYqlResponse::mutable_progress);
             ValidateAndFillYqlResponseField(yqlResponse, result.TaskInfo, &TYqlResponse::mutable_task_info);
+            ValidateAndFillYqlResponseField(yqlResponse, result.Ast, &TYqlResponse::mutable_ast);
             if (request.build_rowsets() && result.YsonResult) {
                 auto rowsets = BuildRowsets(ClientDirectory_, *result.YsonResult, request.row_count_limit());
 

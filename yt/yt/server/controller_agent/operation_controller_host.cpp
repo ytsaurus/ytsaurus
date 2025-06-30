@@ -21,7 +21,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ControllerAgentLogger;
+constinit const auto Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -408,11 +408,6 @@ const TAsyncSemaphorePtr& TOperationControllerHost::GetCoreSemaphore()
     return Bootstrap_->GetControllerAgent()->GetCoreSemaphore();
 }
 
-TJobProfiler* TOperationControllerHost::GetJobProfiler() const
-{
-    return Bootstrap_->GetControllerAgent()->GetJobProfiler();
-}
-
 int TOperationControllerHost::GetAvailableExecNodeCount()
 {
     return Bootstrap_->GetControllerAgent()->GetAvailableExecNodeCount();
@@ -446,6 +441,11 @@ const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpe
 const TJobReporterPtr& TOperationControllerHost::GetJobReporter()
 {
     return Bootstrap_->GetControllerAgent()->GetJobReporter();
+}
+
+const TOperationEventReporterPtr& TOperationControllerHost::GetOperationEventReporter()
+{
+    return Bootstrap_->GetControllerAgent()->GetOperationEventReporter();
 }
 
 const NChunkClient::TMediumDirectoryPtr& TOperationControllerHost::GetMediumDirectory()

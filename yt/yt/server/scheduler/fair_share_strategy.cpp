@@ -58,7 +58,7 @@ public:
         : Config_(std::move(config))
         , Host_(host)
         , FeasibleInvokers_(std::move(feasibleInvokers))
-        , Logger(StrategyLogger)
+        , Logger(StrategyLogger())
     {
         // TODO(eshcherbin): Use BIND_NO_PROPAGATE for all periodic executors.
         FairShareProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -225,7 +225,7 @@ public:
     }
 
     void RegisterOperation(
-        IOperationStrategyHost* operation,
+        IOperationStrategyHostPtr operation,
         std::vector<TString>* unknownTreeIds,
         TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap) override
     {
@@ -272,7 +272,7 @@ public:
         }
     }
 
-    void UnregisterOperation(IOperationStrategyHost* operation) override
+    void UnregisterOperation(const IOperationStrategyHostPtr& operation) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -463,7 +463,7 @@ public:
         LastTemplatePoolTreeConfigMapYson_ = ConvertToYsonString(templatePoolTreeConfigMap);
     }
 
-    TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
+    TError UpdateUserToDefaultPoolMap(const THashMap<std::string, TString>& userToDefaultPoolMap) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -750,6 +750,28 @@ public:
         } else {
             return VoidFuture;
         }
+    }
+
+    TFuture<void> ValidateOperationPoolPermissions(
+        const IOperationStrategyHost* operation,
+        const std::string& user,
+        EPermissionSet permissions) override
+    {
+        auto operationId = operation->GetId();
+
+        std::vector<TFuture<void>> futures;
+        const auto& state = GetOperationState(operationId);
+        for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
+            if (auto tree = GetTree(treeId);
+                tree->HasOperation(operationId))
+            {
+                futures.push_back(tree->ValidateOperationPoolPermissions(
+                    operationId,
+                    user,
+                    permissions));
+            }
+        }
+        return AllSucceeded(futures);
     }
 
     void ValidatePoolLimitsOnPoolChange(
@@ -1358,13 +1380,15 @@ public:
                 return error;
             }
 
-            YT_LOG_DEBUG(
-                "Unregistering operation from trees due to job resource limits restrictions violations "
-                "(OperationId: %v, Trees: %v)",
-                operationId,
-                treeIdsToUnregister);
+            if (!treeIdsToUnregister.empty()) {
+                YT_LOG_DEBUG(
+                    "Unregistering operation from trees due to job resource limits restrictions violations "
+                    "(OperationId: %v, Trees: %v)",
+                    operationId,
+                    treeIdsToUnregister);
 
-            unregisterFromTrees(std::move(treeIdsToUnregister));
+                unregisterFromTrees(std::move(treeIdsToUnregister));
+            }
         }
 
         if (scheduleInSingleTree) {

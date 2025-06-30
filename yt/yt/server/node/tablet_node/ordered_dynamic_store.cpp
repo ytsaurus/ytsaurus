@@ -1,12 +1,11 @@
 #include "ordered_dynamic_store.h"
 
-#include "hunk_lock_manager.h"
-#include "tablet.h"
 #include "automaton.h"
+#include "config.h"
+#include "hunk_lock_manager.h"
 #include "hunks_serialization.h"
 #include "serialize.h"
-
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include "tablet.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -624,6 +623,11 @@ TOrderedDynamicStorePtr TOrderedDynamicStore::AsOrderedDynamic()
 i64 TOrderedDynamicStore::GetTimestampCount() const
 {
     return GetRowCount();
+}
+
+i64 TOrderedDynamicStore::ClampMaxDynamicStoreTimestampCount(TMaxDynamicStoreTimestampCount configLimit) const
+{
+    return configLimit.Underlying();
 }
 
 ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(

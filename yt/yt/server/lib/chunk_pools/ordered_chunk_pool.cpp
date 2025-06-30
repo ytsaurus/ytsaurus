@@ -1,6 +1,8 @@
 #include "ordered_chunk_pool.h"
 
+#include "config.h"
 #include "helpers.h"
+#include "job_size_adjuster.h"
 #include "new_job_manager.h"
 
 #include <yt/yt/server/lib/controller_agent/job_size_constraints.h>
@@ -8,8 +10,6 @@
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-
-#include <yt/yt/ytlib/chunk_pools/output_order.h>
 
 #include <yt/yt/library/random/bernoulli_sampler.h>
 
@@ -46,6 +46,9 @@ void TOrderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(5, EnablePeriodicYielder);
     PHOENIX_REGISTER_FIELD(6, ShouldSliceByRowIndices);
     PHOENIX_REGISTER_FIELD(7, Logger);
+
+    PHOENIX_REGISTER_FIELD(8, JobSizeAdjusterConfig,
+        .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedChunkPoolOptions);
@@ -55,7 +58,7 @@ PHOENIX_DEFINE_TYPE(TOrderedChunkPoolOptions);
 class TOrderedChunkPool
     : public TChunkPoolInputBase
     , public TChunkPoolOutputWithNewJobManagerBase
-    , public IPersistentChunkPool
+    , public IOrderedChunkPool
     , public TJobSplittingBase
     , public virtual NLogging::TLoggerOwner
 {
@@ -74,7 +77,6 @@ public:
         , MaxTotalSliceCount_(options.MaxTotalSliceCount)
         , ShouldSliceByRowIndices_(options.ShouldSliceByRowIndices)
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
-        , OutputOrder_(options.BuildOutputOrder ? New<TOutputOrder>() : nullptr)
         , UseNewSlicingImplementation_(options.UseNewSlicingImplementation)
     {
         Logger = options.Logger;
@@ -85,14 +87,28 @@ public:
             SingleJob_ = true;
         }
 
-        YT_LOG_DEBUG("Ordered chunk pool created (DataWeightPerJob: %v, MaxDataSlicesPerJob: %v, "
-            "InputSliceDataWeight: %v, InputSliceRowCount: %v, BatchRowCount: %v, SingleJob: %v)",
-            GetDataWeightPerJob(),
+        if (options.JobSizeAdjusterConfig && JobSizeConstraints_->CanAdjustDataWeightPerJob()) {
+            JobSizeAdjuster_ = CreateDiscreteJobSizeAdjuster(
+                JobSizeConstraints_->GetDataWeightPerJob(),
+                options.JobSizeAdjusterConfig);
+        }
+
+        if (JobSizeConstraints_->GetBatchRowCount()) {
+            YT_VERIFY(!JobSizeConstraints_->GetSamplingRate());
+        }
+
+        YT_LOG_DEBUG("Ordered chunk pool created (DataWeightPerJob: %v, SamplingDataWeightPerJob: %v, "
+            "MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, "
+            "BatchRowCount: %v, SamplingRate: %v, SingleJob: %v, HasJobSizeAdjuster: %v)",
+            JobSizeConstraints_->GetDataWeightPerJob(),
+            JobSizeConstraints_->GetSamplingRate() ? std::optional<i64>(JobSizeConstraints_->GetSamplingDataWeightPerJob()) : std::nullopt,
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
             JobSizeConstraints_->GetInputSliceRowCount(),
             JobSizeConstraints_->GetBatchRowCount(),
-            SingleJob_);
+            JobSizeConstraints_->GetSamplingRate(),
+            SingleJob_,
+            static_cast<bool>(JobSizeAdjuster_));
     }
 
     // IPersistentChunkPoolInput implementation.
@@ -166,6 +182,23 @@ public:
             RegisterChildCookies(cookie, std::move(childCookies));
         }
         JobManager_->Completed(cookie, jobSummary.InterruptionReason);
+
+        if (JobSizeAdjuster_) {
+            // No point in enlarging jobs if we cannot at least double them.
+            auto action = EJobAdjustmentAction::None;
+            if (JobManager_->JobCounter()->GetPending() > JobManager_->JobCounter()->GetRunning()) {
+                action = JobSizeAdjuster_->UpdateStatistics(jobSummary);
+            }
+
+            if (action == EJobAdjustmentAction::RebuildJobs) {
+                YT_LOG_INFO("Job completion triggered enlargement (JobCookie: %v)", cookie);
+                JobManager_->Enlarge(
+                    JobSizeAdjuster_->GetDataWeightPerJob(),
+                    JobSizeAdjuster_->GetDataWeightPerJob(),
+                    JobSizeConstraints_);
+            }
+        }
+
         CheckCompleted();
     }
 
@@ -176,9 +209,46 @@ public:
         CheckCompleted();
     }
 
-    TOutputOrderPtr GetOutputOrder() const override
+    std::vector<TChunkTreeId> ArrangeOutputChunkTrees(
+        const std::vector<std::pair<TOutputCookie, TChunkTreeId>>& chunkTrees) const override
     {
-        return OutputOrder_;
+        auto cookieToPosition = JobManager_->GetCookieToPosition();
+
+        std::vector<TChunkTreeId> orderedTreeIds;
+        orderedTreeIds.resize(cookieToPosition.size());
+
+        for (const auto& [cookie, chunkTreeId] : chunkTrees) {
+            YT_ASSERT(chunkTreeId);
+            orderedTreeIds[cookieToPosition[cookie]] = chunkTreeId;
+        }
+
+        // NB: Chunk trees count may be smaller than valid cookies count
+        // because of RichYPath's max_row_count.
+        auto end = std::remove(
+            orderedTreeIds.begin(),
+            orderedTreeIds.end(),
+            TChunkTreeId());
+
+        return {orderedTreeIds.begin(), end};
+    }
+
+    std::vector<TOutputCookie> GetOutputCookiesInOrder() const override
+    {
+        std::vector<TOutputCookie> cookies;
+        auto cookieToPosition = JobManager_->GetCookieToPosition();
+
+        auto totalValidCookies = std::count_if(
+            cookieToPosition.begin(),
+            cookieToPosition.end(),
+            [] (const auto& position) { return position != -1; });
+
+        cookies.resize(totalValidCookies);
+        for (auto [cookie, position] : Enumerate(cookieToPosition)) {
+            if (position != -1) {
+                cookies[position] = cookie;
+            }
+        }
+        return cookies;
     }
 
 private:
@@ -196,18 +266,18 @@ private:
     //! Used both for job sampling and teleport chunk sampling.
     TBernoulliSampler Sampler_;
 
+    std::unique_ptr<IDiscreteJobSizeAdjuster> JobSizeAdjuster_;
+
     i64 MaxTotalSliceCount_ = 0;
 
     bool ShouldSliceByRowIndices_ = false;
 
     bool EnablePeriodicYielder_;
 
-    TOutputOrderPtr OutputOrder_ = nullptr;
-
     // If the value is not set, it indicates that the row count until job split
     // cannot be currently estimated. In this scenario, a new slice may be
     // added without requiring a split.
-    std::optional<i64> RowCountUntilJobSplitNew_ = std::nullopt;
+    std::optional<i64> RowCountUntilJobSplitNew_;
     std::unique_ptr<TNewJobStub> CurrentJob_;
 
     int JobIndex_ = 0;
@@ -264,7 +334,7 @@ private:
             YT_LOG_DEBUG(
                 "Building jobs with sampling "
                 "(SamplingRate: %v, SamplingDataWeightPerJob: %v, SamplingPrimaryDataWeightPerJob: %v)",
-                *JobSizeConstraints_->GetSamplingRate(),
+                *samplingRate,
                 JobSizeConstraints_->GetSamplingDataWeightPerJob(),
                 JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
         }
@@ -298,15 +368,11 @@ private:
 
                         // Add barrier.
                         CurrentJob()->SetIsBarrier(true);
-                        JobManager_->AddJob(std::move(CurrentJob()));
+                        auto cookie = JobManager_->AddJob(std::move(CurrentJob()));
 
                         auto inputChunk = dataSlice->GetSingleUnversionedChunk();
-                        ChunkTeleported_.Fire(inputChunk, /*tag*/ std::any{});
+                        ChunkTeleported_.Fire(inputChunk, /*tag*/ std::any{cookie});
                         ++chunksTeleported;
-
-                        if (OutputOrder_) {
-                            OutputOrder_->Push(TOutputOrder::TEntry(inputChunk));
-                        }
                     } else {
                         // This teleport chunk goes to /dev/null.
                         ++droppedTeleportChunkCount;
@@ -320,10 +386,10 @@ private:
                     if (UseNewSlicingImplementation_) {
                         AddSplittablePrimaryDataSliceNew(dataSlice, inputCookie);
                     } else {
-                        AddSplittablePrimaryDataSliceOld(dataSlice, inputCookie, GetDataWeightPerJob());
+                        AddSplittablePrimaryDataSliceOld(dataSlice, inputCookie, GetDataWeightPerJobForBuildingJobs());
                     }
                 } else {
-                    AddUnsplittablePrimaryDataSlice(dataSlice, inputCookie, GetDataWeightPerJob());
+                    AddUnsplittablePrimaryDataSlice(dataSlice, inputCookie, GetDataWeightPerJobForBuildingJobs());
                 }
             }
         }
@@ -336,8 +402,9 @@ private:
 
         if (JobSizeConstraints_->GetSamplingRate()) {
             JobManager_->Enlarge(
-                GetDataWeightPerJob(),
-                JobSizeConstraints_->GetPrimaryDataWeightPerJob());
+                JobSizeConstraints_->GetDataWeightPerJob(),
+                JobSizeConstraints_->GetPrimaryDataWeightPerJob(),
+                JobSizeConstraints_);
         }
 
         JobSizeConstraints_->UpdateInputDataWeight(JobManager_->DataWeightCounter()->GetTotal());
@@ -359,12 +426,12 @@ private:
             dataWeightPerJob = DivCeil(dataSize, static_cast<i64>(splitJobCount));
         }
 
-        // Teleport chunks do not affect the job split process since each original
+        // NB: Teleport chunks do not affect the job split process since each original
         // job is already located between the teleport chunks.
-        std::vector<TInputChunkPtr> teleportChunks;
-        if (OutputOrder_) {
-            OutputOrder_->SeekCookie(cookie);
-        }
+
+        // Insert consequent jobs after the parent cookie.
+        JobManager_->SeekOrder(cookie);
+
         std::vector<IChunkPoolOutput::TCookie> childCookies;
         for (const auto& dataSlice : unreadInputDataSlices) {
             int inputCookie = *dataSlice->Tag;
@@ -384,11 +451,13 @@ private:
         return childCookies;
     }
 
-    i64 GetDataWeightPerJob() const
+    // NB(apollo1321): Might be smaller than actual DWPJ when sampling is enabled.
+    // Small job stripes will be enlarged after processing all input data.
+    i64 GetDataWeightPerJobForBuildingJobs() const
     {
         return
             JobSizeConstraints_->GetSamplingRate()
-            ? std::max(JobSizeConstraints_->GetDataWeightPerJob(), JobSizeConstraints_->GetSamplingDataWeightPerJob())
+            ? JobSizeConstraints_->GetSamplingDataWeightPerJob()
             : JobSizeConstraints_->GetDataWeightPerJob();
     }
 
@@ -625,7 +694,7 @@ private:
                 std::min<i64>(JobSizeConstraints_->GetInputSliceRowCount(), chunkSlice->GetRowCount()));
         }
 
-        i64 dataWeightUntilJobSplit = std::max<i64>(0, GetDataWeightPerJob() - CurrentJob()->GetDataWeight());
+        i64 dataWeightUntilJobSplit = std::max<i64>(0, GetDataWeightPerJobForBuildingJobs() - CurrentJob()->GetDataWeight());
         if (!RowCountUntilJobSplitNew_.has_value() && dataWeightUntilJobSplit <= chunkSlice->GetDataWeight()) {
             // Finally, we can estimate row count until job split.
             RowCountUntilJobSplitNew_ = std::ceil(static_cast<double>(dataWeightUntilJobSplit) * chunkSlice->GetRowCount() / chunkSlice->GetDataWeight());
@@ -669,9 +738,10 @@ private:
     IChunkPoolOutput::TCookie EndJob()
     {
         if (CurrentJob()->GetSliceCount() > 0) {
+            auto jobIndex = JobIndex_++;
             if (Sampler_.Sample()) {
                 YT_LOG_DEBUG("Ordered job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataWeight: %v, RowCount: %v, SliceCount: %v)",
-                    JobIndex_,
+                    jobIndex,
                     BuiltJobCount_,
                     CurrentJob()->GetPrimaryDataWeight(),
                     CurrentJob()->GetPrimaryRowCount(),
@@ -685,29 +755,25 @@ private:
                     THROW_ERROR_EXCEPTION(NChunkPools::EErrorCode::DataSliceLimitExceeded, "Total number of data slices in ordered pool is too large")
                         << TErrorAttribute("actual_total_slice_count", GetDataSliceCounter()->GetTotal())
                         << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount_)
-                        << TErrorAttribute("current_job_count", JobIndex_);
+                        << TErrorAttribute("current_job_count", jobIndex);
                 }
 
                 CurrentJob()->Finalize();
 
                 auto cookie = JobManager_->AddJob(std::move(CurrentJob()));
-                if (OutputOrder_) {
-                    OutputOrder_->Push(cookie);
-                }
 
                 YT_ASSERT(!CurrentJob_);
 
                 return cookie;
             } else {
                 YT_LOG_DEBUG("Ordered job skipped (JobIndex: %v, BuiltJobCount: %v, DataWeight: %v, RowCount: %v, SliceCount: %v)",
-                    JobIndex_,
+                    jobIndex,
                     BuiltJobCount_,
                     CurrentJob()->GetPrimaryDataWeight(),
                     CurrentJob()->GetPrimaryRowCount(),
                     CurrentJob()->GetPrimarySliceCount());
                 CurrentJob().reset();
             }
-            ++JobIndex_;
         }
         return IChunkPoolOutput::NullCookie;
     }
@@ -759,13 +825,14 @@ void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(7, MaxTotalSliceCount_);
     PHOENIX_REGISTER_FIELD(8, ShouldSliceByRowIndices_);
     PHOENIX_REGISTER_FIELD(9, EnablePeriodicYielder_);
-    PHOENIX_REGISTER_FIELD(10, OutputOrder_);
     PHOENIX_REGISTER_FIELD(11, JobIndex_);
     PHOENIX_REGISTER_FIELD(12, BuiltJobCount_);
     PHOENIX_REGISTER_FIELD(13, SingleJob_);
     PHOENIX_REGISTER_FIELD(14, IsCompleted_);
     PHOENIX_REGISTER_FIELD(15, UseNewSlicingImplementation_,
         .SinceVersion(ESnapshotVersion::NewOrderedChunkPoolSlicing));
+    PHOENIX_REGISTER_FIELD(16, JobSizeAdjuster_,
+        .SinceVersion(ESnapshotVersion::OrderedAndSortedJobSizeAdjuster));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);
@@ -776,7 +843,7 @@ PHOENIX_DEFINE_TYPE(TOrderedChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IPersistentChunkPoolPtr CreateOrderedChunkPool(
+IOrderedChunkPoolPtr CreateOrderedChunkPool(
     const TOrderedChunkPoolOptions& options,
     TInputStreamDirectory inputStreamDirectory)
 {

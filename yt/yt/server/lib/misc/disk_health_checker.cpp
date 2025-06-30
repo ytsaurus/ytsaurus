@@ -34,36 +34,29 @@ TDiskHealthChecker::TDiskHealthChecker(
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         CheckInvoker_,
         BIND(&TDiskHealthChecker::OnCheck, MakeWeak(this)),
-        Config_->CheckPeriod))
+        Config_.Acquire()->CheckPeriod))
 {
     Logger.AddTag("Path: %v", Path_);
-    DynamicConfig_.Store(New<TDiskHealthCheckerDynamicConfig>());
 }
 
-void TDiskHealthChecker::OnDynamicConfigChanged(const TDiskHealthCheckerDynamicConfigPtr& newConfig)
+void TDiskHealthChecker::Reconfigure(const TDiskHealthCheckerConfigPtr& newConfig)
 {
-    DynamicConfig_.Store(newConfig);
+    Config_.Store(newConfig);
 }
 
 TDuration TDiskHealthChecker::GetWaitTimeout() const
 {
-    auto dynamicConfig = DynamicConfig_.Acquire();
-    auto waitTimeout = dynamicConfig->WaitTimeout;
-    return waitTimeout.value_or(Config_->WaitTimeout);
+    return Config_.Acquire()->WaitTimeout;
 }
 
 TDuration TDiskHealthChecker::GetExecTimeout() const
 {
-    auto dynamicConfig = DynamicConfig_.Acquire();
-    auto execTimeout = dynamicConfig->ExecTimeout;
-    return execTimeout.value_or(Config_->ExecTimeout);
+    return Config_.Acquire()->ExecTimeout;
 }
 
 i64 TDiskHealthChecker::GetTestSize() const
 {
-    auto dynamicConfig = DynamicConfig_.Acquire();
-    auto testSize = dynamicConfig->TestSize;
-    return testSize.value_or(Config_->TestSize);
+    return Config_.Acquire()->TestSize;
 }
 
 void TDiskHealthChecker::Start()

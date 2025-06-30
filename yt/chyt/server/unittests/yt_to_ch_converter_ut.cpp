@@ -142,6 +142,13 @@ protected:
         ExpectFields(*column, expectedFields);
     }
 
+    void ExpectThrowOnDataConversion(TComplexTypeFieldDescriptor descriptor, const auto& input) const
+    {
+        TYTToCHColumnConverter converter(descriptor, Settings_);
+        converter.InitColumn();
+        EXPECT_THROW(DoConsume(converter, input), std::exception);
+    }
+
     void ExpectDataConversion(
         TComplexTypeFieldDescriptor descriptor,
         const TYTColumn& ytColumn,
@@ -789,6 +796,11 @@ TEST_F(TYTToCHConversionTest, OptionalListOptionalInt32)
     ExpectDataConversion(descriptor, ysonsOptionalListOptionalInt32, expectedFields);
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
+
+    Settings_->EnableComplexNullConverison = false;
+    ExpectThrowOnDataConversion(descriptor, ysonsOptionalListOptionalInt32);
+    ExpectThrowOnDataConversion(descriptor, anyUnversionedValues);
+    ExpectThrowOnDataConversion(descriptor, ytColumn);
 }
 
 TEST_F(TYTToCHConversionTest, DictIntString)
@@ -885,6 +897,11 @@ TEST_F(TYTToCHConversionTest, OptionalTupleInt32String)
     ExpectDataConversion(descriptor, ysonsOptionalTupleInt32String, expectedFields);
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
+
+    Settings_->EnableComplexNullConverison = false;
+    ExpectThrowOnDataConversion(descriptor, ysonsOptionalTupleInt32String);
+    ExpectThrowOnDataConversion(descriptor, anyUnversionedValues);
+    ExpectThrowOnDataConversion(descriptor, ytColumn);
 }
 
 TEST_F(TYTToCHConversionTest, OptionalStructInt32String)
@@ -930,6 +947,11 @@ TEST_F(TYTToCHConversionTest, OptionalStructInt32String)
     ExpectDataConversion(descriptor, ysonsOptionalStructInt32String, expectedFields);
     ExpectDataConversion(descriptor, anyUnversionedValues, expectedFields);
     ExpectDataConversion(descriptor, ytColumn, expectedFields);
+
+    Settings_->EnableComplexNullConverison = false;
+    ExpectThrowOnDataConversion(descriptor, ysonsOptionalStructInt32String);
+    ExpectThrowOnDataConversion(descriptor, anyUnversionedValues);
+    ExpectThrowOnDataConversion(descriptor, ytColumn);
 }
 
 TEST_F(TYTToCHConversionTest, Decimal)

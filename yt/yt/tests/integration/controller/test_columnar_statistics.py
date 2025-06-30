@@ -18,6 +18,8 @@ from yt.common import YtError
 
 from yt.yson.yson_types import YsonEntity
 
+from copy import deepcopy
+
 import pytest
 import random
 import string
@@ -59,14 +61,7 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
         "fetcher": {
             "node_rpc_timeout": 10000
         },
-        "table_writer": {
-            "enable_large_columnar_statistics": True,
-        },
     }
-
-    @staticmethod
-    def _make_random_string(size) -> str:
-        return ''.join(random.choice(string.ascii_letters) for _ in range(size))
 
     @staticmethod
     def _expect_data_weight_statistics(
@@ -171,7 +166,7 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
                     "Error when checking {}, table path is {}".format(statistics_name, path)
 
     @staticmethod
-    def get_completed_summary(summaries):
+    def _get_completed_summary(summaries):
         result = None
         for summary in summaries:
             if summary["tags"]["job_state"] == "completed":
@@ -792,9 +787,9 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
         estimated_uncompressed_data_size = statistics["uncompressed_data_size"]
 
         job_input_statistics = progress["job_statistics_v2"]["data"]["input"]
-        actual_compressed_data_size = job_input_statistics["compressed_data_size"][0]["summary"]["sum"]
-        actual_uncompressed_data_size = job_input_statistics["uncompressed_data_size"][0]["summary"]["sum"]
-        actual_data_weight = job_input_statistics["data_weight"][0]["summary"]["sum"]
+        actual_compressed_data_size = self._get_completed_summary(job_input_statistics["compressed_data_size"])["sum"]
+        actual_uncompressed_data_size = self._get_completed_summary(job_input_statistics["uncompressed_data_size"])["sum"]
+        actual_data_weight = self._get_completed_summary(job_input_statistics["data_weight"])["sum"]
 
         assert 0.99 * estimated_data_weight <= actual_data_weight <= 1.01 * estimated_data_weight
 
@@ -885,6 +880,18 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
+class TestColumnarStatisticsOperationsWithOldSlicing(TestColumnarStatisticsOperations):
+    DELTA_CONTROLLER_AGENT_CONFIG = deepcopy(getattr(TestColumnarStatisticsOperations, "DELTA_CONTROLLER_AGENT_CONFIG", {}))
+    DELTA_CONTROLLER_AGENT_CONFIG \
+        .setdefault("controller_agent", {}) \
+        .setdefault("operation_options", {}) \
+        .setdefault("spec_template", {})["use_new_slicing_implementation_in_unordered_pool"] = False
+
+
+##################################################################
+
+
 class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperations):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -921,7 +928,6 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
         "fetcher": {
             "node_rpc_timeout": 3000
         },
-        "enable_large_columnar_statistics": True,
     }
 
     @classmethod
@@ -957,7 +963,6 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
         "fetcher": {
             "node_rpc_timeout": 3000
         },
-        "enable_large_columnar_statistics": True,
     }
 
     @authors("achulkov2")
@@ -1146,6 +1151,10 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
 
     NUM_NODES = 16
 
+    @staticmethod
+    def _make_random_string(size) -> str:
+        return ''.join(random.choice(string.ascii_letters) for _ in range(size))
+
     @authors("apollo1321")
     @pytest.mark.timeout(300)
     @pytest.mark.parametrize("strict", [False, True])
@@ -1234,8 +1243,8 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
 
             progress = get(op.get_path() + "/@progress")
             input_statistics = progress["job_statistics_v2"]["data"]["input"]
-            actual_uncompressed_data_size = self.get_completed_summary(input_statistics["uncompressed_data_size"])["sum"]
-            actual_compressed_data_size = self.get_completed_summary(input_statistics["compressed_data_size"])["sum"]
+            actual_uncompressed_data_size = self._get_completed_summary(input_statistics["uncompressed_data_size"])["sum"]
+            actual_compressed_data_size = self._get_completed_summary(input_statistics["compressed_data_size"])["sum"]
 
             estimated_uncompressed_data_size = progress["estimated_input_statistics"]["uncompressed_data_size"]
             estimated_compressed_data_size = progress["estimated_input_statistics"]["compressed_data_size"]
@@ -1286,7 +1295,7 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
         )
 
         progress = get(op.get_path() + "/@progress")
-        actual_compressed_data_size = self.get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["compressed_data_size"])["sum"]
+        actual_compressed_data_size = self._get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["compressed_data_size"])["sum"]
         estimated_compressed_data_size = progress["estimated_input_statistics"]["compressed_data_size"]
 
         assert 4 * 2**20 < actual_compressed_data_size < 7 * 2**20
@@ -1294,247 +1303,3 @@ class TestReadSizeEstimation(_TestColumnarStatisticsBase):
             assert 512 < estimated_compressed_data_size < 40 * 2**10
         else:
             assert 512 < estimated_compressed_data_size < 2 * 2**10
-
-
-##################################################################
-
-
-@pytest.mark.enabled_multidaemon
-class TestMaxCompressedDataSizePerJob(_TestColumnarStatisticsBase):
-    ENABLE_MULTIDAEMON = True
-
-    MAX_COMPRESSED_DATA_SIZE_PER_JOB = 9000
-    DATA_WEIGHT_PER_JOB = 700
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operation_options": {
-                "spec_template": {
-                    "input_table_columnar_statistics": {
-                        "enabled": True,
-                        "mode": "from_nodes",
-                    },
-                    "resource_limits": {"user_slots": 1},
-                },
-            },
-        },
-    }
-
-    def _setup_tables(self):
-        create("table", "//tmp/t_in", attributes={
-            "schema": make_schema([
-                {"name": "small", "type": "string", "group": "group_1"},
-                {"name": "large_1", "type": "string"},
-                {"name": "large_2", "type": "string", "group": "group_1"},
-            ]),
-            "optimize_for": "scan",
-        })
-
-        for i in range(5):
-            write_table(
-                "<append=%true>//tmp/t_in",
-                [
-                    {
-                        "small": self._make_random_string(100),
-                        "large_1": self._make_random_string(8000),
-                        "large_2": self._make_random_string(2000),
-                    }
-                    for i in range(2)
-                ]
-            )
-
-        assert get("//tmp/t_in/@chunk_count") == 5
-
-        create("table", "//tmp/t_out")
-
-    def _check_initial_job_estimation(self, op, expected_job_count):
-        wait(lambda: get(op.get_path() + "/@progress", default=False))
-        progress = get(op.get_path() + "/@progress")
-        # Check that job count is correctly estimated, before any job is scheduled.
-        assert progress["jobs"]["total"] == expected_job_count
-        assert progress["jobs"]["pending"] == expected_job_count
-        assert progress["jobs"]["running"] == 0
-
-    @authors("apollo1321")
-    @pytest.mark.parametrize("operation", ["merge", "map"])
-    @pytest.mark.parametrize("use_data_weight", [False, True])
-    @pytest.mark.parametrize("use_compressed_data_size", [False, True])
-    @pytest.mark.parametrize("mode", ["unordered", "ordered"])
-    def test_operation_with_column_groups(self, operation, use_data_weight, use_compressed_data_size, mode):
-        if not use_data_weight and not use_compressed_data_size:
-            pytest.skip()
-
-        self._setup_tables()
-
-        op_function = merge if operation == "merge" else map
-
-        op = op_function(
-            in_="//tmp/t_in{small}",
-            out="//tmp/t_out",
-            spec={
-                "suspend_operation_after_materialization": True,
-            } | ({
-                "force_transform": True,
-                "mode": mode,
-            } if operation == "merge" else {}) | ({
-                "ordered": mode == "ordered",
-                "mapper": {"command": "cat > /dev/null"},
-            } if operation == "map" else {}) | ({
-                "data_weight_per_job": self.DATA_WEIGHT_PER_JOB,
-            } if use_data_weight else {}) | ({
-                "max_compressed_data_size_per_job": self.MAX_COMPRESSED_DATA_SIZE_PER_JOB,
-            } if use_compressed_data_size else {}),
-            track=False,
-        )
-
-        wait(lambda: get(op.get_path() + "/@suspended"))
-        self._check_initial_job_estimation(op, 3 if use_compressed_data_size else 2)
-
-        op.resume()
-        op.track()
-
-        progress = get(op.get_path() + "/@progress")
-
-        assert len(progress["tasks"]) == 1
-        if operation == "merge":
-            task_name = mode + "_merge"
-        else:
-            task_name = "map" if mode == "unordered" else "ordered_map"
-
-        assert progress["tasks"][0]["task_name"] == task_name
-
-        input_statistics = progress["job_statistics_v2"]["data"]["input"]
-
-        if use_compressed_data_size:
-            assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= self.MAX_COMPRESSED_DATA_SIZE_PER_JOB
-
-        assert self.get_completed_summary(input_statistics["data_weight"])["max"] <= self.DATA_WEIGHT_PER_JOB
-        assert progress["jobs"]["completed"]["total"] == 3 if use_compressed_data_size else 2
-
-    @authors("apollo1321")
-    @pytest.mark.parametrize("mode", ["unordered", "ordered"])
-    def test_map_operation_explicit_job_count(self, mode):
-        # NB(apollo1321): Merge operation does not takes into account excplicitly set job_count.
-        # NB(apollo1321): Ordered map operation provides job count guarantee only for job_count == 1.
-        self._setup_tables()
-
-        op = map(
-            in_="//tmp/t_in{small}",
-            out="//tmp/t_out",
-            command="cat > /dev/null",
-            spec={
-                "suspend_operation_after_materialization": True,
-                "ordered": mode == "ordered",
-                "max_compressed_data_size_per_job": self.MAX_COMPRESSED_DATA_SIZE_PER_JOB,
-                "data_weight_per_job": self.DATA_WEIGHT_PER_JOB,
-                "job_count": 1,
-            },
-            track=False,
-        )
-
-        wait(lambda: get(op.get_path() + "/@suspended"))
-        self._check_initial_job_estimation(op, 1)
-
-        op.resume()
-        op.track()
-
-        progress = get(op.get_path() + "/@progress")
-
-        assert len(progress["tasks"]) == 1
-        assert progress["tasks"][0]["task_name"] == "map" if mode == "unordered" else "ordered_map"
-
-        # Ensure that max_compressed_data_size does not affect the explicitly set job_count.
-        assert progress["jobs"]["completed"]["total"] == 1
-
-    @authors("apollo1321")
-    @pytest.mark.parametrize("operation", ["map", "merge"])
-    @pytest.mark.parametrize("mode", ["ordered", "unordered"])
-    def test_operation_with_skewed_input_data(self, operation, mode):
-        # Test the scenario when chunk sizes are distributed like this:
-        #
-        #                      max_compressed_data_size_per_job-----+
-        #                                   data_weight_per_job----+|
-        # +-------+---------------------+-----------------------+  ||
-        # |       | #     #         #   |                       |<-+|
-        # |  Size | #     #         #   |                       |<--+
-        # |       | #     #         #   |                       |
-        # |       | # _   # _  ...  # _ | _ #   _ #   _ #   _ # |
-        # +-------+---------------------+-----------------------+
-        # |  Type | w s   w s  ...  w s | w s   w s   w s   w s |
-        # +-------+---------------------+-----------------------+
-        # | Chunk |  1     2   ...   10 |  11    12    13    14 |
-        # +-------+---------------------------------------------+
-        # |  Jobs |  1  |  2 | ... | 10 |     11    |     12    |
-        # +-------+---------------------------------------------+
-        #
-        # Height of column of # defines the size of chunk.
-        #
-        # # - 1000 bytes
-        # _ - negligible small size
-        # w - data weight
-        # c - compressed data size
-        #
-        # Previous tests could work without max_compressed_data_per_job support
-        # in chunk pools, because data_weight_per_job is updated internally
-        # based on max_compressed_data_per_job. However, such approach will not
-        # work when the size distribution of chunks is skewed.
-        #
-        # Job counts:
-        #  - By compressed_data_size ~ ceil(5200  / 2200) = 3
-        #  - By data_weight          ~ ceil(40000 / 3900) = 11
-        #
-        # Initially, jobs will be sliced by data_weight. For the last 4 chunks
-        # data weight is negligible and jobs will be sliced by compressed data
-        # size. In the end we should get 12 jobs.
-
-        create("table", "//tmp/t_in", attributes={
-            "schema": make_schema([
-                {"name": "col1", "type": "string", "group": "custom"},
-                {"name": "col2", "type": "string", "group": "custom"},
-            ]),
-            "optimize_for": "scan",
-        })
-
-        for _ in range(10):
-            write_table("<append=%true>//tmp/t_in", {
-                "col1": "a" * 4000
-            })
-
-        # Ensure that compression took place and compressed data size is small.
-        assert get("//tmp/t_in/@compressed_data_size") < 1200
-        assert get("//tmp/t_in/@data_weight") >= 40000
-
-        # We will have to read both col1 and col2 here. Data weight will be small,
-        # but compressed_data_size will be large.
-        for _ in range(4):
-            write_table("<append=%true>//tmp/t_in", {
-                "col1": "a",
-                "col2": self._make_random_string(1000),
-            })
-
-        assert get("//tmp/t_in/@compressed_data_size") > 5000
-        assert get("//tmp/t_in/@data_weight") <= 45000
-
-        create("table", "//tmp/t_out")
-
-        op_function = merge if operation == "merge" else map
-
-        op = op_function(
-            in_="//tmp/t_in{col1}",
-            out="//tmp/t_out",
-            spec={
-                "data_weight_per_job": 3900,
-                "max_compressed_data_size_per_job": 2200,
-            } | ({
-                "force_transform": True,
-                "mode": mode,
-            } if operation == "merge" else {}) | ({
-                "ordered": mode == "ordered",
-                "mapper": {"command": "cat > /dev/null"},
-            } if operation == "map" else {}),
-        )
-
-        progress = get(op.get_path() + "/@progress")
-        input_statistics = progress["job_statistics_v2"]["data"]["input"]
-        assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 2200
-        assert progress["jobs"]["completed"]["total"] == 12

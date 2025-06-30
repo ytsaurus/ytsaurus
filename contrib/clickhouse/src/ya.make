@@ -43,6 +43,7 @@ PEERDIR(
     contrib/libs/metrohash
     contrib/libs/miniselect
     contrib/libs/msgpack
+    contrib/libs/pocketfft
     contrib/libs/poco/MongoDB
     contrib/libs/rapidjson
     contrib/libs/re2
@@ -51,6 +52,7 @@ PEERDIR(
     contrib/libs/wyhash
     contrib/libs/xxhash
     contrib/libs/zstd
+    contrib/restricted/abseil-cpp
     contrib/restricted/aws/aws-c-auth
     contrib/restricted/aws/aws-c-common
     contrib/restricted/aws/aws-c-io
@@ -115,6 +117,7 @@ ADDINCL(
     contrib/libs/lz4
     contrib/libs/miniselect/include
     contrib/libs/msgpack/include
+    contrib/libs/pocketfft
     contrib/libs/rapidjson/include
     contrib/libs/simdjson/include
     contrib/libs/sparsehash/src

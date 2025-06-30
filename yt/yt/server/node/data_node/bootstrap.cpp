@@ -22,7 +22,7 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-#include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/node/tablet_node/config.h>
 
 #include <yt/yt/server/lib/distributed_chunk_session_server/distributed_chunk_session_service.h>
 
@@ -52,7 +52,7 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = DataNodeLogger;
+constinit const auto Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

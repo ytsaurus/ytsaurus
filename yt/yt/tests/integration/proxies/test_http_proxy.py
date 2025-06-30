@@ -15,7 +15,9 @@ from yt_commands import (
     create_user, create_proxy_role, issue_token, make_ace,
     create_access_control_object_namespace, create_access_control_object,
     with_breakpoint, wait_breakpoint, print_debug, raises_yt_error,
-    read_table, write_table, add_member, Operation, discover_proxies)
+    read_table, write_table, add_member, Operation, discover_proxies,
+    start_transaction,
+)
 
 from yt.common import YtResponseError, YtError
 import yt.packages.requests as requests
@@ -428,24 +430,90 @@ class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
     @pytest.mark.timeout(120)
     def test_specific_user_drop(self):
         create_user("nadya")
+
+        def get_yson(url):
+            return yson.loads(requests.get(url).content)
+
+        if get_yson(self._get_proxy_address() + "/hosts?role=data") != []:
+            create_proxy_role("ml", "http")
         proxy_name = ls("//sys/http_proxies")[0]
 
         create("table", "//tmp/test")
 
+        proxy = ls("//sys/http_proxies")[0]
+
+        set("//sys/http_proxies/" + proxy + "/@role", "ml")
+
+        def get_yson(url):
+            return yson.loads(requests.get(url).content)
+
+        def check_role_updated():
+            return get_yson(self._get_proxy_address() + "/hosts") == [] and \
+                get_yson(self._get_proxy_address() + "/hosts?role=data") == []
+
+        wait(check_role_updated)
+
         set("//sys/http_proxies/@config", {
             "api": {
-                "user_to_memory_limit_ratio": {"nadya" : 0.0},
-            },
+                "role_to_memory_limit_ratios" : {
+                    "ml" : {
+                        "user_to_memory_limit_ratio": {"nadya" : 0.0}
+                    }
+                }
+            }
         })
 
         def config_updated():
             config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
-            return config.get("api", {}).get("user_to_memory_limit_ratio", None) == {"nadya" : 0.0}
+            return config.get("api", {}).get("role_to_memory_limit_ratios") != {}
 
         wait(config_updated)
 
         with raises_yt_error("Request is dropped due to high memory pressure"):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_role_default_user_drop(self):
+
+        def get_yson(url):
+            return yson.loads(requests.get(url).content)
+
+        if get_yson(self._get_proxy_address() + "/hosts?role=data") != []:
+            create_proxy_role("ml", "http")
+
+        proxy_name = ls("//sys/http_proxies")[0]
+
+        create("table", "//tmp/test")
+
+        proxy = ls("//sys/http_proxies")[0]
+
+        set("//sys/http_proxies/" + proxy + "/@role", "ml")
+
+        def check_role_updated():
+            return get_yson(self._get_proxy_address() + "/hosts") == [] and \
+                get_yson(self._get_proxy_address() + "/hosts?role=data") == []
+
+        wait(check_role_updated)
+
+        set("//sys/http_proxies/@config", {
+            "api": {
+                "role_to_memory_limit_ratios" : {
+                    "ml" : {
+                        "default_user_memory_limit_ratio": 0.0
+                    }
+                }
+            }
+        })
+
+        def config_updated():
+            config = get("//sys/http_proxies/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return config.get("api", {}).get("role_to_memory_limit_ratios", {}).get("ml", {}).get("default_user_memory_limit_ratio", {}) == 0.0
+
+        wait(config_updated)
+
+        with raises_yt_error("Request is dropped due to high memory pressure"):
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"})
 
     @authors("nadya02")
     @pytest.mark.timeout(120)
@@ -468,6 +536,38 @@ class TestHttpProxyUserMemoryDrop(HttpProxyTestBase):
 
         with raises_yt_error("Request is dropped due to high memory pressure"):
             self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+
+
+@pytest.mark.enabled_multidaemon
+class TestHttpProxyPoolMetrics(HttpProxyTestBase):
+    @authors("nadya02")
+    @pytest.mark.timeout(120)
+    def test_memory_pool_metrics(self):
+        http_proxies = ls("//sys/http_proxies")
+        assert len(http_proxies) == 1
+
+        create_user("nadya")
+
+        create("table", "//tmp/test")
+
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"}, user="nadya")
+        time.sleep(5)
+
+        profiler = profiler_factory().at_http_proxy(http_proxies[0])
+        pool_limit_memory_usage_gauge = profiler.gauge("http_proxy/memory_usage/pool_limit")
+
+        metrics = pool_limit_memory_usage_gauge.get_all()
+        metric_count = 0
+        has_heavy_request_tag = False
+        for metric in metrics:
+            if metric["tags"]:
+                if "pool" in metric["tags"] and metric["tags"]["pool"] == "nadya":
+                    metric_count += 1
+                    if "category" in metric["tags"] and metric["tags"]["category"] == "heavy_request":
+                        has_heavy_request_tag = True
+
+        assert has_heavy_request_tag
+        assert metric_count < 5
 
 
 class TestFullDiscoverVersions(HttpProxyTestBase):
@@ -539,7 +639,6 @@ class TestCypressProxyDiscoverVersions(HttpProxyTestBase):
 
     USE_SEQUOIA = True
     NUM_CLOCKS = 1
-    NUM_CYPRESS_PROXIES = 1
     NUM_REMOTE_CLUSTERS = 1
     USE_SEQUOIA_REMOTE_0 = False
 
@@ -758,6 +857,31 @@ class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
     }
     ENABLE_MULTIDAEMON = True
 
+    @authors("nadya02")
+    def test_user_access_validator(self):
+        proxy_address = self._get_proxy_address()
+
+        def check_access(proxy_address, path="/", status_code=200, error_code=None, user=None):
+            url = "{}/api/v4/get?path={}".format(proxy_address, path)
+            headers = {}
+            if user:
+                headers["X-YT-User-Name"] = user
+
+            rsp = requests.get(url, headers=headers)
+
+            if error_code is not None :
+                assert json.loads(rsp.content)["code"] == error_code
+
+            return rsp.status_code == status_code
+
+        create_user("u")
+
+        set("//sys/users/u/@banned", True)
+        wait(lambda: check_access(proxy_address, status_code=403, user="u"))
+
+        set("//sys/users/u/@banned", False)
+        wait(lambda: check_access(proxy_address, status_code=200, user="u"))
+
     @authors("gritukan", "verytable")
     def test_access_checker(self):
         def check_access(proxy_address, user):
@@ -881,14 +1005,26 @@ class TestHttpProxyAuth(HttpProxyTestBase):
         }
         super(TestHttpProxyAuth, cls).setup_class()
 
+    def create_user_with_token(self, user):
+        create_user(user)
+        token, _ = issue_token(user)
+        return token
+
+    @authors("ermolovd")
+    def test_get_current_user(self):
+        token = self.create_user_with_token("test_get_current_user")
+
+        url = f"{self._get_proxy_address()}/api/v4/get_current_user"
+        headers = {
+            "Authorization": f"OAuth {token}",
+        }
+        rsp = requests.get(url, headers=headers)
+        assert rsp.status_code == 200, f"Proxy returned {rsp.status_code} response: {rsp.content}"
+        assert rsp.json()["user"] == "test_get_current_user"
+
     @authors("mpereskokova")
     def test_access_on_behalf_of_the_user(self):
         proxy_address = self._get_proxy_address()
-
-        def create_user_with_token(user):
-            create_user(user)
-            token, _ = issue_token(user)
-            return token
 
         def check_access(proxy_address, path="/", status_code=200, error_code=None, user=None, token=None):
             url = "{}/api/v4/get?path={}".format(proxy_address, path)
@@ -905,8 +1041,8 @@ class TestHttpProxyAuth(HttpProxyTestBase):
             assert rsp.status_code in [200, 400, 401]
             return rsp.status_code == status_code
 
-        yql_agent_token = create_user_with_token("yql_agent")
-        test_user_token = create_user_with_token("test_user")
+        yql_agent_token = self.create_user_with_token("yql_agent")
+        test_user_token = self.create_user_with_token("test_user")
 
         wait(lambda: check_access(proxy_address, status_code=200, token=yql_agent_token))
         wait(lambda: check_access(proxy_address, status_code=200, token=yql_agent_token, user="test_user"))
@@ -1361,38 +1497,6 @@ class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
                 output_format=self.YSON,
             )
 
-    @authors("nadya02")
-    @pytest.mark.timeout(120)
-    def test_http_drop_write_request(self):
-        wait(lambda: requests.get(f"{self._get_proxy_address()}/api/v4/get?path=//@").ok)
-
-        create("table", "//tmp/t")
-
-        total_memory_limit = 2000
-
-        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
-
-        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
-
-        def config_updated():
-            config = requests.get(config_url).json()
-            return config.get("memory_limits", {}).get("total", 0) == total_memory_limit
-        wait(config_updated)
-
-        with pytest.raises(YtResponseError):
-            content = [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}] * 10
-            format = "yson"
-            user = "root"
-
-            self._execute_command(
-                "put",
-                "write_table",
-                {"path": "//tmp/t", "input_format": format},
-                user=user,
-                data=self._write_format(format, content),
-            )
-
     def _test_format_defaults_cypress(self, format, user, content, expected_content):
         set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         set("//tmp/list_node", content, force=True)
@@ -1719,11 +1823,16 @@ def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, 
     return result
 
 
-class TestHttpProxySignaturesKeyCreation(TestHttpProxySignaturesBase):
-    @authors("pavook")
-    @pytest.mark.timeout(60)
-    def test_public_key_appears(self):
-        wait(lambda: len(ls(self.KEYS_PATH)) == 1)
+class TestHttpProxySignatures(TestHttpProxySignaturesBase):
+    @classmethod
+    def setup_class(cls):
+        super(TestHttpProxySignatures, cls).setup_class()
+        # Wait until the keys are generated.
+        # With very low probability, if the command gets through between the transaction
+        # commit and actual key emplace, this won't be enough: the key still won't be available.
+        # But this probability should be neglectable, as some network packeting should happen before the signatures
+        # even start generating.
+        wait(lambda: len(ls(cls.KEYS_PATH)) > 0)
 
     @authors("ermolovd")
     def test_partition_tables_with_modified_cookie(self):
@@ -1749,6 +1858,52 @@ class TestHttpProxySignaturesKeyCreation(TestHttpProxySignaturesBase):
         with raises_yt_error("Signature validation failed"):
             self._execute_command("GET", "read_table_partition", {"cookie": cookie}, user="user2")
 
+    @authors("pavook")
+    @pytest.mark.timeout(60)
+    def test_distributed_write_with_modified_cookie(self):
+        table_path = "//tmp/distributed_table"
+        modified_path = "//tmp/pwntributed_table"
+        assert len(table_path) == len(modified_path)
+
+        create("table", table_path, schema=[{"name": "v1", "type": "string", "sort_order": "ascending"}])
+        res = self._execute_command(
+            "POST",
+            "start_distributed_write_session",
+            {"path": table_path})
+
+        assert bytes(table_path, "utf-8") in res.content
+        yson_res = yson.loads(res.content.replace(bytes(table_path, "utf-8"), bytes(modified_path, "utf-8")))
+        session = yson_res["session"]
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("POST", "finish_distributed_write_session", {"session": session, "results": []})
+
+    @authors("pavook")
+    def disabled_test_shuffle_with_modified_handle(self):  # TODO(pavook): enable when shuffle is supported via HTTP.
+        account = "intermediate"
+        modified_account = "pwnedmediate"
+        assert len(account) == len(modified_account)
+
+        parent_transaction = start_transaction(timeout=60000)
+        res = self._execute_command("POST", "start_shuffle", {
+            "account": account,
+            "partition_count": 1,
+            "parent_transaction_id": parent_transaction,
+        })
+
+        shuffle_handle = res.content
+        assert bytes(account, "utf-8") in shuffle_handle
+        modified_handle = shuffle_handle.replace(bytes(account, "utf-8"), bytes(modified_account, "utf-8"))
+        rows = [{"key": 0, "value": 1}]
+        yson_rows = yson.dumps(rows, yson_type="list_fragment")
+
+        self._execute_command("POST", "write_shuffle_data", {"signed_shuffle_handle": shuffle_handle}, data=yson_rows)
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("POST", "write_shuffle_data", {"signed_shuffle_handle": modified_handle}, data=yson_rows)
+
+        assert yson.loads(self._execute_command("GET", "read_shuffle_data").content, yson_type="list_fragment") == yson_rows
+        with raises_yt_error("Signature validation failed"):
+            self._execute_command("GET", "read_shuffle_data").content
+
 
 class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
     DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {
@@ -1763,25 +1918,6 @@ class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
     @pytest.mark.timeout(60)
     def test_public_key_rotates(self):
         wait(lambda: len(ls(self.KEYS_PATH)) > 1)
-
-
-class TestHttpProxyDistributedWrite(TestHttpProxySignaturesBase):
-    TABLE_PATH = "//tmp/distributed_table"
-
-    @authors("pavook")
-    @pytest.mark.timeout(60)
-    def test_cookie_modification(self):
-        create("table", self.TABLE_PATH, schema=[{"name": "v1", "type": "string", "sort_order": "ascending"}])
-        res = self._execute_command(
-            "POST",
-            "start_distributed_write_session",
-            {"path": self.TABLE_PATH})
-
-        PWN_PATH = b"//tmp/pwned"
-        yson_res = yson.loads(res.content.replace(bytes(self.TABLE_PATH[:len(PWN_PATH)], "utf-8"), PWN_PATH))
-        session = yson_res["session"]
-        with raises_yt_error("Signature validation failed"):
-            self._execute_command("POST", "finish_distributed_write_session", {"session": session, "results": []})
 
 
 class TestHttpsProxy(HttpProxyTestBase):
@@ -1861,6 +1997,12 @@ class TestHttpProxyDiscovery(YTEnvSetup):
         driver_config["api_version"] = 4
         self.driver = Driver(driver_config)
 
+    @classmethod
+    def modify_proxy_config(cls, multidaemon_config, configs):
+        for config in configs:
+            addresses = [["default", "localhost"], ["fastbone", "fb-localhost"]]
+            config["addresses"] = addresses
+
     @authors("nadya73")
     def test_addresses(self):
         proxy = ls("//sys/http_proxies")[0]
@@ -1868,11 +2010,13 @@ class TestHttpProxyDiscovery(YTEnvSetup):
         addresses = get("//sys/http_proxies/" + proxy + "/@addresses")
         assert "http" in addresses
         assert "default" in addresses["http"]
+        assert "fastbone" in addresses["http"]
         assert proxy == addresses["http"]["default"]
 
     @authors("nadya73")
     def test_discovery(self):
         configured_proxy_addresses = sorted(self.Env.get_http_proxy_addresses())
+        configured_proxy_addresses_fb = ["fb-" + address for address in configured_proxy_addresses]
         configured_monitoring_addresses = sorted(self.Env.get_http_proxy_monitoring_addresses())
 
         for test_name, request, expected_addresses in [
@@ -1888,6 +2032,11 @@ class TestHttpProxyDiscovery(YTEnvSetup):
                 "explicit_params",
                 {"network_name": "default"},
                 configured_proxy_addresses,
+            ),
+            (
+                "explicit_params",
+                {"network_name": "fastbone"},
+                configured_proxy_addresses_fb,
             ),
             (
                 "monitoring_addresses",

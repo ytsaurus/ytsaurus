@@ -1,13 +1,17 @@
 #include <IO/Archives/ZipArchiveWriter.h>
 
 #if USE_MINIZIP
-#include <IO/WriteBufferFromFileBase.h>
-#include <Common/quoteString.h>
-#include <base/errnoToString.h>
-#error #include <zip.h>
-#include <boost/algorithm/string/predicate.hpp>
 #include <Common/logger_useful.h>
+#include <Common/quoteString.h>
+#include <IO/WriteBufferFromFileBase.h>
+#include <base/errnoToString.h>
+
 #include <DBPoco/Logger.h>
+
+#include <boost/algorithm/string/predicate.hpp>
+
+#error #include <zip.h>
+#error #include <mz.h>
 
 
 namespace DB

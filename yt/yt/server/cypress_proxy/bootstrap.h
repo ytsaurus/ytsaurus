@@ -33,7 +33,7 @@ struct IBootstrap
     virtual const NApi::NNative::IConnectionPtr& GetNativeConnection() const = 0;
     virtual const NApi::NNative::IClientPtr& GetNativeRootClient() const = 0;
 
-    virtual const NSequoiaClient::ISequoiaClientPtr& GetSequoiaClient() const = 0;
+    virtual NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() const = 0;
 
     virtual NApi::IClientPtr GetRootClient() const = 0;
 
@@ -42,6 +42,8 @@ struct IBootstrap
     virtual const ISequoiaResponseKeeperPtr& GetResponseKeeper() const = 0;
 
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
+
+    virtual IInvokerPtr GetInvoker(const NConcurrency::TFairShareThreadPoolTag& tag) const = 0;
 
     virtual NDistributedThrottler::IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,

@@ -43,7 +43,7 @@ def build_user_network():
                 _with_label_for_aggr_host(TabNodeInternal("yt.bus.in_bytes.rate"), "band"))
             .cell(
                 "Network transmitted bytes (bus)",
-                _with_label_for_aggr_host(TabNodeInternal("yt.bus.in_bytes.rate"), "band"))
+                _with_label_for_aggr_host(TabNodeInternal("yt.bus.out_bytes.rate"), "band"))
         .row()
             .cell("Pending out bytes", _with_label_for_aggr_host(TabNodeInternal("yt.bus.pending_out_bytes"), "band"))
             .cell("TCP retransmits rate", _with_label_for_aggr_host(TabNodeInternal("yt.bus.retransmits.rate"), "band"))

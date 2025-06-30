@@ -594,7 +594,7 @@ private:
             YT_LOG_DEBUG("Regrouping %v splits into groups",
                 allSplits.size());
 
-            THashMap<TString, std::vector<TDataSource>> groupsByAddress;
+            THashMap<std::string, std::vector<TDataSource>> groupsByAddress;
             for (const auto& split : allSplits) {
                 const auto& address = split.second;
                 groupsByAddress[address].push_back(split.first);
@@ -703,9 +703,9 @@ private:
             query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
             query->IsPrefetching(),
             splitCount,
-            options.AdaptiveOrderedSchemafulReader,
             query->Offset,
             query->Limit,
+            options.AdaptiveOrderedSchemafulReader,
             [
                 &,
                 bottomQueryPattern = bottomQueryPattern,

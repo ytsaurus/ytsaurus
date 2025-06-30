@@ -20,6 +20,7 @@ TAG(
     ya:noretries
     ya:yt
     ya:force_sandbox
+    ya:large_tests_on_single_slots
 )
 
 IF (SANITIZER_TYPE)
@@ -152,6 +153,7 @@ TEST_SRCS(
     helpers.py
     test_acl_commands.py
     test_admin.py
+    test_auth_commands.py
     test_authentication.py
     test_batch_execution.py
     test_chaos_commands.py
@@ -189,7 +191,11 @@ TEST_SRCS(
     test_yt_cli.py
 )
 
-INCLUDE(${ARCADIA_ROOT}/devtools/large_on_single_slots.inc)
+IF (NOT OPENSOURCE)
+    TEST_SRCS(
+        test_ml_helpers.py
+    )
+ENDIF()
 
 END()
 
@@ -199,6 +205,7 @@ RECURSE_FOR_TESTS(
 )
 
 IF (NOT OPENSOURCE)
+
     RECURSE(
         yt_python
         yt_ipython

@@ -31,6 +31,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString ServiceName = "NvGpuManager";
+static constexpr double Epsilon = 1e-7;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,8 +49,7 @@ public:
         : TServiceBase(
             invoker,
             NRpc::TServiceDescriptor(ServiceName),
-            NLogging::TLogger("TMockNvGpuManagerService"),
-            NRpc::NullRealmId)
+            NLogging::TLogger("TMockNvGpuManagerService"))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListGpuDevices));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListRdmaDevices));
@@ -76,6 +76,7 @@ public:
             status->set_memory_utilization(25);
             status->set_memory_used_mb(100);
             status->set_power(100);
+            status->set_sm_clock(30.0);
             status->set_sm_utilization(20.0);
             status->set_sm_occupancy(10.0);
             status->set_nvlink_rx_bytes_per_second(1000.0);
@@ -84,6 +85,9 @@ public:
             status->set_pcie_tx_bytes_per_second(500.0);
             status->set_tensor_activity(0.2);
             status->set_dram_activity(0.3);
+            status->set_clocks_event_reasons_bitmask(
+                nvgpu::ClocksEventReasons::SwThermalSlowdown |
+                nvgpu::ClocksEventReasons::HwThermalSlowdown);
             auto* stuck = status->mutable_stuck();
             stuck->set_status(false);
         }
@@ -102,6 +106,7 @@ public:
             status->set_memory_utilization(50);
             status->set_memory_used_mb(200);
             status->set_power(200);
+            status->set_sm_clock(35.0);
             status->set_sm_utilization(25.0);
             status->set_sm_occupancy(10.0);
             status->set_nvlink_rx_bytes_per_second(4000.0);
@@ -110,6 +115,9 @@ public:
             status->set_pcie_tx_bytes_per_second(300.0);
             status->set_tensor_activity(0.3);
             status->set_dram_activity(0.2);
+            status->set_clocks_event_reasons_bitmask(
+                nvgpu::ClocksEventReasons::HwSlowdown |
+                nvgpu::ClocksEventReasons::HwPowerBrakeSlowdown);
             auto* stuck = status->mutable_stuck();
             stuck->set_status(true);
         }
@@ -209,14 +217,19 @@ TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
             EXPECT_EQ(gpuInfo.MemoryTotal, static_cast<i64>(123_MB));
             EXPECT_EQ(gpuInfo.PowerDraw, 100);
             EXPECT_EQ(gpuInfo.PowerLimit, 123);
+            EXPECT_EQ(gpuInfo.ClocksSM, 30);
             EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.2);
             EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
             EXPECT_EQ(gpuInfo.NvlinkRxByteRate, 1000.0);
             EXPECT_EQ(gpuInfo.NvlinkTxByteRate, 5000.0);
             EXPECT_EQ(gpuInfo.PcieRxByteRate, 100.0);
             EXPECT_EQ(gpuInfo.PcieTxByteRate, 500.0);
-            EXPECT_EQ(gpuInfo.TensorActivityRate, 0.2);
-            EXPECT_EQ(gpuInfo.DramActivityRate, 0.3);
+            EXPECT_NEAR(gpuInfo.TensorActivityRate, 0.2, Epsilon);
+            EXPECT_NEAR(gpuInfo.DramActivityRate, 0.3, Epsilon);
+            EXPECT_TRUE(gpuInfo.IsSWThermalSlowdown);
+            EXPECT_TRUE(gpuInfo.IsHWThermalSlowdown);
+            EXPECT_FALSE(gpuInfo.IsHWPowerBrakeSlowdown);
+            EXPECT_FALSE(gpuInfo.IsHWSlowdown);
             EXPECT_FALSE(gpuInfo.Stuck.Status);
         }
 
@@ -230,14 +243,19 @@ TEST_F(TNvManagerGpuInfoProviderTest, SimpleGpuInfo)
             EXPECT_EQ(gpuInfo.MemoryTotal, static_cast<i64>(234_MB));
             EXPECT_EQ(gpuInfo.PowerDraw, 200);
             EXPECT_EQ(gpuInfo.PowerLimit, 234);
+            EXPECT_EQ(gpuInfo.ClocksSM, 35);
             EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.25);
             EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
             EXPECT_EQ(gpuInfo.NvlinkRxByteRate, 4000.0);
             EXPECT_EQ(gpuInfo.NvlinkTxByteRate, 2000.0);
             EXPECT_EQ(gpuInfo.PcieRxByteRate, 0.0);
             EXPECT_EQ(gpuInfo.PcieTxByteRate, 300.0);
-            EXPECT_EQ(gpuInfo.TensorActivityRate, 0.3);
-            EXPECT_EQ(gpuInfo.DramActivityRate, 0.2);
+            EXPECT_NEAR(gpuInfo.TensorActivityRate, 0.3, Epsilon);
+            EXPECT_NEAR(gpuInfo.DramActivityRate, 0.2, Epsilon);
+            EXPECT_FALSE(gpuInfo.IsSWThermalSlowdown);
+            EXPECT_FALSE(gpuInfo.IsHWThermalSlowdown);
+            EXPECT_TRUE(gpuInfo.IsHWPowerBrakeSlowdown);
+            EXPECT_TRUE(gpuInfo.IsHWSlowdown);
             EXPECT_TRUE(gpuInfo.Stuck.Status);
         }
     }

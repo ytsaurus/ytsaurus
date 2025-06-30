@@ -103,38 +103,22 @@ public:
     //! which case returns (main) replication.
     const TChunkReplication& EffectiveHunkReplication() const;
 
-    // COMPAT(h0pless): Once clients are sending table schema options during begin upload:
-    //   - move fields from TCommonUploadContext to TBeginUploadContext;
-    //   - remove inheritance by TEndUploadContext;
-    //   - delete ParseCommonUploadContext function.
-    struct TCommonUploadContext
+    struct TBeginUploadContext
     {
-        explicit TCommonUploadContext(NCellMaster::TBootstrap* bootstrap);
+        explicit TBeginUploadContext(NCellMaster::TBootstrap* bootstrap);
 
         NChunkClient::EUpdateMode Mode = {};
+        NTableServer::TMasterTableSchema* ChunkSchema = nullptr;
         NTableServer::TMasterTableSchema* TableSchema = nullptr;
         std::optional<NTableClient::ETableSchemaMode> SchemaMode = NTableClient::ETableSchemaMode::Weak;
 
         NCellMaster::TBootstrap* const Bootstrap = nullptr;
     };
 
-    virtual void ParseCommonUploadContext(const TCommonUploadContext& context);
-
-    struct TBeginUploadContext
-        : public TCommonUploadContext
-    {
-        NTableServer::TMasterTableSchema* ChunkSchema = nullptr;
-        explicit TBeginUploadContext(NCellMaster::TBootstrap* bootstrap);
-    };
-
     virtual void BeginUpload(const TBeginUploadContext& context);
 
     struct TEndUploadContext
-        : public TCommonUploadContext
     {
-        // COMPAT (h0pless): remove this when clients will send table schema options during begin upload
-        explicit TEndUploadContext(NCellMaster::TBootstrap* bootstrap);
-
         std::optional<NTableClient::EOptimizeFor> OptimizeFor;
         std::optional<NCompression::ECodec> CompressionCodec;
         std::optional<NErasure::ECodec> ErasureCodec;

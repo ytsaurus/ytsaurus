@@ -14,6 +14,8 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_replica_fetcher.h>
 
+#include <yt/yt/server/master/node_tracker_server/node_tracker.h>
+
 #include <yt/yt/ytlib/data_node_tracker_client/location_directory.h>
 
 #include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
@@ -37,12 +39,13 @@ using namespace NChunkClient::NProto;
 using namespace NDataNodeTrackerClient;
 using namespace NSequoiaClient;
 using namespace NChunkClient;
+using namespace NNodeTrackerClient;
 
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = NodeTrackerServerLogger;
+constinit const auto Logger = NodeTrackerServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -257,7 +260,7 @@ private:
             if (!IsObjectAlive(node)) {
                 // TODO(aleksandra-zh): ensure there are no replicas left.
                 FinishNodeDisposal(nodeId);
-                return;
+                continue;
             }
 
             YT_VERIFY(node->GetLocalState() == ENodeState::BeingDisposed);
@@ -290,71 +293,72 @@ private:
         }
         location->SetBeingDisposed(true);
 
-        auto sequoiaReplicasFuture = chunkReplicaFetcher->GetSequoiaLocationReplicas(node->GetId(), location->GetUuid());
-        auto errorOrSequoiaReplicas = WaitFor(sequoiaReplicasFuture);
-        if (!errorOrSequoiaReplicas.IsOK()) {
-            location->SetBeingDisposed(false);
-            YT_LOG_ERROR(errorOrSequoiaReplicas, "Error getting Sequoia location replicas");
-            return;
-        }
-        const auto& sequoiaReplicas = errorOrSequoiaReplicas.Value();
-
-        YT_LOG_INFO("Disposing location (NodeId: %v, Address: %v, LocationIndex: %v, LocationUuid: %v)",
-            node->GetId(),
-            node->GetDefaultAddress(),
-            locationIndex,
-            location->GetUuid());
-
-        auto sequoiaRequest = std::make_unique<TReqModifyReplicas>();
-        TChunkLocationDirectory locationDirectory;
-        sequoiaRequest->set_node_id(ToProto(node->GetId()));
-        sequoiaRequest->set_caused_by_node_disposal(true);
-        for (const auto& replica : sequoiaReplicas) {
-            TChunkRemoveInfo chunkRemoveInfo;
-
-            TChunkIdWithIndex idWithIndex;
-            idWithIndex.Id = replica.Key.ChunkId;
-            idWithIndex.ReplicaIndex = replica.Key.ReplicaIndex;
-
-            ToProto(chunkRemoveInfo.mutable_chunk_id(), EncodeChunkId(idWithIndex));
-            chunkRemoveInfo.set_location_index(locationDirectory.GetOrCreateIndex(location->GetUuid()));
-
-            *sequoiaRequest->add_removed_chunks() = chunkRemoveInfo;
-        }
-
-        ToProto(sequoiaRequest->mutable_location_directory(), locationDirectory);
-
-        TReqDisposeLocation request;
-        request.set_node_id(ToProto(node->GetId()));
-        request.set_location_index(locationIndex);
-        auto mutation = CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            request,
-            &TNodeDisposalManager::HydraDisposeLocation,
-            this);
-
-        if (sequoiaRequest->removed_chunks_size() == 0) {
-            YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
-            return;
-        }
-
-        chunkManager
-            ->ModifySequoiaReplicas(ESequoiaTransactionType::ChunkLocationDisposal, std::move(sequoiaRequest))
-            .Subscribe(BIND([=, mutation = std::move(mutation), nodeId = node->GetId(), this, this_ = MakeStrong(this)] (const TErrorOr<TRspModifyReplicas>& rspOrError) {
-                if (!rspOrError.IsOK()) {
-                    const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-                    auto* node = nodeTracker->FindNode(nodeId);
-                    if (!IsObjectAlive(node)) {
-                        return;
-                    }
-
-                    auto location = node->ChunkLocations()[locationIndex];
+        auto globalLocationIndex = location->GetIndex();
+        chunkReplicaFetcher->GetSequoiaLocationReplicas(node->GetId(), globalLocationIndex)
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<NRecords::TLocationReplicas>>& replicasOrError) {
+                if (!replicasOrError.IsOK()) {
                     location->SetBeingDisposed(false);
+                    YT_LOG_ERROR(replicasOrError, "Error getting Sequoia location replicas");
                     return;
                 }
 
-                YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
-            }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::NodeTracker)));
+                const auto& sequoiaReplicas = replicasOrError.Value();
+
+                YT_LOG_INFO("Disposing location (NodeId: %v, Address: %v, LocalLocationIndex: %v, LocationUuid: %v, LocationIndex: %v)",
+                    node->GetId(),
+                    node->GetDefaultAddress(),
+                    locationIndex,
+                    location->GetUuid(),
+                    globalLocationIndex);
+
+                auto sequoiaRequest = std::make_unique<TReqModifyReplicas>();
+                sequoiaRequest->set_node_id(ToProto(node->GetId()));
+                sequoiaRequest->set_caused_by_node_disposal(true);
+                for (const auto& replica : sequoiaReplicas) {
+                    TChunkRemoveInfo chunkRemoveInfo;
+
+                    TChunkIdWithIndex idWithIndex;
+                    idWithIndex.Id = replica.Key.ChunkId;
+                    idWithIndex.ReplicaIndex = replica.Key.ReplicaIndex;
+
+                    ToProto(chunkRemoveInfo.mutable_chunk_id(), EncodeChunkId(idWithIndex));
+                    chunkRemoveInfo.set_location_index(ToProto(globalLocationIndex));
+
+                    *sequoiaRequest->add_removed_chunks() = chunkRemoveInfo;
+                }
+
+                TReqDisposeLocation request;
+                request.set_node_id(ToProto(node->GetId()));
+                request.set_location_index(locationIndex);
+                auto mutation = CreateMutation(
+                    Bootstrap_->GetHydraFacade()->GetHydraManager(),
+                    request,
+                    &TNodeDisposalManager::HydraDisposeLocation,
+                    this);
+
+                if (sequoiaRequest->removed_chunks_size() == 0) {
+                    YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
+                    return;
+                }
+
+                chunkManager
+                    ->ModifySequoiaReplicas(ESequoiaTransactionType::ChunkLocationDisposal, std::move(sequoiaRequest))
+                    .Subscribe(BIND([=, mutation = std::move(mutation), nodeId = node->GetId(), this, this_ = MakeStrong(this)] (const TErrorOr<TRspModifyReplicas>& rspOrError) {
+                        if (!rspOrError.IsOK()) {
+                            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+                            auto* node = nodeTracker->FindNode(nodeId);
+                            if (!IsObjectAlive(node)) {
+                                return;
+                            }
+
+                            auto location = node->ChunkLocations()[locationIndex];
+                            location->SetBeingDisposed(false);
+                            return;
+                        }
+
+                        YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
+                    }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::NodeTracker)));
+        }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::NodeTracker)));
     }
 
     void DoStartNodeDisposal(TNode* node)

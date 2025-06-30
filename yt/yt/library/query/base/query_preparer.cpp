@@ -42,6 +42,7 @@ EValueType ComparableTypes[] = {
     EValueType::Double,
     EValueType::String,
     EValueType::Any,
+    EValueType::Composite,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,18 +51,18 @@ namespace {
 
 void ExtractFunctionNames(
     const NAst::TNullableExpressionList& exprs,
-    std::vector<TString>* functions);
+    std::vector<std::string>* functions);
 
 void ExtractFunctionNames(
     const NAst::TWhenThenExpressionList& exprs,
-    std::vector<TString>* functions);
+    std::vector<std::string>* functions);
 
 void ExtractFunctionNames(
     const NAst::TExpressionPtr& expr,
-    std::vector<TString>* functions)
+    std::vector<std::string>* functions)
 {
     if (auto functionExpr = expr->As<NAst::TFunctionExpression>()) {
-        functions->push_back(to_lower(functionExpr->FunctionName));
+        functions->push_back(to_lower(TString(functionExpr->FunctionName)));
         ExtractFunctionNames(functionExpr->Arguments, functions);
     } else if (auto unaryExpr = expr->As<NAst::TUnaryOpExpression>()) {
         ExtractFunctionNames(unaryExpr->Operand, functions);
@@ -87,6 +88,9 @@ void ExtractFunctionNames(
     } else if (expr->As<NAst::TReferenceExpression>()) {
     } else if (auto aliasExpr = expr->As<NAst::TAliasExpression>()) {
         ExtractFunctionNames(aliasExpr->Expression, functions);
+    } else if (auto queryExpr = expr->As<NAst::TQueryExpression>()) {
+        ExtractFunctionNames(queryExpr->Query.WherePredicate, functions);
+        ExtractFunctionNames(queryExpr->Query.SelectExprs, functions);
     } else {
         YT_ABORT();
     }
@@ -94,7 +98,7 @@ void ExtractFunctionNames(
 
 void ExtractFunctionNames(
     const NAst::TNullableExpressionList& exprs,
-    std::vector<TString>* functions)
+    std::vector<std::string>* functions)
 {
     if (!exprs) {
         return;
@@ -109,7 +113,7 @@ void ExtractFunctionNames(
 
 void ExtractFunctionNames(
     const NAst::TWhenThenExpressionList& whenThenExpressions,
-    std::vector<TString>* functions)
+    std::vector<std::string>* functions)
 {
     CheckStackDepth();
 
@@ -119,11 +123,11 @@ void ExtractFunctionNames(
     }
 }
 
-std::vector<TString> ExtractFunctionNames(
+std::vector<std::string> ExtractFunctionNames(
     const NAst::TQuery& query,
     const NAst::TAliasMap& aliasMap)
 {
-    std::vector<TString> functions;
+    std::vector<std::string> functions;
 
     ExtractFunctionNames(query.WherePredicate, &functions);
     ExtractFunctionNames(query.HavingPredicate, &functions);
@@ -164,6 +168,9 @@ std::vector<TString> ExtractFunctionNames(
                 functions.end(),
                 std::make_move_iterator(extracted.begin()),
                 std::make_move_iterator(extracted.end()));
+        },
+        [&] (const NAst::TExpressionList& expressions) {
+            ExtractFunctionNames(expressions, &functions);
         });
 
 
@@ -539,7 +546,9 @@ NAst::TAstHead ParseQueryString(
     }
 
     NAst::TLexer lexer(source, strayToken, std::move(queryLiterals), syntaxVersion);
-    NAst::TParser parser(lexer, &head, source, /*aliasMapStack*/ {});
+    std::stack<NAst::TAliasMap> aliasMapStack;
+    aliasMapStack.push({});
+    NAst::TParser parser(lexer, &head, source, std::move(aliasMapStack));
 
     int result = parser.parse();
 
@@ -598,7 +607,7 @@ void EliminateRedundantProjections(const TQueryPtr& innerSubquery, const TTableS
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DefaultFetchFunctions(TRange<TString> /*names*/, const TTypeInferrerMapPtr& typeInferrers)
+void DefaultFetchFunctions(TRange<std::string> /*names*/, const TTypeInferrerMapPtr& typeInferrers)
 {
     MergeFrom(typeInferrers.Get(), *GetBuiltinTypeInferrers());
 }
@@ -949,6 +958,8 @@ TJoinClausePtr BuildArrayJoinClause(
 
     arrayJoinClause->Schema.Original = New<TTableSchema>(std::move(nestedColumns));
 
+    ValidateColumnUniqueness(*arrayJoinClause->Schema.Original);
+
     auto arrayBuilder = CreateExpressionBuilder(
         source,
         functions,
@@ -1027,7 +1038,10 @@ TPlanFragmentPtr PreparePlanFragment(
                 memoryTracker,
                 depth + 1);
         },
-        [&] (const NAst::TTableDescriptor&) { });
+        [&] (const NAst::TTableDescriptor&) { },
+        [&] (const NAst::TExpressionList&) {
+            THROW_ERROR_EXCEPTION("Unexpected expression in from clause");
+        });
 
     auto functions = New<TTypeInferrerMap>();
     callbacks->FetchFunctions(ExtractFunctionNames(queryAst, aliasMap), functions);
@@ -1076,6 +1090,9 @@ TPlanFragmentPtr PreparePlanFragment(
         },
         [&] (const NAst::TQueryAstHeadPtr& subquery) {
             return subquery->Alias;
+        },
+        [&] (const NAst::TExpressionList&) -> std::optional<TString> {
+            return std::nullopt;
         });
 
     auto builder = CreateExpressionBuilder(

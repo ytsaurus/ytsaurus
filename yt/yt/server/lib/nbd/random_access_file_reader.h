@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "block_device.h"
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
@@ -31,7 +33,8 @@ struct IRandomAccessFileReader
 
     virtual TFuture<TSharedRef> Read(
         i64 offset,
-        i64 length) = 0;
+        i64 length,
+        const TReadOptions& options) = 0;
 
     virtual i64 GetSize() const = 0;
 

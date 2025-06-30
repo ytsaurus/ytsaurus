@@ -21,6 +21,8 @@ from yt_type_helpers import (
     struct_type,
 )
 
+import yt_error_codes
+
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
@@ -2517,6 +2519,10 @@ class TestQuery(DynamicTablesBase):
             query = "col_name from (select 1 as col_name from [//tmp/t] limit 1) join [//tmp/t] on 1 = 1 group by col_name"
             select_rows(query, allow_join_without_index=True)
 
+        assert select_rows("cardinality_merge(Subquery.x) AS c FROM "
+                           "(SELECT cardinality_state(k_2) AS x FROM `//tmp/t` GROUP BY k_1) AS Subquery "
+                           "GROUP BY 1")[0]["c"] == 4
+
     @authors("sabdenovch")
     def test_push_down_group_by_primary_key(self):
         sync_create_cells(1)
@@ -2584,6 +2590,45 @@ class TestQuery(DynamicTablesBase):
         assert b"Timestamp" in res
         res = select_rows(f"ts_column from [{table}]", output_format=format)
         assert b"Timestamp" in res
+
+    @authors("sabdenovch")
+    def test_cast(self):
+        sync_create_cells(1)
+        self._create_replicated_table(
+            "//tmp/table",
+            [
+                make_sorted_column("key", "int64"),
+                make_column("value", "string"),
+                {"name": "lvalue", "type": "any"},
+            ],
+            [{"key": 15, "value": "[1;2.0;\"string\"]", "lvalue": [13, 23, 33]}])
+
+        expected = [{
+            "bool_to_int": 1,
+            "int_to_double": 15.0,
+            "typed_struct": {
+                "integer_field": 1,
+                "float_field": 2.0,
+                "string_field": "string",
+            },
+        }]
+
+        casting_query = """CAST(i = 13 AS Int64) AS bool_to_int, cast_operator(key, "Double?") as int_to_double,
+            CAST(yson_string_to_any(value) AS `Struct<integer_field:Int32?, float_field:Float, string_field:String>`) AS typed_struct
+            FROM `//tmp/table` ARRAY JOIN CAST(lvalue AS `List<Int64?>`) AS i LIMIT 1"""
+
+        assert select_rows(casting_query, expression_builder_version=2, syntax_version=2) == expected
+
+        with raises_yt_error("is not supported in expression builder v1"):
+            select_rows("CAST(key AS Int64) from [//tmp/table]")
+        with raises_yt_error("is not supported in expression builder v1"):
+            select_rows("cast_operator(key, 'Int64') from [//tmp/table]")
+        with raises_yt_error(yt_error_codes.SchemaViolation):
+            select_rows("CAST(lvalue AS `Struct<x:String, y:List<Bool>>`) from [//tmp/table]", expression_builder_version=2)
+        with raises_yt_error("Misuse of function \"cast_operator\""):
+            select_rows("cast_operator(1, 1) from [//tmp/table]", expression_builder_version=2)
+        with raises_yt_error("Expected two arguments for \"cast_operator\" function"):
+            select_rows("cast_operator(1) from [//tmp/table]", expression_builder_version=2)
 
 
 @pytest.mark.enabled_multidaemon
@@ -2737,6 +2782,34 @@ class TestQueryRpcProxy(TestQuery):
 
         assert select_rows("* from [//tmp/t] with hint \"{require_sync_replica=%false}\"") == data
 
+    @authors("dtorilov")
+    def test_select_with_limit_read_data_weight(self):
+        length = 100
+        sync_create_cells(3)
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("key", "int64"),
+            make_column("value", "int64"),
+        ]
+        create("table", path, attributes={"dynamic": True, "schema": schema})
+        reshard_table(path, [[]] + [[i] for i in range(10, length * 10, 10)])
+        sync_mount_table(path)
+        insert_rows(path, [{"key": i, "value": i} for i in range(length * 10)])
+        select_rows(f"* from [{path}] where key > 500 limit 10")
+        statistics = [get(f"{path}/@tablets/{i}/performance_counters/dynamic_row_read_count") for i in range(length)]
+        assert all(map(lambda x : x == 0, statistics[:(length//2)]))
+        assert statistics[length//2] != 0
+        assert all(map(lambda x : x == 0, statistics[(length//2+2):]))
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/cluster_connection", {})
+        set("//sys/rpc_proxies/@config/cluster_connection/disable_adaptive_ordered_schemaful_reader", False)
+        time.sleep(1)
+        select_rows(f"* from [{path}] where key > 500 limit 10")
+        statistics = [get(f"{path}/@tablets/{i}/performance_counters/dynamic_row_read_count") for i in range(length)]
+        assert all(map(lambda x : x == 0, statistics[:(length//2)]))
+        assert statistics[length//2] != 0
+        assert all(map(lambda x : x == 0, statistics[(length//2+3):]))
+
 
 @pytest.mark.enabled_multidaemon
 class TestSelectWithRowCache(TestLookupCache):
@@ -2747,3 +2820,18 @@ class TestSelectWithRowCache(TestLookupCache):
         keys = str(list(keys))[1:-1]
         column_names = "*" if column_names is None else ", ".join(column_names)
         return select_rows(column_names + f" from [{table}] where key in ({keys})", **kwargs)
+
+
+@pytest.mark.enabled_multidaemon
+class TestQuerySequoia(TestQuery):
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_TEST_PARTITIONS = 4
+
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host", "sequoia_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }

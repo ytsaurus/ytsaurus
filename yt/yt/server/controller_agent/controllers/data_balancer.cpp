@@ -106,7 +106,7 @@ void TDataBalancer::TNode::Persist(const TPersistenceContext& context)
 void TDataBalancer::LogViolation(const TDataBalancer::TNode& node, i64 dataWeight)
 {
     YT_LOG_DEBUG("Data balancing violation (NodeAddress: %v, NodeId: %v, DataWeight: %v, NodeDataWeight: %v, NodeLimit: %v)",
-        node.Descriptor.Address,
+        NNodeTrackerClient::GetDefaultAddress(node.Descriptor.Addresses),
         node.Descriptor.Id,
         dataWeight,
         node.DataWeight,
@@ -137,8 +137,8 @@ void TDataBalancer::LogStatistics() const
         isFirst = false;
         char isActive = node.Active ? '+' : '-';
         line.AppendFormat("%v[%v]%v: %v/%v",
-            node.Descriptor.Address,
-            nodeId,
+            NNodeTrackerClient::GetDefaultAddress(node.Descriptor.Addresses),
+            node.Descriptor.Id,
             isActive,
             node.DataWeight,
             GetNodeDataWeightLimit(node));

@@ -61,8 +61,15 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
 
 std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const TTabletCellBundlePtr& bundle,
-    const std::vector<TString>& performanceCountersKeys,
-    const NTableClient::TTableSchemaPtr& performanceCountersTableSchema,
+    const std::vector<std::string>& performanceCountersKeys,
+    const TParameterizedReassignSolverConfig& config,
+    const TGroupName& groupName,
+    const TTableParameterizedMetricTrackerPtr& metricTracker,
+    const NLogging::TLogger& logger = {});
+
+std::vector<TMoveDescriptor> ReassignTabletsReplica(
+    const TTabletCellBundlePtr& bundle,
+    const std::vector<std::string>& performanceCountersKeys,
     const TParameterizedReassignSolverConfig& config,
     const TGroupName& groupName,
     const TTableParameterizedMetricTrackerPtr& metricTracker,

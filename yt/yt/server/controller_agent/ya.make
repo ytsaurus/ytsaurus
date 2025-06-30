@@ -10,10 +10,10 @@ SRCS(
     controller_agent_service.cpp
     counter_manager.cpp
     helpers.cpp
+    input_statistics_collector.cpp
     intermediate_chunk_scraper.cpp
     job_monitoring_index_manager.cpp
     job_prober_service.cpp
-    job_profiler.cpp
     job_size_constraints.cpp
     job_tracker.cpp
     job_tracker_service.cpp

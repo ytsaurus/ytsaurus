@@ -30,7 +30,7 @@ struct TFragmentRequest
 struct TPeerInfo final
 {
     NNodeTrackerClient::TNodeId NodeId;
-    TString Address;
+    std::string Address;
     NRpc::IChannelPtr Channel;
 };
 

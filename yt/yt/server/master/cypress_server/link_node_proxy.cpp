@@ -68,11 +68,17 @@ public:
                 {
                     return TResolveResultHere{path};
                 } else if (method == "LockCopySource") {
+                    /* NB: This branch is only accessed during externalization.
+                     * How cross-cell copy works:
+                     * 1. Attempt normal copy, get the special exception. During this process we
+                     *    arrive here with "Copy" method and end up in the upper branch.
+                     * 2. Resolve where the link leads by getting its @path.
+                     * 3. Use canonical path for "LockCopySource", skipping link node proxy entirely.
+                     *
+                     * In case of externalization, however, step 2 is skipped, and we can end up in this branch.
+                     */
                     THROW_ERROR_EXCEPTION("A link node cannot be externalized; consider externalizing its target instead");
                 } else {
-                    // TODO(h0pless): re-examine this code when implementing Cypress to Sequoia copy.
-                    // I think it's fine to allow people to use a link as a destination in cross-cell copy.
-                    // Correct me if you think I'm wrong.
                     return propagate();
                 }
             }

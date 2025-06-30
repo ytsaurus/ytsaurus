@@ -72,7 +72,7 @@ namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = CodegenLogger;
+constinit const auto Logger = CodegenLogger;
 
 static bool IsIRDumpEnabled()
 {
@@ -133,7 +133,7 @@ public:
     TImpl(
         TRoutineRegistry* routineRegistry,
         EExecutionBackend backend,
-        const TString& moduleName)
+        const std::string& moduleName)
         : RoutineRegistry_(routineRegistry)
         , ExecutionBackend_(backend)
     {
@@ -259,7 +259,7 @@ public:
         return Module_;
     }
 
-    llvm::FunctionCallee GetRoutine(const TString& symbol) const
+    llvm::FunctionCallee GetRoutine(const std::string& symbol) const
     {
         auto type = RoutineRegistry_->GetTypeBuilder(symbol)(
             const_cast<llvm::LLVMContext&>(Context_));
@@ -267,7 +267,7 @@ public:
         return Module_->getOrInsertFunction(symbol.c_str(), type);
     }
 
-    void ExportSymbol(const TString& name)
+    void ExportSymbol(const std::string& name)
     {
         YT_VERIFY(ExportedSymbols_.insert(name).second);
     }
@@ -287,12 +287,12 @@ public:
         Engine_->addObjectFile(std::move(sharedObject));
     }
 
-    bool IsSymbolLoaded(const TString& symbol)
+    bool IsSymbolLoaded(const std::string& symbol)
     {
         return LoadedSymbols_.count(symbol) != 0;
     }
 
-    void AddLoadedSymbol(const TString& symbol)
+    void AddLoadedSymbol(const std::string& symbol)
     {
         LoadedSymbols_.insert(symbol);
     }
@@ -582,12 +582,12 @@ private:
 
     std::unique_ptr<llvm::ExecutionEngine> Engine_;
 
-    std::set<TString> ExportedSymbols_;
+    std::set<std::string> ExportedSymbols_;
 
     std::set<std::string> LoadedFunctions_;
-    std::set<TString> LoadedSymbols_;
+    std::set<std::string> LoadedSymbols_;
 
-    THashSet<TString> LoadedModules_;
+    THashSet<std::string, THash<TStringBuf>, TEqualTo<>> LoadedModules_;
 
     bool Compiled_ = false;
 
@@ -599,7 +599,7 @@ private:
 TCGModulePtr TCGModule::Create(
     TRoutineRegistry* routineRegistry,
     EExecutionBackend backend,
-    const TString& moduleName)
+    const std::string& moduleName)
 {
     return New<TCGModule>(std::make_unique<TImpl>(routineRegistry, backend, moduleName));
 }
@@ -615,12 +615,12 @@ llvm::Module* TCGModule::GetModule() const
     return Impl_->GetModule();
 }
 
-llvm::FunctionCallee TCGModule::GetRoutine(const TString& symbol) const
+llvm::FunctionCallee TCGModule::GetRoutine(const std::string& symbol) const
 {
     return Impl_->GetRoutine(symbol);
 }
 
-void TCGModule::ExportSymbol(const TString& name)
+void TCGModule::ExportSymbol(const std::string& name)
 {
     Impl_->ExportSymbol(name);
 }
@@ -641,12 +641,12 @@ void TCGModule::AddObjectFile(
     Impl_->AddObjectFile(std::move(sharedObject));
 }
 
-bool TCGModule::IsSymbolLoaded(const TString& symbol) const
+bool TCGModule::IsSymbolLoaded(const std::string& symbol) const
 {
     return Impl_->IsSymbolLoaded(symbol);
 }
 
-void TCGModule::AddLoadedSymbol(const TString& symbol)
+void TCGModule::AddLoadedSymbol(const std::string& symbol)
 {
     Impl_->AddLoadedSymbol(symbol);
 }

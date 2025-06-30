@@ -131,6 +131,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 # Slightly change the defaults to check if they can be overwritten.
                 "file_storage_config": {"max_size_mb": 1 << 13},
                 "yql_plugin_shared_library": yql_plugin_shared_library,
+                "ui_origin": self.config.get("ui_origin", ""),
                 "yt_token_path": self.token_path,
                 "libraries": self.libraries,
             },

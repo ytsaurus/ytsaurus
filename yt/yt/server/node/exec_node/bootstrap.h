@@ -70,6 +70,10 @@ struct IBootstrap
     virtual IThrottlerManagerPtr GetThrottlerManager() const = 0;
 
     virtual void UpdateNodeProfilingTags(std::vector<NProfiling::TTag> dynamicTags) const = 0;
+
+    virtual NSignature::ISignatureGeneratorPtr GetSignatureGenerator() const = 0;
+
+    virtual NSignature::ISignatureValidatorPtr GetSignatureValidator() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IBootstrap)

@@ -21,11 +21,19 @@ from .transaction import Transaction
 from .prepare_operation import (TypedJob, run_operation_preparation,
                                 SimpleOperationPreparationContext, IntermediateOperationPreparationContext)
 from .local_mode import is_local_mode, enable_local_files_usage_in_job
+from .http_helpers import get_token
 try:
     from yt.python.yt.cpp_wrapper import CppJob
     _CPP_WRAPPER_AVAILABLE = True
 except ImportError:
     _CPP_WRAPPER_AVAILABLE = False
+
+try:
+    from .docker_yandex import prepare_image_on_cluster
+    _DOCKER_PREPROCESSING_AVAILABLE = True
+except ImportError:
+    _DOCKER_PREPROCESSING_AVAILABLE = False
+
 from .format import CppUninitializedFormat
 
 import yt.logger as logger
@@ -546,6 +554,17 @@ class UserJobSpecBuilder(object):
         builder_func(self)
         return spec_builder
 
+    def _prepare_job_docker_image(self, spec, client):
+        if "docker_image" in spec:
+            if _DOCKER_PREPROCESSING_AVAILABLE:
+                spec["docker_image"] = prepare_image_on_cluster(
+                    image=spec["docker_image"],
+                    yt_cluster_name=client.get("//sys/@cluster_name"),
+                    yt_token=get_token(client=client),
+                )
+
+        return spec
+
     def _prepare_job_files(
         self,
         spec,
@@ -866,6 +885,9 @@ class UserJobSpecBuilder(object):
         can_redirect_stdout = type(spec.get("command")) != str and not getattr(spec.get("command"), "attributes", {}).get("is_raw_io")
 
         spec = self._prepare_ld_library_path(spec, client)
+
+        spec = self._prepare_job_docker_image(spec, client)
+
         spec, tmpfs_size, input_tables = self._prepare_job_files(
             spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files,
             input_format, output_format, input_tables, output_tables, operation_preparation_context, client)

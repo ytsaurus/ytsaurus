@@ -20,6 +20,25 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTestConfig
+    : public NYTree::TYsonStruct
+{
+    //! Synchronization with components for testing purposes.
+    bool EnableGroundUpdateQueuesSync;
+
+    bool EnableUserDirectorySync;
+
+    TDuration GroundUpdateQueuesSyncRequestTimeout;
+
+    REGISTER_YSON_STRUCT(TTestConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TCypressProxyBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
@@ -30,6 +49,8 @@ struct TCypressProxyBootstrapConfig
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
 
     TDuration HeartbeatPeriod;
+
+    TTestConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TCypressProxyBootstrapConfig);
 
@@ -73,9 +94,6 @@ DEFINE_REFCOUNTED_TYPE(TUserDirectorySynchronizerConfig)
 struct TObjectServiceDynamicConfig
     : public NYTree::TYsonStruct
 {
-    //! Size of the thread pool used for object service requests execution.
-    int ThreadPoolSize;
-
     //! Skip the first phase in the two-phase request execution at master.
     //! When set to |true|, all requests are resolved at Sequoia first.
     bool AllowBypassMasterResolve;
@@ -125,6 +143,10 @@ struct TCypressProxyDynamicConfig
     TObjectServiceDynamicConfigPtr ObjectService;
 
     TSequoiaResponseKeeperDynamicConfigPtr ResponseKeeper;
+
+    int ThreadPoolSize;
+
+    constexpr static int DefaultThreadPoolSize = 2;
 
     REGISTER_YSON_STRUCT(TCypressProxyDynamicConfig);
 

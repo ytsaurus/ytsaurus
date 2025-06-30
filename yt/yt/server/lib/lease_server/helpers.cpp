@@ -23,7 +23,7 @@ TFuture<void> IssueLeasesForCell(
     const ILeaseManagerPtr& leaseManager,
     const IHiveManagerPtr& hiveManager,
     TCellId selfCellId,
-    bool synWithAllLeaseTransactionCoordinators,
+    bool syncWithAllLeaseTransactionCoordinators,
     std::function<TCellId(TCellTag)> getMasterCellId,
     std::function<IChannelPtr(TCellTag)> findMasterChannel)
 {
@@ -36,7 +36,7 @@ TFuture<void> IssueLeasesForCell(
         auto coordinatorCellTag = CellTagFromId(transactionId);
         if (!leaseManager->FindLease(transactionId)) {
             coordinatorCellTagToTransactionIds[coordinatorCellTag].push_back(transactionId);
-        } else if (synWithAllLeaseTransactionCoordinators) {
+        } else if (syncWithAllLeaseTransactionCoordinators) {
             coordinatorCellTagsToSyncWith.insert(coordinatorCellTag);
         }
     }
@@ -63,7 +63,7 @@ TFuture<void> IssueLeasesForCell(
         coordinatorCellTagsToSyncWith.erase(coordinatorCellTag);
     }
 
-    YT_VERIFY(coordinatorCellTagsToSyncWith.empty() || synWithAllLeaseTransactionCoordinators);
+    YT_VERIFY(coordinatorCellTagsToSyncWith.empty() || syncWithAllLeaseTransactionCoordinators);
 
     for (auto cellTag : coordinatorCellTagsToSyncWith) {
         auto coordinatorCellId = getMasterCellId(cellTag);

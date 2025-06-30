@@ -133,6 +133,10 @@ NApi::TFileReaderOptions SerializeOptionsForReadFile(
     const TTransactionId& transactionId,
     const TFileReaderOptions& options);
 
+NApi::TFileWriterOptions SerializeOptionsForWriteFile(
+    const TTransactionId& transactionId,
+    const TFileWriterOptions& options);
+
 NApi::TGetFileFromCacheOptions SerializeOptionsForGetFileFromCache(
     const TTransactionId& transactionId,
     const TYPath& cachePath,

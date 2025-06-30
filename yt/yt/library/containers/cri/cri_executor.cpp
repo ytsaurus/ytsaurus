@@ -24,19 +24,24 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr size_t AbbreviatedIdLength = 16;
+
 void FormatValue(TStringBuilderBase* builder, const TCriDescriptor& descriptor, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("%v (%s)", descriptor.Id.substr(0, 12), descriptor.Name);
+    builder->AppendFormat("%v (%v)", descriptor.Id.substr(0, AbbreviatedIdLength), descriptor.Name);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TCriPodDescriptor& descriptor, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("%v (%s)", descriptor.Id.substr(0, 12), descriptor.Name);
+    builder->AppendFormat("%v (%s)", descriptor.Id.substr(0, AbbreviatedIdLength), descriptor.Name);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TCriImageDescriptor& descriptor, TStringBuf /*spec*/)
 {
     builder->AppendString(descriptor.Image);
+    if (!descriptor.Id.empty()) {
+        builder->AppendFormat(" id=%v", descriptor.Id.substr(0, AbbreviatedIdLength));
+    }
 }
 
 static TError DecodeExitCode(int exitCode, const TString& reason)
@@ -705,7 +710,8 @@ private:
 
     void FillImageSpec(NProto::ImageSpec* spec, const TCriImageDescriptor& image)
     {
-        spec->set_image(image.Image);
+        spec->set_image(image.Id.empty() ? image.Image : image.Id);
+        spec->set_user_specified_image(image.Image);
     }
 
     void FillAuthConfig(NProto::AuthConfig* auth, const TCriAuthConfig& authConfig)

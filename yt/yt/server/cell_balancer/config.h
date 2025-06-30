@@ -72,6 +72,7 @@ struct TBundleControllerConfig
     NYPath::TYPath HulkDeallocationsHistoryPath;
 
     bool DecommissionReleasedNodes;
+    bool EnableSpareNodeAssignment;
 
     int NodeCountPerCell;
     int ChunkCountPerCell;

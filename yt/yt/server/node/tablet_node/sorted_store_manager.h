@@ -37,7 +37,7 @@ public:
 
     // IStoreManager overrides.
     bool ExecuteWrites(
-        IWireWriteCommandReader* reader,
+        IWireWriteCommandsReader* reader,
         TWriteContext* context) override;
 
 
@@ -58,7 +58,7 @@ public:
     void ConfirmRow(TWriteContext* context, const TSortedDynamicRowRef& rowRef);
     void PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
 
-    void CommitLockGroup(
+    void CommitPerRowsSerializedLockGroup(
         TTransaction* transaction,
         const TWireWriteCommand& command,
         const TSortedDynamicRowRef& rowRef,
@@ -89,8 +89,12 @@ public:
     void PopulateReplicateTabletContentRequest(
         NProto::TReqReplicateTabletContent* request) override;
 
-    void AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint = {}) override;
-    void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
+    void AddStore(
+        IStorePtr store,
+        bool useInterceptedChunkData,
+        bool onFlush,
+        TPartitionId partitionIdHint = {}) override;
+    void BulkAddStores(TRange<IStorePtr> stores) override;
     void DiscardAllStores() override;
     void RemoveStore(IStorePtr store) override;
     void CreateActiveStore(TDynamicStoreId hintId = {}) override;
@@ -183,7 +187,7 @@ private:
         TLegacyOwningKey,
         TSerializationStateByLockMap,
         TSortedDynamicRowKeyHash,
-        TSortedDynamicRowKeyEq> SerializationStateByKey_;
+        TSortedDynamicRowKeyEqualTo> SerializationStateByKey_;
 
     IDynamicStore* GetActiveStore() const override;
     void ResetActiveStore() override;
@@ -229,6 +233,8 @@ private:
     TSerializationStateByLockMap* FindKeySerializationState(TSortedDynamicRow row);
     TSerializationStateByLockMap& GetKeySerializationState(TSortedDynamicRow row);
     TSerializationStateByLockMap& GetOrCreateKeySerializationState(TSortedDynamicRow row);
+
+    bool SortedStoreSerializationStateProbabilisticVerificationNeeded() const;
 
     void OnRowBlocked(
         IStore* store,

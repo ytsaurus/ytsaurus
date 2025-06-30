@@ -84,6 +84,11 @@ public:
             }
 
             if (!containsMissingExtensions) {
+                // AssembleChunkMeta can acquire a Lock_.
+                // If all futures have already been set, we will call these methods from this fiber
+                // before ReaderGuard is destroyed. To avoid deadlock, release the lock manually.
+                guard.Release();
+
                 return AllSucceeded(tagFutures)
                     .Apply(BIND(&TCachedChunkMeta::AssembleChunkMeta, MakeStrong(this), extensionTags));
             }

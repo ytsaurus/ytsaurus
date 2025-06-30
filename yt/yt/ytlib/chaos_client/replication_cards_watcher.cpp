@@ -20,7 +20,7 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ReplicationCardWatcherLogger;
+constinit const auto Logger = ReplicationCardWatcherLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,8 +98,10 @@ public:
             }
         }
 
-        WaitFor(ExpirationExecutor_->Stop())
-            .ThrowOnError();
+        auto stopResult = WaitFor(ExpirationExecutor_->Stop());
+        if (!stopResult.IsOK()) {
+            YT_LOG_WARNING(stopResult, "Failed to stop expiration executor");
+        }
     }
 
     void RegisterReplicationCard(
@@ -117,8 +119,15 @@ public:
                     replicationCard));
         }
 
-        auto migratedCardsGuard = WriterGuard(MigratedCardsLock_);
-        MigratedCards_.erase(replicationCardId);
+        {
+            auto deletedCardsGuard = WriterGuard(DeletedCardsLock_);
+            DeletedCards_.erase(replicationCardId);
+        }
+
+        {
+            auto migratedCardsGuard = WriterGuard(MigratedCardsLock_);
+            MigratedCards_.erase(replicationCardId);
+        }
     }
 
     void OnReplcationCardUpdated(
@@ -278,23 +287,29 @@ public:
             if (it != WatchersByCardId_.end()) {
                 auto& entry = it->second;
                 entry->LastSeenWatchers.store(TInstant::Now());
+                auto entryGuard = Guard(entry->Lock);
                 if (entry->CurrentCacheTimestamp > cacheTimestamp) {
                     auto replicationCard = entry->ReplicationCard;
                     auto timestamp = entry->CurrentCacheTimestamp;
+                    entryGuard.Release();
                     readGuard.Release();
+
                     YT_LOG_DEBUG(
                         "Replication card updated between watches "
                         "(ReplicationCardId: %v, CurrentCacheTimestamp: %v, CacheTimestamp: %v)",
-                        replicationCardId, timestamp, cacheTimestamp);\
+                        replicationCardId, timestamp, cacheTimestamp);
+
                     callbacks->OnReplicationCardChanged(replicationCard, timestamp);
                     return EReplicationCardWatherState::Normal;
                 }
 
-                auto entryGuard = Guard(entry->Lock);
                 entry->WatcherEntries.push_back(TReplicationCardWatcherEntry{
                     .Callbacks = std::move(callbacks),
                     .RequestStartTime = TInstant::Now(),
                 });
+
+                entryGuard.Release();
+                readGuard.Release();
 
                 YT_LOG_DEBUG("Added request to watchers list (ReplicationCardId: %v)",
                     replicationCardId);

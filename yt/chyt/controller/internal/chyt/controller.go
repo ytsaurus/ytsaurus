@@ -35,11 +35,13 @@ type Config struct {
 	LocalBinariesDir          *string              `yson:"local_binaries_dir"`
 	LogRotationMode           *LogRotationModeType `yson:"log_rotation_mode"`
 	AddressResolver           map[string]any       `yson:"address_resolver"`
+	BusServer                 map[string]any       `yson:"bus_server"`
 	EnableYandexSpecificLinks *bool                `yson:"enable_yandex_specific_links"`
 	ExportSystemLogTables     *bool                `yson:"export_system_log_tables"`
 	EnableGeodata             *bool                `yson:"enable_geodata"`
 	EnableRuntimeData         *bool                `yson:"enable_runtime_data"`
 	ResourcesConfig           *ResourcesConfig     `yson:"resources_config"`
+	SecureVaultFiles          map[string]string    `yson:"secure_vault_files"`
 }
 
 const (
@@ -250,9 +252,15 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	}
 
 	if c.tvmSecret != "" {
-		spec["secure_vault"] = map[string]any{
-			"TVM_SECRET": c.tvmSecret,
+		oplet.SetSecret("TVM_SECRET", c.tvmSecret)
+	}
+
+	for secret, name := range c.config.SecureVaultFiles {
+		var value []byte
+		if value, err = os.ReadFile(name); err != nil {
+			return
 		}
+		oplet.SetSecret(secret, value)
 	}
 
 	// Prepare runtime stuff if need: stderr/core-table, etc.
