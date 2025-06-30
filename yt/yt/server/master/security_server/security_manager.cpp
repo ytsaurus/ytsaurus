@@ -4142,13 +4142,13 @@ private:
     void MaybeToggleAccountsProfiling()
     {
         if (NeedsAccountProfiling()) {
-            StartAccountsProfiling();
+            StartAccountProfiling();
         } else {
-            StopAccountsProfiling();
+            StopAccountProfiling();
         }
     }
 
-    void StartAccountsProfiling()
+    void StartAccountProfiling()
     {
         if (!AccountsProfilingExecutor_) {
             AccountsProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -4163,9 +4163,21 @@ private:
         }
 
         RefreshAccountsForProfiling();
+
+        YT_LOG_DEBUG("Account profiling started (SampleAccounts: %v, Count: %v)",
+            MakeShrunkFormattableView(
+                AccountsForProfiling_,
+                [] (
+                    TStringBuilderBase* builder,
+                    TAccount* account
+                ) {
+                    builder->AppendFormat("%v", account->GetName());
+                },
+                /*limit*/ 10),
+            AccountsForProfiling_.size());
     }
 
-    void StopAccountsProfiling()
+    void StopAccountProfiling()
     {
         if (AccountsProfilingExecutor_) {
             YT_UNUSED_FUTURE(AccountsProfilingExecutor_->Stop());
@@ -4177,6 +4189,8 @@ private:
         }
 
         AccountsForProfiling_.clear();
+
+        YT_LOG_DEBUG("Account profiling stopped");
     }
 
     void OnStopLeading() override
