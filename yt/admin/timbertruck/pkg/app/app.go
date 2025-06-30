@@ -78,6 +78,7 @@ import (
 	"go.ytsaurus.tech/yt/admin/timbertruck/internal/misc"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/pipelines"
 	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/timbertruck"
+	"go.ytsaurus.tech/yt/admin/timbertruck/pkg/uploader"
 )
 
 type Config struct {
@@ -110,6 +111,8 @@ type Config struct {
 
 type App interface {
 	AddStream(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc)
+
+	AddVerificationFileUploader(config uploader.VerificationFileUploaderConfig, authConfig uploader.AuthConfig)
 
 	Logger() *slog.Logger
 	Fatalf(format string, a ...any)
@@ -217,8 +220,9 @@ type daemonApp struct {
 	closePid      func()
 	closeLogFiles func()
 
-	timberTruck *timbertruck.TimberTruck
-	adminPanel  *adminPanel
+	timberTruck              *timbertruck.TimberTruck
+	adminPanel               *adminPanel
+	verificationFileUploader uploader.VerificationFileUploader
 }
 
 func newDaemonApp(config Config, prevExitCode int) (app *daemonApp, err error) {
@@ -351,6 +355,10 @@ func (app *daemonApp) AddStream(config timbertruck.StreamConfig, newFunc timbert
 	app.timberTruck.AddStream(config, newFunc)
 }
 
+func (app *daemonApp) AddVerificationFileUploader(config uploader.VerificationFileUploaderConfig, authConfig uploader.AuthConfig) {
+	app.verificationFileUploader = uploader.NewVerificationFileUploader(app.logger, config, authConfig)
+}
+
 func (app *daemonApp) Run() error {
 	defer app.Close()
 	stopF := startProfiling(app.logger)
@@ -359,6 +367,12 @@ func (app *daemonApp) Run() error {
 	if app.adminPanel != nil {
 		go func() {
 			_ = app.adminPanel.Run(app.ctx)
+		}()
+	}
+
+	if app.verificationFileUploader != nil {
+		go func() {
+			_ = app.verificationFileUploader.Run(app.ctx)
 		}()
 	}
 
@@ -520,6 +534,10 @@ func newOneShotApp() (a App, err error) {
 
 func (app *oneShotApp) AddStream(config timbertruck.StreamConfig, newFunc timbertruck.NewPipelineFunc) {
 	app.tasks = append(app.tasks, oneShotAppTask{config, newFunc})
+}
+
+func (app *oneShotApp) AddVerificationFileUploader(config uploader.VerificationFileUploaderConfig, authConfig uploader.AuthConfig) {
+	panic("AddVerificationFileUploader method is not implemented in oneShotApp")
 }
 
 func (app *oneShotApp) Logger() *slog.Logger {
