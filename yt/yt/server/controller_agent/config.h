@@ -395,6 +395,8 @@ struct TOperationOptions
 
     TGpuCheckOptionsPtr GpuCheck;
 
+    bool AllowLocality;
+
     REGISTER_YSON_STRUCT(TOperationOptions);
 
     static void Register(TRegistrar registrar);

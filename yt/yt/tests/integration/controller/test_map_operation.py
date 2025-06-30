@@ -25,6 +25,7 @@ from flaky import flaky
 from copy import deepcopy
 
 import base64
+from datetime import datetime
 import pytest
 import random
 import string
@@ -3211,6 +3212,65 @@ class TestNestingLevelLimitOperations(YTEnvSetup):
 
 
 ##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestSchedulerMapCommands(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_allocations_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
+        }
+    }
+
+    @authors("renadeen")
+    def test_disabling_locality(self):
+        create_test_tables(row_count=3, replication_factor=1)
+
+        op = map(
+            track=False,
+            command=with_breakpoint("BREAKPOINT; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "job_count": 3,
+                "min_locality_input_data_weight": 0
+            },
+        )
+        wait_breakpoint()
+
+        now = datetime.now()
+        wait(lambda: get(op.get_path() + "/@progress/schedule_job_statistics/failed/task_delayed") > 0)
+        elapsed = (datetime.now() - now).total_seconds()
+        print_debug("Waited {} seconds".format(elapsed))
+        op.abort()
+
+        update_controller_agent_config("operation_options/allow_locality", False)
+
+        op = map(
+            track=False,
+            command=with_breakpoint("BREAKPOINT; cat"),
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "job_count": 3,
+                "min_locality_input_data_weight": 0
+            },
+        )
+        wait_breakpoint()
+        time.sleep(elapsed)
+        assert get(op.get_path() + "/@progress/schedule_job_statistics/failed/task_delayed") == 0
 
 
 @pytest.mark.enabled_multidaemon
