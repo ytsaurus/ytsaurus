@@ -622,13 +622,11 @@ def add_import_table_parser(add_parser):
             name,
             func,
             epilog="Rewrite table by default. For append mode specify <append=true> before path.")
-        add_ypath_argument(parser, "table", hybrid=True)
+        add_ypath_argument(parser, "path", hybrid=True)
         add_format_argument(parser, help="input format")
         parser.add_argument("--s3-key", action="append", dest="s3_keys",
                             help="s3 key to import")
         add_structured_argument(parser, "--table-writer")
-        add_compressed_arg(parser)
-        add_no_compression_arg(parser)
 
 
 def add_write_table_parser(add_parser):

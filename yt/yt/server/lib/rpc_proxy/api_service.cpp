@@ -5982,7 +5982,7 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        PutMethodInfoInTraceContext("write_table");
+        PutMethodInfoInTraceContext("import_table");
 
         auto path = FromProto<TRichYPath>(request->path());
         context->SetRequestInfo(
