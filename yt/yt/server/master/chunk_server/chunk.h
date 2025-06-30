@@ -14,9 +14,6 @@
 
 #include <yt/yt/server/lib/misc/assert_sizeof.h>
 
-#include <yt/yt/ytlib/chunk_client/proto/chunk_info.pb.h>
-#include <yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h>
-
 #include <yt/yt/library/erasure/public.h>
 
 #include <yt/yt/core/misc/property.h>

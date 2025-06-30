@@ -1,5 +1,7 @@
 #include "backup.h"
 
+#include <yt/yt/ytlib/tablet_client/proto/backup.pb.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 namespace NYT::NTabletClient {

@@ -5,8 +5,6 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h>
-
 #include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/server/master/security_server/acl.h>

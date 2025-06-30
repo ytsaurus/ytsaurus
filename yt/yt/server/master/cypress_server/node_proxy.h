@@ -8,8 +8,6 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
-
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <yt/yt/core/ytree/node.h>

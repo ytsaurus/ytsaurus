@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/server/master/object_server/proto/object_manager.pb.h>
-
 #include <yt/yt/server/master/cell_master/public.h>
 
 #include <yt/yt/server/master/cypress_server/public.h>
@@ -18,7 +16,7 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
-#include <yt/yt/core/ytree/ypath_client.h>
+#include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/test_framework/testing_tag.h>
 

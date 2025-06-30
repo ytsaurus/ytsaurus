@@ -9,18 +9,17 @@
 
 #include <yt/yt/server/master/maintenance_tracker_server/maintenance_target.h>
 
-#include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
-
 #include <yt/yt/server/master/transaction_server/public.h>
 
 #include <yt/yt/server/lib/cellar_agent/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_statistics.h>
-#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
 #include <yt/yt/core/misc/property.h>
 

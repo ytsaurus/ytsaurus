@@ -2,7 +2,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
-#include <library/cpp/porto/proto/rpc.pb.h>
+#include <library/cpp/porto/proto/error_codes.pb.h>
+
 #include <library/cpp/yt/misc/enum.h>
 
 namespace NYT::NContainers {

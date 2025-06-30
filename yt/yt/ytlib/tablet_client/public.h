@@ -20,6 +20,8 @@ class THunkChunksInfo;
 
 class TExternalCellTagToTableIds;
 
+class TTableReplicaBackupDescriptor;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

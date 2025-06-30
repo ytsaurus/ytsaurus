@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/tablet_client/proto/backup.pb.h>
-
 namespace NYT::NTabletClient {
 
 ////////////////////////////////////////////////////////////////////////////////

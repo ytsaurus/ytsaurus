@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
+#include <yt/yt/ytlib/query_client/query_service_proxy.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>

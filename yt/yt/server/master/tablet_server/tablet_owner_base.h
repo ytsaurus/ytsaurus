@@ -3,8 +3,6 @@
 #include "public.h"
 #include "tablet_statistics.h"
 
-#include "config.h"
-
 #include <yt/yt/server/master/chunk_server/chunk_owner_base.h>
 
 #include <yt/yt/server/lib/misc/assert_sizeof.h>
