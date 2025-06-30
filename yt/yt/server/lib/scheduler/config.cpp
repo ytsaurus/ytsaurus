@@ -779,7 +779,7 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("ephemeral_pool_name_regex", &TThis::EphemeralPoolNameRegex)
-        .Default("[-_a-z0-9:A-Z]+");
+        .Default("[-_\\.a-z0-9:A-Z]+");
 
     registrar.Parameter("require_specified_operation_pools_existence", &TThis::RequireSpecifiedOperationPoolsExistence)
         .Default(false);

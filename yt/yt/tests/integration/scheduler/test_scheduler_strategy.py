@@ -2437,6 +2437,12 @@ class TestEphemeralPools(YTEnvSetup):
         create_pool("ephemeral_hub", attributes={"create_ephemeral_subpools": True})
         run_test_vanilla(":", track=True, spec={"pool": "ephemeral_hub"})
 
+    @authors("renadeen")
+    def test_ephemeral_pool_name_regex(self):
+        with raises_yt_error("must match regular expression"):
+            run_test_vanilla(":", track=True, spec={"pool": "a+b"})
+        run_test_vanilla(":", track=True, spec={"pool": "a-_.b"})
+
 
 class TestSchedulerPoolsCommon(YTEnvSetup):
     NUM_MASTERS = 1

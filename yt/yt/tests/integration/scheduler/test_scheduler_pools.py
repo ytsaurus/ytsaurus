@@ -1234,14 +1234,14 @@ class TestSchedulerPoolAcls(YTEnvSetup):
 
         with raises_yt_error("must match regular expression"):
             create_pool(
-                "a.b",
+                "a+b",
                 pool_tree="my_tree",
                 wait_for_orchid=False,
                 authenticated_user="u")
 
-        set("//sys/@config/scheduler_pool_manager", {"pool_name_regex_for_users": "[a-z.]+"})
+        set("//sys/@config/scheduler_pool_manager", {"pool_name_regex_for_users": "[a-z\\+]+"})
         create_pool(
-            "a.b",
+            "a+b",
             authenticated_user="u",
             pool_tree="my_tree",
             wait_for_orchid=False)
