@@ -572,6 +572,8 @@ void TErrorManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
     registrar.Parameter("error_expiration_timeout", &TThis::ErrorExpirationTimeout)
         .Default(TDuration::Minutes(30));
+    registrar.Parameter("log_no_context_interval", &TThis::LogNoContextInterval)
+        .Default(TDuration::Seconds(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

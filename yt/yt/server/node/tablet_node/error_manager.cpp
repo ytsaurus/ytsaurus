@@ -151,10 +151,14 @@ public:
         ExpiredErrorsCleanerExecutor_->SetPeriod(config->ErrorExpirationTimeout);
 
         DeduplicationCache_->SetExpirationTimeout(config->DeduplicationCacheTimeout);
+
+        LogNoContextInterval_.store(config->LogNoContextInterval, std::memory_order::relaxed);
     }
 
     void HandleError(const TError& error, const std::string& method, TErrorManagerContext context) override
     {
+        auto now = Now();
+
         if (!context) {
             context = *Context;
         }
@@ -164,9 +168,17 @@ public:
         }
 
         if (!context) {
-            YT_LOG_WARNING("No error manager context for error handling (Error: %Qv, Method: %v)",
-                error.GetMessage(),
-                method);
+            auto logNoContextInterval = LogNoContextInterval_.load(std::memory_order::relaxed);
+            auto logNoContextLastTime = LogNoContextLastTime_.load(std::memory_order::relaxed);
+
+            if (now - logNoContextLastTime >= logNoContextInterval &&
+                LogNoContextLastTime_.compare_exchange_strong(logNoContextLastTime, now, std::memory_order::relaxed))
+            {
+                YT_LOG_WARNING("No error manager context for error handling (Error: %Qv, Method: %v)",
+                    error.GetMessage(),
+                    method);
+            }
+
             return;
         }
 
@@ -179,7 +191,7 @@ public:
                 .Item("table_path").Value(*context.TablePath)
                 .Item("table_id").Value(context.TableId)
                 .Item("tablet_id").Value(context.TabletId)
-                .Item("timestamp").Value(Now().MicroSeconds())
+                .Item("timestamp").Value(now.MicroSeconds())
                 .Item("method").Value(method)
                 .Item("error").Value(error)
             .Finish();
@@ -188,10 +200,14 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
+
     NConcurrency::TActionQueuePtr ActionQueue_;
     NConcurrency::TPeriodicExecutorPtr ExpiredErrorsCleanerExecutor_;
     TIntrusivePtr<TDeduplicationCache> DeduplicationCache_;
     std::atomic<TDuration> ErrorExpirationTimeout_;
+
+    std::atomic<TInstant> LogNoContextLastTime_ = TInstant::Zero();
+    std::atomic<TDuration> LogNoContextInterval_;
 
     static void MaybeDropError(NThreading::TAtomicObject<TError>* atomicError, TInstant expirationTime)
     {

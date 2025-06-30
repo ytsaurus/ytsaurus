@@ -586,6 +586,7 @@ struct TErrorManagerConfig
 {
     TDuration DeduplicationCacheTimeout;
     TDuration ErrorExpirationTimeout;
+    TDuration LogNoContextInterval;
 
     REGISTER_YSON_STRUCT(TErrorManagerConfig);
 
