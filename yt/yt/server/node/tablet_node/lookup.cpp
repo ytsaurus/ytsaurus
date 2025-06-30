@@ -1446,7 +1446,7 @@ TFuture<TSharedRef> TLookupSession::OnTabletLookupFailed(TTabletId tabletId, TEr
     if (auto tabletSnapshot = SnapshotStore_->FindLatestTabletSnapshot(tabletId)) {
         tabletSnapshot->PerformanceCounters->LookupError.Counter.fetch_add(1, std::memory_order::relaxed);
 
-        return MakeFuture<TSharedRef>(EnrichErrorForErrorManager(std::move(error),tabletSnapshot));
+        return MakeFuture<TSharedRef>(EnrichErrorForErrorManager(std::move(error), tabletSnapshot));
     }
 
     return MakeFuture<TSharedRef>(std::move(error));

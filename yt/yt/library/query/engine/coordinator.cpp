@@ -230,8 +230,6 @@ TQueryStatistics CoordinateAndExecute(
     TSubQueryEvaluator evaluateSubQuery,
     TTopQueryEvaluator evaluateTopQuery)
 {
-    std::vector<ISchemafulUnversionedReaderPtr> splitReaders;
-
     auto subplanHolders = New<NDetail::TSubplanHolders>();
 
     auto responseFeatureFlags = NewPromise<TFeatureFlags>();
