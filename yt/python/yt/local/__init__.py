@@ -1,5 +1,5 @@
 """ CLI and Python interface for YT local mode """
-from .commands import start, stop, delete, get_proxy, list_instances  # noqa
+from .commands import start, stop, delete, get_proxy, list_instances, run_components  # noqa
 from .helpers import YTCheckingThread  # noqa
 
 

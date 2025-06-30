@@ -23,6 +23,7 @@ def _start_local_yt(
     config_patches=None,
     cluster_config_patches=None,
     work_dir=None,
+    with_query_tracker=False,
 ):
     """start local yt replicas according to config."""
     clusters = local_yt.start(
@@ -32,6 +33,7 @@ def _start_local_yt(
         cluster_config_patches=cluster_config_patches,
         work_dir=work_dir,
         package_dir=package_dir,
+        with_query_tracker=with_query_tracker,
     )
 
     dump_yt_instances(clusters)
@@ -64,6 +66,8 @@ def start(yt_cluster_factory, args, work_dir=None):
     parser.add_argument("--cleanup-working-directory", action="store_true", default=False,
                         help="clean working directory before recipe start")
     parser.add_argument("--package-dir", help="where to take YT binaries from", default="yt/packages/latest")
+    parser.add_argument("--with-query-tracker", action="store_true", default=False,
+                        help="run recipe with query tracker")
 
     parsed_args, _ = parser.parse_known_args(args)
 
@@ -77,6 +81,7 @@ def start(yt_cluster_factory, args, work_dir=None):
         cluster_config_patches=parsed_args.cluster_config_patches,
         work_dir=work_dir,
         package_dir=parsed_args.package_dir,
+        with_query_tracker=parsed_args.with_query_tracker
     )
     clusters_list = [clusters[x] for x in parsed_args.cluster_names]
     _dump_clusters_list(clusters_list)
