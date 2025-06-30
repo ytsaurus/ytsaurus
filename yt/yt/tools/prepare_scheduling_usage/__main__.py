@@ -125,13 +125,19 @@ def get_item(other_columns, key, default_value=None):
 
 
 def get_sdk(spec):
-    if get_item(spec, "annotations", {}).get("nv_block_id"):
+    is_nirvana = get_item(spec, "annotations", {}).get("nv_block_id") is not None
+    is_yql = (
+        get_item(spec, "started_by", {}).get("user") == "yqlworker" or
+        get_item(spec, "description", {}).get("yql_runner")
+    )
+    if is_nirvana and is_yql:
+        return "Nirvana YQL"
+    elif is_nirvana:
         return "Nirvana"
+    elif is_yql:
+        return "YQL"
     elif get_item(spec, "started_by", {}).get("python_version"):
         return "Python"
-    elif (get_item(spec, "started_by", {}).get("user") == "yqlworker"
-          or get_item(spec, "description", {}).get("yql_runner")):
-        return "YQL"
     elif get_item(spec, "started_by", {}).get("wrapper_version", "").startswith("YT C++"):
         return "C++"
     elif get_item(spec, "started_by", {}).get("wrapper_version", "").startswith("yt/java/ytclient"):
