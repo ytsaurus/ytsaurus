@@ -81,7 +81,7 @@ def _parse_args():
 def _get_prev_conclusion(repo, workflow_name, ref):
     current_workflow = None
     for workflow in repo.get_workflows():
-        if workflow.name == workflow_name:
+        if workflow.name == workflow_name and workflow.state == "active":
             current_workflow = workflow
 
     if not current_workflow:
@@ -106,9 +106,10 @@ def _get_workflow_state(prev_conclusion, current_conclusion):
 
 
 def _send_notify(args, workflow_state):
+    human_readable_url = args.git_server_url.replace("api.", "")
     message = "\n".join((
         workflow_state,
-        f"Workflow *{args.workflow}*: {args.git_server_url}/{args.repo}/actions/runs/{args.current_job_id}",
+        f"Workflow *{args.workflow}*: {human_readable_url}/{args.repo}/actions/runs/{args.current_job_id}",
         f"Git ref: *{args.ref}*.",
         f"Commit: ```{args.commit_message}```",
     ))
