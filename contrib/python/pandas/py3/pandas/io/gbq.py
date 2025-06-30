@@ -5,11 +5,13 @@ from typing import (
     TYPE_CHECKING,
     Any,
 )
+import warnings
 
 from pandas.compat._optional import import_optional_dependency
+from pandas.util._exceptions import find_stack_level
 
 if TYPE_CHECKING:
-    import google.auth
+    from google.auth.credentials import Credentials
 
     from pandas import DataFrame
 
@@ -35,13 +37,17 @@ def read_gbq(
     dialect: str | None = None,
     location: str | None = None,
     configuration: dict[str, Any] | None = None,
-    credentials: google.auth.credentials.Credentials | None = None,
+    credentials: Credentials | None = None,
     use_bqstorage_api: bool | None = None,
     max_results: int | None = None,
     progress_bar_type: str | None = None,
 ) -> DataFrame:
     """
     Load data from Google BigQuery.
+
+    .. deprecated:: 2.2.0
+
+       Please use ``pandas_gbq.read_gbq`` instead.
 
     This function requires the `pandas-gbq package
     <https://pandas-gbq.readthedocs.io>`__.
@@ -178,6 +184,13 @@ def read_gbq(
     ...                  dialect="standard"
     ...                  )  # doctest: +SKIP
     """
+    warnings.warn(
+        "read_gbq is deprecated and will be removed in a future version. "
+        "Please use pandas_gbq.read_gbq instead: "
+        "https://pandas-gbq.readthedocs.io/en/latest/api.html#pandas_gbq.read_gbq",
+        FutureWarning,
+        stacklevel=find_stack_level(),
+    )
     pandas_gbq = _try_import()
 
     kwargs: dict[str, str | bool | int | None] = {}
@@ -217,8 +230,15 @@ def to_gbq(
     table_schema: list[dict[str, str]] | None = None,
     location: str | None = None,
     progress_bar: bool = True,
-    credentials: google.auth.credentials.Credentials | None = None,
+    credentials: Credentials | None = None,
 ) -> None:
+    warnings.warn(
+        "to_gbq is deprecated and will be removed in a future version. "
+        "Please use pandas_gbq.to_gbq instead: "
+        "https://pandas-gbq.readthedocs.io/en/latest/api.html#pandas_gbq.to_gbq",
+        FutureWarning,
+        stacklevel=find_stack_level(),
+    )
     pandas_gbq = _try_import()
     pandas_gbq.to_gbq(
         dataframe,

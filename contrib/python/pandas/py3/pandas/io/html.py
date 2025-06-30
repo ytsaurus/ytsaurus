@@ -57,6 +57,7 @@ if TYPE_CHECKING:
         BaseBuffer,
         DtypeBackend,
         FilePath,
+        HTMLFlavors,
         ReadBuffer,
         StorageOptions,
     )
@@ -268,7 +269,7 @@ class _HtmlFrameParser:
         # Both lxml and BeautifulSoup have the same implementation:
         return obj.get(attr)
 
-    def _href_getter(self, obj):
+    def _href_getter(self, obj) -> str | None:
         """
         Return a href if the DOM node contains a child <a> or None.
 
@@ -391,7 +392,7 @@ class _HtmlFrameParser:
         """
         raise AbstractMethodError(self)
 
-    def _equals_tag(self, obj, tag):
+    def _equals_tag(self, obj, tag) -> bool:
         """
         Return whether an individual DOM node matches a tag
 
@@ -590,14 +591,8 @@ class _BeautifulSoupHtml5LibFrameParser(_HtmlFrameParser):
     :class:`pandas.io.html._HtmlFrameParser`.
     """
 
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        from bs4 import SoupStrainer
-
-        self._strainer = SoupStrainer("table")
-
     def _parse_tables(self, document, match, attrs):
-        element_name = self._strainer.name
+        element_name = "table"
         tables = document.find_all(element_name, attrs=attrs)
         if not tables:
             raise ValueError("No tables found")
@@ -628,7 +623,7 @@ class _BeautifulSoupHtml5LibFrameParser(_HtmlFrameParser):
     def _text_getter(self, obj):
         return obj.text
 
-    def _equals_tag(self, obj, tag):
+    def _equals_tag(self, obj, tag) -> bool:
         return obj.name == tag
 
     def _parse_td(self, row):
@@ -757,7 +752,7 @@ class _LxmlFrameParser(_HtmlFrameParser):
             raise ValueError(f"No tables found matching regex {repr(pattern)}")
         return tables
 
-    def _equals_tag(self, obj, tag):
+    def _equals_tag(self, obj, tag) -> bool:
         return obj.tag == tag
 
     def _build_doc(self):
@@ -889,13 +884,13 @@ _valid_parsers = {
 }
 
 
-def _parser_dispatch(flavor: str | None) -> type[_HtmlFrameParser]:
+def _parser_dispatch(flavor: HTMLFlavors | None) -> type[_HtmlFrameParser]:
     """
     Choose the parser based on the input flavor.
 
     Parameters
     ----------
-    flavor : str
+    flavor : {{"lxml", "html5lib", "bs4"}} or None
         The type of parser to use. This must be a valid backend.
 
     Returns
@@ -1033,7 +1028,7 @@ def read_html(
     io: FilePath | ReadBuffer[str],
     *,
     match: str | Pattern = ".+",
-    flavor: str | None = None,
+    flavor: HTMLFlavors | Sequence[HTMLFlavors] | None = None,
     header: int | Sequence[int] | None = None,
     index_col: int | Sequence[int] | None = None,
     skiprows: int | Sequence[int] | slice | None = None,
@@ -1074,11 +1069,11 @@ def read_html(
         This value is converted to a regular expression so that there is
         consistent behavior between Beautiful Soup and lxml.
 
-    flavor : str, optional
-        The parsing engine to use. 'bs4' and 'html5lib' are synonymous with
-        each other, they are both there for backwards compatibility. The
-        default of ``None`` tries to use ``lxml`` to parse and if that fails it
-        falls back on ``bs4`` + ``html5lib``.
+    flavor : {{"lxml", "html5lib", "bs4"}} or list-like, optional
+        The parsing engine (or list of parsing engines) to use. 'bs4' and
+        'html5lib' are synonymous with each other, they are both there for
+        backwards compatibility. The default of ``None`` tries to use ``lxml``
+        to parse and if that fails it falls back on ``bs4`` + ``html5lib``.
 
     header : int or list-like, optional
         The row (or list of rows for a :class:`~pandas.MultiIndex`) to use to
