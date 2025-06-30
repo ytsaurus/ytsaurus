@@ -787,7 +787,7 @@ private:
         }
 
         // Update throttlers global data.
-        ThrottlerToGlobalUsage_.Store(globalUsage.Get());
+        ThrottlerToGlobalUsage_.Store(ConstPointerCast<const TThrottlerToGlobalUsage>(std::move(globalUsage)));
     }
 
     void ForgetDeadThrottlers()
