@@ -129,6 +129,7 @@ END()
 
 RECURSE(
     harmonizer
+    manual_test/shared_threads
 )
 
 RECURSE_FOR_TESTS(
