@@ -1,9 +1,11 @@
 #pragma once
 #include "abstract.h"
+
+#include <contrib/ydb/core/base/events.h>
+
 #include <contrib/ydb/library/actors/core/event_local.h>
 #include <contrib/ydb/library/actors/core/events.h>
 #include <contrib/ydb/library/conclusion/result.h>
-#include <contrib/ydb/core/base/events.h>
 
 namespace NKikimr::NLimiter {
 
@@ -18,6 +20,7 @@ struct TEvExternal {
     class TEvAskResource: public NActors::TEventLocal<TEvAskResource, EvAskResource> {
     private:
         YDB_READONLY_DEF(std::shared_ptr<IResourceRequest>, Request);
+
     public:
         TEvAskResource() = default;
 
@@ -27,4 +30,4 @@ struct TEvExternal {
     };
 };
 
-}
+}   // namespace NKikimr::NLimiter
