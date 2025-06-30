@@ -193,6 +193,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixUseAsWithNullObjects)                                      (2955))  // cherepashka
     ((MakeCompactTableSchemaRefCounted)                             (2956))  // cherepashka
     ((CrossCellCopyFinalFixes)                                      (2957))  // shakurov
+    ((HydraLogicalClock)                                            (2958))  // h0pless
     // 25.3 starts here.
     ((Start_25_3)                                                   (3000))  // community bot
     ((DropOldMountConfigKeyLists)                                   (3001))  // ifsmirnov

@@ -167,7 +167,8 @@ private:
                         "timestamp",
                         "last_segment_id",
                         "last_record_id",
-                        "last_mutation_term"
+                        "last_mutation_term",
+                        "logical_time",
                     };
 
                     auto requestNode = [&] (const TYPath& path) {
@@ -188,10 +189,11 @@ private:
                     Params_.Meta.set_random_seed(attributes.Get<ui64>("random_seed"));
                     Params_.Meta.set_sequence_number(attributes.Get<i64>("sequence_number"));
                     Params_.Meta.set_state_hash(attributes.Get<ui64>("state_hash"));
-                    Params_.Meta.set_timestamp(ToProto(attributes.Get<TInstant>("timestamp")));
+                    Params_.Meta.set_timestamp(attributes.Get<ui64>("timestamp"));
                     Params_.Meta.set_last_segment_id(attributes.Get<i64>("last_segment_id"));
                     Params_.Meta.set_last_record_id(attributes.Get<i64>("last_record_id"));
                     Params_.Meta.set_last_mutation_term(attributes.Get<int>("last_mutation_term"));
+                    Params_.Meta.set_logical_time(attributes.Get<ui64>("logical_time"));
 
                     Params_.Checksum = 0;
                     Params_.CompressedLength = Params_.UncompressedLength = -1;
@@ -342,6 +344,7 @@ private:
                     attributes->Set("last_segment_id", Meta_.last_segment_id());
                     attributes->Set("last_record_id", Meta_.last_record_id());
                     attributes->Set("last_mutation_term", Meta_.last_mutation_term());
+                    attributes->Set("logical_time", Meta_.logical_time());
                     options.Attributes = std::move(attributes);
                     if (Store_->PrerequisiteTransactionId_) {
                         options.PrerequisiteTransactionIds.push_back(Store_->PrerequisiteTransactionId_);
