@@ -4,7 +4,7 @@ from yt.testlib import authors, ASAN_USER_JOB_MEMORY_LIMIT
 from yt.wrapper.testlib.helpers import (TEST_DIR, get_test_file_path, check_rows_equality,
                                         set_config_option, get_tests_sandbox, dumps_yt_config, get_python,
                                         wait, get_operation_path, random_string, yatest_common,
-                                        create_job_events)
+                                        create_job_events, inject_http_error)
 
 # Necessary for tests.
 try:
@@ -15,6 +15,7 @@ except ImportError:
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager, TMPFS_SIZE_MULTIPLIER
 from yt.wrapper.common import get_disk_size, MB
+from yt.wrapper.driver import get_api_version
 from yt.wrapper.operation_commands import (
     add_failed_operation_stderrs_to_error_message, get_jobs_with_error_or_stderr, get_operation_error)
 from yt.wrapper.schema import SortColumn, TableSchema
@@ -31,6 +32,7 @@ import yt.subprocess_wrapper as subprocess
 import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.local import start, stop
+from yt.packages import requests, urllib3
 
 import yt.wrapper as yt
 
@@ -49,6 +51,8 @@ import sys
 import tempfile
 import time
 import uuid
+
+from copy import deepcopy
 
 
 @contextlib.contextmanager
@@ -809,6 +813,49 @@ print(op.id)
         # attached files are not appearing at the /slot/sandbox directory inside the job (we can only absolute paths only).
         with set_config_option("pickling/ignore_system_modules", True), set_config_option("is_local_mode", False):
             yt.run_operation(operation_spec)
+
+    @authors("denvr")
+    def test_hide_error_params(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
+        yt.write_table(TEST_DIR + "/t0", [{"foo": "bar"}])
+
+        def mapper(row):
+            yield row
+
+        spec_builder = yt.MapSpecBuilder() \
+            .input_table_paths(TEST_DIR + "/t0") \
+            .output_table_paths(TEST_DIR + "/t0_out") \
+            .max_failed_job_count(1) \
+            .secure_vault({"foo": "secret_foo"}) \
+            .begin_mapper() \
+            .command(mapper) \
+            .end_mapper()
+
+        client = yt.YtClient(config=deepcopy(yt.config.config))
+
+        if client.config["backend"] == "http":
+            client.config["batch_requests_retries"]["enable"] = False
+            client.config["proxy"]["retries"]["enable"] = False
+
+            error = requests.ConnectionError()
+            error.response = requests.Response()
+            error.response._content = b'{}'
+            error.response.raw = urllib3.HTTPResponse()
+            error.response._error = {
+                "code": 1,
+                "message": "Operation has failed to start",
+            }
+
+            url = "/api/v3/start_op" if get_api_version() == "v3" else "api/v4/start_operation"
+
+            with inject_http_error(client, filter_url=url, interrupt_from=0, interrupt_till=10, interrupt_every=1, raise_custom_exception=error):
+                with pytest.raises(yt.YtError) as ex:
+                    client.run_operation(spec_builder)
+
+            assert "secure_vault" in ex.value.params["spec"]
+            assert ex.value.params["spec"]["secure_vault"]["foo"] == "hidden"
 
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
