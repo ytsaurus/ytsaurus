@@ -120,6 +120,15 @@ struct TJoblet
     TEnumIndexedArray<EJobCompetitionType, bool> HasCompetitors;
     TString TaskName;
 
+    struct TCookieGroupInfo
+    {
+        TJobId MainJobId;
+        int OutputIndex = 0;
+
+        PHOENIX_DECLARE_TYPE(TCookieGroupInfo, 0x2301c8d7);
+    };
+    TCookieGroupInfo CookieGroupInfo;
+
     // Controller encapsulates lifetime of both, tasks and joblets.
     TTask* Task;
     int JobIndex = -1;
@@ -210,6 +219,8 @@ struct TJoblet
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)
+
+void Serialize(const TJoblet::TCookieGroupInfo& cookieGroupInfo, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 
