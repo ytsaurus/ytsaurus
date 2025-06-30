@@ -3170,6 +3170,26 @@ class YtClient(ClientState):
             client=self,
             file_writer=file_writer, is_stream_compressed=is_stream_compressed, force_create=force_create,
             compute_md5=compute_md5, size_hint=size_hint, filename_hint=filename_hint, progress_monitor=progress_monitor)
+    
+    def import_table(
+            self,
+            path,
+            s3_keys,
+            format=None,
+            table_writer=None,
+            max_row_buffer_size=None,
+            is_stream_compressed=False,
+            force_create=None,
+            raw=None,
+    ):
+        """
+        Imports s3 keys to table.
+        """
+        return client_api.import_table(
+            path,
+            client=self,
+            s3_keys=s3_keys, format=format, table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, is_stream_compressed=is_stream_compressed,
+            force_create=force_create, raw=raw)
 
     def write_table(
             self,

@@ -1084,6 +1084,47 @@ def is_sorted(table, client=None):
             client=client)
 
 
+def import_table(
+    path,  # type: str | TablePath
+    s3_keys,  # type: list[str]
+    format=None,  # type: Format | None
+    table_writer=None,  # type: dict[str, typing.Any] | None
+    max_row_buffer_size=None,  # type: int | None
+    is_stream_compressed=False,  # type: bool | None
+    force_create=None,  # type: bool | None
+    raw=None,  # type: bool | None
+    client=None,  # type: YtClient | None
+):
+    """Imports chunks from s3 to table.
+
+    :param table: output table. Specify `TablePath` attributes for append mode or something like this.
+        Table can not exist.
+    :type table: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    :param s3_keys: S3 object keys.
+    :param format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
+    :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
+    :param dict table_writer: spec of "write" operation.
+    :param int max_row_buffer_size: option for testing purposes only, consult yt@ if you want to use it.
+    :param bool is_stream_compressed: expect stream to contain compressed table data.
+        This data can be passed directly to proxy without recompression. Be careful! This option
+        disables write retries.
+    :param bool force_create: try to create table regardless of its existence
+        (if not specified the pure write_table call will create table if it is doesn't exist).
+        Use this option only if you know what you do.
+    """
+
+    params = {"path": TablePath(path, client=client)}
+    set_param(params, "s3_keys", s3_keys)
+    set_param(params, "format", format)
+    set_param(params, "table_writer", table_writer)
+    set_param(params, "max_row_buffer_size", max_row_buffer_size)
+    set_param(params, "is_stream_compressed", is_stream_compressed)
+    set_param(params, "force_create", force_create)
+    set_param(params, "raw", raw)
+
+    return make_request("import_table", params, client=client)
+
+
 def alter_table(path, schema=None, schema_id=None, dynamic=None, upstream_replica_id=None,
                 replication_progress=None, client=None):
     """Performs schema and other table meta information modifications.

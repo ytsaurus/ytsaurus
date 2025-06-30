@@ -66,7 +66,7 @@ Cypress (metainformation tree) commands:
 File commands:
     read-file, write-file
 Table commands:
-    read-table, read-blob-table, write-table, create-temp-table,
+    read-table, read-blob-table, import-table, write-table, create-temp-table,
     alter-table, get-table-columnar-statistics, dirtable
 Dynamic table commands:
     mount-table, unmount-table, remount-table, freeze-table, unfreeze-table, get-tablet-infos,
@@ -582,6 +582,11 @@ def add_upload_orc_parser(add_parser):
     parser.add_argument("--input-file", type=str, required=True)
 
 
+@copy_docstring_from(yt.import_table)
+def import_table(**kwargs):
+    yt.import_table(**kwargs)
+
+
 @copy_docstring_from(yt.write_table)
 def write_table(**kwargs):
     func_args = dict(kwargs)
@@ -608,6 +613,21 @@ def add_write_file_parser(add_parser):
         add_compressed_arg(parser)
         parser.add_argument("--executable", action="store_true", help="do file executable")
         parser.add_argument("--compute-md5", action="store_true", help="compute md5 of file content")
+        add_no_compression_arg(parser)
+
+
+def add_import_table_parser(add_parser):
+    for name, func in [("import", import_table), ("import-table", import_table)]:
+        parser = add_parser(
+            name,
+            func,
+            epilog="Rewrite table by default. For append mode specify <append=true> before path.")
+        add_ypath_argument(parser, "table", hybrid=True)
+        add_format_argument(parser, help="input format")
+        parser.add_argument("--s3-key", action="append", dest="s3_keys",
+                            help="s3 key to import")
+        add_structured_argument(parser, "--table-writer")
+        add_compressed_arg(parser)
         add_no_compression_arg(parser)
 
 
@@ -2864,6 +2884,7 @@ def _prepare_parser():
     add_create_account_parser(add_parser)
     add_create_pool_parser(add_parser)
     add_read_table_parser(add_parser)
+    add_import_table_parser(add_parser)
     add_write_table_parser(add_parser)
     add_create_temp_table_parser(add_parser)
 
