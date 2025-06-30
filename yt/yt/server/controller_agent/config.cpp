@@ -439,6 +439,9 @@ void TOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("gpu_check", &TThis::GpuCheck)
         .DefaultNew();
 
+    registrar.Parameter("allow_locality", &TThis::AllowLocality)
+        .Default(true);
+
     registrar.Postprocessor([&] (TOperationOptions* options) {
         if (options->MaxSliceDataWeight < options->MinSliceDataWeight) {
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")

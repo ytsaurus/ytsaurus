@@ -8286,7 +8286,9 @@ bool TOperationControllerBase::InputHasDynamicStores() const
 bool TOperationControllerBase::IsLocalityEnabled() const
 {
     YT_VERIFY(EstimatedInputStatistics_);
-    return Config_->EnableLocality && EstimatedInputStatistics_->DataWeight > Spec_->MinLocalityInputDataWeight;
+    return Config_->EnableLocality
+        && EstimatedInputStatistics_->DataWeight > Spec_->MinLocalityInputDataWeight
+        && Options_->AllowLocality;
 }
 
 TString TOperationControllerBase::GetLoggingProgress() const
