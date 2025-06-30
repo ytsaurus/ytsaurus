@@ -1006,7 +1006,20 @@ public:
         attributes->Set(RealmIdAttributeKey, RealmId_);
         attributes->Set(AddressAttributeKey, address);
 
-        MemberClient_->SetPriority(TInstant::Now().Seconds());
+        auto conf = Config_.Acquire();
+        switch (conf->MemberPriority) {
+            case EDistributedThrottlerMemberPriority::StartTime:
+                MemberClient_->SetPriority(TInstant::Now().Seconds());
+                break;
+            case EDistributedThrottlerMemberPriority::Random:
+                MemberClient_->SetPriority(RandomNumber<ui64>());
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Unsupported priority: %v",
+                    conf->MemberPriority);
+                break;
+        }
+
         UpdateLimitsExecutor_->Start();
         UpdateLeaderExecutor_->Start();
         UpdateThrottlersAttributesExecutor_->Start();
