@@ -16,7 +16,8 @@ void TEngineConfigBase::Register(TRegistrar registrar)
 {
     registrar.Parameter("query_state_write_backoff", &TThis::QueryStateWriteBackoff)
         .Default(TDuration::Seconds(1));
-    registrar.Parameter("query_progress_write_backoff", &TThis::QueryProgressWritePeriod)
+    registrar.Parameter("query_progress_write_period", &TThis::QueryProgressWritePeriod)
+        .Alias("query_progress_write_backoff")
         .Default(TDuration::Seconds(1));
     registrar.Parameter("row_count_limit", &TThis::RowCountLimit)
         .Default(10'000);
