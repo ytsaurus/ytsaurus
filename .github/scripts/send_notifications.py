@@ -5,6 +5,7 @@ import requests
 
 CONCLUSION_SUCCESS = "success"
 CONCLUSION_FAILURE = "failure"
+CONCLUSION_CANCELLED = "cancelled"
 
 
 def _parse_args():
@@ -98,8 +99,10 @@ def _get_prev_conclusion(repo, workflow_name, ref):
 
 def _get_workflow_state(prev_conclusion, current_conclusion):
     state_to_alert = {
+        (CONCLUSION_SUCCESS, CONCLUSION_CANCELLED): "cancelled ❗️",
         (CONCLUSION_SUCCESS, CONCLUSION_FAILURE): "failed ❌",
         (CONCLUSION_FAILURE, CONCLUSION_SUCCESS): "fixed ✅",
+        (CONCLUSION_CANCELLED, CONCLUSION_SUCCESS): "fixed ✅",
     }
 
     return state_to_alert.get((prev_conclusion, current_conclusion))

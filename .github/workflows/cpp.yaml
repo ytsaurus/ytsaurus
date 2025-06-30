@@ -198,6 +198,9 @@ jobs:
   send-alert:
     needs:
       - check
+      - checkout
+      - docker-ya-make
+      - tag
     if: always()
     uses: ./.github/workflows/check-status-and-send-alert.yaml
     secrets:
