@@ -9,6 +9,7 @@ RECURSE(
     app
     pipelines
     timbertruck
+    uploader
     ytlog
     ytqueue
 )
