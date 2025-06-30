@@ -968,7 +968,7 @@ FolderPath(String)->String
 
 The argument is a string with a prefix among aliases.
 
-See also [PRAGMA File](../syntax/pragma.md#file) and [PRAGMA Folder](../syntax/pragma.md#folder).
+See also [PRAGMA File](../syntax/pragma/file.md#file) and [PRAGMA Folder](../syntax/pragma/file.md#folder).
 
 #### Examples
 
@@ -1143,7 +1143,7 @@ Evaluate an expression before the start of the main calculation and input its re
 
 EvaluateExpr can be used where the grammar already expects an expression. For example, you can use it to:
 
-* Round the current time to days, weeks, or months and add the time to the query. This will ensure [valid query caching](../syntax/pragma.md#yt.querycachemode), although normally, when you use [current-time functions](#current-utc), caching is disabled completely.
+* Round the current time to days, weeks, or months and add the time to the query. This will ensure [valid query caching](../syntax/pragma/yt.md#ytquerycachemode), although normally, when you use [current-time functions](#current-utc), caching is disabled completely.
 * Run a heavy calculation with a small result once per query instead of once per job.
 
 You can use EvaluateAtom to create an [atom](../types/special.md) dynamically. However, since atoms are mainly controlled from a lower {% if audience == "internal" %}[s-expressions]({{yql.s-expressions-link}}/functions){% else %}s-expressions{% endif %} level, it is generally not recommended to use this function directly.

@@ -111,7 +111,7 @@ The `SystemPython` UDF is called in a separate operation within a custom script.
 
 The interaction with Python is done via the dynamic `libpython3.N.so` library, which is linked at runtime. If you replace this library in the environment, it will change the Python used and available libraries.
 
-To change the environment from a YQL operation, use the [yt.DockerImage](../../../yql/syntax/pragma.md#ytdockerimage) and [yt.LayerPaths](../../../yql/syntax/pragma.md#ytlayerpaths) pragmas.
+To change the environment from a YQL operation, use the `yt.DockerImage` and [yt.LayerPaths](../../../yql/syntax/pragma/yt.md#ytlayerpaths) pragmas.
 
 They will affect the corresponding user script parameters described in the [Operation options - User script options](../../../user-guide/data-processing/operations/operations-options.md#user_script_options) section.
 
@@ -230,4 +230,4 @@ This indicates that the cluster doesn't support this functionality. The cluster 
 
 This indicates that the environment of the job that is executing the function is missing the dynamic library `libpython3.8.so.1.0`. Make sure that you're using the same Python version that is used in the job environment. [Read more](#environment).
 
-If you're using the [yt.DockerImage](../../../yql/syntax/pragma.md#ytdockerimage) pragma, make sure that the cluster supports this method of changing the environment. [Read more](../../../admin-guide/prepare-spec.md#job-environment).
+If you're using the [yt.DockerImage](../../../yql/syntax/pragma/yt.md#ytdockerimage) pragma, make sure that the cluster supports this method of changing the environment. [Read more](../../../admin-guide/prepare-spec.md#job-environment).

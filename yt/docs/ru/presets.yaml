@@ -17,7 +17,3 @@ public:
     community-tg: https://t.me/ytsaurus_ru
     python-lib-qt: SystemPython3_8
 
-    yql:
-        udf-cpp-dir: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs
-        udf-ivaluebuilder-example-link: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs/examples/structs
-        udf-ivaluebuilder-example: yql/essentials/udfs/examples/structs

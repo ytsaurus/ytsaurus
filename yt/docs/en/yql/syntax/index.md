@@ -18,5 +18,5 @@
 * [INTO RESULT](into_result.md)
 * [PROCESS](process.md)
 * [REDUCE](reduce.md)
-* [PRAGMA](pragma.md)
+* [PRAGMA](pragma/index.md)
 * [EXPORT and IMPORT](export_import.md)
