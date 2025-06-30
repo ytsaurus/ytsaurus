@@ -311,8 +311,8 @@ LookupJoin является наиболее эффективной страте
 
 | Название | Описание |
 | --- | --- |
-| [`yt.LookupJoinLimit`](pragma.md#lookupjoinlimit) | Максимальный размер малой таблицы в байтах (не более 10М) |
-| [`yt.LookupJoinMaxRows`](pragma.md#lookupjoinmaxrows) | Максимальный размер малой таблицы в строках (не более 1000)|
+| [yt.LookupJoinLimit](pragma/yt.md#ytlookupjoinlimit) | Максимальный размер малой таблицы в байтах (не более 10М) |
+| [yt.LookupJoinMaxRows](pragma/yt.md#ytlookupjoinmaxrows) | Максимальный размер малой таблицы в строках (не более 1000)|
 
 Установка любого из этих значений в 0 приводит к отключению LookupJoin стратегии.
 
@@ -322,7 +322,7 @@ LookupJoin является наиболее эффективной страте
 
 Если сортирована только одна таблица, а размер другой не превышает `yt.JoinMergeUnsortedFactor * <размер сортированной таблицы>`, стратегия SortedJoin также выбирается, при этом несортированная таблица сортируется отдельной {{product-name}} операцией.
 
-Значение настройки [`yt.JoinMergeUnsortedFactor`](pragma.md#ytjoinmergeunsortedfactor) по умолчанию составляет `0.2`.
+Значение настройки [`yt.JoinMergeUnsortedFactor`](pragma/yt.md#ytjoinmergeunsortedfactor) по умолчанию составляет `0.2`.
 
 Стратегия SortedJoin поддерживает все виды `JOIN` кроме `CROSS JOIN` и реализуется через одну операцию Reduce. При этом, по возможности используется режим reduce с внешними таблицами.<!--(../user-guide/data-processing/operations/reduce.md#foreign_tables).--> Кроме того, при уникальности ключей `JOIN` дополнительно включается настройка `enable_key_guarantee = false`.<!--(../user-guide/data-processing/operations/reduce.md#foreign_tables)-->
 
@@ -340,22 +340,22 @@ SELECT * FROM T1 AS a JOIN /*+ merge() */ T2 AS b ON a.key = b.key;
 
 | Название | Описание |
 | --- | --- |
-| [`yt.JoinMergeUnsortedFactor`](pragma.md#ytjoinmergeunsortedfactor)   | Смотрите выше |
-| [`yt.JoinMergeTablesLimit`](pragma.md#ytjoinmergetableslimit)   | Максимальное количество таблиц на входе `JOIN` (при использовании [RANGE,CONCAT](select/concat.md) и т. п.) |
-| [`yt.JoinMergeUseSmallAsPrimary`](pragma.md#ytjoinmergeusesmallasprimary) | Влияет на выбор primary таблицы при выполнении Reduce операции |
-| [`yt.JoinMergeForce`](pragma.md#ytjoinmergeforce) | Форсирует выбор SortedJoin стратегии для всех `JOIN` в запросе  |
+| [`yt.JoinMergeUnsortedFactor`](pragma/yt.md#ytjoinmergeunsortedfactor)   | Смотрите выше |
+| [`yt.JoinMergeTablesLimit`](pragma/yt.md#ytjoinmergetableslimit)   | Максимальное количество таблиц на входе `JOIN` (при использовании [RANGE,CONCAT](select/concat.md) и т. п.) |
+| [`yt.JoinMergeUseSmallAsPrimary`](pragma/yt.md#ytjoinmergeusesmallasprimary) | Влияет на выбор primary таблицы при выполнении Reduce операции |
+| [`yt.JoinMergeForce`](pragma/yt.md#ytjoinmergeforce) | Форсирует выбор SortedJoin стратегии для всех `JOIN` в запросе  |
 
 Установка `yt.JoinMergeTablesLimit` в 0 отключает стратегию SortedJoin.
 
 ### Стратегия MapJoin
 
-Данная стратегия срабатывает, если одна из входных таблиц достаточно маленькая (размером не более чем [`yt.MapJoinLimit`](pragma.md#ytmapjoinlimit)). При этом меньшая таблица загружается в память (в виде словаря по ключам `JOIN`), а затем производится Map по большой таблице.
+Данная стратегия срабатывает, если одна из входных таблиц достаточно маленькая (размером не более чем [`yt.MapJoinLimit`](pragma/yt.md#ytmapjoinlimit)). При этом меньшая таблица загружается в память (в виде словаря по ключам `JOIN`), а затем производится Map по большой таблице.
 
 Данная стратегия поддерживает все виды `JOIN` (в том числе `CROSS`), но не выбирается, если имеется `ANY` на большей стороне.
 
 Уникальной особенностью MapJoin стратегии является возможность раннего выбора этой стратегии &mdash; т. е. когда малая входная таблица уже посчиталась и попадает под ограничения на размер, а большая таблица ещё не готова. В этом случае мы можем сразу выбрать MapJoin, причём есть шанс, что Map операция по большой таблице "склеится" с Map операцией (например, фильтром), которая эту большую таблицу готовит.
 
-Существует также шардированный вариант MapJoin: малая таблица разбивается на [`yt.MapJoinShardCount`](pragma.md#ytmapjoinshardcount) частей (каждая часть при этом не должна превышать `yt.MapJoinLimit`), каждая часть параллельно и независимо `JOIN`-ится с большой таблицей через Map операцию, и затем все полученные части объединяются через {{product-name}} Merge.
+Существует также шардированный вариант MapJoin: малая таблица разбивается на [`yt.MapJoinShardCount`](pragma/yt.md#ytmapjoinshardcount) частей (каждая часть при этом не должна превышать `yt.MapJoinLimit`), каждая часть параллельно и независимо `JOIN`-ится с большой таблицей через Map операцию, и затем все полученные части объединяются через {{product-name}} Merge.
 
 Шардированный MapJoin возможен только для некоторых типов `JOIN`: `INNER`,`CROSS`, `LEFT SEMI` при условии, что малая таблица справа уникальна.
 
@@ -363,9 +363,9 @@ SELECT * FROM T1 AS a JOIN /*+ merge() */ T2 AS b ON a.key = b.key;
 
 | Название | Описание |
 | --- | --- |
-| [`yt.MapJoinLimit`](pragma.md#ytmapjoinlimit)   | Максимальный размер представления в памяти меньшей стороны `JOIN`, при котором выбирается стратегия MapJoin |
-| [`yt.MapJoinShardCount`](pragma.md#ytmapjoinshardcount)   | Максимальное число шардов |
-| [`yt.MapJoinShardMinRows`](pragma.md#ytmapjoinshardminrows) | Минимальное число строк в одном шарде |
+| [`yt.MapJoinLimit`](pragma/yt.md#ytmapjoinlimit)   | Максимальный размер представления в памяти меньшей стороны `JOIN`, при котором выбирается стратегия MapJoin |
+| [`yt.MapJoinShardCount`](pragma/yt.md#ytmapjoinshardcount)   | Максимальное число шардов |
+| [`yt.MapJoinShardMinRows`](pragma/yt.md#ytmapjoinshardminrows) | Минимальное число строк в одном шарде |
 
 Установка `yt.MapJoinLimit` в 0 отключает стратегию MapJoin.
 
@@ -382,7 +382,7 @@ SELECT * FROM T1 AS a JOIN /*+ merge() */ T2 AS b ON a.key = b.key;
 
 | Название | Описание |
 | --- | --- |
-| [`yt.JoinEnableStarJoin`](pragma.md#ytjoinenablestarjoin) | Включает/отключает выбор стратегии StarJoin (включена по умолчанию)|
+| [`yt.JoinEnableStarJoin`](pragma/yt.md#ytjoinenablestarjoin) | Включает/отключает выбор стратегии StarJoin (включена по умолчанию)|
 
 ### Порядок выбора стратегий
 

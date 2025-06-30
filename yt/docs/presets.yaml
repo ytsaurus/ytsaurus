@@ -15,9 +15,13 @@ default:
 public:
   example_cluster: 'cluster_name'
   yql:
+    udf-cpp-dir: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs
+    udf-ivaluebuilder-example-link: https://github.com/ytsaurus/ytsaurus/tree/main/yql/essentials/udfs/examples/structs
+    udf-ivaluebuilder-example: yql/essentials/udfs/examples/structs
     pages:
       syntax:
         pragma:
           package: '"project.package", "/path/to/package"'
           package-var: '"project.package", "{$_path}/to/package"'
           error-code-list: https://github.com/ytsaurus/ytsaurus/blob/main/yql/essentials/core/issue/protos/issue_id.proto
+

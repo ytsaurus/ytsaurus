@@ -63,7 +63,7 @@ Optional named:
 
 * **WalkFolders can create a significant load on the master.** Exercise caution when using WalkFolders with attributes containing large values (`schema` could be one of those) or when traversing a subtree with significant size or depth.
 
-   Directory listing requests within a single WalkFolders call can be executed in parallel. When requesting attributes with large values, **reduce** the number of simultaneous requests by using the [`yt.BatchListFolderConcurrency`](../pragma.md#ytbatchlistfolderconcurrency) pragma.
+   Directory listing requests within a single WalkFolders call can be executed in parallel. When requesting attributes with large values, **reduce** the number of simultaneous requests by using the [yt.BatchListFolderConcurrency](../pragma/yt.md#ytbatchlistfolderconcurrency) pragma.
 
 * Handlers are executed via [EvaluateExpr](../../builtins/basic.md#evaluate_expr_atom). There is a limit on the number of YQL AST nodes. You can't use very large containers within State.
 

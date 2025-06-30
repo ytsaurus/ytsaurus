@@ -80,7 +80,7 @@ SELECT 1 as "column with "" double quote"; -- column name will be: column with "
 
 SQL hints are special settings with which a user can modify a query execution plan
 (for example, enable/disable specific optimizations or force the JOIN execution strategy).
-Unlike [PRAGMA](pragma.md), SQL hints act locally – they are linked to a specific point in the YQL query (normally, after the keyword)
+Unlike [PRAGMA](pragma/index.md), SQL hints act locally – they are linked to a specific point in the YQL query (normally, after the keyword)
 and affect only the corresponding statement or even a part of it.
 SQL hints are a set of settings "name-value list" and defined inside special comments —
 comments with SQL hints must have `+` as the first character:
