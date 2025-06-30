@@ -169,6 +169,9 @@ def is_sparse(arr) -> bool:
     """
     Check whether an array-like is a 1-D pandas sparse array.
 
+    .. deprecated:: 2.1.0
+        Use isinstance(dtype, pd.SparseDtype) instead.
+
     Check that the one-dimensional array-like is a pandas sparse array.
     Returns True if it is a pandas sparse array, not another type of
     sparse array.
@@ -295,6 +298,9 @@ def is_datetime64tz_dtype(arr_or_dtype) -> bool:
     """
     Check whether an array-like or dtype is of a DatetimeTZDtype dtype.
 
+    .. deprecated:: 2.1.0
+        Use isinstance(dtype, pd.DatetimeTZDtype) instead.
+
     Parameters
     ----------
     arr_or_dtype : array-like or dtype
@@ -381,6 +387,9 @@ def is_period_dtype(arr_or_dtype) -> bool:
     """
     Check whether an array-like or dtype is of the Period dtype.
 
+    .. deprecated:: 2.2.0
+        Use isinstance(dtype, pd.Period) instead.
+
     Parameters
     ----------
     arr_or_dtype : array-like or dtype
@@ -402,7 +411,7 @@ def is_period_dtype(arr_or_dtype) -> bool:
     False
     >>> is_period_dtype(pd.Period("2017-01-01"))
     False
-    >>> is_period_dtype(pd.PeriodIndex([], freq="A"))
+    >>> is_period_dtype(pd.PeriodIndex([], freq="Y"))
     True
     """
     warnings.warn(
@@ -423,6 +432,9 @@ def is_period_dtype(arr_or_dtype) -> bool:
 def is_interval_dtype(arr_or_dtype) -> bool:
     """
     Check whether an array-like or dtype is of the Interval dtype.
+
+    .. deprecated:: 2.2.0
+        Use isinstance(dtype, pd.IntervalDtype) instead.
 
     Parameters
     ----------
@@ -469,6 +481,9 @@ def is_interval_dtype(arr_or_dtype) -> bool:
 def is_categorical_dtype(arr_or_dtype) -> bool:
     """
     Check whether an array-like or dtype is of the Categorical dtype.
+
+    .. deprecated:: 2.2.0
+        Use isinstance(dtype, pd.CategoricalDtype) instead.
 
     Parameters
     ----------
@@ -1256,13 +1271,7 @@ def is_1d_only_ea_dtype(dtype: DtypeObj | None) -> bool:
     """
     Analogue to is_extension_array_dtype but excluding DatetimeTZDtype.
     """
-    # Note: if other EA dtypes are ever held in HybridBlock, exclude those
-    #  here too.
-    # NB: need to check DatetimeTZDtype and not is_datetime64tz_dtype
-    #  to exclude ArrowTimestampUSDtype
-    return isinstance(dtype, ExtensionDtype) and not isinstance(
-        dtype, (DatetimeTZDtype, PeriodDtype)
-    )
+    return isinstance(dtype, ExtensionDtype) and not dtype._supports_2d
 
 
 def is_extension_array_dtype(arr_or_dtype) -> bool:
@@ -1670,9 +1679,12 @@ def is_all_strings(value: ArrayLike) -> bool:
     dtype = value.dtype
 
     if isinstance(dtype, np.dtype):
-        return dtype == np.dtype("object") and lib.is_string_array(
-            np.asarray(value), skipna=False
-        )
+        if len(value) == 0:
+            return dtype == np.dtype("object")
+        else:
+            return dtype == np.dtype("object") and lib.is_string_array(
+                np.asarray(value), skipna=False
+            )
     elif isinstance(dtype, CategoricalDtype):
         return dtype.categories.inferred_type == "string"
     return dtype == "string"

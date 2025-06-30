@@ -562,12 +562,29 @@ def _array_equivalent_datetimelike(left: np.ndarray, right: np.ndarray):
 
 
 def _array_equivalent_object(left: np.ndarray, right: np.ndarray, strict_nan: bool):
-    if not strict_nan:
-        # isna considers NaN and None to be equivalent.
+    left = ensure_object(left)
+    right = ensure_object(right)
 
-        return lib.array_equivalent_object(ensure_object(left), ensure_object(right))
+    mask: npt.NDArray[np.bool_] | None = None
+    if strict_nan:
+        mask = isna(left) & isna(right)
+        if not mask.any():
+            mask = None
 
-    for left_value, right_value in zip(left, right):
+    try:
+        if mask is None:
+            return lib.array_equivalent_object(left, right)
+        if not lib.array_equivalent_object(left[~mask], right[~mask]):
+            return False
+        left_remaining = left[mask]
+        right_remaining = right[mask]
+    except ValueError:
+        # can raise a ValueError if left and right cannot be
+        # compared (e.g. nested arrays)
+        left_remaining = left
+        right_remaining = right
+
+    for left_value, right_value in zip(left_remaining, right_remaining):
         if left_value is NaT and right_value is not NaT:
             return False
 
@@ -615,7 +632,7 @@ def infer_fill_value(val):
     """
     if not is_list_like(val):
         val = [val]
-    val = np.array(val, copy=False)
+    val = np.asarray(val)
     if val.dtype.kind in "mM":
         return np.array("NaT", dtype=val.dtype)
     elif val.dtype == object:
@@ -628,6 +645,20 @@ def infer_fill_value(val):
     elif val.dtype.kind == "U":
         return np.array(np.nan, dtype=val.dtype)
     return np.nan
+
+
+def construct_1d_array_from_inferred_fill_value(
+    value: object, length: int
+) -> ArrayLike:
+    # Find our empty_value dtype by constructing an array
+    #  from our value and doing a .take on it
+    from pandas.core.algorithms import take_nd
+    from pandas.core.construction import sanitize_array
+    from pandas.core.indexes.base import Index
+
+    arr = sanitize_array(value, Index(range(1)), copy=False)
+    taker = -1 * np.ones(length, dtype=np.intp)
+    return take_nd(arr, taker)
 
 
 def maybe_fill(arr: np.ndarray) -> np.ndarray:
@@ -669,7 +700,8 @@ def na_value_for_dtype(dtype: DtypeObj, compat: bool = True):
     if isinstance(dtype, ExtensionDtype):
         return dtype.na_value
     elif dtype.kind in "mM":
-        return dtype.type("NaT", "ns")
+        unit = np.datetime_data(dtype)[0]
+        return dtype.type("NaT", unit)
     elif dtype.kind == "f":
         return np.nan
     elif dtype.kind in "iu":
