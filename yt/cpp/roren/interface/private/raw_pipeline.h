@@ -47,7 +47,7 @@ const TRawPipelinePtr& GetRawPipeline(const TPState<K, S>& pState);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_ROREN_TAG(KeyColumns, NRoren::NPrivate::TPCollectionNode, NYT::NTableClient::TKeyColumns);
+DECLARE_ROREN_TAG(KeyColumns, NRoren::NPrivate::TPCollectionNode, std::vector<TString>);
 DECLARE_ROREN_TAG(EventTimestampColumn, NRoren::NPrivate::TPCollectionNode, TString);
 
 class TPCollectionNode
