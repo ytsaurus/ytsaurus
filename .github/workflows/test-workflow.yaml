@@ -13,7 +13,7 @@ jobs:
       - name: Run cmd
         shell: bash
         run: |
-          exit 127
+          exit 0
 
   send-alert:
     needs:
