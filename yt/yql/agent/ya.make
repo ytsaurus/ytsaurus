@@ -43,7 +43,7 @@ PEERDIR(
     yt/yt/server/lib/admin
     yt/yt/server/lib/cypress_election
     yt/yt/server/lib/misc
-    yt/yt/server/lib/state_checker
+    yt/yt/server/lib/component_state_checker
 
     yt/yql/plugin
 

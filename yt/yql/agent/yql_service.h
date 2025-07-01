@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/server/lib/state_checker/public.h>
+#include <yt/yt/server/lib/component_state_checker/public.h>
 
 namespace NYT::NYqlAgent {
 

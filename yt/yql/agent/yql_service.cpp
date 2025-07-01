@@ -2,7 +2,7 @@
 
 #include "yql_agent.h"
 
-#include <yt/yt/server/lib/state_checker/state_checker.h>
+#include <yt/yt/server/lib/component_state_checker/state_checker.h>
 
 #include <yt/yt/ytlib/yql_client/public.h>
 #include <yt/yt/ytlib/yql_client/yql_service_proxy.h>

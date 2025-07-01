@@ -9,7 +9,7 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/state_checker/state_checker.h>
+#include <yt/yt/server/lib/component_state_checker/state_checker.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
