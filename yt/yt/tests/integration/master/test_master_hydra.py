@@ -172,7 +172,7 @@ class TestLamportClock(YTEnvSetup):
 
 @pytest.mark.enabled_multidaemon
 class TestHydraLogicalTime(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
 
     @authors("h0pless")
     def test_hydra_logical_time(self):
