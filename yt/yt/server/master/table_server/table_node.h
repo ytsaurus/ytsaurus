@@ -17,8 +17,6 @@
 
 #include <yt/yt/server/lib/misc/assert_sizeof.h>
 
-#include <yt/yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
-
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/table_client/schema.h>

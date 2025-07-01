@@ -9,6 +9,8 @@
 #include "private.h"
 #include "rack.h"
 
+#include <yt/yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
+
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
 

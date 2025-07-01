@@ -1486,12 +1486,12 @@ class TestJobStderr(YTEnvSetup):
 
         command = "echo stderr 1>&2 ; exit 1"
 
-        op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command=command, fail_fast=False)
+        op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command=command, fail_fast=False, spec={"max_failed_job_count": 5})
 
         with pytest.raises(YtError):
             op.track()
 
-        check_all_stderrs(op, b"stderr\n", 10)
+        check_all_stderrs(op, b"stderr\n", 5)
 
     @authors("ignat")
     def test_stderr_limit(self):

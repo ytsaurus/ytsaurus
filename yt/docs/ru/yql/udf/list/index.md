@@ -6,19 +6,20 @@
 
 Для подключения встроенных C++ библиотек используется механизм С++ UDF.
 
+* [DateTime](datetime.md)
+* [Digest](digest.md)
+* [Histogram](histogram.md)
 * [Hyperscan](hyperscan.md)
+* [Ip](ip.md)
+* [Math](math.md)
 * [Pcre](pcre.md)
 * [Pire](pire.md)
+* [Protobuf](protobuf.md)
 * [Re2](re2.md)
 * [String](string.md)
 * [Unicode](unicode.md)
-* [DateTime](datetime.md)
 * [Url](url.md)
-* [Ip](ip.md)
 * [Yson](yson.md)
-* [Digest](digest.md)
-* [Math](math.md)
-* [Histogram](histogram.md)
 
 <!---
 [comment]: <> Перегенерировать основу списка: grep 'udf/list' index.yml | grep -v index | tr -d \': | awk '{print "* ["$2"](../../"$3")";}'

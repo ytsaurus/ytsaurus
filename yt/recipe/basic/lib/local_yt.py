@@ -3,6 +3,7 @@ from yt.wrapper import yson
 from deepmerge import always_merger
 import copy
 import os
+import yatest.common
 
 from . import run_concurrent
 
@@ -35,6 +36,7 @@ def start(
     cluster_config_patches=None,
     config_patches=None,
     work_dir=None,
+    with_query_tracker=False
 ):
     """start a local yt clusters group"""
 
@@ -47,6 +49,20 @@ def start(
     if cluster_config_patches is not None:
         for cluster_name, patch in cluster_config_patches.items():
             cluster_configs[cluster_name] = _merge(cluster_configs[cluster_name], patch)
+
+    if with_query_tracker:
+        yqla_path = yatest.common.runtime.work_path("yql_agent_artifacts")
+        for index, cluster_name in enumerate(sorted(cluster_configs, reverse=True)):
+            # Add yqla resource for yql-agent.
+            if "components" in cluster_configs[cluster_name]:
+                for index, component in enumerate(cluster_configs[cluster_name]["components"]):
+                    if "name" not in component or component["name"] != "yql-agent":
+                        continue
+
+                    if "config" not in component:
+                        cluster_configs[cluster_name]["components"][index]["config"] = {}
+                    cluster_configs[cluster_name]["components"][index]["config"]["path"] = yqla_path
+                    cluster_configs[cluster_name]["components"][index]["config"]["artifacts_path"] = yqla_path
 
     clusters = {}
     for index, cluster_name in enumerate(sorted(cluster_configs, reverse=True)):

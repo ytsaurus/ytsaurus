@@ -249,8 +249,6 @@ private:
 
     void DoInitialize()
     {
-        auto sequoiaTableDescriptorInitialization = ITableDescriptor::Initialize(NRpc::TDispatcher::Get()->GetHeavyInvoker());
-
         BusServer_ = NBus::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
@@ -314,9 +312,6 @@ private:
         ObjectService_ = CreateObjectService(this);
         RpcServer_->RegisterService(ObjectService_->GetService());
         RpcServer_->RegisterService(CreateCypressTransactionService(this));
-
-        WaitFor(sequoiaTableDescriptorInitialization)
-            .ThrowOnError();
     }
 
     void DoStart()

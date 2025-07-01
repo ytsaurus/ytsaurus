@@ -18,7 +18,7 @@
 
 #include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/cypress_key_store.h>
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_rotator.h>
 #include <yt/yt/server/lib/signature/signature_generator.h>
 #include <yt/yt/server/lib/signature/signature_validator.h>
@@ -258,9 +258,7 @@ void TBootstrap::DoInitialize()
         auto cypressKeyReader = CreateCypressKeyReader(
             Config_->SignatureValidation->CypressKeyReader,
             RootClient_);
-        SignatureValidator_ = New<TSignatureValidator>(
-            Config_->SignatureValidation->Validator,
-            std::move(cypressKeyReader));
+        SignatureValidator_ = New<TSignatureValidator>(std::move(cypressKeyReader));
     } else {
         // NB(pavook): we cannot do any meaningful signature operations safely.
         SignatureValidator_ = CreateAlwaysThrowingSignatureValidator();

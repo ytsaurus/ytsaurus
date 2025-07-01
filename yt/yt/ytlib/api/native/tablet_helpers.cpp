@@ -5,6 +5,8 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
+#include <yt/yt/ytlib/query_client/query_service_proxy.h>
+
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 #include <yt/yt/client/object_client/helpers.h>

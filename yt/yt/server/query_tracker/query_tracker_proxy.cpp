@@ -1089,8 +1089,8 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
         options.Limit,
         options.Attributes);
 
+    auto keys = options.Attributes.Keys();
     TAttributeFilter attributes;
-    auto keys = attributes.Keys();
 
     options.Attributes.ValidateKeysOnly();
 

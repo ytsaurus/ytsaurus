@@ -53,14 +53,14 @@ void TChunkReaderStatistics::RecordPass()
 
 #define ITERATE_CHUNK_READER_STATISTICS_INTEGER_FIELDS(XX) \
     XX(DataBytesReadFromDisk, data_bytes_read_from_disk) \
-    XX(DataIORequests, data_blocks_read_from_disk) \
-    XX(DataBlocksReadFromDisk, data_io_requests) \
+    XX(DataBlocksReadFromDisk, data_blocks_read_from_disk) \
+    XX(DataIORequests, data_io_requests) \
     XX(DataBytesTransmitted, data_bytes_transmitted) \
     XX(DataBytesReadFromCache, data_bytes_read_from_cache) \
     XX(WastedDataBytesReadFromDisk, wasted_data_bytes_read_from_disk) \
     XX(WastedDataBlocksReadFromDisk, wasted_data_blocks_read_from_disk) \
-    XX(MetaBytesTransmitted, meta_bytes_transmitted) \
     XX(MetaBytesReadFromDisk, meta_bytes_read_from_disk) \
+    XX(MetaBytesTransmitted, meta_bytes_transmitted) \
     XX(MetaIORequests, meta_io_requests) \
     XX(OmittedSuspiciousNodeCount, omitted_suspicious_node_count) \
     XX(P2PActivationCount, p2p_activation_count) \
@@ -173,8 +173,8 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(
     const NProfiling::TProfiler& profiler,
     const NProfiling::TProfiler& histogramProfiler)
     : DataBytesReadFromDisk_(profiler.Counter("/data_bytes_read_from_disk"))
-    , DataIORequests_(profiler.Counter("/data_io_requests"))
     , DataBlocksReadFromDisk_(profiler.Counter("/data_blocks_read_from_disk"))
+    , DataIORequests_(profiler.Counter("/data_io_requests"))
     , DataBytesTransmitted_(profiler.Counter("/data_bytes_transmitted"))
     , DataBytesReadFromCache_(profiler.Counter("/data_bytes_read_from_cache"))
     , WastedDataBytesReadFromDisk_(profiler.Counter("/wasted_data_bytes_read_from_disk"))
@@ -205,8 +205,8 @@ void TChunkReaderStatisticsCounters::Increment(
     bool failed)
 {
     DataBytesReadFromDisk_.Increment(chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed));
-    DataIORequests_.Increment(chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed));
     DataBlocksReadFromDisk_.Increment(chunkReaderStatistics->DataBlocksReadFromDisk.load(std::memory_order::relaxed));
+    DataIORequests_.Increment(chunkReaderStatistics->DataIORequests.load(std::memory_order::relaxed));
     DataBytesTransmitted_.Increment(chunkReaderStatistics->DataBytesTransmitted.load(std::memory_order::relaxed));
     DataBytesReadFromCache_.Increment(chunkReaderStatistics->DataBytesReadFromCache.load(std::memory_order::relaxed));
     WastedDataBytesReadFromDisk_.Increment(chunkReaderStatistics->WastedDataBytesReadFromDisk.load(std::memory_order::relaxed));

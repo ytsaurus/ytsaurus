@@ -111,7 +111,7 @@ SELECT $u(AsList(1,2,3));
 
 Взаимодействие с Python происходит через динамическую библиотеку `libpython3.N.so`, линковка с которой происходит во время исполнения. Подмена этой библиотеки в окружении приведёт к изменению используемого Python и доступных библиотек.
 
-Изменение окружения из YQL операции возможно при помощи прагм [yt.DockerImage](../../../yql/syntax/pragma.md#ytdockerimage) и [yt.LayerPaths](../../../yql/syntax/pragma.md#ytlayerpaths).
+Изменение окружения из YQL операции возможно при помощи прагм `yt.DockerImage` и [yt.LayerPaths](../../../yql/syntax/pragma/yt.md#ytlayerpaths).
 
 Они повлияют на соответствующие параметры пользовательского скрипта, описание которых можно посмотреть в разделе [Настройки операций - Параметры пользовательского скрипта](../../../user-guide/data-processing/operations/operations-options.md#user_script_options).
 
@@ -230,4 +230,4 @@ select $infer_llama("Why is the sky blue?");
 
 Это означает, что в окружении джоба, исполняющего функцию, нет динамической библиотеки `libpython3.8.so.1.0`. Необходимо использовать ту версию Python, которая присутствует в окружении джоба. [Подробнее](#environment).
 
-Если используется прагма [yt.DockerImage](../../../yql/syntax/pragma.md#ytdockerimage), то необходимо убедиться, что кластер поддерживает такой способ изменения окружения. [Подробнее](../../../admin-guide/prepare-spec.md#job-environment).
+Если используется прагма [yt.DockerImage](../../../yql/syntax/pragma/yt.md#ytdockerimage), то необходимо убедиться, что кластер поддерживает такой способ изменения окружения. [Подробнее](../../../admin-guide/prepare-spec.md#job-environment).

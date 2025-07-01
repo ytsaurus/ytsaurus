@@ -1532,6 +1532,9 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
         return;
     }
 
+    std::vector<TJobId> restartedJobIds;
+    restartedJobIds.reserve(allocationsToRestartJobs.size());
+
     // We want to restart jobs with ranks first.
     std::partition(
         begin(allocationsToRestartJobs),
@@ -1552,8 +1555,37 @@ void TGangOperationController::RestartAllRunningJobsPreservingAllocations(bool o
                 failReason);
 
             allocation->NewJobsForbiddenReason = failReason;
+        } else {
+            restartedJobIds.push_back(allocation->Joblet->JobId);
         }
     }
+
+    TDelayedExecutor::Submit(
+        BIND([weakThis = MakeWeak(this), restartedJobIds = std::move(restartedJobIds), this] {
+            auto strongThis = weakThis.Lock();
+            if (!strongThis) {
+                return;
+            }
+
+            for (auto jobId : restartedJobIds) {
+                auto allocationId = AllocationIdFromJobId(jobId);
+                if (auto allocation = FindAllocation(allocationId); allocation && allocation->Joblet && allocation->Joblet->JobId == jobId) {
+                    if (allocation->Joblet->JobState && allocation->Joblet->JobState != EJobState::None) {
+                        continue;
+                    }
+
+                    YT_LOG_WARNING("Waiting for node to settle new job timed out; aborting job (JobId: %v, Timeout: %d)", jobId, Options_->GangManager->JobReincarnationTimeout);
+
+                    allocation->NewJobsForbiddenReason = EScheduleFailReason::Timeout;
+                    AbortJob(jobId, EAbortReason::WaitingTimeout);
+
+                    UpdateAllTasks();
+                    return;
+                }
+            }
+       }),
+       Options_->GangManager->JobReincarnationTimeout,
+       GetCancelableInvoker(Config_->JobEventsControllerQueue));
 
     UpdateAllTasks();
 }

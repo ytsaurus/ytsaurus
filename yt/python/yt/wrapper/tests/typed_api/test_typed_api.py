@@ -3,9 +3,11 @@ import enum
 from yt.common import YtError
 from yt.testlib import authors
 from yt.type_info.type_base import Primitive
+from yt.type_info.typing import PRIMITIVES_V3
 
 from yt.wrapper.schema import (
     yt_dataclass,
+    make_dataclass_from_table_schema,
     TableSchema,
     OutputRow,
     Int8,
@@ -40,7 +42,7 @@ import yt.yson as yson
 import yt.wrapper as yt
 import yt.type_info as ti
 
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 
 import copy
 import pytest
@@ -2000,3 +2002,105 @@ class TestTypedApi(object):
 
         with pytest.raises(YtError, match="Expected value of type str, got type <class \'int\'>, value 3123"):
             client.write_table_structured(path, RowStr, [RowInt(value=3123)])
+
+    @authors("denvr")
+    def test_read_strucured_auto(self):
+        client = yt.YtClient(config=yt.config.config)
+
+        @yt.yt_dataclass
+        class SubRow:
+            f_int: int
+            f_str: str
+
+        @yt.yt_dataclass
+        class Row:
+            f_int: int
+            f_uint_opt: typing.Optional[Uint8]
+            f_double_opt: typing.Optional[Double]
+            f_str: str
+            f_bool: bool
+            f_bytes: bytes
+            f_bytes_opt:  typing.Optional[bytes]
+            f_py_datetime: datetime.datetime
+            f_formatted_datetime: FormattedPyDatetime["%Y-%m-%dT%H:%M%z"]  # noqa
+            f_no_time_zone: FormattedPyDatetime["%Y-%m-%dT%H:%M"]  # noqa
+            f_struct: typing.Optional[SubRow]
+            f_dict: typing.Dict[str, str]
+            f_list: typing.List[Int16]
+            f_tuple: typing.Tuple[int, str, bytes]
+            f_yson: typing.Optional[YsonBytes]
+
+        row = Row(
+            f_int=123,
+            f_uint_opt=64,
+            f_double_opt=1.2,
+            f_str="string",
+            f_bool=True,
+            f_bytes=b"bytes",
+            f_bytes_opt=None,
+            f_py_datetime=datetime.datetime(2011, 12, 13, 14, 15, tzinfo=datetime.timezone.utc),
+            f_formatted_datetime=datetime.datetime(2011, 12, 13, 14, 15, tzinfo=datetime.timezone.utc),
+            f_no_time_zone=datetime.datetime(2011, 12, 13, 14, 15, tzinfo=datetime.timezone.utc).replace(tzinfo=None),
+            f_struct=SubRow(
+                f_int=321,
+                f_str="gnirts",
+            ),
+            f_dict={"str1": "str2"},
+            f_list=[100, 15, 10, 20],
+            f_tuple=tuple([1, "two", b"three"]),
+            f_yson=b"[1;2;3;]",
+        )
+
+        path = "//tmp/test_structured_auto_structure"
+        client.write_table_structured(path, Row, [row])
+
+        data_static = list(client.read_table_structured(path, Row))[0]
+        data_dynamic = list(client.read_table_structured(path))[0]
+
+        # table schema for dt is "string"
+        data_static.f_py_datetime = 1323785700000000
+        data_static.f_formatted_datetime = b"2011-12-13T14:15+0000"
+        data_static.f_no_time_zone = b"2011-12-13T14:15"
+
+        # check equal data
+        assert asdict(data_static) == asdict(data_dynamic), "Equal data"
+
+        # check yt schema of new table from dynamic class
+        yt_schema_orig = client.get(f"{path}/@schema")
+        type_dynamic = make_dataclass_from_table_schema(TableSchema.from_yson_type(yt_schema_orig))
+        client.remove(path)
+        client.write_table_structured(path, type_dynamic, [])
+        yt_schema_new = client.get(f"{path}/@schema")
+        assert yt_schema_orig == yt_schema_new, "Equal schemas"
+
+        # wrong yt field name
+        path = "//tmp/test_bad_structured_auto_structure"
+        table_schema = yt.schema.TableSchema()
+        table_schema.add_column("simple_column", yt.schema.ti.Utf8)
+        table_schema.add_column(" wro`n-g [column]", yt.schema.ti.Int64)
+        client.create("table", path, attributes={"schema": table_schema})
+        client.write_table(path, [{"simple_column": "s", " wro`n-g [column]": 2}])
+
+        with pytest.raises(ValueError):
+            client.read_table_structured(path)
+
+        # absent schema
+        with pytest.raises(RuntimeError):
+            make_dataclass_from_table_schema(table_type=None)
+
+        # check new type
+        table_schema = yt.schema.TableSchema()
+        table_schema.add_column("str_column", yt.schema.ti.Utf8)
+        table_schema.add_column("int_column", yt.schema.ti.Int8)
+        new_type = make_dataclass_from_table_schema(table_schema)
+        new_item = new_type(str_column="foo", int_column=123)
+        assert new_item.str_column == "foo" and new_item.int_column == 123
+        assert typing.get_type_hints(new_item) == {"str_column": str, "int_column": int}
+        assert new_item.__annotations__["int_column"] == Int8
+        assert new_item.__annotations__["str_column"] == str
+
+        # check for new types
+        all_ti_types = set(PRIMITIVES_V3.keys())
+        not_yet_implemented_ti_types = set(["void", "uuid", "null", "json", "interval64", "datetime64",
+                                            "timestamp64", "date32", "tz_date", "tz_datetime", "tz_timestamp"])
+        assert set([t.name.lower() for t in yt.schema._PY_TYPE_BY_TI_TYPE.keys()]) == all_ti_types - not_yet_implemented_ti_types

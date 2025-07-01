@@ -1160,7 +1160,7 @@ void TJobProxy::InitializeChunkReaderHost()
         return GetInBandwidthThrottler(LocalClusterName);
     });
 
-    std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList {
+    std::vector<TMultiChunkReaderHost::TClusterContext> clusterContextList{
         {
             .Name = LocalClusterName,
             .Client = Client_,
@@ -1184,7 +1184,7 @@ void TJobProxy::InitializeChunkReaderHost()
 
         remoteConnection->GetNodeDirectory()->MergeFrom(protoRemoteCluster.node_directory());
 
-        clusterContextList.emplace_back(
+        clusterContextList.push_back(
             TMultiChunkReaderHost::TClusterContext{
                 .Name = TClusterName(clusterName),
                 .Client = remoteConnection->CreateNativeClient(Client_->GetOptions()),

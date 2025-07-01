@@ -1192,12 +1192,26 @@ private:
         channel = CreateRetryingChannel(
             config,
             std::move(channel),
-            BIND([] (const TError& error) {
-                if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
+            BIND_NO_PROPAGATE([options = Options_] (const TError& error) {
+                // TODO(kvk1920): YT-25518.
+                const auto* effectiveError = &error;
+                if (error.GetCode() == NObjectClient::EErrorCode::ForwardedRequestFailed &&
+                    !error.InnerErrors().empty())
+                {
+                    effectiveError = &error.InnerErrors().front();
+                }
+
+                if (effectiveError->GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
                     return true;
                 }
 
-                return NRpc::IsRetriableError(error);
+                if (options.RetryRequestQueueSizeLimitExceeded &&
+                    effectiveError->GetCode() == NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded)
+                {
+                    return true;
+                }
+
+                return NRpc::IsRetriableError(*effectiveError);
             }));
         channel = CreateDefaultTimeoutChannel(std::move(channel), config->RpcTimeout);
         CypressProxyChannel_ = std::move(channel);

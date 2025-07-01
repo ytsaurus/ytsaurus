@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import (
     TYPE_CHECKING,
+    ClassVar,
     Literal,
 )
 
@@ -15,7 +16,7 @@ from pandas._libs import (
 )
 from pandas._libs.arrays import NDArrayBacked
 from pandas._libs.lib import ensure_string_array
-from pandas.compat import pa_version_under7p0
+from pandas.compat import pa_version_under10p1
 from pandas.compat.numpy import function as nv
 from pandas.util._decorators import doc
 
@@ -55,9 +56,11 @@ if TYPE_CHECKING:
     from pandas._typing import (
         AxisInt,
         Dtype,
+        DtypeObj,
         NumpySorter,
         NumpyValueArrayLike,
         Scalar,
+        Self,
         npt,
         type_t,
     )
@@ -97,7 +100,9 @@ class StringDtype(StorageExtensionDtype):
     string[pyarrow]
     """
 
-    name = "string"
+    # error: Cannot override instance variable (previously declared on
+    # base class "StorageExtensionDtype") with class variable
+    name: ClassVar[str] = "string"  # type: ignore[misc]
 
     #: StringDtype().na_value uses pandas.NA except the implementation that
     # follows NumPy semantics, which uses nan.
@@ -122,9 +127,9 @@ class StringDtype(StorageExtensionDtype):
                 f"Storage must be 'python', 'pyarrow' or 'pyarrow_numpy'. "
                 f"Got {storage} instead."
             )
-        if storage in ("pyarrow", "pyarrow_numpy") and pa_version_under7p0:
+        if storage in ("pyarrow", "pyarrow_numpy") and pa_version_under10p1:
             raise ImportError(
-                "pyarrow>=7.0.0 is required for PyArrow backed StringArray."
+                "pyarrow>=10.0.1 is required for PyArrow backed StringArray."
             )
         self.storage = storage
 
@@ -133,7 +138,7 @@ class StringDtype(StorageExtensionDtype):
         return str
 
     @classmethod
-    def construct_from_string(cls, string):
+    def construct_from_string(cls, string) -> Self:
         """
         Construct a StringDtype from a string.
 
@@ -256,6 +261,13 @@ class BaseStringArray(ExtensionArray):
         if self.ndim > 1:
             return [x.tolist() for x in self]
         return list(self.to_numpy())
+
+    @classmethod
+    def _from_scalars(cls, scalars, dtype: DtypeObj) -> Self:
+        if lib.infer_dtype(scalars, skipna=True) not in ["string", "empty"]:
+            # TODO: require any NAs be valid-for-string
+            raise ValueError
+        return cls._from_sequence(scalars, dtype=dtype)
 
 
 # error: Definition of "_concat_same_type" in base class "NDArrayBacked" is
@@ -603,7 +615,7 @@ class StringArray(BaseStringArray, NumpyExtensionArray):  # type: ignore[misc]
         arr = np.asarray(self)
 
         if is_integer_dtype(dtype) or is_bool_dtype(dtype):
-            constructor: type[IntegerArray] | type[BooleanArray]
+            constructor: type[IntegerArray | BooleanArray]
             if is_integer_dtype(dtype):
                 constructor = IntegerArray
             else:
@@ -612,6 +624,8 @@ class StringArray(BaseStringArray, NumpyExtensionArray):  # type: ignore[misc]
             na_value_is_na = isna(na_value)
             if na_value_is_na:
                 na_value = 1
+            elif dtype == np.dtype("bool"):
+                na_value = bool(na_value)
             result = lib.map_infer_mask(
                 arr,
                 f,

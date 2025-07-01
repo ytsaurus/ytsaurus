@@ -17,6 +17,8 @@ import yt_error_codes
 
 import pytest
 
+import re
+
 
 class TestQueriesYqlBase(YTEnvSetup):
     NUM_YQL_AGENTS = 1
@@ -25,6 +27,7 @@ class TestQueriesYqlBase(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     USE_DYNAMIC_TABLES = True
     NUM_SCHEDULERS = 1
+    CLASS_TEST_LIMIT = 960
 
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -60,6 +63,7 @@ class TestQueriesYqlBase(YTEnvSetup):
 
 class TestGetOperationLink(TestQueriesYqlBase):
     @authors("mpereskokova")
+    @pytest.mark.timeout(180)
     def test_operation_link(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -76,6 +80,7 @@ class TestGetOperationLink(TestQueriesYqlBase):
 
 class TestMetrics(TestQueriesYqlBase):
     @authors("mpereskokova")
+    @pytest.mark.timeout(180)
     def test_metrics(self, query_tracker, yql_agent):
         yqla = ls("//sys/yql_agent/instances")[0]
         profiler = profiler_factory().at_yql_agent(yqla)
@@ -105,10 +110,6 @@ class TestMetrics(TestQueriesYqlBase):
 
 class TestSimpleQueriesYql(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 4
-    YQL_TEST_LIBRARY = """
-            $my_sqr = ($x)->($x * $x);
-            export $my_sqr;
-        """
 
     @authors("max42")
     def test_simple(self, query_tracker, yql_agent):
@@ -120,6 +121,7 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
         self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
     @authors("mpereskokova")
+    @pytest.mark.timeout(180)
     def test_simple_insert(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
@@ -135,6 +137,7 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
             self._run_simple_query("select * from primary.`//tmp/nonexistent`")
 
     @authors("max42")
+    @pytest.mark.timeout(180)
     def test_schemaful_read(self, query_tracker, yql_agent):
         schema = [
             {"name": "a", "type": "int64"},
@@ -167,6 +170,13 @@ class TestSimpleQueriesYql(TestQueriesYqlBase):
             select 1 + 1;
             select 2 as b, 1 as a
         """, [[{"column0": 1}], [{"column0": 2}], [{"a": 1, "b": 2}]])
+
+
+class TestLibs(TestQueriesYqlBase):
+    YQL_TEST_LIBRARY = """
+            $my_sqr = ($x)->($x * $x);
+            export $my_sqr;
+        """
 
     @authors("a-romanov")
     def test_libs(self, query_tracker, yql_agent):
@@ -279,6 +289,7 @@ class TestYqlAgentBan(TestQueriesYqlBase):
         return True
 
     @authors("mpereskokova")
+    @pytest.mark.timeout(180)
     def test_yql_agent_ban_on_new_queries(self, query_tracker, yql_agent):
         address = yql_agent.yql_agent.addresses[0]
         set(f"//sys/yql_agent/instances/{address}/@banned", True)
@@ -316,7 +327,7 @@ class TestYqlAgentBan(TestQueriesYqlBase):
 
 class TestYqlAgentDynConfig(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 8
-    CLASS_TEST_LIMIT = 20 * 60
+    CLASS_TEST_LIMIT = 30 * 60
     NUM_YQL_AGENTS = 1
 
     def _update_dyn_config(self, yql_agent, dyn_config):
@@ -441,7 +452,7 @@ class TestYqlAgentDynConfig(TestQueriesYqlBase):
         )
 
     @authors("lucius")
-    @pytest.mark.timeout(300)
+    @pytest.mark.timeout(600)
     def test_yql_agent_broken_dyn_config_wrong_address(self, query_tracker, yql_agent):
         self._dyn_config_expect_error(
             yql_agent,
@@ -516,7 +527,7 @@ class TestComplexQueriesYql(TestQueriesYqlBase):
         )
 
     @authors("mpereskokova")
-    @pytest.mark.timeout(150)
+    @pytest.mark.timeout(300)
     def test_complex_query(self, query_tracker, yql_agent):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -527,7 +538,7 @@ class TestComplexQueriesYql(TestQueriesYqlBase):
         self._test_simple_query("select sum(1) from (select * from `//tmp/t1`)", [{"column0": 2}])
 
     @authors("aleksandr.gaev")
-    @pytest.mark.timeout(150)
+    @pytest.mark.timeout(300)
     def test_sum(self, query_tracker, yql_agent):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -659,6 +670,7 @@ class TestYqlPlugin(TestQueriesYqlBase):
 
 class TestDefaultCluster(TestQueriesYqlBase):
     @authors("mpereskokova")
+    @pytest.mark.timeout(180)
     def test_exists_cluster(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -685,6 +697,7 @@ class TestAllYqlAgentsOverload(TestQueriesYqlBase):
     NUM_YQL_AGENTS = 1
 
     @authors("mpereskokova")
+    @pytest.mark.timeout(300)
     def test_yql_agent_overload(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -712,6 +725,7 @@ class TestPartialYqlAgentsOverload(TestQueriesYqlBase):
     NUM_YQL_AGENTS = 2
 
     @authors("mpereskokova")
+    @pytest.mark.timeout(300)
     def test_yql_agent_overload(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -737,6 +751,7 @@ class TestYqlAgent(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 4
 
     @authors("mpereskokova")
+    @pytest.mark.timeout(180)
     def test_progress(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -756,6 +771,7 @@ class TestYqlAgent(TestQueriesYqlBase):
         assert_items_equal(result, [{"result": 43}])
 
     @authors("mpereskokova")
+    @pytest.mark.timeout(180)
     def test_files(self, query_tracker, yql_agent):
         self._test_simple_query(
             "select FileContent(\"test_file_raw\") as column",
@@ -820,6 +836,7 @@ class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
     QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"row_count_limit": 1}}
 
     @authors("mpereskokova")
+    @pytest.mark.timeout(180)
     def test_rows_limit(self, query_tracker, yql_agent):
         create("table", "//tmp/t1", attributes={
             "schema": [{"name": "a", "sort_order": "ascending", "type": "int64"}]
@@ -843,7 +860,8 @@ class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
 
 
 class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
+    CLASS_TEST_LIMIT = 1800
     QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"resulting_rowset_value_length_limit": 20 * 1024**2}}
 
     @staticmethod
@@ -859,7 +877,7 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
             assert "full_result" not in q.get_result(0)
 
     @authors("aleksandr.gaev")
-    @pytest.mark.timeout(300)
+    @pytest.mark.timeout(600)
     def test_big_result(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "value", "type": "string"}]
@@ -897,7 +915,7 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
         self._assert_select_result("//tmp/t", rows[:15], True, True)
 
     @authors("aleksandr.gaev")
-    @pytest.mark.timeout(180)
+    @pytest.mark.timeout(360)
     def test_big_line(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "value", "type": "string"}]
@@ -961,18 +979,20 @@ class TestQueriesYqlAuth(TestQueriesYqlBase):
         write_table("//tmp/t", [{"a": 42}])
 
     @authors("mpereskokova")
+    @pytest.mark.timeout(180)
     def test_yql_agent_impersonation_deny(self, query_tracker, yql_agent):
         with raises_yt_error("failed"):
             self._run_simple_query("select a + 1 as b from primary.`//tmp/t`;", authenticated_user="denied_user")
 
     @authors("mpereskokova")
+    @pytest.mark.timeout(180)
     def test_yql_agent_impersonation_allow(self, query_tracker, yql_agent):
         self._test_simple_query("select a + 1 as b from primary.`//tmp/t`;", [{"b": 43}], authenticated_user="allowed_user")
 
 
 class TestYqlColumnOrderAggregateWithAs(TestQueriesYqlBase):
     @authors("gritukan", "mpereskokova")
-    @pytest.mark.timeout(300)
+    @pytest.mark.timeout(600)
     def test_aggregate_with_as(self, query_tracker, yql_agent):
         create("table", "//tmp/t", attributes={
             "schema": [{"name": "a", "type": "int64"}]
@@ -1018,7 +1038,7 @@ class TestYqlColumnOrderAggregateWithAs(TestQueriesYqlBase):
 
 class TestYqlColumnOrderIssue707(TestQueriesYqlBase):
     @authors("gritukan", "mpereskokova")
-    @pytest.mark.timeout(300)
+    @pytest.mark.timeout(600)
     def test_issue_707(self, query_tracker, yql_agent):
         # https://github.com/ytsaurus/ytsaurus/issues/707
         create("table", "//tmp/t", attributes={
@@ -1100,6 +1120,7 @@ class TestYqlColumnOrderParametrize(TestQueriesYqlBase):
 
 class TestYqlColumnOrderSelectScalars(TestQueriesYqlBase):
     @authors("gritukan", "mpereskokova")
+    @pytest.mark.timeout(600)
     def test_select_scalars(self, query_tracker, yql_agent):
         self._test_simple_query("""
             select 42 as a, "foo" as b, 2.0 as c
@@ -1222,3 +1243,37 @@ class TestAssignedEngine(TestQueriesYqlBase):
 
         assert query_running_info["annotations"]["assigned_engine"] == query_finished_info["annotations"]["assigned_engine"]
         assert query_finished_info["annotations"]["assigned_engine"] in yqla_instances
+
+
+class TestAstReturns(TestQueriesYqlBase):
+    @authors("kirsiv40")
+    @pytest.mark.timeout(90)
+    def test_ast_attr_in_progress(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        create_pool("small", attributes={"resource_limits": {"user_slots": 0}})
+        query = start_query("yql", 'pragma yt.StaticPool = "small"; select a+1 as result from primary.`//tmp/t`')
+
+        wait(lambda: ("progress" in query.get() and "yql_ast" in query.get()["progress"]))
+
+        query_running_info = query.get()
+
+        runnug_query_ast_lines = query_running_info["progress"]["yql_ast"].split('\n')
+        assert len(runnug_query_ast_lines) > 2
+        for line in runnug_query_ast_lines:
+            assert (re.fullmatch(r"([()]*)|(^\(.*\)$)|(^\(.*\(block '\($)", line.strip()))
+
+        set("//sys/pools/small/@resource_limits/user_slots", 1)
+        query.track()
+
+        query_finished_info = query.get()
+        assert "yql_ast" in query_finished_info["progress"]
+
+        finished_query_ast_lines = query_finished_info["progress"]["yql_ast"].split('\n')
+        assert len(finished_query_ast_lines) > 2
+        for line in finished_query_ast_lines:
+            assert (re.fullmatch(r"([()]*)|(^\(.*\)$)|(^\(.*\(block '\($)", line.strip()))

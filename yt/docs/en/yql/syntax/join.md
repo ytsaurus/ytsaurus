@@ -318,8 +318,8 @@ Moreover, `ANY` on the big table's side is not supported in LookupJoin.
 
 | Name | Description |
 | --- | --- |
-| [`yt.LookupJoinLimit`](pragma.md#lookupjoinlimit) | Small table's maximum size in bytes (up to 10M) |
-| [`yt.LookupJoinMaxRows`](pragma.md#lookupjoinmaxrows) | Small table's maximum size in strings (up to 1,000) |
+| [yt.LookupJoinLimit](pragma/yt.md#ytlookupjoinlimit) | Small table's maximum size in bytes (up to 10M) |
+| [yt.LookupJoinMaxRows](pragma/yt.md#ytlookupjoinmaxrows) | Small table's maximum size in strings (up to 1,000) |
 
 The LookupJoin strategy gets disabled when any of these values is set to 0.
 
@@ -330,7 +330,7 @@ Here, `JOIN` keys must match in terms of types with precision down to Optional a
 
 If only one table is sorted and the other's size is under `yt.JoinMergeUnsortedFactor * <size of sorted table>`,
  the SortedJoin strategy is selected as well and the unsorted table is sorted out a separate {{product-name}} operation.
-[`yt.JoinMergeUnsortedFactor`](pragma.md#ytjoinmergeunsortedfactor) is set to `0.2` by default.
+[`yt.JoinMergeUnsortedFactor`](pragma/yt.md#ytjoinmergeunsortedfactor) is set to `0.2` by default.
 
 The SortedJoin strategy supports all `JOIN` types except `CROSS JOIN` and is implemented through a single Reduce operation.
 Here, reduce with foreign tables mode is used where possible.<!--(../user-guide/data-processing/operations/reduce.md)-->
@@ -350,16 +350,16 @@ In this case (where necessary)
 
 | Name | Description |
 | --- | --- |
-| [`yt.JoinMergeUnsortedFactor`](pragma.md#ytjoinmergeunsortedfactor) | See above |
-| [`yt.JoinMergeTablesLimit`](pragma.md#ytjoinmergetableslimit) | Maximum number of `JOIN` input tables (when using [RANGE, CONCAT](select/concat.md), etc.) |
-| [`yt.JoinMergeUseSmallAsPrimary`](pragma.md#ytjoinmergeusesmallasprimary) | Influences the primary table selection when executing a Reduce operation |
-| [`yt.JoinMergeForce`](pragma.md#ytjoinmergeforce) | Forces the selection of the SortedJoin strategy for all `JOIN` in a query |
+| [`yt.JoinMergeUnsortedFactor`](pragma/yt.md#ytjoinmergeunsortedfactor) | See above |
+| [`yt.JoinMergeTablesLimit`](pragma/yt.md#ytjoinmergetableslimit) | Maximum number of `JOIN` input tables (when using [RANGE, CONCAT](select/concat.md), etc.) |
+| [`yt.JoinMergeUseSmallAsPrimary`](pragma/yt.md#ytjoinmergeusesmallasprimary) | Influences the primary table selection when executing a Reduce operation |
+| [`yt.JoinMergeForce`](pragma/yt.md#ytjoinmergeforce) | Forces the selection of the SortedJoin strategy for all `JOIN` in a query |
 
 `yt.JoinMergeTablesLimit` set to 0 disables the SortedJoin strategy.
 
 ### MapJoin strategy
 
-This strategy triggers when one of the input tables is sufficiently small (its size doesn't exceed [`yt.MapJoinLimit`](pragma.md#ytmapjoinlimit)).
+This strategy triggers when one of the input tables is sufficiently small (its size doesn't exceed [`yt.MapJoinLimit`](pragma/yt.md#ytmapjoinlimit)).
 In this case, a smaller table is loaded into the memory (as a dictionary with `JOIN` keys), and Map is executed thereafter for the big table.
 
 This strategy supports all `JOIN` types (including `CROSS`). However, it isn't selected if `ANY` is on the bigger side.
@@ -371,7 +371,7 @@ and there's a chance that the Map operation for the big table will "glue to" the
 
 
 
-There is also a sharded MapJoin variant: the small table is split into [`yt.MapJoinShardCount`](pragma.md#ytmapjoinshardcount) parts
+There is also a sharded MapJoin variant: the small table is split into [`yt.MapJoinShardCount`](pragma/yt.md#ytmapjoinshardcount) parts
 (each one cannot exceed `yt.MapJoinLimit`), and each part is in parallel and on its own `JOIN`with the big table through a Map operation.
 Then all obtained parts are joined through {{product-name}} Merge.
 
@@ -381,9 +381,9 @@ Sharded MapJoin is only possible for certain `JOIN` types (`INNER`,`CROSS`, and 
 
 | Name | Description |
 | --- | --- |
-| [`yt.MapJoinLimit`](pragma.md#ytmapjoinlimit) | Maximum size of the smaller `JOIN` side presentation in the memory for which the MapJoin strategy is selected |
-| [`yt.MapJoinShardCount`](pragma.md#ytmapjoinshardcount) | Maximum number of shards |
-| [`yt.MapJoinShardMinRows`](pragma.md#ytmapjoinshardminrows) | Minimum number of strings in one shard |
+| [`yt.MapJoinLimit`](pragma/yt.md#ytmapjoinlimit) | Maximum size of the smaller `JOIN` side presentation in the memory for which the MapJoin strategy is selected |
+| [`yt.MapJoinShardCount`](pragma/yt.md#ytmapjoinshardcount) | Maximum number of shards |
+| [`yt.MapJoinShardMinRows`](pragma/yt.md#ytmapjoinshardminrows) | Minimum number of strings in one shard |
 
 `yt.MapJoinLimit` set to 0 disables the MapJoin strategy.
 
@@ -401,7 +401,7 @@ This strategy is possible when dictionary tables are subsequently appended to on
 
 | Name | Description |
 | --- | --- |
-| [`yt.JoinEnableStarJoin`](pragma.md#ytjoinenablestarjoin) | Enables/disables StarJoin strategy selection (enabled by default) |
+| [`yt.JoinEnableStarJoin`](pragma/yt.md#ytjoinenablestarjoin) | Enables/disables StarJoin strategy selection (enabled by default) |
 
 ### Strategy selection sequence
 

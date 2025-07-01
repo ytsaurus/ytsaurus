@@ -96,13 +96,15 @@ def take_2d_axis1_bool_bool(const uint8_t[:, :] values,
 
     fv = fill_value
 
-    for i in range(n):
-        for j in range(k):
-            idx = indexer[j]
-            if idx == -1:
-                out[i, j] = fv
-            else:
-                out[i, j] = values[i, idx]
+    with nogil:
+        for i in range(n):
+            for j in range(k):
+                idx = indexer[j]
+                if idx == -1:
+                    out[i, j] = fv
+                else:
+                    out[i, j] = values[i, idx]
+
 
 
 @cython.wraparound(False)
@@ -327,13 +329,15 @@ def take_2d_axis1_int8_int8(const int8_t[:, :] values,
 
     fv = fill_value
 
-    for i in range(n):
-        for j in range(k):
-            idx = indexer[j]
-            if idx == -1:
-                out[i, j] = fv
-            else:
-                out[i, j] = values[i, idx]
+    with nogil:
+        for i in range(n):
+            for j in range(k):
+                idx = indexer[j]
+                if idx == -1:
+                    out[i, j] = fv
+                else:
+                    out[i, j] = values[i, idx]
+
 
 
 @cython.wraparound(False)
@@ -772,13 +776,15 @@ def take_2d_axis1_int16_int16(const int16_t[:, :] values,
 
     fv = fill_value
 
-    for i in range(n):
-        for j in range(k):
-            idx = indexer[j]
-            if idx == -1:
-                out[i, j] = fv
-            else:
-                out[i, j] = values[i, idx]
+    with nogil:
+        for i in range(n):
+            for j in range(k):
+                idx = indexer[j]
+                if idx == -1:
+                    out[i, j] = fv
+                else:
+                    out[i, j] = values[i, idx]
+
 
 
 @cython.wraparound(False)
@@ -1217,13 +1223,15 @@ def take_2d_axis1_int32_int32(const int32_t[:, :] values,
 
     fv = fill_value
 
-    for i in range(n):
-        for j in range(k):
-            idx = indexer[j]
-            if idx == -1:
-                out[i, j] = fv
-            else:
-                out[i, j] = values[i, idx]
+    with nogil:
+        for i in range(n):
+            for j in range(k):
+                idx = indexer[j]
+                if idx == -1:
+                    out[i, j] = fv
+                else:
+                    out[i, j] = values[i, idx]
+
 
 
 @cython.wraparound(False)
@@ -1555,13 +1563,15 @@ def take_2d_axis1_int64_int64(const int64_t[:, :] values,
 
     fv = fill_value
 
-    for i in range(n):
-        for j in range(k):
-            idx = indexer[j]
-            if idx == -1:
-                out[i, j] = fv
-            else:
-                out[i, j] = values[i, idx]
+    with nogil:
+        for i in range(n):
+            for j in range(k):
+                idx = indexer[j]
+                if idx == -1:
+                    out[i, j] = fv
+                else:
+                    out[i, j] = values[i, idx]
+
 
 
 @cython.wraparound(False)
@@ -1786,13 +1796,15 @@ def take_2d_axis1_float32_float32(const float32_t[:, :] values,
 
     fv = fill_value
 
-    for i in range(n):
-        for j in range(k):
-            idx = indexer[j]
-            if idx == -1:
-                out[i, j] = fv
-            else:
-                out[i, j] = values[i, idx]
+    with nogil:
+        for i in range(n):
+            for j in range(k):
+                idx = indexer[j]
+                if idx == -1:
+                    out[i, j] = fv
+                else:
+                    out[i, j] = values[i, idx]
+
 
 
 @cython.wraparound(False)
@@ -2017,13 +2029,15 @@ def take_2d_axis1_float64_float64(const float64_t[:, :] values,
 
     fv = fill_value
 
-    for i in range(n):
-        for j in range(k):
-            idx = indexer[j]
-            if idx == -1:
-                out[i, j] = fv
-            else:
-                out[i, j] = values[i, idx]
+    with nogil:
+        for i in range(n):
+            for j in range(k):
+                idx = indexer[j]
+                if idx == -1:
+                    out[i, j] = fv
+                else:
+                    out[i, j] = values[i, idx]
+
 
 
 @cython.wraparound(False)

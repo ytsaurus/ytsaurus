@@ -78,6 +78,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         }
 
         self.client.set(f"//sys/clusters/{self.env.id}/yql_agent", yql_agent_config)
+        self.client.set("//sys/@cluster_connection/yql_agent", yql_agent_config)
 
         def check_query():
             query_id = self.client.start_query("yql", "select 1")

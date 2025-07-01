@@ -12,6 +12,7 @@ from keyword import iskeyword
 import tokenize
 from typing import (
     Callable,
+    ClassVar,
     TypeVar,
 )
 
@@ -30,7 +31,6 @@ from pandas.core.computation.ops import (
     UNARY_OPS_SYMS,
     BinOp,
     Constant,
-    Div,
     FuncNode,
     Op,
     Term,
@@ -349,8 +349,8 @@ class BaseExprVisitor(ast.NodeVisitor):
     preparser : callable
     """
 
-    const_type: type[Term] = Constant
-    term_type = Term
+    const_type: ClassVar[type[Term]] = Constant
+    term_type: ClassVar[type[Term]] = Term
 
     binary_ops = CMP_OPS_SYMS + BOOL_OPS_SYMS + ARITH_OPS_SYMS
     binary_op_nodes = (
@@ -369,7 +369,7 @@ class BaseExprVisitor(ast.NodeVisitor):
         "Add",
         "Sub",
         "Mult",
-        None,
+        "Div",
         "Pow",
         "FloorDiv",
         "Mod",
@@ -532,15 +532,12 @@ class BaseExprVisitor(ast.NodeVisitor):
         left, right = self._maybe_downcast_constants(left, right)
         return self._maybe_evaluate_binop(op, op_class, left, right)
 
-    def visit_Div(self, node, **kwargs):
-        return lambda lhs, rhs: Div(lhs, rhs)
-
     def visit_UnaryOp(self, node, **kwargs):
         op = self.visit(node.op)
         operand = self.visit(node.operand)
         return op(operand)
 
-    def visit_Name(self, node, **kwargs):
+    def visit_Name(self, node, **kwargs) -> Term:
         return self.term_type(node.id, self.env, **kwargs)
 
     # TODO(py314): deprecated since Python 3.8. Remove after Python 3.14 is min
@@ -555,11 +552,11 @@ class BaseExprVisitor(ast.NodeVisitor):
         return self.const_type(node.value, self.env)
 
     # TODO(py314): deprecated since Python 3.8. Remove after Python 3.14 is min
-    def visit_Str(self, node, **kwargs):
+    def visit_Str(self, node, **kwargs) -> Term:
         name = self.env.add_tmp(node.s)
         return self.term_type(name, self.env)
 
-    def visit_List(self, node, **kwargs):
+    def visit_List(self, node, **kwargs) -> Term:
         name = self.env.add_tmp([self.visit(e)(self.env) for e in node.elts])
         return self.term_type(name, self.env)
 
@@ -569,7 +566,7 @@ class BaseExprVisitor(ast.NodeVisitor):
         """df.index[4]"""
         return self.visit(node.value)
 
-    def visit_Subscript(self, node, **kwargs):
+    def visit_Subscript(self, node, **kwargs) -> Term:
         from pandas import eval as pd_eval
 
         value = self.visit(node.value)
@@ -589,7 +586,7 @@ class BaseExprVisitor(ast.NodeVisitor):
         name = self.env.add_tmp(v)
         return self.term_type(name, env=self.env)
 
-    def visit_Slice(self, node, **kwargs):
+    def visit_Slice(self, node, **kwargs) -> slice:
         """df.index[slice(4,6)]"""
         lower = node.lower
         if lower is not None:
@@ -694,8 +691,8 @@ class BaseExprVisitor(ast.NodeVisitor):
                 if not isinstance(key, ast.keyword):
                     # error: "expr" has no attribute "id"
                     raise ValueError(
-                        "keyword error in function call "  # type: ignore[attr-defined]
-                        f"'{node.func.id}'"
+                        "keyword error in function call "
+                        f"'{node.func.id}'"  # type: ignore[attr-defined]
                     )
 
                 if key.arg:

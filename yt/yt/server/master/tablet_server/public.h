@@ -19,6 +19,8 @@
 namespace NYT::NTableClient::NProto {
 
 class TRspCheckBackup;
+class TTabletStatistics;
+class TTableReplicaStatistics;
 
 } // namespace NYT::NTableClient::NProto
 
@@ -32,6 +34,7 @@ namespace NProto {
 
 class TTabletCellStatistics;
 class TTabletResources;
+class TBackupCutoffDescriptor;
 
 } // namespace NProto
 

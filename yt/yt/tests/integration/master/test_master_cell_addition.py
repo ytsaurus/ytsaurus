@@ -415,13 +415,16 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         assert read_table("//tmp/in") == data
         create("table", "//tmp/out", attributes={"external_cell_tag": 13})
 
-        map_reduce(
-            mapper_command="cat",
-            reducer_command="cat",
-            in_="//tmp/in",
-            out="//tmp/out",
-            sort_by=["foo"]
-        )
+        def map_reduce_wrapper():
+            map_reduce(
+                mapper_command="cat",
+                reducer_command="cat",
+                in_="//tmp/in",
+                out="//tmp/out",
+                sort_by=["foo"]
+            )
+
+        wait(lambda: self.do_with_retries(map_reduce_wrapper))
 
         # Just in case. Nodes still should not reregister.
         for node in ls("//sys/cluster_nodes"):

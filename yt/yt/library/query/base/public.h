@@ -34,6 +34,8 @@ class TQuery;
 class TQueryOptions;
 class TFeatureFlags;
 class TDataSource;
+class TReplicaInfo;
+class TTabletInfo;
 
 } // namespace NProto
 

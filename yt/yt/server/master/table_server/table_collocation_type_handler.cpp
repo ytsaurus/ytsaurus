@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/master/object_server/type_handler_detail.h>
 
+#include <yt/yt/server/master/tablet_server/config.h>
+
 #include <yt/yt/server/master/transaction_server/transaction.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>

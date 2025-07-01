@@ -19,9 +19,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSignatureValidator::TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr keyReader)
-    : Config_(std::move(config))
-    , KeyReader_(std::move(keyReader))
+TSignatureValidator::TSignatureValidator(IKeyStoreReaderPtr keyReader)
+    : KeyReader_(std::move(keyReader))
 {
     InitializeCryptography();
     YT_LOG_INFO("Signature validator initialized");

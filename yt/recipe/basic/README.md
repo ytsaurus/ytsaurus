@@ -18,6 +18,9 @@ Yson-map where key is cluster name and value is additional yson config for this 
 If set to `no` then recipe uses precompiled binaries from `yt/packages/latest`.
 If set to `yes` then recipe uses binaries compiled from arcadia.
 
+### `YT_BUILD_WITH_QUERY_TRACKER` (default `no`)
+If set to `yes` then recipe builds YT with Query Tracker and YQL Agent components. It is important to note that you should also specify query_tracker, yql_agent components in `YT_CONFIG_PATCH` or `YT_CLUSTER_CONFIG_PATCHES`
+
 ### `YT_DB_MODE` (default: `<empty>`)
 
 If set to `chaos` then basic chaos configuration is performed. In this case separate tablet_cell_bundle must be used instead of `default`, because it has special clock configuration which is necessary for chaos. This is set by non-empty `YT_TABLET_CELL_BUNDLE_NAME` variable. For non-chaos scenarios `default` bundle may be used as well.

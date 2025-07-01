@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(2.1.4)
+VERSION(2.2.3)
 
 LICENSE(BSD-3-Clause)
 
@@ -14,6 +14,7 @@ PEERDIR(
 )
 
 ADDINCL(
+    FOR cython contrib/python/numpy/py3
     FOR cython contrib/python/pandas/py3
     contrib/python/pandas/py3/pandas/_libs/include
     contrib/python/pandas/py3/pandas/_libs
@@ -33,10 +34,6 @@ NO_CHECK_IMPORTS(
     pandas.plotting.*
     pandas.tseries.*
     pandas.util.*
-)
-
-CFLAGS(
-    -DNPY_NO_DEPRECATED_API=0
 )
 
 INCLUDE(symbols.cmake)
@@ -142,6 +139,7 @@ PY_SRCS(
     pandas/core/__init__.py
     pandas/core/_numba/__init__.py
     pandas/core/_numba/executor.py
+    pandas/core/_numba/extensions.py
     pandas/core/_numba/kernels/__init__.py
     pandas/core/_numba/kernels/mean_.py
     pandas/core/_numba/kernels/min_max_.py
@@ -166,8 +164,10 @@ PY_SRCS(
     pandas/core/arrays/_arrow_string_mixins.py
     pandas/core/arrays/_mixins.py
     pandas/core/arrays/_ranges.py
+    pandas/core/arrays/_utils.py
     pandas/core/arrays/arrow/__init__.py
     pandas/core/arrays/arrow/_arrow_utils.py
+    pandas/core/arrays/arrow/accessors.py
     pandas/core/arrays/arrow/array.py
     pandas/core/arrays/arrow/extension_types.py
     pandas/core/arrays/base.py
@@ -324,6 +324,7 @@ PY_SRCS(
     pandas/io/common.py
     pandas/io/excel/__init__.py
     pandas/io/excel/_base.py
+    pandas/io/excel/_calamine.py
     pandas/io/excel/_odfreader.py
     pandas/io/excel/_odswriter.py
     pandas/io/excel/_openpyxl.py
@@ -399,6 +400,8 @@ PY_SRCS(
     pandas/util/_tester.py
     pandas/util/_validators.py
     pandas/util/version/__init__.py
+    CYTHON_DIRECTIVE
+    always_allow_keywords=true
     CYTHON_DIRECTIVE
     language_level=3
     CYTHON_C

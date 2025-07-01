@@ -1687,8 +1687,8 @@ void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow 
                 FindSharedWriteTransaction(lock->SharedWriteTransactions, transaction, /*abort*/ true));
 
             // COMPAT(ponasenko-rs)
-            if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-                reign >= ETabletReign::PerRowSequencerFixes)
+            if (auto* context = TryGetCurrentMutationContext();
+                context == nullptr || static_cast<ETabletReign>(context->Request().Reign) >= ETabletReign::PerRowSequencerFixes)
             {
                 if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
                     Unlock();

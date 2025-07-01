@@ -1892,6 +1892,44 @@ class TestGangOperations(YTEnvSetup):
 
         op.track()
 
+    @authors("krasovav")
+    def test_waiting_for_job_reincarnation_timed_out(self):
+        update_controller_agent_config("vanilla_operation_options/gang_manager/job_reincarnation_timeout", 1)
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            task_patch={
+                "gang_options": {},
+            },
+            spec={
+                "job_testing_options": {
+                    "delay_in_cleanup": 1000,
+                },
+            },
+        )
+
+        first_job_ids = wait_breakpoint(job_count=2)
+        assert len(first_job_ids) == 2
+
+        incarnation_switch_counter = _get_controller_profiler().counter(
+            "controller_agent/gang_operations/incarnation_switch_count")
+        abort_job(first_job_ids[0])
+
+        # After abort controller try to start job, but delay in cleanup greater then reincarnation timeout.
+        # ">= 2" because scheduler can schedule job before abort by reincarnation timeout and after abort_job
+        wait(lambda: incarnation_switch_counter.get() >= 2)
+
+        # Resolve life lock from comment above.
+        update_controller_agent_config("vanilla_operation_options/gang_manager/job_reincarnation_timeout", 1000000)
+
+        release_breakpoint(job_id=first_job_ids[0])
+        release_breakpoint(job_id=first_job_ids[1])
+
+        release_breakpoint()
+
+        op.track()
+
     @authors("pogorelov")
     def test_gang_operation_monitoring_descriptor_limit(self):
         update_controller_agent_config(path="user_job_monitoring/extended_max_monitored_user_jobs_per_operation", value=1)

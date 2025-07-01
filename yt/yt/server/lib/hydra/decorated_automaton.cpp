@@ -274,6 +274,7 @@ public:
         , RandomSeed_(Owner_->RandomSeed_)
         , StateHash_(Owner_->StateHash_)
         , Timestamp_(Owner_->Timestamp_)
+        , LogicalTime_(Owner_->GetLogicalTime())
         , SelfPeerId_(owner->GetEpochContext()->CellManager->GetSelfPeerId())
     {
         Logger = Owner_->Logger().WithTag("SnapshotId: %v", SnapshotId_);
@@ -302,6 +303,7 @@ public:
             meta.set_last_mutation_term(Owner_->LastMutationTerm_);
             meta.set_last_mutation_reign(Owner_->LastMutationReign_);
             meta.set_read_only(SnapshotReadOnly_);
+            meta.set_logical_time(LogicalTime_.GetValue());
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
@@ -327,6 +329,7 @@ protected:
     const ui64 RandomSeed_;
     const ui64 StateHash_;
     const TInstant Timestamp_;
+    const TInstant LogicalTime_;
     const int SelfPeerId_;
 
     ISnapshotWriterPtr SnapshotWriter_;
@@ -807,6 +810,40 @@ struct TDecoratedAutomaton::TMutationApplicationResult
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDecoratedAutomaton::TLogicalClock::Initialize(
+    TInstant lastTickTime,
+    int lastKnownTerm,
+    TInstant time)
+{
+    LastTickTime_ = lastTickTime;
+    LastKnownTerm_ = lastKnownTerm;
+    Time_.store(time, std::memory_order_release);
+}
+
+void TDecoratedAutomaton::TLogicalClock::AdvanceClock()
+{
+    LastKnownTerm_ = -1;
+}
+
+TInstant TDecoratedAutomaton::TLogicalClock::GetTime() const
+{
+    return Time_.load(std::memory_order_acquire);
+}
+
+void TDecoratedAutomaton::TLogicalClock::ProcessTick(TInstant mutationTime, int mutationTerm)
+{
+    if (mutationTerm == LastKnownTerm_) {
+        auto timePassed = mutationTime - LastTickTime_;
+        auto newTime = Time_.load(std::memory_order_relaxed) + timePassed;
+        Time_.store(newTime, std::memory_order_release);
+    }
+
+    LastTickTime_ = mutationTime;
+    LastKnownTerm_ = mutationTerm;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TDecoratedAutomaton::TDecoratedAutomaton(
     TConfigWrapperPtr config,
     const TDistributedHydraManagerOptions& options,
@@ -970,6 +1007,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     ui64 randomSeed,
     ui64 stateHash,
     TInstant timestamp,
+    TInstant logicalTime,
     IAsyncZeroCopyInputStreamPtr reader,
     bool prepareState)
 {
@@ -1045,6 +1083,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     LastMutationReign_ = lastMutationReign;
     MutationCountSinceLastSnapshot_ = 0;
     MutationSizeSinceLastSnapshot_ = 0;
+    LogicalClock_.Initialize(timestamp, lastMutationTerm, logicalTime);
 }
 
 void TDecoratedAutomaton::CheckInvariants()
@@ -1353,6 +1392,11 @@ void TDecoratedAutomaton::DoApplyMutation(
                 mutationContext->GetVersion(),
                 mutationContext->GetSequenceNumber(),
                 mutationId);
+
+            if (!ReadOnly_) {
+                // Arbitrary amount of time can be spent in read-only without the term changing.
+                LogicalClock_.AdvanceClock();
+            }
         } else {
             Automaton_->ApplyMutation(mutationContext);
         }
@@ -1367,10 +1411,13 @@ void TDecoratedAutomaton::DoApplyMutation(
         }
     }
 
-    mutationContext->CombineStateHash(mutationContext->GetRandomSeed());
-    StateHash_ = mutationContext->GetStateHash();
+    auto mutationTimestamp = mutationContext->GetTimestamp();
+    auto mutationTerm = mutationContext->GetTerm();
+    LogicalClock_.ProcessTick(mutationTimestamp, mutationTerm);
 
-    Timestamp_ = mutationContext->GetTimestamp();
+    mutationContext->CombineStateHash(mutationContext->GetRandomSeed(), LogicalClock_.GetTime());
+    StateHash_ = mutationContext->GetStateHash();
+    Timestamp_ = mutationTimestamp;
 
     auto sequenceNumber = ++SequenceNumber_;
 
@@ -1670,6 +1717,13 @@ bool TDecoratedAutomaton::GetReadOnly() const
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ReadOnly_.load();
+}
+
+TInstant TDecoratedAutomaton::GetLogicalTime() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return LogicalClock_.GetTime();
 }
 
 TReign TDecoratedAutomaton::GetCurrentReign() const

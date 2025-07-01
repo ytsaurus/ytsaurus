@@ -609,7 +609,8 @@ public class RichYPath implements YPath {
             return List.of();
         }
         if (path.charAt(ptr) != '/') {
-            throw new IllegalStateException();
+            throw new IllegalStateException("Relative path must start with '/' character, "
+            + "but got '" + path + "'");
         }
         List<String> result = new ArrayList<>();
         while (ptr < path.length()) {
@@ -618,7 +619,8 @@ public class RichYPath implements YPath {
                 ++nextPtr;
             }
             if (nextPtr == ptr + 1) {
-                throw new IllegalArgumentException(path);
+                throw new IllegalArgumentException("Invalid path format: empty path component detected in '" + path +
+                    "'. Path components must not be empty (no consecutive '/' characters allowed).");
             }
             result.add(path.substring(ptr + 1, nextPtr));
             ptr = nextPtr;

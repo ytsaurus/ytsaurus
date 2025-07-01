@@ -1,0 +1,51 @@
+name: Send Telegram Status
+
+on:
+  workflow_call:
+    secrets:
+      GH_PERSONAL_ACCESS_TOKEN:
+        required: true
+      TELEGRAM_TOKEN:
+        required: true
+      TELEGRAM_CHAT_ID:
+        required: true
+
+jobs:
+  send-alert:
+    name: Check status and send alert
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Checkout ytsaurus
+        uses: actions/checkout@v4
+        with:
+          path: ytsaurus
+          sparse-checkout-cone-mode: false
+          sparse-checkout: '.github/scripts/send_notifications.py'
+
+      - name: Prepare Python
+        run: |
+          pip install PyGithub==2.6.1
+
+      - name: Save conclusion (failure)
+        if: failure()
+        run: echo "CURRENT_JOB_CONCLUSION=failure" >> $GITHUB_ENV
+
+      - name: Save conclusion (success)
+        if: success()
+        run: echo "CURRENT_JOB_CONCLUSION=success" >> $GITHUB_ENV
+
+      - name: Send telegram status report
+        id: send-telegram-status-report
+        run: |
+          python3 ytsaurus/.github/scripts/send_notifications.py \
+                  --repo ytsaurus/ytsaurus \
+                  --git-token "${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}" \
+                  --workflow "${{ github.workflow }}" \
+                  --ref "${{ github.ref_name }}" \
+                  --tg-token "${{ secrets.TELEGRAM_TOKEN }}" \
+                  --tg-chat-id ${{ secrets.TELEGRAM_CHAT_ID }} \
+                  --current-job-conclusion $CURRENT_JOB_CONCLUSION \
+                  --current-job-id ${{ github.run_id }} \
+                  --commit-message "${{ github.event.head_commit.message }}" \
+                  --git-server-url "${{ github.api_url }}"

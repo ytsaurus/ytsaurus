@@ -12,7 +12,7 @@ from .compression import try_enable_parallel_write_gzip
 from .config import get_config, get_option
 from .constants import YSON_PACKAGE_INSTALLATION_TEXT
 from .cypress_commands import (exists, remove, get_attribute, copy,
-                               move, mkdir, find_free_subpath, create, get, has_attribute)
+                               move, mkdir, find_free_subpath, create, get, has_attribute, get_table_schema)
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .driver import make_request, make_formatted_request
 from .retries import default_chaos_monkey, run_chaos_monkey
@@ -26,7 +26,7 @@ from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _p
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_command_format)
 from .file_commands import _get_remote_temp_files_directory, _append_default_path_with_user_level
 from .parallel_reader import make_read_parallel_request
-from .schema import _SchemaRuntimeCtx, TableSchema
+from .schema import _SchemaRuntimeCtx, TableSchema, make_dataclass_from_table_schema
 from .stream import ItemStream, _ChunkStream
 from .ypath import TablePath, YPath, ypath_join
 
@@ -919,7 +919,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
         return format.load_rows(response)
 
 
-def read_table_structured(table, row_type, table_reader=None, unordered=None,
+def read_table_structured(table, row_type=None, table_reader=None, unordered=None,
                           response_parameters=None, enable_read_parallel=None, client=None):
     """Reads rows from table in structured format. Cf. docstring for read_table"""
     schema = _try_get_schema(table, client=client)
@@ -930,6 +930,11 @@ def read_table_structured(table, row_type, table_reader=None, unordered=None,
             "enable_row_index": True,
             "enable_range_index": True,
         }
+    if not row_type:
+        table_schema = get_table_schema(table, client=client)
+        row_type = make_dataclass_from_table_schema(table_schema)
+        if not row_type:
+            raise RuntimeError("Cannot create py schema from table schema")
     py_schema = _SchemaRuntimeCtx() \
         .set_validation_mode_from_config(config=get_config(client)) \
         .create_row_py_schema(row_type, schema, control_attributes=control_attributes)

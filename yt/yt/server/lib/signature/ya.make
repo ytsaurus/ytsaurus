@@ -13,7 +13,6 @@ SRCS(
     signature_preprocess.cpp
     signature_validator.cpp
     cypress_key_store.cpp
-    instance_config.cpp
 )
 
 PEERDIR(

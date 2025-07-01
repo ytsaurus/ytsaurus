@@ -395,6 +395,8 @@ struct TOperationOptions
 
     TGpuCheckOptionsPtr GpuCheck;
 
+    bool AllowLocality;
+
     REGISTER_YSON_STRUCT(TOperationOptions);
 
     static void Register(TRegistrar registrar);
@@ -597,6 +599,9 @@ DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
 struct TGangManagerConfig
     : public NYTree::TYsonStruct
 {
+
+    TDuration JobReincarnationTimeout;
+
     REGISTER_YSON_STRUCT(TGangManagerConfig);
 
     static void Register(TRegistrar registrar);

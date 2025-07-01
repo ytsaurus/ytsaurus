@@ -11,7 +11,7 @@
 #include <yt/yt/server/lib/rpc_proxy/profilers.h>
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_rotator.h>
 #include <yt/yt/server/lib/signature/signature_generator.h>
 #include <yt/yt/server/lib/signature/signature_validator.h>
@@ -205,9 +205,7 @@ void TBootstrap::DoInitialize()
         CypressKeyReader_ = CreateCypressKeyReader(
             Config_->SignatureValidation->CypressKeyReader,
             RootClient_);
-        SignatureValidator_ = New<TSignatureValidator>(
-            Config_->SignatureValidation->Validator,
-            CypressKeyReader_);
+        SignatureValidator_ = New<TSignatureValidator>(CypressKeyReader_);
     }
 
     if (Config_->SignatureGeneration) {

@@ -5,7 +5,6 @@ items:
 - { name: ACTION,                       href: action.md }
 - { name: CREATE TABLE,                 href: create_table.md } #include: { mode: link, path: create_table/toc_i.yaml } }
 - { name: COMMIT,                       href: commit.md }
-# Пока в QT не поддерживается: - { name: DECLARE,  href: declare.md }
 - { name: DISCARD,                      href: discard.md }
 - { name: DROP TABLE,                   href: drop_table.md }
 - { name: GROUP BY,                     href: group_by.md }
@@ -14,7 +13,7 @@ items:
 - { name: INSERT,                       href: insert_into.md }
 - { name: INTO RESULT,                  href: into_result.md }
 - { name: JOIN,                         href: join.md }
-- { name: PRAGMA,                       href: pragma.md }
+- { name: PRAGMA,                       include: { mode: link, path: pragma/toc_i.yaml } }
 - { name: PROCESS,                      href: process.md }
 - { name: REDUCE,                       href: reduce.md }
 - { name: SELECT,                       include: { mode: link, path: select/toc_i.yaml } }

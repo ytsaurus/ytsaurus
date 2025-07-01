@@ -33,16 +33,6 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> ITableDescriptor::Initialize(const IInvokerPtr& invoker)
-{
-    std::vector<TFuture<void>> futures;
-    futures.reserve(TEnumTraits<ESequoiaTable>::GetDomainSize());
-    for (auto table : TEnumTraits<ESequoiaTable>::GetDomainValues()) {
-        futures.push_back(BIND(ITableDescriptor::Get, table).AsyncVia(invoker).Run().AsVoid());
-    }
-    return AllSucceeded(std::move(futures));
-}
-
 const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
 {
     #define XX(type, tableName, TableName) \

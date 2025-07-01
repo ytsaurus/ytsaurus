@@ -18,8 +18,6 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
-#include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
-
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/core/misc/property.h>

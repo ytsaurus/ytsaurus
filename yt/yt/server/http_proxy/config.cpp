@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/security_server/config.h>
 
-#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 

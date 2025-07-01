@@ -26,11 +26,6 @@ void TSignatureGeneratorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSignatureValidatorConfig::Register(TRegistrar /*registrar*/)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TKeyRotatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("key_rotation_interval", &TThis::KeyRotationInterval)
@@ -79,6 +74,24 @@ void TCypressKeyWriterConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_key_count", &TThis::MaxKeyCount)
         .Default(100)
         .GreaterThan(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSignatureValidationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cypress_key_reader", &TThis::CypressKeyReader);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSignatureGenerationConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cypress_key_writer", &TThis::CypressKeyWriter);
+
+    registrar.Parameter("generator", &TThis::Generator);
+
+    registrar.Parameter("key_rotator", &TThis::KeyRotator);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

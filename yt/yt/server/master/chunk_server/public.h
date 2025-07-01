@@ -29,6 +29,33 @@
 
 #include <map>
 
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NYT::NChunkClient::NProto {
+
+class TChunkSealInfo;
+class TMiscExt;
+class TChunkInfo;
+class TChunkMeta;
+class TChunkImportData;
+
+class TReqCreateChunk;
+class TRspCreateChunk;
+class TReqConfirmChunk;
+class TRspConfirmChunk;
+class TReqSealChunk;
+class TRspSealChunk;
+class TReqCreateChunkLists;
+class TRspCreateChunkLists;
+class TReqUnstageChunkTree;
+class TRspUnstageChunkTree;
+class TReqAttachChunkTrees;
+class TRspAttachChunkTrees;
+
+} // namespace NYT::NChunkClient::NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
