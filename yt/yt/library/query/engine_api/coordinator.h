@@ -38,6 +38,15 @@ TSharedRange<TRowRange> GetPrunedRanges(
     const TQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider);
 
+std::pair<TDataSource, TConstQueryPtr> InferRanges(
+    const IColumnEvaluatorCachePtr& columnEvaluatorCache,
+    TConstQueryPtr query,
+    const TDataSource& dataSource,
+    const TQueryOptions& options,
+    TRowBufferPtr rowBuffer,
+    const IMemoryChunkProviderPtr& memoryChunkProvider,
+    const NLogging::TLogger& Logger);
+
 struct TEvaluateResult
 {
     ISchemafulUnversionedReaderPtr Reader;

@@ -345,29 +345,8 @@ void PrepareQuery(
             }
         }
 
-        ssize_t keyPrefix = 0;
-        while (keyPrefix < std::ssize(orderClause->OrderItems)) {
-            const auto& item = orderClause->OrderItems[keyPrefix];
-
-            if (item.Descending) {
-                break;
-            }
-
-            const auto* referenceExpr = item.Expression->As<TReferenceExpression>();
-
-            if (!referenceExpr) {
-                break;
-            }
-
-            auto columnIndex = ColumnNameToKeyPartIndex(query->GetKeyColumns(), referenceExpr->ColumnName);
-
-            if (keyPrefix != columnIndex) {
-                break;
-            }
-            ++keyPrefix;
-        }
-
-        if (keyPrefix < std::ssize(orderClause->OrderItems)) {
+        bool canOmitOrderBy = CanOmitOrderBy(0, orderClause->OrderItems, query->GetKeyColumns());
+        if (!canOmitOrderBy) {
             query->OrderClause = std::move(orderClause);
         }
 

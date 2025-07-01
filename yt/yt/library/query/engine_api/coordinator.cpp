@@ -43,6 +43,19 @@ Y_WEAK TSharedRange<TRowRange> GetPrunedRanges(
     YT_ABORT();
 }
 
+Y_WEAK std::pair<TDataSource, TConstQueryPtr> InferRanges(
+    const IColumnEvaluatorCachePtr& /*columnEvaluatorCache*/,
+    TConstQueryPtr /*query*/,
+    const TDataSource& /*dataSource*/,
+    const TQueryOptions& /*options*/,
+    TRowBufferPtr /*rowBuffer*/,
+    const IMemoryChunkProviderPtr& /*memoryChunkProvider*/,
+    const NLogging::TLogger& /*Logger*/)
+{
+    // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
+    YT_ABORT();
+}
+
 Y_WEAK TQueryStatistics CoordinateAndExecute(
     bool /*ordered*/,
     bool /*prefetch*/,

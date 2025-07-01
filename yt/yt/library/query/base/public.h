@@ -56,6 +56,8 @@ using TConstJoinClausePtr = TIntrusivePtr<const TJoinClause>;
 DECLARE_REFCOUNTED_STRUCT(TGroupClause)
 using TConstGroupClausePtr = TIntrusivePtr<const TGroupClause>;
 
+struct TOrderItem;
+
 DECLARE_REFCOUNTED_STRUCT(TOrderClause)
 using TConstOrderClausePtr = TIntrusivePtr<const TOrderClause>;
 
