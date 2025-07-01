@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/core/misc/arithmetic_formula.h>
+
 #include <yt/yt/core/net/config.h>
 
 #include <yt/yt/library/dynamic_config/config.h>
@@ -60,6 +62,7 @@ public:
     bool CanUseComputeActor;
     bool EnforceJobUtc;
     bool UseLocalLDLibraryPath;
+    TBooleanFormula SchedulingTagFilter;
 
     REGISTER_YSON_STRUCT(TDQYTBackend);
 

@@ -200,6 +200,8 @@ void TDQYTBackend::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("use_local_l_d_library_path", &TThis::UseLocalLDLibraryPath)
         .Default(false);
+    registrar.Parameter("scheduling_tag_filter", &TThis::SchedulingTagFilter)
+        .Default({});
 }
 
 void TDQYTCoordinator::Register(TRegistrar registrar)
