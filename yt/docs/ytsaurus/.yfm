@@ -2,6 +2,7 @@ allowHTML: true
 apply-presets: true
 varsPreset: public
 langs: ['ru', 'en']
+mtimes: true
 
 docs-viewer:
   project-name: YTsaurus
@@ -29,3 +30,8 @@ docs-viewer:
     hidden: true
     title: YT-public
     description: "YTsaurus public docs"
+
+# This configuration parameter is used to directly control the Edit button behaviour.
+vcs:
+  remoteBase: https://github.com/ytsaurus/ytsaurus/tree/main/yt/docs
+  enabled: true
