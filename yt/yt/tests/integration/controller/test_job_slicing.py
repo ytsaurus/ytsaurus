@@ -622,3 +622,31 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
 
         progress = get(op.get_path() + "/@progress")
         assert 2 <= progress["jobs"]["completed"]["total"] <= 3
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("strict_data_weight_per_job_verification", [False, True])
+    def test_invalid_data_weight_per_job_alert(self, strict_data_weight_per_job_verification):
+        create("table", "//tmp/t_in")
+
+        write_table("<append=%true>//tmp/t_in", {
+            "col1": "a" * 100
+        })
+
+        op = map(
+            in_="//tmp/t_in",
+            out="<create=true>//tmp/t_out",
+            spec={
+                "max_data_weight_per_job": 1000,
+                "data_weight_per_job": 100000,
+                "mapper": {"command": "cat > /dev/null"},
+                "strict_data_weight_per_job_verification": strict_data_weight_per_job_verification,
+            },
+            track=False,
+        )
+
+        if strict_data_weight_per_job_verification:
+            with raises_yt_error('\"data_weight_per_job\" cannot be greater than \"max_data_weight_per_job\"'):
+                op.track()
+        else:
+            op.track()
+            assert "invalid_data_weight_per_job" in op.get_alerts()

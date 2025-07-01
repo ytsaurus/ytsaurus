@@ -1295,6 +1295,18 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
         AlertManager_->StartPeriodicActivity();
 
+        if (auto spec = DynamicPointerCast<TSimpleOperationSpecBase>(Spec_)) {
+            if (spec->DataWeightPerJob > spec->MaxDataWeightPerJob) {
+                SetOperationAlert(
+                    EOperationAlertType::InvalidDataWeightPerJob,
+                    TError("\"data_weight_per_job\"  cannot be greater than \"max_data_weight_per_job\". "
+                       "Please specify a \"data_weight_per_job\" value less than or equal to \"max_data_weight_per_job\". "
+                       "This constraint will be strictly enforced in future releases.")
+                        << TErrorAttribute("data_weight_per_job", spec->DataWeightPerJob)
+                        << TErrorAttribute("max_data_weight_per_job", spec->MaxDataWeightPerJob));
+            }
+        }
+
         CustomMaterialize();
 
         InitializeHistograms();

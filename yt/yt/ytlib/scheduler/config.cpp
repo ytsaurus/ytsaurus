@@ -1613,9 +1613,11 @@ void TSimpleOperationSpecBase::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
     registrar.Parameter("job_io", &TThis::JobIO)
         .DefaultNew();
+    registrar.Parameter("strict_data_weight_per_job_verification", &TThis::StrictDataWeightPerJobVerification)
+        .Default(false);
 
     registrar.Postprocessor([] (TSimpleOperationSpecBase* spec) {
-        if (spec->DataWeightPerJob > spec->MaxDataWeightPerJob) {
+        if (spec->StrictDataWeightPerJobVerification && spec->DataWeightPerJob > spec->MaxDataWeightPerJob) {
             THROW_ERROR_EXCEPTION("\"data_weight_per_job\" cannot be greater than \"max_data_weight_per_job\"")
                 << TErrorAttribute("data_weight_per_job", spec->DataWeightPerJob)
                 << TErrorAttribute("max_data_weight_per_job", spec->MaxDataWeightPerJob);

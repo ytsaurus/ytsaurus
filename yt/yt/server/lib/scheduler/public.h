@@ -110,6 +110,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((WriteBufferMemoryOverrun)                    (41))
     ((Unknown)                                     (42))
     ((SpecifiedCpuLimitIsTooSmall)                 (43))
+    ((InvalidDataWeightPerJob)                     (44)) // COMPAT(apollo1321)
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EOperationAlertType, Unknown);
