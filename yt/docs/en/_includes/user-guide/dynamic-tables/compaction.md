@@ -12,14 +12,14 @@ Compaction relies mainly on heuristics. However, depending on the table write sc
 
 ## Glossary { #glossary }
 - **Dynamic store**: A structure for storing freshly written rows; it is located in RAM. Analog of MemTable.
-- **Chunk******: An immutable structure for storing rows flushed to the disk. Analog of SSTable.
-- **Store******: A common name for chunks and dynamic stores. Technically speaking, chunk stores (and dynamic stores), not chunks are stored in the tablet, but the chunk and chunk store terms are usually interchangeable.
-- **Partition******: A part of the tablet's subdivision. Similarly to tables that are split into tablets bounded by pivot keys, tablets are split into partitions. Chunks within a partition do not cross its boundaries.
-- **Eden******: A special partition containing chunks that cannot be placed in any other partition because they cross their boundaries. Chunks typically do not live long in Eden, quickly undergoing partitioning.
+- **Chunk**: An immutable structure for storing rows flushed to the disk. Analog of SSTable.
+- **Store**: A common name for chunks and dynamic stores. Technically speaking, chunk stores (and dynamic stores), not chunks are stored in the tablet, but the chunk and chunk store terms are usually interchangeable.
+- **Partition**: A part of the tablet's subdivision. Similarly to tables that are split into tablets bounded by pivot keys, tablets are split into partitions. Chunks within a partition do not cross its boundaries.
+- **Eden**: A special partition containing chunks that cannot be placed in any other partition because they cross their boundaries. Chunks typically do not live long in Eden, quickly undergoing partitioning.
 - **Overlapping store count**, **OSC**: Maximum overlap of chunks; maximum number of chunks covering a particular key. Limits fan-in from above, i.e. the number of chunks that actually have to be read in order to get the actual value by key.
-- **Flush******: The process of flushing data from a dynamic store to a chunk on the disk.
-- **Compaction**********: The process of merging chunks that involves discarding old versions of data, removing delete tombstones, and combining small chunks.
-- **Partitioning******: A process that is similar to compaction, except its purpose is not to combine chunks, but to split chunks located in Eden into different partitions.
+- **Flush**: The process of flushing data from a dynamic store to a chunk on the disk.
+- **Compaction**: The process of merging chunks that involves discarding old versions of data, removing delete tombstones, and combining small chunks.
+- **Partitioning**: A process that is similar to compaction, except its purpose is not to combine chunks, but to split chunks located in Eden into different partitions.
 - **Background processes**: A collective term for flush+compaction+partitioning.
 - **Write amplification**, **WA**: The ratio of the amount of data handled by background processes (compaction/partitioning) to the amount of data written to the table. It is an important effectiveness indicator of the selected parameters.
 - **Row version**: In the [MVCC](https://en.wikipedia.org/wiki/Multiversion_concurrency_control) model, a single key can be associated with multiple values, each with its own timestamp. An individual value is called a version. Generally speaking, writes to each column can be versioned independently, so it makes sense to refer to versions of the *values*, not a *row* as a whole. In terms of setting up compaction, this is usually irrelevant.
@@ -42,7 +42,7 @@ Setting an attribute on a mounted table does not apply the settings. To apply se
 
 CLI
 ```bash
-yt set //path/to/table/@auto_compaction_period 86400000
+yt set //path/to/table/@mount_config/merge_rows_on_flush %true
 yt remount-table //path/to/table
 ```
 
@@ -54,8 +54,8 @@ You can find out the tablet's current settings at `//sys/tablets/x-x-x-x/orchid/
 
 The following attributes regulate flush behavior.
 
-| Name | Type | Default | Description |
-|--|--|--|--|
+| Name | Type | Default | Description
+||--|--|--|--|
 | dynamic_store_auto_flush_period | Duration* | 900,000 (15 min) | Frequency of forced flushes, when the dynamic store is flushed to the disk straight away, even if it hasn't reached its overflow threshold yet. |
 | dynamic_store_flush_period_splay | Duration | 60 000 (1 min) | Random shift for the period to avoid synchronization of different tablets. Real flush will come after `period + random(0, splay)`. |
 | merge_rows_on_flush | bool | false | Allows version merging and deletion of rows by TTL at flush. |
@@ -70,7 +70,7 @@ The following attributes regulate flush behavior.
 
 | Name | Type | Default | Description |
 |--|--|--|--|
-| auto_compaction_period | int*| - | Frequency of periodic compaction in ms. Compaction will affect every table chunk at least once per auto_compaction_period. |
+| auto_compaction_period | int*| - | Frequency of periodic compaction in ms. Compaction will affect every table chunk at least once per auto_compaction_period. For more information, see [Periodic compaction](#periodic_compaction). In most cases, its use isn't recommended. |
 | auto_compaction_period_splay_ratio | double | 0.3 | Random shift for the period to avoid synchronization. Compaction will come after `period * (1 + random(0, splay_ratio))`. |
 | periodic_compaction_mode | `store`, `partition` | `store` | For more information, see [Periodic compaction](#periodic_compaction). |
 | forced_compaction_revision | - | - | For more information, see [Forced compaction](#forced_compaction). |
@@ -110,7 +110,7 @@ To trigger the forced compaction of all table chunks, set the `forced_compaction
 If you execute `remount-table`, the setting will be immediately applied to all table tablets. When working with tables of a terabyte or more, this can create a load surge both on the table bundle and on the entire cluster. Therefore, we recommend executing `remount` of different tablets at different times. To do this, run the following command: `yt remount-table --first-tablet-index X --last-tablet-index Y`. To estimate the recommended time for remounting the table, use the formula `table_size / bundle_node_count / (100 Mb/s)`.
 
 {% if audience == "internal" %}
-To automatically and evenly remount the table, run the [gradual_remount](https://a.yandex-team.ru/arc_vcs/yt/yt/scripts/gradual_remount) script.
+To automatically and evenly remount the table, run the {{pages.compaction.links.gradual-remount-script}} script.
 
 To keep track of the number of processed chunks, see the [store_compactor.out_store_count.rate](https://nda.ya.ru/t/QTBvO-Wf5Xoyr8) graph.
 {% endif %}
@@ -124,25 +124,38 @@ If the table size is more than 20 TB or 100,000 chunks, get administrator permis
 {% endnote %}
 
 ## Periodic compaction { #periodic_compaction }
-To ensure that all table chunks are periodically compacted, regardless of whether the table is being written to or not, use the `auto_compaction_period` attribute. It has two modes regulated by the `periodic_compaction_mode` attribute:
 
-- `store` (default value): The decision to compact each chunk created earlier than `now - auto_compaction_period` is made independently.
-- `partition`: If the partition contains at least one chunk created earlier than `now - auto_compaction_period`, all partition chunks are compacted at the same time.
+Compaction starts automatically when there are enough chunks in the partition. This usually happens during active writes to the table. If no writes are being made, no compaction will occur. To perform compaction at regular intervals, even when there are no active writes to individual partitions or tablets, enable periodic compaction.
 
-To avoid synchronization and even out the load, a random shift is added to `auto_compaction_period` when calculating the compaction time of each specific chunk. This shift is defined by the `auto_compaction_period_splay_ratio` attribute.
+You should use periodic compaction if you need to delete data based on TTL or apply deletions triggered by delete-rows, and automatic compaction isn't enough to meet your needs.
 
-Setting only the `periodic_compaction_mode` attribute is not enough to enable periodic compaction — you need to explicitly set the `auto_compaction_period` attribute.
+{% note warning "Warning" %}
 
-#### Selecting a mode { #periodic_compaction_mode }
-- **You need to delete data by TTL**: `store` mode (default).
-- **You need to clear the rows deleted via delete-rows**: `partition` mode.
+Most scenarios don't require periodic compaction. In fact, it often creates excessive loads and can be harmful.
 
-`Partition` mode is better suitable for clearing rows deleted via `delete-rows`, because in case of `store`, write by a key and the corresponding delete tombstone can get into different chunks which will be independently compacted one after another, and tombstone will never be deleted.
+Avoid using periodic compaction solely to reduce the number of chunks. The normal size of dynamic table chunks is about 40–60 MB (compressed size). If the chunks of your table fall within this size range, there is no need to make them larger.{% if audience == "internal" %} If needed, request additional chunks from the reserve.{% endif %}
+
+{% endnote %}
+
+To enable periodic compaction, use the `auto_compaction_period` attribute. It determines the compaction period for each chunk. After setting the attribute, run the `remount-table` command to apply the settings.
+
+#### Modes { #periodic_compaction_mode }
+
+There are two periodic compaction modes. You can set the mode using the `periodic_compaction_mode` attribute.
+
+- `store` (default value): The decision to compact each chunk created earlier than `now - auto_compaction_period` is made independently. Use this mode if you need to delete data based on TTL.
+- `partition`: If the partition contains at least one chunk created earlier than `now - auto_compaction_period`, all partition chunks are compacted at the same time. Use this mode if you need to clear rows deleted via delete-rows.
+
+`Partition` mode is better suited for clearing rows deleted via delete-rows because, when using `store`, a write by key and its corresponding delete tombstone may end up in different chunks that are independently compacted one after another, in which case the tombstone will never be deleted.
 
 `Store` mode reviews chunks independently, and when the oldest chunk is reviewed, the obsolete data will be deleted.
 
+Setting only the `periodic_compaction_mode` attribute is not enough to enable periodic compaction — you need to explicitly set the `auto_compaction_period` attribute.
+
 #### Selecting a period { #periodic_compaction_period }
-The longer the period is, the less load there is on the bundle. Each bundle node is capable of compacting about 100-200 MB/s maximum. The load from periodic compaction usually does not exceed several units of MB/s. The period is often commensurate with `max_data_ttl` or is several times less than it.
+We recommend setting a period that is close to the table's TTL. For example, if the TTL is seven days, you can set the `auto_compaction_period` to three days. This will guarantee that the rows are deleted within ten days.
+
+Setting a period that is too short may result in excessive loads on the bundle. Each bundle node is capable of compacting about 100-200 MB/s maximum. The load from periodic compaction usually does not exceed several units of MB/s. The period is often commensurate with `max_data_ttl` or is several times less than it.
 
 For example, there is a table of 500 GB and a compaction period of one day and two nodes in the bundle. The load per node would then be 500 GB/86,400 sec/2 ≃ 3.1 MB/s, which is allowable.
 
@@ -151,6 +164,8 @@ For example, there is a table of 500 GB and a compaction period of one day and t
 Initially setting `auto_compaction_period` on the table with a lot of old chunks can cause all chunks to start being compacted at the same time. In this case, follow the same recommendations as for forced compaction.
 
 {% endnote %}
+
+To avoid synchronization and even out the load, a random shift is added to `auto_compaction_period` when calculating the compaction time of each specific chunk. This shift is defined by the `auto_compaction_period_splay_ratio` attribute.
 
 ## Scenarios { #scenarios }
 
@@ -196,11 +211,11 @@ By default, all row versions are saved to the chunk during flush. To apply clean
 Relevant graphs:
 - [yt.tablet_node.store_flusher.dynamic_memory_usage](https://nda.ya.ru/t/TR0ubGeZ4s8eGT): Memory breakdown by category.
 - [yt.tablet_node.store_rotator.rotation_count.rate](https://nda.ya.ru/t/xyqhxAMn4s8f2E): Rotation count breakdown by category and reason.
-   - forced: Shortage of memory on the node.
-   - overflow: Dynamic store size over the threshold.
-   - periodic: Occurs with a frequency of `dynamic_store_auto_flush_period` unless triggered by another condition.
+  - forced: Shortage of memory on the node.
+  - overflow: Dynamic store size over the threshold.
+  - periodic: Occurs with a frequency of `dynamic_store_auto_flush_period` unless triggered by another condition.
 - [yt.tablet_node.store_rotator.rotated_memory_usage.max](https://nda.ya.ru/t/sEz1KuY94s8fVH): Dynamic store size at the time of rotation.
-   {% endif %}
+{% endif %}
 
 ### Partitioning { #partitioning }
 
