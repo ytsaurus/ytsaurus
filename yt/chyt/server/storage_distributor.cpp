@@ -1153,6 +1153,9 @@ public:
         YT_VERIFY(select);
 
         DB::JoinedTables joinedTables(DB::Context::createCopy(context), *select);
+        if (joinedTables.isLeftTableFunction()) {
+            return std::nullopt;
+        }
         auto sourceStorage = std::dynamic_pointer_cast<TStorageDistributor>(joinedTables.getLeftTableStorage());
         if (!sourceStorage) {
             // Source storage is not a distributor; no distributed INSERT for today, sorry.
