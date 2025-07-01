@@ -34,7 +34,7 @@ class MySparkApplication {
 
 ## Reading data from {{product-name}} { #read-data }
 
-{% code '/yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/SmokeTest.java' lang='java' %}
+{% code '/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/SmokeTest.java' lang='java' %}
 
 1. The job class is inherited from `SparkAppJava`. The auxiliary `run` method initializes `SparkSession` and calls the `doRun` abstract method. In `main`, we call this method from inside an instance.
 
@@ -77,7 +77,7 @@ spark-submit-yt \
 
 ## Using UDF { #use-udf }
 
-{% code '/yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java' lang='java' %}
+{% code '/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java' lang='java' %}
 
 1. The job class is inherited from `SparkAppJava` as in the previous example.
 2. Read a DataFrame from `//sys/spark/examples/example_1`.
@@ -108,7 +108,7 @@ spark-submit-yt \
 
 ## Aggregations { #agg }
 
-{% code '/yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java' lang='java' %}
+{% code '/yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java' lang='java' %}
 
 1. The job class is inherited from `SparkAppJava` as in the previous example.
 2. Read a DataFrame from `//sys/spark/examples/example_1`.
