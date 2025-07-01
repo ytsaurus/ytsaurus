@@ -45,6 +45,13 @@ struct ITableDescriptor
     virtual const NTableClient::TNameTableToSchemaIdMapping& GetNameTableToDeleteSchemaIdMapping() const = 0;
     virtual const NTableClient::TNameTableToSchemaIdMapping& GetNameTableToLockSchemaIdMapping() const = 0;
 
+    /// Schedules table descriptor initialization for all Sequoia tables.
+    /*!
+     *  Initialization may take seconds. It's better do it somewhere in process'
+     *  bootstrap rather than rely on lazy initialization at some unexpected
+     *  moment.
+     */
+    static TFuture<void> Initialize();
     static const ITableDescriptor* Get(ESequoiaTable table);
 };
 
