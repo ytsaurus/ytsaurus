@@ -176,6 +176,9 @@ private:
         const auto& chunkReplicator = chunkManager->GetChunkReplicator();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
+        // NB: No context switch! Yet.
+        const auto& offshoreChunkReplicas = chunkReplicaFetcher->GetOffshoreChunkReplicas(ephemeralChunk);
+
         // This is context switch, chunk may die.
         auto replicasOrError = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk);
         // TODO(aleksandra-zh): maybe do smth else.
@@ -194,12 +197,12 @@ private:
                 return false;
             }
 
-            auto chunkStatus = chunkReplicator->ComputeCrossMediumChunkStatus(chunk, chunkReplicas);
+            auto chunkStatus = chunkReplicator->ComputeCrossMediumChunkStatus(chunk, chunkReplicas, offshoreChunkReplicas);
             if (None(chunkStatus & status)) {
                 return false;
             }
 
-            return !vitalMap || chunkReplicator->IsDurabilityRequired(chunk, chunkReplicas);
+            return !vitalMap || chunkReplicator->IsDurabilityRequired(chunk, chunkReplicas, offshoreChunkReplicas);
         };
 
         auto checkReplicatorStatus = [&] (
@@ -211,7 +214,7 @@ private:
                 return false;
             }
 
-            auto chunkStatus = chunkReplicator->ComputeChunkStatuses(chunk, chunkReplicas);
+            auto chunkStatus = chunkReplicator->ComputeChunkStatuses(chunk, chunkReplicas, offshoreChunkReplicas);
             auto aggregateStatus = EChunkStatus::None;
             for (auto [mediumIndex, mediumState] : chunkStatus) {
                 aggregateStatus |= mediumState;
@@ -221,7 +224,7 @@ private:
                 return false;
             }
 
-            return !vitalMap || chunkReplicator->IsDurabilityRequired(chunk, chunkReplicas);
+            return !vitalMap || chunkReplicator->IsDurabilityRequired(chunk, chunkReplicas, offshoreChunkReplicas);
         };
 
         switch (Type_) {

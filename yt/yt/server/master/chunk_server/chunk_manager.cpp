@@ -779,7 +779,8 @@ public:
 
     void AddConfirmReplicas(
         TChunk* chunk,
-        const TChunkReplicaWithLocationList& replicas)
+        const TChunkReplicaWithLocationList& replicas,
+        const TChunkReplicaWithMediumList& offshoreReplicas)
     {
         YT_VERIFY(HasMutationContext());
 
@@ -821,7 +822,7 @@ public:
                     chunk->IsJournal() ? EChunkReplicaState::Active : EChunkReplicaState::Generic);
 
                 int mediumIndex = location->GetEffectiveMediumIndex();
-                const auto* medium = GetMediumByIndexOrThrow(mediumIndex);
+                auto* medium = GetMediumByIndexOrThrow(mediumIndex);
                 if (medium->IsOffshore()) {
                     YT_LOG_ALERT(
                         "Tried to confirm chunk replica with location on offshore medium "
@@ -842,11 +843,50 @@ public:
                 location->AddUnapprovedReplica(chunkWithReplicaIndex, mutationTimestamp);
             }
         }
+
+        if ((chunk->IsJournal() || chunk->IsErasure()) && !offshoreReplicas.empty()) {
+            YT_LOG_ALERT(
+                "Tried to confirm offshore replicas for incompatible chunk type (ChunkId: %v, ChunkType: %v)",
+                chunk->GetId(),
+                chunk->GetType());
+            return;
+        }
+
+        for (auto replica : offshoreReplicas) {
+            auto mediumIndex = replica.GetMediumIndex();
+            auto* medium = GetMediumByIndexOrThrow(mediumIndex);
+
+            if (!medium->IsOffshore()) {
+                YT_LOG_ALERT(
+                    "Tried to confirm offshore chunk replica with location on domestic medium "
+                    "(ChunkId: %v, MediumName: %v, MediumIndex: %v, MediumType: %v)",
+                    chunk->GetId(),
+                    medium->GetName(),
+                    medium->GetIndex(),
+                    medium->GetType());
+                continue;
+            }
+
+            if (replica.GetNodeId() != OffshoreNodeId) {
+                YT_LOG_ALERT(
+                    "Tried to confirm offshore chunk replica with incompatible node id (ChunkId: %v, NodeId: %v)",
+                    chunk->GetId(),
+                    replica.GetNodeId());
+                continue;
+            }
+
+            TChunkPtrWithReplicaInfo replicaWithState(
+                chunk,
+                replica.GetReplicaIndex(),
+                EChunkReplicaState::Generic);
+            AddOffshoreChunkReplica(medium, std::move(replicaWithState));
+        }
     }
 
     void ConfirmChunk(
         TChunk* chunk,
         const TChunkReplicaWithLocationList& replicas,
+        const TChunkReplicaWithMediumList& offshoreReplicas,
         const TChunkInfo& chunkInfo,
         const TChunkMeta& chunkMeta,
         TMasterTableSchemaId schemaId)
@@ -896,7 +936,7 @@ public:
 
         UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
 
-        AddConfirmReplicas(chunk, replicas);
+        AddConfirmReplicas(chunk, replicas, offshoreReplicas);
 
         // NB: This is true for non-journal chunks.
         if (chunk->IsSealed()) {
@@ -1114,6 +1154,11 @@ public:
                 }
             }));
 
+        YT_LOG_DEBUG("Chunk created (ChunkId: %v, Medium: %v, RequisitionIndex: %v)",
+            chunk->GetId(),
+            medium->GetName(),
+            requisitionIndex);
+
         return chunk;
     }
 
@@ -1232,6 +1277,9 @@ public:
                 }
             }
         }
+
+        // TODO(achulkov2): [PLater] Handle offshore replicas.
+        // For now, data is just left on the underlying storage. Very reliable :)
 
         if (canHaveSequoiaReplicas) {
             std::sort(sequoiaReplicas.begin(), sequoiaReplicas.end());
@@ -3119,7 +3167,8 @@ private:
 
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
         if (config->StoreSequoiaReplicasOnMaster) {
-            AddConfirmReplicas(chunk, replicas);
+            // NB: No offshore sequoia replicas for now.
+            AddConfirmReplicas(chunk, replicas, /*offshoreReplicas*/ {});
         } else {
             ScheduleChunkRefresh(chunk);
         }
@@ -4379,7 +4428,13 @@ private:
         auto* medium = GetMediumByNameOrThrow(mediumName);
         int mediumIndex = medium->GetIndex();
 
-        auto replicationFactor = isErasure ? 1 : subrequest->replication_factor();
+        // It makes no sense to place erasure chunks on offshore media, since offshore media ensure durability on their own.
+        // NB: Instead, we could allow utilizing optimizations of underlying storage systems, e.g. the same erasure coding.
+        THROW_ERROR_EXCEPTION_IF(medium->IsOffshore() && isErasure, "Erasure chunks cannot be placed on offshore media");
+        // NB: Not supported for now, but theoretically possible, if the underlying storage supports appending to files.
+        THROW_ERROR_EXCEPTION_IF(medium->IsOffshore() && isJournal, "Journal chunks cannot be placed on offshore media");
+
+        auto replicationFactor = (isErasure || medium->IsOffshore()) ? 1 : subrequest->replication_factor();
         ValidateReplicationFactor(replicationFactor);
 
         auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());
@@ -4455,6 +4510,7 @@ private:
         }
 
         auto replicas = FromProto<TChunkReplicaWithLocationList>(subrequest->replicas());
+
         if (!subrequest->location_uuids_supported()) {
             auto legacyReplicas = FromProto<TChunkReplicaWithMediumList>(subrequest->legacy_replicas());
 
@@ -4471,13 +4527,27 @@ private:
             }
         }
 
+        TChunkReplicaWithLocationList domesticReplicas;
+        TChunkReplicaWithMediumList offshoreReplicas;
+
+        // TODO(achulkov2): [PForReview] Think about this properly, probably just move it down the line. What is the right way to distinguish those replicas?
+        // By invalid chunk location uuid or by offshore node id?
+        for (const TChunkReplicaWithLocation& replica : replicas) {
+            if (replica.GetChunkLocationUuid() == InvalidChunkLocationUuid) {
+                offshoreReplicas.push_back(replica);
+            } else {
+                domesticReplicas.push_back(replica);
+            }
+        }
+
         auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
         auto schemaId = FromProto<TMasterTableSchemaId>(subrequest->schema_id());
         auto* chunk = GetChunkOrThrow(chunkId);
 
         ConfirmChunk(
             chunk,
-            replicas,
+            domesticReplicas,
+            offshoreReplicas,
             subrequest->chunk_info(),
             subrequest->chunk_meta(),
             schemaId);
@@ -5543,6 +5613,19 @@ private:
 
         ScheduleChunkRefresh(chunk);
         ScheduleChunkSeal(chunk);
+    }
+
+    void AddOffshoreChunkReplica(
+        TMedium* medium,
+        TChunkPtrWithReplicaInfo replica)
+    {
+        auto* chunk = replica.GetPtr();
+        
+        TMediumPtrWithReplicaInfo mediumWithReplicaInfo(medium, replica.GetReplicaIndex(), replica.GetReplicaState());
+        chunk->AddOffshoreReplica(mediumWithReplicaInfo);
+
+        ScheduleChunkRefresh(chunk);
+        // No seal scheduling necessary, since journal chunks cannot have offshore replicas.
     }
 
     void ApproveChunkReplica(

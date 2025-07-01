@@ -1222,10 +1222,8 @@ void SerializeMediumDirectory(
     const IChunkManagerPtr& chunkManager)
 {
     for (auto [mediumId, medium] : chunkManager->Media()) {
-        auto* protoItem = protoMediumDirectory->add_items();
-        protoItem->set_index(medium->GetIndex());
-        protoItem->set_name(medium->GetName());
-        protoItem->set_priority(medium->GetPriority());
+        auto* protoMediumDescriptor = protoMediumDirectory->add_medium_descriptors();
+        medium->FillMediumDescriptor(protoMediumDescriptor);
     }
 }
 

@@ -138,6 +138,7 @@ void CanonizeCellTags(TCellTagList* cellTags)
 
 void PopulateChunkSpecWithReplicas(
     const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
+    const TMediumPtrWithReplicaInfoList& offshoreReplicas,
     bool fetchParityReplicas,
     NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
@@ -166,6 +167,10 @@ void PopulateChunkSpecWithReplicas(
 
     ToProto(chunkSpec->mutable_legacy_replicas(), replicas);
     ToProto(chunkSpec->mutable_replicas(), replicas);
+
+    for (const auto& replica : offshoreReplicas) {
+        chunkSpec->add_replicas(ToProto<ui64>(replica));
+    }
 }
 
 void BuildReplicalessChunkSpec(
@@ -257,6 +262,7 @@ void BuildChunkSpec(
     TBootstrap* bootstrap,
     TChunk* chunk,
     const TChunkLocationPtrWithReplicaInfoList& chunkReplicas,
+    const TMediumPtrWithReplicaInfoList& offshoreChunkReplicas,
     std::optional<i64> rowIndex,
     std::optional<int> tabletIndex,
     const TReadLimit& lowerLimit,
@@ -281,6 +287,7 @@ void BuildChunkSpec(
         chunkSpec);
     PopulateChunkSpecWithReplicas(
         chunkReplicas,
+        offshoreChunkReplicas,
         fetchParityReplicas,
         nodeDirectoryBuilder,
         chunkSpec);
@@ -417,6 +424,9 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
+        // NB: No context switch here!
+        auto offshoreReplicas = chunkReplicaFetcher->GetOffshoreChunkReplicas(Chunks_);
+
         // This is context switch, chunks may die.
         auto replicas = chunkReplicaFetcher->GetChunkReplicas(Chunks_, /*useUnapproved*/ true);
         for (const auto& chunk : Chunks_) {
@@ -441,8 +451,10 @@ private:
             }
 
             const auto& replicas = chunkReplicasOrError.Value();
+            const auto& offshoreReplcias = GetOrDefault(offshoreReplicas, chunkId);
             PopulateChunkSpecWithReplicas(
                 replicas,
+                offshoreReplcias,
                 FetchContext_.FetchParityReplicas,
                 &NodeDirectoryBuilder_,
                 &chunkSpec);
@@ -1033,10 +1045,15 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                 [chunkReplicaFetcher] (const TChunk* chunk) -> std::optional<int> {
                     // TODO(aleksandra-zh): batch getting replicas.
                     auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(const_cast<TChunk*>(chunk));
+
+                    // NB: No context switch here!
+                    auto offshoreReplicas = chunkReplicaFetcher->GetOffshoreChunkReplicas(ephemeralChunk);
+
                     // This is context switch, chunk may die.
                     auto replicas = chunkReplicaFetcher->GetChunkReplicas(ephemeralChunk)
                         .ValueOrThrow();
-                    if (replicas.empty()) {
+
+                    if (replicas.empty() && offshoreReplicas.empty()) {
                         return std::nullopt;
                     }
 
@@ -1046,14 +1063,23 @@ TFuture<TYsonString> TChunkOwnerNodeProxy::GetBuiltinAttributeAsync(TInternedAtt
                     int chosenMediumIndex = -1;
                     int chosenMediumReplicaCount = 0;
 
-                    for (auto replica : replicas) {
-                        int mediumIndex = replica.GetPtr()->GetEffectiveMediumIndex();
+                    auto accountReplica = [&] (int mediumIndex) {
                         if (mediumIndex == chosenMediumIndex || chosenMediumReplicaCount == 0) {
                             chosenMediumIndex = mediumIndex;
                             ++chosenMediumReplicaCount;
                         } else {
                             --chosenMediumReplicaCount;
                         }
+                    };
+
+                    for (auto replica : replicas) {
+                        auto* location = replica.GetPtr();
+                        accountReplica(location->GetEffectiveMediumIndex());
+                    }
+
+                    for (auto replica : offshoreReplicas) {
+                        auto* medium = replica.GetPtr();
+                        accountReplica(medium->GetIndex());
                     }
 
                     YT_VERIFY(chosenMediumIndex != -1);

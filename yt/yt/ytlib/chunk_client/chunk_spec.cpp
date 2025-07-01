@@ -1,5 +1,4 @@
 #include "chunk_spec.h"
-#include "chunk_meta_extensions.h"
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 #include <yt/yt/client/chunk_client/chunk_replica.h>
@@ -17,17 +16,6 @@ using NYT::FromProto;
 
 bool IsUnavailable(
     const TChunkReplicaWithMediumList& replicas,
-    NErasure::ECodec codecId,
-    EChunkAvailabilityPolicy policy)
-{
-    return IsUnavailable(
-        TChunkReplicaWithMedium::ToChunkReplicas(replicas),
-        codecId,
-        policy);
-}
-
-bool IsUnavailable(
-    const TChunkReplicaList& replicas,
     NErasure::ECodec codecId,
     EChunkAvailabilityPolicy policy)
 {

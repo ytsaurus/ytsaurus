@@ -469,11 +469,8 @@ TDiskQuota CreateDiskQuota(
     }
     // Enrich diskRequestConfig with MediumIndex.
     if (!diskRequestConfig->MediumIndex) {
-        auto* mediumDescriptor = mediumDirectory->FindByName(*diskRequestConfig->MediumName);
-        if (!mediumDescriptor) {
-            THROW_ERROR_EXCEPTION("Unknown medium %Qv", *diskRequestConfig->MediumName);
-        }
-        diskRequestConfig->MediumIndex = mediumDescriptor->Index;
+        auto mediumDescriptor = mediumDirectory->GetByNameOrThrow(*diskRequestConfig->MediumName);
+        diskRequestConfig->MediumIndex = mediumDescriptor->GetIndex();
     }
     return NScheduler::CreateDiskQuota(*diskRequestConfig->MediumIndex, diskRequestConfig->DiskSpace);
 }

@@ -257,6 +257,34 @@ DEFINE_REFCOUNTED_TYPE(TReplicationReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(achulkov2): [PForReview] Introduce proper dependencies on this class.
+class TS3ReaderConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    REGISTER_YSON_STRUCT(TS3ReaderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TS3ReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPhysicalChunkReaderConfig
+    : public virtual TReplicationReaderConfig
+    , public virtual TS3ReaderConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TPhysicalChunkReaderConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPhysicalChunkReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBlockFetcherConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -279,8 +307,9 @@ DEFINE_REFCOUNTED_TYPE(TBlockFetcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(achulkov2): [PForReview] Is this the proper place for inheritance from PhysicalChunkReaderConfig? Maybe MultiChunkReaderConfig is better?
 class TErasureReaderConfig
-    : public virtual TReplicationReaderConfig
+    : public virtual TPhysicalChunkReaderConfig
     , public virtual TBlockFetcherConfig
 {
 public:
@@ -382,6 +411,26 @@ DEFINE_REFCOUNTED_TYPE(TReplicationWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TS3WriterConfig
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    //! Minimum part size to use for multipart upload.
+    //! NB: The number of parts can be limited (e.g. 10000 in AWS S3). For large
+    //! chunks you might be required to increase this value.
+    i64 UploadPartSize;
+    //! Maximum window to be uploaded simultaneously.
+    i64 UploadWindowSize;
+
+    REGISTER_YSON_STRUCT(TS3WriterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TS3WriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TErasureWriterConfig
     : public virtual TBlockReordererConfig
 {
@@ -414,6 +463,7 @@ DEFINE_REFCOUNTED_TYPE(TErasureWriterConfig)
 class TMultiChunkWriterConfig
     : public TReplicationWriterConfig
     , public TErasureWriterConfig
+    , public TS3WriterConfig
 {
 public:
     i64 DesiredChunkSize;

@@ -211,6 +211,9 @@ private:
                 auto codecId = FromProto<NErasure::ECodec>(chunkSpec.erasure_codec());
                 auto replicas = GetReplicasFromChunkSpec(chunkSpec);
 
+                // Offshore replicas are not supported for journal chunks.
+                VerifyNoOffshoreReplicas(replicas);
+
                 YT_VERIFY(!chunkSpec.use_proxying_data_node_service());
 
                 CurrentChunkReader_ = NJournalClient::CreateChunkReader(

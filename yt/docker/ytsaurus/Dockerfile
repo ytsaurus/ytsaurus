@@ -49,6 +49,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
 
 COPY --from=pprof-builder /pprof /usr/local/bin/pprof
 
+# Dynamic libraries.
+COPY ./artifacts/libiconv.so /lib/libiconv.so
+
 ##########################################################################################
 
 FROM base AS build-ytsaurus-python-binaries
