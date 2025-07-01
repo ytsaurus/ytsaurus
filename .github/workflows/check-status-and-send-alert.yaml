@@ -28,11 +28,11 @@ jobs:
           sparse-checkout: '.github/scripts/send_notifications.py'
 
       - name: Save conclusion (failure)
-        if: ${{ inputs.is_failure }}
+        if: inputs.is_failure
         run: echo "CURRENT_JOB_CONCLUSION=failure" >> $GITHUB_ENV
 
       - name: Save conclusion (success)
-        if: ${{ inputs.is_failure == false }}
+        if: inputs.is_failure == false
         run: echo "CURRENT_JOB_CONCLUSION=success" >> $GITHUB_ENV
 
       # - name: Send telegram status report
