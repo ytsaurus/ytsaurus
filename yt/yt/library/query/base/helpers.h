@@ -27,7 +27,7 @@ void ThrowTypeMismatchError(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Computes key index for a given column name.
-int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const std::string& columnName);
+int ColumnNameToKeyPartIndex(TRange<std::string> keyColumns, const std::string& columnName);
 
 //! Derives type of reference expression based on table column type.
 //!
@@ -43,6 +43,10 @@ std::vector<EConstraintKind> GetExpressionConstraintSignature(
     const NTableClient::TKeyColumns& keyColumns);
 
 int GetConstraintSignatureScore(const std::vector<EConstraintKind>& signature);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool CanOmitOrderBy(int keyPrefix, TRange<TOrderItem> orderItems, TRange<std::string> keyColumns);
 
 ////////////////////////////////////////////////////////////////////////////////
 
