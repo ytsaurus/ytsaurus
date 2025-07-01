@@ -5,7 +5,7 @@ on:
     inputs:
       is_failure:
         required: true
-        bool: string
+        type: boolean
     secrets:
       GH_PERSONAL_ACCESS_TOKEN:
         required: true
