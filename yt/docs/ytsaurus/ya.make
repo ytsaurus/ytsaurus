@@ -84,9 +84,9 @@ DOCS_INCLUDE_SOURCES(
     yt/java/ytsaurus-client-examples/read-write-ytree-example/src/main/java/tech/ytsaurus/example/ExampleReadWriteYTree.java
 
     # SPYT examples
-    yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/SmokeTest.java
-    yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java
-    yt/spark/spark-over-yt/java-examples/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java
+    yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/SmokeTest.java
+    yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/UdfExample.java
+    yt/spark/spark-over-yt/examples/java/src/main/java/tech/ytsaurus/spyt/example/GroupingExample.java
 )
 
 END()
