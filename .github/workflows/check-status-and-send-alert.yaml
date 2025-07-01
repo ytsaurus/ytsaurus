@@ -2,6 +2,10 @@ name: Send Telegram Status
 
 on:
   workflow_call:
+    inputs:
+      is_failure:
+        required: true
+        type: boolean
     secrets:
       GH_PERSONAL_ACCESS_TOKEN:
         required: true
@@ -14,7 +18,7 @@ jobs:
   send-alert:
     name: Check status and send alert
     runs-on: ubuntu-latest
-    if: ${{ always() }}
+    if: always()
     steps:
       - name: Checkout ytsaurus
         uses: actions/checkout@v4
@@ -28,11 +32,11 @@ jobs:
           pip install PyGithub==2.6.1
 
       - name: Save conclusion (failure)
-        if: failure()
+        if: inputs.is_failure
         run: echo "CURRENT_JOB_CONCLUSION=failure" >> $GITHUB_ENV
 
       - name: Save conclusion (success)
-        if: success()
+        if: inputs.is_failure == false
         run: echo "CURRENT_JOB_CONCLUSION=success" >> $GITHUB_ENV
 
       - name: Send telegram status report
