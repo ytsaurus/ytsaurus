@@ -23,6 +23,8 @@
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
+#include <yt/yt/core/concurrency/thread_pool.h>
+
 #include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NSequoiaClient {
@@ -32,6 +34,27 @@ using namespace NConcurrency;
 using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TFuture<void> ITableDescriptor::Initialize()
+{
+    static IThreadPoolPtr ThreadPool;
+    static auto InitializationPromise = NewPromise<void>();
+    static std::atomic<bool> InitializationStarted = false;
+
+    if (!InitializationStarted.exchange(true)) {
+        ThreadPool = CreateThreadPool(TEnumTraits<ESequoiaTable>::GetDomainSize(), "SequoiaInit");
+
+        std::vector<TFuture<void>> futures;
+        futures.reserve(TEnumTraits<ESequoiaTable>::GetDomainSize());
+        for (auto table : TEnumTraits<ESequoiaTable>::GetDomainValues()) {
+            futures.push_back(BIND(ITableDescriptor::Get, table).AsyncVia(ThreadPool->GetInvoker()).Run().AsVoid());
+        }
+
+        InitializationPromise.SetFrom(AllSucceeded(std::move(futures)));
+    }
+
+    return InitializationPromise.ToFuture().ToUncancelable();
+}
 
 const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
 {

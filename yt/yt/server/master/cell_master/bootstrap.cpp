@@ -707,6 +707,8 @@ void TBootstrap::DoRun()
 
 void TBootstrap::DoInitialize()
 {
+    YT_UNUSED_FUTURE(ITableDescriptor::Initialize());
+
     Config_->PrimaryMaster->ValidateAllPeersPresent();
     for (auto cellConfig : Config_->SecondaryMasters) {
         cellConfig->ValidateAllPeersPresent();
