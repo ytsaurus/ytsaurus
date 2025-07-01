@@ -191,14 +191,17 @@ public:
     }
 };
 
-namespace NPrivate
-{
+namespace NPrivate {
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TInputType, class TOutputType, class TTransform, class... Ts>
 TTransformApplicator<TInputType, TOutputType> MakeTransformApplicator(Ts&&... args)
 {
     return {NYT::New<TTransform>(std::forward<decltype(args)>(args)...)};
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 }  // namespace NPrivate
 

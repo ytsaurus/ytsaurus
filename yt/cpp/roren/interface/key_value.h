@@ -317,21 +317,26 @@ public:
     }
 };
 
-namespace std
+namespace std {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename K, typename V>
+struct tuple_size<NRoren::TKV<K, V>> : std::integral_constant<size_t, 2>
+{ };
+
+template <typename K, typename V>
+struct tuple_element<0, NRoren::TKV<K, V>>
 {
-    template <typename K, typename V>
-    struct tuple_size<NRoren::TKV<K, V>> : std::integral_constant<size_t, 2>
-    { };
+    using type = K;
+};
 
-    template <typename K, typename V>
-    struct tuple_element<0, NRoren::TKV<K, V>>
-    {
-        using type = K;
-    };
+template <typename K, typename V>
+struct tuple_element<1, NRoren::TKV<K, V>>
+{
+    using type = V;
+};
 
-    template <typename K, typename V>
-    struct tuple_element<1, NRoren::TKV<K, V>>
-    {
-        using type = V;
-    };
-}
+////////////////////////////////////////////////////////////////////////////////
+
+}  // namespacec std
