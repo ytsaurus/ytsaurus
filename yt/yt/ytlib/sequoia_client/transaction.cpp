@@ -139,6 +139,20 @@ TPerTransactionTypeCounters* GetPerTransactionTypeCounters(ESequoiaTransactionTy
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ISequoiaTransaction::TGuardedRowBuffer::TGuardedRowBuffer(
+    NThreading::TSpinLock* lock,
+    const TRowBufferPtr& rowBuffer)
+    : Guard_(Guard(*lock))
+    , RowBuffer_(rowBuffer)
+{ }
+
+const TRowBufferPtr& ISequoiaTransaction::TGuardedRowBuffer::Get() const
+{
+    return RowBuffer_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSequoiaTransaction
     : public ISequoiaTransaction
 {
@@ -427,9 +441,9 @@ public:
             NCellMasterClient::EMasterCellRole::SequoiaNodeHost);
     }
 
-    const TRowBufferPtr& GetRowBuffer() const override
+    TGuardedRowBuffer GetGuardedRowBuffer() override
     {
-        return RowBuffer_;
+        return TGuardedRowBuffer(&Lock_, RowBuffer_);
     }
 
     const ISequoiaClientPtr& GetClient() const override
