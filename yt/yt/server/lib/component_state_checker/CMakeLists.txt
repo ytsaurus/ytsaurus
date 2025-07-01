@@ -14,10 +14,10 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_library(server-lib-state_checker)
+add_library(server-lib-component_state_checker)
 
 
-target_compile_options(server-lib-state_checker PRIVATE
+target_compile_options(server-lib-component_state_checker PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
   -Wparentheses
@@ -25,7 +25,7 @@ target_compile_options(server-lib-state_checker PRIVATE
   -Wno-bitwise-op-parentheses
 )
 
-target_link_libraries(server-lib-state_checker PUBLIC
+target_link_libraries(server-lib-component_state_checker PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
@@ -33,7 +33,7 @@ target_link_libraries(server-lib-state_checker PUBLIC
   yt-yt-client
 )
 
-target_sources(server-lib-state_checker PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/state_checker/state_checker.cpp
+target_sources(server-lib-component_state_checker PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/component_state_checker/state_checker.cpp
 )
 

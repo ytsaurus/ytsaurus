@@ -9,7 +9,7 @@
 #include "mock_engine.h"
 #include "spyt_engine.h"
 
-#include <yt/yt/server/lib/state_checker/state_checker.h>
+#include <yt/yt/server/lib/component_state_checker/state_checker.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 

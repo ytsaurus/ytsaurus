@@ -6,10 +6,9 @@ namespace NYT::NComponentStateChecker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IComponentStateChecker
+struct IComponentStateChecker
     : public TRefCounted
 {
-public:
     virtual void Start() = 0;
     virtual void SetPeriod(TDuration stateCheckPeriod) = 0;
 
