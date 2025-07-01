@@ -44,11 +44,13 @@ private:
         getCardOptions.BypassCache = true;
         auto card = WaitFor(Client_->GetReplicationCard(replicationCardId, getCardOptions))
             .ValueOrThrow();
+        auto channel = Client_->GetChaosChannelByCardId(replicationCardId, EPeerKind::Leader);
 
         return BuildYsonStringFluently()
             .BeginAttributes()
                 .Item("id").Value(replicationCardId)
                 .Item("type").Value(EObjectType::ReplicationCard)
+                .Item("residency_host").Value(channel->GetEndpointDescription())
                 .Do([&] (auto fluent) {
                     Serialize(
                         *card,
