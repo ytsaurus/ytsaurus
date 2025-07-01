@@ -35,7 +35,7 @@ public:
 
     const IExecutionContextPtr& GetExecutionContext() const
     {
-        Y_ABORT_UNLESS(Context_);
+        Y_ABORT_IF(!Context_);
         return Context_;
     }
 

@@ -113,6 +113,57 @@ const IRawFlatten& IRawTransform::AsRawFlattenRef() const {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRawBaseTransform::TRawBaseTransform(const ERawTransformType type, std::vector<TDynamicTypeTag> inputs, std::vector<TDynamicTypeTag> outputs)
+    : Type_(type)
+    , Inputs_(std::move(inputs))
+    , Outputs_(std::move(outputs))
+{
+}
+
+TRawBaseTransform::TRawBaseTransform(const ERawTransformType type, const std::vector<TRowVtable>& inputs, const std::vector<TRowVtable>& outputs)
+    : Type_(type)
+{
+    Inputs_.reserve(inputs.size());
+    for (ssize_t i = 0; i < std::ssize(inputs); ++i) {
+        Inputs_.push_back(NRoren::TDynamicTypeTag(NYT::Format("intput-%v", i), inputs[i]));
+    }
+    Outputs_.reserve(outputs.size());
+    for (ssize_t i = 0; i < std::ssize(outputs); ++i) {
+        Outputs_.push_back(NRoren::TDynamicTypeTag(NYT::Format("output-%v", i), outputs[i]));
+    }
+}
+
+ERawTransformType TRawBaseTransform::GetType() const
+{
+    return Type_;
+}
+
+ISerializable<TRawBaseTransform>::TDefaultFactoryFunc TRawBaseTransform::GetDefaultFactory() const
+{
+    return []() { return NYT::New<TRawBaseTransform>(ERawTransformType::Invalid); };
+}
+
+std::vector<TDynamicTypeTag> TRawBaseTransform::GetInputTags() const
+{
+    return Inputs_;
+}
+
+std::vector<TDynamicTypeTag> TRawBaseTransform::GetOutputTags() const
+{
+    return Outputs_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+TRawMetaTransform::TRawMetaTransform(const ERawTransformType type, std::vector<TDynamicTypeTag> inputs, std::vector<TDynamicTypeTag> outputs)
+    : TRawBaseTransform(type, std::move(inputs), std::move(outputs))
+{ }
+
+TRawMetaTransform::TRawMetaTransform(const ERawTransformType type, const std::vector<TRowVtable>& inputs, const std::vector<TRowVtable>& outputs)
+    : TRawBaseTransform(type, std::move(inputs), std::move(outputs))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRawDummyRead::TRawDummyRead(TRowVtable vtable)
     : Vtable_(std::move(vtable))
 { }
