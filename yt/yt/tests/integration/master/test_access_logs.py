@@ -12,6 +12,7 @@ from yt_commands import (
 from yt_helpers import get_current_time
 from yt_type_helpers import make_schema
 
+from copy import deepcopy
 import json
 import os
 
@@ -26,63 +27,105 @@ class TestAccessLog(YTEnvSetup):
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True
 
-    CELL_TAG_TO_DIRECTORIES = {10: "//tmp/access_log"}
+    CELL_TAG_TO_LOG_FILTER = {10: {"prefix_path": "//tmp/access_log", "tx_methods": False}}
     TRANSACTION_METHODS = {"StartTransaction", "CommitTransaction", "AbortTransaction"}
 
-    def _log_lines(self, path, directory):
-        with open(path, "rb") as fd:
-            for line in fd:
-                try:
-                    line_json = json.loads(line)
-                except ValueError:
-                    continue
-                is_transaction = line_json.get("method", None) in self.TRANSACTION_METHODS
-                if is_transaction or line_json.get("path", "").startswith(directory):
-                    yield line_json
+    OPENED_LOG_FILES = {}
+    LOADED_LOGS = {}
 
-    def _is_node_in_logs(self, node, path, directory):
-        if not os.path.exists(path):
-            return False
-        for line_json in self._log_lines(path, directory):
-            if line_json.get("path", "") == directory + "/" + node:
+    @classmethod
+    def teardown_class(cls):
+        for path, log in cls.OPENED_LOG_FILES.items():
+            log.close()
+
+    def _get_or_open_log(self, path):
+        log = self.OPENED_LOG_FILES.get(path, None)
+        if log is None:
+            log = open(path, "rb")
+            self.OPENED_LOG_FILES[path] = log
+        return log
+
+    def _load_log(self, path):
+        log = self._get_or_open_log(path)
+        loaded_logs = self.LOADED_LOGS.setdefault(path, {})
+        tail = loaded_logs.get("tail", b"")
+        lines = loaded_logs.setdefault("lines", [])
+        while True:
+            chunk = log.read(2**20)
+            if not chunk:
+                break
+
+            # NB: this is inefficient but the log lines are usually short enough.
+            tail += chunk
+
+            while True:
+                eol = tail.find(b'\n')
+                if eol == -1:
+                    break
+
+                line = tail[:eol]
+                parsed_line = json.loads(line)
+                lines.append(parsed_line)
+                tail = tail[eol+1:]
+
+        loaded_logs["tail"] = tail
+
+    def _filtered_log_lines(self, cell_tag, path_prefix=None, tx_methods=False):
+        def filter_predicate(parsed_line):
+            if path_prefix is not None and parsed_line.get("path", "").startswith(path_prefix):
                 return True
-        return False
+            if tx_methods and parsed_line.get("method", "") in self.TRANSACTION_METHODS:
+                return True
+            return False
 
-    def _collect_log_lines(self, cell_tag_to_directory=None):
-        if cell_tag_to_directory is None:
-            cell_tag_to_directory = self.CELL_TAG_TO_DIRECTORIES
-        written_logs = []
-        for cell_tag, directory in cell_tag_to_directory.items():
+        for peer_index in range(0, self.NUM_MASTERS):
             cell_index = self.master_cell_index_from_cell_tag(cell_tag)
-            for idx in range(1, self.NUM_MASTERS):
-                path = os.path.join(self.path_to_run, "logs/master-{}-{}.access.json.log".format(cell_index, idx))
-                barrier_record = "{}-{}".format(cell_tag, generate_timestamp())
-                create("table", "{}/{}".format(directory, barrier_record))
-                wait(lambda: self._is_node_in_logs(barrier_record, path, directory), iter=120, sleep_backoff=1.0, timeout=120)
-                written_logs.extend([line_json for line_json in self._log_lines(path, directory)])
-        return written_logs
+            path = os.path.join(self.path_to_run, "logs/master-{}-{}.access.json.log".format(cell_index, peer_index))
+            self._load_log(path)
+            lines = self.LOADED_LOGS[path].get("lines")
+            for line in lines:
+                if filter_predicate(line):
+                    yield line
 
-    def _validate_entries_against_log(self, present_entries, missing_entries=[], cell_tag_to_directory=None):
-        written_logs = self._collect_log_lines(cell_tag_to_directory)
+    def _validate_entries_against_log(self, present_entries, missing_entries=[], cell_tag_to_log_filter=None):
+        if cell_tag_to_log_filter is None:
+            cell_tag_to_log_filter = self.CELL_TAG_TO_LOG_FILTER
 
-        def _check_entry_is_in_log(log, line_json):
-            for key, value in log.items():
-                if key in ["attributes", "transaction_id", "operation_type"]:
-                    if line_json.get("transaction_info") is None or \
-                            key not in line_json.get("transaction_info") or \
-                            line_json.get("transaction_info")[key] != value:
+        def entry_matches_line(entry, parsed_line):
+            for key, value in entry.items():
+                if key in ("transaction_id", "operation_type"):
+                    if parsed_line.get("transaction_info") is None or \
+                       key not in parsed_line.get("transaction_info") or \
+                       parsed_line.get("transaction_info")[key] != value:
                         return False
-                elif line_json.get(key) != value:
+                elif parsed_line.get(key) != value:
                     return False
             return True
 
-        for log in present_entries:
-            assert any(_check_entry_is_in_log(log, line_json) for line_json in
-                       written_logs), "Entry {} is not present in access log".format(log)
+        def check_lines():
+            present_entry_counts = [0 for entry in present_entries]
+            missing_entry_counts = [0 for entry in missing_entries]
 
-        for log in missing_entries:
-            assert not any(_check_entry_is_in_log(log, line_json) for line_json in
-                           written_logs), "Entry {} is present in access log".format(log)
+            for cell_tag, log_filter in cell_tag_to_log_filter.items():
+                prefix_path = log_filter["prefix_path"]
+                tx_methods = log_filter["tx_methods"]
+                for filtered_line in self._filtered_log_lines(cell_tag, prefix_path, tx_methods):
+                    for i in range(len(present_entries)):
+                        if entry_matches_line(present_entries[i], filtered_line):
+                            present_entry_counts[i] += 1
+
+                    for i in range(len(missing_entries)):
+                        if entry_matches_line(missing_entries[i], filtered_line):
+                            missing_entry_counts[i] += 1
+
+            # NB: strict equality (to 1 or NUM_MASTERS-1) could've been used here but it's tricky to achieve.
+            # First of all, that would necessitate distinguishing read and write requests.
+            # Second of all, some flags (e.g. "existing") are explicitly logged when true but are omitted when false.
+            # Thus, an entry without such a flag will match both the true and the false cases.
+            return all(entry_count != 0 for entry_count in present_entry_counts) and \
+                all(entry_count == 0 for entry_count in missing_entry_counts)
+
+        wait(check_lines, iter=30, sleep_backoff=1.0, timeout=30)
 
     @classmethod
     def modify_master_config(cls, multidaemon_config, config, cell_index, cell_tag, peer_index, cluster_index):
@@ -526,9 +569,7 @@ class TestAccessLog(YTEnvSetup):
         set(document_path, 3)
         get(document_path)
         mutation_id_to_line = collections.defaultdict(list)
-        for line in self._collect_log_lines():
-            if not line.get("path", None).startswith("//tmp/access_log/document"):
-                continue
+        for line in self._filtered_log_lines(10, "//tmp/access_log/document"):
             mutation_id_to_line[line.get("mutation_id")].append(line)
         for mutation_id in mutation_id_to_line:
             if mutation_id is None:
@@ -572,7 +613,11 @@ class TestAccessLog(YTEnvSetup):
             ("Abort", tx_b, [tx]),
             ("Commit", tx, []),
         ]))
-        self._validate_entries_against_log(expected)
+
+        cell_tag_to_log_filter = deepcopy(self.CELL_TAG_TO_LOG_FILTER)
+        for cell_tag, log_filter in cell_tag_to_log_filter.items():
+            log_filter["tx_methods"] = True
+        self._validate_entries_against_log(expected, cell_tag_to_log_filter=cell_tag_to_log_filter)
 
 ##################################################################
 
@@ -582,7 +627,7 @@ class TestAccessLogPortal(TestAccessLog):
     NUM_SECONDARY_MASTER_CELLS = 3
     ENABLE_TMP_PORTAL = True
 
-    CELL_TAG_TO_DIRECTORIES = {11: "//tmp/access_log"}
+    CELL_TAG_TO_LOG_FILTER = {11: {"prefix_path": "//tmp/access_log", "tx_methods": False}}
 
     @authors("kvk1920")
     def test_transaction_actions_log(self):
@@ -621,6 +666,6 @@ class TestAccessLogPortal(TestAccessLog):
                 "path": "//portals/p1/doc",
             })
 
-        self._validate_entries_against_log(log_list, cell_tag_to_directory={
-            11: "//tmp/access_log",
-            12: "//portals/p1"})
+        self._validate_entries_against_log(log_list, cell_tag_to_log_filter={
+            11: {"prefix_path": "//tmp/access_log", "tx_methods": False},
+            12: {"prefix_path": "//portals/p1", "tx_methods": False}})
