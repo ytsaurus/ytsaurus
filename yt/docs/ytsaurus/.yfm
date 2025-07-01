@@ -2,7 +2,7 @@ allowHTML: true
 apply-presets: true
 varsPreset: public
 langs: ['ru', 'en']
-mtimes: true
+#mtimes: true
 
 docs-viewer:
   project-name: YTsaurus
