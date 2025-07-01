@@ -3,8 +3,7 @@
 #include <util/generic/string.h>
 #include <yt/cpp/roren/library/timers/timer/proto/timers.pb.h>
 
-namespace NRoren::NPrivate
-{
+namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -67,8 +66,7 @@ struct TTimerContext
 
 }  // namespace NRoren::NPrivate
 
-namespace NRoren
-{
+namespace NRoren {
 
 ////////////////////////////////////////////////////////////////////////////////
 
