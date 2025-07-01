@@ -16,6 +16,7 @@ message TSnapshotMeta
     optional int32 last_mutation_term = 8;
     optional int32 last_mutation_reign = 11;
     optional bool read_only = 10;
+    optional uint64 logical_time = 12;
 }
 
 message TChangelogMeta

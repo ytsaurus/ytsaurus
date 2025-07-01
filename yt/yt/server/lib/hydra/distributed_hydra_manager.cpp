@@ -596,6 +596,13 @@ public:
         return false;
     }
 
+    TInstant GetLogicalTime() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return DecoratedAutomaton_->GetLogicalTime();
+    }
+
     bool IsDiscombobulated() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();

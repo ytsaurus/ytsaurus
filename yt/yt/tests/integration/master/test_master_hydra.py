@@ -1,9 +1,11 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter,  MASTERS_SERVICE
 
 from yt_commands import (
     authors, raises_yt_error, wait, get, set, ls, switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
     get_active_primary_master_leader_address, get_active_primary_master_follower_address, build_snapshot,
     reset_state_hash, build_master_snapshots, discombobulate_nonvoting_peers, get_master_consistent_state)
+
+from yt_helpers import master_exit_read_only_sync
 
 import os
 import pytest
@@ -166,6 +168,41 @@ class TestLamportClock(YTEnvSetup):
         assert len(state) == len(new_state)
         for cell_id in new_state:
             assert new_state[cell_id] >= state[cell_id]
+
+
+@pytest.mark.enabled_multidaemon
+class TestHydraLogicalTime(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+
+    @authors("h0pless")
+    def test_hydra_logical_time(self):
+        initial_time = get("//sys/@hydra_logical_time")
+        time.sleep(1.0)
+        build_master_snapshots(set_read_only=True)
+
+        read_only_time = get("//sys/@hydra_logical_time")
+        assert read_only_time - initial_time > 0.5 * 1000
+
+        time.sleep(5.0)
+        assert read_only_time == get("//sys/@hydra_logical_time")
+
+        master_exit_read_only_sync()
+        time.sleep(5.0)
+
+        time_passed_since_read_only = get("//sys/@hydra_logical_time") - read_only_time
+        assert 4 * 1000 < time_passed_since_read_only
+        assert time_passed_since_read_only < 9 * 1000
+
+    @authors("h0pless")
+    def test_hydra_logical_time_restart(self):
+        time.sleep(0.5)
+        build_master_snapshots(set_read_only=False)
+        time.sleep(0.5)
+
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        time.sleep(2.0)  # Just don't crash...
 
 
 @pytest.mark.enabled_multidaemon
