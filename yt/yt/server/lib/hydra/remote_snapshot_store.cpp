@@ -193,7 +193,8 @@ private:
                     Params_.Meta.set_last_segment_id(attributes.Get<i64>("last_segment_id"));
                     Params_.Meta.set_last_record_id(attributes.Get<i64>("last_record_id"));
                     Params_.Meta.set_last_mutation_term(attributes.Get<int>("last_mutation_term"));
-                    Params_.Meta.set_logical_time(attributes.Get<ui64>("logical_time"));
+                    // COMPAT(h0pless): HydraLogicalClock. Remove the default value.
+                    Params_.Meta.set_logical_time(attributes.Get<ui64>("logical_time", 0));
 
                     Params_.Checksum = 0;
                     Params_.CompressedLength = Params_.UncompressedLength = -1;
