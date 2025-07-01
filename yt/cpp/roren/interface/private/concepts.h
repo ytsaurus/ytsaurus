@@ -18,11 +18,6 @@ concept CIntrusivePtr = TIsSpecializationOf<NYT::TIntrusivePtr, T>::value;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-concept CYsonStruct = std::derived_from<T, NYT::NYTree::TYsonStruct>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
 struct TTemplateParameterTraits;
 
 template <template<class...> class P, class... Ts>
@@ -38,6 +33,9 @@ template <class T, size_t N = 0>
 using TExtractTemplateArg = typename TExtractTemplateArgs<T>::template TGet<N>;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+concept CYsonStruct = std::derived_from<T, NYT::NYTree::TYsonStruct>;
 
 template <class T>
 concept CYsonStructPtr = CIntrusivePtr<T> && CYsonStruct<TExtractTemplateArg<T>>;
