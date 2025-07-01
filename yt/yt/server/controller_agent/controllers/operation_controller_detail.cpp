@@ -4798,8 +4798,6 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     jobSpecExt->set_enable_root_volume_disk_quota(Spec_->EnableRootVolumeDiskQuota);
 
-    jobSpecExt->set_disable_rename_columns_compatibility_code(Spec_->DisableRenameColumnsCompatibilityCode);
-
     jobSpecExt->set_use_cluster_throttlers(Spec_->UseClusterThrottlers);
 
     for (auto& [clusterName, protoRemoteCluster] : *(jobSpecExt->mutable_remote_input_clusters())) {

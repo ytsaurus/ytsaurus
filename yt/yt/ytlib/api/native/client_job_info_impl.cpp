@@ -815,85 +815,6 @@ void TClient::DoDumpJobContext(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// COMPAT(levysotsky): This function is to be removed after both CA and nodes are updated.
-// See YT-16507
-static NTableClient::TTableSchemaPtr SetStableNames(
-    const NTableClient::TTableSchemaPtr& schema,
-    const NTableClient::TColumnRenameDescriptors& renameDescriptors)
-{
-    THashMap<TString, TString> nameToStableName;
-    for (const auto& renameDescriptor : renameDescriptors) {
-        nameToStableName.emplace(renameDescriptor.NewName, renameDescriptor.OriginalName);
-    }
-
-    std::vector<NTableClient::TColumnSchema> columns;
-    for (const auto& originalColumn : schema->Columns()) {
-        auto& column = columns.emplace_back(originalColumn);
-        YT_VERIFY(!column.IsRenamed());
-        if (auto it = nameToStableName.find(column.Name())) {
-            column.SetStableName(NTableClient::TColumnStableName(it->second));
-        }
-    }
-    return New<NTableClient::TTableSchema>(
-        std::move(columns),
-        schema->IsStrict(),
-        schema->IsUniqueKeys(),
-        schema->GetSchemaModification(),
-        schema->DeletedColumns());
-}
-
-// COMPAT(levysotsky): We need to distinguish between two cases:
-// 1) New CA has sent already renamed schema, we check it and do nothing
-// 2) Old CA has sent not-renamed schema, we need to perform the renaming
-//    according to rename descriptors.
-// This function is to be removed after both CA and nodes are updated. See YT-16507
-static NJobProxy::IJobSpecHelperPtr MaybePatchDataSourceDirectory(
-    const TJobSpec& jobSpecProto)
-{
-    auto jobSpecExt = jobSpecProto.GetExtension(TJobSpecExt::job_spec_ext);
-
-    if (jobSpecExt.disable_rename_columns_compatibility_code()) {
-        return NJobProxy::CreateJobSpecHelper(jobSpecProto);
-    }
-
-    if (!HasProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(jobSpecExt.extensions())) {
-        return NJobProxy::CreateJobSpecHelper(jobSpecProto);
-    }
-    const auto dataSourceDirectoryExt = GetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-        jobSpecExt.extensions());
-
-    auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
-
-    for (auto& dataSource : dataSourceDirectory->DataSources()) {
-        if (dataSource.Schema() && dataSource.Schema()->HasRenamedColumns()) {
-            return NJobProxy::CreateJobSpecHelper(jobSpecProto);
-        }
-    }
-
-    for (auto& dataSource : dataSourceDirectory->DataSources()) {
-        if (!dataSource.Schema()) {
-            dataSource.Schema() = New<NTableClient::TTableSchema>();
-        } else {
-            dataSource.Schema() = SetStableNames(
-                dataSource.Schema(),
-                dataSource.ColumnRenameDescriptors());
-        }
-    }
-
-    NChunkClient::NProto::TDataSourceDirectoryExt newExt;
-    ToProto(&newExt, dataSourceDirectory);
-    SetProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(
-        jobSpecExt.mutable_extensions(),
-        std::move(newExt));
-
-    auto jobSpecProtoCopy = jobSpecProto;
-    auto* mutableExt = jobSpecProtoCopy.MutableExtension(TJobSpecExt::job_spec_ext);
-    *mutableExt = std::move(jobSpecExt);
-    return NJobProxy::CreateJobSpecHelper(jobSpecProtoCopy);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
     TJobId jobId,
     const TGetJobInputOptions& options)
@@ -935,7 +856,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
             << locateChunksResult;
     }
 
-    auto jobSpecHelper = MaybePatchDataSourceDirectory(jobSpec);
+    auto jobSpecHelper = NJobProxy::CreateJobSpecHelper(jobSpec);
     GetNativeConnection()->GetNodeDirectory()->MergeFrom(
         jobSpecHelper->GetJobSpecExt().input_node_directory());
 

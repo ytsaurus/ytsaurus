@@ -501,8 +501,6 @@ message TJobSpecExt
 
     optional bool enable_root_volume_disk_quota = 43 [default = false];
 
-    optional bool disable_rename_columns_compatibility_code = 44;
-
     optional bool use_cluster_throttlers = 46;
 
     reserved 8, 28;
