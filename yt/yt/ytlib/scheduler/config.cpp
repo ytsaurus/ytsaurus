@@ -980,9 +980,6 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_codegen_comparator", &TThis::EnableCodegenComparator)
         .Default(true);
 
-    registrar.Parameter("disable_rename_columns_compatibility_code", &TThis::DisableRenameColumnsCompatibilityCode)
-        .Default(false);
-
     registrar.Parameter("enable_virtual_sandbox", &TThis::EnableVirtualSandbox)
         .Default(false);
 
