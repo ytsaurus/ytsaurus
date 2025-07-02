@@ -10,4 +10,5 @@ RECURSE(
     bridge
     dynamic
     native
+    process
 )

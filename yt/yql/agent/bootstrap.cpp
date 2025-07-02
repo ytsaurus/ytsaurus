@@ -157,6 +157,7 @@ void TBootstrap::DoRun()
     DynamicConfigManager_->Start();
 
     YqlAgent_ = CreateYqlAgent(
+        this,
         Config_,
         Config_->YqlAgent,
         DynamicConfigManager_->GetConfig()->YqlAgent,
@@ -191,7 +192,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/yql_agent",
-        YqlAgent_->GetOrchidNode());
+        CreateVirtualNode(YqlAgent_->CreateOrchidService()));
     SetBuildAttributes(
         orchidRoot,
         "yql_agent");
@@ -313,6 +314,11 @@ void TBootstrap::OnDynamicConfigChanged(
         "Updated Yql agent server dynamic config (OldConfig: %v, NewConfig: %v)",
         ConvertToYsonString(oldConfig, EYsonFormat::Text),
         ConvertToYsonString(newConfig, EYsonFormat::Text));
+}
+
+const NServer::TNativeServerBootstrapConfigPtr TBootstrap::GetNativeServerBootstrapConfig() const 
+{
+    return Config_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,0 +1,82 @@
+package NYT.NYqlPlugin.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt/ytlib/yql_client/proto/yql_service.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRunQuery 
+{
+    required NYT.NProto.TGuid query_id = 1;
+    required string user = 2;
+    required bytes credentials = 3; // YSON
+    required string query_text = 4;
+    required bytes settings = 5; // YSON
+    repeated NYT.NYqlClient.NProto.TYqlQueryFile files = 6;
+    required int64 mode = 7 [default = 2]; // EExecuteMode
+}
+
+message TRspRunQuery 
+{
+    optional NYT.NYqlClient.NProto.TYqlResponse response = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAbortQuery
+{
+    required NYT.NProto.TGuid query_id = 1;
+}
+
+message TRspAbortQuery
+{ 
+    optional bytes error = 1; // YSON
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetQueryProgress
+{
+    required NYT.NProto.TGuid query_id = 1;
+}
+
+message TRspGetQueryProgress
+{
+    required NYT.NYqlClient.NProto.TYqlResponse response = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetUsedClusters
+{
+    required NYT.NProto.TGuid query_id = 1;
+    required string query_text = 2;
+    required bytes settings = 3; // YSON
+    repeated NYT.NYqlClient.NProto.TYqlQueryFile files = 4;
+}
+
+message TRspGetUsedClusters
+{
+    repeated string clusters = 1;
+    optional bytes error = 2; // YSON
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStart
+{ }
+
+message TRspStart
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqOnDynamicConfigChanged
+{ 
+    required bytes gateways_config = 1; // YSON
+}
+
+message TRspOnDynamicConfigChanged
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
