@@ -1,4 +1,4 @@
-# Глобальные {#pragmas}
+# Глобальные
 
 ## Область действия {#pragmascope}
 
@@ -190,11 +190,11 @@ StrictJoinKeyTypes является [scoped](#pragmascope) настройкой.
 
 `OrderedColumns` / `DisableOrderedColumns`
 
-Выводить [порядок колонок](../select/index.md#orderedcolumns) в SELECT/JOIN/UNION ALL и сохранять его при записи результатов. По умолчанию порядок колонок не определён.
+Выводить [порядок колонок](../select/index.md#orderedcolumns) в `SELECT` / `JOIN` / `UNION [ALL]` / `INTERSECT [ALL]` / `EXCEPT [ALL]` и сохранять его при записи результатов. По умолчанию порядок колонок не определен.
 
 ## PositionalUnionAll {#positionalunionall}
 
-Включить соответствующий стандарту поколоночный режим выполнения [UNION ALL](../select/union.md#union-all). При этом автоматически включается [упорядоченность колонок](#orderedcolumns).
+Включить соответствующий стандарту поколоночный режим выполнения [UNION [ALL]](../select/operators.md#union), [INTERSECT [ALL]](../select/operators.md#intersect), [EXCEPT [ALL]](../select/operators.md#except). При этом автоматически включается [упорядоченность колонок](#orderedcolumns).
 
 ## RegexUseRe2
 
