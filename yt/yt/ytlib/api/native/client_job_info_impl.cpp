@@ -1694,7 +1694,9 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.JobCompetitionId = TJobId(TGuid::FromString(*record.JobCompetitionId));
         }
 
-        job.MainJobId = TJobId(TGuid(*record.MainJobIdHi, *record.MainJobIdLo));
+        if (record.MainJobIdHi) {
+            job.MainJobId = TJobId(TGuid(*record.MainJobIdHi, *record.MainJobIdLo));
+        }
 
         if (record.ProbingJobCompetitionId) {
             job.ProbingJobCompetitionId = TJobId(TGuid::FromString(*record.ProbingJobCompetitionId));
