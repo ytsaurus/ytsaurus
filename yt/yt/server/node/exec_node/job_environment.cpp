@@ -1357,11 +1357,18 @@ private:
         }
 
         // Required for job_proxy to be able to work with the containerd socket.
-        spec->BindMounts.push_back(NCri::TCriBindMount{
-            .ContainerPath = "/run/containerd/",
-            .HostPath = "/run/containerd/",
-            .ReadOnly = false,
-        });
+        const auto processSocketPath = [&spec](TString socketPath) {
+            if (socketPath.size() >= 7 && socketPath.StartsWith("unix")) {
+                socketPath.erase(0, 7);
+            }
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = socketPath,
+                .HostPath = socketPath,
+                .ReadOnly = false,
+            });
+        };
+        processSocketPath(ConcreteConfig_->CriExecutor->ImageEndpoint);
+        processSocketPath(ConcreteConfig_->CriExecutor->RuntimeEndpoint);
 
 #ifdef _linux_
         // Required for job_proxy to be able to actually access the containerd socket.
