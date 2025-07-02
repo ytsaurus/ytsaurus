@@ -3714,7 +3714,7 @@ def get_pipeline_spec(pipeline_path, spec_path=None, **kwargs):
     if spec_path is not None:
         kwargs["spec_path"] = spec_path
 
-    return execute_command("get_pipeline_spec", kwargs, parse_yson=True)
+    return execute_command("get_pipeline_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def set_pipeline_spec(pipeline_path, spec, is_raw=False, spec_path=None, expected_version=None, force=None, **kwargs):
@@ -3729,7 +3729,7 @@ def set_pipeline_spec(pipeline_path, spec, is_raw=False, spec_path=None, expecte
     if force is not None:
         kwargs["force"] = force
 
-    return execute_command("set_pipeline_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw)
+    return execute_command("set_pipeline_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw, unwrap_v4_result=False)
 
 
 def remove_pipeline_spec(pipeline_path, spec_path=None, expected_version=None, force=None, **kwargs):
@@ -3741,7 +3741,7 @@ def remove_pipeline_spec(pipeline_path, spec_path=None, expected_version=None, f
     if force is not None:
         kwargs["force"] = force
 
-    return execute_command("remove_pipeline_spec", kwargs, parse_yson=True)
+    return execute_command("remove_pipeline_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def get_pipeline_dynamic_spec(pipeline_path, spec_path=None, **kwargs):
@@ -3749,7 +3749,7 @@ def get_pipeline_dynamic_spec(pipeline_path, spec_path=None, **kwargs):
     if spec_path is not None:
         kwargs["spec_path"] = spec_path
 
-    return execute_command("get_pipeline_dynamic_spec", kwargs, parse_yson=True)
+    return execute_command("get_pipeline_dynamic_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def set_pipeline_dynamic_spec(pipeline_path, spec, is_raw=False, spec_path=None, expected_version=None, **kwargs):
@@ -3762,7 +3762,7 @@ def set_pipeline_dynamic_spec(pipeline_path, spec, is_raw=False, spec_path=None,
     if expected_version is not None:
         kwargs["expected_version"] = expected_version
 
-    return execute_command("set_pipeline_dynamic_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw)
+    return execute_command("set_pipeline_dynamic_spec", kwargs, input_stream=BytesIO(spec), parse_yson=not is_raw, unwrap_v4_result=False)
 
 
 def remove_pipeline_dynamic_spec(pipeline_path, spec_path=None, expected_version=None, **kwargs):
@@ -3772,28 +3772,28 @@ def remove_pipeline_dynamic_spec(pipeline_path, spec_path=None, expected_version
     if expected_version is not None:
         kwargs["expected_version"] = expected_version
 
-    return execute_command("remove_pipeline_dynamic_spec", kwargs, parse_yson=True)
+    return execute_command("remove_pipeline_dynamic_spec", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def start_pipeline(pipeline_path, **kwargs):
     kwargs["pipeline_path"] = pipeline_path
-    return execute_command("start_pipeline", kwargs)
+    return execute_command("start_pipeline", kwargs, unwrap_v4_result=False)
 
 
 def stop_pipeline(pipeline_path, **kwargs):
     kwargs["pipeline_path"] = pipeline_path
-    return execute_command("stop_pipeline", kwargs)
+    return execute_command("stop_pipeline", kwargs, unwrap_v4_result=False)
 
 
 def pause_pipeline(pipeline_path, **kwargs):
     kwargs["pipeline_path"] = pipeline_path
-    return execute_command("pause_pipeline", kwargs)
+    return execute_command("pause_pipeline", kwargs, unwrap_v4_result=False)
 
 
 def get_pipeline_state(pipeline_path, **kwargs):
     kwargs["pipeline_path"] = pipeline_path
     try:
-        return execute_command("get_pipeline_state", kwargs, parse_yson=True).lower()
+        return execute_command("get_pipeline_state", kwargs, parse_yson=True, unwrap_v4_result=False).lower()
     except YtResponseError:
         return "unknown"
 
@@ -3805,7 +3805,7 @@ def get_flow_view(pipeline_path, view_path=None, cache=None, **kwargs):
     if cache is not None:
         kwargs["cache"] = cache
 
-    return execute_command("get_flow_view", kwargs, parse_yson=True)
+    return execute_command("get_flow_view", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
 def flow_execute(pipeline_path: str, flow_command: str, flow_argument=None, is_raw=False, **kwargs):
