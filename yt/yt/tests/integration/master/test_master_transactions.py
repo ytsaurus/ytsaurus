@@ -1,5 +1,8 @@
 from yt_env_setup import YTEnvSetup, skip_if_rpc_driver_backend, Restarter, NODES_SERVICE
 
+from yt_sequoia_helpers import (
+    not_implemented_for_mirrored_tx)
+
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove, exists, create_user,
     create_group, add_member, remove_member, start_transaction, abort_transaction,
@@ -479,6 +482,23 @@ class TestMasterTransactions(YTEnvSetup):
         create_user("u")
         tx = start_transaction(authenticated_user="u")
         assert get("#{0}/@owner".format(tx)) == "u"
+
+    @authors("faucct")
+    @not_implemented_for_mirrored_tx
+    def test_not_owner(self):
+        create_user("u")
+        tx = start_transaction(attributes={"acl": [{
+            "action": "deny",
+            "subjects": ["u"],
+            "permissions": ["write"],
+            "inheritance_mode": "object_and_descendants",
+        }]})
+        create("map_node", "//tmp/wut", tx=tx)
+        with pytest.raises(YtError):
+            abort_transaction(tx, authenticated_user="u")
+        with pytest.raises(YtError):
+            commit_transaction(tx, authenticated_user="u")
+        commit_transaction(tx)
 
     @authors("ignat")
     def test_prerequisite_transactions(self):

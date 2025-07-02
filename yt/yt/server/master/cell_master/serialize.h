@@ -197,6 +197,7 @@ DEFINE_ENUM(EMasterReign,
     // 25.3 starts here.
     ((Start_25_3)                                                   (3000))  // community bot
     ((DropOldMountConfigKeyLists)                                   (3001))  // ifsmirnov
+    ((TransactionCommitsAndAbortsValidatePermissions)               (3002))  // faucct
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
