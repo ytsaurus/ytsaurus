@@ -724,6 +724,9 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("node_disconnection_timeout", &TThis::NodeDisconnectionTimeout)
         .Default(TDuration::Seconds(120))
         .GreaterThan(TDuration::Zero());
+    registrar.Parameter("revival_node_disconnection_timeout", &TThis::RevivalNodeDisconnectionTimeout)
+        .Default(TDuration::Seconds(240))
+        .GreaterThan(TDuration::Zero());
     registrar.Parameter("job_confirmation_timeout", &TThis::JobConfirmationTimeout)
         .Default(TDuration::Seconds(240))
         .GreaterThan(TDuration::Zero());

@@ -2371,7 +2371,7 @@ void TJobTracker::DoRevive(
 
     for (auto& allocationInfo : allocations) {
         auto nodeId = NodeIdFromAllocationId(allocationInfo.AllocationId);
-        auto& nodeJobs = GetOrRegisterNode(nodeId, allocationInfo.NodeAddress).Jobs;
+        auto& nodeJobs = GetOrRegisterNode(nodeId, allocationInfo.NodeAddress, /* comesFromRevival */ true).Jobs;
 
         auto allocationIt = EmplaceOrCrash(
             nodeJobs.Allocations,
@@ -2790,7 +2790,7 @@ void TJobTracker::ReportUnknownJobInArchive(TJobId jobId, TOperationId operation
             .ControllerState(EJobState::Aborted));
 }
 
-TJobTracker::TNodeInfo& TJobTracker::GetOrRegisterNode(TNodeId nodeId, const std::string& nodeAddress)
+TJobTracker::TNodeInfo& TJobTracker::GetOrRegisterNode(TNodeId nodeId, const std::string& nodeAddress, bool comesFromRevival)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -2798,10 +2798,10 @@ TJobTracker::TNodeInfo& TJobTracker::GetOrRegisterNode(TNodeId nodeId, const std
         return nodeIt->second;
     }
 
-    return RegisterNode(nodeId, nodeAddress);
+    return RegisterNode(nodeId, nodeAddress, comesFromRevival);
 }
 
-TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, const std::string& nodeAddress)
+TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, const std::string& nodeAddress, bool comesFromRevival)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
@@ -2812,7 +2812,7 @@ TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, const std::str
         nodeId,
         nodeAddress,
         registrationId,
-        Config_->NodeDisconnectionTimeout);
+        comesFromRevival ? Config_->RevivalNodeDisconnectionTimeout : Config_->NodeDisconnectionTimeout);
 
     if (auto nodeIdIt = NodeAddressToNodeId_.find(nodeAddress); nodeIdIt != std::end(NodeAddressToNodeId_)) {
         auto oldNodeId = nodeIdIt->second;
@@ -2828,7 +2828,7 @@ TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, const std::str
     NodeRegistrationCount_.Increment();
 
     auto lease = TLeaseManager::CreateLease(
-        Config_->NodeDisconnectionTimeout,
+        comesFromRevival ? Config_->RevivalNodeDisconnectionTimeout : Config_->NodeDisconnectionTimeout,
         BIND_NO_PROPAGATE(&TJobTracker::OnNodeHeartbeatLeaseExpired, MakeWeak(this), registrationId, nodeId, nodeAddress)
             .Via(GetCancelableInvoker()));
 
