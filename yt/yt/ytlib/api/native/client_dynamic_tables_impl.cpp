@@ -311,15 +311,16 @@ TSchemaUpdateEnabledFeatures GetSchemaUpdateEnabledFeatures()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<i64> TryReserveMemory(
+i64 ReserveMemory(
     IReservingMemoryUsageTrackerPtr& reservingTracker,
     i64 initialAmount,
     int requestCount)
 {
     i64 reservedBytes = initialAmount;
     bool memoryReserved = false;
+    i64 minReservedBytes = MinPullDataSize * requestCount;
 
-    while (reservedBytes >= MinPullDataSize * requestCount) {
+    while (reservedBytes >= minReservedBytes) {
         if (reservingTracker->TryReserve(reservedBytes).IsOK()) {
             memoryReserved = true;
             break;
@@ -329,7 +330,9 @@ std::optional<i64> TryReserveMemory(
     }
 
     if (!memoryReserved) {
-        return std::nullopt;
+        // Acquire the bare minimum amount of memory unconditionally.
+        reservingTracker->Acquire(minReservedBytes);
+        return minReservedBytes;
     }
 
     return reservedBytes;
@@ -3447,12 +3450,7 @@ TPullRowsResult TClient::DoPullRows(
 
     i64 dataWeight = options.MaxDataWeight;
     if (auto reservingTracker = options.MemoryTracker) {
-        auto reserveResult = TryReserveMemory(reservingTracker, dataWeight, requests.size());
-        if (!reserveResult) {
-            THROW_ERROR_EXCEPTION("Failed to reserve memory for pull rows request");
-        }
-
-        dataWeight = *reserveResult;
+        dataWeight = ReserveMemory(reservingTracker, dataWeight, requests.size());
     }
 
     // Raw response + parsed rows for each session.
