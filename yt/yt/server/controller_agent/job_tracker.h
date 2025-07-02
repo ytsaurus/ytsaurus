@@ -502,8 +502,8 @@ private:
         TOperationId operationId,
         const std::string& nodeAddress);
 
-    TNodeInfo& GetOrRegisterNode(TNodeId nodeId, const std::string& nodeAddress);
-    TNodeInfo& RegisterNode(TNodeId nodeId, const std::string& nodeAddress);
+    TNodeInfo& GetOrRegisterNode(TNodeId nodeId, const std::string& nodeAddress, bool comesFromRevival = false);
+    TNodeInfo& RegisterNode(TNodeId nodeId, const std::string& nodeAddress, bool comesFromRevival = false);
     TNodeInfo& UpdateOrRegisterNode(TNodeId nodeId, const std::string& nodeAddress);
     void UnregisterNode(
         TNodeId nodeId,
