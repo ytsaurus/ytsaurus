@@ -102,9 +102,10 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitWholeMessage(TMessageParam mess
     }
     const auto* descriptor = errorOrDescriptor.Value();
 
-    for (int i = 0; !Self()->StopIteration_ && i < descriptor->field_count(); ++i) {
+    int size = descriptor->field_count();
+    for (int i = 0; !Self()->StopIteration_ && i < size; ++i) {
         auto* fieldDescriptor = descriptor->field(i);
-        auto checkpoint = Self()->CheckpointBranchedTraversal(fieldDescriptor->name());
+        auto checkpoint = Self()->CheckpointBranchedTraversal(fieldDescriptor->name(), size);
         Self()->VisitField(message, fieldDescriptor, reason);
     }
 }
@@ -342,8 +343,9 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitWholeRepeatedField(
         return;
     }
 
-    for (int index = 0; !StopIteration_ && index < errorOrSize.Value(); ++index) {
-        auto checkpoint = Self()->CheckpointBranchedTraversal(index);
+    int size = errorOrSize.Value();
+    for (int index = 0; !StopIteration_ && index < size; ++index) {
+        auto checkpoint = Self()->CheckpointBranchedTraversal(index, size);
         Self()->VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
     }
 }
@@ -535,7 +537,7 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitWholeMapField(
     auto& entries = errorOrEntries.Value();
 
     for (auto& [key, entry] : entries) {
-        auto checkpoint = Self()->CheckpointBranchedTraversal(key);
+        auto checkpoint = Self()->CheckpointBranchedTraversal(key, ssize(entries));
         Self()->VisitMapFieldEntry(message, fieldDescriptor, entry, key, reason);
     }
 }

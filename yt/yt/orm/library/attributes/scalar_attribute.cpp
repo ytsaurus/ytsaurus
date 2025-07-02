@@ -113,11 +113,11 @@ protected:
             message->Clear();
 
             if (CurrentValue_->GetType() == NYTree::ENodeType::Map) {
-                for (const auto& [key, value] : SortedMapChildren()) {
+                for (auto children = SortedMapChildren(); const auto& [key, value] : children) {
                     if (value->GetType() == ENodeType::Entity) {
                         continue;
                     }
-                    auto checkpoint = CheckpointBranchedTraversal(key);
+                    auto checkpoint = CheckpointBranchedTraversal(key, std::ssize(children));
                     TemporarilySetCurrentValue(checkpoint, value);
                     const auto* fieldDescriptor = descriptor->FindFieldByName(key);
                     if (fieldDescriptor) {
@@ -205,8 +205,8 @@ protected:
             reflection->ClearField(message, fieldDescriptor);
 
             if (CurrentValue_->GetType() == NYTree::ENodeType::Map) {
-                for (const auto& [key, value] : SortedMapChildren()) {
-                    auto checkpoint = CheckpointBranchedTraversal(key);
+                for (auto children = SortedMapChildren(); const auto& [key, value] : children) {
+                    auto checkpoint = CheckpointBranchedTraversal(key, std::ssize(children));
                     auto entry = AddAttributeDictionaryEntry(message, fieldDescriptor, key)
                         .ValueOrThrow();
                     SetAttributeDictionaryEntryValue(entry, ConvertToYsonString(value))
@@ -254,8 +254,8 @@ protected:
             reflection->ClearField(message, fieldDescriptor);
 
             if (CurrentValue_->GetType() == NYTree::ENodeType::Map) {
-                for (const auto& [key, value] : SortedMapChildren()) {
-                    auto checkpoint = CheckpointBranchedTraversal(key);
+                for (auto children = SortedMapChildren(); const auto& [key, value] : children) {
+                    auto checkpoint = CheckpointBranchedTraversal(key, std::ssize(children));
                     TemporarilySetCurrentValue(checkpoint, value);
                     auto keyMessage = MakeMapKeyMessage(fieldDescriptor, key).ValueOrThrow();
                     // The key is obviously missing from the cleared map. This will populate the
@@ -294,15 +294,17 @@ protected:
             reflection->ClearField(message, fieldDescriptor);
 
             if (CurrentValue_->GetType() == NYTree::ENodeType::List) {
-                for (const auto& [index, value] : Enumerate(CurrentValue_->AsList()->GetChildren())) {
-                    auto checkpoint = CheckpointBranchedTraversal(int(index));
-                    TemporarilySetCurrentValue(checkpoint, value);
+                auto children = CurrentValue_->AsList()->GetChildren();
+                int size = std::ssize(children);
+                for (int i = 0; i < size; ++i) {
+                    auto checkpoint = CheckpointBranchedTraversal(i, size);
+                    TemporarilySetCurrentValue(checkpoint, children[i]);
                     // This is a bunch of insertions at the end of the array. Index points at the
                     // end.
                     VisitRepeatedFieldEntryRelative(
                         message,
                         fieldDescriptor,
-                        int(index),
+                        i,
                         EVisitReason::Manual);
                 }
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {

@@ -184,8 +184,9 @@ void TPathVisitor<TSelf>::VisitWholeVector(
     TVisitParam&& target,
     EVisitReason reason)
 {
-    for (int index = 0; !Self()->StopIteration_ && index < ssize(target); ++index) {
-        auto checkpoint = Self()->CheckpointBranchedTraversal(index);
+    int size = std::ssize(target);
+    for (int index = 0; !Self()->StopIteration_ && index < size; ++index) {
+        auto checkpoint = Self()->CheckpointBranchedTraversal(index, size);
         Self()->VisitGeneric(target[index], reason);
     }
 }
@@ -338,8 +339,9 @@ void TPathVisitor<TSelf>::VisitWholeMap(
     TVisitParam&& target,
     EVisitReason reason)
 {
+    int size = std::ssize(target);
     for (auto& [key, entry] : target) {
-        auto checkpoint = Self()->CheckpointBranchedTraversal(key);
+        auto checkpoint = Self()->CheckpointBranchedTraversal(key, size);
         Self()->VisitGeneric(entry, reason);
     }
 }

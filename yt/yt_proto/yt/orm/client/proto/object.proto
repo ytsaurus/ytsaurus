@@ -618,6 +618,8 @@ message TReferenceOption
         optional string path = 1;
         // If omitted, a default field number will be generated from the reference.
         optional int32 number = 2;
+        // If null entries are allowed, skip them in the view instead of returning entities (#).
+        optional bool skip_nulls = 3;
     }
 
     // How we distinguish present and empty references.
