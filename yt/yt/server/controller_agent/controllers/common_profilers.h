@@ -100,7 +100,7 @@ public:
 
     void ProfileScheduleJobFailure(const std::string& treeId, EScheduleFailReason failReason);
     void ProfileScheduleJobFailure(const std::string& treeId, EJobType jobType, EScheduleFailReason failReason, bool isJobFirst);
-    void ProfileScheduleJobSuccess(const std::string& treeId, EJobType jobType, bool isJobFirst);
+    void ProfileScheduleJobSuccess(const std::string& treeId, EJobType jobType, bool isJobFirst, bool isLocal);
 
 private:
     using TTypedScheduleFailureKey = std::tuple<std::string, EJobType, EScheduleFailReason, bool>;
@@ -108,7 +108,7 @@ private:
     using TScheduleFailureKey = std::tuple<std::string, EScheduleFailReason>;
     using TScheduleFailureCounters = THashMap<TScheduleFailureKey, NProfiling::TCounter>;
 
-    using TScheduleSuccessKey = std::tuple<std::string, EJobType, bool>;
+    using TScheduleSuccessKey = std::tuple<std::string, EJobType, bool, bool>;
     using TScheduleSuccessCounters = THashMap<TScheduleSuccessKey, NProfiling::TCounter>;
 
     IInvokerPtr ProfilerInvoker_;
