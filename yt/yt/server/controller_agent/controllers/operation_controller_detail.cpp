@@ -4955,7 +4955,9 @@ void TOperationControllerBase::TryScheduleFirstJob(
             GetScheduleJobProfiler()->ProfileScheduleJobSuccess(
                 allocation.TreeId,
                 task->GetJobType(),
-                /*isJobFirst*/ true);
+                /*isJobFirst*/ true,
+                /*isLocal*/ scheduleLocalJob
+            );
 
             auto startDescriptor = task->CreateAllocationStartDescriptor(
                 allocation,
@@ -4989,7 +4991,8 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
 
     YT_VERIFY(allocation.Task);
 
-    if (auto failReason = TryScheduleJob(allocation, *allocation.Task, context, /*scheduleLocalJob*/ true, lastJobId)) {
+    bool scheduleLocalJob = true;
+    if (auto failReason = TryScheduleJob(allocation, *allocation.Task, context, scheduleLocalJob, lastJobId)) {
         GetScheduleJobProfiler()->ProfileScheduleJobFailure(
             allocation.TreeId,
             allocation.Task->GetJobType(),
@@ -5007,7 +5010,8 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
             logSettlementFailed(*failReason);
             return failReason;
         }
-        if (auto failReason = TryScheduleJob(allocation, *allocation.Task, context, /*scheduleLocalJob*/ false, lastJobId)) {
+        scheduleLocalJob = false;
+        if (auto failReason = TryScheduleJob(allocation, *allocation.Task, context, scheduleLocalJob, lastJobId)) {
             GetScheduleJobProfiler()->ProfileScheduleJobFailure(
                 allocation.TreeId,
                 allocation.Task->GetJobType(),
@@ -5026,7 +5030,9 @@ std::optional<EScheduleFailReason> TOperationControllerBase::TryScheduleNextJob(
     GetScheduleJobProfiler()->ProfileScheduleJobSuccess(
         allocation.TreeId,
         allocation.Task->GetJobType(),
-        /*isJobFirst*/ false);
+        /*isJobFirst*/ false,
+        /*isLocal*/ scheduleLocalJob
+    );
 
     return std::nullopt;
 }
@@ -8266,7 +8272,9 @@ bool TOperationControllerBase::InputHasDynamicStores() const
 bool TOperationControllerBase::IsLocalityEnabled() const
 {
     YT_VERIFY(EstimatedInputStatistics_);
-    return Config_->EnableLocality && EstimatedInputStatistics_->DataWeight > Spec_->MinLocalityInputDataWeight;
+    return Config_->EnableLocality
+        && EstimatedInputStatistics_->DataWeight > Spec_->MinLocalityInputDataWeight
+        && Options_->AllowLocality;
 }
 
 TString TOperationControllerBase::GetLoggingProgress() const

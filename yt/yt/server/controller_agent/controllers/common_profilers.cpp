@@ -407,9 +407,10 @@ void TScheduleJobProfiler::ProfileScheduleJobFailure(const std::string& treeId, 
 void TScheduleJobProfiler::ProfileScheduleJobSuccess(
     const std::string& treeId,
     EJobType jobType,
-    bool isJobFirst)
+    bool isJobFirst,
+    bool isLocal)
 {
-    TScheduleSuccessKey key(treeId, jobType, isJobFirst);
+    TScheduleSuccessKey key(treeId, jobType, isJobFirst, isLocal);
 
     ProfilerInvoker_->Invoke(BIND(
         &TScheduleJobProfiler::DoProfileScheduleJobSuccess,
@@ -461,12 +462,13 @@ void TScheduleJobProfiler::DoProfileScheduleJobSuccess(TScheduleSuccessKey key)
 {
     auto it = SuccessCounters_.find(key);
     if (it == end(SuccessCounters_)) {
-        const auto& [treeId, jobType, isJobFirst] = key;
+        const auto& [treeId, jobType, isJobFirst, isLocal] = key;
 
         auto counter = ControllerAgentProfiler()
             .WithTag(NScheduler::ProfilingPoolTreeKey, treeId)
             .WithTag("job_type", FormatEnum(jobType))
             .WithTag("is_job_first", std::string(FormatBool(isJobFirst)))
+            .WithTag("is_local", std::string(FormatBool(isLocal)))
             .Counter("/jobs/schedule_job_success_count");
 
         it = SuccessCounters_.emplace(
