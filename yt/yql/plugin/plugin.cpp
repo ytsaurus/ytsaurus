@@ -4,6 +4,11 @@
 
 namespace NYT::NYqlPlugin {
 
+NYTree::IMapNodePtr IYqlPlugin::GetOrchidNode() const
+{
+    return NYTree::GetEphemeralNodeFactory()->CreateMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_WEAK std::unique_ptr<IYqlPlugin> CreateYqlPlugin(TYqlPluginOptions /*options*/) noexcept

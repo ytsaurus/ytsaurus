@@ -26,6 +26,7 @@
 #include <yt/yt/core/net/config.h>
 
 #include <yt/yql/plugin/bridge/plugin.h>
+#include <yt/yql/plugin/process/plugin.h>
 
 #include <util/generic/hash_set.h>
 #include <util/string/builder.h>
@@ -181,6 +182,7 @@ class TYqlAgent
 {
 public:
     TYqlAgent(
+        TBootstrap* bootstrap,
         TSingletonsConfigPtr singletonsConfig,
         TYqlAgentConfigPtr yqlAgentConfig,
         TYqlAgentDynamicConfigPtr dynamicConfig,
@@ -303,11 +305,13 @@ public:
         // due to python udf loading
         using TSignature = void(NYqlPlugin::TYqlPluginOptions);
         auto coroutine = TCoroutine<TSignature>(
-            BIND([this](
+            BIND([this, bootstrap](
                 TCoroutine<TSignature>& /*self*/,
                 NYqlPlugin::TYqlPluginOptions options
             ) {
-                YqlPlugin_ = NYqlPlugin::CreateYqlPlugin(std::move(options));
+                YqlPlugin_ = Config_->ProcessPluginConfig->Enabled 
+                    ? NYqlPlugin::NProcess::CreateProcessYqlPlugin(bootstrap, std::move(options), Config_->ProcessPluginConfig, YqlAgentProfiler().WithPrefix("/yql_plugin"))
+                    : NYqlPlugin::CreateBridgeYqlPlugin(std::move(options));
             }),
             EExecutionStackKind::Large);
 
@@ -323,9 +327,9 @@ public:
     void Stop() override
     { }
 
-    NYTree::IMapNodePtr GetOrchidNode() const override
-    {
-        return GetEphemeralNodeFactory()->CreateMap();
+    virtual NYTree::IYPathServicePtr CreateOrchidService() const override {
+        auto producer = BIND_NO_PROPAGATE(&TYqlAgent::BuildOrchid, MakeStrong(this));
+        return IYPathService::FromProducer(producer);
     }
 
     void OnDynamicConfigChanged(
@@ -492,7 +496,7 @@ private:
                 });
             }
 
-            auto clustersResult = YqlPlugin_->GetUsedClusters(query, settings, files);
+            auto clustersResult = YqlPlugin_->GetUsedClusters(queryId, query, settings, files);
             if (clustersResult.YsonError) {
                 auto error = ConvertTo<TError>(TYsonString(*clustersResult.YsonError));
                 THROW_ERROR error;
@@ -716,11 +720,19 @@ private:
 
         return allowedReadSubjects;
     }
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer) const
+    {
+        BuildYsonFluently(consumer).BeginMap()
+            .Item("yql_plugin").Value(YqlPlugin_->GetOrchidNode())
+        .EndMap();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IYqlAgentPtr CreateYqlAgent(
+    TBootstrap* bootstrap,
     TSingletonsConfigPtr singletonsConfig,
     TYqlAgentConfigPtr config,
     TYqlAgentDynamicConfigPtr dynamicConfig,
@@ -730,6 +742,7 @@ IYqlAgentPtr CreateYqlAgent(
     TString agentId)
 {
     return New<TYqlAgent>(
+        bootstrap,
         std::move(singletonsConfig),
         std::move(config),
         std::move(dynamicConfig),

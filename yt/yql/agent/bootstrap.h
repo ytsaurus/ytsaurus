@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/cypress_election/public.h>
 
+#include <yt/yt/server/lib/misc/config.h>
+
 #include <yt/yt/server/lib/component_state_checker/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -39,6 +41,8 @@ public:
     ~TBootstrap();
 
     void Run();
+    
+    const NServer::TNativeServerBootstrapConfigPtr GetNativeServerBootstrapConfig() const;
 
 private:
     TAgentId AgentId_;

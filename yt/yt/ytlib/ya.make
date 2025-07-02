@@ -552,6 +552,8 @@ SRCS(
 
     yql_client/proto/yql_service.proto
 
+    yql_plugin/proto/yql_plugin.proto
+
     shuffle_client/proto/shuffle_service.proto
 )
 
