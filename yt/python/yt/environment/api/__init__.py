@@ -83,6 +83,8 @@ class LocalYtConfig(object):
     rpc_cert_key = attr.ib(None)
     https_cert = attr.ib(None)
     https_cert_key = attr.ib(None)
+    public_rpc_cert = attr.ib(None)
+    piblic_rpc_cert_key = attr.ib(None)
 
     """Native authentication settings"""
     mock_tvm_id = attr.ib(None)
