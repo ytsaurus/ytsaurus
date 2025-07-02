@@ -1652,6 +1652,9 @@ struct TSimpleOperationSpecBase
     TDuration LocalityTimeout;
     TJobIOConfigPtr JobIO;
 
+    //! COMPAT(apollo1321): remove in 25.3.
+    bool StrictDataWeightPerJobVerification;
+
     REGISTER_YSON_STRUCT(TSimpleOperationSpecBase);
 
     static void Register(TRegistrar registrar);
