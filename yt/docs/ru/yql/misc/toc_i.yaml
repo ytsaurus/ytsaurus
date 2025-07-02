@@ -1,3 +1,6 @@
   items:
+  - name: Схематизация данных в {{product-name}}
+    href: schema.md
+    when: audience == "internal"
   - name: Этапы исполнения запроса
     href: exec_steps.md
