@@ -754,6 +754,8 @@ struct TJobTrackerConfig
 {
     TDuration NodeDisconnectionTimeout;
 
+    TDuration RevivalNodeDisconnectionTimeout;
+
     TDuration JobConfirmationTimeout;
 
     int LoggingJobSampleSize;
