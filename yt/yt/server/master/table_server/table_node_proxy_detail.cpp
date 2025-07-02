@@ -1103,6 +1103,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                                 .DoIf(secondaryIndex->Predicate().has_value(), [&] (TFluentMap fluent) {
                                     fluent.Item("predicate").Value(*secondaryIndex->Predicate());
                                 })
+                                .DoIf(secondaryIndex->UnfoldedColumn().has_value(), [&] (TFluentMap fluent) {
+                                    fluent.Item("unfolded_column").Value(*secondaryIndex->UnfoldedColumn());
+                                })
+                                .DoIf(secondaryIndex->EvaluatedColumnsSchema().operator bool(), [&] (TFluentMap fluent) {
+                                    fluent.Item("evaluated_columns_schema").Value(*secondaryIndex->EvaluatedColumnsSchema());
+                                })
                             .EndMap();
                     });
 
