@@ -1,13 +1,8 @@
 items:
 - name: Обзор
   href: index.md
-- { name: AugurTokenizer,         href: augurtokenizer.md,           when: audience == "internal"   }
-- { name: BertModels,             href: bert_models.md,              when: audience == "internal"   }
-- { name: BlenderFactorStorage,   href: blender_factor_storage.md,   when: audience == "internal"   }
-- { name: CatBoost,               href: catboost.md,                 when: audience == "internal"   }
 - { name: ClickHouse,             href: clickhouse.md                                               }
 - { name: Compress и Decompress,  href: compress_decompress.md                                      }
-- { name: ConfigurableRearrange,  href: configurable_rearrange.md,   when: audience == "internal"   }
 - { name: DateTime,               href: datetime.md                                                 }
 - { name: Digest,                 href: digest.md                                                   }
 - { name: Dsv,                    href: dsv.md                                                      }
@@ -29,10 +24,8 @@ items:
 - { name: SearchEngine,           href: searchengine.md,             when: audience == "internal"   }
 - { name: Streaming,              href: streaming.md                                                }
 - { name: String,                 href: string.md                                                   }
-- { name: TensorFlow,             href: tensorflow.md,               when: audience == "internal"   }
 - { name: Unicode,                href: unicode.md                                                  }
 - { name: UserAgent,              href: useragent.md,                when: audience == "internal"   }
 - { name: Url,                    href: url.md                                                      }
-- { name: Watson,                 href: watson.md,                   when: audience == "internal"   }
 - { name: Xml,                    href: xml.md,                      when: audience == "internal"   }
 - { name: Yson,                   href: yson.md                                                     }

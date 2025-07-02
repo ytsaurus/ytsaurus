@@ -13,7 +13,7 @@ In this case, `USE` itself can be used inside [actions](action.md) or [subquery 
 #### Examples
 
 ```yql
-USE {{ example_cluster }};
+USE {{ production-cluster }};
 ```
 
 {% note info "Note" %}

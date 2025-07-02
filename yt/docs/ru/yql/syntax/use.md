@@ -13,7 +13,7 @@
 #### Пример
 
 ```yql
-USE {{ example_cluster }};
+USE {{ production-cluster }};
 ```
 
 {% note info "Примечание" %}
