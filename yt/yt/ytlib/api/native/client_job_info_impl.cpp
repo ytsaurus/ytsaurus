@@ -1470,8 +1470,7 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
         builder->AddWhereConjunct(Format("task_name = %Qv", *options.TaskName));
     }
 
-    if (options.OperationIncarnation && DoesArchiveContainAttribute("operation_incarnation", archiveVersion))
-    {
+    if (options.OperationIncarnation && DoesArchiveContainAttribute("operation_incarnation", archiveVersion)) {
         builder->AddWhereConjunct(Format("operation_incarnation = %Qv", *options.OperationIncarnation));
     }
 }
