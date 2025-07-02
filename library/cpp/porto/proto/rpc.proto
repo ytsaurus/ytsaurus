@@ -1477,6 +1477,7 @@ message TDockerImagePullRequest {
     optional string auth_token = 3;
     optional string auth_path = 4;
     optional string auth_service = 5;
+    optional string platform = 6;
 }
 
 message TDockerImagePullResponse {
