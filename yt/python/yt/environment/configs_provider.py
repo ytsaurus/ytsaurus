@@ -233,7 +233,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
     rpc_proxy_addresses = None
     if yt_config.rpc_proxy_count > 0:
         rpc_proxy_addresses = [
-            "{0}:{1}".format(yt_config.fqdn, rpc_proxy_config["rpc_port"])
+            "{0}:{1}".format(yt_config.fqdn, rpc_proxy_config.get("public_rpc_port", rpc_proxy_config["rpc_port"]))
             for rpc_proxy_config in rpc_proxy_configs
         ]
         rpc_client_config = {
@@ -1328,6 +1328,9 @@ def _build_http_proxy_config(multidaemon_config_output,
                              version):
     driver_config = default_config.get_driver_config()
 
+    if yt_config.enable_tls and yt_config.rpc_proxy_count > 0:
+        driver_config["default_rpc_proxy_address_type"] = "public_rpc"
+
     cluster_connection = _build_cluster_connection_config(
         yt_config,
         master_connection_configs,
@@ -1436,6 +1439,9 @@ def _build_native_driver_configs(master_connection_configs,
         init_chunk_client_dispatcher(config)
         config["start_queue_consumer_registration_manager"] = True
 
+        if yt_config.enable_tls and yt_config.rpc_proxy_count > 0:
+            config["default_rpc_proxy_address_type"] = "public_rpc"
+
         if cell_index == 0:
             tag = primary_cell_tag
             update_inplace(config, _build_cluster_connection_config(
@@ -1537,8 +1543,16 @@ def _build_rpc_driver_config(yt_config,
     else:
         config["proxy_addresses"] = rpc_proxy_addresses
 
-    return config
+    if yt_config.enable_tls:
+        config["bus_client"] = {
+            "encryption_mode": "required",
+            "verification_mode": "full",
+            "ca": {
+                "file_name": yt_config.public_ca_cert,
+            },
+        }
 
+    return config
 
 def _build_rpc_proxy_configs(multidaemon_config_output,
                              logs_dir,
@@ -1617,6 +1631,20 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
             yt_config.rpc_proxy_ports[index] if yt_config.rpc_proxy_ports else next(ports_generator)
         if yt_config.enable_tvm_only_proxies:
             config["tvm_only_rpc_port"] = next(ports_generator)
+
+        if yt_config.enable_tls:
+            config["public_rpc_port"] = config["rpc_port"]
+            config["rpc_port"] = next(ports_generator)
+            config["public_bus_server"] = {
+                "cert_chain": {
+                    "file_name": yt_config.public_rpc_cert,
+                },
+                "private_key": {
+                    "file_name": yt_config.public_rpc_cert_key,
+                },
+                "encryption_mode": "optional",
+                "verification_mode": "none",
+            }
 
         multidaemon_config_output["daemons"][f"rpc_proxy_{index}"] = {
             "type": "rpc_proxy",
