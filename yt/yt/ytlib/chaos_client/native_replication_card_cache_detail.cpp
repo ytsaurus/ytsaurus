@@ -182,9 +182,10 @@ public:
         SetChaosCacheStickyGroupBalancingHint(Key_.CardId,
             req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
 
+        auto refreshTime = Owner_->Config_->RefreshTime.value_or(TDuration::Max());
         SetChaosCacheCachingHeader(
-            Owner_->Config_->ExpireAfterSuccessfulUpdateTime,
-            Owner_->Config_->ExpireAfterFailedUpdateTime,
+            std::min(Owner_->Config_->ExpireAfterSuccessfulUpdateTime, refreshTime),
+            std::min(Owner_->Config_->ExpireAfterFailedUpdateTime, refreshTime),
             Key_.RefreshEra,
             req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext));
 
