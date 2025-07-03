@@ -12,5 +12,7 @@ items:
     include: { mode: link, path: udf/toc_i.yaml }
   - name: Differences from other systems
     include: {mode: link, path: differences_from/toc_i.yaml}
+  - name: Other
+    include: { mode: link, path: misc/toc_i.yaml }
   - name: Changelog
     include: { mode: link, path: changelog/toc_i.yaml }
