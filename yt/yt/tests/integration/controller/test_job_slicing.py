@@ -43,9 +43,6 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         },
     }
 
-    MAX_COMPRESSED_DATA_SIZE_PER_JOB = 9000
-    DATA_WEIGHT_PER_JOB = 700
-
     @staticmethod
     def _make_random_string(size) -> str:
         return ''.join(random.choice(string.ascii_letters) for _ in range(size))
@@ -60,7 +57,24 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         assert result
         return result["summary"]
 
-    def _setup_tables(self):
+    def _check_initial_job_estimation_and_track(self, op, expected_job_count, abs_error=0):
+        wait(lambda: get(op.get_path() + "/@suspended"))
+        wait(lambda: get(op.get_path() + "/@progress", default=False))
+        progress = get(op.get_path() + "/@progress")
+        assert progress["jobs"]["pending"] == progress["jobs"]["total"]
+        # Check that job count is correctly estimated, before any job is scheduled.
+        assert abs(progress["jobs"]["total"] - expected_job_count) <= abs_error
+        op.resume()
+        op.track()
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("operation", ["merge", "map"])
+    @pytest.mark.parametrize("use_data_weight", [False, True])
+    @pytest.mark.parametrize("use_compressed_data_size", [False, True])
+    def test_operation_with_column_groups_ordered(self, operation, use_data_weight, use_compressed_data_size):
+        if not use_data_weight and not use_compressed_data_size:
+            pytest.skip()
+
         create("table", "//tmp/t_in", attributes={
             "schema": make_schema([
                 {"name": "small", "type": "string", "group": "custom"},
@@ -85,26 +99,6 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
 
         assert get("//tmp/t_in/@chunk_count") == 5
 
-    def _check_initial_job_estimation_and_track(self, op, expected_job_count, abs_error=0):
-        wait(lambda: get(op.get_path() + "/@suspended"))
-        wait(lambda: get(op.get_path() + "/@progress", default=False))
-        progress = get(op.get_path() + "/@progress")
-        assert progress["jobs"]["pending"] == progress["jobs"]["total"]
-        # Check that job count is correctly estimated, before any job is scheduled.
-        assert abs(progress["jobs"]["total"] - expected_job_count) <= abs_error
-        op.resume()
-        op.track()
-
-    @authors("apollo1321")
-    @pytest.mark.parametrize("operation", ["merge", "map"])
-    @pytest.mark.parametrize("use_data_weight", [False, True])
-    @pytest.mark.parametrize("use_compressed_data_size", [False, True])
-    def test_operation_with_column_groups_ordered(self, operation, use_data_weight, use_compressed_data_size):
-        if not use_data_weight and not use_compressed_data_size:
-            pytest.skip()
-
-        self._setup_tables()
-
         op_function = merge if operation == "merge" else map
 
         op = op_function(
@@ -119,11 +113,9 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
                 "ordered": True,
                 "mapper": {"command": "cat > /dev/null"},
             } if operation == "map" else {}) | ({
-                "data_weight_per_job": self.DATA_WEIGHT_PER_JOB,
+                "data_weight_per_job": 700,
             } if use_data_weight else {}) | ({
-                "max_compressed_data_size_per_job": self.MAX_COMPRESSED_DATA_SIZE_PER_JOB,
-                # XXX(apollo1321): Remove after compressed_data_size_per_job will be supported for ordered pool.
-                "compressed_data_size_per_job": 1,
+                "compressed_data_size_per_job": 9000,
             } if use_compressed_data_size else {}),
             track=False,
         )
@@ -135,28 +127,31 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         input_statistics = progress["job_statistics_v2"]["data"]["input"]
 
         if use_compressed_data_size:
-            assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= self.MAX_COMPRESSED_DATA_SIZE_PER_JOB
+            assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 9000
 
-        assert self.get_completed_summary(input_statistics["data_weight"])["max"] <= self.DATA_WEIGHT_PER_JOB
+        assert self.get_completed_summary(input_statistics["data_weight"])["max"] <= 700
         assert progress["jobs"]["completed"]["total"] == 3 if use_compressed_data_size else 2
 
     @authors("apollo1321")
-    @pytest.mark.skip(reason="Rewrite to compressed data size per job")
-    @pytest.mark.parametrize("mode", ["ordered"])
-    def test_map_operation_explicit_job_count(self, mode):
+    def test_map_operation_explicit_job_count_ordered(self):
         # NB(apollo1321): Merge operation does not takes into account excplicitly set job_count.
         # NB(apollo1321): Ordered map operation provides job count guarantee only for job_count == 1.
-        self._setup_tables()
+        create("table", "//tmp/t_in")
+        for i in range(5):
+            write_table(
+                "<append=true>//tmp/t_in",
+                [{"col1": i, "col2": self._make_random_string(1000)} for _ in range(30)]
+            )
 
         op = map(
-            in_="//tmp/t_in{small}",
-            out="//tmp/t_out",
+            in_="//tmp/t_in",
+            out="<create=true>//tmp/t_out",
             command="cat > /dev/null",
             spec={
                 "suspend_operation_after_materialization": True,
-                "ordered": mode == "ordered",
-                "max_compressed_data_size_per_job": self.MAX_COMPRESSED_DATA_SIZE_PER_JOB,
-                "data_weight_per_job": self.DATA_WEIGHT_PER_JOB,
+                "ordered": False,
+                "compressed_data_size_per_job": 1,
+                "data_weight_per_job": 1,
                 "job_count": 1,
             },
             track=False,
@@ -167,7 +162,6 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         progress = get(op.get_path() + "/@progress")
 
         assert len(progress["tasks"]) == 1
-        assert progress["tasks"][0]["task_name"] == "map" if mode == "unordered" else "ordered_map"
 
         # Ensure that max_compressed_data_size does not affect the explicitly set job_count.
         assert progress["jobs"]["completed"]["total"] == 1
@@ -220,7 +214,8 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
 
     @authors("apollo1321")
     @pytest.mark.parametrize("operation", ["map", "merge"])
-    def test_operation_with_skewed_input_data_ordered(self, operation):
+    @pytest.mark.parametrize("use_max_constraints", [True, False])
+    def test_operation_with_skewed_input_data_ordered(self, operation, use_max_constraints):
         """
         Test the scenario when chunk sizes are distributed like this
         (w.r.t. read size selectivity):
@@ -232,7 +227,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         |        | #  #  ...  # | _  _  _  _ |
         +--------+--------------+------------+
         | Compr. |              |            |
-        | Data   |              |            | <~ max_compressed_data_size_per_job = 2200
+        | Data   |              |            | <~ [max_]compressed_data_size_per_job = 2200
         | Size   | _  _  ...  _ | #  #  #  # |
         +--------+--------------+------------+
         | Chunk  | 1  2  ...  10| 11 12 13 14|
@@ -240,7 +235,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         |  Jobs  | 1| 2| ...| 10| 11   | 12  |
         +--------+--------------+------------+
 
-        Height of a column of # defines the size of chunk.
+        Height of a column of # defines the size of data read from the chunk.
 
         # - 1000 bytes
         _ - negligible small size
@@ -297,8 +292,11 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
             out="<create=true>//tmp/t_out",
             spec={
                 "data_weight_per_job": 3900,
-                "max_compressed_data_size_per_job": 2200,
             } | ({
+                "max_compressed_data_size_per_job": 2200,
+            } if use_max_constraints else {
+                "compressed_data_size_per_job": 2200,
+            }) | ({
                 "force_transform": True,
                 "mode": "ordered",
             } if operation == "merge" else {}) | ({
@@ -336,7 +334,7 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         | Chunk | 1  2  3  4  5 |
         +-------+---------------+
 
-        Height of a column of # defines the size of chunk.
+        Height of a column of # defines the size of data read from the chunk.
 
         # - 1000 bytes
         _ - negligible small size
@@ -448,8 +446,9 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
 
     @authors("apollo1321")
     @pytest.mark.parametrize("operation", ["map", "merge"])
+    @pytest.mark.parametrize("mode", ["ordered", "unordered"])
     @pytest.mark.parametrize("use_max_constraints", [True, False])
-    def test_slice_by_compressed_data_size_and_data_weight_unordered(self, operation, use_max_constraints):
+    def test_slice_by_compressed_data_size_and_data_weight_alternately(self, operation, mode, use_max_constraints):
         """
         Test that input can be sliced by both [max_]compressed_data_size_per_job
         and [max_]data_weight_per_job. The distribution of chunk sizes is as
@@ -469,11 +468,11 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         | Chunk | 1  2  3  4  5 |
         +-------+---------------+
 
-        Height of a column of # defines the size of chunk.
+        Height of a column of # defines the size of data read from the chunk.
         # - 1000 bytes
 
-        NB: Chunk indexes are just for convenience, they do not guarantee
-        ordering in unordered pools.
+        NB: In unordered mode chunk indexes are just for convenience, they do
+        not guarantee ordering in unordered pools.
         """
 
         create("table", "//tmp/t_in", attributes={
@@ -516,9 +515,9 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
                 "compressed_data_size_per_job": 3500,
             }) | ({
                 "force_transform": True,
-                "mode": "unordered",
+                "mode": mode,
             } if operation == "merge" else {}) | ({
-                "ordered": False,
+                "ordered": mode == "ordered",
                 "mapper": {"command": "cat > /dev/null"},
             } if operation == "map" else {}),
             track=False,
