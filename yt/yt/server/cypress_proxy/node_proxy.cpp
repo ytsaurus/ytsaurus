@@ -1194,7 +1194,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, LockCopySource)
     // TODO(h0pless): Add ACL validation here. See LockCopySource in master.
 
     const auto& connector = Bootstrap_->GetMasterConnector();
-    auto maxSubtreeSize = connector->MaxCopiableSubtreeSize();
+    auto maxSubtreeSize = connector->GetMaxCopiableSubtreeSize();
 
     i64 subtreeSize = 0;
     auto nodesToCopy = SequoiaSession_->FetchSubtree(Path_);

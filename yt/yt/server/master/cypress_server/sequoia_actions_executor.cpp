@@ -149,7 +149,7 @@ private:
         auto path = TYPath(rawPath);
         ForEachOriginator(
             node,
-            [parentId, key, path] (TCypressNode* node) {
+            [&] (TCypressNode* node) {
                 using TImmutableProperties = TCypressNode::TImmutableSequoiaProperties;
                 using TMutableProperties = TCypressNode::TMutableSequoiaProperties;
 
@@ -209,7 +209,7 @@ private:
 
         ForEachOriginator(
             node,
-            [parentId, &path] (TCypressNode* node) {
+            [&] (TCypressNode* node) {
                 node->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
                     TCypressNode::TImmutableSequoiaProperties(
                         NYPath::DirNameAndBaseName(path).second,
