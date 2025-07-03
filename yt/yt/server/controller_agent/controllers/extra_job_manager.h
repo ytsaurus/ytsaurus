@@ -27,7 +27,7 @@ public:
 
     virtual void OnJobScheduled(const TJobletPtr& joblet) = 0;
 
-    virtual void OnOperationRevived(THashMap<TJobId, EAbortReason>* jobsToAbort);
+    virtual void OnOperationRevived();
 
     //! Returns true if the cookie processing is finished.
     virtual bool OnJobCompleted(const TJobletPtr& joblet) = 0;

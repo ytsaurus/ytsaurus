@@ -36,7 +36,7 @@ public:
     void OnJobLost(NChunkPools::IChunkPoolOutput::TCookie cookie) override final;
 
     void OnJobScheduled(const TJobletPtr& joblet) override final;
-    void OnOperationRevived(THashMap<TJobId, EAbortReason>* jobsToAbort) override final;
+    void OnOperationRevived() override final;
     bool OnJobCompleted(const TJobletPtr& joblet) override final;
 
     std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet) override final;
@@ -56,17 +56,17 @@ private:
         PHOENIX_DECLARE_TYPE(TSecondary, 0x9f237b98);
     };
 
-    struct TReplicas
+    struct TGroup
     {
         TJobId MainJobId;
         TCompactVector<TSecondary, 3> Secondaries;
         int Pending = 0;
         int NotCompletedCount = 0;
 
-        PHOENIX_DECLARE_TYPE(TReplicas, 0x9f237b97);
+        PHOENIX_DECLARE_TYPE(TGroup, 0x9f237b97);
     };
 
-    std::unordered_map<NChunkPools::IChunkPoolOutput::TCookie, TReplicas> CookieToReplicas_;
+    THashMap<NChunkPools::IChunkPoolOutput::TCookie, TGroup> CookieToGroup_;
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> PendingCookies_;
     TProgressCounterPtr JobCounter_;
 
@@ -75,8 +75,6 @@ private:
     NLogging::TSerializableLogger Logger;
 
     bool IsRelevant() const;
-
-    void AbortCookie(TReplicas& replicas);
 
     bool OnUnsuccessfulJobFinish(const TJobletPtr& joblet);
 

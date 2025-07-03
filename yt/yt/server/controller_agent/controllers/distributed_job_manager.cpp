@@ -46,8 +46,8 @@ std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> TDistributedJobManager::P
 {
     YT_VERIFY(!PendingCookies_.empty());
     auto cookie = *PendingCookies_.begin();
-    const auto& replicas = GetOrCrash(CookieToReplicas_, cookie);
-    return {cookie, replicas.Secondaries.size() - replicas.Pending + 1};
+    const auto& group = GetOrCrash(CookieToGroup_, cookie);
+    return {cookie, group.Secondaries.size() - group.Pending + 1};
 }
 
 bool TDistributedJobManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason /*reason*/)
@@ -69,43 +69,36 @@ void TDistributedJobManager::OnJobScheduled(const TJobletPtr& joblet)
         return;
     }
     if (joblet->CookieGroupInfo.OutputIndex == 0) {
-        auto it = TryEmplaceOrCrash(CookieToReplicas_, joblet->OutputCookie);
-        auto& replicas = it->second;
+        auto it = TryEmplaceOrCrash(CookieToGroup_, joblet->OutputCookie);
+        auto& group = it->second;
         for (int i = 1; i < GetCookieGroupSize(); i++) {
             auto guard = TProgressCounterGuard(JobCounter_);
             guard.SetCategory(EProgressCategory::Pending);
-            replicas.Secondaries.push_back({.ProgressCounterGuard = std::move(guard)});
+            group.Secondaries.push_back({.ProgressCounterGuard = std::move(guard)});
         }
-        replicas.MainJobId = joblet->JobId;
-        joblet->CookieGroupInfo.MainJobId = replicas.MainJobId;
-        replicas.Pending = GetCookieGroupSize() - 1;
-        replicas.NotCompletedCount = GetCookieGroupSize();
+        group.MainJobId = joblet->JobId;
+        joblet->CookieGroupInfo.MainJobId = group.MainJobId;
+        group.Pending = GetCookieGroupSize() - 1;
+        group.NotCompletedCount = GetCookieGroupSize();
         InsertOrCrash(PendingCookies_, joblet->OutputCookie);
     } else {
-        auto& replicas = GetOrCrash(CookieToReplicas_, joblet->OutputCookie);
-        auto& secondary = replicas.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1];
+        auto& group = GetOrCrash(CookieToGroup_, joblet->OutputCookie);
+        auto& secondary = group.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1];
         secondary.JobId = joblet->JobId;
         secondary.ProgressCounterGuard.SetCategory(EProgressCategory::Running);
-        joblet->CookieGroupInfo.MainJobId = replicas.MainJobId;
-        --replicas.Pending;
-        if (!replicas.Pending) {
+        joblet->CookieGroupInfo.MainJobId = group.MainJobId;
+        --group.Pending;
+        if (!group.Pending) {
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
         }
     }
 }
 
-void TDistributedJobManager::OnOperationRevived(THashMap<TJobId, EAbortReason>* jobsToAbort)
+void TDistributedJobManager::OnOperationRevived()
 {
-    for (auto& [cookie, replicas] : CookieToReplicas_) {
-        if (replicas.Pending) {
-            TryEmplaceOrCrash(*jobsToAbort, replicas.MainJobId, EAbortReason::CookieGroupIncarnationChanged);
-            for (auto& secondary : replicas.Secondaries) {
-                if (secondary.JobId) {
-                    TryEmplaceOrCrash(*jobsToAbort, secondary.JobId, EAbortReason::CookieGroupIncarnationChanged);
-                } else {
-                    secondary.ProgressCounterGuard.SetCategory(EProgressCategory::None);
-                }
-            }
+    for (auto& [cookie, group] : CookieToGroup_) {
+        if (group.Pending) {
+            Task_->GetTaskHost()->AbortJob(group.MainJobId, EAbortReason::CookieGroupDisbanded);
         }
     }
 }
@@ -116,16 +109,16 @@ bool TDistributedJobManager::OnJobCompleted(const TJobletPtr& joblet)
         return true;
     }
 
-    auto replicasIt = CookieToReplicas_.find(joblet->OutputCookie);
-    if (replicasIt != CookieToReplicas_.end()) {
-        auto& replicas = replicasIt->second;
+    auto groupIt = CookieToGroup_.find(joblet->OutputCookie);
+    if (groupIt != CookieToGroup_.end()) {
+        auto& group = groupIt->second;
         if (joblet->CookieGroupInfo.OutputIndex != 0) {
-            replicas.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
+            group.Secondaries[joblet->CookieGroupInfo.OutputIndex - 1].ProgressCounterGuard.SetCategory(EProgressCategory::Completed);
         }
-        --replicas.NotCompletedCount;
-        YT_VERIFY(replicas.NotCompletedCount >= 0);
-        if (!replicas.NotCompletedCount) {
-            CookieToReplicas_.erase(replicasIt);
+        --group.NotCompletedCount;
+        YT_VERIFY(group.NotCompletedCount >= 0);
+        if (!group.NotCompletedCount) {
+            CookieToGroup_.erase(groupIt);
             return true;
         }
     }
@@ -139,7 +132,7 @@ std::optional<EAbortReason> TDistributedJobManager::ShouldAbortCompletingJob(con
 
 bool TDistributedJobManager::IsFinished() const
 {
-    return CookieToReplicas_.empty() && PendingCookies_.empty();
+    return CookieToGroup_.empty() && PendingCookies_.empty();
 }
 
 TProgressCounterPtr TDistributedJobManager::GetProgressCounter() const
@@ -157,18 +150,6 @@ bool TDistributedJobManager::IsRelevant() const
     return GetCookieGroupSize() > 1;
 }
 
-void TDistributedJobManager::AbortCookie(TReplicas& replicas)
-{
-    Task_->GetTaskHost()->AsyncAbortJob(replicas.MainJobId, EAbortReason::CookieGroupDisbanded);
-    for (auto& secondary : replicas.Secondaries) {
-        if (secondary.JobId) {
-            Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, EAbortReason::CookieGroupDisbanded);
-        } else {
-            secondary.ProgressCounterGuard.SetCategory(EProgressCategory::None);
-        }
-    }
-}
-
 bool TDistributedJobManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet)
 {
     if (!IsRelevant()) {
@@ -176,14 +157,21 @@ bool TDistributedJobManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet)
         return true;
     }
 
-    auto replicasIt = CookieToReplicas_.find(joblet->OutputCookie);
-    if (replicasIt != CookieToReplicas_.end()) {
-        auto& replicas = replicasIt->second;
-        AbortCookie(replicas);
-        if (replicas.Pending) {
+    auto groupIt = CookieToGroup_.find(joblet->OutputCookie);
+    if (groupIt != CookieToGroup_.end()) {
+        auto& group = groupIt->second;
+        Task_->GetTaskHost()->AsyncAbortJob(group.MainJobId, EAbortReason::CookieGroupDisbanded);
+        for (auto& secondary : group.Secondaries) {
+            if (secondary.JobId) {
+                Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, EAbortReason::CookieGroupDisbanded);
+            } else {
+                secondary.ProgressCounterGuard.SetCategory(EProgressCategory::None);
+            }
+        }
+        if (group.Pending) {
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
         }
-        CookieToReplicas_.erase(replicasIt);
+        CookieToGroup_.erase(groupIt);
         return true;
     }
     return false;
@@ -191,7 +179,7 @@ bool TDistributedJobManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet)
 
 void TDistributedJobManager::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, CookieToReplicas_);
+    PHOENIX_REGISTER_FIELD(1, CookieToGroup_);
     PHOENIX_REGISTER_FIELD(2, PendingCookies_);
     PHOENIX_REGISTER_FIELD(3, JobCounter_);
     PHOENIX_REGISTER_FIELD(4, Task_);
@@ -208,7 +196,7 @@ void TDistributedJobManager::TSecondary::RegisterMetadata(auto&& registrar)
 
 PHOENIX_DEFINE_TYPE(TDistributedJobManager::TSecondary);
 
-void TDistributedJobManager::TReplicas::RegisterMetadata(auto&& registrar)
+void TDistributedJobManager::TGroup::RegisterMetadata(auto&& registrar)
 {
     PHOENIX_REGISTER_FIELD(1, MainJobId);
     PHOENIX_REGISTER_FIELD(2, Secondaries);
@@ -216,7 +204,7 @@ void TDistributedJobManager::TReplicas::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(4, NotCompletedCount);
 }
 
-PHOENIX_DEFINE_TYPE(TDistributedJobManager::TReplicas);
+PHOENIX_DEFINE_TYPE(TDistributedJobManager::TGroup);
 
 ////////////////////////////////////////////////////////////////////////////////
 
