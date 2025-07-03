@@ -932,7 +932,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     AddJobTypeToJoblet(joblet);
 
-    joblet->JobInterruptible = IsJobInterruptible() && !(userJobSpec && userJobSpec->CookieGroupSize > 1);
+    joblet->JobInterruptible = IsJobInterruptible() && joblet->CookieGroupInfo.OutputIndex == 0;
     joblet->Restarted = restarted;
     joblet->NodeDescriptor = context.GetNodeDescriptor();
 
@@ -1470,9 +1470,9 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
     return result;
 }
 
-void TTask::OnOperationRevived(THashMap<TJobId, EAbortReason>* jobsToAbort) {
+void TTask::OnOperationRevived() {
     for (auto jobManager : JobManagers_) {
-        jobManager->OnOperationRevived(jobsToAbort);
+        jobManager->OnOperationRevived();
     }
 }
 

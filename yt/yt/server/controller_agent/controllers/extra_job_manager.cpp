@@ -2,7 +2,7 @@
 
 namespace NYT::NControllerAgent::NControllers {
 
-void IExtraJobManager::OnOperationRevived(THashMap<TJobId, EAbortReason>* /* jobsToAbort */)
+void IExtraJobManager::OnOperationRevived()
 { }
 /////////////////////////////////////////////////////////////////////////////////
 
