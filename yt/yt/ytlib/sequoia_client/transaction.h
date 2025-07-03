@@ -15,18 +15,18 @@ namespace NYT::NSequoiaClient {
 struct ISequoiaTransaction
     : public TRefCounted
 {
-    class TGuardedRowBuffer
+    class TThreadSafeRowBuffer
     {
     public:
-        TGuardedRowBuffer(
+        TThreadSafeRowBuffer(
             NThreading::TSpinLock* lock,
-            const NTableClient::TRowBufferPtr& rowBuffer);
+            NTableClient::TRowBufferPtr rowBuffer);
 
         const NTableClient::TRowBufferPtr& Get() const;
 
     private:
-        TGuard<NThreading::TSpinLock> Guard_;
-        const NTableClient::TRowBufferPtr& RowBuffer_;
+        const TGuard<NThreading::TSpinLock> Guard_;
+        const NTableClient::TRowBufferPtr RowBuffer_;
     };
 
     virtual TFuture<void> Commit(const NApi::TTransactionCommitOptions& options = {}) = 0;
@@ -109,7 +109,7 @@ struct ISequoiaTransaction
 
     virtual NObjectClient::TCellTag GetRandomSequoiaNodeHostCellTag() const = 0;
 
-    virtual TGuardedRowBuffer GetGuardedRowBuffer() = 0;
+    virtual TThreadSafeRowBuffer GetGuardedRowBuffer() = 0;
     virtual const ISequoiaClientPtr& GetClient() const = 0;
 
     virtual NObjectClient::TTransactionId GetId() const = 0;
