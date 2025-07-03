@@ -166,7 +166,7 @@ public:
     virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
     virtual void OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary);
     virtual void OnJobLost(TCompletedJobPtr completedJob, NChunkClient::TChunkId chunkId);
-    void OnOperationRevived(THashMap<TJobId, EAbortReason>* jobsToAbort);
+    void OnOperationRevived();
 
     virtual void OnStripeRegistrationFailed(
         TError error,
