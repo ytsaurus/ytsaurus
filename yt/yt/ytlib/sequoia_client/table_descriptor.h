@@ -51,7 +51,7 @@ struct ITableDescriptor
      *  bootstrap rather than rely on lazy initialization at some unexpected
      *  moment.
      */
-    static TFuture<void> Initialize();
+    static void ScheduleInitialization();
     static const ITableDescriptor* Get(ESequoiaTable table);
 };
 

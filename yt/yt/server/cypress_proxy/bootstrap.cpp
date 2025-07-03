@@ -249,7 +249,7 @@ private:
 
     void DoInitialize()
     {
-        auto tableDescriptorInitialization = ITableDescriptor::Initialize();
+        ITableDescriptor::ScheduleInitialization();
 
         BusServer_ = NBus::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
@@ -314,9 +314,6 @@ private:
         ObjectService_ = CreateObjectService(this);
         RpcServer_->RegisterService(ObjectService_->GetService());
         RpcServer_->RegisterService(CreateCypressTransactionService(this));
-
-        WaitFor(tableDescriptorInitialization)
-            .ThrowOnError();
     }
 
     void DoStart()
