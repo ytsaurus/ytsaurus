@@ -35,25 +35,20 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> ITableDescriptor::Initialize()
+void ITableDescriptor::ScheduleInitialization()
 {
     static IThreadPoolPtr ThreadPool;
-    static auto InitializationPromise = NewPromise<void>();
     static std::atomic<bool> InitializationStarted = false;
 
-    if (!InitializationStarted.exchange(true)) {
-        ThreadPool = CreateThreadPool(TEnumTraits<ESequoiaTable>::GetDomainSize(), "SequoiaInit");
-
-        std::vector<TFuture<void>> futures;
-        futures.reserve(TEnumTraits<ESequoiaTable>::GetDomainSize());
-        for (auto table : TEnumTraits<ESequoiaTable>::GetDomainValues()) {
-            futures.push_back(BIND(ITableDescriptor::Get, table).AsyncVia(ThreadPool->GetInvoker()).Run().AsVoid());
-        }
-
-        InitializationPromise.SetFrom(AllSucceeded(std::move(futures)));
+    if (InitializationStarted.exchange(true)) {
+        return;
     }
 
-    return InitializationPromise.ToFuture().ToUncancelable();
+    ThreadPool = CreateThreadPool(TEnumTraits<ESequoiaTable>::GetDomainSize(), "SequoiaInit");
+
+    for (auto table : TEnumTraits<ESequoiaTable>::GetDomainValues()) {
+        YT_UNUSED_FUTURE(BIND(ITableDescriptor::Get, table).AsyncVia(ThreadPool->GetInvoker()).Run());
+    }
 }
 
 const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
