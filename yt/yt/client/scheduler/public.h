@@ -174,7 +174,6 @@ DEFINE_ENUM(EAbortReason,
     ((SchedulingOperationIsNotAlive)   (107))
     ((SchedulingLast)                  (199))
     ((CookieGroupDisbanded)            (200))
-    ((CookieGroupIncarnationChanged)   (201))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EAbortReason, Unknown);
