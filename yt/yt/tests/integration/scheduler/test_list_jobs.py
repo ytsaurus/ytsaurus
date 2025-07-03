@@ -905,6 +905,28 @@ class TestListJobs(TestListJobsCommon):
 
         len(checked_list_jobs(op.id, state="running")["jobs"]) == 0
 
+    @authors("faucct")
+    def test_distributed_operation(self):
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "master": {
+                        "job_count": 1,
+                        "command": ":",
+                        "cookie_group_size": 2,
+                    },
+                },
+            },
+        )
+        main, replica = sorted(
+            list_jobs(op.id, attributes=["job_cookie_group_index", "main_job_id"])["jobs"],
+            key=lambda job: job["job_cookie_group_index"],
+        )
+        assert main["main_job_id"] == main["id"]
+        assert main["job_cookie_group_index"] == 0
+        assert replica["main_job_id"] == main["id"]
+        assert replica["job_cookie_group_index"] == 1
+
     @authors("gritukan")
     def test_task_name(self):
         op = vanilla(
