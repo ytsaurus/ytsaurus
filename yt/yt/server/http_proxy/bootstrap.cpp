@@ -255,7 +255,7 @@ void TBootstrap::DoInitialize()
     AccessChecker_ = CreateAccessChecker(this);
 
     if (Config_->SignatureValidation) {
-        auto cypressKeyReader = CreateCypressKeyReader(
+        auto cypressKeyReader = New<TCypressKeyReader>(
             Config_->SignatureValidation->CypressKeyReader,
             RootClient_);
         SignatureValidator_ = New<TSignatureValidator>(std::move(cypressKeyReader));

@@ -179,7 +179,7 @@ public:
             DnsOverRpcActionQueue_->GetInvoker()));
 
         if (auto signatureValidationConfig = GetConfig()->ExecNode->SignatureValidation) {
-            auto cypressKeyReader = CreateCypressKeyReader(
+            auto cypressKeyReader = New<TCypressKeyReader>(
                 signatureValidationConfig->CypressKeyReader,
                 GetClient());
             SignatureValidator_ = New<TSignatureValidator>(std::move(cypressKeyReader));
