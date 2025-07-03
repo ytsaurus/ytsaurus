@@ -902,6 +902,9 @@ TEST_F(TUnorderedChunkPoolTest, BuildJobsInputByCompressedDataSize)
 
 TEST_F(TUnorderedChunkPoolTest, DataWeightPerJobDoesNotAffectCompressedDataSizePerJob)
 {
+    // This test checks that chunk pool handles slicing by compressed data size and
+    // by data weight independently. Chunk pool could use single job counter otherwise.
+    //
     // +-------+---------------+
     // |       |               |
     // | Data  |               |
@@ -916,7 +919,7 @@ TEST_F(TUnorderedChunkPoolTest, DataWeightPerJobDoesNotAffectCompressedDataSizeP
     // | Chunk | 1  2  3  4  5 |
     // +-------+---------------+
     //
-    // Job counts:
+    // Job count estimation:
     //  - By compressed_data_size ~ ceil(5_GB / 6_GB)   = 1
     //  - By data_weight          ~ ceil(250_MB / 1_MB) = 250
     //
@@ -988,7 +991,7 @@ TEST_F(TUnorderedChunkPoolTest, CompressedDataSizePerJobDoesNotAffectDataWeightP
     // | Chunk | 1  2  3  4  5 |
     // +-------+---------------+
     //
-    // Job counts:
+    // Job count estimation:
     //  - By compressed_data_size ~ ceil(250_MB / 1_MB) = 250
     //  - By data_weight          ~ ceil(5_GB / 6_GB) j = 1
     //
