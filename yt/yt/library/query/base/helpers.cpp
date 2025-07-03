@@ -61,7 +61,7 @@ void ThrowTypeMismatchError(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Computes key index for a given column name.
-int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const std::string& columnName)
+int ColumnNameToKeyPartIndex(TRange<std::string> keyColumns, const std::string& columnName)
 {
     for (int index = 0; index < std::ssize(keyColumns); ++index) {
         if (keyColumns[index] == columnName) {
@@ -215,6 +215,37 @@ int GetConstraintSignatureScore(const std::vector<EConstraintKind>& signature)
     }
 
     return score;
+}
+
+bool CanOmitOrderBy(int keyPrefix, TRange<TOrderItem> orderItems, TRange<std::string> keyColumns)
+{
+    for (const auto& item : orderItems) {
+        if (item.Descending) {
+            return false;
+        }
+
+        const auto* referenceExpr = item.Expression->As<TReferenceExpression>();
+
+        if (!referenceExpr) {
+            return false;
+        }
+
+        auto columnIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
+
+        if (columnIndex == -1) {
+            return false;
+        }
+
+        if (keyPrefix < columnIndex) {
+            return false;
+        }
+
+        if (keyPrefix == columnIndex) {
+            ++keyPrefix;
+        }
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

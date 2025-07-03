@@ -257,60 +257,6 @@ void LogInitialDataSources(
     }
 }
 
-std::pair<TDataSource, TConstQueryPtr> InferRanges(
-    const IColumnEvaluatorCachePtr& columnEvaluatorCache,
-    TConstQueryPtr query,
-    const TDataSource& dataSource,
-    const TQueryOptions& options,
-    TRowBufferPtr rowBuffer,
-    const IMemoryChunkProviderPtr& memoryChunkProvider,
-    const NLogging::TLogger& Logger)
-{
-    auto tableId = dataSource.ObjectId;
-    auto ranges = dataSource.Ranges;
-    auto keys = dataSource.Keys;
-
-    TConstQueryPtr resultQuery;
-
-    // TODO(lukyan): Infer ranges if no initial ranges or keys?
-    if (!keys && query->InferRanges) {
-        ranges = GetPrunedRanges(
-            query,
-            tableId,
-            ranges,
-            rowBuffer,
-            columnEvaluatorCache,
-            GetBuiltinRangeExtractors(),
-            options,
-            memoryChunkProvider);
-
-        YT_LOG_DEBUG("Ranges are inferred (RangeCount: %v, TableId: %v)",
-            ranges.Size(),
-            tableId);
-
-        auto newQuery = New<TQuery>(*query);
-
-        if (query->WhereClause && !ranges.Empty()) {
-            newQuery->WhereClause = EliminatePredicate(
-                ranges,
-                query->WhereClause,
-                query->GetKeyColumns());
-        }
-
-        resultQuery = newQuery;
-    } else {
-        resultQuery = query;
-    }
-
-    TDataSource inferredDataSource{
-        .ObjectId = tableId,
-        .Ranges = ranges,
-        .Keys = keys
-    };
-
-    return {inferredDataSource, resultQuery};
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryResponseReader

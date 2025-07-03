@@ -1224,6 +1224,44 @@ TEST_F(TQueryPrepareTest, PushDownGroupBy)
     }
 }
 
+TEST_F(TQueryPrepareTest, OmitOrderByUsingFixedInferredPrefix)
+{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
+
+    auto config = New<TColumnEvaluatorCacheConfig>();
+    auto columnEvaluatorCache = CreateColumnEvaluatorCache(config);
+
+    TRangeExtractorMapPtr rangeExtractorMap = New<TRangeExtractorMap>();
+    MergeFrom(rangeExtractorMap.Get(), *GetBuiltinRangeExtractors());
+
+    auto source = std::string(R"(select * from [//t] where k = 1 and l = 1 order by m limit 10)");
+
+    auto fragment = ParseAndPreparePlanFragment(&PrepareMock_, source);
+
+    auto options = TQueryOptions{
+        .RangeExpansionLimit = 1000,
+        .VerboseLogging = true,
+    };
+
+    EXPECT_NE(fragment->Query->OrderClause, nullptr);
+    EXPECT_FALSE(fragment->Query->IsOrdered(false));
+
+    auto [dataSource, query] = InferRanges(
+        columnEvaluatorCache,
+        fragment->Query,
+        TDataSource{
+            .Ranges = MakeSharedRange(TRowRanges()),
+        },
+        options,
+        New<TRowBuffer>(),
+        GetDefaultMemoryChunkProvider(),
+        Logger());
+
+    EXPECT_EQ(query->OrderClause, nullptr);
+    EXPECT_TRUE(query->IsOrdered(false));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobQueryPrepareTest
