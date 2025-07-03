@@ -52,12 +52,12 @@ std::pair<NChunkPools::IChunkPoolOutput::TCookie, int> TDistributedJobManager::P
 
 bool TDistributedJobManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason /*reason*/)
 {
-    return OnUnsuccessfulJobFinish(joblet, EAbortReason::CookieGroupDisbanded);
+    return OnUnsuccessfulJobFinish(joblet);
 }
 
 bool TDistributedJobManager::OnJobFailed(const TJobletPtr& joblet)
 {
-    return OnUnsuccessfulJobFinish(joblet, EAbortReason::CookieGroupDisbanded);
+    return OnUnsuccessfulJobFinish(joblet);
 }
 
 void TDistributedJobManager::OnJobLost(IChunkPoolOutput::TCookie)
@@ -157,21 +157,19 @@ bool TDistributedJobManager::IsRelevant() const
     return GetCookieGroupSize() > 1;
 }
 
-void TDistributedJobManager::AbortCookie(TReplicas& replicas, EAbortReason abortReason)
+void TDistributedJobManager::AbortCookie(TReplicas& replicas)
 {
-    Task_->GetTaskHost()->AsyncAbortJob(replicas.MainJobId, abortReason);
+    Task_->GetTaskHost()->AsyncAbortJob(replicas.MainJobId, EAbortReason::CookieGroupDisbanded);
     for (auto& secondary : replicas.Secondaries) {
         if (secondary.JobId) {
-            Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, abortReason);
+            Task_->GetTaskHost()->AsyncAbortJob(secondary.JobId, EAbortReason::CookieGroupDisbanded);
         } else {
             secondary.ProgressCounterGuard.SetCategory(EProgressCategory::None);
         }
     }
 }
 
-bool TDistributedJobManager::OnUnsuccessfulJobFinish(
-    const TJobletPtr& joblet,
-    EAbortReason abortReason)
+bool TDistributedJobManager::OnUnsuccessfulJobFinish(const TJobletPtr& joblet)
 {
     if (!IsRelevant()) {
         // By default after unsuccessful finish of job a cookie is returned to chunk pool.
@@ -181,7 +179,7 @@ bool TDistributedJobManager::OnUnsuccessfulJobFinish(
     auto replicasIt = CookieToReplicas_.find(joblet->OutputCookie);
     if (replicasIt != CookieToReplicas_.end()) {
         auto& replicas = replicasIt->second;
-        AbortCookie(replicas, abortReason);
+        AbortCookie(replicas);
         if (replicas.Pending) {
             EraseOrCrash(PendingCookies_, joblet->OutputCookie);
         }

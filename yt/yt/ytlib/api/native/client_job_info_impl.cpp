@@ -1430,14 +1430,6 @@ static TQueryBuilder GetListJobsQueryBuilder(
     if (options.Address) {
         builder.AddWhereConjunct(Format("is_prefix(%Qv, address)", *options.Address));
     }
-    if (options.MainJobId) {
-        auto mainJobId = options.MainJobId.Underlying();
-
-        builder.AddWhereConjunct(Format(
-            "(main_job_id_hi, main_job_id_lo) = (%vu, %vu)",
-            mainJobId.Parts64[0],
-            mainJobId.Parts64[1]));
-    }
 
     return builder;
 }
@@ -1478,6 +1470,15 @@ static void AddWhereExpressions(TQueryBuilder* builder, const TListJobsOptions& 
 
     if (options.JobCompetitionId) {
         builder->AddWhereConjunct(Format("job_competition_id = %Qv", options.JobCompetitionId));
+    }
+
+    if (options.MainJobId) {
+        auto mainJobId = options.MainJobId.Underlying();
+
+        builder->AddWhereConjunct(Format(
+            "(main_job_id_hi, main_job_id_lo) = (%vu, %vu)",
+            mainJobId.Parts64[0],
+            mainJobId.Parts64[1]));
     }
 
     if (options.WithCompetitors) {
@@ -1755,7 +1756,7 @@ void TClient::AddSelectExpressions(
             continue;
         }
 
-        if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id") {
+        if (attribute == "job_id" || attribute == "allocation_id" || attribute == "operation_id" || attribute == "main_job_id") {
             builder->AddSelectExpression(attribute + "_hi");
             builder->AddSelectExpression(attribute + "_lo");
         } else if (attribute == "start_time" || attribute == "finish_time") {
@@ -1994,7 +1995,9 @@ static void ParseJobsFromControllerAgentResponse(
             job.JobCookieGroupIndex = jobMapNode->FindChildValue<ui64>("job_cookie_group_index");
         }
         if (needMainJobId) {
-            job.MainJobId = jobMapNode->GetChildValueOrThrow<TJobId>("main_job_id");
+            if (auto mainJobId = jobMapNode->FindChildValue<TJobId>("main_job_id")) {
+                job.MainJobId = *mainJobId;
+            }
         }
         if (needMonitoringDescriptor) {
             job.MonitoringDescriptor = jobMapNode->FindChildValue<TString>("monitoring_descriptor");
@@ -2049,10 +2052,7 @@ static void ParseJobsFromControllerAgentResponse(
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
         auto failContextSize = jobMap->GetChildValueOrDefault<i64>("fail_context_size", 0);
-        TJobId mainJobId;
-        if (auto cookieGroupInfo = jobMap->FindChildValue<IMapNodePtr>("cookie_group_info")) {
-            mainJobId = (*cookieGroupInfo)->GetChildValueOrThrow<TJobId>("main_job_id");
-        }
+        auto mainJobId = jobMap->FindChildValue<TJobId>("main_job_id");
         auto jobCompetitionId = jobMap->GetChildValueOrThrow<TJobId>("job_competition_id");
         auto hasCompetitors = jobMap->GetChildValueOrThrow<bool>("has_competitors");
         auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
@@ -2266,6 +2266,8 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::TaskName);
     mergeNullableField(&TJob::PoolTree);
     mergeNullableField(&TJob::JobCookie);
+    mergeNullableField(&TJob::JobCookieGroupIndex);
+    mergeNullableField(&TJob::MainJobId);
     mergeNullableField(&TJob::OperationIncarnation);
     mergeNullableField(&TJob::AllocationId);
     mergeNullableField(&TJob::GangRank);
@@ -2557,7 +2559,7 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         if (!DoesArchiveContainAttribute(attribute, archiveVersion)) {
             continue;
         }
-        if (attribute == "operation_id" || attribute == "job_id" || attribute == "allocation_id") {
+        if (attribute == "operation_id" || attribute == "job_id" || attribute == "allocation_id" || attribute == "main_job_id") {
             result.push_back(attribute + "_hi");
             result.push_back(attribute + "_lo");
         } else if (attribute == "state") {

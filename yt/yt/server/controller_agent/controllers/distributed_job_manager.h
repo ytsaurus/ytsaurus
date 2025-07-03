@@ -76,11 +76,9 @@ private:
 
     bool IsRelevant() const;
 
-    void AbortCookie(TReplicas& replicas, EAbortReason abortReason);
+    void AbortCookie(TReplicas& replicas);
 
-    bool OnUnsuccessfulJobFinish(
-        const TJobletPtr& joblet,
-        EAbortReason abortReason);
+    bool OnUnsuccessfulJobFinish(const TJobletPtr& joblet);
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_TYPE(TDistributedJobManager, 0xccfb1994);
