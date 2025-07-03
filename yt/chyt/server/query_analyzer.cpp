@@ -1261,6 +1261,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze() const
         result.PoolKind = (KeyColumnCount_ > 0 ? EPoolKind::Sorted : EPoolKind::Unordered);
         result.KeyColumnCount = KeyColumnCount_;
     }
+    result.JoinedByKeyColumns = JoinedByKeyColumns_;
 
     return result;
 }

@@ -29,6 +29,7 @@ struct TQueryAnalysisResult
     std::optional<int> KeyColumnCount;
     EPoolKind PoolKind;
     EReadInOrderMode ReadInOrderMode = EReadInOrderMode::None;
+    bool JoinedByKeyColumns;
 };
 
 struct TSecondaryQuery

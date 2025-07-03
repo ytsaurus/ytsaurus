@@ -533,6 +533,9 @@ private:
 
         QueryContext_->SetRuntimeVariable("pool_kind", QueryAnalysisResult_->PoolKind);
         QueryContext_->SetRuntimeVariable("read_in_order_mode", QueryAnalysisResult_->ReadInOrderMode);
+        if (QueryAnalysisResult_->JoinedByKeyColumns) {
+            QueryContext_->SetRuntimeVariable("joined_by_key_columns", QueryAnalysisResult_->JoinedByKeyColumns);
+        }
 
         QueryInput_ = FetchInput(
             StorageContext_,
