@@ -191,6 +191,7 @@ TJobProxy::TJobProxy(
     , JobId_(jobId)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
+    , JobProxyEnvironmentThread_(New<TActionQueue>("JobProxyEnvironment"))
     , Logger(JobProxyLogger().WithTag("OperationId: %v, JobId: %v",
         OperationId_,
         JobId_))
@@ -539,6 +540,10 @@ void TJobProxy::DoRun()
         YT_LOG_INFO("CPU monitor stopped");
     }
 
+    if (GetJobSpecHelper()->HasSidecars()) {
+        FindJobProxyEnvironment()->KillSidecars();
+    }
+
     {
         auto error = WaitFor(RpcServer_->Stop()
             .WithTimeout(RpcServerShutdownTimeout));
@@ -756,6 +761,7 @@ TJobResult TJobProxy::RunJob()
     TTraceContextGuard guard(RootSpan_);
 
     IJobPtr job;
+    IJobProxyEnvironmentPtr environment;
 
     try {
         if (Config_->TvmBridge && Config_->TvmBridgeConnection) {
@@ -774,7 +780,7 @@ TJobResult TJobProxy::RunJob()
 
         SolomonExporter_ = New<TSolomonExporter>(Config_->SolomonExporter);
 
-        auto environment = CreateJobProxyEnvironment(Config_->JobEnvironment);
+        environment = CreateJobProxyEnvironment(Config_, JobProxyEnvironmentThread_->GetInvoker());
         SetJobProxyEnvironment(environment);
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->LocalHostName, Config_->Rack, Config_->DataCenter);
@@ -978,6 +984,16 @@ TJobResult TJobProxy::RunJob()
     MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();
     CpuMonitor_->Start();
+
+    if (GetJobSpecHelper()->HasSidecars()) {
+        environment->StartSidecars(this, GetJobSpecHelper()->GetJobSpecExt(), [this] (TError sidecarError) {
+            auto job = FindJob();
+            if (!job) {
+                YT_LOG_FATAL("Tried to get the job, but it is unavailable (SidecarError: %v)", sidecarError);
+            }
+            job->Fail(std::move(sidecarError));
+        });
+    }
 
     return job->Run();
 }

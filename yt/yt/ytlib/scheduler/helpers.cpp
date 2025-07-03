@@ -833,6 +833,37 @@ void ToProto(
     }
 }
 
+
+void FromProto(
+    TSidecarJobSpec* sidecarJobSpec,
+    const NControllerAgent::NProto::TSidecarJobSpec& sidecarJobSpecProto)
+{
+    sidecarJobSpec->Command = sidecarJobSpecProto.command();
+
+    sidecarJobSpec->CpuLimit = YT_OPTIONAL_FROM_PROTO(sidecarJobSpecProto, cpu_limit);
+
+    sidecarJobSpec->MemoryLimit = YT_OPTIONAL_FROM_PROTO(sidecarJobSpecProto, memory_limit);
+
+    sidecarJobSpec->DockerImage = YT_OPTIONAL_FROM_PROTO(sidecarJobSpecProto, docker_image);
+
+    sidecarJobSpec->RestartPolicy = ConvertTo<ESidecarRestartPolicy>(sidecarJobSpecProto.restart_policy());
+}
+
+void ToProto(
+    NControllerAgent::NProto::TSidecarJobSpec* sidecarJobSpecProto,
+    const TSidecarJobSpec& sidecarJobSpec)
+{
+    sidecarJobSpecProto->set_command(sidecarJobSpec.Command);
+
+    YT_OPTIONAL_SET_PROTO(sidecarJobSpecProto, cpu_limit, sidecarJobSpec.CpuLimit);
+
+    YT_OPTIONAL_SET_PROTO(sidecarJobSpecProto, memory_limit, sidecarJobSpec.MemoryLimit);
+
+    YT_OPTIONAL_TO_PROTO(sidecarJobSpecProto, docker_image, sidecarJobSpec.DockerImage);
+
+    sidecarJobSpecProto->set_restart_policy(ToProto(sidecarJobSpec.RestartPolicy));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

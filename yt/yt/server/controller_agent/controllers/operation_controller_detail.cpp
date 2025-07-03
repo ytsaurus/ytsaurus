@@ -10076,6 +10076,20 @@ double TOperationControllerBase::GetCpuLimit(const TUserJobSpecPtr& userJobSpec)
     return std::max(userJobSpec->CpuLimit, Options_->MinCpuLimit);
 }
 
+std::pair<std::optional<TString>, bool> TOperationControllerBase::NormalizeDockerImage(
+    const TString& dockerImage) const
+{
+    std::optional<TString> normalizedImage;
+
+    TDockerImageSpec dockerImageSpec(dockerImage, Config_->DockerRegistry);
+    if (!dockerImageSpec.IsInternal || Config_->DockerRegistry->ForwardInternalImagesToJobSpecs) {
+        normalizedImage = dockerImageSpec.GetDockerImage();
+    }
+
+    auto needDockerAuth = dockerImageSpec.IsInternal && Config_->DockerRegistry->UseYtTokenForInternalRegistry;
+    return {normalizedImage, needDockerAuth};
+}
+
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TUserJobSpecPtr& jobSpecConfig,
@@ -10270,14 +10284,39 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_start_queue_consumer_registration_manager(jobSpecConfig->StartQueueConsumerRegistrationManager);
 
     // Pass normalized docker image reference into job spec.
+    auto needDockerAuth = false;
     if (jobSpecConfig->DockerImage) {
-        TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config_->DockerRegistry);
-        if (!dockerImageSpec.IsInternal || Config_->DockerRegistry->ForwardInternalImagesToJobSpecs) {
-            jobSpec->set_docker_image(dockerImageSpec.GetDockerImage());
+        auto result = NormalizeDockerImage(*jobSpecConfig->DockerImage);
+        if (result.first) {
+            jobSpec->set_docker_image(*result.first);
         }
-        if (dockerImageSpec.IsInternal && Config_->DockerRegistry->UseYtTokenForInternalRegistry) {
-            GenerateDockerAuthFromToken(SecureVault_, AuthenticatedUser_, jobSpec);
+        needDockerAuth |= result.second;
+    }
+
+    if (jobSpecConfig->Sidecars) {
+        auto* protoSidecars = jobSpec->mutable_sidecars();
+        for (const auto& [sidecarName, sidecarSpec]: *jobSpecConfig->Sidecars) {
+            auto& protoSidecar = (*protoSidecars)[sidecarName];
+            ToProto(&protoSidecar, *sidecarSpec);
+
+            if (sidecarSpec->DockerImage) {
+                auto result = NormalizeDockerImage(*sidecarSpec->DockerImage);
+                if (result.first) {
+                    protoSidecar.set_docker_image(*result.first);
+                } else {
+                    // ToProto(..) sets the docker_image as-is, but we want either the normalized one,
+                    // or no image at all (same as with the main job), so we clear it in this case.
+                    protoSidecar.clear_docker_image();
+                }
+                needDockerAuth |= result.second;
+            }
         }
+    }
+
+    // If any of the Docker images from the main job and from the sidecars require Docker auth,
+    // generate it now.
+    if (needDockerAuth) {
+        GenerateDockerAuthFromToken(SecureVault_, AuthenticatedUser_, jobSpec);
     }
 }
 
