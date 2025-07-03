@@ -268,11 +268,20 @@ class TestMutations(ClickHouseTestBase):
             {"name": "dbl", "type": "double"},
             {"name": "bool", "type": "boolean"},
         ]
+        column_name_to_type = {}
+        for schema_type in schema:
+            column_name_to_type[schema_type['name']] = schema_type['type']
+
         create("table", "//tmp/t", attributes={"schema": schema})
         with Clique(1) as clique:
             clique.make_query('insert into "//tmp/t" select * from generateRandom() limit 10')
             assert get("//tmp/t/@chunk_count") == 1
             assert len(read_table("//tmp/t")) == 10
+
+            result_schema = get("//tmp/t/@schema")
+            assert len(result_schema) == len(schema)
+            for result_type in schema:
+                assert result_type['type'] == column_name_to_type.get(result_type['name'], '')
 
             with raises_yt_error(QueryFailedError):
                 clique.make_query(
