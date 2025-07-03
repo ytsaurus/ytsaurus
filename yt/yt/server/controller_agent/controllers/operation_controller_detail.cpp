@@ -3958,7 +3958,6 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("statistics").Value(joblet->BuildCombinedStatistics())
         .Item("suspicious").Value(joblet->Suspicious)
         .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
-        .Item("cookie_group_info").Value(joblet->CookieGroupInfo)
         .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
         .Item("has_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Speculative])
         .Item("has_probing_competitors").Value(joblet->HasCompetitors[EJobCompetitionType::Probing])

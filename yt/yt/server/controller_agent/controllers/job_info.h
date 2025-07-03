@@ -220,8 +220,6 @@ struct TJoblet
 
 DEFINE_REFCOUNTED_TYPE(TJoblet)
 
-void Serialize(const TJoblet::TCookieGroupInfo& cookieGroupInfo, NYson::IYsonConsumer* consumer);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCompletedJob
