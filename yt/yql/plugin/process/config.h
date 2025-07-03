@@ -12,7 +12,9 @@
 namespace NYT::NYqlPlugin {
 namespace NProcess {
 
-struct TYqlProcessPluginConfig : public NYTree::TYsonStruct {
+struct TYqlProcessPluginConfig
+    : public NYTree::TYsonStruct
+{
 
     bool Enabled;
     int SlotsCount;
@@ -30,7 +32,9 @@ struct TYqlProcessPluginConfig : public NYTree::TYsonStruct {
 DEFINE_REFCOUNTED_TYPE(TYqlProcessPluginConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
-struct TYqlProcessPluginOptions : public NYTree::TYsonStruct {
+struct TYqlProcessPluginOptions
+    : public NYTree::TYsonStruct
+{
     NYson::TYsonString SingletonsConfig;
     NYson::TYsonString GatewayConfig;
     std::optional<NYson::TYsonString> DqGatewayConfig;
@@ -54,7 +58,8 @@ DEFINE_REFCOUNTED_TYPE(TYqlProcessPluginOptions)
 
 struct TYqlPluginProcessInternalConfig
     : public NServer::TNativeServerBootstrapConfig
-    , public TServerProgramConfig {
+    , public TServerProgramConfig
+{
 
     int SlotIndex;
 

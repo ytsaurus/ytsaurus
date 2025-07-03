@@ -323,7 +323,8 @@ public:
     void Stop() override
     { }
 
-    virtual NYTree::IYPathServicePtr CreateOrchidService() const override {
+    virtual NYTree::IYPathServicePtr CreateOrchidService() const override 
+    {
         auto producer = BIND_NO_PROPAGATE(&TYqlAgent::BuildOrchid, MakeStrong(this));
         return IYPathService::FromProducer(producer);
     }
