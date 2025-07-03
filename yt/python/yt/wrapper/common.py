@@ -129,21 +129,12 @@ def hide_auth_headers(headers: typing.Dict[str, str]) -> typing.Dict[str, str]:
 
 def hide_auth_headers_in_request_info(request_info):
     copied_request_info = None
-
     for key in ("headers", "request_header", "response_headers"):
         if key not in request_info:
             continue
         if copied_request_info is None:
             copied_request_info = deepcopy(request_info)
-
         copied_request_info[key] = hide_auth_headers(request_info[key])
-
-    if "params" in request_info and "spec" in request_info["params"] and "secure_vault" in request_info["params"]["spec"]:
-        if copied_request_info is None:
-            copied_request_info = deepcopy(request_info)
-
-        copied_request_info["params"]["spec"]["secure_vault"] = dict((k, "hidden", ) for k in copied_request_info["params"]["spec"]["secure_vault"].keys())
-
     return copied_request_info if copied_request_info is not None else request_info
 
 
