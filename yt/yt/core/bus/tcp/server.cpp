@@ -267,7 +267,7 @@ protected:
                 std::move(poller),
                 PacketTranscoderFactory_,
                 MemoryUsageTracker_,
-                DynamicConfig_.Acquire()->NeedRejectConnectionDueMemoryOvercommit);
+                DynamicConfig_.Acquire()->RejectConnectionOnMemoryOvercommit);
 
             {
                 auto guard = WriterGuard(ConnectionsSpinLock_);

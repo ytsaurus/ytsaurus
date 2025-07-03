@@ -90,7 +90,7 @@ public:
         NConcurrency::IPollerPtr poller,
         IPacketTranscoderFactory* packetTranscoderFactory,
         IMemoryUsageTrackerPtr memoryUsageTracker,
-        bool needRejectConnectionDueMemoryOvercommit);
+        bool rejectConnectionOnMemoryOvercommit);
 
     ~TTcpConnection();
 
@@ -281,7 +281,7 @@ private:
     const EVerificationMode VerificationMode_;
 
     const IMemoryUsageTrackerPtr MemoryUsageTracker_;
-    const bool NeedRejectConnectionDueMemoryOvercommit_;
+    const bool RejectConnectionOnMemoryOvercommit_;
 
     NYTree::IAttributeDictionaryPtr PeerAttributes_;
 

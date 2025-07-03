@@ -130,7 +130,7 @@ class TBusDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    bool NeedRejectConnectionDueMemoryOvercommit;
+    bool RejectConnectionOnMemoryOvercommit;
 
     REGISTER_YSON_STRUCT(TBusDynamicConfig);
 
