@@ -139,14 +139,14 @@ TPerTransactionTypeCounters* GetPerTransactionTypeCounters(ESequoiaTransactionTy
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISequoiaTransaction::TGuardedRowBuffer::TGuardedRowBuffer(
+ISequoiaTransaction::TThreadSafeRowBuffer::TThreadSafeRowBuffer(
     NThreading::TSpinLock* lock,
-    const TRowBufferPtr& rowBuffer)
+    TRowBufferPtr rowBuffer)
     : Guard_(Guard(*lock))
-    , RowBuffer_(rowBuffer)
+    , RowBuffer_(std::move(rowBuffer))
 { }
 
-const TRowBufferPtr& ISequoiaTransaction::TGuardedRowBuffer::Get() const
+const TRowBufferPtr& ISequoiaTransaction::TThreadSafeRowBuffer::Get() const
 {
     return RowBuffer_;
 }
@@ -441,9 +441,9 @@ public:
             NCellMasterClient::EMasterCellRole::SequoiaNodeHost);
     }
 
-    TGuardedRowBuffer GetGuardedRowBuffer() override
+    TThreadSafeRowBuffer GetGuardedRowBuffer() override
     {
-        return TGuardedRowBuffer(&Lock_, RowBuffer_);
+        return TThreadSafeRowBuffer(&Lock_, RowBuffer_);
     }
 
     const ISequoiaClientPtr& GetClient() const override
