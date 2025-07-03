@@ -7,7 +7,10 @@
 #include <library/cpp/yson/parser.h>
 #include <library/cpp/yson/writer.h>
 
-#include <yt/cpp/mapreduce/common/helpers.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/yql_plugin/yql_plugin_proxy.h>
+
+#include <yt/yt/library/process/process.h>
 
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/config.h>
@@ -20,10 +23,7 @@
 #include <yt/yt/core/rpc/client.h>
 #include <yt/yt/core/ytree/convert.h>
 
-#include <yt/yt/library/process/process.h>
-
-#include <yt/yt/ytlib/api/native/config.h>
-#include <yt/yt/ytlib/yql_plugin/yql_plugin_proxy.h>
+#include <yt/cpp/mapreduce/common/helpers.h>
 
 namespace NYT::NYqlPlugin {
 namespace NProcess {
@@ -55,8 +55,7 @@ struct TYqlPluginRunningProcess
         , Result(std::move(result))
         , PluginProxy(std::move(proxy))
         , IsActive(false)
-    {
-    }
+    { }
 
     int SlotIndex;
     TYqlPluginProcessInternalConfigPtr ConfigSnapshot;
@@ -68,6 +67,7 @@ struct TYqlPluginRunningProcess
 
 DEFINE_REFCOUNTED_TYPE(TYqlPluginRunningProcess)
 constexpr int MODE0711 = S_IRWXU | S_IXGRP | S_IXOTH;
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,7 +113,7 @@ public:
     }
 
     // Acquires subprocess for query and routes call to it. Acquired process will also be used
-    // in subsequent Run call. If Run call did not happen in one minute, the process will be reinitialized
+    // in subsequent Run call. If Run call did not happen in one minute, the process will be reinitialized.
     TClustersResult GetUsedClusters(
         TQueryId queryId,
         TString queryText,
@@ -121,7 +121,7 @@ public:
         std::vector<TQueryFile> files) override
     {
         // Yql agent calls this method first when staring query, so we acquire process
-        // in this call and use it in Run() as well
+        // in this call and then use it in Run() as well.
         TYqlPluginRunningProcessPtr acquiredProcess = AcquireSlotForQuery(queryId);
 
         if (!acquiredProcess) {
@@ -147,10 +147,10 @@ public:
             YT_LOG_ERROR(response, "Failed to get cluster result from subprocess (QueryId: %v, SlotIndex %v)", queryId, acquiredProcess->SlotIndex);
             return TClustersResult{
                 .YsonError = ConvertToYsonString<TError>(
-                                 TError("Failed to get used clusters result from subprocess")
-                                 << response
-                                 << TErrorAttribute("slot_index", acquiredProcess->SlotIndex))
-                                 .ToString()
+                    TError("Failed to get used clusters result from subprocess")
+                    << response
+                    << TErrorAttribute("slot_index", acquiredProcess->SlotIndex))
+                    .ToString()
             };
         }
 
@@ -187,10 +187,10 @@ public:
         auto pluginProcess = pluginProcessOrError.Value();
         YT_LOG_INFO("Running query in slot (SlotIndex: %v, QueryId: %v)", pluginProcess->SlotIndex, queryId);
 
-        // Mark query as active so it will not be restarted in CheckProcessIsActive
+        // Mark query as active so it will not be restarted in CheckProcessIsActive.
         pluginProcess->IsActive.store(true);
 
-        // Handle query finish in the end
+        // Handle query finish in the end.
         auto finishQueryGuard = Finally(BIND(&TYqlProcessPlugin::OnQueryFinish, this, queryId, pluginProcess)
                                             .Via(Invoker_));
 
@@ -213,10 +213,10 @@ public:
             YT_LOG_ERROR(response, "Failed to get query result from subprocess (QueryId: %v, SlotIndex %v)", queryId, pluginProcess->SlotIndex);
             return TQueryResult{
                 .YsonError = ConvertToYsonString(
-                                 TError("Failed to get query result from subprocess")
-                                 << response
-                                 << TErrorAttribute("slot_index", pluginProcess->SlotIndex))
-                                 .ToString()
+                    TError("Failed to get query result from subprocess")
+                    << response
+                    << TErrorAttribute("slot_index", pluginProcess->SlotIndex))
+                    .ToString()
             };
         }
 
@@ -241,10 +241,10 @@ public:
             YT_LOG_ERROR("Failed to get query progress from subprocess (QueryId: %v, SlotIndex %v)", queryId, pluginProcess->SlotIndex);
             return TQueryResult{
                 .YsonError = ConvertToYsonString(
-                                 TError("Failed to get query progress from subprocess")
-                                 << response
-                                 << TErrorAttribute("slot_index", pluginProcess->SlotIndex))
-                                 .ToString()
+                    TError("Failed to get query progress from subprocess")
+                    << response
+                    << TErrorAttribute("slot_index", pluginProcess->SlotIndex))
+                    .ToString()
             };
         }
 
@@ -270,10 +270,10 @@ public:
             YT_LOG_ERROR(response, "Failed to abort query (QueryId: %v, SlotIndex: %v)", queryId, pluginProcess->SlotIndex);
             return TAbortResult{
                 .YsonError = ConvertToYsonString(
-                                 TError("Failed to abort query")
-                                 << response
-                                 << TErrorAttribute("slot_index", pluginProcess->SlotIndex))
-                                 .ToString()
+                    TError("Failed to abort query")
+                    << response
+                    << TErrorAttribute("slot_index", pluginProcess->SlotIndex))
+                    .ToString()
             };
         }
 
@@ -295,7 +295,7 @@ public:
 
         for (int i = 0; i < Config_->SlotsCount; ++i) {
             futures.push_back(BIND([gatewaysConfig, process = YqlProcesses_[i]] {
-                // process is not initialized yet, it will start with updated config
+                // process is not initialized yet, it will start with updated config.
                 if (!process) {
                     return;
                 }
@@ -382,7 +382,7 @@ private:
         auto acquiredProcess = YqlProcesses_[acquiredSlot];
 
         // We should check whether query was started in process. If it did not, then
-        // we need to restart process, because otherwise it will be stuck forever
+        // we need to restart process, because otherwise it will be stuck forever.
         NYT::NConcurrency::TDelayedExecutor::Submit(
             BIND(&TYqlProcessPlugin::CheckProcessIsActive, this, acquiredProcess, queryId),
             Config_->CheckProcessActiveDelay,
@@ -408,7 +408,7 @@ private:
     void ClearSlot(int slotIndex)
     {
         auto guard = NThreading::WriterGuard(ProcessesLock_);
-        // Handle a case when standby process finished unexpectedly, should happen rarely
+        // Handle a case when standby process finished unexpectedly, should happen rarely.
         if (StandByProcesses_.contains(slotIndex)) {
             StandbyProcessesQueue_.erase(std::find(StandbyProcessesQueue_.begin(), StandbyProcessesQueue_.end(), slotIndex));
             StandByProcesses_.erase(slotIndex);
@@ -437,7 +437,7 @@ private:
         int slotIndex = process->SlotIndex;
         YT_LOG_INFO("Starting plugin in process (SlotIndex: %v)", slotIndex);
 
-        // Here we are waiting for rpc server inside started subprocess to be ready to accept calls
+        // Here we are waiting for rpc server inside started subprocess to be ready to accept calls.
         bool success = DoWithRetry<std::exception>(
             BIND(&TYqlProcessPlugin::DoStartPluginInProcess, this, process),
             StartPluginRetryPolicy_,

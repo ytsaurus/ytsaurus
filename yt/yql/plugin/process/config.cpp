@@ -3,7 +3,8 @@
 namespace NYT::NYqlPlugin {
 namespace NProcess {
 
-void TYqlProcessPluginConfig::Register(TRegistrar registrar) {
+void TYqlProcessPluginConfig::Register(TRegistrar registrar)
+{
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default(false);
 
@@ -20,7 +21,8 @@ void TYqlProcessPluginConfig::Register(TRegistrar registrar) {
         .DefaultNew();
 }
 
-void TYqlProcessPluginOptions::Register(TRegistrar registrar) {
+void TYqlProcessPluginOptions::Register(TRegistrar registrar)
+{
     registrar.Parameter("singletons_config", &TThis::SingletonsConfig)
         .Default();
     registrar.Parameter("gateway_config", &TThis::GatewayConfig)
@@ -41,7 +43,8 @@ void TYqlProcessPluginOptions::Register(TRegistrar registrar) {
     registrar.Parameter("yql_plugin_shared_library", &TThis::YqlPluginSharedLibrary);
 }
 
-void TYqlPluginProcessInternalConfig::Register(TRegistrar registrar) {
+void TYqlPluginProcessInternalConfig::Register(TRegistrar registrar)
+{
     registrar.Parameter("slot_index", &TThis::SlotIndex);
     registrar.Parameter("plugin_options", &TThis::PluginOptions)
         .DefaultNew();
