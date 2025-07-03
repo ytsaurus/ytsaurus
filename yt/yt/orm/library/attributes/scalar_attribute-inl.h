@@ -132,6 +132,15 @@ bool AreScalarAttributesEqualImpl(
 
 template <class TValue>
 bool AreScalarAttributesEqualImpl(
+    const google::protobuf::RepeatedField<TValue>& lhs,
+    const google::protobuf::RepeatedField<TValue>& rhs,
+    ::google::protobuf::util::MessageDifferencer* messageDifferencer)
+{
+    return AreScalarAttributeArraysEqual(lhs, rhs, messageDifferencer);
+}
+
+template <class TValue>
+bool AreScalarAttributesEqualImpl(
     const google::protobuf::RepeatedPtrField<TValue>& lhs,
     const google::protobuf::RepeatedPtrField<TValue>& rhs,
     ::google::protobuf::util::MessageDifferencer* messageDifferencer)
