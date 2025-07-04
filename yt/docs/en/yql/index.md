@@ -21,12 +21,16 @@ YQL provides a functional web interface where, among other things, you can:
 ## How to try
 
 To run your first YQL query:
-1. Open the web interface of the {{product-name}} cluster {% if audience == "internal"%}(for example, [{{testing-cluster-name}}]({{cluster-ui}})) {% endif %}and go to the **Queries** tab — you can get there from the menu on the left.
+1. Open the web interface of the {{product-name}} cluster {% if audience == "internal"%}(for example, [{{testing-cluster-name}}]({{cluster-ui}})){% endif %} and go to the **Queries** tab — you can get there from the menu on the left.
 
-2. Enter the query and run it:
+2. Enter the query and click the start button:
 
    ```yql
    SELECT "Hello, World!";
    ```
 
    ![](../../images/yql-how-to-try.png){ .center }
+
+## Glossary
+
+{% include [Glossary](_includes/glossary.md) %}
