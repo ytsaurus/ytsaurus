@@ -13,7 +13,9 @@ pragma config.flags(
     "PushdownComplexFiltersOverAggregate",
     "ExtractCommonPredicatesFromLogicalOps",
     "PullUpExtendOverEquiJoin",
-    "DisableEmitSkipNullOnPushDown");
+    "DisableEmitSkipNullOnPushDown",
+    "DropAnyOverEquiJoinInputs"
+);
 pragma yt.AutoMerge = "disabled";
 pragma yt.DataSizePerPartition = "64M";
 pragma yt.DataSizePerJob = "64M";
