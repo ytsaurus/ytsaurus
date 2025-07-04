@@ -99,6 +99,11 @@ private:
     IThroughputThrottlerPtr GetLocalThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType) const;
     //! Lock_ has to be taken prior to calling this method.
     IThroughputThrottlerPtr GetOrCreateDistributedThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName);
+    //! Lock_ has to be taken prior to calling this method.
+    IThroughputThrottlerPtr DoGetOrCreateThrottler(
+        EExecNodeThrottlerKind kind,
+        EThrottlerTrafficType trafficType,
+        std::optional<TClusterName> remoteClusterName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -302,7 +307,15 @@ void TThrottlerManager::UpdateClusterLimits(const THashMap<std::string, TCluster
         auto throttlerId = ToThrottlerId(trafficType, TClusterName(clusterName));
         EmplaceOrCrash(throttlerIdToTotalLimit, throttlerId, throttlerConfig->Bandwidth->Limit);
     }
-    DistributedThrottlerFactory_->UpdateTotalLimits(std::move(throttlerIdToTotalLimit));
+    DistributedThrottlerFactory_->UpdateTotalLimits(throttlerIdToTotalLimit);
+
+    // Go through cluster throttlers to make this member appear in discovery service.
+    // To keep things simple we touch throttlers at every cluster limits update.
+    for (const auto& [throttlerId, _] : throttlerIdToTotalLimit) {
+        const auto& [trafficType, clusterName] = FromThrottlerId(throttlerId);
+        auto throttler = DoGetOrCreateThrottler(EExecNodeThrottlerKind::JobIn, trafficType, clusterName);
+        throttler->TryAcquire(0);
+    }
 }
 
 IThroughputThrottlerPtr TThrottlerManager::GetLocalThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType) const
@@ -364,6 +377,34 @@ IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExec
     return distributedThrottlerIt->second.Throttler;
 }
 
+IThroughputThrottlerPtr TThrottlerManager::DoGetOrCreateThrottler(
+    EExecNodeThrottlerKind kind,
+    EThrottlerTrafficType trafficType,
+    std::optional<TClusterName> remoteClusterName)
+{
+    auto Logger = this->Logger.WithTag("Kind: %v, TrafficType: %v, RemoteClusterName: %v",
+        kind,
+        trafficType,
+        remoteClusterName);
+
+    IThroughputThrottlerPtr localThrottler;
+    IThroughputThrottlerPtr distributedThrottler;
+    {
+        localThrottler = GetLocalThrottler(kind, trafficType);
+        distributedThrottler = GetOrCreateDistributedThrottler(kind, trafficType, remoteClusterName);
+        if (!distributedThrottler) {
+            YT_LOG_DEBUG("Distributed throttler is missing; falling back to local throttler");
+            return localThrottler;
+        }
+    }
+    YT_VERIFY(localThrottler && distributedThrottler);
+
+    YT_LOG_DEBUG("Creating combined throttler");
+    return CreateCombinedThrottler({std::move(localThrottler), std::move(distributedThrottler)});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TThrottlerManager::TThrottlerManager(
     NClusterNode::IBootstrap* bootstrap,
     TThrottlerManagerOptions options)
@@ -415,29 +456,8 @@ TThrottlerManager::TThrottlerManager(
 
 IThroughputThrottlerPtr TThrottlerManager::GetOrCreateThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName)
 {
-    YT_LOG_DEBUG("Getting throttler (Kind: %v, TrafficType: %v, RemoteClusterName: %v)",
-        kind,
-        trafficType,
-        remoteClusterName);
-
-    IThroughputThrottlerPtr localThrottler, distributedThrottler;
-    {
-        auto guard = Guard(Lock_);
-
-        localThrottler = GetLocalThrottler(kind, trafficType);
-        distributedThrottler = GetOrCreateDistributedThrottler(kind, trafficType, remoteClusterName);
-        if (!distributedThrottler) {
-            return localThrottler;
-        }
-    }
-    YT_VERIFY(localThrottler && distributedThrottler);
-
-    YT_LOG_DEBUG("Creating combined throttler (Kind: %v, TrafficType: %v, RemoteClusterName: %v)",
-        kind,
-        trafficType,
-        remoteClusterName);
-
-    return CreateCombinedThrottler({std::move(localThrottler), std::move(distributedThrottler)});
+    auto guard = Guard(Lock_);
+    return DoGetOrCreateThrottler(kind, trafficType, remoteClusterName);
 }
 
 void TThrottlerManager::Reconfigure(TClusterNodeDynamicConfigPtr dynamicConfig)
