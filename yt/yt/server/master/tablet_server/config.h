@@ -327,6 +327,11 @@ struct TDynamicTabletManagerConfig
 
     int MaxChunksPerMountedTablet;
 
+    i64 MaxUnversionedChunkSize;
+
+    //! If set, block and chunk sizes will be validated upon each mount request.
+    bool EnableUnversionedChunkConstraintValidation;
+
     // COMPAT(shakurov)
     bool EnableHunkSpecificMedia;
 

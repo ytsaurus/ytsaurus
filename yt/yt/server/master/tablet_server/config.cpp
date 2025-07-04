@@ -259,6 +259,13 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_smooth_tablet_movement", &TThis::EnableSmoothTabletMovement)
         .Default(false);
 
+    registrar.Parameter("max_unversioned_chunk_size", &TThis::MaxUnversionedChunkSize)
+        .GreaterThan(0)
+        .Default(320_MB);
+
+    registrar.Parameter("enable_unversioned_chunk_constraint_validation", &TThis::EnableUnversionedChunkConstraintValidation)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         config->StoreChunkReader->BanPeersPermanently = false;
