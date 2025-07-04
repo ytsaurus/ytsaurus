@@ -51,6 +51,27 @@ class MasterCellAdditionBase(YTEnvSetup):
         "sync_directories_on_connect": False,
     }
 
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    DELTA_MASTER_CONFIG = {
+        "world_initializer": {
+            "update_period": 500,
+            "init_retry_period": 500,
+        },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_with_empty_role": True,
+            },
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "13": {"roles": []},
+    }
+
     def setup_class(cls):
         super(MasterCellAdditionBase, cls).setup_class()
         remove_master_before_start = cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cls.PRIMARY_CLUSTER_INDEX)
@@ -408,7 +429,6 @@ class MasterCellAdditionBase(YTEnvSetup):
 
 
 class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
@@ -721,7 +741,6 @@ class MasterCellAdditionBaseChecks(MasterCellAdditionBase):
 
 
 class MasterCellAdditionChaosMultiClusterBaseChecks(MasterCellAdditionBase):
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 3
     NUM_CHAOS_NODES = 1
 
