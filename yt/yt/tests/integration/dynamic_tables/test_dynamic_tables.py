@@ -3354,6 +3354,72 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         sync_mount_table("//tmp/t")
 
+    @authors("atalmenev")
+    def test_max_chunk_size(self):
+        sync_create_cells(1)
+        KB = 1024
+
+        self._create_sorted_table("//tmp/t", dynamic=False)
+        set("//tmp/t/@compression_codec", "none")
+
+        rows = [{"key": key, "value": self._get_random_string(KB)} for key in range(1, 100)]
+        write_table(
+            "//tmp/t",
+            rows,
+            table_writer={"block_size": 10 * KB, "desired_chunk_size": 100 * KB},
+        )
+
+        set("//tmp/t/@max_unversioned_block_size", 1 * KB)
+        set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1000 * KB)
+
+        alter_table("//tmp/t", dynamic=True)
+
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+
+        set("//sys/@config/tablet_manager/enable_unversioned_chunk_constraint_validation", True)
+
+        with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has chunks with too large block size"):
+            sync_mount_table("//tmp/t")
+
+        set("//tmp/t/@max_unversioned_block_size", 100 * KB)
+        set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1 * KB)
+
+        with raises_yt_error(f"Cannot mount tablet {tablet_id} since it has too large chunks"):
+            sync_mount_table("//tmp/t")
+
+        set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 1000 * KB)
+        sync_mount_table("//tmp/t")
+
+    @authors("atalmenev")
+    def test_max_chunk_size_validation_ordered_table(self):
+        sync_create_cells(1)
+        KB = 1024
+
+        self._create_ordered_table("//tmp/t", dynamic=False)
+        set("//tmp/t/@compression_codec", "none")
+
+        rows = [{"key": key, "value": self._get_random_string(KB)} for key in range(1, 100)]
+        write_table(
+            "//tmp/t",
+            rows,
+            table_writer={"block_size": 10 * KB, "desired_chunk_size": 100 * KB},
+        )
+
+        set("//tmp/t/@max_unversioned_block_size", 1 * KB)
+        set("//sys/@config/tablet_manager/max_unversioned_chunk_size", 5 * KB)
+
+        alter_table("//tmp/t", dynamic=True)
+
+        sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+
+        set("//sys/@config/tablet_manager/enable_unversioned_chunk_constraint_validation", True)
+
+        sync_mount_table("//tmp/t")
+
     @authors("dave11ar")
     def test_errors_expiration(self):
         sync_create_cells(1)
