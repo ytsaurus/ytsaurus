@@ -289,15 +289,13 @@ public:
         if (ProcessingStage_ == DB::QueryProcessingStage::FetchColumns) {
             // See getQueryProcessingStage for more details about FetchColumns stage.
             std::vector<std::string> requiredColumns;
-            requiredColumns.reserve(RealColumnNames_.size() + VirtualColumnNames_.size());
-            requiredColumns.insert(requiredColumns.end(), RealColumnNames_.begin(), RealColumnNames_.end());
-            requiredColumns.insert(requiredColumns.end(), VirtualColumnNames_.begin(), VirtualColumnNames_.end());
+            auto& tableExpressionData = QueryInfo_.planner_context->getTableExpressionDataOrThrow(QueryInfo_.table_expression);
             auto modifiedQuery = DB::replaceTableExpressionAndRemoveJoin(
                 QueryInfo_.query_tree,
                 QueryInfo_.table_expression,
                 QueryInfo_.table_expression,
                 Context_,
-                requiredColumns);
+                tableExpressionData.getSelectedColumnsNames());
 
             // The initial query node may be a subquery with an alias.
             // For example: (SELECT * FROM t1 JOIN t2 USING (a)) AS t
