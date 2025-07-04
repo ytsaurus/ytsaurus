@@ -1061,10 +1061,10 @@ def _build_node_configs(multidaemon_config_output,
             set_at(config, "exec_node/job_proxy/forward_all_environment_variables", True)
 
             # Job proxy needs CA certificate to validate incoming connections.
-            if yt_config.ca_cert is not None:
+            if yt_config.internal_ca_cert is not None:
                 get_at(config, "exec_node/slot_manager/job_environment/job_proxy_bind_mounts").append({
-                    "internal_path": yt_config.ca_cert,
-                    "external_path": yt_config.ca_cert,
+                    "internal_path": yt_config.internal_ca_cert,
+                    "external_path": yt_config.internal_ca_cert,
                     "read_only": True,
                 })
 
@@ -1801,10 +1801,10 @@ def _build_cluster_connection_config(yt_config,
             "refresh_time": 0
         }
 
-    if yt_config.ca_cert is not None:
+    if yt_config.internal_ca_cert is not None:
         set_at(cluster_connection, "bus_client", {
             "ca": {
-                "file_name": yt_config.ca_cert,
+                "file_name": yt_config.internal_ca_cert,
             },
             "encryption_mode": "required",
             "verification_mode": "full",

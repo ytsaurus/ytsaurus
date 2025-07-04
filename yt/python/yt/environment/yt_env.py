@@ -417,17 +417,30 @@ class YTInstance(object):
     def _prepare_certificates(self):
         names = [self.yt_config.fqdn, self.yt_config.cluster_name]
 
-        if self.yt_config.ca_cert is None:
-            self.yt_config.ca_cert = os.path.join(self.path, "ca.crt")
-            self.yt_config.ca_cert_key = os.path.join(self.path, "ca.key")
-            create_ca(ca_cert=self.yt_config.ca_cert, ca_cert_key=self.yt_config.ca_cert_key)
+        if self.yt_config.internal_ca_cert is None:
+            self.yt_config.internal_ca_cert = os.path.join(self.path, "internal_ca.crt")
+            self.yt_config.internal_ca_cert_key = os.path.join(self.path, "internal_ca.key")
+            create_ca(
+                ca_cert=self.yt_config.internal_ca_cert,
+                ca_cert_key=self.yt_config.internal_ca_cert_key,
+                subj="/O={}/OU={}".format(self.id, "YT Internal CA"),
+            )
+
+        if self.yt_config.public_ca_cert is None:
+            self.yt_config.public_ca_cert = os.path.join(self.path, "public_ca.crt")
+            self.yt_config.public_ca_cert_key = os.path.join(self.path, "public_ca.key")
+            create_ca(
+                ca_cert=self.yt_config.public_ca_cert,
+                ca_cert_key=self.yt_config.public_ca_cert_key,
+                subj="/O={}/OU={}".format(self.id, "YT Public CA"),
+            )
 
         if self.yt_config.rpc_cert is None:
             self.yt_config.rpc_cert = os.path.join(self.path, "rpc.crt")
             self.yt_config.rpc_cert_key = os.path.join(self.path, "rpc.key")
             create_certificate(
-                ca_cert=self.yt_config.ca_cert,
-                ca_cert_key=self.yt_config.ca_cert_key,
+                ca_cert=self.yt_config.internal_ca_cert,
+                ca_cert_key=self.yt_config.internal_ca_cert_key,
                 cert=self.yt_config.rpc_cert,
                 cert_key=self.yt_config.rpc_cert_key,
                 names=names
@@ -437,8 +450,8 @@ class YTInstance(object):
             self.yt_config.https_cert = os.path.join(self.path, "https.crt")
             self.yt_config.https_cert_key = os.path.join(self.path, "https.key")
             create_certificate(
-                ca_cert=self.yt_config.ca_cert,
-                ca_cert_key=self.yt_config.ca_cert_key,
+                ca_cert=self.yt_config.public_ca_cert,
+                ca_cert_key=self.yt_config.public_ca_cert_key,
                 cert=self.yt_config.https_cert,
                 cert_key=self.yt_config.https_cert_key,
                 names=names
