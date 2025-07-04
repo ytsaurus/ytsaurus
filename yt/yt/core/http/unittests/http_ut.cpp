@@ -639,20 +639,15 @@ private:
         } else {
             auto serverConfig = New<NHttps::TServerConfig>();
             serverConfig->Credentials = New<NHttps::TServerCredentialsConfig>();
-            serverConfig->Credentials->PrivateKey = New<TPemBlobConfig>();
-            serverConfig->Credentials->PrivateKey->Value = TestCertificate;
-            serverConfig->Credentials->CertificateChain = New<TPemBlobConfig>();
-            serverConfig->Credentials->CertificateChain->Value = TestCertificate;
+            serverConfig->Credentials->PrivateKey = CreateTestKeyBlob("key.pem");
+            serverConfig->Credentials->CertificateChain = CreateTestKeyBlob("cert.pem");
             SetupServer(serverConfig);
             ServerConfig = serverConfig;
             Server = NHttps::CreateServer(serverConfig, Poller);
 
             auto clientConfig = New<NHttps::TClientConfig>();
             clientConfig->Credentials = New<NHttps::TClientCredentialsConfig>();
-            clientConfig->Credentials->PrivateKey = New<TPemBlobConfig>();
-            clientConfig->Credentials->PrivateKey->Value = TestCertificate;
-            clientConfig->Credentials->CertificateChain = New<TPemBlobConfig>();
-            clientConfig->Credentials->CertificateChain->Value = TestCertificate;
+            clientConfig->Credentials->CertificateAuthority = CreateTestKeyBlob("ca.pem");
             SetupClient(clientConfig);
             Client = NHttps::CreateClient(clientConfig, Poller);
         }
