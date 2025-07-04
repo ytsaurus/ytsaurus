@@ -18,6 +18,8 @@
 
 #include <yt/yt/library/server_program/config.h>
 
+#include <yt/yql/plugin/process/public.h>
+
 namespace NYT::NYqlAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -157,6 +159,8 @@ struct TYqlPluginConfig
     std::optional<TString> YqlPluginSharedLibrary;
 
     std::vector<TAdditionalSystemLibPtr> AdditionalSystemLibs;
+
+    NYqlPlugin::NProcess::TYqlProcessPluginConfigPtr ProcessPluginConfig;
 
     REGISTER_YSON_STRUCT(TYqlPluginConfig);
 

@@ -101,6 +101,7 @@ void FillString(const char*& str, ssize_t& strLength, const std::optional<TStrin
 
 TBridgeClustersResult* BridgeGetUsedClusters(
     TBridgeYqlPlugin* plugin,
+    const char* queryId,
     const char* queryText,
     const char* settings,
     int settingsLength,
@@ -123,6 +124,7 @@ TBridgeClustersResult* BridgeGetUsedClusters(
     }
 
     auto result = nativePlugin->GetUsedClusters(
+        NYT::TGuid::FromString(queryId),
         TString(queryText),
         settings ? TYsonString(TString(settings, settingsLength)) : EmptyMap,
         files);

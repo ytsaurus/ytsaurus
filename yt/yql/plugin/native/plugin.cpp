@@ -672,6 +672,7 @@ public:
     }
 
     TClustersResult GetUsedClusters(
+        TQueryId /*queryId*/,
         TString queryText,
         TYsonString settings,
         std::vector<TQueryFile> files) noexcept override

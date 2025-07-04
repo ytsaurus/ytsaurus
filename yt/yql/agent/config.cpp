@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
+#include <yt/yql/plugin/process/config.h>
+
 #include <util/string/vector.h>
 
 #include <array>
@@ -293,6 +295,9 @@ void TYqlPluginConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("libraries", &TThis::Libraries)
         .Default();
+
+    registrar.Parameter("process_plugin_config", &TThis::ProcessPluginConfig)
+        .DefaultNew();
 
     registrar.Postprocessor([=] (TThis* config) {
         auto gatewayConfig = config->GatewayConfig->AsMap();
