@@ -19,7 +19,6 @@ Maintenance release with minor enhancements
 - Minor improvements for Spark Streaming support in YTsaurus
 
 
-
 {% endcut %}
 
 
