@@ -1103,7 +1103,7 @@ public:
             wrappedThrottler->SetLeaderChannel(leaderChannel);
 
             if (config->InitializeThrottlersOnCreation) {
-                wrappedThrottler->Initialize(0);
+                wrappedThrottler->Initialize(/*limit*/ 0);
             }
 
             auto wasEmpty = Throttlers_->Throttlers.empty();
