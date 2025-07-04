@@ -211,8 +211,11 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         version=binary_to_version["ytserver-http-proxy"])
 
     http_proxy_url = None
+    https_proxy_url = None
     if yt_config.http_proxy_count > 0:
         http_proxy_url = "{0}:{1}".format(yt_config.fqdn, http_proxy_configs[0]["port"])
+        if yt_config.https_cert is not None:
+            https_proxy_url = "https://{0}:{1}".format(yt_config.fqdn, http_proxy_configs[0]["https_server"]["port"])
 
     rpc_proxy_configs = _build_rpc_proxy_configs(
         multidaemon_config,
@@ -248,7 +251,12 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         queue_agent_rpc_ports,
         yt_config=yt_config)
 
-    rpc_driver_config = _build_rpc_driver_config(rpc_proxy_addresses, http_proxy_url)
+    rpc_driver_config = _build_rpc_driver_config(
+        yt_config,
+        http_proxy_url,
+        https_proxy_url,
+        rpc_proxy_addresses,
+    )
 
     tablet_balancer_configs, tablet_balancer_addresses = _build_tablet_balancer_configs(
         yt_config,
@@ -1502,7 +1510,10 @@ def _build_native_driver_configs(master_connection_configs,
     return configs
 
 
-def _build_rpc_driver_config(rpc_proxy_addresses, http_proxy_url):
+def _build_rpc_driver_config(yt_config,
+                             http_proxy_url,
+                             https_proxy_url,
+                             rpc_proxy_addresses):
     config = default_config.get_driver_config()
 
     config["connection_type"] = "rpc"
@@ -1512,7 +1523,16 @@ def _build_rpc_driver_config(rpc_proxy_addresses, http_proxy_url):
         "hard_backoff_time": 100
     }
 
-    if http_proxy_url is not None:
+    if https_proxy_url is not None:
+        config["cluster_url"] = https_proxy_url
+        config["https_client"] = {
+            "credentials": {
+                "ca": {
+                    "file_name": yt_config.public_ca_cert,
+                },
+            },
+        }
+    elif http_proxy_url is not None:
         config["cluster_url"] = http_proxy_url
     else:
         config["proxy_addresses"] = rpc_proxy_addresses
