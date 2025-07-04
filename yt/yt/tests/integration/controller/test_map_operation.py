@@ -8,7 +8,7 @@ from yt_commands import (
     authors, events_on_fs, print_debug, raises_yt_error, remove, set_nodes_banned, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get, sorted_dicts,
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
-    map, merge, sort, interrupt_job, get_first_chunk_id, abort_job,
+    map, merge, sort, interrupt_job, get_first_chunk_id, abort_job, get_job,
     get_singular_chunk_id, check_all_stderrs,
     create_test_tables, assert_statistics, extract_statistic_v2,
     set_node_banned, update_inplace, update_controller_agent_config, update_nodes_dynamic_config, get_table_columnar_statistics)
@@ -1946,8 +1946,7 @@ print(json.dumps(input))
             command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
             spec={"mapper": {"cookie_group_size": 2}},
         )
-        for job in wait_breakpoint(job_count=2):
-            interrupt_job(job)
+        interrupt_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["main_job_id"])["main_job_id"])
         release_breakpoint()
         op.track()
 
