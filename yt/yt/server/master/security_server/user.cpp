@@ -401,6 +401,11 @@ void TUser::SetPasswordSalt(std::optional<std::string> passwordSalt)
     UpdatePasswordRevision();
 }
 
+void TUser::SetId(TObjectId id)
+{
+    Id_ = id;
+}
+
 void TUser::Charge(const TUserWorkload& workload)
 {
     auto& statistics = Statistics()[workload.Type];
