@@ -1889,7 +1889,7 @@ print(json.dumps(input))
 
         assert len(op.list_jobs()) == 10
 
-    @authors("fauct")
+    @authors("faucct")
     def test_distributed(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1919,7 +1919,7 @@ print(json.dumps(input))
         res = read_table("//tmp/t2")
         assert res == [{"a": "b"}]
 
-    @authors("fauct")
+    @authors("faucct")
     def test_distributed_aborting(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1934,7 +1934,7 @@ print(json.dumps(input))
         jobs = wait_breakpoint(job_count=2)
         abort_job(jobs[0])
 
-    @authors("fauct")
+    @authors("faucct")
     def test_distributed_interrupting(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1950,7 +1950,7 @@ print(json.dumps(input))
         release_breakpoint()
         op.track()
 
-    @authors("fauct")
+    @authors("faucct")
     def test_distributed_with_job_fail_and_operation_completion(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
