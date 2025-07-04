@@ -26,18 +26,6 @@ class TestMasterCellAddition(MasterCellAdditionBaseChecks):
     NUM_TEST_PARTITIONS = 3
     DOWNTIME_ALL_COMPONENTS = True
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager": {
-            "testing": {
-                "allow_master_cell_with_empty_role": True,
-            },
-        },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
-    }
-
     @authors("shakurov", "cherepashka")
     @pytest.mark.timeout(120)
     def test_add_new_cell(self):
@@ -69,10 +57,6 @@ class TestMasterCellsListChangeWithoutDowntime(MasterCellAdditionBaseChecks):
                 "allow_master_cell_with_empty_role": True,
             },
         },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
     }
 
     @authors("shakurov", "cherepashka")
@@ -111,7 +95,6 @@ class TestMasterCellsMultipleAdditions(MasterCellAdditionBase):
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 1
     REMOVE_LAST_MASTER_BEFORE_START = False
 
@@ -121,17 +104,6 @@ class TestMasterCellsMultipleAdditions(MasterCellAdditionBase):
                 "allow_master_cell_removal": True,
                 "allow_master_cell_with_empty_role": True,
             },
-        },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
-    }
-
-    DELTA_MASTER_CONFIG = {
-        "world_initializer": {
-            "update_period": 500,
-            "init_retry_period": 500,
         },
     }
 
@@ -161,18 +133,6 @@ class TestMasterCellAdditionChaosMultiCluster(MasterCellAdditionChaosMultiCluste
     NUM_TEST_PARTITIONS = 3
 
     DOWNTIME_ALL_COMPONENTS = True
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager": {
-            "testing": {
-                "allow_master_cell_with_empty_role": True,
-            },
-        },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
-    }
 
     @authors("ponasenko-rs")
     @pytest.mark.timeout(300)
@@ -224,7 +184,6 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
@@ -251,10 +210,6 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
             "leader_reassignment_timeout": 2000,  # 2 sec
             "peer_revocation_timeout": 3000,  # 3 sec
         },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
     }
 
     @authors("cherepashka")
@@ -317,29 +272,9 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 6
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
-
-    DELTA_MASTER_CONFIG = {
-        "world_initializer": {
-            "update_period": 500,
-            "init_retry_period": 500,
-        },
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager": {
-            "testing": {
-                "allow_master_cell_with_empty_role": True,
-            },
-        },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
-    }
 
     DELTA_NODE_CONFIG = {
         "exec_node_is_not_data_node": True,
@@ -440,27 +375,7 @@ class TestMasterCellDynamicPropagationDuringMultiflavorNodeRegistration(MasterCe
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 4
-
-    DELTA_MASTER_CONFIG = {
-        "world_initializer": {
-            "update_period": 500,
-            "init_retry_period": 500,
-        },
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager": {
-            "testing": {
-                "allow_master_cell_with_empty_role": True,
-            },
-        },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
-    }
 
     @authors("cherepashka")
     def test_registration_after_synchronization(self):
