@@ -194,11 +194,13 @@ DEFINE_ENUM(EMasterReign,
     ((MakeCompactTableSchemaRefCounted)                             (2956))  // cherepashka
     ((CrossCellCopyFinalFixes)                                      (2957))  // shakurov
     ((HydraLogicalClock)                                            (2958))  // h0pless
+    ((FixBuiltinUserIds_25_2)                                       (2959))  // cherepashka
     // 25.3 starts here.
     ((Start_25_3)                                                   (3000))  // community bot
     ((DropOldMountConfigKeyLists)                                   (3001))  // ifsmirnov
     ((TransactionCommitsAndAbortsValidatePermissions)               (3002))  // faucct
     ((ValidateUnversionedChunkConstraintsBeforeMount)               (3003))  // atalmenev
+    ((FixBuiltinUserIds)                                            (3004))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

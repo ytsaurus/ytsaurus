@@ -3936,6 +3936,16 @@ private:
 
         if (auto* user = FindUserByName(name, /*activeLifeStageOnly*/ false)) {
             // User could have been created manually.
+            if (!IsWellKnownId(user->GetId())) {
+                YT_LOG_ALERT("User is builtin, but doesn't have well known id, will fix it (User: %Qv, Id: %v -> %v)",
+                    name,
+                    user->GetId(),
+                    id);
+
+                auto userHolder = UserMap_.Release(user->GetId());
+                userHolder->SetId(id);
+                UserMap_.Insert(id, std::move(userHolder));
+            }
             return user;
         }
 
