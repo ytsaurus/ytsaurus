@@ -918,6 +918,7 @@ class TestListJobs(TestListJobsCommon):
                 },
             },
         )
+        wait(lambda: len(op.list_jobs()) == 2)
         main, replica = sorted(
             list_jobs(op.id, attributes=["job_cookie_group_index", "main_job_id"])["jobs"],
             key=lambda job: job["job_cookie_group_index"],

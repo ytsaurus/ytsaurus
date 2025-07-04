@@ -371,6 +371,7 @@ class TestGetJob(_TestGetJobCommon):
                 },
             },
         )
+        wait(lambda: len(op.list_jobs()) == 2)
         main, replica = sorted(
             [{"id": job, **get_job(op.id, job, attributes=["job_cookie_group_index", "main_job_id"])} for job in op.list_jobs()],
             key=lambda job: job["job_cookie_group_index"],
