@@ -8,6 +8,18 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.31**" %}
+
+**Release date:** 2025-06-20
+
+
+## Features
+ * Minor improvements
+ * Bump py-dependencies 2f5dc26abd27401d7c775b4e7406b4c85c1c4105
+
+{% endcut %}
+
+
 {% cut "**0.13.30**" %}
 
 **Release date:** 2025-06-16
