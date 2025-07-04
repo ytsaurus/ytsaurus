@@ -101,7 +101,7 @@ select  store.s_store_name
       select
         bla1.ca_zip as ca_zip
       from any $bla1 bla1
-      join any $bla2 bla2 on Pickle(bla1.ca_zip) == Pickle(bla2.ca_zip)
+      join any $bla2 bla2 on StablePickle(bla1.ca_zip) == StablePickle(bla2.ca_zip)
      ) A2) V1
  where ss_sold_date_sk = d_date_sk
   and ss_store_sk = s_store_sk
