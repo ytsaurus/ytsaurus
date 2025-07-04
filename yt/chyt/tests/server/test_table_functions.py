@@ -322,3 +322,24 @@ class TestTableFunctions(ClickHouseTestBase):
             assert clique.make_query(f"select * from ytTables(view({subquery})) order by a") == [
                 {"a": 0},
             ]
+
+    @authors("buyval01")
+    def test_join_and_group_by_table_name(self):
+        create("map_node", "//tmp/dir")
+
+        schema = [{"name": "a", "type": "int64"}]
+        create("table", "//tmp/dir/t1", attributes={"schema": schema})
+        write_table("//tmp/dir/t1", [{"a": 1}, {"a": 3}])
+        create("table", "//tmp/dir/t2", attributes={"schema": schema})
+        write_table("//tmp/dir/t2", [{"a": 2}, {"a": 4}])
+
+        create("table", "//tmp/t", attributes={"schema": schema})
+        write_table("<append=%true>//tmp/t", [{"a": 1}, {"a": 2}])
+        write_table("<append=%true>//tmp/t", [{"a": 3}, {"a": 4}])
+
+        with Clique(1) as clique:
+            query = 'select $table_name, sum(t2.a) as result from concatYtTablesRange("//tmp/dir") t1 join (select * from "//tmp/t") t2 on t1.a = t2.a group by 1 order by 1'
+            assert clique.make_query(query) == [
+                {"$table_name": "t1", "result": 4},
+                {"$table_name": "t2", "result": 6},
+            ]
