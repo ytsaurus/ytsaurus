@@ -210,14 +210,8 @@ public:
             YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
-            if (joblet->CookieGroupInfo.OutputIndex) {
-                auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
-                RemoveProtoExtension<NChunkClient::NProto::TDataSourceDirectoryExt>(jobSpecExt->mutable_extensions());
-                RemoveProtoExtension<NChunkClient::NProto::TDataSinkDirectoryExt>(jobSpecExt->mutable_extensions());
-            } else {
-                AddSequentialInputSpec(jobSpec, joblet);
-                AddOutputTableSpecs(jobSpec, joblet);
-            }
+            AddSequentialInputSpec(jobSpec, joblet);
+            AddOutputTableSpecs(jobSpec, joblet);
         }
 
         void OnChunkTeleported(TInputChunkPtr teleportChunk, std::any tag) override
