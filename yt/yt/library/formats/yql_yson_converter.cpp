@@ -688,10 +688,8 @@ public:
 class TDecimalUnversionedValueToYqlConverter
 {
 public:
-    TDecimalUnversionedValueToYqlConverter(int precision, int scale, bool isNullable)
-        : Precision_(precision)
-        , Scale_(scale)
-        , IsNullable_(isNullable)
+    TDecimalUnversionedValueToYqlConverter(bool isNullable)
+        : IsNullable_(isNullable)
     { }
 
     void operator () (TUnversionedValue value, TYqlJsonWriter* consumer, i64 /*totalLimit*/) const
@@ -704,10 +702,7 @@ public:
             consumer->OnBeginList();
         }
 
-        char buffer[NDecimal::TDecimal::MaxTextSize];
-        const auto binaryDecimal = value.AsStringBuf();
-        const auto textDecimal = NDecimal::TDecimal::BinaryToText(binaryDecimal, Precision_, Scale_, buffer, sizeof(buffer));
-        consumer->OnStringScalarNoWeightLimit(textDecimal);
+        consumer->OnStringScalarNoWeightLimit(value.AsStringBuf());
 
         if (IsNullable_) {
             consumer->OnEndList();
@@ -715,8 +710,6 @@ public:
     }
 
 private:
-    const int Precision_;
-    const int Scale_;
     const bool IsNullable_;
 };
 
@@ -799,12 +792,8 @@ static TWeightLimitedUnversionedValueToYqlConverter CreateWeightLimitedUnversion
             auto physicalType = GetPhysicalType(simpleType);
             return CreateSimpleUnversionedValueToYqlConverter(physicalType, isRequired);
         }
-        case ELogicalMetatype::Decimal: {
-            const int precision = denullifiedLogicalType->AsDecimalTypeRef().GetPrecision();
-            const int scale = denullifiedLogicalType->AsDecimalTypeRef().GetScale();
-            const int isNullable = logicalType->IsNullable();
-            return TDecimalUnversionedValueToYqlConverter(precision, scale, isNullable);
-        }
+        case ELogicalMetatype::Decimal:
+            return TDecimalUnversionedValueToYqlConverter(logicalType->IsNullable());
         case ELogicalMetatype::Optional:
             // NB. It's complex optional because we called DenullifyLogicalType
         case ELogicalMetatype::List:
