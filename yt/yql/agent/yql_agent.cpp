@@ -14,6 +14,8 @@
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/actions/bind.h>
+#include <yt/yt/core/concurrency/coroutine.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/logging/config.h>
@@ -243,7 +245,21 @@ public:
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
         };
-        YqlPlugin_ = NYqlPlugin::CreateYqlPlugin(std::move(options));
+
+        // NB: under debug build this method does not fit in regular fiber stack
+        // due to python udf loading
+        using TSignature = void(NYqlPlugin::TYqlPluginOptions);
+        auto coroutine = TCoroutine<TSignature>(
+            BIND([this](
+                TCoroutine<TSignature>& /*self*/,
+                NYqlPlugin::TYqlPluginOptions options
+            ) {
+                YqlPlugin_ = NYqlPlugin::CreateYqlPlugin(std::move(options));
+            }),
+            EExecutionStackKind::Large);
+
+        coroutine.Run(std::move(options));
+        YT_VERIFY(coroutine.IsCompleted());
     }
 
     void Start() override
