@@ -8,6 +8,12 @@ namespace NYT::NGpu {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESlowdownType,
+    (HW)
+    (HWPowerBrake)
+    (HWThermal)
+    (SWThermal));
+
 struct TGpuInfo
 {
     TInstant UpdateTime;
@@ -31,10 +37,7 @@ struct TGpuInfo
     double PcieTxByteRate = 0.0;
     double TensorActivityRate = 0.0;
     double DramActivityRate = 0.0;
-    bool IsSWThermalSlowdown = false;
-    bool IsHWThermalSlowdown = false;
-    bool IsHWPowerBrakeSlowdown = false;
-    bool IsHWSlowdown = false;
+    TEnumIndexedArray<ESlowdownType, bool> Slowdowns;
 
     struct
     {
