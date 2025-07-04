@@ -4757,15 +4757,17 @@ private:
 
         TCreateQueueProducerSessionOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_user_meta()) {
             options.UserMeta = ConvertToNode(TYsonStringBuf(request->user_meta()));
         }
 
         context->SetRequestInfo(
-            "ProducerPath: %v, QueuePath: %v, SessionId: %v",
+            "ProducerPath: %v, QueuePath: %v, SessionId: %v, MutationId: %v",
             producerPath,
             queuePath,
-            sessionId);
+            sessionId,
+            options.MutationId);
 
         ExecuteCall(
             context,
