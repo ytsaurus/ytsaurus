@@ -616,6 +616,10 @@ func (c *Client) GetQueueAgents(ctx context.Context) (QueueAgentMap, error) {
 
 	var agents []*QueueAgent
 	if err := c.yc.ListNode(ctx, QueueAgentsPath, &agents, options); err != nil {
+		// if there are no queue agents (yterrors.CodeResolveError), it is not error
+		if yterrors.ContainsErrorCode(err, yterrors.CodeResolveError) {
+			return nil, nil
+		}
 		return nil, err
 	}
 
