@@ -667,8 +667,16 @@ TEST_F(TProducerApiTest, TestApi)
     NQueueClient::TQueueProducerSessionId sessionId{"session_1"};
     NQueueClient::TQueueProducerEpoch epoch{0};
 
-    WaitFor(Client_->CreateQueueProducerSession(producerPath, queuePath, sessionId))
+    NApi::TCreateQueueProducerSessionOptions createQueueProducerSessionOptions;
+    createQueueProducerSessionOptions.MutationId = NRpc::GenerateMutationId();
+    auto createQueueProducerSessionResult = WaitFor(Client_->CreateQueueProducerSession(producerPath, queuePath, sessionId, createQueueProducerSessionOptions))
         .ValueOrThrow();
+    ASSERT_EQ(createQueueProducerSessionResult.Epoch.Underlying(), 0);
+
+    // Retry with the same mutation id, epoch should not be incremented.
+    createQueueProducerSessionResult = WaitFor(Client_->CreateQueueProducerSession(producerPath, queuePath, sessionId, createQueueProducerSessionOptions))
+        .ValueOrThrow();
+    ASSERT_EQ(createQueueProducerSessionResult.Epoch.Underlying(), 0);
 
     auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
         .ValueOrThrow();
