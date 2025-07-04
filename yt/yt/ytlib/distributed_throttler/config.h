@@ -46,6 +46,9 @@ struct TDistributedThrottlerConfig
     int HeartbeatThrottlerCountLimit;
     int SkipUnusedThrottlersCountLimit;
 
+    bool InitializeThrottlersOnCreation;
+    bool UpdateLimitsForZeroRateThrottlers;
+
     REGISTER_YSON_STRUCT(TDistributedThrottlerConfig);
 
     static void Register(TRegistrar registrar);

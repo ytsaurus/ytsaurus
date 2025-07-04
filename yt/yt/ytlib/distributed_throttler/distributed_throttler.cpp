@@ -262,6 +262,26 @@ public:
         };
     }
 
+    void Initialize(std::optional<double> limit = std::nullopt)
+    {
+        if (Initialized_) {
+            return;
+        }
+
+        YT_ASSERT_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
+
+        Initialized_ = true;
+
+        Limit_ = Profiler_.Gauge("/limit");
+        Usage_ = Profiler_.Gauge("/usage");
+        QueueTotalAmount_ = Profiler_.Gauge("/queue_total_amount");
+        EstimatedOverdraftDuration_ = Profiler_.TimeGauge("/estimated_overdraft_duration");
+
+        Limit_.Update(limit.value_or(ThrottlerConfig_.Acquire()->Limit.value_or(-1)));
+        QueueTotalAmount_.Update(0);
+        EstimatedOverdraftDuration_.Update(TDuration::Zero());
+    }
+
 private:
     const IReconfigurableThroughputThrottlerPtr Underlying_;
     const TThrottlerId ThrottlerId_;
@@ -282,26 +302,6 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
     TAverageAdjustedExponentialMovingAverage HistoricUsageAggregator_;
-
-    void Initialize()
-    {
-        if (Initialized_) {
-            return;
-        }
-
-        YT_ASSERT_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
-
-        Initialized_ = true;
-
-        Limit_ = Profiler_.Gauge("/limit");
-        Usage_ = Profiler_.Gauge("/usage");
-        QueueTotalAmount_ = Profiler_.Gauge("/queue_total_amount");
-        EstimatedOverdraftDuration_ = Profiler_.TimeGauge("/estimated_overdraft_duration");
-
-        Limit_.Update(ThrottlerConfig_.Acquire()->Limit.value_or(-1));
-        QueueTotalAmount_.Update(0);
-        EstimatedOverdraftDuration_.Update(TDuration::Zero());
-    }
 
     void UpdateHistoricUsage(i64 amount)
     {
@@ -1091,14 +1091,20 @@ public:
                 return wrappedThrottler;
             }
 
+            auto config = Config_.Acquire();
+
             DistributedThrottlerService_->SetTotalLimit(throttlerId, throttlerConfig->Limit);
             wrappedThrottler = New<TWrappedThrottler>(
                 throttlerId,
-                Config_.Acquire(),
+                config,
                 std::move(throttlerConfig),
                 throttleRpcTimeout,
                 Profiler_);
             wrappedThrottler->SetLeaderChannel(leaderChannel);
+
+            if (config->InitializeThrottlersOnCreation) {
+                wrappedThrottler->Initialize(0);
+            }
 
             auto wasEmpty = Throttlers_->Throttlers.empty();
             Throttlers_->Throttlers[throttlerId] = std::move(wrappedThrottler);
@@ -1256,7 +1262,7 @@ private:
                 UpdateQueue_.pop();
 
                 if (auto throttler = weakThrottler.Lock()) {
-                    if (throttler->GetUsageRate() > 0 || UnreportedThrottlers_.contains(throttlerId)) {
+                    if (config->UpdateLimitsForZeroRateThrottlers || throttler->GetUsageRate() > 0 || UnreportedThrottlers_.contains(throttlerId)) {
                         UnreportedThrottlers_.erase(throttlerId);
                         throttlers.emplace(std::move(throttlerId), std::move(throttler));
                     } else {
