@@ -131,7 +131,7 @@ public:
     void SetJobExperiment(const TJobExperimentBasePtr& jobExperiment);
 
     void OnJobScheduled(const TJobletPtr& joblet) override;
-    void OnJobCompleted(const TJobletPtr& joblet) override;
+    bool OnJobCompleted(const TJobletPtr& joblet) override;
 
     std::optional<EAbortReason> ShouldAbortCompletingJob(const TJobletPtr& joblet) override;
 
