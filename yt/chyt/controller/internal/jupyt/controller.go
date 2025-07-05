@@ -23,6 +23,7 @@ type Config struct {
 	LastActivityURLPath *string           `yson:"last_activity_url_path"`
 	Command             *string           `yson:"command"`
 	AdditionalFiles     []string          `yson:"additional_files"`
+	RunAsUser           bool              `yson:"run_as_user"`
 }
 
 const (
@@ -262,7 +263,8 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		YTACONamespace:   c.Family(),
 		YTACORootPath:    strawberry.AccessControlNamespacesPath.String(),
 	}
-	serverConfigYTPath, err := c.uploadConfig(ctx, oplet.Alias(), "server_config.json", serverConfig)
+	creator := oplet.GetBriefInfo().Creator
+	serverConfigYTPath, err := c.uploadConfig(ctx, oplet.Alias(), "server_config.json", serverConfig, creator)
 	if err != nil {
 		return nil
 	}
@@ -333,6 +335,10 @@ func (c *Controller) GetScalerTarget(ctx context.Context, opletInfo strawberry.O
 	}
 
 	return nil, nil
+}
+
+func (c *Controller) RunAsUser() bool {
+	return c.config.RunAsUser
 }
 
 func parseConfig(rawConfig yson.RawValue) Config {
