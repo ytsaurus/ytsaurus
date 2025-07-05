@@ -1109,6 +1109,7 @@ func writeCreateQueueProducerSessionOptions(w *yson.Writer, o *yt.CreateQueuePro
 		w.Any(o.UserMeta)
 	}
 	writeTimeoutOptions(w, o.TimeoutOptions)
+	writeMutatingOptions(w, o.MutatingOptions)
 }
 
 func writeRemoveQueueProducerSessionOptions(w *yson.Writer, o *yt.RemoveQueueProducerSessionOptions) {
@@ -1185,6 +1186,10 @@ func writeStartQueryOptions(w *yson.Writer, o *yt.StartQueryOptions) {
 	if o.AccessControlObject != nil {
 		w.MapKeyString("access_control_object")
 		w.Any(o.AccessControlObject)
+	}
+	if o.Secrets != nil {
+		w.MapKeyString("secrets")
+		w.Any(o.Secrets)
 	}
 	writeQueryTrackerOptions(w, o.QueryTrackerOptions)
 }
@@ -4440,6 +4445,10 @@ func (p *CreateQueueProducerSessionParams) MarshalHTTP(w *yson.Writer) {
 
 func (p *CreateQueueProducerSessionParams) TimeoutOptions() **yt.TimeoutOptions {
 	return &p.options.TimeoutOptions
+}
+
+func (p *CreateQueueProducerSessionParams) MutatingOptions() **yt.MutatingOptions {
+	return &p.options.MutatingOptions
 }
 
 type RemoveQueueProducerSessionParams struct {
