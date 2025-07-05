@@ -26,6 +26,7 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/x509v3.h>
 
 namespace NYT::NCrypto {
 
@@ -227,6 +228,10 @@ public:
 
     void SetHost(const TString& host)
     {
+        // Verify hostname in server certificate.
+        SSL_set_hostflags(Ssl_.get(), X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
+        SSL_set1_host(Ssl_.get(), host.c_str());
+
         SSL_set_tlsext_host_name(Ssl_.get(), host.c_str());
     }
 
@@ -236,6 +241,9 @@ public:
 
     void StartClient()
     {
+        // Require and verify server certificate.
+        SSL_set_verify(Ssl_.get(), SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, nullptr);
+
         SSL_set_connect_state(Ssl_.get());
         auto sslResult = SSL_do_handshake(Ssl_.get());
         sslResult = SSL_get_error(Ssl_.get(), sslResult);
