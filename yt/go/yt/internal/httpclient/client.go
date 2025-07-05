@@ -689,9 +689,9 @@ func (c *httpClient) Stop() {
 	c.httpClient.CloseIdleConnections()
 }
 
-func (c *httpClient) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+func dialContext(ctx context.Context, netDialer *net.Dialer, network, addr string) (net.Conn, error) {
 	for i := 0; ; i++ {
-		conn, err := c.netDialer.DialContext(ctx, network, addr)
+		conn, err := netDialer.DialContext(ctx, network, addr)
 		if err != nil {
 			var temporary interface{ Temporary() bool }
 			if errors.As(err, &temporary) && temporary.Temporary() && i < 3 {
@@ -710,12 +710,9 @@ func (c *httpClient) dialContext(ctx context.Context, network, addr string) (net
 	}
 }
 
-func NewHTTPClient(c *yt.Config) (yt.Client, error) {
-	var client httpClient
-
-	clusterURL, err := c.GetClusterURL()
-	if err != nil {
-		return nil, err
+func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
+	if c.HTTPClient != nil {
+		return c.HTTPClient, nil
 	}
 
 	certPool, err := internal.NewCertPool()
@@ -729,19 +726,16 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		}
 	}
 
-	client.log = c.GetLogger()
-	client.tracer = c.GetTracer()
-
-	client.config = c
-	client.clusterURL = clusterURL
-
-	client.netDialer = &net.Dialer{
+	netDialer := &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
 	}
-	client.httpClient = &http.Client{
+
+	httpClient := &http.Client{
 		Transport: &http.Transport{
-			DialContext: client.dialContext,
+			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				return dialContext(ctx, netDialer, network, addr)
+			},
 
 			MaxIdleConns:        0,
 			MaxIdleConnsPerHost: 100,
@@ -755,6 +749,27 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 			DisableCompression: c.GetClientCompressionCodec() != yt.ClientCodecGZIP,
 		},
 	}
+
+	return httpClient, nil
+}
+
+func NewHTTPClient(c *yt.Config) (yt.Client, error) {
+	var client httpClient
+
+	clusterURL, err := c.GetClusterURL()
+	if err != nil {
+		return nil, err
+	}
+
+	client.log = c.GetLogger()
+	client.tracer = c.GetTracer()
+	client.httpClient, err = BuildHTTPClient(c)
+	if err != nil {
+		return nil, err
+	}
+
+	client.config = c
+	client.clusterURL = clusterURL
 	client.stop = internal.NewStopGroup()
 	client.proxySet = &internal.ProxySet{UpdateFn: client.listHeavyProxies}
 
