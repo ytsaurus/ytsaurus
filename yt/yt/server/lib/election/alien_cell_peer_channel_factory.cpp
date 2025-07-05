@@ -79,15 +79,9 @@ public:
     TFuture<IChannelPtr> GetChannel() override
     {
         auto address = CellDirectory_->FindPeerAddress(CellId_, PeerId_);
-
         if (!address) {
             return MakeFuture<IChannelPtr>(UnavailableError_);
         }
-
-        auto channelFactory = NRpc::NBus::CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>());
-        auto channel = CreateRealmChannel(
-            channelFactory->CreateChannel(*address),
-            CellId_);
 
         auto connection = ClusterDirectory_->FindConnection(Cluster_);
         if (!connection) {
@@ -95,11 +89,11 @@ public:
                     TError(NRpc::EErrorCode::Unavailable, "Cannot find such cluster")
                         << TErrorAttribute("cluster", Cluster_));
         }
-        auto clusterConfig = connection->GetConfig();
 
-        channel = NAuth::CreateNativeAuthenticationInjectingChannel(
-            std::move(channel),
-            clusterConfig->TvmId);
+        const auto& channelFactory = connection->GetChannelFactory();
+        auto channel = CreateRealmChannel(
+            channelFactory->CreateChannel(*address),
+            CellId_);
 
         return MakeFuture(std::move(channel));
     }
