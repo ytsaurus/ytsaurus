@@ -127,6 +127,10 @@ struct TProxyBootstrapConfig
 
     TAccessCheckerConfigPtr AccessChecker;
 
+    int PublicRpcPort;
+
+    NBus::TBusServerConfigPtr PublicBusServer;
+
     //! GRPC server configuration.
     NRpc::NGrpc::TServerConfigPtr GrpcServer;
 

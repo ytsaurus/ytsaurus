@@ -245,6 +245,14 @@ void TBootstrap::DoInitialize()
         Config_->BusServer,
         GetYTPacketTranscoderFactory(),
         MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc));
+
+    if (Config_->PublicRpcPort) {
+        PublicBusServer_ = CreateBusServer(
+            Config_->PublicBusServer,
+            GetYTPacketTranscoderFactory(),
+            MemoryUsageTracker_->WithCategory(EMemoryCategory::Rpc));
+    }
+
     if (Config_->TvmOnlyRpcPort) {
         auto busConfigCopy = CloneYsonStruct(Config_->BusServer);
         busConfigCopy->Port = Config_->TvmOnlyRpcPort;
@@ -253,6 +261,10 @@ void TBootstrap::DoInitialize()
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
     RpcServer_->Configure(Config_->RpcServer);
+
+    if (PublicBusServer_) {
+        PublicRpcServer_ = NRpc::NBus::CreateBusServer(PublicBusServer_);
+    }
 
     if (TvmOnlyBusServer_) {
         TvmOnlyRpcServer_ = NRpc::NBus::CreateBusServer(TvmOnlyBusServer_);
@@ -346,6 +358,9 @@ void TBootstrap::DoStart()
     }
 
     RpcServer_->RegisterService(ApiService_);
+    if (PublicRpcServer_) {
+        PublicRpcServer_->RegisterService(ApiService_);
+    }
     if (TvmOnlyRpcServer_ && TvmOnlyApiService_) {
         TvmOnlyRpcServer_->RegisterService(TvmOnlyApiService_);
     }
@@ -390,6 +405,9 @@ void TBootstrap::DoStart()
             GetWorkerInvoker(),
             LocalAddresses_);
         RpcServer_->RegisterService(DiscoveryService_);
+        if (PublicRpcServer_) {
+            PublicRpcServer_->RegisterService(DiscoveryService_);
+        }
         if (TvmOnlyRpcServer_) {
             TvmOnlyRpcServer_->RegisterService(DiscoveryService_);
         }
@@ -426,6 +444,13 @@ void TBootstrap::DoStart()
 
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->Start();
+
+    if (PublicRpcServer_) {
+        YT_LOG_INFO("Listening for public RPC requests on port %v", Config_->PublicRpcPort);
+        auto rpcServerConfigCopy = CloneYsonStruct(Config_->RpcServer);
+        PublicRpcServer_->Configure(rpcServerConfigCopy);
+        PublicRpcServer_->Start();
+    }
 
     if (TvmOnlyRpcServer_) {
         YT_LOG_INFO("Listening for TVM-only RPC requests on port %v", Config_->TvmOnlyRpcPort);
