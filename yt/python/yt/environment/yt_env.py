@@ -430,7 +430,19 @@ class YTInstance(object):
                 ca_cert_key=self.yt_config.ca_cert_key,
                 cert=self.yt_config.rpc_cert,
                 cert_key=self.yt_config.rpc_cert_key,
-                names=names
+                names=names,
+            )
+
+        if self.yt_config.rpc_client_cert is None:
+            self.yt_config.rpc_client_cert = os.path.join(self.path, "rpc_client.crt")
+            self.yt_config.rpc_client_cert_key = os.path.join(self.path, "rpc_client.key")
+            create_certificate(
+                ca_cert=self.yt_config.ca_cert,
+                ca_cert_key=self.yt_config.ca_cert_key,
+                cert=self.yt_config.rpc_client_cert,
+                cert_key=self.yt_config.rpc_client_cert_key,
+                names=names,
+                extended_key_usage="clientAuth",
             )
 
         if self.yt_config.https_cert is None and self.yt_config.http_proxy_count > 0:

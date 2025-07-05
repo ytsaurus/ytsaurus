@@ -516,15 +516,22 @@ private:
         JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
         JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyJaeger);
 
-        JobProxyConfigTemplate_->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
+        if (const auto& clusterConnection = GetConfig()->ExecNode->JobProxy->ClusterConnection) {
+            JobProxyConfigTemplate_->OriginalClusterConnection = clusterConnection->Clone();
+        } else {
+            JobProxyConfigTemplate_->OriginalClusterConnection = GetConfig()->ClusterConnection->Clone();
+        }
 
-        JobProxyConfigTemplate_->ClusterConnection = GetConfig()->ClusterConnection->Clone();
+        JobProxyConfigTemplate_->ClusterConnection = JobProxyConfigTemplate_->OriginalClusterConnection->Clone();
         JobProxyConfigTemplate_->ClusterConnection->Static->OverrideMasterAddresses({localAddress});
 
         JobProxyConfigTemplate_->AuthenticationManager = GetConfig()->ExecNode->JobProxy->JobProxyAuthenticationManager;
 
-        JobProxyConfigTemplate_->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
-        JobProxyConfigTemplate_->SupervisorConnection->Address = localAddress;
+        if (const auto& supervisorConnection = GetConfig()->ExecNode->JobProxy->SupervisorConnection) {
+            JobProxyConfigTemplate_->SupervisorConnection = CloneYsonStruct(supervisorConnection);
+        } else {
+            JobProxyConfigTemplate_->SupervisorConnection = NBus::TBusClientConfig::CreateTcp(localAddress);
+        }
 
         JobProxyConfigTemplate_->SupervisorRpcTimeout = GetConfig()->ExecNode->JobProxy->SupervisorRpcTimeout;
 
@@ -545,6 +552,7 @@ private:
 
         JobProxyConfigTemplate_->DoNotSetUserId = !SlotManager_->ShouldSetUserId();
         JobProxyConfigTemplate_->CheckUserJobMemoryLimit = GetConfig()->ExecNode->JobProxy->CheckUserJobMemoryLimit;
+        JobProxyConfigTemplate_->EnvironmentVariables = GetConfig()->ExecNode->JobProxy->EnvironmentVariables;
         JobProxyConfigTemplate_->ForwardAllEnvironmentVariables = GetConfig()->ExecNode->JobProxy->ForwardAllEnvironmentVariables;
 
         if (auto tvmService = NAuth::TNativeAuthenticationManager::Get()->GetTvmService()) {
