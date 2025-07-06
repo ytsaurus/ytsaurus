@@ -1,6 +1,6 @@
 #include <yt/yt/core/compression/codec.h>
 
-#include <yt/yt/core/misc/blob.h>
+#include <library/cpp/yt/memory/blob.h>
 
 #include <library/cpp/yt/misc/cast.h>
 
