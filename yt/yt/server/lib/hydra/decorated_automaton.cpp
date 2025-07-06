@@ -23,7 +23,6 @@
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
-#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/codicil.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/finally.h>
@@ -45,6 +44,8 @@
 #include <yt/yt/library/process/pipe.h>
 
 #include <library/cpp/yt/logging/backends/stream/stream_log_manager.h>
+
+#include <library/cpp/yt/memory/blob.h>
 
 #include <util/random/random.h>
 

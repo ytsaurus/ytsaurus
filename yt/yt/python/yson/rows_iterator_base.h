@@ -3,7 +3,7 @@
 #include <yt/yt/python/common/helpers.h>
 #include <yt/yt/python/common/stream.h>
 
-#include <yt/yt/core/misc/blob.h>
+#include <library/cpp/yt/memory/blob.h>
 
 #include <CXX/Extensions.hxx> // pycxx
 #include <CXX/Objects.hxx> // pycxx
