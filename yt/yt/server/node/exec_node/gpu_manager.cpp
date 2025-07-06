@@ -737,7 +737,10 @@ void TGpuManager::ApplyNetworkPriority(std::optional<TNetworkPriority> networkPr
 
     TNetworkPriority newNetworkPriority = networkPriority.value_or(DefaultNetworkPriority);
 
-    YT_LOG_DEBUG("Applying network priority (Old: %v, New: %v)", CurrentNetworkPriority_, networkPriority);
+    YT_LOG_DEBUG(
+        "Applying network priority (Old: %v, New: %v)",
+        CurrentNetworkPriority_,
+        networkPriority);
 
     if (newNetworkPriority == CurrentNetworkPriority_) {
         return;
@@ -771,6 +774,7 @@ void TGpuManager::ApplyNetworkPriority(std::optional<TNetworkPriority> networkPr
 
     CurrentNetworkPriority_ = newNetworkPriority;
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
