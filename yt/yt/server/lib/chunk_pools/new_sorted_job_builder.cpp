@@ -922,7 +922,7 @@ private:
             if (!PrimaryComparator_.IsInteriorEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
                 inLong = true;
                 if (haveSolids) {
-                    StagingArea_->Flush();
+                    Flush();
                     haveSolids = false;
                 }
             }

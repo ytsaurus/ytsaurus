@@ -4028,6 +4028,37 @@ TEST_F(TSortedChunkPoolNewKeysTest, RowSlicingCorrectnessStrong)
     }
 }
 
+TEST_F(TSortedChunkPoolNewKeysTest, ResetJobSizeAtJobFlush)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false} /*isForeign*/,
+        {false} /*isTeleportable*/,
+        {true} /*isVersioned*/);
+    InitPrimaryComparator(1);
+
+    DataWeightPerJob_ = 10_KB;
+    InitJobConstraints();
+
+    auto chunk1 = CreateChunk(BuildRow({0}), BuildRow({0}), 0, 8_KB);
+    auto chunk2 = CreateChunk(BuildRow({0}), BuildRow({1}), 0, 1_KB);
+    auto chunk3 = CreateChunk(BuildRow({1}), BuildRow({1}), 0, 4_KB);
+
+    CreateChunkPool();
+
+    AddDataSlice(chunk1);
+    AddDataSlice(chunk2);
+    AddDataSlice(chunk3);
+
+    ChunkPool_->Finish();
+
+    EXPECT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 2);
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    CheckEverything(stripeLists);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkPoolNewKeysTestRandomized
