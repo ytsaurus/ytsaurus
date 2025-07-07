@@ -26,4 +26,5 @@ RECURSE(
     unpack_local_snapshot
     upload_chunk
     yt_sudo_fixup
+    zstdtail
 )
