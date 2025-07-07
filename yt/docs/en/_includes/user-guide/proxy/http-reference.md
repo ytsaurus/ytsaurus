@@ -97,10 +97,10 @@ You can use compression when transmitting data via an HTTP proxy. The proxy sele
 
 | **Content-Encoding**/**Accept-Encoding** | **Codec** | **Comment** |
 | ------------------------ | ------------------------ |  --------------------------- |
-| identity | Missing |                              |
+| identity | None |                              |
 | gzip, deflate | Standard zlib |                              |
 | br | Standard brotli | [source code]({{source-root}}/library/cpp/streams/brotli) |
-| y-snappy, y-lzo, y-lzf | Snappy, LZO, LZF with the custom framing | [source code]({{source-root}}/library/cpp/streams/lz) |
+| y-snappy, y-lzo, y-lzf | Snappy, LZO, LZF with the Arcadia framing | [source code]({{source-root}}/library/cpp/streams/lz) |
 | x-lzop | Standard lzop | [source code]({{source-root}}/library/cpp/streams/lzop) |
 | z-* | Codecs from library/cpp/blockcodecs | Since no better alternative is available, see the [test list]({{source-root}}/library/cpp/blockcodecs/codecs_ut.cpp?rev=r6975957#L295-323) |
 
@@ -108,7 +108,7 @@ You can use compression when transmitting data via an HTTP proxy. The proxy sele
 
 | **Content-Encoding**/**Accept-Encoding** | **Codec** |
 | ----------------------- | --------------------------- |
-| identity | Missing |
+| identity | None |
 | gzip, deflate | Standard zlib |
 
 {% endif %}
@@ -133,7 +133,7 @@ If your application requires a large I/O from the cluster (say, comparable to Lo
 
 ### Available API versions (/api) { #api }
 
-The HTTP API is versioned (as you can see from the `/v3` prefix in the examples [from here](../../../user-guide/proxy/http.md)). The API version is changed if there are backward-incompatible changes to the set of supported commands or to the semantics of any of the existing commands. Adding new commands does not usually change the API version. The HTTP proxy supports the two latest versions of the API.
+The HTTP API is versioned (as you can see from the `/v4` prefix in the examples [from here](../../../user-guide/proxy/http.md)). The API version is changed if there are backward-incompatible changes to the set of supported commands or to the semantics of any of the existing commands. Adding new commands does not usually change the API version. The HTTP proxy supports the two latest versions of the API.
 
 A list of supported API versions can be obtained from the URL `/api`.
 
@@ -174,7 +174,7 @@ Frame types:
 | **Name** | **Tag** | **Header** | **Frame** | **Comment** |
 |--------------|---------|------------------------------------------------|-------------|------------------|
 | Data | `0x01` | 4-byte little-endian number — frame size | frame body |                  |
-| Keep-alive | `0x02` | missing | missing | "the data is being prepared, please wait" |
+| Keep-alive | `0x02` | none | none | "the data is being prepared, please wait" |
 
 {% if version > '1' %}
 
