@@ -1351,9 +1351,11 @@ class TestListJobs(TestListJobsCommon):
 
         wait_for_cells()
 
-        wait(lambda: len(list_jobs(op.id)["state_counts"]) == 2)
-        state_counts = list_jobs(op.id)["state_counts"]
-        assert frozenset(state_counts.keys()) == frozenset(["aborted", "completed"])
+        @wait_no_assert
+        def check_state_counts():
+            assert len(list_jobs(op.id)["state_counts"]) == 2
+            state_counts = list_jobs(op.id)["state_counts"]
+            assert frozenset(state_counts.keys()) == frozenset(["aborted", "completed"])
 
     @authors("bystrovserg")
     def test_brief_statistics_without_full_statistics(self):
