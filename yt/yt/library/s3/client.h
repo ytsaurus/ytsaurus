@@ -193,6 +193,20 @@ struct TGetObjectStreamResponse
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDeleteBucketRequest
+{
+    TString Bucket;
+
+    void Serialize(THttpRequest* request) const;
+};
+
+struct TDeleteBucketResponse
+{
+    void Deserialize(const NHttp::IResponsePtr& response);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDeleteObjectRequest
 {
     TString Bucket;
@@ -324,6 +338,7 @@ struct IClient
     DEFINE_COMMAND(UploadPart)
     DEFINE_COMMAND(GetObject)
     DEFINE_COMMAND(GetObjectStream)
+    DEFINE_COMMAND(DeleteBucket)
     DEFINE_COMMAND(DeleteObject)
     DEFINE_COMMAND(DeleteObjects)
     DEFINE_COMMAND(CreateMultipartUpload)
