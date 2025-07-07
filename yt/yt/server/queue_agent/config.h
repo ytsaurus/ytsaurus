@@ -181,6 +181,9 @@ public:
 
     NAlertManager::TAlertManagerDynamicConfigPtr AlertManager;
 
+    bool EnableVerboseLogging;
+    std::vector<NYPath::TRichYPath> VerboseLoggingObjects;
+
     REGISTER_YSON_STRUCT(TQueueControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);
