@@ -643,6 +643,7 @@ type JobStatus struct {
 	State           string             `yson:"state"`
 	Address         string             `yson:"address"`
 	TaskName        string             `yson:"task_name"`
+	IsStale         bool               `yson:"is_stale"`
 	StartTime       yson.Time          `yson:"start_time"`
 	FinishTime      yson.Time          `yson:"finish_time,omitempty"`
 	FailContextSize int                `yson:"fail_context_size,omitempty"`
