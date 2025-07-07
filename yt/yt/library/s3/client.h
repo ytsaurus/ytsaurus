@@ -7,7 +7,16 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <library/cpp/xml/document/xml-document.h>
+// Forward declaration for Poco::XML::Node.
+namespace Poco::XML {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class Node;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace Poco::XML
 
 namespace NYT::NS3 {
 
@@ -25,7 +34,7 @@ struct TBucket
     TInstant CreationDate;
     TString Name;
 
-    void Deserialize(NXml::TNode node);
+    void Deserialize(const Poco::XML::Node& node);
 };
 
 struct TObject
@@ -35,7 +44,7 @@ struct TObject
     TString ETag;
     i64 Size;
 
-    void Deserialize(NXml::TNode node);
+    void Deserialize(const Poco::XML::Node& node);
 };
 
 struct TOwner
@@ -43,7 +52,7 @@ struct TOwner
     TString DisplayName;
     TString Id;
 
-    void Deserialize(NXml::TNode node);
+    void Deserialize(const Poco::XML::Node& node);
 };
 
 struct TDeleteError
