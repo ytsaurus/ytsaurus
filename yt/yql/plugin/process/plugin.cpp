@@ -355,7 +355,7 @@ private:
         },
         /*minDelay*/ TDuration::Seconds(5),
         /*minLongRetryDelay*/ TDuration::Seconds(5),
-        /* maxDelay */ TDuration::Seconds(30),
+        /*maxDelay*/ TDuration::Seconds(30),
         /*maxRetries*/ 5);
 
 private:
