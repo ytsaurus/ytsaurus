@@ -141,7 +141,7 @@ func (u *verificationFileUploader) uploadLogFiles(ctx context.Context) {
 		}
 
 		if len(candidateFiles) == 0 {
-			u.logger.Error("No candidate files found for stream", "pattern", streamConfig.FilePattern)
+			u.logger.Warn("No candidate files found for stream", "pattern", streamConfig.FilePattern)
 			continue
 		}
 
