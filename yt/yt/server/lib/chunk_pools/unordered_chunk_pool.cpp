@@ -711,7 +711,7 @@ private:
                 return FreeJobCounter_->GetTotal();
             }
 
-            i64 pendingJobCount = Finished ?  DivCeil<i64>(sizeLeft, sizePerJob) : sizeLeft / sizePerJob;
+            i64 pendingJobCount = Finished ? DivCeil<i64>(sizeLeft, sizePerJob) : sizeLeft / sizePerJob;
 
             return std::max<i64>(
                 pendingJobCount,
@@ -872,7 +872,18 @@ private:
 
             if (JobSizeConstraints_->IsExplicitJobCount()) {
                 if (hasSufficientDataWeight) {
-                    break;
+                    if (FreeJobCounter_->GetPending() > 1) {
+                        break;
+                    } else {
+                        // TODO(apollo1321): Change to alert later.
+                        // This may happen if some input chunks were suspended.
+                        YT_LOG_WARNING_IF(
+                            pendingStripesCount > 1,
+                            "Last job will be bigger than expected (PendingStripesCount: %v, JobDataWeight: %v)",
+                            pendingStripesCount,
+                            jobStub->GetDataWeight());
+                    }
+
                 }
             } else if (hasSufficientDataWeight || hasSufficientCompressedDataSize) {
                 break;

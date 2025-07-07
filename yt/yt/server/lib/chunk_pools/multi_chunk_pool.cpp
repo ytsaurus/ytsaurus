@@ -360,7 +360,7 @@ public:
         OnUnderlyingPoolBlockedJobCountChanged(poolIndex);
     }
 
-protected:
+private:
     std::vector<IPersistentChunkPoolOutputPtr> UnderlyingPools_;
 
     //! Number of uncompleted pools.

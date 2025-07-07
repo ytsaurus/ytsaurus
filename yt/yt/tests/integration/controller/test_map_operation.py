@@ -25,11 +25,12 @@ from flaky import flaky
 from copy import deepcopy
 
 from datetime import datetime
+
+import base64
 import pytest
 import random
 import string
 import time
-import base64
 
 ##################################################################
 
@@ -2367,6 +2368,71 @@ print(json.dumps(input))
             )
 
             assert op.get_job_count("completed") == job_count
+
+    @authors("apollo1321")
+    def test_lost_input_chunks(self):
+        skip_if_component_old(self.Env, (25, 3), "controller-agent")
+        create("table", "//tmp/t_in", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            "replication_factor": 1,
+        })
+
+        data = []
+        chunk_count = 30
+        for i in range(chunk_count):
+            row = [
+                {"key": i, "value": str(i) * 1000},
+            ]
+            data += row
+            write_table("<append=true>//tmp/t_in", row)
+
+        assert len(get("//tmp/t_in/@chunk_ids")) == chunk_count
+        all_nodes = list(get("//sys/cluster_nodes"))
+        assert len(all_nodes) == 3
+        alive_node = all_nodes[0]
+        job_count = 10
+
+        op = map(
+            track=False,
+            command="cat",
+            in_="//tmp/t_in",
+            out="<create=%true>//tmp/t_out",
+            spec={
+                "scheduling_tag_filter": alive_node,
+                "suspend_operation_after_materialization": True,
+                "resource_limits": {"user_slots": 4},
+                "job_count": job_count,
+                "job_io": {
+                    "table_reader": {
+                        # Fail fast
+                        "retry_count": 1,
+                    }
+                },
+            }
+        )
+
+        wait(lambda: get(op.get_path() + "/@suspended"))
+
+        set_nodes_banned(all_nodes[1:], True)
+
+        # Cookie start beeing extracted after resume.
+        op.resume()
+
+        wait(lambda: op.get_job_count("aborted") > 0)
+
+        set_nodes_banned([all_nodes[1]], False)
+
+        time.sleep(2)
+
+        set_nodes_banned([all_nodes[2]], False)
+        op.track()
+
+        assert op.get_job_count("completed") == job_count
+
+        assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts(data)
 
 
 ##################################################################
