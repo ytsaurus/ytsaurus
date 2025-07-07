@@ -313,7 +313,9 @@ class TestChunkServer(YTEnvSetup):
 
         wait(check_if_job_finished)
 
-    def _reproduce_missing_requisition_update(self):
+    @authors("kvk1920")
+    @flaky(max_runs=3)
+    def test_missing_requisition_update_yt17756(self):
         create_account("a")
         create_account("b")
         create("table", "//tmp/a", attributes={"account": "a"})
@@ -326,18 +328,6 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: {req["account"] for req in get(f"#{chunk}/@requisition")} == {"a", "b"})
         write_table("//tmp/a", {"a": 2, "b": 3})
         wait(lambda: {req["account"] for req in get(f"#{chunk}/@requisition")} == {"b"})
-
-    @authors("kvk1920")
-    @flaky(max_runs=3)
-    def test_missing_requisition_update_yt17756(self):
-        with pytest.raises(WaitFailed):
-            self._reproduce_missing_requisition_update()
-
-    @authors("kvk1920")
-    @flaky(max_runs=3)
-    def test_fix_missing_requisition_update_yt17756(self):
-        set("//sys/@config/chunk_manager/enable_fix_requisition_update_on_merge", True)
-        self._reproduce_missing_requisition_update()
 
     @authors("gritukan")
     def test_historically_non_vital(self):

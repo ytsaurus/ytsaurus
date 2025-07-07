@@ -85,6 +85,7 @@ DEFINE_ENUM(EMasterReign,
     ((Decimal256)                                                   (2747))  // achulkov2+ermolovd
     ((HunkStorageMulticell)                                         (2748))  // akozhikhov
     ((NoAvenuesDuringMigrationTo24_2)                               (2749))  // ifsmirnov
+    ((DropEnableFixRequisitionUpdateCompat_24_2)                    (2750))  // kvk1920
     // 25.1 starts here.
     ((SequoiaSetActionLatePrapare)                                  (2800))  // danilalexeev
     ((RemoveUseHydraPersistenceDirectoryFlag)                       (2801))  // danilalexeev
@@ -134,6 +135,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexOuroboros)                                      (2845))  // sabdenovch
     ((FixDetachmentOfJournalHunkChunk_25_1)                         (2846))  // akozhikhov
     ((CheckReplicationProgressSchema_25_1)                          (2847))  // savrus
+    ((DropEnableFixRequisitionUpdateCompat_25_1)                    (2848))  // kvk1920
     // 25.2 starts here.
     ((Start_25_2)                                                   (2900))  // ponasenko-rs
     ((TabletTransactionSerializationType)                           (2901))  // ponasenko-rs
@@ -195,12 +197,14 @@ DEFINE_ENUM(EMasterReign,
     ((CrossCellCopyFinalFixes)                                      (2957))  // shakurov
     ((HydraLogicalClock)                                            (2958))  // h0pless
     ((FixBuiltinUserIds_25_2)                                       (2959))  // cherepashka
+    ((DropEnableFixRequisitionUpdateCompat_25_2)                    (2960))  // kvk1920
     // 25.3 starts here.
     ((Start_25_3)                                                   (3000))  // community bot
     ((DropOldMountConfigKeyLists)                                   (3001))  // ifsmirnov
     ((TransactionCommitsAndAbortsValidatePermissions)               (3002))  // faucct
     ((ValidateUnversionedChunkConstraintsBeforeMount)               (3003))  // atalmenev
     ((FixBuiltinUserIds)                                            (3004))  // cherepashka
+    ((DropEnableFixRequisitionUpdateCompat)                         (3005))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
