@@ -2,7 +2,8 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, wait, create, get, write_table, map, merge, raises_yt_error,
-    get_table_columnar_statistics
+    get_table_columnar_statistics, sorted_dicts, set_nodes_banned, set_node_banned,
+    read_table
 )
 
 from yt_type_helpers import (
@@ -12,15 +13,28 @@ from yt_type_helpers import (
 import pytest
 import random
 import string
+import time
 
 
-@pytest.mark.enabled_multidaemon
-class TestCompressedDataSizePerJob(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
-
+class TestJobSlicingBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+
+    @staticmethod
+    def _get_completed_summary(summaries):
+        result = None
+        for summary in summaries:
+            if summary["tags"]["job_state"] == "completed":
+                assert not result
+                result = summary
+        assert result
+        return result["summary"]
+
+
+@pytest.mark.enabled_multidaemon
+class TestCompressedDataSizePerJob(TestJobSlicingBase):
+    ENABLE_MULTIDAEMON = True
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -649,3 +663,104 @@ class TestCompressedDataSizePerJob(YTEnvSetup):
         else:
             op.track()
             assert "invalid_data_weight_per_job" in op.get_alerts()
+
+
+@pytest.mark.enabled_multidaemon
+class TestJobSlicingWithLostInput(TestJobSlicingBase):
+    ENABLE_MULTIDAEMON = True
+
+    NUM_NODES = 5
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 5,
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operations_update_period": 5,
+            "running_allocations_update_period": 5,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
+            }
+        },
+    }
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("use_new_slicing_implementation", [False, True])
+    def test_lost_input_chunks_with_explicit_job_count(self, use_new_slicing_implementation):
+        create("table", "//tmp/t_in", attributes={
+            "schema": [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ],
+            "replication_factor": 1,
+        })
+
+        data = []
+        chunk_count = 30
+        for i in range(chunk_count):
+            row = [
+                {"key": i, "value": str(i) * 1000},
+            ]
+            data += row
+            write_table("<append=true>//tmp/t_in", row)
+
+        assert len(get("//tmp/t_in/@chunk_ids")) == chunk_count
+        all_nodes = list(get("//sys/cluster_nodes"))
+        assert len(all_nodes) == self.NUM_NODES
+        alive_node = all_nodes[0]
+        job_count = 10
+        data_weight_per_job = (get("//tmp/t_in/@data_weight") + job_count - 1) // job_count
+
+        op = map(
+            track=False,
+            command="cat",
+            in_="//tmp/t_in",
+            out="<create=%true>//tmp/t_out",
+            spec={
+                "scheduling_tag_filter": alive_node,
+                "suspend_operation_after_materialization": True,
+                "resource_limits": {"user_slots": 4},
+                "job_count": job_count,
+                "job_io": {
+                    "table_reader": {
+                        # Fail fast
+                        "retry_count": 1,
+                    }
+                },
+                "use_new_slicing_implementation_in_unordered_pool": use_new_slicing_implementation,
+            }
+        )
+
+        wait(lambda: get(op.get_path() + "/@suspended"))
+        set_nodes_banned(all_nodes[1:], True)
+
+        # Chunk pool output cookies will be extracted after resume.
+        op.resume()
+
+        wait(lambda: op.get_job_count("aborted") > 0)
+        wait(lambda: op.get_job_count("suspended") > 0)
+
+        for i in range(1, self.NUM_NODES):
+            set_node_banned(all_nodes[i], False)
+            time.sleep(1)
+
+        op.track()
+
+        assert sorted_dicts(read_table("//tmp/t_out")) == sorted_dicts(data)
+
+        progress = get(op.get_path() + "/@progress")
+        assert progress["jobs"]["completed"]["total"] == job_count
+
+        if use_new_slicing_implementation:
+            # Check that data weight is distributed evenly.
+            assert self.get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["data_weight"])["max"] <= data_weight_per_job * 1.5
