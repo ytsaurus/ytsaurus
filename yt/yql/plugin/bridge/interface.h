@@ -26,6 +26,9 @@ struct TBridgeYqlPluginOptions
     const char* DqGatewayConfig = nullptr;
     size_t DqGatewayConfigLength = 0;
 
+    const char* YtflowGatewayConfig = nullptr;
+    size_t YtflowGatewayConfigLength = 0;
+
     const char* DqManagerConfig = nullptr;
     size_t DqManagerConfigLength = 0;
 
