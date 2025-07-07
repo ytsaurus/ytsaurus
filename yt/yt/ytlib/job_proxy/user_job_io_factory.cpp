@@ -374,7 +374,10 @@ TCreateUserJobReaderResult CreateSortedReduceJobReader(
         }
     }
 
-    if (reduceJobSpecExt.disable_sorted_input() && jobSpecExt.foreign_input_table_specs_size() == 0) {
+    if (
+        jobSpecExt.user_job_spec().is_secondary_distributed()
+            || reduceJobSpecExt.disable_sorted_input() && jobSpecExt.foreign_input_table_specs_size() == 0
+    ) {
         // Input tables are currently sorted, although this property is not utilized by this reader.
         // Intermediate sorting is necessary to distribute chunks among sorted reduce jobs
         // in the current implementation.
@@ -678,7 +681,7 @@ TCreateUserJobReaderResult CreatePartitionReduceJobReader(
 
     auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize);
 
-    if (reduceJobSpecExt.disable_sorted_input()) {
+    if (jobSpecExt.user_job_spec().is_secondary_distributed() || reduceJobSpecExt.disable_sorted_input()) {
         return {
             CreateRegularReader(
                 jobSpecHelper->UnpackDataSliceDescriptors(),
