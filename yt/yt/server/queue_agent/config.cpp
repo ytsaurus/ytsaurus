@@ -111,6 +111,10 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("controller_delay", &TThis::ControllerDelay)
         .Default(TDuration::Zero());
+    registrar.Parameter("enable_verbose_logging", &TThis::EnableVerboseLogging)
+        .Default(false);
+    registrar.Parameter("verbose_logging_objects", &TThis::VerboseLoggingObjects)
+        .Default();
 
     registrar.Postprocessor([] (TQueueControllerDynamicConfig* config) {
         if (config->TrimmingPeriod && config->TrimmingPeriod->GetValue() <= 0) {
