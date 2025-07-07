@@ -25,6 +25,8 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 #include <util/string/builder.h>
 #include <util/string/split.h>
 
@@ -310,6 +312,8 @@ TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegi
         IsInternal = true;
         imageRef = dockerImage;
     } else if (std::ranges::find(internalRegistries, Registry) != internalRegistries.end()) {
+        IsInternal = true;
+    } else if (config->InternalRegistryRegex && NRe2::TRe2::FullMatch(Registry, *config->InternalRegistryRegex)) {
         IsInternal = true;
     }
 
