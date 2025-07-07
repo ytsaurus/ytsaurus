@@ -5,10 +5,7 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yql/providers/yt/fmr/table_data_service/client/impl
-    yt/yql/providers/yt/fmr/table_data_service/discovery/file
-    yt/yql/providers/yt/fmr/table_data_service/local/impl
-    yt/yql/providers/yt/fmr/table_data_service/server
+    yt/yql/providers/yt/fmr/table_data_service/helpers
     yql/essentials/utils
 )
 
