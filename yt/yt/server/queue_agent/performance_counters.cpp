@@ -4,7 +4,7 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TEmaCounterWindowDurations<WindowCount> WindowDurations = {
+const TEmaCounterWindowDurations<TPerformanceCounters::WindowCount> TPerformanceCounters::WindowDurations = {
     TDuration::Minutes(1),
     TDuration::Hours(1),
     TDuration::Days(1),
