@@ -186,9 +186,9 @@ private:
         auto error = WaitFor(Discovery_->UpdateList());
         if (!error.IsOK()) {
             if (error.FindMatching(NDiscoveryClient::EErrorCode::NoSuchGroup)) {
-                error = TError("Ensure that the clique %Qs has started properly and its jobs are successfully running", Clique_) << error;
+                error = TError("Ensure that the clique %Qv has started properly and its jobs are successfully running", Clique_) << error;
             }
-            error.ThrowOnError();
+            THROW_ERROR(error);
         }
 
         Instances_ = FilterInstancesByIncarnation(Discovery_->List());
