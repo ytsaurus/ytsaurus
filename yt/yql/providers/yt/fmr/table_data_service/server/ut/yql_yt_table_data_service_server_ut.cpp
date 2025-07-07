@@ -2,37 +2,9 @@
 #include <library/cpp/threading/future/wait/wait.h>
 #include <util/stream/file.h>
 #include <util/system/tempfile.h>
-#include <yt/yql/providers/yt/fmr/table_data_service/client/impl/yql_yt_table_data_service_client_impl.h>
-#include <yt/yql/providers/yt/fmr/table_data_service/discovery/file/yql_yt_file_service_discovery.h>
-#include <yt/yql/providers/yt/fmr/table_data_service/server/yql_yt_table_data_service_server.h>
+#include <yt/yql/providers/yt/fmr/table_data_service/helpers/yql_yt_table_data_service_helpers.h>
 
 namespace NYql::NFmr {
-
-TString WriteHostsToFile(TTempFileHandle& file, ui64 WorkersNum, const std::vector<TTableDataServiceServerConnection>& connections) {
-    TString tempFileName = file.Name();
-    TFileOutput writeHosts(file.Name());
-    for (size_t i = 0; i < WorkersNum; ++i) {
-        writeHosts.Write(TStringBuilder() << connections[i].Host << ":" << connections[i].Port << "\n");
-    }
-    return tempFileName;
-}
-
-IFmrServer::TPtr MakeTableDataServiceServer(ui16 port) {
-    TTableDataServiceServerSettings tableDataServiceWorkerSettings{.WorkerId = 0, .WorkersNum = 1, .Port = port};
-    auto tableDataServiceServer = MakeTableDataServiceServer(MakeLocalTableDataService(), tableDataServiceWorkerSettings);
-    tableDataServiceServer->Start();
-    return tableDataServiceServer;
-}
-
-ITableDataService::TPtr MakeTableDataServiceClient(ui16 port) {
-    TTempFileHandle hostsFile{};
-    std::vector<TTableDataServiceServerConnection> connections{{.Host = "localhost", .Port = port}};
-    ui64 workersNum = 1;
-    auto path = WriteHostsToFile(hostsFile, workersNum, connections);
-
-    auto tableDataServiceDiscovery = MakeFileTableDataServiceDiscovery({.Path=path});
-    return MakeTableDataServiceClient(tableDataServiceDiscovery);
-}
 
 TString Key = "table_id_part_id:0";
 
