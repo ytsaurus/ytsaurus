@@ -20,6 +20,8 @@
 
 #include <yt/yt/server/node/tablet_node/public.h>
 
+#include <yt/yt/client/chaos_client/public.h>
+
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -504,6 +506,9 @@ struct TClusterNodeDynamicConfig
 
     //! Chaos residency cache config overrides.
     TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
+
+    //! Chaos replication card cache config overrides.
+    NChaosClient::TReplicationCardCacheDynamicConfigPtr ReplicationCardCache;
 
     NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;
 
