@@ -452,7 +452,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, UpdateMultipleTableProgresses)
 
     auto futureCards = std::vector<TFuture<TReplicationCardPtr>>();
     futureCards.reserve(futureCardsByIds.size());
-    for (auto& futureCardById : futureCardsByIds) {
+    for (const auto& futureCardById : futureCardsByIds) {
         futureCards.push_back(futureCardById.second);
     }
 

@@ -454,7 +454,7 @@ private:
 
         if (!ReplicationCardUpdatesBatcher_ || !ReplicationCardUpdatesBatcher_->Enabled()) {
             auto options = TUpdateChaosTableReplicaProgressOptions{
-                .Progress = *progress
+                .Progress = *progress,
             };
             auto future = LocalClient_->UpdateChaosTableReplicaProgress(
                 Tablet_->GetUpstreamReplicaId(),
