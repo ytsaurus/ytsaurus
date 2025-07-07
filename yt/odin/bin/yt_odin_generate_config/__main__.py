@@ -180,7 +180,7 @@ CHECKS_LIST = [
     "tablet_cell_snapshots",
     "chaos_cells",
     "unaware_nodes",
-    "wrapper_node_count",
+    "tmp_node_count",
 ]
 
 
@@ -273,9 +273,11 @@ def create_odin_checks_config():
                     "warn_threshold": 5,
                 }
             },
-            "wrapper_node_count": {
+            "tmp_node_count": {
                 "options": {
                     "files_count_threshold": 40000,
+                    "table_count_threshold": 40000,
+                    "root_count_threshold": 40000,
                 }
             },
             "destroyed_replicas_size": {

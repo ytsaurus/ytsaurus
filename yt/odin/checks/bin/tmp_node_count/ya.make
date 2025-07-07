@@ -1,4 +1,4 @@
-PY3_PROGRAM(wrapper_node_count)
+PY3_PROGRAM(tmp_node_count)
 
 PEERDIR(
     yt/odin/checks/lib/check_runner
