@@ -61,16 +61,6 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
     def _make_random_string(size) -> str:
         return ''.join(random.choice(string.ascii_letters) for _ in range(size))
 
-    @staticmethod
-    def get_completed_summary(summaries):
-        result = None
-        for summary in summaries:
-            if summary["tags"]["job_state"] == "completed":
-                assert not result
-                result = summary
-        assert result
-        return result["summary"]
-
     def _check_initial_job_estimation_and_track(self, op, expected_job_count, abs_error=0):
         wait(lambda: get(op.get_path() + "/@suspended"))
         wait(lambda: get(op.get_path() + "/@progress", default=False))
@@ -141,9 +131,9 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
         input_statistics = progress["job_statistics_v2"]["data"]["input"]
 
         if use_compressed_data_size:
-            assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 9000
+            assert self._get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 9000
 
-        assert self.get_completed_summary(input_statistics["data_weight"])["max"] <= 700
+        assert self._get_completed_summary(input_statistics["data_weight"])["max"] <= 700
         assert progress["jobs"]["completed"]["total"] == 3 if use_compressed_data_size else 2
 
     @authors("apollo1321")
@@ -321,7 +311,7 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
 
         progress = get(op.get_path() + "/@progress")
         input_statistics = progress["job_statistics_v2"]["data"]["input"]
-        assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 2200
+        assert self._get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 2200
         assert progress["jobs"]["completed"]["total"] == 12
 
     @authors("apollo1321")
@@ -544,8 +534,8 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
 
         input_statistics = progress["job_statistics_v2"]["data"]["input"]
 
-        assert self.get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 7000
-        assert self.get_completed_summary(input_statistics["data_weight"])["max"] <= 7000
+        assert self._get_completed_summary(input_statistics["compressed_data_size"])["max"] <= 7000
+        assert self._get_completed_summary(input_statistics["data_weight"])["max"] <= 7000
 
     @authors("apollo1321")
     @pytest.mark.parametrize("operation", ["map", "merge"])
@@ -763,4 +753,4 @@ class TestJobSlicingWithLostInput(TestJobSlicingBase):
 
         if use_new_slicing_implementation:
             # Check that data weight is distributed evenly.
-            assert self.get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["data_weight"])["max"] <= data_weight_per_job * 1.5
+            assert self._get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["data_weight"])["max"] <= data_weight_per_job * 1.5
