@@ -2583,12 +2583,26 @@ void TJob::OnWaitingForCleanupTimeout()
     if (JobPhase_ == EJobPhase::WaitingForCleanup) {
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
-        auto error = TError(NExecNode::EErrorCode::JobCleanupTimeout, "Failed to wait for job cleanup within timeout")
+        auto error = TError(NExecNode::EErrorCode::WaitingForJobCleanupTimeout, "Failed to wait for job cleanup within timeout")
             << TErrorAttribute("job_id", Id_)
             << TErrorAttribute("operation_id", OperationId_)
             << TErrorAttribute("waiting_for_job_cleanup_timeout", timeout);
         Bootstrap_->GetSlotManager()->OnWaitingForJobCleanupTimeout(std::move(error));
     }
+}
+
+void TJob::OnCleanupTimeout()
+{
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+    auto timeout = CommonConfig_->JobCleanupTimeout;
+
+    auto error = TError(NExecNode::EErrorCode::JobCleanupTimeout, "Failed to process job cleanup within timeout")
+        << TErrorAttribute("job_id", Id_)
+        << TErrorAttribute("operation_id", OperationId_)
+        << TErrorAttribute("job_cleanup_timeout", timeout);
+
+    Bootstrap_->GetSlotManager()->OnJobCleanupTimeout(std::move(error));
 }
 
 IUserSlotPtr TJob::GetUserSlot() const
@@ -2731,6 +2745,11 @@ void TJob::Cleanup()
         JobPhase_ == EJobPhase::Cleanup || JobPhase_ == EJobPhase::Finished,
         "Job cleanup should be called only once");
 
+    auto cleanupTimeoutCookie = TDelayedExecutor::Submit(
+        BIND(&TJob::OnCleanupTimeout, MakeStrong(this))
+            .Via(Invoker_),
+        CommonConfig_->JobCleanupTimeout);
+
     if (auto delay = JobTestingOptions_->DelayInCleanup) {
         YT_LOG_DEBUG("Simulate delay in cleanup");
 
@@ -2757,6 +2776,8 @@ void TJob::Cleanup()
             YT_LOG_ERROR(ex, "Failed to clean processes (SlotIndex: %v)", slot->GetSlotIndex());
         }
     }
+
+    TDelayedExecutor::CancelAndClear(cleanupTimeoutCookie);
 
     // NodeDirectory can be really huge, we better offload its cleanup.
     // NB: Do this after slot cleanup.
