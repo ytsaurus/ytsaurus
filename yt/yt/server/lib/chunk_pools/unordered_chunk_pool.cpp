@@ -261,7 +261,7 @@ public:
                 YT_VERIFY(!FreeStripes_.empty());
 
                 i64 idealDataWeightPerJob = UseNewSlicingImplementation_ ? GetAdjustedDataWeightPerJob() : GetDataWeightPerJobFromJobCounter();
-                i64 idealCompressedDataSizePerJob = UseNewSlicingImplementation_ ? GetAdjustedCompressedDataSizePerJob() : std::numeric_limits<i64>::max() / 4;
+                i64 idealCompressedDataSizePerJob = UseNewSlicingImplementation_ ? GetAdjustedCompressedDataSizePerJob() : std::numeric_limits<i64>::max();
 
                 auto jobStub = std::make_unique<TNewJobStub>();
 
@@ -687,6 +687,10 @@ private:
 
     i64 GetAdjustedCompressedDataSizePerJob() const
     {
+        // NB(apollo1321): Compressed data size is not taken into account when explicit job count is set.
+        if (JobSizeConstraints_->IsExplicitJobCount()) {
+            return std::numeric_limits<i64>::max();
+        }
         return std::clamp<i64>(
             JobSizeConstraints_->GetCompressedDataSizePerJob(),
             1,
@@ -704,75 +708,109 @@ private:
 
     void UpdateFreeJobCounter()
     {
-        i64 blockedJobCount = !Finished && !JobSizeConstraints_->IsExplicitJobCount() ? 1 : 0;
+        i64 pendingJobCount = 0;
+        i64 blockedJobCount = 0;
+        i64 suspendedJobCount = 0;
 
-        auto computePendingJobCount = [&] (i64 sizeLeft, i64 sizePerJob) {
-            if (JobSizeConstraints_->IsExplicitJobCount()) {
-                return FreeJobCounter_->GetTotal();
+        if (JobSizeConstraints_->IsExplicitJobCount()) {
+            if (FreeJobCounter_->GetTotal() > 0 || !UseNewSlicingImplementation_) {
+                if (FreeDataWeightCounter_->GetSuspended() == 0 && Finished || !UseNewSlicingImplementation_) {
+                    pendingJobCount = FreeJobCounter_->GetTotal();
+                } else {
+                    pendingJobCount = std::min(
+                        FreeDataWeightCounter_->GetPending() / GetAdjustedDataWeightPerJob(),
+                        FreeJobCounter_->GetTotal() - 1);
+                    suspendedJobCount = FreeJobCounter_->GetTotal() - pendingJobCount;
+                }
             }
 
-            i64 pendingJobCount = Finished ? DivCeil<i64>(sizeLeft, sizePerJob) : sizeLeft / sizePerJob;
+            if (pendingJobCount + suspendedJobCount + blockedJobCount == 0 &&
+                FreeDataWeightCounter_->GetTotal() > 0)
+            {
+                // This abnormal case occurs when actual input data weight exceeds initial estimates,
+                // typically due to unanticipated input chunks or chunks with higher weight than predicted.
+                //
+                // Under normal conditions (all below hold):
+                // - Accurate data weight estimates
+                // - Explicit job count >= row count
+                // the algorithm preserves explicit job count via two guarantees:
+                //
+                // 1. Sliced job count cannot exceed the explicit job count. This is enforced by calculating
+                //    dataWeightPerJob = ceil(TotalInputDataWeight / explicitJobCount), and by placing the rest
+                //    of input data to the last job (although usually the last job is smaller than other jobs).
+                //
+                // 2. Sliced jobs cannot be fewer than the explicit job count. The algorithm prioritizes this by finalizing
+                //    a stripe early if remaining chunks are insufficient to produce the required number of jobs.
+                YT_LOG_ALERT("Explicit job count guarantee cannot be satisfied; scheduling an extra job");
+                ++pendingJobCount;
+            }
 
-            return std::max<i64>(
-                pendingJobCount,
-                std::ssize(FreeStripes_) / JobSizeConstraints_->GetMaxDataSlicesPerJob() - blockedJobCount);
-        };
+        } else {
+            blockedJobCount = FreeStripes_.empty() || Finished && FreeDataWeightCounter_->GetSuspended() == 0 ? 0 : 1;
+            auto computePendingJobCount = [&] (i64 sizeLeft, i64 sizePerJob) {
+                return Finished && FreeDataWeightCounter_->GetSuspended() == 0
+                    ? DivCeil<i64>(sizeLeft, sizePerJob)
+                    : sizeLeft / sizePerJob;
+            };
 
-        i64 pendingJobCountByDataWeight = computePendingJobCount(FreeDataWeightCounter_->GetTotal(), GetAdjustedDataWeightPerJob());
-        i64 pendingJobCountByCompressedDataSize = FreeCompressedDataSizeCounter_
-            ? computePendingJobCount(FreeCompressedDataSizeCounter_->GetTotal(), GetAdjustedCompressedDataSizePerJob())
-            : 0;
+            i64 pendingJobCountByDataWeight = computePendingJobCount(FreeDataWeightCounter_->GetPending(), GetAdjustedDataWeightPerJob());
+            i64 pendingJobCountByCompressedDataSize = FreeCompressedDataSizeCounter_
+                ? computePendingJobCount(FreeCompressedDataSizeCounter_->GetPending(), GetAdjustedCompressedDataSizePerJob())
+                : 0;
 
-        i64 pendingJobCount = std::max(pendingJobCountByDataWeight, pendingJobCountByCompressedDataSize);
+            pendingJobCount = std::max({
+                pendingJobCountByDataWeight,
+                pendingJobCountByCompressedDataSize,
+                std::ssize(FreeStripes_) / JobSizeConstraints_->GetMaxDataSlicesPerJob() - blockedJobCount,
+            });
+
+            if (blockedJobCount > 0) {
+                suspendedJobCount = std::max(
+                    FreeDataWeightCounter_->GetSuspended() / GetAdjustedDataWeightPerJob(),
+                    FreeCompressedDataSizeCounter_->GetSuspended() / GetAdjustedCompressedDataSizePerJob());
+            } else {
+                suspendedJobCount = std::max(
+                    DivCeil(FreeDataWeightCounter_->GetSuspended(), GetAdjustedDataWeightPerJob()),
+                    DivCeil(FreeCompressedDataSizeCounter_->GetSuspended(), GetAdjustedCompressedDataSizePerJob()));
+            }
+        }
 
         if (Finished && FreeDataWeightCounter_->GetTotal() == 0) {
+            YT_VERIFY(std::ssize(FreeStripes_) == 0);
             pendingJobCount = 0;
             blockedJobCount = 0;
         }
 
-        if (JobSizeConstraints_->IsExplicitJobCount() &&
-            pendingJobCount + blockedJobCount == 0 &&
-            FreeDataWeightCounter_->GetTotal() > 0)
-        {
-            // This abnormal case occurs when actual input data weight exceeds initial estimates,
-            // typically due to unanticipated input chunks or chunks with higher weight than predicted.
-            //
-            // Under normal conditions (all below hold):
-            // - Accurate data weight estimates
-            // - No Max..PerJob violations
-            // - Explicit job count >= row count
-            // the algorithm preserves explicit job count via two guarantees:
-            //
-            // 1. Sliced job count cannot exceed the explicit job count. This is enforced by calculating
-            //    dataWeightPerJob = ceil(TotalInputDataWeight / explicitJobCount), ensuring each job's
-            //    data weight is >= dataWeightPerJob. Thus, ceil(actualTotalInputDataWeight / dataWeightPerJob) <= explicitJobCount
-            //    when estimates are accurate.
-            //
-            // 2. Sliced jobs cannot be fewer than the explicit job count. The algorithm prioritizes this by finalizing
-            //    a stripe early if remaining chunks are insufficient to produce the required number of jobs.
-            YT_LOG_ALERT("Explicit job count guarantee cannot be satisfied; scheduling an extra job");
-            ++pendingJobCount;
-        }
+        if (UseNewSlicingImplementation_) {
+            if (pendingJobCount + blockedJobCount > 0) {
+                YT_VERIFY(!FreeStripes_.empty());
+            }
 
-        bool canScheduleJobs = !FreeStripes_.empty();
-
-        // NB(gritukan): YT-14498, if job count is explicit,
-        // last job cannot be scheduled unless all the data is available.
-        if (JobSizeConstraints_->IsExplicitJobCount() &&
-            pendingJobCount == 1 &&
-            FreeDataWeightCounter_->GetSuspended() > 0)
-        {
-            canScheduleJobs = false;
-        }
-
-        if (canScheduleJobs) {
             FreeJobCounter_->SetPending(pendingJobCount);
-            FreeJobCounter_->SetSuspended(0);
+            FreeJobCounter_->SetSuspended(suspendedJobCount);
             FreeJobCounter_->SetBlocked(blockedJobCount);
         } else {
-            FreeJobCounter_->SetPending(0);
-            FreeJobCounter_->SetSuspended(pendingJobCount + blockedJobCount);
-            FreeJobCounter_->SetBlocked(0);
+            bool canScheduleJobs = !FreeStripes_.empty();
+
+            // NB(gritukan): YT-14498, if job count is explicit,
+            // last job cannot be scheduled unless all the data is available.
+            if (JobSizeConstraints_->IsExplicitJobCount() &&
+                pendingJobCount == 1 &&
+                FreeDataWeightCounter_->GetSuspended() > 0)
+            {
+                canScheduleJobs = false;
+            }
+
+            if (canScheduleJobs) {
+                // COMPAT(apollo1321): Adding suspendedJobCount is a temporary solution. Should be removed later.
+                FreeJobCounter_->SetPending(pendingJobCount + suspendedJobCount);
+                FreeJobCounter_->SetSuspended(0);
+                FreeJobCounter_->SetBlocked(blockedJobCount);
+            } else {
+                FreeJobCounter_->SetPending(0);
+                FreeJobCounter_->SetSuspended(pendingJobCount + blockedJobCount + suspendedJobCount);
+                FreeJobCounter_->SetBlocked(0);
+            }
         }
     }
 
@@ -864,29 +902,16 @@ private:
         i64 idealCompressedDataSizePerJob)
     {
         const auto& jobCounter = GetJobCounter();
-        i64 pendingStripesCount = std::ssize(FreeStripes_);
         std::vector<int> addedStripeIndexes;
+
         for (auto it = begin; it != end; ++it) {
             bool hasSufficientDataWeight = jobStub->GetDataWeight() >= idealDataWeightPerJob;
             bool hasSufficientCompressedDataSize = jobStub->GetCompressedDataSize() >= idealCompressedDataSizePerJob;
 
-            if (JobSizeConstraints_->IsExplicitJobCount()) {
-                if (hasSufficientDataWeight) {
-                    if (FreeJobCounter_->GetPending() > 1) {
-                        break;
-                    } else {
-                        // TODO(apollo1321): Change to alert later.
-                        // This may happen if some input chunks were suspended.
-                        YT_LOG_WARNING_IF(
-                            pendingStripesCount > 1,
-                            "Last job will be bigger than expected (PendingStripesCount: %v, JobDataWeight: %v)",
-                            pendingStripesCount,
-                            jobStub->GetDataWeight());
-                    }
-
+            if (hasSufficientDataWeight || hasSufficientCompressedDataSize) {
+                if (!JobSizeConstraints_->IsExplicitJobCount() || FreeJobCounter_->GetTotal() > 1) {
+                    break;
                 }
-            } else if (hasSufficientDataWeight || hasSufficientCompressedDataSize) {
-                break;
             }
 
             // NB: We should ignore check of chunk stripe count in case of last job.
@@ -914,16 +939,33 @@ private:
             }
 
             // Leave enough stripes if job count is explicitly given.
-            if (jobStub->GetDataWeight() > 0 && pendingStripesCount < jobCounter->GetPending() && JobSizeConstraints_->IsExplicitJobCount()) {
+            if (JobSizeConstraints_->IsExplicitJobCount() &&
+                jobStub->GetDataWeight() > 0 &&
+                std::ssize(Stripes_) - (std::ssize(ExtractedStripes_) + std::ssize(addedStripeIndexes)) < FreeJobCounter_->GetTotal())
+            {
                 break;
             }
 
-            --pendingStripesCount;
             addedStripeIndexes.push_back(stripeIndex);
 
             for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
                 jobStub->AddDataSlice(dataSlice, stripeIndex, /*primary*/ true);
             }
+        }
+
+        if (JobSizeConstraints_->IsExplicitJobCount() && FreeJobCounter_->GetTotal() == 1 && jobStub->GetDataWeight() > idealDataWeightPerJob) {
+            // NB(apollo1321): Compressed data size per job is *not* used when explicit job count is set.
+            YT_LOG_WARNING_IF(
+                UseNewSlicingImplementation_,
+                "Last job is bigger than expected (AddedStripesCount: %v, JobDataWeight: %v, "
+                "IdealDataWeightPerJob: %v, IdealCompressedDataSizePerJob: %v, "
+                "MaxDataWeightPerJob: %v, MaxCompressedDataSizePerJob: %v)",
+                std::ssize(addedStripeIndexes),
+                jobStub->GetDataWeight(),
+                idealDataWeightPerJob,
+                idealCompressedDataSizePerJob,
+                JobSizeConstraints_->GetMaxDataWeightPerJob(),
+                JobSizeConstraints_->GetMaxCompressedDataSizePerJob());
         }
 
         for (int stripeIndex : addedStripeIndexes) {
