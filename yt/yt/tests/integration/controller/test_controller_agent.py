@@ -273,8 +273,6 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
     DELTA_NODE_CONFIG = {"job_resource_manager": {"resource_limits": {"user_slots": 100, "cpu": 100}}}
 
     @authors("ignat", "ni-stoiko")
-    # COMPAT(ni-stoiko): Enable after fix tcmalloc.
-    @pytest.mark.skip(reason="The tcmalloc's patch 'user_data.patch' does NOT process user_data in StackTrace's hash")
     @pytest.mark.timeout(60)
     @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
     def test_strategy(self):
@@ -898,8 +896,6 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
     }
 
     @authors("alexkolodezny", "ni-stoiko")
-    # COMPAT(ni-stoiko): Enable after fix tcmalloc.
-    @pytest.mark.skip(reason="The tcmalloc's patch 'user_data.patch' does NOT process user_data in StackTrace's hash")
     @flaky(max_runs=3)
     def test_controller_agent_memory_alert(self):
         controller_agents = ls("//sys/controller_agents/instances")
