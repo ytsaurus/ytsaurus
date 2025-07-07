@@ -58,6 +58,8 @@ type Config struct {
 	ScaleWorkerNumber *int `yson:"scale_worker_number"`
 	// ScalePeriod defines how often agent runs oplet scaling task.
 	ScalePeriod *yson.Duration `yson:"scale_period"`
+
+	UseFamilyPrefixInOpAlias bool `yson:"use_family_prefix_in_op_alias"`
 }
 
 const (
