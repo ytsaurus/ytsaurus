@@ -200,6 +200,14 @@ public:
 
         auto clustersConfig = Config_->GatewayConfig->AsMap()->GetChildOrThrow("cluster_mapping")->AsList();
 
+        NYTree::IListNodePtr ytflowClustersConfig;
+        if (auto clusterMapping = Config_->YtflowGatewayConfig->AsMap()->FindChild("cluster_mapping")) {
+            ytflowClustersConfig = clusterMapping->AsList();
+        } else {
+            ytflowClustersConfig = GetEphemeralNodeFactory()->CreateList();
+            Config_->YtflowGatewayConfig->AsMap()->AddChild("cluster_mapping", ytflowClustersConfig);
+        }
+
         auto singletonsConfigDefaultLogging = CloneYsonStruct(SingletonsConfig_);
         // Compressed logs are broken if plugin tries to open and write to them.
         singletonsConfigDefaultLogging->SetSingletonConfig(TLogManagerConfig::CreateDefault());
@@ -217,25 +225,41 @@ public:
             presentClusters.insert(cluster->AsMap()->GetChildOrThrow("name")->GetValue<TString>());
         }
 
+        THashSet<TString> ytflowPresentClusters;
+        for (const auto& cluster : ytflowClustersConfig->GetChildren()) {
+            ytflowPresentClusters.insert(cluster->AsMap()->GetChildOrThrow("name")->GetValue<TString>());
+        }
+
         for (const auto& clusterName : ClusterDirectory_->GetClusterNames()) {
-            if (presentClusters.contains(clusterName)) {
-                continue;
+            if (!presentClusters.contains(clusterName)) {
+                auto cluster = NYTree::BuildYsonNodeFluently()
+                    .BeginMap()
+                        .Item("name").Value(clusterName)
+                        .Item("cluster").Value(clusterName)
+                    .EndMap();
+                auto settings = TYqlPluginConfig::MergeClusterDefaultSettings(GetEphemeralNodeFactory()->CreateList());
+                cluster->AsMap()->AddChild("settings", std::move(settings));
+                clustersConfig->AddChild(std::move(cluster));
             }
 
-            auto cluster = NYTree::BuildYsonNodeFluently()
-                .BeginMap()
-                    .Item("name").Value(clusterName)
-                    .Item("cluster").Value(clusterName)
-                .EndMap();
-            auto settings = TYqlPluginConfig::MergeClusterDefaultSettings(GetEphemeralNodeFactory()->CreateList());
-            cluster->AsMap()->AddChild("settings", std::move(settings));
-            clustersConfig->AddChild(std::move(cluster));
+            if (!ytflowPresentClusters.contains(clusterName)) {
+                auto cluster = NYTree::BuildYsonNodeFluently()
+                    .BeginMap()
+                        .Item("name").Value(clusterName)
+                        .Item("real_name").Value(clusterName)
+                        .Item("proxy_url").Value(clusterName)
+                    .EndMap();
+                auto settings = TYqlPluginConfig::MergeClusterDefaultSettings(GetEphemeralNodeFactory()->CreateList());
+                cluster->AsMap()->AddChild("settings", std::move(settings));
+                ytflowClustersConfig->AddChild(std::move(cluster));
+            }
         }
 
         NYqlPlugin::TYqlPluginOptions options{
             .SingletonsConfig = singletonsConfigString,
             .GatewayConfig = ConvertToYsonString(Config_->GatewayConfig),
             .DqGatewayConfig = Config_->EnableDQ ? ConvertToYsonString(Config_->DQGatewayConfig) : TYsonString(),
+            .YtflowGatewayConfig = ConvertToYsonString(Config_->YtflowGatewayConfig),
             .DqManagerConfig = Config_->EnableDQ ? ConvertToYsonString(Config_->DQManagerConfig) : TYsonString(),
             .FileStorageConfig = ConvertToYsonString(Config_->FileStorageConfig),
             .OperationAttributes = ConvertToYsonString(Config_->OperationAttributes),
@@ -415,7 +439,12 @@ private:
             refreshTokenExecutor->Start();
 
             const auto defaultCluster = clustersResult.Clusters.front();
-            THashMap<TString, THashMap<TString, TString>> credentials = {{"default_yt", {{"category", "yt"}, {"content", token}}}};
+            // TODO(ngc224): revise after proper auth support in UI
+            THashMap<TString, THashMap<TString, TString>> credentials = {
+                {"default_yt", {{"category", "yt"}, {"content", token}}},
+                {"default_ytflow", {{"category", "ytflow"}, {"content", token}}}
+            };
+
             for (const auto& src : yqlRequest.secrets()) {
                 auto& dst = credentials[src.id()];
                 dst["content"] = ConvertTo<TString>(WaitFor(queryClients[defaultCluster]->GetNode(src.ypath())).ValueOrThrow());
