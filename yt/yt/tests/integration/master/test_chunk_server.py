@@ -12,7 +12,6 @@ from yt_commands import (
 from yt_helpers import profiler_factory
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import WaitFailed
 import yt.yson as yson
 
 import pytest
