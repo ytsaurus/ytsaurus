@@ -76,11 +76,6 @@ DEFINE_ENUM(EJobPhase,
     ((Finished)                     ( 80))
 );
 
-DEFINE_ENUM(EJobStderrType,
-    ((UserJobStderr)    (0))
-    ((GpuCheckStderr)   (1))
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode
