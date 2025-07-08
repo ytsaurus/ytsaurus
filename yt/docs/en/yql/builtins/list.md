@@ -89,7 +89,7 @@ ListCollect(LazyList<T>)->List<T>
 ListCollect(LazyList<T>?)->List<T>?
 ```
 
-## ListSort, ListSortAsc и ListSortDesc {#listsort}
+## ListSort, ListSortAsc and ListSortDesc {#listsort}
 
 Sort the list. By default, the ascending sorting order is applied (`ListSort` is an alias for `ListSortAsc`).
 
