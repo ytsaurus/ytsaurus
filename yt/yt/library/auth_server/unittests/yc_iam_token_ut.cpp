@@ -38,13 +38,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYCIAMHandler
+class TYCIamHandler
     : public IHttpHandler
 {
 public:
-    TYCIAMHandler()
-    { }
-
     void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         auto body = TString(req->ReadAll().ToStringBuf());
@@ -102,7 +99,7 @@ private:
     std::string Login_ = "user";
 };
 
-class TYCIAMServerTest
+class TYCIamServerTest
     : public ::testing::Test
 {
 protected:
@@ -131,7 +128,7 @@ private:
 
         auto path = NYT::Format("/authenticate");
 
-        Server->AddHandler(path, New<TYCIAMHandler>());
+        Server->AddHandler(path, New<TYCIamHandler>());
 
         Server->Start();
     }
@@ -148,9 +145,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYCIAMTokenAuthenticatorConfigPtr CreateYCIAMTokenAuthenticatorConfig(int port)
+TYCIamTokenAuthenticatorConfigPtr CreateYCIamTokenAuthenticatorConfig(int port)
 {
-    auto config = New<TYCIAMTokenAuthenticatorConfig>();
+    auto config = New<TYCIamTokenAuthenticatorConfig>();
     config->Host = "localhost";
     config->Port = port;
     config->Secure = false;
@@ -161,11 +158,11 @@ TYCIAMTokenAuthenticatorConfigPtr CreateYCIAMTokenAuthenticatorConfig(int port)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TYCIAMServerTest, GoodToken)
+TEST_F(TYCIamServerTest, GoodToken)
 {
-    auto config = CreateYCIAMTokenAuthenticatorConfig(TestPort);
+    auto config = CreateYCIamTokenAuthenticatorConfig(TestPort);
     auto poller = CreateThreadPoolPoller(1, "HttpPoller");
-    auto authenticator = CreateYCIAMTokenAuthenticator(config, poller, CreateNullCypressUserManager());
+    auto authenticator = CreateYCIamTokenAuthenticator(config, poller, CreateNullCypressUserManager());
     TAuthenticationResult result = WaitFor(authenticator->Authenticate(TTokenCredentials{
         "good_token",
         TNetworkAddress::Parse("127.0.0.1")
@@ -173,11 +170,11 @@ TEST_F(TYCIAMServerTest, GoodToken)
     EXPECT_EQ(result.Login, "user");
 }
 
-TEST_F(TYCIAMServerTest, BadToken)
+TEST_F(TYCIamServerTest, BadToken)
 {
-    auto config = CreateYCIAMTokenAuthenticatorConfig(TestPort);
+    auto config = CreateYCIamTokenAuthenticatorConfig(TestPort);
     auto poller = CreateThreadPoolPoller(1, "HttpPoller");
-    auto authenticator = CreateYCIAMTokenAuthenticator(config, poller, CreateNullCypressUserManager());
+    auto authenticator = CreateYCIamTokenAuthenticator(config, poller, CreateNullCypressUserManager());
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         WaitFor(authenticator->Authenticate(TTokenCredentials{
             "bad_token",
@@ -188,18 +185,18 @@ TEST_F(TYCIAMServerTest, BadToken)
     );
 }
 
-TEST_F(TYCIAMServerTest, IssueToken)
+TEST_F(TYCIamServerTest, IssueToken)
 {
-    auto config = CreateYCIAMTokenAuthenticatorConfig(TestPort);
+    auto config = CreateYCIamTokenAuthenticatorConfig(TestPort);
     auto poller = CreateThreadPoolPoller(1, "HttpPoller");
-    auto authenticator = CreateYCIAMTokenAuthenticator(config, poller, CreateNullCypressUserManager());
+    auto authenticator = CreateYCIamTokenAuthenticator(config, poller, CreateNullCypressUserManager());
     EXPECT_THROW_MESSAGE_HAS_SUBSTR(
         WaitFor(authenticator->Authenticate(TTokenCredentials{
             "issue_token",
             TNetworkAddress::Parse("127.0.0.1")
         })).ValueOrThrow(),
         std::exception,
-        "YC IAM token authentication service response has non-ok status code"
+        "YC Iam token authentication service response has non-ok status code"
     );
 }
 

@@ -417,7 +417,7 @@ i64 TNodeMemoryTracker::CalculatePoolLimit(i64 limit, const TPool* pool) const
 
     YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
-    auto saturatedCastToInteger = [] (double value) {
+    auto saturatingCastToInteger = [] (double value) {
         return value >= std::numeric_limits<i64>::max() ? std::numeric_limits<i64>::max() : static_cast<i64>(value);
     };
 
@@ -434,11 +434,11 @@ i64 TNodeMemoryTracker::CalculatePoolLimit(i64 limit, const TPool* pool) const
         }
 
         auto fpResult = 1.0 * limit / totalPoolWeight * (*poolWeight);
-        result = std::min(saturatedCastToInteger(fpResult), result);
+        result = std::min(saturatingCastToInteger(fpResult), result);
     }
 
     if (poolRatio) {
-        result = std::min(saturatedCastToInteger(limit * (*poolRatio)), result);
+        result = std::min(saturatingCastToInteger(limit * (*poolRatio)), result);
     }
 
     return result;

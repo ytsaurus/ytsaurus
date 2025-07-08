@@ -380,7 +380,7 @@ void TCypressCookieManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYCIAMTokenAuthenticatorConfig::Register(TRegistrar registrar)
+void TYCIamTokenAuthenticatorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("retrying_client",  &TThis::RetryingClient)
         .DefaultNew();
@@ -462,7 +462,7 @@ void TAuthenticationManagerConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("oauth_service", &TThis::OAuthService)
         .Optional();
-    registrar.Parameter("yc_iam_token_authenticator", &TThis::YCIAMTokenAuthenticator)
+    registrar.Parameter("yc_iam_token_authenticator", &TThis::YCIamTokenAuthenticator)
         .Optional();
     registrar.Parameter("cypress_user_manager", &TThis::CypressUserManager)
         .Optional();

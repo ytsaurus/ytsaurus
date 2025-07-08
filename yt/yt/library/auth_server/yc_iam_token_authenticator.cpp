@@ -63,12 +63,12 @@ bool IsServerHttpError(const NHttp::EStatusCode& code)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYCIAMTokenAuthenticator
+class TYCIamTokenAuthenticator
     : public ITokenAuthenticator
 {
 public:
-    TYCIAMTokenAuthenticator(
-        TYCIAMTokenAuthenticatorConfigPtr config,
+    TYCIamTokenAuthenticator(
+        TYCIamTokenAuthenticatorConfigPtr config,
         IPollerPtr poller,
         ICypressUserManagerPtr userManager,
         TProfiler profiler)
@@ -81,9 +81,9 @@ public:
                     : NHttp::CreateClient(Config_->HttpClient, poller),
                 poller->GetInvoker()))
         , UserManager_(std::move(userManager))
-        , YCIAMCalls_(profiler.Counter("/yc_iam_calls"))
-        , YCIAMCallErrors_(profiler.Counter("/yc_iam_call_server_errors"))
-        , YCIAMCallTime_(profiler.Timer("/yc_iam_call_time"))
+        , YCIamCalls_(profiler.Counter("/yc_iam_calls"))
+        , YCIamCallErrors_(profiler.Counter("/yc_iam_call_server_errors"))
+        , YCIamCallTime_(profiler.Timer("/yc_iam_call_time"))
     { }
 
     TFuture<TAuthenticationResult> Authenticate(
@@ -95,24 +95,24 @@ public:
         auto tokenHash = GetCryptoHash(token);
 
         YT_LOG_DEBUG(
-            "Authenticating user with YC IAM token (TokenHash: %v, UserIP: %v, CallId: %v)",
+            "Authenticating user with YC Iam token (TokenHash: %v, UserIP: %v, CallId: %v)",
             tokenHash,
             userIP,
             callId);
 
-        return BIND(&TYCIAMTokenAuthenticator::DoAuthenticate, MakeStrong(this), token, callId)
+        return BIND(&TYCIamTokenAuthenticator::DoAuthenticate, MakeStrong(this), token, callId)
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
             .Run();
     }
 
 private:
-    const TYCIAMTokenAuthenticatorConfigPtr Config_;
+    const TYCIamTokenAuthenticatorConfigPtr Config_;
     const NHttp::IRetryingClientPtr HttpClient_;
     const ICypressUserManagerPtr UserManager_;
 
-    TCounter YCIAMCalls_;
-    TCounter YCIAMCallErrors_;
-    TEventTimer YCIAMCallTime_;
+    TCounter YCIamCalls_;
+    TCounter YCIamCallErrors_;
+    TEventTimer YCIamCallTime_;
 
 
     TAuthenticationResult DoAuthenticate(const std::string& token, TGuid callId)
@@ -127,16 +127,16 @@ private:
         auto safeUrl = builder.FlushSafeUrl();
 
         const static auto retryChecker = BIND([] (const TError& error) {
-            return error.FindMatching(EErrorCode::YCIAMRetryableServerError).has_value();
+            return error.FindMatching(EErrorCode::YCIamRetryableServerError).has_value();
         });
 
         auto jsonResponseChecker = CreateJsonResponseChecker(
             New<TJsonFormatConfig>(),
-            BIND(&TYCIAMTokenAuthenticator::DoCheckYCIAMServiceResponse, MakeStrong(this), callId),
+            BIND(&TYCIamTokenAuthenticator::DoCheckYCIamServiceResponse, MakeStrong(this), callId),
             retryChecker);
 
         YT_LOG_DEBUG(
-            "Calling YC IAM token authentication service to get user info (Url: %v, CallId: %v)",
+            "Calling YC Iam token authentication service to get user info (Url: %v, CallId: %v)",
             safeUrl,
             callId);
 
@@ -155,7 +155,7 @@ private:
         auto headers = New<THeaders>();
         headers->Add("Content-Type", "application/json");
 
-        YCIAMCalls_.Increment();
+        YCIamCalls_.Increment();
         TWallTimer timer;
 
         auto result = WaitFor(HttpClient_->Post(
@@ -164,10 +164,10 @@ private:
             body,
             headers));
 
-        YCIAMCallTime_.Record(timer.GetElapsedTime());
+        YCIamCallTime_.Record(timer.GetElapsedTime());
 
         if (!result.IsOK()) {
-            auto error = TError(NRpc::EErrorCode::InvalidCredentials, "YC IAM token authentication call failed")
+            auto error = TError(NRpc::EErrorCode::InvalidCredentials, "YC Iam token authentication call failed")
                 << result
                 << TErrorAttribute("call_id", callId);
             YT_LOG_WARNING(error);
@@ -178,7 +178,7 @@ private:
         auto login = formattedResponse->GetChildValueOrThrow<TString>(Config_->AuthenticateLoginField);
 
         YT_LOG_DEBUG(
-            "YC IAM user authenticated (Login: %v, CallId: %v)",
+            "YC Iam user authenticated (Login: %v, CallId: %v)",
             login,
             callId);
 
@@ -190,7 +190,7 @@ private:
                 Config_->DefaultUserTags);
 
             if (!error.IsOK()) {
-                YT_LOG_WARNING(error, "Failed to ensure YC IAM user existence (Name: %v, CallId: %v)", login, callId);
+                YT_LOG_WARNING(error, "Failed to ensure YC Iam user existence (Name: %v, CallId: %v)", login, callId);
                 error <<= TErrorAttribute("call_id", callId);
                 THROW_ERROR error;
             }
@@ -198,11 +198,11 @@ private:
 
         return TAuthenticationResult{
             .Login = login,
-            .Realm = TString(YCIAMTokenRealm),
+            .Realm = TString(YCIamTokenRealm),
         };
     }
 
-    TError DoCheckYCIAMServiceResponse(TGuid callId, const NHttp::IResponsePtr& rsp, const INodePtr& rspNode) const
+    TError DoCheckYCIamServiceResponse(TGuid callId, const NHttp::IResponsePtr& rsp, const INodePtr& rspNode) const
     {
         const auto statusCode = rsp->GetStatusCode();
 
@@ -214,7 +214,7 @@ private:
                     case EStatusCode::Unauthorized:
                         error = TError(
                             EErrorCode::InvalidUserCredentials,
-                            "Invalid Access: The token provided is incorrect, expired, or has been revoked");
+                            "Invalid Access: the token provided is incorrect, expired, or has been revoked");
                         break;
                     case EStatusCode::Forbidden:
                         error = TError(
@@ -224,36 +224,36 @@ private:
                     case EStatusCode::BadRequest:
                     case EStatusCode::RangeNotSatisfiable:
                         error = TError(
-                            EErrorCode::YCIAMProtocolError,
-                            "Communication issue between YT and YC IAM token authentication service");
+                            EErrorCode::YCIamProtocolError,
+                            "Communication issue between YT and YC Iam token authentication service");
                         break;
                     default:
                         error = TError(
-                            EErrorCode::UnexpectedClientYCIAMError,
-                            "YC IAM token authentication service response has non-ok status code: %v", static_cast<int>(rsp->GetStatusCode()));
+                            EErrorCode::UnexpectedClientYCIamError,
+                            "YC Iam token authentication service response has non-ok status code %v", static_cast<int>(rsp->GetStatusCode()));
                         YT_LOG_WARNING(
-                            "YC IAM token authentication call attempt failed (CallId: %v, StatusCode: %v)",
+                            "YC Iam token authentication call attempt failed (CallId: %v, StatusCode: %v)",
                             callId,
                             statusCode);
                         break;
                 }
 
             } else {
-                YCIAMCallErrors_.Increment();
+                YCIamCallErrors_.Increment();
                 YT_LOG_WARNING(
-                    "YC IAM token authentication service response has server error status code (CallId: %v, StatusCode: %v)",
+                    "YC Iam token authentication service response has server error status code (CallId: %v, StatusCode: %v)",
                     callId,
                     statusCode);
 
                 if (IsRetryableHttpError(statusCode)) {
-                    YCIAMCalls_.Increment();
+                    YCIamCalls_.Increment();
                     error = TError(
-                        EErrorCode::YCIAMRetryableServerError,
-                        "YC IAM token authentication service response has non-ok status code: %v", static_cast<int>(rsp->GetStatusCode()));
+                        EErrorCode::YCIamRetryableServerError,
+                        "YC Iam token authentication service response has non-ok status code %v", static_cast<int>(rsp->GetStatusCode()));
                 } else {
                     error = TError(
-                        EErrorCode::UnexpectedServerYCIAMError,
-                        "YC IAM token authentication service response has non-ok status code: %v", static_cast<int>(rsp->GetStatusCode()));
+                        EErrorCode::UnexpectedServerYCIamError,
+                        "YC Iam token authentication service response has non-ok status code %v", static_cast<int>(rsp->GetStatusCode()));
                 }
             }
 
@@ -261,14 +261,14 @@ private:
         }
 
         if (rspNode->GetType() != ENodeType::Map) {
-            return TError("YC IAM token authentication service response content has unexpected node type")
+            return TError("YC Iam token authentication service response content has unexpected node type")
                 << TErrorAttribute("expected_result_type", ENodeType::Map)
                 << TErrorAttribute("actual_result_type", rspNode->GetType());
         }
 
         auto loginNode = rspNode->AsMap()->FindChild(Config_->AuthenticateLoginField);
         if (!loginNode || loginNode->GetType() != ENodeType::String) {
-            return TError("YC IAM token authentication service response content has no login field or login node type is unexpected")
+            return TError("YC Iam token authentication service response content has no login field or login node type is unexpected")
                 << TErrorAttribute("login_field", Config_->AuthenticateLoginField);
         }
 
@@ -280,8 +280,8 @@ private:
         if (Config_->RetryAllServerErrors && IsServerHttpError(code)) {
             return true;
         }
-        const auto& retryStatusCodes = Config_->RetryStatusCodes;
-        if (std::find(retryStatusCodes.begin(), retryStatusCodes.end(), static_cast<i64>(code)) != retryStatusCodes.end()) {
+        const auto& retryableStatusCodes = Config_->RetryStatusCodes;
+        if (std::find(retryableStatusCodes.begin(), retryableStatusCodes.end(), static_cast<i64>(code)) != retryableStatusCodes.end()) {
             return true;
         }
         return false;
@@ -290,13 +290,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITokenAuthenticatorPtr CreateYCIAMTokenAuthenticator(
-    TYCIAMTokenAuthenticatorConfigPtr config,
+ITokenAuthenticatorPtr CreateYCIamTokenAuthenticator(
+    TYCIamTokenAuthenticatorConfigPtr config,
     IPollerPtr poller,
     ICypressUserManagerPtr userManager,
     TProfiler profiler)
 {
-    return New<TYCIAMTokenAuthenticator>(
+    return New<TYCIamTokenAuthenticator>(
         std::move(config),
         std::move(poller),
         std::move(userManager),
