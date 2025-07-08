@@ -335,7 +335,7 @@ void TReplicationCardCache::Reconfigure(const TReplicationCardCacheDynamicConfig
         EnableWatching_.store(*config->EnableWatching);
     }
 
-    TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>::Reconfigure(GetConfig()->ApplyDynamic(config));
+    TAsyncExpiringCache<TReplicationCardCacheKey, TReplicationCardPtr>::Reconfigure(Config_->ApplyDynamic(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
