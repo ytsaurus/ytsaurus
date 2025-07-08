@@ -15,15 +15,8 @@ and/or the lease has been lost.
 
 """
 import re
-import sys
-
-try:
-    from time import monotonic as now
-except ImportError:
-    from time import time as now
+import time
 import uuid
-
-import six
 
 from kazoo.exceptions import (
     CancelledError,
@@ -45,13 +38,13 @@ class _Watch(object):
         self.started_at = None
 
     def start(self):
-        self.started_at = now()
+        self.started_at = time.monotonic()
 
     def leftover(self):
         if self.duration is None:
             return None
         else:
-            elapsed = now() - self.started_at
+            elapsed = time.monotonic() - self.started_at
             return max(0, self.duration - elapsed)
 
 
@@ -134,7 +127,7 @@ class Lock(object):
         self._retry = KazooRetry(
             max_tries=None, sleep_func=client.handler.sleep_func
         )
-        self._lock = client.handler.lock_object()
+        self._acquire_method_lock = client.handler.lock_object()
 
     def _ensure_path(self):
         self.client.ensure_path(self.path)
@@ -174,27 +167,17 @@ class Lock(object):
             The ephemeral option.
         """
 
-        def _acquire_lock():
-            got_it = self._lock.acquire(False)
-            if not got_it:
-                raise ForceRetryError()
-            return True
-
         retry = self._retry.copy()
         retry.deadline = timeout
 
         # Ensure we are locked so that we avoid multiple threads in
         # this acquistion routine at the same time...
-        locked = self._lock.acquire(False)
-        if not locked and not blocking:
+        method_locked = self._acquire_method_lock.acquire(
+            blocking=blocking, timeout=timeout if timeout is not None else -1
+        )
+        if not method_locked:
             return False
-        if not locked:
-            # Lock acquire doesn't take a timeout, so simulate it...
-            # XXX: This is not true in Py3 >= 3.2
-            try:
-                locked = retry(_acquire_lock)
-            except RetryFailedError:
-                return False
+
         already_acquired = self.is_acquired
         try:
             gotten = False
@@ -209,25 +192,23 @@ class Lock(object):
                 pass
             except KazooException:
                 # if we did ultimately fail, attempt to clean up
-                exc_info = sys.exc_info()
                 if not already_acquired:
                     self._best_effort_cleanup()
                     self.cancelled = False
-                six.reraise(exc_info[0], exc_info[1], exc_info[2])
+                raise
             if gotten:
                 self.is_acquired = gotten
             if not gotten and not already_acquired:
                 self._best_effort_cleanup()
             return gotten
         finally:
-            self._lock.release()
+            self._acquire_method_lock.release()
 
     def _watch_session(self, state):
         self.wake_event.set()
         return True
 
     def _inner_acquire(self, blocking, timeout, ephemeral=True):
-
         # wait until it's our chance to get it..
         if self.is_acquired:
             if not blocking:
@@ -249,7 +230,7 @@ class Lock(object):
                 self.create_path, self.data, ephemeral=ephemeral, sequence=True
             )
             # strip off path to node
-            node = node[len(self.path) + 1:]
+            node = node[len(self.path) + 1 :]
 
         self.node = node
 
@@ -294,7 +275,7 @@ class Lock(object):
         (e.g. rlock), this and also edge cases where the lock's ephemeral node
         is gone.
         """
-        node_sequence = node[len(self.prefix):]
+        node_sequence = node[len(self.prefix) :]
         children = self.client.get_children(self.path)
         found_self = False
         # Filter out the contenders using the computed regex

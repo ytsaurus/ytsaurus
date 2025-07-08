@@ -1,13 +1,13 @@
-from six.moves import urllib_parse
+import urllib.parse
 
 
 def collect_hosts(hosts):
     """
-       Collect a set of hosts and an optional chroot from
-       a string or a list of strings.
+    Collect a set of hosts and an optional chroot from
+    a string or a list of strings.
     """
     if isinstance(hosts, list):
-        if hosts[-1].strip().startswith('/'):
+        if hosts[-1].strip().startswith("/"):
             host_ports, chroot = hosts[:-1], hosts[-1]
         else:
             host_ports, chroot = hosts, None
@@ -20,7 +20,7 @@ def collect_hosts(hosts):
     for host_port in host_ports:
         # put all complexity of dealing with
         # IPv4 & IPv6 address:port on the urlsplit
-        res = urllib_parse.urlsplit("xxx://" + host_port)
+        res = urllib.parse.urlsplit("xxx://" + host_port)
         host = res.hostname
         if host is None:
             raise ValueError("bad hostname")

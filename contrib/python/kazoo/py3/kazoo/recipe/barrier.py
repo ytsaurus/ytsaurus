@@ -26,6 +26,7 @@ class Barrier(object):
         the connection is lost while waiting.
 
     """
+
     def __init__(self, client, path):
         """Create a Kazoo Barrier
 
@@ -91,6 +92,7 @@ class DoubleBarrier(object):
         policy.
 
     """
+
     def __init__(self, client, path, num_clients, identifier=None):
         """Create a Double Barrier
 
@@ -107,8 +109,10 @@ class DoubleBarrier(object):
         self.client = client
         self.path = path
         self.num_clients = num_clients
-        self._identifier = identifier or '%s-%s' % (
-            socket.getfqdn(), os.getpid())
+        self._identifier = identifier or "%s-%s" % (
+            socket.getfqdn(),
+            os.getpid(),
+        )
         self.participating = False
         self.assured_path = False
         self.node_name = uuid.uuid4().hex
@@ -135,7 +139,9 @@ class DoubleBarrier(object):
         try:
             self.client.create(
                 self.create_path,
-                self._identifier.encode('utf-8'), ephemeral=True)
+                self._identifier.encode("utf-8"),
+                ephemeral=True,
+            )
         except NodeExistsError:
             pass
 
@@ -143,14 +149,14 @@ class DoubleBarrier(object):
             if event.type == EventType.CREATED:
                 ready.set()
 
-        self.client.exists(self.path + '/' + 'ready', watch=created)
+        self.client.exists(self.path + "/" + "ready", watch=created)
 
         children = self.client.get_children(self.path)
 
         if len(children) < self.num_clients:
             ready.wait()
         else:
-            self.client.ensure_path(self.path + '/ready')
+            self.client.ensure_path(self.path + "/ready")
         return True
 
     def leave(self):
@@ -165,7 +171,7 @@ class DoubleBarrier(object):
     def _inner_leave(self):
         # Delete the ready node if its around
         try:
-            self.client.delete(self.path + '/ready')
+            self.client.delete(self.path + "/ready")
         except NoNodeError:
             pass
 
@@ -188,8 +194,9 @@ class DoubleBarrier(object):
 
             if self.node_name == children[0]:
                 # We're first, wait on the highest to leave
-                if not self.client.exists(self.path + '/' + children[-1],
-                                          watch=deleted):
+                if not self.client.exists(
+                    self.path + "/" + children[-1], watch=deleted
+                ):
                     continue
 
                 ready.wait()
@@ -199,8 +206,9 @@ class DoubleBarrier(object):
             self.client.delete(self.create_path)
 
             # Wait on the first
-            if not self.client.exists(self.path + '/' + children[0],
-                                      watch=deleted):
+            if not self.client.exists(
+                self.path + "/" + children[0], watch=deleted
+            ):
                 continue
 
             # Wait for the lowest to be deleted
