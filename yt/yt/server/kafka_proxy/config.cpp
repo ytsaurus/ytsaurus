@@ -19,9 +19,6 @@ void TStringTransformationConfig::Register(TRegistrar registrar)
     registrar.Parameter("replacement", &TThis::Replacement)
         .Default();
 }
-
-DEFINE_REFCOUNTED_TYPE(TStringTransformationConfig)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TProxyBootstrapConfig::Register(TRegistrar registrar)
