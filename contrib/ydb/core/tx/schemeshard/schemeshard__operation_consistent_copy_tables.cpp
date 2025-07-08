@@ -1,11 +1,10 @@
-#include "schemeshard__operation_part.h"
 #include "schemeshard__operation_common.h"
-
+#include "schemeshard__operation_part.h"
 #include "schemeshard_utils.h"  // for TransactionTemplate
 
 #include <contrib/ydb/core/base/path.h>
-#include <contrib/ydb/core/protos/flat_tx_scheme.pb.h>
 #include <contrib/ydb/core/protos/flat_scheme_op.pb.h>
+#include <contrib/ydb/core/protos/flat_tx_scheme.pb.h>
 
 #include <util/generic/algorithm.h>
 

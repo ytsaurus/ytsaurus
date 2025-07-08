@@ -13,6 +13,7 @@ PEERDIR(
     contrib/ydb/core/tablet_flat
     contrib/ydb/core/tx/replication/common
     contrib/ydb/core/tx/replication/ydb_proxy
+    contrib/ydb/core/tx/replication/ydb_proxy/local_proxy
     contrib/ydb/core/wrappers
     contrib/ydb/library/actors/core
     contrib/ydb/library/services

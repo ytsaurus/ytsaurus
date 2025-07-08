@@ -1,8 +1,8 @@
 #include "schemeshard_impl.h"
 
+#include <contrib/ydb/core/base/appdata.h>
 #include <contrib/ydb/core/tablet/tablet_exception.h>
 #include <contrib/ydb/core/tablet_flat/flat_cxx_database.h>
-#include <contrib/ydb/core/base/appdata.h>
 
 namespace NKikimr {
 namespace NSchemeShard {

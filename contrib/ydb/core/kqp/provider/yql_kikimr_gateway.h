@@ -24,6 +24,7 @@
 #include <contrib/ydb/core/protos/kqp.pb.h>
 #include <contrib/ydb/core/protos/kqp_stats.pb.h>
 #include <contrib/ydb/core/protos/subdomains.pb.h>
+#include <contrib/ydb/core/protos/sys_view_types.pb.h>
 #include <contrib/ydb/core/protos/yql_translation_settings.pb.h>
 #include <contrib/ydb/core/scheme/scheme_types_proto.h>
 
@@ -488,7 +489,7 @@ struct TKikimrTableMetadata : public TThrRefBase {
     EKikimrTableKind Kind = EKikimrTableKind::Unspecified;
     ETableType TableType = ETableType::Table;
     EStoreType StoreType = EStoreType::Row;
-    TMaybe<NKikimrSysView::ESysViewType> SysViewType;
+    TMaybe<NKikimrSysView::TSysViewDescription> SysViewInfo;
     bool IsIndexImplTable = false;
 
     // If writes are disabled, query that writes to table must finish with error.

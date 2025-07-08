@@ -1,6 +1,6 @@
-#include <contrib/ydb/core/mind/hive/hive.h>
-
 #include "schemeshard_shard_deleter.h"
+
+#include <contrib/ydb/core/mind/hive/hive.h>
 
 namespace NKikimr::NSchemeShard {
 

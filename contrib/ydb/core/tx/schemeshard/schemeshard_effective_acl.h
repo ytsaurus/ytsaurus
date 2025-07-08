@@ -1,7 +1,7 @@
 #pragma once
 
-#include <contrib/ydb/library/aclib/protos/aclib.pb.h>
 #include <contrib/ydb/library/aclib/aclib.h>
+#include <contrib/ydb/library/aclib/protos/aclib.pb.h>
 
 namespace NKikimr {
 namespace NSchemeShard {
