@@ -11,7 +11,6 @@
 #include <contrib/libs/poco/XML/include/Poco/DOM/DOMParser.h>
 #include <contrib/libs/poco/XML/include/Poco/DOM/Document.h>
 #include <contrib/libs/poco/XML/include/Poco/DOM/Node.h>
-#include <contrib/libs/poco/XML/include/Poco/SAX/InputSource.h>
 
 namespace NYT::NS3 {
 
@@ -25,11 +24,9 @@ using TPocoXmlDocumentPtr = NPocoXml::AutoPtr<NPocoXml::Document>;
 
 NPocoXml::Node* GetRootNode(TPocoXmlDocumentPtr document)
 {
-    for (auto* child = document->firstChild(); child; child = child->nextSibling())
-    {
+    for (auto* child = document->firstChild(); child != nullptr; child = child->nextSibling()) {
         // Skip the comment nodes.
-        if (child->nodeType() == NPocoXml::Node::ELEMENT_NODE)
-        {
+        if (child->nodeType() == NPocoXml::Node::ELEMENT_NODE) {
             return child;
         }
     }
@@ -47,7 +44,7 @@ std::pair<TPocoXmlDocumentPtr, NPocoXml::Node*> ParseXmlDocument(TSharedRef resp
 
 NPocoXml::Node* GetChildByName(const NPocoXml::Node& node, const std::string& childName)
 {
-    for (auto* child = node.firstChild(); child; child = child->nextSibling()) {
+    for (auto* child = node.firstChild(); child != nullptr; child = child->nextSibling()) {
         if (child->nodeName() == childName) {
             return child;
         }
@@ -98,7 +95,7 @@ void TListBucketsResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
     auto [document, rootNode] = ParseXmlDocument(response->ReadAll());
     auto bucketsNode = GetChildByName(*rootNode, "Buckets");
-    for (auto* child = bucketsNode->firstChild(); child; child = child->nextSibling()) {
+    for (auto* child = bucketsNode->firstChild(); child != nullptr; child = child->nextSibling()) {
         Buckets.emplace_back().Deserialize(*child);
     }
     Owner.Deserialize(*GetChildByName(*rootNode, "Owner"));
@@ -122,7 +119,7 @@ void TListObjectsRequest::Serialize(THttpRequest* request) const
 void TListObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
     auto [document, rootNode] = ParseXmlDocument(response->ReadAll());
-    for (auto* child = rootNode->firstChild(); child; child = child->nextSibling()) {
+    for (auto* child = rootNode->firstChild(); child != nullptr; child = child->nextSibling()) {
         if (child->nodeName() != "Contents") {
             continue;
         }
@@ -428,7 +425,7 @@ private:
         auto responseBody = response->ReadAll();
         try {
             const auto [document, rootNode] = ParseXmlDocument(responseBody);
-            for (auto* child = rootNode->firstChild(); child; child = child->nextSibling()) {
+            for (auto* child = rootNode->firstChild(); child != nullptr; child = child->nextSibling()) {
                 error <<= TErrorAttribute(child->nodeName(), child->innerText());
             }
         } catch (const std::exception&) {

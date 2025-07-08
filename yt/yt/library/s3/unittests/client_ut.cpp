@@ -14,6 +14,12 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Test for the S3 client.
+/*!
+ *  As of now, this test expects an S3 environment to be launched independently, and its
+ *  parameters provided in the environment variables mentioned in SetUp(). This will be
+ *  enhanced when we're able to run a local S3 instance as part of the test suite.
+ */
 class TS3ClientTest
     : public ::testing::Test
 {
@@ -28,9 +34,18 @@ protected:
 private:
     void SetUp() override
     {
+        // The following environment variables are expected for the test to work.
+        auto endpointUrl = GetEnv("AWS_ENDPOINT_URL");
+        auto region = GetEnv("AWS_REGION");
+        auto accessKeyId = GetEnv("AWS_ACCESS_KEY_ID");
+        auto secretAccessKey = GetEnv("AWS_SECRET_ACCESS_KEY");
+        if (endpointUrl.empty() || region.empty() || accessKeyId.empty() || secretAccessKey.empty()) {
+            GTEST_SKIP() << "Skipping S3 client tests as no S3 environment is configured";
+        }
+
         auto clientConfig = New<NS3::TS3ClientConfig>();
-        clientConfig->Url = GetEnv("AWS_ENDPOINT_URL");
-        clientConfig->Region = GetEnv("AWS_REGION");
+        clientConfig->Url = endpointUrl;
+        clientConfig->Region = region;
 
         S3CredentialProvider_ = CreateStaticCredentialProvider(
             GetEnv("AWS_ACCESS_KEY_ID"), GetEnv("AWS_SECRET_ACCESS_KEY"));
@@ -51,6 +66,11 @@ private:
 
     void TearDown() override
     {
+        if (S3Client_ == nullptr) {
+            // It means that we have skipped this test suite.
+            return;
+        }
+
         // Clean all the objects and buckets up.
         auto listBucketsRsp = WaitFor(S3Client_->ListBuckets({}))
             .ValueOrThrow();
