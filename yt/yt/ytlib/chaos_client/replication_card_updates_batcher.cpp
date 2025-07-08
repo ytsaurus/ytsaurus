@@ -27,6 +27,7 @@ using namespace NLogging;
 using namespace NObjectClient;
 using namespace NRpc;
 using namespace NThreading;
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +54,7 @@ public:
 
 private:
     const IReplicationCardUpdatesBatcherPtr Owner_;
-    TAsyncBarrier* Barrier_;
+    TAsyncBarrier* const Barrier_;
     TAsyncBarrierCookie Cookie_;
 };
 
@@ -63,8 +64,8 @@ class TReplicationProgressUpdatesSerializer
 {
 public:
     explicit TReplicationProgressUpdatesSerializer(TReplicationProgress progress)
-        : Progress_(std::move(progress))
-        , StateLock_(New<TAsyncSemaphore>(1))
+        : StateLock_(New<TAsyncSemaphore>(1))
+        , Progress_(std::move(progress))
     { }
 
     TFuture<void> AsyncUpdate(
@@ -102,8 +103,8 @@ public:
     }
 
 private:
+    const TAsyncSemaphorePtr StateLock_;
     TReplicationProgress Progress_;
-    TAsyncSemaphorePtr StateLock_;
 };
 
 class TAsyncReplicationCardUpdatesAccumulator
@@ -157,7 +158,7 @@ public:
 
     TPromise<TReplicationCardPtr> ExtractCardPromise()
     {
-        return std::move(CardPromise_);
+        return CardPromise_;
     }
 
     std::vector<TReplicaProgressUpdate> ExtractProgressByReplicaId()
@@ -176,10 +177,10 @@ public:
         return FetchOptions_;
     }
 
-    int Size() const
+    int GetSize() const
     {
         auto guard = Guard(StateLock_);
-        return ReplicaProgressUpdates_.size();
+        return static_cast<ssize_t>(ReplicaProgressUpdates_.size());
     }
 
     void Reserve(int size)
@@ -189,12 +190,12 @@ public:
     }
 
 private:
+    const TPromise<TReplicationCardPtr> CardPromise_ = NewPromise<TReplicationCardPtr>();
+
+    YT_DECLARE_SPIN_LOCK(TSpinLock, StateLock_) ;
     // Replica count is usually small so use plain vector.
     std::vector<std::pair<TReplicaId, std::unique_ptr<TReplicationProgressUpdatesSerializer>>> ReplicaProgressUpdates_;
     std::optional<TReplicationCardFetchOptions> FetchOptions_;
-    YT_DECLARE_SPIN_LOCK(TSpinLock, StateLock_) ;
-
-    TPromise<TReplicationCardPtr> CardPromise_ = NewPromise<TReplicationCardPtr>();
 
     TFuture<void> AsyncUpdateReplica(
         const TReplicaId& replicaId,
@@ -221,7 +222,7 @@ private:
 
     TFuture<TReplicationCardPtr> ToReplicationCardFuture(TFuture<void>&& prerequisite) const
     {
-        return prerequisite.Apply(BIND([future = CardPromise_.ToFuture()] () {
+        return prerequisite.Apply(BIND([future = CardPromise_.ToFuture()] {
             return future;
         }));
     }
@@ -328,7 +329,7 @@ public:
         // to reduce spin lock contention during future updates.
         next->Updates_.reserve(Updates_.size());
         for (const auto& [replicationCardId, batchingEntry] : Updates_) {
-            if (int entrySize = batchingEntry.Size(); entrySize != 0) {
+            if (int entrySize = batchingEntry.GetSize(); entrySize != 0) {
                 next->Updates_[replicationCardId].Reserve(entrySize);
             }
         }
@@ -342,8 +343,8 @@ public:
     }
 
 private:
-    TMultipleReplicationCardProgressesUpdates Updates_;
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, UpdatesLock_);
+    TMultipleReplicationCardProgressesUpdates Updates_;
 
     NDetail::TAsyncReplicationCardUpdatesAccumulator& GetAsyncAccumulator(const TReplicationCardId& replicationCardId)
     {
@@ -362,9 +363,8 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TReplicationCardsUpdatesAccumulator)
 
-class IReplicationCardUpdatesAccumulatorFlushSession
+struct IReplicationCardUpdatesAccumulatorFlushSession
 {
-public:
     using TMultipleReplicationCardProgressesUpdates =
         TReplicationCardsUpdatesAccumulator::TMultipleReplicationCardProgressesUpdates;
 
@@ -597,13 +597,13 @@ private:
                     Logger = Logger
                 ] (TErrorOr<TChaosNodeServiceProxy::TRspUpdateMultipleTableProgressesPtr>&& response) {
                     if (!response.IsOK()) {
-                        for (auto& [replicationCardId, promise] : promises) {
+                        for (const auto& [replicationCardId, promise] : promises) {
                             promise.Set(response);
                         }
                     } else {
                         const auto& responses = response.Value()->replication_card_progress_update_results();
                         for (const auto& response : responses) {
-                            auto replicationCardId = NYT::FromProto<TReplicationCardId>(response.replication_card_id());
+                            auto replicationCardId = FromProto<TReplicationCardId>(response.replication_card_id());
                             auto it = promises.find(replicationCardId);
                             if (it == promises.end()) {
                                 YT_LOG_WARNING(
@@ -616,7 +616,7 @@ private:
                                 replicationCardId);
 
                             if (response.has_error()) {
-                                it->second.Set(NYT::FromProto<TError>(response.error()));
+                                it->second.Set(FromProto<TError>(response.error()));
                             } else {
                                 it->second.Set(FromProto(response.result()));
                             }
@@ -637,9 +637,9 @@ private:
         futures.reserve(batch.size());
 
         for (const auto& [replicationCardId, entry] : batch) {
-            auto futureCellTag = residencyCache->GetChaosResidency(replicationCardId);
-            futureTagById.emplace_back(replicationCardId, futureCellTag);
-            futures.push_back(std::move(futureCellTag));
+            auto cellTagFuture = residencyCache->GetChaosResidency(replicationCardId);
+            futureTagById.emplace_back(replicationCardId, cellTagFuture);
+            futures.push_back(std::move(cellTagFuture));
         }
 
         WaitForFast(AllSet(std::move(futures)))

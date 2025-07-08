@@ -37,8 +37,7 @@ IChaosAgentPtr CreateChaosAgent(
     ITabletSlotPtr slot,
     NChaosClient::TReplicationCardId replicationCardId,
     NApi::NNative::IClientPtr localClient,
-    NChaosClient::IReplicationCardUpdatesBatcherPtr replicationCardUpdatesBatcher
-);
+    NChaosClient::IReplicationCardUpdatesBatcherPtr replicationCardUpdatesBatcher);
 
 ////////////////////////////////////////////////////////////////////////////////
 
