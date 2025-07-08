@@ -25,6 +25,7 @@
 #include <yt/yt/ytlib/transaction_supervisor/transaction_supervisor_service_proxy.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
+#include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/hive/transaction_participant.h>
 
@@ -877,13 +878,7 @@ private:
             auto maxAllowedCommitTimestamp = request->max_allowed_commit_timestamp();
             auto stronglyOrdered = request->strongly_ordered();
 
-            std::vector<TTransactionId>  prerequisiteTransactionIds;
-            if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
-                auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-                for (const auto& prerequisite : prerequisitesExt->transactions()) {
-                    prerequisiteTransactionIds.push_back(FromProto<TTransactionId>(prerequisite.transaction_id()));
-                }
-            }
+            auto  prerequisiteTransactionIds = GetPrerequisiteTransactionIds(context->GetRequestHeader());
 
             if (coordinatorPrepareMode == ETransactionCoordinatorPrepareMode::Late &&
                 coordinatorCommitMode == ETransactionCoordinatorCommitMode::Lazy)

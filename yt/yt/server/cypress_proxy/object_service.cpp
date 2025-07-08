@@ -33,6 +33,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
 
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -50,6 +52,7 @@ using namespace NCypressClient::NProto;
 using namespace NDistributedThrottler;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
+using namespace NTransactionClient;
 using namespace NRpc;
 using namespace NYTree;
 
@@ -852,7 +855,7 @@ private:
             TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader))
         );
         auto cypressTransactionId = GetTransactionId(*subrequest->RequestHeader);
-        auto prerequisiteTransactionIds = ParsePrerequisiteTransactionIds(*subrequest->RequestHeader);
+        auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(*subrequest->RequestHeader);
 
         if (cypressTransactionId && !IsCypressTransactionType(TypeFromId(cypressTransactionId))) {
             // Requests with system transactions cannot be handled in Sequoia.

@@ -29,8 +29,6 @@ void ValidateLinkNodeCreation(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<NObjectClient::TTransactionId> ParsePrerequisiteTransactionIds(const NRpc::NProto::TRequestHeader& header);
-
 void ValidatePrerequisiteTransactions(
     const NSequoiaClient::ISequoiaClientPtr& sequoiaClient,
     const std::vector<NObjectClient::TTransactionId>& prerequisiteTransactionIds);

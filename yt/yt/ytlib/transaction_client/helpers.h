@@ -24,6 +24,9 @@ void SetPrerequisites(
     const NRpc::IClientRequestPtr& request,
     const NApi::TPrerequisiteOptions& options);
 
+std::vector<TTransactionId> GetPrerequisiteTransactionIds(
+    const NRpc::NProto::TRequestHeader& header);
+
 TTransactionId MakeTabletTransactionId(
     EAtomicity atomicity,
     NObjectClient::TCellTag cellTag,
