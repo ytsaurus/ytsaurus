@@ -122,8 +122,10 @@ void TListObjectsRequest::Serialize(THttpRequest* request) const
 void TListObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
     auto [document, rootNode] = ParseXmlDocument(response->ReadAll());
-    auto contentsNode = GetChildByName(*rootNode, "Contents");
-    for (auto* child = contentsNode->firstChild(); child; child = child->nextSibling()) {
+    for (auto* child = rootNode->firstChild(); child; child = child->nextSibling()) {
+        if (child->nodeName() != "Contents") {
+            continue;
+        }
         Objects.emplace_back().Deserialize(*child);
     }
     if (auto nextToken = TryGetChildByName(*rootNode, "NextContinuationToken"); nextToken != nullptr) {
