@@ -1,20 +1,20 @@
 #pragma once
 #include "defs.h"
+#include "schemeshard_identificators.h"
 
 #include <contrib/ydb/core/base/path.h>
 #include <contrib/ydb/core/base/storage_pools.h>
 #include <contrib/ydb/core/base/subdomain.h>
-#include <contrib/ydb/core/tx/tx.h>
-#include <contrib/ydb/core/scheme/scheme_tabledefs.h>
-#include <contrib/ydb/core/protos/tx_scheme.pb.h>
 #include <contrib/ydb/core/protos/flat_tx_scheme.pb.h>
+#include <contrib/ydb/core/protos/tx_scheme.pb.h>
 #include <contrib/ydb/core/scheme/scheme_tablecell.h>
+#include <contrib/ydb/core/scheme/scheme_tabledefs.h>
+#include <contrib/ydb/core/tx/tx.h>
+
 #include <contrib/ydb/library/ydb_issue/issue_helpers.h>
 
 #include <library/cpp/deprecated/enum_codegen/enum_codegen.h>
 #include <library/cpp/object_factory/object_factory.h>
-
-#include "schemeshard_identificators.h"
 
 namespace NKikimr {
 namespace NSchemeShard {

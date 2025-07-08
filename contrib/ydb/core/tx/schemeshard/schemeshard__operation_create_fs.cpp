@@ -1,11 +1,11 @@
-#include "schemeshard__operation_part.h"
-#include "schemeshard__operation_common.h"
-#include "schemeshard_impl.h"
 #include "schemeshard__op_traits.h"
+#include "schemeshard__operation_common.h"
+#include "schemeshard__operation_part.h"
+#include "schemeshard_impl.h"
 
 #include <contrib/ydb/core/base/subdomain.h>
-#include <contrib/ydb/core/mind/hive/hive.h>
 #include <contrib/ydb/core/filestore/core/filestore.h>
+#include <contrib/ydb/core/mind/hive/hive.h>
 
 namespace {
 
@@ -335,7 +335,7 @@ THolder<TProposeResponse> TCreateFileStore::Propose(
 
         if (checks) {
             checks
-                .IsValidLeafName()
+                .IsValidLeafName(context.UserToken.Get())
                 .DepthLimit()
                 .PathsLimit()
                 .DirChildrenLimit()

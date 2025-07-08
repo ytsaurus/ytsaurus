@@ -64,6 +64,7 @@ PEERDIR(
     contrib/ydb/core/tx/columnshard/tx_reader
     contrib/ydb/core/tx/conveyor/usage
     contrib/ydb/core/tx/conveyor_composite/service
+    contrib/ydb/core/tx/general_cache/usage
     contrib/ydb/core/tx/long_tx_service/public
     contrib/ydb/core/tx/priorities/service
     contrib/ydb/core/tx/tiering

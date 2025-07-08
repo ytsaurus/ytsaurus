@@ -2,8 +2,9 @@
 
 #include "defs.h"
 
-#include <contrib/ydb/core/protos/backup.pb.h>
 #include <contrib/ydb/public/api/protos/draft/ydb_backup.pb.h>
+
+#include <contrib/ydb/core/protos/backup.pb.h>
 
 namespace NKikimr {
 namespace NSchemeShard {

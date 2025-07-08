@@ -26,6 +26,7 @@ PEERDIR(
     contrib/ydb/library/formats/arrow/common
     contrib/ydb/library/yql/dq/actors/compute
     contrib/ydb/library/yql/providers/generic/actors
+    contrib/ydb/library/yql/providers/pq/async_io
     contrib/ydb/library/yql/providers/s3/actors_factory
     contrib/ydb/library/yql/providers/solomon/actors
     yql/essentials/public/issue

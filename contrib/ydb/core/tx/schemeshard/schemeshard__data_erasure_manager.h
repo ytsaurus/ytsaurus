@@ -1,14 +1,12 @@
 #pragma once
 
-#include <util/generic/ptr.h>
-
+#include <contrib/ydb/core/scheme/scheme_pathid.h>
+#include <contrib/ydb/core/tx/schemeshard/operation_queue_timer.h>
+#include <contrib/ydb/core/tx/schemeshard/schemeshard_identificators.h>
+#include <contrib/ydb/core/tx/schemeshard/schemeshard_private.h>
 #include <contrib/ydb/core/util/circular_queue.h>
 
-#include <contrib/ydb/core/tx/schemeshard/operation_queue_timer.h>
-#include <contrib/ydb/core/tx/schemeshard/schemeshard_private.h>
-#include <contrib/ydb/core/tx/schemeshard/schemeshard_identificators.h>
-
-#include <contrib/ydb/core/scheme/scheme_pathid.h>
+#include <util/generic/ptr.h>
 
 namespace NKikimrConfig {
 

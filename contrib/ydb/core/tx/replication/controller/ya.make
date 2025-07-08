@@ -9,6 +9,7 @@ PEERDIR(
     contrib/ydb/core/tablet_flat
     contrib/ydb/core/tx/replication/common
     contrib/ydb/core/tx/replication/ydb_proxy
+    contrib/ydb/core/tx/replication/ydb_proxy/local_proxy
     contrib/ydb/core/tx/scheme_board
     contrib/ydb/core/tx/tx_allocator_client
     contrib/ydb/core/util

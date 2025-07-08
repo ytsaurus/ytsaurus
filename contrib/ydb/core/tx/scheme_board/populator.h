@@ -3,11 +3,18 @@
 #include "defs.h"
 #include "two_part_description.h"
 
+#include <contrib/ydb/core/base/statestorage.h>
 #include <contrib/ydb/core/scheme/scheme_pathid.h>
 
 #include <util/generic/map.h>
 
 namespace NKikimr {
+
+namespace NSchemeBoard {
+
+    bool IsMajorityReached(const TStateStorageInfo::TRingGroup& ringGroup, ui32 ringGroupAcks);
+
+}
 
 IActor* CreateSchemeBoardPopulator(
     const ui64 owner,

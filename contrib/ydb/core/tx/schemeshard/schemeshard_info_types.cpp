@@ -1,17 +1,18 @@
 #include "schemeshard_info_types.h"
+
 #include "schemeshard_path.h"
 #include "schemeshard_utils.h"  // for IsValidColumnName
 
 #include <contrib/ydb/core/base/appdata.h>
-#include <contrib/ydb/core/base/tx_processing.h>
 #include <contrib/ydb/core/base/channel_profiles.h>
+#include <contrib/ydb/core/base/tx_processing.h>
 #include <contrib/ydb/core/engine/minikql/flat_local_tx_factory.h>
 #include <contrib/ydb/core/engine/mkql_proto.h>
+#include <contrib/ydb/core/protos/config.pb.h>
 #include <contrib/ydb/core/scheme/scheme_types_proto.h>
 #include <contrib/ydb/core/tablet/tablet_counters_aggregator.h>
 #include <contrib/ydb/core/tablet/tablet_counters_protobuf.h>
 #include <contrib/ydb/core/util/pb.h>
-#include <contrib/ydb/core/protos/config.pb.h>
 
 #include <yql/essentials/minikql/mkql_type_ops.h>
 
@@ -2246,13 +2247,12 @@ void TIndexBuildInfo::SerializeToProto([[maybe_unused]] TSchemeShard* ss, NKikim
 }
 
 void TIndexBuildInfo::AddParent(const TSerializedTableRange& range, TShardIdx shard) {
-    if (KMeans.Parent == 0) {
-        // For Parent == 0 only single kmeans needed, so there is only two options:
-        // 1. It fits entirely in the single shard => local kmeans for single shard
-        // 2. It doesn't fit entirely in the single shard => global kmeans for all shards
-        return;
-    }
-    const auto [parentFrom, parentTo] = KMeans.RangeToBorders(range);
+    // For Parent == 0 only single kmeans needed, so there are two options:
+    // 1. It fits entirely in the single shard => local kmeans for single shard
+    // 2. It doesn't fit entirely in the single shard => global kmeans for all shards
+    const auto [parentFrom, parentTo] = KMeans.Parent == 0
+        ? std::pair<NTableIndex::TClusterId, NTableIndex::TClusterId>{0, 0}
+        : KMeans.RangeToBorders(range);
     // TODO(mbkkt) We can make it more granular
 
     // the new range does not intersect with other ranges, just add it with 1 shard

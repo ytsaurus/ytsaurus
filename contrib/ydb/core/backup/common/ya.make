@@ -11,6 +11,7 @@ PEERDIR(
     library/cpp/json
     contrib/ydb/core/backup/common/proto
     contrib/ydb/core/base
+    contrib/ydb/core/util
     contrib/ydb/library/yverify_stream
 )
 
