@@ -136,23 +136,6 @@ void ValidateLinkNodeCreation(
     }
 }
 
-std::vector<TTransactionId> ParsePrerequisiteTransactionIds(const NRpc::NProto::TRequestHeader& header)
-{
-    const auto prerequisitesExt = NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext;
-    if (!header.HasExtension(prerequisitesExt)) {
-        return {};
-    }
-
-    auto prerequisites = header.GetExtension(prerequisitesExt);
-    std::vector<TTransactionId> prerequisiteTransactionIds;
-    prerequisiteTransactionIds.reserve(prerequisites.transactions_size());
-    for (const auto& protoTransaction : prerequisites.transactions()) {
-        auto transactionId = FromProto<TTransactionId>(protoTransaction.transaction_id());
-        prerequisiteTransactionIds.push_back(transactionId);
-    }
-    return prerequisiteTransactionIds;
-}
-
 void ValidatePrerequisiteTransactions(
     const ISequoiaClientPtr& sequoiaClient,
     const std::vector<TTransactionId>& prerequisiteTransactionIds)
