@@ -124,7 +124,7 @@ struct IConnection
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
     virtual NRpc::IChannelPtr FindQueueAgentChannel(TStringBuf stage) const = 0;
-    virtual const NQueueClient::TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
+    virtual const NQueueClient::IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
 
     virtual std::pair<NRpc::IRoamingChannelProviderPtr, NYqlClient::TYqlAgentChannelConfigPtr> GetYqlAgentChannelProviderOrThrow(const TString& stage) const = 0;
 

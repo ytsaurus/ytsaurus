@@ -301,7 +301,7 @@ public:
             GetNetworks());
 
         InitializeQueueAgentChannels();
-        QueueConsumerRegistrationManager_ = New<TQueueConsumerRegistrationManager>(
+        QueueConsumerRegistrationManager_ = CreateQueueConsumerRegistrationManager(
             config->QueueAgent->QueueConsumerRegistrationManager,
             this,
             GetInvoker(),
@@ -688,7 +688,7 @@ public:
         return it->second;
     }
 
-    const TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
+    const IQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
     {
         return QueueConsumerRegistrationManager_;
     }
@@ -1055,7 +1055,7 @@ private:
     IChannelPtr BundleControllerChannel_;
 
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
-    TQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
+    IQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;
     ITableMountCachePtr TableMountCache_;
@@ -1150,7 +1150,7 @@ private:
                     .BeginMap()
                         .Item("channel_attributes").Value(TimestampProviderChannel_->GetEndpointAttributes())
                     .EndMap()
-                .Item("queue_consumer_registration_manager").Do(std::bind(&TQueueConsumerRegistrationManager::BuildOrchid, QueueConsumerRegistrationManager_, _1))
+                .Item("queue_consumer_registration_manager").Do(std::bind(&IQueueConsumerRegistrationManager::BuildOrchid, QueueConsumerRegistrationManager_, _1))
             .EndMap();
     }
 
