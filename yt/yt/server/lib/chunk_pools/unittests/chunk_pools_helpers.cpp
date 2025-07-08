@@ -5,11 +5,17 @@
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
+#include <yt/yt/client/table_client/row_buffer.h>
+
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
+
 namespace NYT {
 
+using namespace NChunkClient;
 using namespace NControllerAgent;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,6 +89,40 @@ void CheckUnsuccessfulSplitMarksJobUnsplittable(IPersistentChunkPoolPtr chunkPoo
     auto childCookie = chunkPool->Extract(TNodeId());
     EXPECT_EQ(1, childCookie);
     EXPECT_FALSE(chunkPool->IsSplittable(childCookie));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TChunkSlice::TChunkSlice(
+    const TInputChunkSlicePtr& chunkSlice,
+    const TLegacyDataSlicePtr& dataSlice,
+    const TComparator& comparator)
+    : ChunkId_(chunkSlice->GetInputChunk()->GetChunkId())
+    , LowerLimit_(chunkSlice->LowerLimit())
+    , UpperLimit_(chunkSlice->UpperLimit())
+    , RowBuffer_(New<TRowBuffer>())
+{
+    YT_VERIFY(comparator);
+
+    LowerLimit_.KeyBound = ShortenKeyBound(LowerLimit_.KeyBound, comparator.GetLength(), RowBuffer_);
+    UpperLimit_.KeyBound = ShortenKeyBound(UpperLimit_.KeyBound, comparator.GetLength(), RowBuffer_);
+
+    TInputSliceLimit lowerLimit = dataSlice->LowerLimit();
+    TInputSliceLimit upperLimit = dataSlice->UpperLimit();
+    lowerLimit.KeyBound = ShortenKeyBound(lowerLimit.KeyBound, comparator.GetLength(), RowBuffer_);
+    upperLimit.KeyBound = ShortenKeyBound(upperLimit.KeyBound, comparator.GetLength(), RowBuffer_);
+
+    LowerLimit_.MergeLower(lowerLimit, comparator);
+    UpperLimit_.MergeUpper(upperLimit, comparator);
+}
+
+bool IsNonEmptyIntersection(
+    const TChunkSlice& lhs,
+    const TChunkSlice& rhs,
+    const TComparator& comparator)
+{
+    return !comparator.IsRangeEmpty(lhs.LowerLimit().KeyBound, rhs.UpperLimit().KeyBound) &&
+        !comparator.IsRangeEmpty(rhs.LowerLimit().KeyBound, lhs.UpperLimit().KeyBound);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
