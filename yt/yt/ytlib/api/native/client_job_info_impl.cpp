@@ -996,7 +996,7 @@ auto RetryJobIsNotRunning(
     return rspOrError;
 }
 
-std::optional<TGetJobStderrResponse> TClient::DoGetJobStderrFromNode(
+std::optional<TGetJobStderrResponse> TClient::DoGetUserJobStderrFromNode(
     TOperationId operationId,
     TJobId jobId,
     const TGetJobStderrOptions& options)
@@ -1048,35 +1048,50 @@ std::optional<TGetJobStderrResponse> TClient::DoGetJobStderrFromNode(
 
 TSharedRef TClient::DoGetJobStderrFromArchive(
     TOperationId operationId,
-    TJobId jobId)
+    TJobId jobId,
+    TInstant deadline,
+    NExecNode::EJobStderrType type)
 {
     try {
+        NQueryClient::TQueryBuilder builder;
         auto operationIdAsGuid = operationId.Underlying();
         auto jobIdAsGuid = jobId.Underlying();
-        NRecords::TJobStderrKey recordKey{
-            .OperationIdHi = operationIdAsGuid.Parts64[0],
-            .OperationIdLo = operationIdAsGuid.Parts64[1],
-            .JobIdHi = jobIdAsGuid.Parts64[0],
-            .JobIdLo = jobIdAsGuid.Parts64[1]
-        };
-        auto keys = FromRecordKeys(TRange(std::array{recordKey}));
+        builder.SetSource(GetOperationsArchiveJobStderrsPath());
 
-        auto rowset = WaitFor(GetOperationsArchiveClient()->LookupRows(
-            GetOperationsArchiveJobStderrsPath(),
-            NRecords::TJobStderrDescriptor::Get()->GetNameTable(),
-            keys,
-            /*options*/ {}))
+        switch (type) {
+            case NExecNode::EJobStderrType::UserJobStderr:
+                builder.AddSelectExpression("stderr");
+                break;
+            case NExecNode::EJobStderrType::GpuCheckStderr:
+                builder.AddSelectExpression("gpu_check_stderr AS stderr");
+                break;
+        }
+
+        builder.AddWhereConjunct(Format(
+            "(operation_id_hi, operation_id_lo) = (%vu, %vu)",
+            operationIdAsGuid.Parts64[0],
+            operationIdAsGuid.Parts64[1]));
+
+        builder.AddWhereConjunct(Format(
+            "(job_id_hi, job_id_lo) = (%vu, %vu)",
+            jobIdAsGuid.Parts64[0],
+            jobIdAsGuid.Parts64[1]));
+
+        auto selectRowsOptions = GetDefaultSelectRowsOptions(deadline, AsyncLastCommittedTimestamp);
+        auto rowset = WaitFor(GetOperationsArchiveClient()->SelectRows(
+            builder.Build(),
+            selectRowsOptions))
             .ValueOrThrow()
             .Rowset;
 
-        auto records = ToRecords<NRecords::TJobStderr>(rowset);
+        auto records = ToRecords<NRecords::TJobStderrPartial>(rowset);
         YT_VERIFY(records.size() <= 1);
-        if (records.empty()) {
+        if (records.empty() || !records[0].Stderr) {
             return {};
         }
 
         const auto& record = records[0];
-        return TSharedRef::FromString(record.Stderr);
+        return TSharedRef::FromString(*record.Stderr);
     } catch (const TErrorException& ex) {
         auto matchedError = ex.Error().FindMatching(NYTree::EErrorCode::ResolveError);
         if (!matchedError) {
@@ -1108,11 +1123,29 @@ TGetJobStderrResponse TClient::DoGetJobStderr(
 
     ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
-    if (auto jobStderr = DoGetJobStderrFromNode(operationId, jobId, options)) {
-        return *jobStderr;
+    auto stderrType = options.Type.value_or(NExecNode::EJobStderrType::UserJobStderr);
+
+    if (stderrType == NExecNode::EJobStderrType::UserJobStderr) {
+        if (auto jobStderr = DoGetUserJobStderrFromNode(operationId, jobId, options)) {
+            return *jobStderr;
+        }
     }
 
-    if (auto stderrRef = DoGetJobStderrFromArchive(operationId, jobId)) {
+    auto maybeArchiveVersion = TryGetOperationsArchiveVersion();
+    if (!maybeArchiveVersion) {
+        THROW_ERROR_EXCEPTION(EErrorCode::JobArchiveUnavailable,
+            "Job archive is unavailable");
+    }
+    auto archiveVersion = *maybeArchiveVersion;
+
+    // COMPAT(bystrovserg)
+    if (stderrType == NExecNode::EJobStderrType::GpuCheckStderr && archiveVersion < 61) {
+        THROW_ERROR_EXCEPTION(EErrorCode::UnsupportedArchiveVersion, "GPU checker stderr is not supported in current archive version")
+            << TErrorAttribute("current_archive_version", archiveVersion)
+            << TErrorAttribute("required_archive_version", 61);
+    }
+
+    if (auto stderrRef = DoGetJobStderrFromArchive(operationId, jobId, deadline, stderrType)) {
         return {
             .Data = stderrRef,
             .TotalSize = std::ssize(stderrRef),
@@ -1120,7 +1153,7 @@ TGetJobStderrResponse TClient::DoGetJobStderr(
         };
     }
 
-    THROW_ERROR_EXCEPTION(NControllerAgent::EErrorCode::NoSuchJob, "Job stderr is not found")
+    THROW_ERROR_EXCEPTION(NControllerAgent::EErrorCode::NoSuchJob, "Stderr is not found")
         << TErrorAttribute("operation_id", operationId)
         << TErrorAttribute("job_id", jobId);
 }

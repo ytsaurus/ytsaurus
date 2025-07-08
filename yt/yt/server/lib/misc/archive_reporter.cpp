@@ -322,6 +322,7 @@ private:
             }
         }
 
+        // TODO(bystrovserg): Allow missing key columns.
         transaction.WriteRows(
             HandlerConfig_.Acquire()->Path,
             NameTable_,
