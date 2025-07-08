@@ -11,7 +11,7 @@ void TTestConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_ground_update_queues_sync", &TThis::EnableGroundUpdateQueuesSync)
         .Default(false);
 
-        registrar.Parameter("enable_user_directory_sync", &TThis::EnableUserDirectorySync)
+    registrar.Parameter("enable_user_directory_sync", &TThis::EnableUserDirectorySync)
         .Default(false);
 
     registrar.Parameter("ground_update_queues_sync_request_timeout", &TThis::GroundUpdateQueuesSyncRequestTimeout)

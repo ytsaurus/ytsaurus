@@ -783,7 +783,12 @@ void TSequoiaSession::SetNode(
     const TSuppressableAccessTrackingOptions& options)
 {
     // NB: Force flag is irrelevant when setting node's value.
-    DoSetNode(nodeId, "", value, /*force*/ false, options);
+    DoSetNode(
+        nodeId,
+        /*path*/ "",
+        value,
+        /*force*/ false,
+        options);
 }
 
 void TSequoiaSession::SetNodeAttribute(
@@ -1032,7 +1037,7 @@ THashMap<TNodeId, TYPath> TSequoiaSession::GetLinkTargetPaths(TRange<TNodeId> li
     THashMap<TNodeId, TYPath> result;
     result.reserve(linkIds.Size());
 
-    std::vector<TNodeId> linksToFetch;
+    std::vector<TNodeId> linkIdsToFetch;
 
     for (auto linkId : linkIds) {
         YT_VERIFY(IsLinkType(TypeFromId(linkId)));
@@ -1041,25 +1046,25 @@ THashMap<TNodeId, TYPath> TSequoiaSession::GetLinkTargetPaths(TRange<TNodeId> li
         if (it != CachedLinkTargetPaths_.end()) {
             result.emplace(it->first, it->second);
         } else {
-            linksToFetch.push_back(linkId);
+            linkIdsToFetch.push_back(linkId);
         }
     }
 
     // Fast path.
-    if (linksToFetch.empty()) {
+    if (linkIdsToFetch.empty()) {
         return result;
     }
 
     // TODO(danilalexeev or kvk1920): Remove the duplicate code.
-    auto keys = std::vector<NRecords::TNodeIdToPathKey>(linksToFetch.size() * CypressTransactionAncestry_.size());
-    for (int index = 0; index < std::ssize(linksToFetch); ++index) {
+    auto keys = std::vector<NRecords::TNodeIdToPathKey>(linkIdsToFetch.size() * CypressTransactionAncestry_.size());
+    for (int index = 0; index < std::ssize(linkIdsToFetch); ++index) {
         std::transform(
             CypressTransactionAncestry_.begin(),
             CypressTransactionAncestry_.end(),
             keys.begin() + index * CypressTransactionAncestry_.size(),
             [&] (auto cypressTransactionId) -> NRecords::TNodeIdToPathKey {
                 return {
-                    .NodeId = linksToFetch[index],
+                    .NodeId = linkIdsToFetch[index],
                     .TransactionId = cypressTransactionId,
                 };
             });
@@ -1069,14 +1074,13 @@ THashMap<TNodeId, TYPath> TSequoiaSession::GetLinkTargetPaths(TRange<TNodeId> li
         .ValueOrThrow();
 
     auto records = TRange(responses);
-    for (int index = 0; index < std::ssize(linksToFetch); ++index) {
+    for (int index = 0; index < std::ssize(linkIdsToFetch); ++index) {
         auto linkRecords = records.Slice(
             index * CypressTransactionAncestry_.size(),
             (index + 1) * CypressTransactionAncestry_.size());
         // Find record with the deepest transaction for each path.
         for (int transactionIndex = std::ssize(CypressTransactionAncestry_) - 1; transactionIndex >= 0; --transactionIndex) {
-            const auto& record = linkRecords[transactionIndex];
-            if (record.has_value()) {
+            if (const auto& record = linkRecords[transactionIndex]; record.has_value()) {
                 auto nodeId = record->Key.NodeId;
                 CachedLinkTargetPaths_.emplace(nodeId, record->TargetPath);
                 result.emplace(nodeId, std::move(record->TargetPath));

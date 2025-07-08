@@ -1,4 +1,5 @@
 #include "helpers.h"
+#include "permission_checker.h"
 
 #include <yt/yt/client/object_client/helpers.h>
 
@@ -40,7 +41,7 @@ void LogAndThrowAuthorizationError(
     const std::string& resultObjectName,
     const std::string& resultSubjectName)
 {
-    YT_ASSERT(result.Action == ESecurityAction::Deny);
+    YT_VERIFY(result.Action == ESecurityAction::Deny);
 
     TError error;
 

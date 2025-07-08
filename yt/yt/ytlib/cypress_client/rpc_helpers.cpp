@@ -118,16 +118,14 @@ int GetResolveDepth(const NRpc::NProto::TRequestHeader& header)
         : 0;
 }
 
-void SetCausedByNodeExpiration(NRpc::NProto::TRequestHeader* header)
+void SetCausedByNodeExpiration(NRpc::NProto::TRequestHeader* header, bool value)
 {
-    header->SetExtension(TExpirationExt::caused_by_node_expiration, true);
+    header->SetExtension(TExpirationExt::caused_by_node_expiration, value);
 }
 
 bool GetCausedByNodeExpiration(const NRpc::NProto::TRequestHeader& header)
 {
-    return header.HasExtension(TExpirationExt::caused_by_node_expiration)
-        ? header.GetExtension(TExpirationExt::caused_by_node_expiration)
-        : false;
+    return header.GetExtension(TExpirationExt::caused_by_node_expiration);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

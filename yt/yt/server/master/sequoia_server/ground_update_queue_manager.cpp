@@ -158,7 +158,7 @@ public:
         if (!syncPromise) {
             syncPromise = NewPromise<void>();
         }
-        return syncPromise.ToFuture();
+        return syncPromise.ToFuture().ToUncancelable();
     }
 
 private:

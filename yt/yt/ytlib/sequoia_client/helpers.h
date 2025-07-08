@@ -48,7 +48,7 @@ bool IsRetriableSequoiaError(const TError& error);
 
 void ThrowOnSequoiaReplicasError(const TError& error, const std::vector<TErrorCode>& retriableErrorCodes);
 
-bool IsMethodShouldBeHandledByMaster(const std::string& method);
+bool IsMethodHandledByMaster(const std::string& method);
 
 ////////////////////////////////////////////////////////////////////////////////
 
