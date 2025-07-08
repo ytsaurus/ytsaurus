@@ -186,6 +186,7 @@ DEFINE_ENUM(EMasterReign,
     ((Decimal256)                                                   (2747))  // achulkov2+ermolovd
     ((HunkStorageMulticell)                                         (2748))  // akozhikhov
     ((NoAvenuesDuringMigrationTo24_2)                               (2749))  // ifsmirnov
+    ((DropEnableFixRequisitionUpdateCompat_24_2)                    (2750))  // kvk1920
     // 25.1 starts here.
     ((SequoiaSetActionLatePrapare)                                  (2800))  // danilalexeev
     ((RemoveUseHydraPersistenceDirectoryFlag)                       (2801))  // danilalexeev
@@ -235,6 +236,7 @@ DEFINE_ENUM(EMasterReign,
     ((SecondaryIndexOuroboros)                                      (2845))  // sabdenovch
     ((FixDetachmentOfJournalHunkChunk_25_1)                         (2846))  // akozhikhov
     ((CheckReplicationProgressSchema_25_1)                          (2847))  // savrus
+    ((DropEnableFixRequisitionUpdateCompat_25_1)                    (2848))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

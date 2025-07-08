@@ -752,10 +752,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1))
         .DontSerializeDefault();
 
-    registrar.Parameter("enable_fix_requisition_update_on_merge", &TThis::EnableFixRequisitionUpdateOnMerge)
-        .Default(false)
-        .DontSerializeDefault();
-
     registrar.Parameter("enable_chunk_schemas", &TThis::EnableChunkSchemas)
         .Default(true);
 

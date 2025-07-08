@@ -278,8 +278,6 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     const auto& chunkManager = TBase::GetBootstrap()->GetChunkManager();
     const auto& securityManager = TBase::GetBootstrap()->GetSecurityManager();
     const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
-    const auto& chunkManagerDynamicConfig = TBase::GetBootstrap()->GetConfigManager()->GetConfig();
-    auto enableFixRequisitionUpdateOnMerge = chunkManagerDynamicConfig->ChunkManager->EnableFixRequisitionUpdateOnMerge;
 
     auto* originatingChunkList = originatingNode->GetChunkList();
     auto* branchedChunkList = branchedNode->GetChunkList();
@@ -370,11 +368,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
             }
 
             for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
-                // COMPAT(kvk1920)
-                auto* originatingChunkList = enableFixRequisitionUpdateOnMerge
-                    ? oldOriginatingChunkLists[contentType]
-                    : originatingNode->GetChunkList(contentType);
-                if (originatingChunkList) {
+                if (auto* originatingChunkList = oldOriginatingChunkLists[contentType]) {
                     chunkManager->ScheduleChunkRequisitionUpdate(originatingChunkList);
                 }
 
