@@ -773,6 +773,12 @@ private:
         StagingArea_->Flush();
     }
 
+    void PromoteUpperBound(TKeyBound newUpperBound)
+    {
+        StagingArea_->PromoteUpperBound(newUpperBound);
+        AttachForeignSlices(std::move(newUpperBound));
+    }
+
     //! Put data slice to staging area.
     void Stage(TLegacyDataSlicePtr dataSlice, ESliceType sliceType)
     {
@@ -812,7 +818,7 @@ private:
         // TODO(max42): describe this situation, refer to RowSlicingCorrectnessCustom unittest.
         if (!lowerBound.Invert().IsInclusive && lowerBound.Prefix.GetCount() == static_cast<ui32>(PrimaryComparator_.GetLength())) {
             YT_LOG_TRACE("Weird max42 case (LowerBound: %v)", lowerBound);
-            StagingArea_->PromoteUpperBound(endpoints[0].KeyBound.Invert().ToggleInclusiveness());
+            PromoteUpperBound(endpoints[0].KeyBound.Invert().ToggleInclusiveness());
         }
 
         YT_VERIFY(JobSizeTracker_);
@@ -922,7 +928,7 @@ private:
             if (!PrimaryComparator_.IsInteriorEmpty(dataSlice->LowerLimit().KeyBound, dataSlice->UpperLimit().KeyBound)) {
                 inLong = true;
                 if (haveSolids) {
-                    StagingArea_->Flush();
+                    Flush();
                     haveSolids = false;
                 }
             }
@@ -963,8 +969,7 @@ private:
             }
 
             auto upperBound = dataSlice->LowerLimit().KeyBound.Invert();
-            StagingArea_->PromoteUpperBound(upperBound);
-            AttachForeignSlices(upperBound);
+            PromoteUpperBound(upperBound);
             tryFlush();
         }
     }
@@ -979,6 +984,8 @@ private:
                 JobSizeConstraints_->GetSamplingDataWeightPerJob(),
                 JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
         }
+
+        FirstUnstagedForeignIndex_ = 0;
 
         StagingArea_ = CreateSortedStagingArea(
             Options_.EnableKeyGuarantee,
@@ -996,7 +1003,7 @@ private:
             PeriodicYielder_.TryYield();
 
             YT_LOG_TRACE("Moving to next endpoint (Endpoint: %v)", endpoints[startIndex].KeyBound);
-            StagingArea_->PromoteUpperBound(endpoints[startIndex].KeyBound.Invert());
+            PromoteUpperBound(endpoints[startIndex].KeyBound.Invert());
 
             int primaryIndex = startIndex;
 
