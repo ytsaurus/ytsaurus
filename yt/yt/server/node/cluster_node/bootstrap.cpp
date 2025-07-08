@@ -149,6 +149,8 @@
 
 #include <yt/yt/library/stockpile/config.h>
 
+#include <yt/yt/client/chaos_client/replication_card_cache.h>
+
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
@@ -1572,6 +1574,15 @@ private:
             newChaosResidencyCacheConfig->EnableClientMode,
             newConfig->ChaosResidencyCache->EnableClientMode);
         Connection_->GetChaosResidencyCache()->Reconfigure(std::move(newChaosResidencyCacheConfig));
+
+        if (Connection_->GetStaticConfig()->ReplicationCardCache) {
+            auto newReplicationCardCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ReplicationCardCache);
+            UpdateYsonStructField(
+                newReplicationCardCacheConfig,
+                newConfig->ReplicationCardCache);
+            Connection_->GetReplicationCardCache()->Reconfigure(std::move(newReplicationCardCacheConfig));
+        }
+
         Connection_->GetMasterCellDirectorySynchronizer()->Reconfigure(newConfig->MasterCellDirectorySynchronizer);
     }
 
