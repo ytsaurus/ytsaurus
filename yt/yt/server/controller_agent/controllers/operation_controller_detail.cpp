@@ -9451,7 +9451,11 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
             }))
             .Item("build_time").Value(TInstant::Now())
             .Item("registered_monitoring_descriptor_count").Value(GetRegisteredMonitoringDescriptorCount())
-            .Item("input_transaction_id").Value(InputTransactions_->GetLocalInputTransactionId())
+            .OptionalItem(
+                "input_transaction_id",
+                InputTransactions_
+                    ? std::make_optional(InputTransactions_->GetLocalInputTransactionId())
+                    : std::nullopt)
             .Item("output_transaction_id").Value(OutputTransaction_ ? OutputTransaction_->GetId() : NullTransactionId);
     }
 }
