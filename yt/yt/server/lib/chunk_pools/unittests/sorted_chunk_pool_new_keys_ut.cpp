@@ -838,6 +838,7 @@ protected:
         TryCheckJobConstraintsSatisfaction(stripeLists);
         CheckStripeListsContainOnlyActiveChunks();
         CheckForeignStripesAreMarkedAsForeign();
+        CheckForeignStripesAreAttachedCorrectly();
         if (Options_.SortedJobOptions.EnableKeyGuarantee) {
             CheckKeyGuarantee(stripeLists);
         }

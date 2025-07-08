@@ -985,6 +985,8 @@ private:
                 JobSizeConstraints_->GetSamplingPrimaryDataWeightPerJob());
         }
 
+        FirstUnstagedForeignIndex_ = 0;
+
         StagingArea_ = CreateSortedStagingArea(
             Options_.EnableKeyGuarantee,
             PrimaryComparator_,
