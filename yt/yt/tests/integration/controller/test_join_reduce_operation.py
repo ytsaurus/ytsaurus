@@ -1113,6 +1113,7 @@ echo {v = 2} >&7
             spec={
                 "reducer": {"format": yson.loads(b"<enable_table_index=true>dsv")},
                 "job_count": 2,
+                "consider_only_primary_size": True,
             },
         )
 
