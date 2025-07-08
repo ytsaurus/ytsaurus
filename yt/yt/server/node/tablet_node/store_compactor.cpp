@@ -49,14 +49,14 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/client/object_client/helpers.h>
-
 #include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/versioned_row.h>
@@ -67,9 +67,10 @@
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/async_semaphore.h>
+#include <yt/yt/core/concurrency/context_switch_aware_periodic_yielder.h>
 #include <yt/yt/core/concurrency/scheduler.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -108,8 +109,8 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t MaxRowsPerRead = 8 * 1024;
-static const size_t MaxRowsPerWrite = 8 * 1024;
+static const i64 MaxRowsPerRead = 8 * 1024;
+static const i64 MaxRowsPerWrite = 8 * 1024;
 
 static const std::string CompactionPoolName = "$StoreCompact";
 static const std::string PartitionPoolName = "$StorePartition";
@@ -294,33 +295,6 @@ DEFINE_REFCOUNTED_TYPE(TCompactionOrchid);
 struct TCompactionSessionFinalizeResult
 {
     std::vector<NChunkClient::NProto::TDataStatistics> WriterStatistics;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPeriodicYielder
-    : public TWallTimer
-    , private TContextSwitchGuard
-{
-public:
-    TPeriodicYielder()
-        : TContextSwitchGuard(
-            [this] () noexcept { Stop(); },
-            [this] () noexcept { Restart(); })
-    { }
-
-    void Checkpoint(const NLogging::TLogger& Logger)
-    {
-        if (GetElapsedTime() > YieldThreshold) {
-            YT_LOG_DEBUG("Yielding fiber (SyncTime: %v)",
-                GetElapsedTime());
-
-            Yield();
-        }
-    }
-
-private:
-    static constexpr TDuration YieldThreshold = TDuration::MilliSeconds(30);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -690,7 +664,7 @@ public:
         TCompactionTask* task)
     {
         return DoRun([&] {
-            TPeriodicYielder yielder;
+            TContextSwitchAwarePeriodicYielder yielder(TDuration::MilliSeconds(30));
 
             int currentPartitionIndex = 0;
             TLegacyOwningKey currentPivotKey;
@@ -904,7 +878,7 @@ public:
                 .MaxRowsPerRead = MaxRowsPerRead
             };
 
-            TPeriodicYielder yielder;
+            TContextSwitchAwarePeriodicYielder yielder(TDuration::MilliSeconds(30));
 
             while (auto batch = ReadRowBatch(reader, readOptions)) {
                 rowCount += batch->GetRowCount();
