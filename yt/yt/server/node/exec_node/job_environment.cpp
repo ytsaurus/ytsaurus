@@ -1045,13 +1045,13 @@ public:
 
         auto podSpec = New<NCri::TCriPodSpec>();
         podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
-        podSpec->Resources.CpuLimit = CpuLimit_;
+        podSpec->Resources->CpuLimit = CpuLimit_;
         PodSpecs_[slotIndex] = podSpec;
         SlotCpusetCpus_[slotIndex] = EmptyCpuSet;
 
         auto slotInitFuture = Executor_->RunPodSandbox(podSpec);
         slotInitFuture
-            .Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptor>& result){
+            .Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptorPtr>& result){
                 YT_ASSERT_THREAD_AFFINITY(JobThread);
 
                 if (result.IsOK()) {
@@ -1135,6 +1135,7 @@ public:
         YT_VERIFY(slotType == ESlotType::Common);
 
         auto spec = New<NCri::TCriContainerSpec>();
+        spec->Resources = New<NCri::TCriContainerResources>();
 
         // Run setup using default docker image for job workspace.
         spec->Image.Image = ConcreteConfig_->JobProxyImage;
@@ -1158,7 +1159,7 @@ public:
 
         const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
         if (cpusetCpu != EmptyCpuSet) {
-            spec->Resources.CpusetCpus = cpusetCpu;
+            spec->Resources->CpusetCpus = cpusetCpu;
         }
 
         std::vector<TFuture<void>> results;
@@ -1201,7 +1202,7 @@ private:
     const ICriExecutorPtr Executor_;
     const ICriImageCachePtr ImageCache_;
 
-    std::vector<TCriPodDescriptor> PodDescriptors_;
+    std::vector<TCriPodDescriptorPtr> PodDescriptors_;
     std::vector<TCriPodSpecPtr> PodSpecs_;
     std::vector<TString> SlotCpusetCpus_;
     double CpuLimit_ = 0;
@@ -1219,6 +1220,7 @@ private:
         YT_VERIFY(slotType == ESlotType::Common);
 
         auto spec = New<NCri::TCriContainerSpec>();
+        spec->Resources = New<NCri::TCriContainerResources>();
 
         spec->Name = "job-proxy";
 
@@ -1333,12 +1335,12 @@ private:
             });
         }
 
-        spec->Resources.CpuLimit = config->ContainerCpuLimit;
-        spec->Resources.MemoryLimit = config->SlotContainerMemoryLimit;
+        spec->Resources->CpuLimit = config->ContainerCpuLimit;
+        spec->Resources->MemoryLimit = config->SlotContainerMemoryLimit;
 
         const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
         if (cpusetCpu != EmptyCpuSet) {
-            spec->Resources.CpusetCpus = cpusetCpu;
+            spec->Resources->CpusetCpus = cpusetCpu;
         }
 
         // Allow strace in job shell.
