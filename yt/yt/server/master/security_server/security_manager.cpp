@@ -65,7 +65,6 @@
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
 #include <yt/yt/server/lib/security_server/helpers.h>
-#include <yt/yt/server/lib/security_server/permission_checker.h>
 
 #include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
 
@@ -2414,7 +2413,7 @@ public:
         EPermission permission,
         const TPermissionCheckResult& result) override
     {
-        YT_ASSERT(result.Action == ESecurityAction::Deny);
+        YT_VERIFY(result.Action == ESecurityAction::Deny);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetObject(target.ObjectId);

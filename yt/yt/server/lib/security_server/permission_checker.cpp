@@ -27,7 +27,6 @@ TPermissionChecker::TPermissionChecker(
             Columns_.insert(column);
         }
     }
-    Proceed_ = true;
 }
 
 bool TPermissionChecker::ShouldProceed() const

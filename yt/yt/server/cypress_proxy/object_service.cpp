@@ -436,7 +436,7 @@ private:
             const auto& method = subrequest.RequestHeader->method();
             // Such requests already contain information about target cell
             // inside the TReqExecute message.
-            if (IsMethodShouldBeHandledByMaster(method)) {
+            if (IsMethodHandledByMaster(method)) {
                 subrequest.Target = ERequestTarget::Master;
             }
         }
@@ -518,8 +518,8 @@ private:
         TCellTag cellTag)
     {
         const auto& masterCellDirectory = Owner_->Connection_->GetMasterCellDirectory();
-        const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
-        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(nakedMasterChannel);
+        auto nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(nakedMasterChannel));
         // TODO(nadya02): Set the correct timeout here.
         proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
@@ -1002,7 +1002,7 @@ private:
         const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
 
         auto syncWithCell = [&] (TCellTag cellTag) {
-            const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(
+            auto nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(
                 EMasterChannelKind::Follower,
                 cellTag);
             auto proxy = TSequoiaTransactionServiceProxy(std::move(nakedMasterChannel));

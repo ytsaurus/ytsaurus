@@ -32,14 +32,14 @@ public:
         TUserDirectoryPtr userDirectory,
         IInvokerPtr invoker,
         EMasterChannelKind readFrom)
-    : Config_(std::move(config))
-    , Client_(std::move(client))
-    , UserDirectory_(std::move(userDirectory))
-    , SyncExecutor_(New<TPeriodicExecutor>(
-        invoker,
-        BIND(&TUserDirectorySynchronizer::OnSync, MakeStrong(this)),
-        TPeriodicExecutorOptions{Config_->SyncPeriod, Config_->SyncSplay}))
-    , ReadFrom_(readFrom)
+        : Config_(std::move(config))
+        , Client_(std::move(client))
+        , UserDirectory_(std::move(userDirectory))
+        , SyncExecutor_(New<TPeriodicExecutor>(
+            invoker,
+            BIND(&TUserDirectorySynchronizer::OnSync, MakeStrong(this)),
+            TPeriodicExecutorOptions{Config_->SyncPeriod, Config_->SyncSplay}))
+        , ReadFrom_(readFrom)
     { }
 
     void Start() override
@@ -61,7 +61,7 @@ public:
             return MakeFuture(TError("User directory synchronizer is stopped"));
         }
         DoStart(synchronizeImmediately);
-        return NextSyncPromise_.ToFuture();
+        return NextSyncPromise_.ToFuture().ToUncancelable();
     }
 
     TFuture<void> RecentSync() override
@@ -71,7 +71,7 @@ public:
             return MakeFuture(TError("User directory synchronizer is stopped"));
         }
         DoStart(false);
-        return RecentSyncPromise_.ToFuture();
+        return RecentSyncPromise_.ToFuture().ToUncancelable();
     }
 
     DEFINE_SIGNAL_OVERRIDE(void(const TError&), Synchronized);
