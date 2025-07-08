@@ -971,8 +971,8 @@ std::vector<TOperationEvent> TClient::DoListOperationEvents(
 
     if (options.EventType) {
         builder.AddWhereConjunct(Format(
-            "event_type = %Qv",
-            FormatEnum(*options.EventType)));
+            "event_type = %Qlv",
+            *options.EventType));
     }
 
     builder.AddOrderByAscendingExpression("timestamp");

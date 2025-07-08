@@ -114,4 +114,6 @@ void TOperationEventReporter::ReportEvent(TOperationEventReport event)
     ArchiveReporter_->Enqueue(std::move(rowlet));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NServer
