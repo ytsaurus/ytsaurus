@@ -12,25 +12,19 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
+add_subdirectory(protos)
 
-add_library(essentials-utils-fetch)
+add_library(library-cpp-retry)
 
 
-target_link_libraries(essentials-utils-fetch PUBLIC
-  linux-headers-generic::linux-headers-generic
+target_link_libraries(library-cpp-retry PUBLIC
   contrib-libs-cxxsupp
   yutil
-  cpp-charset-lite
-  cpp-http-io
-  cpp-http-misc
-  cpp-openssl-io
-  library-cpp-uri
-  library-cpp-retry
-  essentials-utils-log
+  cpp-retry-protos
 )
 
-target_sources(essentials-utils-fetch PRIVATE
-  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/fetch/fetch.cpp
+target_sources(library-cpp-retry PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/retry/retry.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/retry/utils.cpp
 )
 
