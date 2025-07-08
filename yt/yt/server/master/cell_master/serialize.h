@@ -234,6 +234,7 @@ DEFINE_ENUM(EMasterReign,
     ((LostVitalChunksSample_25_1)                                   (2844))  // koloshmet
     ((SecondaryIndexOuroboros)                                      (2845))  // sabdenovch
     ((FixDetachmentOfJournalHunkChunk_25_1)                         (2846))  // akozhikhov
+    ((CheckReplicationProgressSchema_25_1)                          (2847))  // savrus
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

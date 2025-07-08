@@ -341,6 +341,19 @@ class TestChaos(ChaosTestBase):
                 },
             )
 
+        with pytest.raises(YtError, match="Mismatched type of column \"key\" in replication progress key: expected \"int64\", found \"string\""):
+            alter_table(
+                "//tmp/t",
+                replication_progress={
+                    "segments": [
+                        {"lower_key": [], "timestamp": 0},
+                        {"lower_key": ["1"], "timestamp": 0},
+                        {"lower_key": ["2"], "timestamp": 0},
+                    ],
+                    "upper_key": MAX_KEY,
+                },
+            )
+
         alter_table(
             "//tmp/t",
             replication_progress={

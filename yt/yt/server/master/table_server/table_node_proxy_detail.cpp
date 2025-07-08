@@ -2186,6 +2186,21 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                 THROW_ERROR_EXCEPTION("Replication progress should fully cover key space");
             }
 
+            // Validate replication progress segment keys against table schema.
+            if (table->IsSorted()) {
+                const auto& upper = options.ReplicationProgress->UpperKey;
+                if (upper.GetCount() != 1 || upper[0].Type != EValueType::Max) {
+                    THROW_ERROR_EXCEPTION("Invalid replication progress: unexpected upper key %v for sorted table",
+                        upper);
+                }
+
+                for (const auto& segment : options.ReplicationProgress->Segments) {
+                    ValidatePivotKey(segment.LowerKey, *schema, "replication progress");
+                }
+            } else {
+                ValidateOrderedTabletReplicationProgress(*options.ReplicationProgress);
+            }
+
             table->ValidateAllTabletsUnmounted("Cannot change replication progress");
         }
 
