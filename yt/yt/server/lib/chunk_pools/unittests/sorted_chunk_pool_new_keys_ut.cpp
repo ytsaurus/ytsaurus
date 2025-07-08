@@ -474,6 +474,9 @@ protected:
         auto cookie = ChunkPool_->Add(std::move(stripe));
         for (const auto& chunkSlice : dataSlice->ChunkSlices) {
             InputCookieToChunkIds_[cookie].push_back(chunkSlice->GetInputChunk()->GetChunkId());
+            if (InputTables_[chunkSlice->GetInputChunk()->GetTableIndex()].IsForeign()) {
+                ForeignChunks_.push_back(TChunkSlice(chunkSlice, dataSlice, ForeignComparator_));
+            }
         }
         return cookie;
     }
@@ -866,6 +869,47 @@ protected:
         }
     }
 
+    void CheckForeignStripesAreAttachedCorrectly()
+    {
+        if (!ForeignComparator_) {
+            return;
+        }
+
+        for (auto cookie : OutputCookies_) {
+            if (auto stripeList = ChunkPool_->GetStripeList(cookie); stripeList) {
+                THashSet<TChunkId> attachedForeignChunks;
+                THashSet<TChunkId> requiredForeignChunks;
+
+                for (const auto& stripe : stripeList->Stripes) {
+                    if (!stripe) {
+                        continue;
+                    }
+
+                    for (const auto& dataSlice : stripe->DataSlices) {
+                        EXPECT_FALSE(dataSlice->IsLegacy);
+                        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                            EXPECT_FALSE(chunkSlice->IsLegacy);
+                            if (stripe->Foreign) {
+                                auto chunkId = chunkSlice->GetInputChunk()->GetChunkId();
+                                auto foreignChunkSlice = TChunkSlice(chunkSlice, dataSlice, ForeignComparator_);
+                                attachedForeignChunks.insert(chunkId);
+                            } else {
+                                auto primaryChunkSlice = TChunkSlice(chunkSlice, dataSlice, ForeignComparator_);
+                                for (const auto& foreignChunk : ForeignChunks_) {
+                                    if (IsNonEmptyIntersection(foreignChunk, primaryChunkSlice, ForeignComparator_)) {
+                                        requiredForeignChunks.insert(foreignChunk.GetChunkId());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                EXPECT_EQ(attachedForeignChunks, requiredForeignChunks);
+            }
+        }
+    }
+
     void CheckStripeListsContainOnlyActiveChunks()
     {
         for (auto cookie : OutputCookies_) {
@@ -940,6 +984,8 @@ protected:
     std::mt19937 Gen_;
 
     THashMap<TChunkId, int> ChunkIdToUnderlyingPoolIndex_;
+
+    std::vector<TChunkSlice> ForeignChunks_;
 
     std::vector<TInputChunkPtr> TeleportChunks_;
 
@@ -4057,6 +4103,41 @@ TEST_F(TSortedChunkPoolNewKeysTest, ResetJobSizeAtJobFlush)
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
     CheckEverything(stripeLists);
+}
+
+TEST_F(TSortedChunkPoolNewKeysTest, AttachForeignSlicesAfterUpperBoundPromotion)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {false, true} /*isForeign*/,
+        {false, false} /*isTeleportable*/,
+        {true, false} /*isVersioned*/);
+    InitPrimaryComparator(1);
+    InitForeignComparator(1);
+
+    DataWeightPerJob_ = 10_KB;
+    InitJobConstraints();
+
+    auto primaryChunk1 = CreateChunk(BuildRow({0}), BuildRow({0}), 0, 7_KB);
+    auto primaryChunk2 = CreateChunk(BuildRow({0}), BuildRow({1}), 0, 7_KB);
+    auto primaryChunk3 = CreateChunk(BuildRow({1}), BuildRow({1}), 0, 7_KB);
+
+    auto foreignChunk1 = CreateChunk(BuildRow({0}), BuildRow({0}), 1, 1_KB);
+    auto foreignChunk2 = CreateChunk(BuildRow({1}), BuildRow({1}), 1, 1_KB);
+
+    CreateChunkPool();
+
+    AddDataSlice(primaryChunk1);
+    AddDataSlice(primaryChunk2);
+    AddDataSlice(primaryChunk3);
+    AddDataSlice(foreignChunk1);
+    AddDataSlice(foreignChunk2);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    CheckForeignStripesAreMarkedAsForeign();
+    CheckForeignStripesAreAttachedCorrectly();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
