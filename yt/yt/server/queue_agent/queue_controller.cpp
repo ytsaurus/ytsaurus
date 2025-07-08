@@ -85,13 +85,15 @@ public:
         TQueueSnapshotPtr previousQueueSnapshot,
         std::vector<TConsumerRegistrationTableRow> registrations,
         TLogger logger,
-        TQueueAgentClientDirectoryPtr clientDirectory)
+        TQueueAgentClientDirectoryPtr clientDirectory,
+        bool enableVerboseLogging)
         : Row_(std::move(row))
         , ReplicatedTableMappingRow_(std::move(replicatedTableMappingRow))
         , PreviousQueueSnapshot_(std::move(previousQueueSnapshot))
         , Registrations_(std::move(registrations))
         , ClientDirectory_(std::move(clientDirectory))
         , Logger(logger)
+        , EnableVerboseLogging_(enableVerboseLogging)
     { }
 
     TQueueSnapshotPtr Build()
@@ -136,6 +138,7 @@ private:
     const std::vector<TConsumerRegistrationTableRow> Registrations_;
     const TQueueAgentClientDirectoryPtr ClientDirectory_;
     const TLogger Logger;
+    const bool EnableVerboseLogging_;
 
     TQueueSnapshotPtr QueueSnapshot_ = New<TQueueSnapshot>();
 
@@ -230,6 +233,15 @@ private:
             }
 
             partitionSnapshot->WriteRate.RowCount.Update(tabletInfo.TotalRowCount);
+
+            if (EnableVerboseLogging_) {
+                YT_LOG_DEBUG("New partition snapshot (PartitionIndex: %v, UpperRowIndex: %v, LowerRowIndex: %v, LastRowCommitTime: %v, CommitIdleTime: %v)",
+                    tabletIndexes[index],
+                    partitionSnapshot->UpperRowIndex,
+                    partitionSnapshot->LowerRowIndex,
+                    partitionSnapshot->LastRowCommitTime,
+                    partitionSnapshot->CommitIdleTime);
+            }
         }
 
         if (QueueSnapshot_->HasCumulativeDataWeightColumn) {
@@ -501,14 +513,26 @@ private:
 
         YT_LOG_INFO("Queue controller pass started");
 
+        bool enableVerboseLogging = false;
         {
             auto config = DynamicConfig_.Acquire();
+
+            enableVerboseLogging = config->EnableVerboseLogging;
+
             auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), static_cast<TRichYPath>(QueueRow_.Load().Ref));
             if (it != config->DelayedObjects.end()) {
                 // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
                 YT_LOG_WARNING("This pass is delayed since queue is present in \"delayed_objects\" field of dynamic config (Delay: %v)", config->ControllerDelay);
                 TDelayedExecutor::WaitForDuration(config->ControllerDelay);
             }
+        }
+
+        if (enableVerboseLogging) {
+            auto config = DynamicConfig_.Acquire();
+
+            auto it = std::find(config->VerboseLoggingObjects.begin(), config->VerboseLoggingObjects.end(), static_cast<TRichYPath>(QueueRef_));
+            auto isVerboseLoggingObject = it != config->VerboseLoggingObjects.end();
+            enableVerboseLogging = enableVerboseLogging && isVerboseLoggingObject;
         }
 
         auto registrations = ObjectStore_->GetRegistrations(QueueRef_, EObjectKind::Queue);
@@ -527,7 +551,8 @@ private:
             QueueSnapshot_.Acquire(),
             std::move(registrations),
             Logger,
-            ClientDirectory_)
+            ClientDirectory_,
+            enableVerboseLogging)
             ->Build();
         auto previousQueueSnapshot = QueueSnapshot_.Exchange(nextQueueSnapshot);
 

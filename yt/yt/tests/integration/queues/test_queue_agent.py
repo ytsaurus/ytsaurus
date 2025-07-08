@@ -621,6 +621,8 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         "queue_agent": {
             "controller": {
                 "enable_automatic_trimming": True,
+                "enable_verbose_logging": True,
+                "verbose_logging_objects": [yt.yson.loads("<cluster=primary>\"//tmp/q\"".encode()), yt.yson.loads("<cluster=primary>\"//tmp/c1\"".encode())],
             },
         },
         "cypress_synchronizer": {
