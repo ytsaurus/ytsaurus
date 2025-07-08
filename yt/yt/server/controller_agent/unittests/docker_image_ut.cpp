@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 namespace NYT::NControllerAgent::NControllers {
 namespace {
 
@@ -19,6 +21,7 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
     internalConfig->InternalRegistryAddress = "internal.registry";
     internalConfig->InternalRegistryAlternativeAddresses.push_back("internal.registry:8080");
     internalConfig->InternalRegistryAlternativeAddresses.push_back("alt.internal.registry");
+    internalConfig->InternalRegistryRegex = New<NRe2::TRe2>("registry\\.regex[0-9]");
     internalConfig->Postprocess();
 
     // Format: [REGISTRY[:PORT]/]IMAGE[:TAG][@DIGEST]
@@ -241,6 +244,56 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
         EXPECT_EQ(image.Digest, "");
         EXPECT_EQ(image.IsInternal, true);
         EXPECT_EQ(image.GetDockerImage(), "alt.internal.registry/project/image:tag");
+    }
+
+    {
+        TDockerImageSpec image("registry.regex1/project/image:tag", internalConfig);
+        EXPECT_EQ(image.Registry, "registry.regex1");
+        EXPECT_EQ(image.Image, "project/image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal, true);
+        EXPECT_EQ(image.GetDockerImage(), "registry.regex1/project/image:tag");
+    }
+
+    {
+        TDockerImageSpec image("registry.regex5/project/image:tag", internalConfig);
+        EXPECT_EQ(image.Registry, "registry.regex5");
+        EXPECT_EQ(image.Image, "project/image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal, true);
+        EXPECT_EQ(image.GetDockerImage(), "registry.regex5/project/image:tag");
+    }
+
+    {
+        TDockerImageSpec image("registry.regex123/project/image:tag", internalConfig);
+        EXPECT_EQ(image.Registry, "registry.regex123");
+        EXPECT_EQ(image.Image, "project/image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal, false);
+        EXPECT_EQ(image.GetDockerImage(), "registry.regex123/project/image:tag");
+    }
+
+    {
+        TDockerImageSpec image("prefix.registry.regex1/project/image:tag", internalConfig);
+        EXPECT_EQ(image.Registry, "prefix.registry.regex1");
+        EXPECT_EQ(image.Image, "project/image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal, false);
+        EXPECT_EQ(image.GetDockerImage(), "prefix.registry.regex1/project/image:tag");
+    }
+
+    {
+        TDockerImageSpec image("registry.regex1.suffix/project/image:tag", internalConfig);
+        EXPECT_EQ(image.Registry, "registry.regex1.suffix");
+        EXPECT_EQ(image.Image, "project/image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal, false);
+        EXPECT_EQ(image.GetDockerImage(), "registry.regex1.suffix/project/image:tag");
     }
 }
 
