@@ -808,7 +808,7 @@ private:
             peerDescriptor->set_block_index(suggestion.BlockIndex);
             ToProto(peerDescriptor->mutable_node_ids(), suggestion.Peers);
 
-            auto barrier = peerDescriptor->mutable_delivery_barrier();
+            auto* barrier = peerDescriptor->mutable_delivery_barrier();
 
             barrier->set_iteration(suggestion.P2PIteration);
             ToProto(barrier->mutable_session_id(), suggestion.P2PSessionId);
