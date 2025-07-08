@@ -621,7 +621,8 @@ private:
             /*devices*/ std::nullopt,
             /*hostName*/ std::nullopt,
             /*ipAddresses*/ {},
-            /*tag*/ SetupCommandsTag)
+            /*tag*/ SetupCommandsTag,
+            /*throwOnFailedCommand*/ true)
             .AsVoid();
     }
 
@@ -865,7 +866,8 @@ private:
             /*devices*/ std::nullopt,
             /*hostName*/ std::nullopt,
             /*ipAddresses*/ {},
-            /*tag*/ SetupCommandsTag)
+            /*tag*/ SetupCommandsTag,
+            /*throwOnFailedCommand*/ true)
             .AsVoid();
     }
 

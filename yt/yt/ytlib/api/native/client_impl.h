@@ -1405,13 +1405,15 @@ private:
         NApi::EJobSpecSource specSource,
         NYTree::EPermissionSet requiredPermissions);
 
-    std::optional<TGetJobStderrResponse> DoGetJobStderrFromNode(
+    std::optional<TGetJobStderrResponse> DoGetUserJobStderrFromNode(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         const TGetJobStderrOptions& options);
     TSharedRef DoGetJobStderrFromArchive(
         NScheduler::TOperationId operationId,
-        NScheduler::TJobId jobId);
+        NScheduler::TJobId jobId,
+        TInstant deadline,
+        NExecNode::EJobStderrType stderrType);
 
     TSharedRef DoGetJobFailContextFromNode(
         NScheduler::TOperationId operationId,

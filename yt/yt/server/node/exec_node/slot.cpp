@@ -412,7 +412,7 @@ public:
             });
     }
 
-    TFuture<std::vector<TShellCommandOutput>> RunPreparationCommands(
+    TFuture<std::vector<TShellCommandResult>> RunPreparationCommands(
         TJobId jobId,
         const std::vector<TShellCommandConfigPtr>& commands,
         const NContainers::TRootFS& rootFS,
@@ -420,7 +420,8 @@ public:
         const std::optional<std::vector<TDevice>>& devices,
         const std::optional<TString>& hostName,
         const std::vector<TIP6Address>& ipAddresses,
-        std::string tag) override
+        std::string tag,
+        bool throwOnFailedCommand) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -440,7 +441,8 @@ public:
                     devices,
                     hostName,
                     ipAddresses,
-                    std::move(tag));
+                    std::move(tag),
+                    throwOnFailedCommand);
             });
     }
 

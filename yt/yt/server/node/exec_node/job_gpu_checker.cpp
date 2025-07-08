@@ -60,7 +60,8 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 /*devices*/ std::nullopt,
                 /*hostName*/ std::nullopt,
                 /*ipAddresses*/ {},
-                tag + "_test"));
+                tag + "_test",
+                /*throwOnFailedCommand*/ true));
 
         if (!testFileResultOrError.IsOK()) {
             auto error = TError(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, "Failed to verify GPU check binary")
@@ -89,7 +90,8 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 /*devices*/ std::nullopt,
                 /*hostName*/ std::nullopt,
                 /*ipAddresses*/ {},
-                tag + "_setup"));
+                tag + "_setup",
+                /*throwOnFailedCommand*/ true));
 
         if (!resultOrError.IsOK()) {
             auto error = TError(NExecNode::EErrorCode::GpuCheckCommandPreparationFailed, "Failed to run setup commands for GPU check")
@@ -148,7 +150,8 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
                 Context_.Options.NetworkAttributes->Addresses,
                 [] (const auto& networkAddress) { return networkAddress->Address; })
             : std::vector<NNet::TIP6Address>{},
-        std::move(tag))
+        std::move(tag),
+        false)
         // We want to destroy checker in job thread,
         // so we pass the only reference to it in callback calling in job thread.
         .ApplyUnique(BIND(&OnGpuCheckFinished, Passed(MakeStrong(this)))
@@ -156,26 +159,40 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
         .ToUncancelable();
 }
 
-void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std::vector<TShellCommandOutput>>&& result)
+void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std::vector<TShellCommandResult>>&& result)
 {
     YT_ASSERT_THREAD_AFFINITY(checker->JobThread);
 
     const auto& Logger = checker->Logger;
 
+    TError error;
     if (result.IsOK()) {
         YT_VERIFY(std::ssize(result.Value()) == 1);
-        const auto& gpuCheckOutput = result.Value().front();
+        const auto& gpuCheckResult = result.Value().front();
 
-        YT_LOG_INFO("GPU check command completed (Stdout: %Qv, Stderr: %Qv)",
-            gpuCheckOutput.Stdout,
-            gpuCheckOutput.Stderr);
+        if (gpuCheckResult.Error.IsOK()) {
+            YT_LOG_INFO("GPU check command completed (Stdout: %Qv, Stderr: %Qv)",
+                gpuCheckResult.Stdout,
+                gpuCheckResult.Stderr);
+        } else {
+            error = gpuCheckResult.Error;
+            YT_LOG_INFO("GPU check command failed (Stdout: %Qv, Stderr: %Qv)",
+                gpuCheckResult.Stdout,
+                gpuCheckResult.Stderr);
+
+            auto job = checker->Context_.Job;
+            job->HandleJobReport(
+                TNodeJobReport()
+                    .GpuCheckStderr(gpuCheckResult.Stderr));
+        }
     } else {
-        YT_LOG_INFO(result, "GPU check command failed");
+        error = result;
+        YT_LOG_INFO(error, "Failed to run GPU check command");
     }
 
     checker->FinishCheck_.Fire();
 
-    result.ThrowOnError();
+    error.ThrowOnError();
 }
 
 TJobGpuChecker::~TJobGpuChecker()

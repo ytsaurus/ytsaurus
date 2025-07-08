@@ -318,27 +318,37 @@ public:
         return ::NYT::NServer::EstimateSizes(
             Report_.OperationId(),
             Report_.JobId(),
-            Report_.Stderr());
+            Report_.Stderr(),
+            Report_.GpuCheckStderr());
     }
 
-    TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
+    TUnversionedOwningRow ToRow(int archiveVersion) const override
     {
         auto operationIdAsGuid = Report_.OperationId().Underlying();
         auto jobIdAsGuid = Report_.JobId().Underlying();
 
-        if (!Report_.Stderr()) {
+        if (!Report_.Stderr() && !Report_.GpuCheckStderr()) {
             return {};
         }
 
-        return FromRecord(NRecords::TJobStderr{
+        NRecords::TJobStderrPartial record{
             .Key = {
                 .OperationIdHi = operationIdAsGuid.Parts64[0],
                 .OperationIdLo = operationIdAsGuid.Parts64[1],
                 .JobIdHi = jobIdAsGuid.Parts64[0],
                 .JobIdLo = jobIdAsGuid.Parts64[1],
             },
-            .Stderr = *Report_.Stderr(),
-        });
+        };
+
+        if (Report_.Stderr()) {
+            record.Stderr = *Report_.Stderr();
+        }
+
+        if (archiveVersion >= 61 && Report_.GpuCheckStderr()) {
+            record.GpuCheckStderr = *Report_.GpuCheckStderr();
+        }
+
+        return FromRecord(record);
     }
 
 private:
@@ -520,7 +530,7 @@ public:
         if (jobReport.Spec()) {
             JobSpecHandler_->Enqueue(std::make_unique<TJobSpecRowlet>(jobReport.ExtractSpec()));
         }
-        if (jobReport.Stderr()) {
+        if (jobReport.Stderr() || jobReport.GpuCheckStderr()) {
             JobStderrHandler_->Enqueue(std::make_unique<TJobStderrRowlet>(jobReport.ExtractStderr()));
         }
         if (jobReport.FailContext()) {

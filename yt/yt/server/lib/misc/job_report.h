@@ -94,6 +94,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Events);
     DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, StderrSize);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Stderr);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, GpuCheckStderr);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, FailContext);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NJobAgent::TJobProfile>, Profile);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NControllerAgent::TCoreInfos>, CoreInfos);

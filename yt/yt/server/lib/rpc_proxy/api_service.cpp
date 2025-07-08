@@ -3425,6 +3425,7 @@ private:
 
         TGetJobStderrOptions options;
         SetTimeoutOptions(&options, context.Get());
+        options.Type = FromProto<NExecNode::EJobStderrType>(request->type());
 
         context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v, Limit: %v, Offset: %v",
             operationIdOrAlias,

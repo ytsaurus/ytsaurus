@@ -100,6 +100,12 @@ TNodeJobReport TNodeJobReport::Stderr(const TString& stderr)
     return std::move(*this);
 }
 
+TNodeJobReport TNodeJobReport::GpuCheckStderr(std::string gpuCheckStderr)
+{
+    GpuCheckStderr_ = std::move(gpuCheckStderr);
+    return std::move(*this);
+}
+
 TNodeJobReport TNodeJobReport::FailContext(const TString& failContext)
 {
     FailContext_ = failContext;
