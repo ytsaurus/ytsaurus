@@ -162,9 +162,9 @@ public:
                 CreateTicketAuthenticatorWrapper(TicketAuthenticator_));
         }
 
-        if (config->YCIAMTokenAuthenticator && CypressUserManager_) {
-            tokenAuthenticators.push_back(CreateYCIAMTokenAuthenticator(
-                config->YCIAMTokenAuthenticator,
+        if (config->YCIamTokenAuthenticator && CypressUserManager_) {
+            tokenAuthenticators.push_back(CreateYCIamTokenAuthenticator(
+                config->YCIamTokenAuthenticator,
                 poller,
                 CypressUserManager_,
                 AuthProfiler().WithPrefix("/yc_iam_token")));
@@ -245,7 +245,7 @@ private:
     ITokenAuthenticatorPtr TokenAuthenticator_;
     ICookieAuthenticatorPtr CookieAuthenticator_;
     ITicketAuthenticatorPtr TicketAuthenticator_;
-    ITokenAuthenticatorPtr YCIAMTokenAuthenticator_;
+    ITokenAuthenticatorPtr YCIamTokenAuthenticator_;
 
     ICypressCookieManagerPtr CypressCookieManager_;
     ICypressUserManagerPtr CypressUserManager_;
