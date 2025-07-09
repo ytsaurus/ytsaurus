@@ -546,7 +546,7 @@ public:
             futures.reserve(pods->items_size());
             for (const auto& pod : pods->items()) {
                 auto podDescriptor = TCriPodDescriptor::Create(pod.metadata().name(), pod.id());
-                futures.push_back(StopPodSandbox(std::move(podDescriptor)));
+                futures.push_back(StopPodSandbox(podDescriptor));
             }
             WaitFor(AllSucceeded(std::move(futures)))
                 .ThrowOnError();
@@ -557,7 +557,7 @@ public:
             futures.reserve(pods->items_size());
             for (const auto& pod : pods->items()) {
                 auto podDescriptor = TCriPodDescriptor::Create(pod.metadata().name(), pod.id());
-                futures.push_back(RemovePodSandbox(std::move(podDescriptor)));
+                futures.push_back(RemovePodSandbox(podDescriptor));
             }
             WaitFor(AllSucceeded(std::move(futures)))
                 .ThrowOnError();
