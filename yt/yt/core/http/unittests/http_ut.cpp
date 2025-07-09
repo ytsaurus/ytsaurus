@@ -650,6 +650,7 @@ private:
 
             auto clientConfig = New<NHttps::TClientConfig>();
             clientConfig->Credentials = New<NHttps::TClientCredentialsConfig>();
+            clientConfig->Credentials->InsecureSkipVerify = false;
             clientConfig->Credentials->CertificateAuthority = CreateTestKeyBlob("ca.pem");
             SetupClient(clientConfig);
             Client = NHttps::CreateClient(clientConfig, Poller);
@@ -683,6 +684,8 @@ TEST_P(THttpServerTest, CertificateValidation)
     Server->Start();
 
     auto clientConfig = New<NHttps::TClientConfig>();
+    clientConfig->Credentials = New<NHttps::TClientCredentialsConfig>();
+    clientConfig->Credentials->InsecureSkipVerify = false;
     auto client = NHttps::CreateClient(clientConfig, Poller);
 
     auto result = WaitFor(client->Get(TestUrl + "/ok"));
