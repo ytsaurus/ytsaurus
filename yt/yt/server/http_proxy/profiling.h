@@ -9,7 +9,7 @@ namespace NYT::NHttpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NConcurrency::IFlushableAsyncOutputStreamPtr CreateProfilingOutpuStream(
+NConcurrency::IFlushableAsyncOutputStreamPtr CreateProfilingOutputStream(
     NHttp::IResponseWriterPtr underlying,
     TApiPtr api,
     const std::string& user,

@@ -61,7 +61,7 @@ private:
 
     NLogging::TLogger Logger;
 
-    static void OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std::vector<TShellCommandOutput>>&& result);
+    static void OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std::vector<TShellCommandResult>>&& result);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobGpuChecker)

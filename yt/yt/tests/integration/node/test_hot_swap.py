@@ -459,7 +459,7 @@ class TestLocationDisabling(YTEnvSetup):
 
         update_nodes_dynamic_config({
             "data_node": {
-                "master_connector": {
+                "testing_options": {
                     "location_uuid_to_disable_during_full_heartbeat": location
                 },
                 "abort_on_location_disabled": False,
@@ -476,7 +476,7 @@ class TestLocationDisabling(YTEnvSetup):
 
         update_nodes_dynamic_config({
             "data_node": {
-                "master_connector": {
+                "testing_options": {
                     "location_uuid_to_disable_during_full_heartbeat": "0-0-0-0"
                 }
             }

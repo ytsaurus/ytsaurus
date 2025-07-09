@@ -21,6 +21,7 @@ class Election(object):
         election.run(my_leader_function)
 
     """
+
     def __init__(self, client, path, identifier=None):
         """Create a Kazoo Leader Election
 

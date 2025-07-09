@@ -180,6 +180,7 @@ PEERDIR(
     contrib/ydb/library/yql/dq/actors/protos
     contrib/ydb/library/yql/dq/proto
     contrib/ydb/public/api/protos
+    contrib/ydb/public/api/protos/annotations
     yql/essentials/core/file_storage/proto
     yql/essentials/core/issue/protos
     yql/essentials/providers/common/proto

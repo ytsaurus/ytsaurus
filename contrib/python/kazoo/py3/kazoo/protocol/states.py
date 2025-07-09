@@ -27,6 +27,7 @@ class KazooState(object):
         use, they can be considered lost as well.
 
     """
+
     SUSPENDED = "SUSPENDED"
     CONNECTED = "CONNECTED"
     LOST = "LOST"
@@ -60,12 +61,13 @@ class KeeperState(object):
         gone.
 
     """
-    AUTH_FAILED = 'AUTH_FAILED'
-    CONNECTED = 'CONNECTED'
-    CONNECTED_RO = 'CONNECTED_RO'
-    CONNECTING = 'CONNECTING'
-    CLOSED = 'CLOSED'
-    EXPIRED_SESSION = 'EXPIRED_SESSION'
+
+    AUTH_FAILED = "AUTH_FAILED"
+    CONNECTED = "CONNECTED"
+    CONNECTED_RO = "CONNECTED_RO"
+    CONNECTING = "CONNECTING"
+    CLOSED = "CLOSED"
+    EXPIRED_SESSION = "EXPIRED_SESSION"
 
 
 class EventType(object):
@@ -98,22 +100,24 @@ class EventType(object):
         The connection state has been altered.
 
     """
-    CREATED = 'CREATED'
-    DELETED = 'DELETED'
-    CHANGED = 'CHANGED'
-    CHILD = 'CHILD'
-    NONE = 'NONE'
+
+    CREATED = "CREATED"
+    DELETED = "DELETED"
+    CHANGED = "CHANGED"
+    CHILD = "CHILD"
+    NONE = "NONE"
+
 
 EVENT_TYPE_MAP = {
     -1: EventType.NONE,
     1: EventType.CREATED,
     2: EventType.DELETED,
     3: EventType.CHANGED,
-    4: EventType.CHILD
+    4: EventType.CHILD,
 }
 
 
-class WatchedEvent(namedtuple('WatchedEvent', ('type', 'state', 'path'))):
+class WatchedEvent(namedtuple("WatchedEvent", ("type", "state", "path"))):
     """A change on ZooKeeper that a Watcher is able to respond to.
 
     The :class:`WatchedEvent` includes exactly what happened, the
@@ -137,7 +141,7 @@ class WatchedEvent(namedtuple('WatchedEvent', ('type', 'state', 'path'))):
     """
 
 
-class Callback(namedtuple('Callback', ('type', 'func', 'args'))):
+class Callback(namedtuple("Callback", ("type", "func", "args"))):
     """A callback that is handed to a handler for dispatch
 
     :param type: Type of the callback, currently is only 'watch'
@@ -147,9 +151,14 @@ class Callback(namedtuple('Callback', ('type', 'func', 'args'))):
     """
 
 
-class ZnodeStat(namedtuple('ZnodeStat', 'czxid mzxid ctime mtime version'
-                           ' cversion aversion ephemeralOwner dataLength'
-                           ' numChildren pzxid')):
+class ZnodeStat(
+    namedtuple(
+        "ZnodeStat",
+        "czxid mzxid ctime mtime version"
+        " cversion aversion ephemeralOwner dataLength"
+        " numChildren pzxid",
+    )
+):
     """A ZnodeStat structure with convenience properties
 
     When getting the value of a znode from Zookeeper, the properties for
@@ -206,6 +215,7 @@ class ZnodeStat(namedtuple('ZnodeStat', 'czxid mzxid ctime mtime version'
         The number of children of this znode.
 
     """
+
     @property
     def acl_version(self):
         return self.aversion

@@ -19,6 +19,8 @@
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/yt/core/rpc/response_keeper.h>
 
 namespace NYT::NTransactionServer {
@@ -29,6 +31,7 @@ using namespace NCypressTransactionClient;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,13 +98,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        std::vector<TTransactionId> prerequisiteTransactionIds;
-        if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
-            auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-            for (const auto& prerequisite : prerequisitesExt->transactions()) {
-                prerequisiteTransactionIds.push_back(FromProto<TTransactionId>(prerequisite.transaction_id()));
-            }
-        }
+        auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(context->GetRequestHeader());
 
         context->SetRequestInfo("TransactionId: %v, PrerequisiteTransactionIds: %v",
             transactionId,

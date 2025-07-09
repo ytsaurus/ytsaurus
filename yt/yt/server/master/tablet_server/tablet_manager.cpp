@@ -1038,27 +1038,13 @@ public:
 
         const auto& allTablets = table->Tablets();
 
-        auto maxChunkCount = GetDynamicConfig()->MaxChunksPerMountedTablet;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto tabletBase = allTablets[index];
             tabletBase->ValidateMount(freeze);
-
-            if (tabletBase->GetType() == EObjectType::Tablet) {
-                auto* tablet = tabletBase->As<TTablet>();
-                auto* chunkList = tablet->GetChunkList();
-                auto chunkCount = chunkList->Statistics().ChunkCount;
-
-                if (chunkCount > maxChunkCount) {
-                    THROW_ERROR_EXCEPTION("Cannot mount tablet %v since it has too many chunks",
-                        tablet->GetId())
-                        << TErrorAttribute("chunk_count", chunkCount)
-                        << TErrorAttribute("max_chunks_per_mounted_tablet", maxChunkCount);
-                }
-            }
         }
 
         if (IsTableType(table->GetType())) {
-            PrepareMountTable(table->As<TTableNode>());
+            PrepareMountTable(table->As<TTableNode>(), firstTabletIndex, lastTabletIndex);
         } else if (table->GetType() == EObjectType::HunkStorage) {
             PrepareMountHunkStorage(table->As<THunkStorageNode>());
         }
@@ -1072,7 +1058,10 @@ public:
         TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "mount_table");
     }
 
-    void PrepareMountTable(TTableNode* table)
+    void PrepareMountTable(
+        TTableNode* table,
+        int firstTabletIndex,
+        int lastTabletIndex)
     {
         auto tableSettings = GetTableSettings(
             table,
@@ -1109,6 +1098,54 @@ public:
         {
             THROW_ERROR_EXCEPTION("Cannot mount table since it has invalid backup state %Qlv",
                 backupState);
+        }
+
+        const auto& dynamicConfig = GetDynamicConfig();
+
+        auto maxChunkCount = dynamicConfig->MaxChunksPerMountedTablet;
+        auto maxChunkSize = dynamicConfig->MaxUnversionedChunkSize;
+        auto maxBlockSize = tableSettings.EffectiveMountConfig->MaxUnversionedBlockSize;
+
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = table->Tablets()[index]->As<TTablet>();
+            auto* chunkList = tablet->GetChunkList();
+            auto chunkCount = chunkList->Statistics().ChunkCount;
+
+            if (chunkCount > maxChunkCount) {
+                THROW_ERROR_EXCEPTION("Cannot mount tablet %v since it has too many chunks",
+                    tablet->GetId())
+                    << TErrorAttribute("chunk_count", chunkCount)
+                    << TErrorAttribute("max_chunks_per_mounted_tablet", maxChunkCount);
+            }
+
+            if (!dynamicConfig->EnableUnversionedChunkConstraintValidation || !table->IsPhysicallySorted()) {
+                continue;
+            }
+
+            auto chunks = EnumerateChunksInChunkTree(chunkList);
+            for (const auto& chunk : chunks) {
+                if (IsTableChunkFormatVersioned(chunk->GetChunkFormat())) {
+                    continue;
+                }
+
+                if (auto chunkMaxBlockSize = chunk->GetMaxBlockSize();
+                    maxBlockSize.has_value() && chunkMaxBlockSize > *maxBlockSize)
+                {
+                    THROW_ERROR_EXCEPTION("Cannot mount tablet %v since it has chunks with too large block size",
+                        tablet->GetId())
+                        << TErrorAttribute("chunk_max_block_size", chunkMaxBlockSize)
+                        << TErrorAttribute("max_unversioned_block_size", *maxBlockSize);
+                }
+
+                if (auto chunkCompressedDataSize = chunk->GetCompressedDataSize();
+                    chunkCompressedDataSize > maxChunkSize)
+                {
+                    THROW_ERROR_EXCEPTION("Cannot mount tablet %v since it has too large chunks",
+                        tablet->GetId())
+                        << TErrorAttribute("chunk_compressed_data_size", chunkCompressedDataSize)
+                        << TErrorAttribute("max_unversioned_chunk_size", maxChunkSize);
+                }
+            }
         }
     }
 

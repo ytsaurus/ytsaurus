@@ -250,7 +250,7 @@ TEST(TVectorOverMemoryChunkProviderTest, AppendHuge)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(Typing, TypeInference)
+TEST(TTypingTest, TypeInference)
 {
     TTypingCtx typingCtx;
 

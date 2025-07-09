@@ -123,9 +123,7 @@ TCompactVector<TChunkLocation*, TypicalChunkLocationCount> ParseLocationDirector
         // TODO(danilalexeev): YT-23781. Reorganize location directory parsing and validation.
         auto* location = dataNodeTracker->FindChunkLocationByUuid(uuid);
         if (!location) {
-            THROW_ERROR_EXCEPTION(
-                "Unknown location in location directory")
-                << TErrorAttribute("location_uuid", uuid);
+            THROW_ERROR_EXCEPTION("Unknown location %v in location directory", uuid);
         }
         locationDirectory.push_back(location);
     }

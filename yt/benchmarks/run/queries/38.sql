@@ -24,8 +24,8 @@ select count(*) from (
         bla1.c_first_name as c_first_name,
         bla1.d_date as d_date
     from any $bla1 bla1
-    join any $bla2 bla2 on Pickle(bla1.c_last_name) = Pickle(bla2.c_last_name) and Pickle(bla1.c_first_name) = Pickle(bla2.c_first_name) and Pickle(bla1.d_date) = Pickle(bla2.d_date)
-    join any $bla3 bla3 on Pickle(bla1.c_last_name) = Pickle(bla3.c_last_name) and Pickle(bla1.c_first_name) = Pickle(bla3.c_first_name) and Pickle(bla1.d_date) = Pickle(bla3.d_date)
+    join any $bla2 bla2 on StablePickle(bla1.c_last_name) = StablePickle(bla2.c_last_name) and StablePickle(bla1.c_first_name) = StablePickle(bla2.c_first_name) and StablePickle(bla1.d_date) = StablePickle(bla2.d_date)
+    join any $bla3 bla3 on StablePickle(bla1.c_last_name) = StablePickle(bla3.c_last_name) and StablePickle(bla1.c_first_name) = StablePickle(bla3.c_first_name) and StablePickle(bla1.d_date) = StablePickle(bla3.d_date)
 ) hot_cust
 limit 100;
 

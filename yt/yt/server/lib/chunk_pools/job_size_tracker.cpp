@@ -140,7 +140,7 @@ public:
             typedToken = std::any_cast<TOverflowToken>(*overflowToken);
         }
 
-        YT_LOG_TRACE("Flushing job size tracker (LocalVector: %v, OverflowToken: %v)", LocalVector_, *typedToken);
+        YT_LOG_TRACE("Flushing job size tracker (LocalVector: %v, OverflowToken: %v)", LocalVector_, typedToken);
 
         if (!typedToken) {
             DropRun(DominantResource_);

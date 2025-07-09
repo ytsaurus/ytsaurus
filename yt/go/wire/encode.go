@@ -3,6 +3,7 @@ package wire
 import (
 	"encoding"
 	"reflect"
+	"sync"
 
 	"golang.org/x/xerrors"
 
@@ -17,17 +18,31 @@ type NameTableEntry struct {
 }
 
 func Encode(items []any) (NameTable, []Row, error) {
-	rows := make([]Row, 0, len(items))
+	rows := make([]Row, len(items))
+	if len(items) == 0 {
+		return []NameTableEntry{}, rows, nil
+	}
 
 	indexMap := make(map[NameTableEntry]uint16)
+	mapLock := sync.RWMutex{}
 
-	for _, i := range items {
-		row, err := encode(i, indexMap)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		rows = append(rows, row)
+	wg := sync.WaitGroup{}
+	resultCh := make(chan error, len(items))
+	for idx, i := range items {
+		wg.Add(1)
+		go func(item any, index int) {
+			defer wg.Done()
+			row, err := encode(item, indexMap, &mapLock)
+			if err != nil {
+				resultCh <- err
+			}
+			rows[index] = row
+		}(i, idx)
+	}
+	wg.Wait()
+	close(resultCh)
+	if err, ok := <-resultCh; ok {
+		return nil, nil, err
 	}
 
 	reverseIndexMap := make(map[uint16]NameTableEntry)
@@ -43,23 +58,23 @@ func Encode(items []any) (NameTable, []Row, error) {
 	return nameTable, rows, nil
 }
 
-func encode(item any, indexMap map[NameTableEntry]uint16) (Row, error) {
+func encode(item any, indexMap map[NameTableEntry]uint16, mapLock *sync.RWMutex) (Row, error) {
 	vv := reflect.ValueOf(item)
 	if item == nil || vv.Kind() == reflect.Ptr && vv.IsNil() {
 		return nil, xerrors.Errorf("unsupported nil item")
 	}
 
-	return encodeReflect(vv, indexMap)
+	return encodeReflect(vv, indexMap, mapLock)
 }
 
-func encodeReflect(item reflect.Value, indexMap map[NameTableEntry]uint16) (Row, error) {
+func encodeReflect(item reflect.Value, indexMap map[NameTableEntry]uint16, mapLock *sync.RWMutex) (Row, error) {
 	switch item.Type().Kind() {
 	case reflect.Ptr:
-		return encodeReflect(item.Elem(), indexMap)
+		return encodeReflect(item.Elem(), indexMap, mapLock)
 	case reflect.Struct:
-		return encodeReflectStruct(item, indexMap)
+		return encodeReflectStruct(item, indexMap, mapLock)
 	case reflect.Map:
-		return encodeReflectMap(item, indexMap)
+		return encodeReflectMap(item, indexMap, mapLock)
 	}
 
 	return nil, xerrors.Errorf("wire: type %T not supported", item.Interface())
@@ -160,7 +175,7 @@ func parseTag(fieldName string, typ reflect.Type, tag reflect.StructTag) (f *fie
 	return
 }
 
-func encodeReflectStruct(value reflect.Value, indexMap map[NameTableEntry]uint16) (row Row, err error) {
+func encodeReflectStruct(value reflect.Value, indexMap map[NameTableEntry]uint16, mapLock *sync.RWMutex) (row Row, err error) {
 	structType := getStructType(value)
 
 	if structType.value != nil {
@@ -183,12 +198,20 @@ func encodeReflectStruct(value reflect.Value, indexMap map[NameTableEntry]uint16
 		}
 
 		k := NameTableEntry{Name: f.name}
-		if _, ok := indexMap[k]; !ok {
-			id := uint16(len(indexMap))
-			indexMap[k] = id
+		mapLock.RLock()
+		id, ok := indexMap[k]
+		mapLock.RUnlock()
+
+		if !ok {
+			mapLock.Lock()
+			if id, ok = indexMap[k]; !ok { // another check cause multiple goroutines could discover id absence on previous step
+				id = uint16(len(indexMap))
+				indexMap[k] = id
+			}
+			mapLock.Unlock()
 		}
 
-		value, err := convertValue(indexMap[k], v)
+		value, err := convertValue(id, v)
 		if err != nil {
 			return nil, err
 		}
@@ -199,7 +222,7 @@ func encodeReflectStruct(value reflect.Value, indexMap map[NameTableEntry]uint16
 	return row, nil
 }
 
-func encodeReflectMap(v reflect.Value, indexMap map[NameTableEntry]uint16) (row Row, err error) {
+func encodeReflectMap(v reflect.Value, indexMap map[NameTableEntry]uint16, mapLock *sync.RWMutex) (row Row, err error) {
 	iter := v.MapRange()
 
 	for iter.Next() {
@@ -230,9 +253,17 @@ func encodeReflectMap(v reflect.Value, indexMap map[NameTableEntry]uint16) (row 
 		}
 
 		key := NameTableEntry{Name: f.name}
-		if _, ok := indexMap[key]; !ok {
-			id := uint16(len(indexMap))
-			indexMap[key] = id
+		mapLock.RLock()
+		id, ok := indexMap[key]
+		mapLock.RUnlock()
+
+		if !ok {
+			mapLock.Lock()
+			if id, ok = indexMap[key]; !ok { // another check cause multiple goroutines could discover id absence on previous step
+				id = uint16(len(indexMap))
+				indexMap[key] = id
+			}
+			mapLock.Unlock()
 		}
 
 		vv := v
@@ -240,7 +271,7 @@ func encodeReflectMap(v reflect.Value, indexMap map[NameTableEntry]uint16) (row 
 			vv = vv.Elem()
 		}
 
-		value, err := convertValue(indexMap[key], vv)
+		value, err := convertValue(id, vv)
 		if err != nil {
 			return nil, err
 		}

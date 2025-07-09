@@ -16,12 +16,13 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <library/cpp/yt/memory//blob.h>
 
 #include <util/stream/buffered.h>
 #include <util/stream/file.h>

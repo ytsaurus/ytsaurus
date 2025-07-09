@@ -67,11 +67,11 @@ public:
         bool isLastSubquery);
 
 private:
-    DB::ContextPtr Context_;
     NLogging::TLogger Logger;
-    DB::QueryTreeNodePtr Query_;
-    std::vector<TSubquerySpec> TableSpecs_;
-    TBoundJoinOptions BoundJoinOptions_;
+    const DB::ContextPtr Context_;
+    const DB::QueryTreeNodePtr Query_;
+    const std::vector<TSubquerySpec> TableSpecs_;
+    const TBoundJoinOptions BoundJoinOptions_;
 
     NTableClient::TOwningKeyBound PreviousUpperBound_;
 

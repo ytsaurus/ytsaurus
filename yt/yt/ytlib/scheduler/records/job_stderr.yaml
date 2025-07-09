@@ -31,3 +31,8 @@ types:
         cpp_type: TString
         column_name: stderr
         column_type: String
+
+      - cpp_name: GpuCheckStderr
+        cpp_type: std::string
+        column_name: gpu_check_stderr
+        column_type: String

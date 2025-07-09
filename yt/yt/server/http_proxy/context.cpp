@@ -660,7 +660,7 @@ void TContext::SetupOutputStream()
         MemoryOutput_ = New<TSharedRefOutputStream>();
         DriverRequest_.OutputStream = MemoryOutput_;
     } else {
-        DriverRequest_.OutputStream = CreateProfilingOutpuStream(
+        DriverRequest_.OutputStream = CreateProfilingOutputStream(
             Response_,
             Api_,
             DriverRequest_.AuthenticatedUser,

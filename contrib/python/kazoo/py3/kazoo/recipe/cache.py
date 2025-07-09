@@ -16,12 +16,10 @@ import contextlib
 import functools
 import logging
 import operator
-import os
 
 from kazoo.exceptions import NoNodeError, KazooException
-from kazoo.protocol.paths import _prefix_root
+from kazoo.protocol.paths import _prefix_root, join as kazoo_join
 from kazoo.protocol.states import KazooState, EventType
-
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +71,9 @@ class TreeCache(object):
         if self._state == self.STATE_LATENT:
             self._state = self.STATE_STARTED
         elif self._state == self.STATE_CLOSED:
-            raise KazooException('already closed')
+            raise KazooException("already closed")
         else:
-            raise KazooException('already started')
+            raise KazooException("already started")
 
         self._task_thread = self._client.handler.spawn(self._do_background)
         self._client.add_listener(self._session_watcher)
@@ -166,9 +164,9 @@ class TreeCache(object):
 
     def _find_node(self, path):
         if not path.startswith(self._root._path):
-            raise ValueError('outside of tree')
-        striped_path = path[len(self._root._path):].strip('/')
-        splited_path = [p for p in striped_path.split('/') if p]
+            raise ValueError("outside of tree")
+        striped_path = path[len(self._root._path) :].strip("/")
+        splited_path = [p for p in striped_path.split("/") if p]
         current_node = self._root
         for node_name in splited_path:
             if node_name not in current_node._children:
@@ -179,7 +177,7 @@ class TreeCache(object):
     def _publish_event(self, event_type, event_data=None):
         event = TreeEvent.make(event_type, event_data)
         if self._state != self.STATE_CLOSED:
-            logger.debug('public event: %r', event)
+            logger.debug("public event: %r", event)
             self._in_background(self._do_publish_event, event)
 
     def _do_publish_event(self, event):
@@ -222,8 +220,15 @@ class TreeNode(object):
     :param parent: The parent node reference. ``None`` for root node.
     """
 
-    __slots__ = ('_tree', '_path', '_parent', '_depth', '_children', '_state',
-                 '_data')
+    __slots__ = (
+        "_tree",
+        "_path",
+        "_parent",
+        "_depth",
+        "_children",
+        "_state",
+        "_data",
+    )
 
     STATE_PENDING = 0
     STATE_LIVE = 1
@@ -266,9 +271,9 @@ class TreeNode(object):
             self._publish_event(TreeEvent.NODE_REMOVED, old_data)
 
         if self._parent is None:
-            self._call_client('exists', self._path)  # root node
+            self._call_client("exists", self._path)  # root node
         else:
-            child = self._path[len(self._parent._path) + 1:]
+            child = self._path[len(self._parent._path) + 1 :]
             if self._parent._children.get(child) is self:
                 del self._parent._children[child]
                 self._reset_watchers()
@@ -288,26 +293,26 @@ class TreeNode(object):
         self._refresh_children()
 
     def _refresh_data(self):
-        self._call_client('get', self._path)
+        self._call_client("get", self._path)
 
     def _refresh_children(self):
         # TODO max-depth checking support
-        self._call_client('get_children', self._path)
+        self._call_client("get_children", self._path)
 
     def _call_client(self, method_name, path):
-        assert method_name in ('get', 'get_children', 'exists')
+        assert method_name in ("get", "get_children", "exists")
         self._tree._outstanding_ops += 1
         callback = functools.partial(
-            self._tree._in_background, self._process_result,
-            method_name, path)
-        method = getattr(self._tree._client, method_name + '_async')
+            self._tree._in_background, self._process_result, method_name, path
+        )
+        method = getattr(self._tree._client, method_name + "_async")
         method(path, watch=self._process_watch).rawlink(callback)
 
     def _process_watch(self, watched_event):
-        logger.debug('process_watch: %r', watched_event)
+        logger.debug("process_watch: %r", watched_event)
         with handle_exception(self._tree._error_listeners):
             if watched_event.type == EventType.CREATED:
-                assert self._parent is None, 'unexpected CREATED on non-root'
+                assert self._parent is None, "unexpected CREATED on non-root"
                 self.on_created()
             elif watched_event.type == EventType.DELETED:
                 self.on_deleted()
@@ -317,30 +322,32 @@ class TreeNode(object):
                 self._refresh_children()
 
     def _process_result(self, method_name, path, result):
-        logger.debug('process_result: %s %s', method_name, path)
-        if method_name == 'exists':
-            assert self._parent is None, 'unexpected EXISTS on non-root'
+        logger.debug("process_result: %s %s", method_name, path)
+        if method_name == "exists":
+            assert self._parent is None, "unexpected EXISTS on non-root"
             # The result will be `None` if the node doesn't exist.
             if result.successful() and result.get() is not None:
                 if self._state == self.STATE_DEAD:
                     self._state = self.STATE_PENDING
                 self.on_created()
-        elif method_name == 'get_children':
+        elif method_name == "get_children":
             if result.successful():
                 children = result.get()
                 for child in sorted(children):
-                    full_path = os.path.join(path, child)
+                    full_path = kazoo_join(path, child)
                     if child not in self._children:
                         node = TreeNode(self._tree, full_path, self)
                         self._children[child] = node
                         node.on_created()
             elif isinstance(result.exception, NoNodeError):
                 self.on_deleted()
-        elif method_name == 'get':
+        elif method_name == "get":
             if result.successful():
                 data, stat = result.get()
                 old_data, self._data = (
-                    self._data, NodeData.make(path, data, stat))
+                    self._data,
+                    NodeData.make(path, data, stat),
+                )
                 old_state, self._state = self._state, self.STATE_LIVE
                 if old_state == self.STATE_LIVE:
                     if old_data is None or old_data.stat.mzxid != stat.mzxid:
@@ -350,7 +357,7 @@ class TreeNode(object):
             elif isinstance(result.exception, NoNodeError):
                 self.on_deleted()
         else:  # pragma: no cover
-            logger.warning('unknown operation %s', method_name)
+            logger.warning("unknown operation %s", method_name)
             self._tree._outstanding_ops -= 1
             return
 
@@ -384,9 +391,14 @@ class TreeEvent(tuple):
         :returns: A :class:`~kazoo.recipe.cache.TreeEvent` instance.
         """
         assert event_type in (
-            cls.NODE_ADDED, cls.NODE_UPDATED, cls.NODE_REMOVED,
-            cls.CONNECTION_SUSPENDED, cls.CONNECTION_RECONNECTED,
-            cls.CONNECTION_LOST, cls.INITIALIZED)
+            cls.NODE_ADDED,
+            cls.NODE_UPDATED,
+            cls.NODE_REMOVED,
+            cls.CONNECTION_SUSPENDED,
+            cls.CONNECTION_RECONNECTED,
+            cls.CONNECTION_LOST,
+            cls.INITIALIZED,
+        )
         return cls((event_type, event_data))
 
 
@@ -416,12 +428,12 @@ def handle_exception(listeners):
     try:
         yield
     except Exception as e:
-        logger.debug('processing error: %r', e)
+        logger.debug("processing error: %r", e)
         if listeners:
             for listener in listeners:
                 try:
                     listener(e)
                 except BaseException:  # pragma: no cover
-                    logger.exception('Exception handling exception')  # oops
+                    logger.exception("Exception handling exception")  # oops
         else:
-            logger.exception('No listener to process %r', e)
+            logger.exception("No listener to process %r", e)

@@ -13,6 +13,8 @@ import warnings
 
 import numpy as np
 
+from pandas._config import get_option
+
 from pandas._libs import lib
 from pandas._typing import (
     AlignJoin,
@@ -31,6 +33,7 @@ from pandas.core.dtypes.common import (
     is_list_like,
     is_object_dtype,
     is_re,
+    is_string_dtype,
 )
 from pandas.core.dtypes.dtypes import (
     ArrowDtype,
@@ -387,7 +390,9 @@ class StringMethods(NoNewAttributesMixin):
             # This is a mess.
             _dtype: DtypeObj | str | None = dtype
             vdtype = getattr(result, "dtype", None)
-            if self._is_string:
+            if _dtype is not None:
+                pass
+            elif self._is_string:
                 if is_bool_dtype(vdtype):
                     _dtype = result.dtype
                 elif returns_string:
@@ -1199,7 +1204,12 @@ class StringMethods(NoNewAttributesMixin):
 
     @forbid_nonstring_types(["bytes"])
     def contains(
-        self, pat, case: bool = True, flags: int = 0, na=None, regex: bool = True
+        self,
+        pat,
+        case: bool = True,
+        flags: int = 0,
+        na=lib.no_default,
+        regex: bool = True,
     ):
         r"""
         Test if pattern or regex is contained within a string of a Series or Index.
@@ -1217,8 +1227,9 @@ class StringMethods(NoNewAttributesMixin):
             Flags to pass through to the re module, e.g. re.IGNORECASE.
         na : scalar, optional
             Fill value for missing values. The default depends on dtype of the
-            array. For object-dtype, ``numpy.nan`` is used. For ``StringDtype``,
-            ``pandas.NA`` is used.
+            array. For object-dtype, ``numpy.nan`` is used. For the nullable
+            ``StringDtype``, ``pandas.NA`` is used. For the ``"str"`` dtype,
+            ``False`` is used.
         regex : bool, default True
             If True, assumes the pat is a regular expression.
 
@@ -1336,7 +1347,7 @@ class StringMethods(NoNewAttributesMixin):
         return self._wrap_result(result, fill_value=na, returns_string=False)
 
     @forbid_nonstring_types(["bytes"])
-    def match(self, pat: str, case: bool = True, flags: int = 0, na=None):
+    def match(self, pat: str, case: bool = True, flags: int = 0, na=lib.no_default):
         """
         Determine if each string starts with a match of a regular expression.
 
@@ -1350,8 +1361,9 @@ class StringMethods(NoNewAttributesMixin):
             Regex module flags, e.g. re.IGNORECASE.
         na : scalar, optional
             Fill value for missing values. The default depends on dtype of the
-            array. For object-dtype, ``numpy.nan`` is used. For ``StringDtype``,
-            ``pandas.NA`` is used.
+            array. For object-dtype, ``numpy.nan`` is used. For the nullable
+            ``StringDtype``, ``pandas.NA`` is used. For the ``"str"`` dtype,
+            ``False`` is used.
 
         Returns
         -------
@@ -1377,7 +1389,7 @@ class StringMethods(NoNewAttributesMixin):
         return self._wrap_result(result, fill_value=na, returns_string=False)
 
     @forbid_nonstring_types(["bytes"])
-    def fullmatch(self, pat, case: bool = True, flags: int = 0, na=None):
+    def fullmatch(self, pat, case: bool = True, flags: int = 0, na=lib.no_default):
         """
         Determine if each string entirely matches a regular expression.
 
@@ -1391,8 +1403,9 @@ class StringMethods(NoNewAttributesMixin):
             Regex module flags, e.g. re.IGNORECASE.
         na : scalar, optional
             Fill value for missing values. The default depends on dtype of the
-            array. For object-dtype, ``numpy.nan`` is used. For ``StringDtype``,
-            ``pandas.NA`` is used.
+            array. For object-dtype, ``numpy.nan`` is used. For the nullable
+            ``StringDtype``, ``pandas.NA`` is used. For the ``"str"`` dtype,
+            ``False`` is used.
 
         Returns
         -------
@@ -1969,7 +1982,9 @@ class StringMethods(NoNewAttributesMixin):
         result = self._data.array._str_slice_replace(start, stop, repl)
         return self._wrap_result(result)
 
-    def decode(self, encoding, errors: str = "strict"):
+    def decode(
+        self, encoding, errors: str = "strict", dtype: str | DtypeObj | None = None
+    ):
         """
         Decode character string in the Series/Index using indicated encoding.
 
@@ -1980,6 +1995,14 @@ class StringMethods(NoNewAttributesMixin):
         ----------
         encoding : str
         errors : str, optional
+            Specifies the error handling scheme.
+            Possible values are those supported by :meth:`bytes.decode`.
+        dtype : str or dtype, optional
+            The dtype of the result. When not ``None``, must be either a string or
+            object dtype. When ``None``, the dtype of the result is determined by
+            ``pd.options.future.infer_string``.
+
+            .. versionadded:: 2.3.0
 
         Returns
         -------
@@ -1996,6 +2019,10 @@ class StringMethods(NoNewAttributesMixin):
         2   ()
         dtype: object
         """
+        if dtype is not None and not is_string_dtype(dtype):
+            raise ValueError(f"dtype must be string or object, got {dtype=}")
+        if dtype is None and get_option("future.infer_string"):
+            dtype = "str"
         # TODO: Add a similar _bytes interface.
         if encoding in _cpython_optimized_decoders:
             # CPython optimized implementation
@@ -2004,9 +2031,8 @@ class StringMethods(NoNewAttributesMixin):
             decoder = codecs.getdecoder(encoding)
             f = lambda x: decoder(x, errors)[0]
         arr = self._data.array
-        # assert isinstance(arr, (StringArray,))
         result = arr._str_map(f)
-        return self._wrap_result(result)
+        return self._wrap_result(result, dtype=dtype)
 
     @forbid_nonstring_types(["bytes"])
     def encode(self, encoding, errors: str = "strict"):
@@ -2415,7 +2441,7 @@ class StringMethods(NoNewAttributesMixin):
 
     @forbid_nonstring_types(["bytes"])
     def startswith(
-        self, pat: str | tuple[str, ...], na: Scalar | None = None
+        self, pat: str | tuple[str, ...], na: Scalar | lib.NoDefault = lib.no_default
     ) -> Series | Index:
         """
         Test if the start of each string element matches a pattern.
@@ -2427,10 +2453,11 @@ class StringMethods(NoNewAttributesMixin):
         pat : str or tuple[str, ...]
             Character sequence or tuple of strings. Regular expressions are not
             accepted.
-        na : object, default NaN
+        na : scalar, optional
             Object shown if element tested is not a string. The default depends
             on dtype of the array. For object-dtype, ``numpy.nan`` is used.
-            For ``StringDtype``, ``pandas.NA`` is used.
+            For the nullable ``StringDtype``, ``pandas.NA`` is used.
+            For the ``"str"`` dtype, ``False`` is used.
 
         Returns
         -------
@@ -2485,7 +2512,7 @@ class StringMethods(NoNewAttributesMixin):
 
     @forbid_nonstring_types(["bytes"])
     def endswith(
-        self, pat: str | tuple[str, ...], na: Scalar | None = None
+        self, pat: str | tuple[str, ...], na: Scalar | lib.NoDefault = lib.no_default
     ) -> Series | Index:
         """
         Test if the end of each string element matches a pattern.
@@ -2497,10 +2524,11 @@ class StringMethods(NoNewAttributesMixin):
         pat : str or tuple[str, ...]
             Character sequence or tuple of strings. Regular expressions are not
             accepted.
-        na : object, default NaN
+        na : scalar, optional
             Object shown if element tested is not a string. The default depends
             on dtype of the array. For object-dtype, ``numpy.nan`` is used.
-            For ``StringDtype``, ``pandas.NA`` is used.
+            For the nullable ``StringDtype``, ``pandas.NA`` is used.
+            For the ``"str"`` dtype, ``False`` is used.
 
         Returns
         -------

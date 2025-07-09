@@ -1,12 +1,13 @@
 #include "subprocess.h"
 
-#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/net/connection.h>
+
+#include <library/cpp/yt/memory/blob.h>
 
 #include <util/system/execpath.h>
 

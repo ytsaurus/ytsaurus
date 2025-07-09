@@ -175,7 +175,7 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
 
         update_nodes_dynamic_config({
             "data_node": {
-                "master_connector": {
+                "testing_options": {
                     "full_heartbeat_session_sleep_duration": 1000,
                 },
             }

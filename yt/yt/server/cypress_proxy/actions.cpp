@@ -243,7 +243,7 @@ void CreateNode(
         progenitorTransactionCache,
         nodeId,
         path,
-        linkTargetPath);
+        std::move(linkTargetPath));
 
     NCypressServer::NProto::TReqCreateNode reqCreateNode;
     reqCreateNode.set_type(ToProto(type));

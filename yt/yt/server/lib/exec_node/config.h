@@ -539,6 +539,8 @@ struct TJobCommonConfig
 
     TTestingConfigPtr Testing;
 
+    TDuration JobCleanupTimeout;
+
     REGISTER_YSON_STRUCT(TJobCommonConfig);
 
     static void Register(TRegistrar registrar);

@@ -26,6 +26,7 @@ public:
     TNodeJobReport Events(const NServer::TJobEvents& events);
     TNodeJobReport StderrSize(i64 stderrSize);
     TNodeJobReport Stderr(const TString& stderr);
+    TNodeJobReport GpuCheckStderr(std::string gpuCheckStderr);
     TNodeJobReport FailContext(const TString& failContext);
     TNodeJobReport Profile(const NJobAgent::TJobProfile& profile);
     TNodeJobReport CoreInfos(NControllerAgent::TCoreInfos coreInfos);

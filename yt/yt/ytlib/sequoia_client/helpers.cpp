@@ -148,7 +148,7 @@ void ThrowOnSequoiaReplicasError(
     error.ThrowOnError();
 }
 
-bool IsMethodShouldBeHandledByMaster(const std::string& method)
+bool IsMethodHandledByMaster(const std::string& method)
 {
     return
         method == "Fetch" ||

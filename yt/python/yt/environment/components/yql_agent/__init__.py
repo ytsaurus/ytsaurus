@@ -114,7 +114,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             mr_job_udfs_dir = self.config["mr_job_udfs_dir"]
             yql_plugin_shared_library = self.config["yql_plugin_shared_library"]
 
-        return {
+        config = {
             "user": self.USER_NAME,
             "yql_agent": {
                 "gateway_config": {
@@ -137,6 +137,12 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 "libraries": self.libraries,
             },
         }
+
+        modify_yql_agent_config = self.config.get('modify_yql_agent_config')
+        if modify_yql_agent_config is not None:
+            modify_yql_agent_config(config)
+
+        return config
 
     def wait_for_readiness(self, address):
         wait(lambda: self.client.get(f"//sys/yql_agent/instances/{address}/orchid/service/version"),

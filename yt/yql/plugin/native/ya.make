@@ -5,6 +5,7 @@ SRCS(
     error_helpers.cpp
     progress_merger.cpp
     dq_manager.cpp
+    provider_load.cpp
 )
 
 PEERDIR(
@@ -82,6 +83,7 @@ IF (NOT OPENSOURCE)
 ELSE()
     SRCS(
         dummy_secret_masker.cpp
+        no_ytflow_load.cpp
     )
 
     PEERDIR(

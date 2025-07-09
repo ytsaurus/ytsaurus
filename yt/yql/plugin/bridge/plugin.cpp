@@ -40,10 +40,11 @@ DEFINE_ENUM(EYqlPluginAbiVersion,
     ((TemporaryTokens)     (4)) // mpereskokova: Added GetUsedClusters step; Changed Run options.
     ((Credentials)         (5)) // a-romanov: 'credentials' parameter instead of 'token'.
     ((DynamicConfig)       (6)) // lucius: Added OnDynamicConfigChanged.
+    ((YtflowProvider)      (7)) // ngc224: Added ytflow provider support.
 );
 
-constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::DynamicConfig;
-constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::DynamicConfig;
+constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::YtflowProvider;
+constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::YtflowProvider;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -108,6 +109,7 @@ public:
     {
         TString singletonsConfig = options.SingletonsConfig ? options.SingletonsConfig.ToString() : "{}";
         TString dqGatewayConfig = options.DqGatewayConfig ? options.DqGatewayConfig.ToString() : "";
+        TString ytflowGatewayConfig = options.YtflowGatewayConfig ? options.YtflowGatewayConfig.ToString() : "";
         TString dqManagerConfig = options.DqManagerConfig ? options.DqManagerConfig.ToString() : "";
 
         TBridgeYqlPluginOptions bridgeOptions {
@@ -117,6 +119,8 @@ public:
             .GatewayConfigLength = options.GatewayConfig.AsStringBuf().size(),
             .DqGatewayConfig = dqGatewayConfig.data(),
             .DqGatewayConfigLength = dqGatewayConfig.size(),
+            .YtflowGatewayConfig = ytflowGatewayConfig.data(),
+            .YtflowGatewayConfigLength = ytflowGatewayConfig.size(),
             .DqManagerConfig = dqManagerConfig.data(),
             .DqManagerConfigLength = dqManagerConfig.size(),
             .FileStorageConfig = options.FileStorageConfig.AsStringBuf().data(),

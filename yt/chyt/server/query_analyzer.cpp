@@ -5,9 +5,7 @@
 #include "conversion.h"
 #include "format.h"
 #include "helpers.h"
-#include "helpers.h"
 #include "host.h"
-#include "query_context.h"
 #include "query_context.h"
 #include "subquery.h"
 #include "subquery_spec.h"
@@ -383,8 +381,8 @@ TSecondaryQueryBuilder::TSecondaryQueryBuilder(
     DB::QueryTreeNodePtr query,
     const std::vector<TSubquerySpec>& specs,
     TBoundJoinOptions boundJoinOptions)
-    : Context_(std::move(context))
-    , Logger(logger)
+    : Logger(logger)
+    , Context_(std::move(context))
     , Query_(std::move(query))
     , TableSpecs_(specs)
     , BoundJoinOptions_(std::move(boundJoinOptions))
@@ -430,7 +428,10 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
         auto protoSpec = NYT::ToProto<NProto::TSubquerySpec>(spec);
         auto encodedSpec = protoSpec.SerializeAsString();
 
-        YT_LOG_DEBUG("Serializing subquery spec (TableIndex: %v, SpecLength: %v)", index, encodedSpec.size());
+        YT_LOG_DEBUG(
+            "Serializing subquery spec (TableIndex: %v, SpecLength: %v)",
+            index,
+            encodedSpec.size());
 
         std::string scalarName = "yt_table_" + std::to_string(index);
         scalars[scalarName] = DB::Block{{DB::DataTypeString().createColumnConst(1, std::string(encodedSpec)), std::make_shared<DB::DataTypeString>(), "scalarName"}};
@@ -469,10 +470,12 @@ TSecondaryQuery TSecondaryQueryBuilder::CreateSecondaryQuery(
 
     YT_LOG_DEBUG("Query was created (NewQuery: %v)", *secondaryQueryAst);
 
-    return {std::move(secondaryQueryAst),
-        std::move(scalars),
-        static_cast<ui64>(totalRowCount),
-        static_cast<ui64>(totalDataWeight)};
+    return {
+        .Query=std::move(secondaryQueryAst),
+        .Scalars=std::move(scalars),
+        .TotalRowsToRead=static_cast<ui64>(totalRowCount),
+        .TotalBytesToRead=static_cast<ui64>(totalDataWeight),
+    };
 }
 
 DB::QueryTreeNodePtr TSecondaryQueryBuilder::AddBoundConditionToJoinedSubquery(

@@ -4,6 +4,7 @@
 #include <contrib/ydb/core/kqp/common/kqp_user_request_context.h>
 #include <contrib/ydb/core/kqp/federated_query/kqp_federated_query_helpers.h>
 #include <contrib/ydb/core/kqp/common/kqp_tx.h>
+#include <contrib/ydb/core/kqp/executer_actor/kqp_executer.h>
 #include <contrib/ydb/core/protos/table_service_config.pb.h>
 #include <contrib/ydb/library/yql/dq/actors/compute/dq_compute_actor_async_io.h>
 #include <contrib/ydb/library/aclib/aclib.h>
@@ -22,7 +23,7 @@ struct TKqpPartitionedExecuterSettings {
     TString Database;
     const TIntrusiveConstPtr<NACLib::TUserToken>& UserToken;
     TKqpRequestCounters::TPtr RequestCounters;
-    const NKikimrConfig::TTableServiceConfig& TableServiceConfig;
+    const TExecuterConfig& ExecuterConfig;
     NYql::NDq::IDqAsyncIoFactory::TPtr AsyncIoFactory;
     TPreparedQueryHolder::TConstPtr PreparedQuery;
     const TIntrusivePtr<TUserRequestContext>& UserRequestContext;

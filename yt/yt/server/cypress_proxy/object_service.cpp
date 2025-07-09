@@ -33,6 +33,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
 
+#include <yt/yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -50,6 +52,7 @@ using namespace NCypressClient::NProto;
 using namespace NDistributedThrottler;
 using namespace NObjectClient;
 using namespace NSequoiaClient;
+using namespace NTransactionClient;
 using namespace NRpc;
 using namespace NYTree;
 
@@ -436,7 +439,7 @@ private:
             const auto& method = subrequest.RequestHeader->method();
             // Such requests already contain information about target cell
             // inside the TReqExecute message.
-            if (IsMethodShouldBeHandledByMaster(method)) {
+            if (IsMethodHandledByMaster(method)) {
                 subrequest.Target = ERequestTarget::Master;
             }
         }
@@ -518,8 +521,8 @@ private:
         TCellTag cellTag)
     {
         const auto& masterCellDirectory = Owner_->Connection_->GetMasterCellDirectory();
-        const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
-        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(nakedMasterChannel);
+        auto nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(MasterChannelKind_, cellTag);
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(nakedMasterChannel));
         // TODO(nadya02): Set the correct timeout here.
         proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
@@ -852,7 +855,7 @@ private:
             TRawYPath(GetRequestTargetYPath(*subrequest->RequestHeader))
         );
         auto cypressTransactionId = GetTransactionId(*subrequest->RequestHeader);
-        auto prerequisiteTransactionIds = ParsePrerequisiteTransactionIds(*subrequest->RequestHeader);
+        auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(*subrequest->RequestHeader);
 
         if (cypressTransactionId && !IsCypressTransactionType(TypeFromId(cypressTransactionId))) {
             // Requests with system transactions cannot be handled in Sequoia.
@@ -1002,7 +1005,7 @@ private:
         const auto& config = Owner_->Bootstrap_->GetConfig()->Testing;
 
         auto syncWithCell = [&] (TCellTag cellTag) {
-            const auto& nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(
+            auto nakedMasterChannel = masterCellDirectory->GetNakedMasterChannelOrThrow(
                 EMasterChannelKind::Follower,
                 cellTag);
             auto proxy = TSequoiaTransactionServiceProxy(std::move(nakedMasterChannel));

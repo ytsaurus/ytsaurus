@@ -14,6 +14,7 @@ from kazoo.exceptions import NodeExistsError, NoNodeError
 
 class BaseParty(object):
     """Base implementation of a party."""
+
     def __init__(self, client, path, identifier=None):
         """
         :param client: A :class:`~kazoo.client.KazooClient` instance.
@@ -24,7 +25,7 @@ class BaseParty(object):
         """
         self.client = client
         self.path = path
-        self.data = str(identifier or "").encode('utf-8')
+        self.data = str(identifier or "").encode("utf-8")
         self.ensured_path = False
         self.participating = False
 
@@ -71,6 +72,7 @@ class BaseParty(object):
 
 class Party(BaseParty):
     """Simple pool of participating processes"""
+
     _NODE_NAME = "__party__"
 
     def __init__(self, client, path, identifier=None):
@@ -84,9 +86,10 @@ class Party(BaseParty):
         children = self._get_children()
         for child in children:
             try:
-                d, _ = self.client.retry(self.client.get, self.path +
-                                         "/" + child)
-                yield d.decode('utf-8')
+                d, _ = self.client.retry(
+                    self.client.get, self.path + "/" + child
+                )
+                yield d.decode("utf-8")
             except NoNodeError:  # pragma: nocover
                 pass
 
@@ -105,9 +108,10 @@ class ShallowParty(BaseParty):
     of getting a list of participants to a single Zookeeper call.
 
     """
+
     def __init__(self, client, path, identifier=None):
         BaseParty.__init__(self, client, path, identifier=identifier)
-        self.node = '-'.join([uuid.uuid4().hex, self.data.decode('utf-8')])
+        self.node = "-".join([uuid.uuid4().hex, self.data.decode("utf-8")])
         self.create_path = self.path + "/" + self.node
 
     def __iter__(self):
@@ -115,4 +119,4 @@ class ShallowParty(BaseParty):
         self._ensure_parent()
         children = self._get_children()
         for child in children:
-            yield child[child.find('-') + 1:]
+            yield child[child.find("-") + 1 :]

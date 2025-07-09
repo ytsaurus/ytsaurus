@@ -428,6 +428,8 @@ bool NodeHasKey(const TCypressNode* node)
 {
     if (node->GetType() == EObjectType::PortalExit) {
         return node->As<TPortalExitNode>()->GetKey().has_value();
+    } else if (node->IsSequoia() && node->GetTrunkNode()->ImmutableSequoiaProperties()) {
+        return true;
     } else {
         auto* parent = node->GetParent();
         return parent && parent->GetNodeType() == ENodeType::Map;

@@ -553,12 +553,8 @@ void TMasterConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default(1000000);
     registrar.Parameter("enable_profiling", &TThis::EnableProfiling)
         .Default(false);
-    registrar.Parameter("location_uuid_to_disable_during_full_heartbeat", &TThis::LocationUuidToDisableDuringFullHeartbeat)
-        .Default();
     registrar.Parameter("full_heartbeat_session_retrying_channel", &TThis::FullHeartbeatSessionRetryingChannel)
         .DefaultNew();
-    registrar.Parameter("full_heartbeat_session_sleep_duration", &TThis::FullHeartbeatSessionSleepDuration)
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -602,6 +598,12 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("always_throttle_net_on_send_blocks", &TThis::AlwaysThrottleNetOnSendBlocks)
+        .Default();
+
+    registrar.Parameter("location_uuid_to_disable_during_full_heartbeat", &TThis::LocationUuidToDisableDuringFullHeartbeat)
+        .Default();
+
+    registrar.Parameter("full_heartbeat_session_sleep_duration", &TThis::FullHeartbeatSessionSleepDuration)
         .Default();
 }
 

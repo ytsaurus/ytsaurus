@@ -1804,15 +1804,7 @@ public:
 
         ThrowIfDynamicTablesNotLocked(transaction, request.dynamic_tables_locked());
 
-        std::vector<TTransactionId> prerequisiteTransactionIds;
-        if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
-            auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-            const auto& prerequisiteTransactions = prerequisitesExt->transactions();
-            prerequisiteTransactionIds.reserve(prerequisiteTransactions.size());
-            for (const auto& prerequisite : prerequisiteTransactions) {
-                prerequisiteTransactionIds.push_back(FromProto<TTransactionId>(prerequisite.transaction_id()));
-            }
-        }
+        auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(context->GetRequestHeader());
 
         // NB: even if lease issuing or transaction mirroring is disabled leases
         // still have to be revoked properly since Cypress transaction may be
@@ -1877,15 +1869,7 @@ public:
 
         ThrowIfDynamicTablesNotLocked(transaction, request.dynamic_tables_locked());
 
-        std::vector<TTransactionId> prerequisiteTransactionIds;
-        if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
-            auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-            const auto& prerequisiteTransactions = prerequisitesExt->transactions();
-            prerequisiteTransactionIds.reserve(prerequisiteTransactions.size());
-            for (const auto& prerequisite : prerequisiteTransactions) {
-                prerequisiteTransactionIds.push_back(FromProto<TTransactionId>(prerequisite.transaction_id()));
-            }
-        }
+        auto prerequisiteTransactionIds = GetPrerequisiteTransactionIds(context->GetRequestHeader());
 
         auto revokeLeases =
             transaction->GetSuccessorTransactionLeaseCount() > 0 ||

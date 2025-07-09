@@ -737,9 +737,6 @@ struct TDynamicChunkManagerConfig
 
     i64 VirtualChunkMapReadResultLimit;
 
-    // COMPAT(kvk1920): YT-17756.
-    bool EnableFixRequisitionUpdateOnMerge;
-
     bool EnableChunkSchemas;
 
     //! Forces rack awareness for erasure parts during write targets allocation.

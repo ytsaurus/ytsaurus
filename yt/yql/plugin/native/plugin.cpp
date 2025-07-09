@@ -3,6 +3,7 @@
 
 #include "error_helpers.h"
 #include "progress_merger.h"
+#include "provider_load.h"
 #include "secret_masker.h"
 
 #include <yt/yql/providers/yt/common/yql_names.h>
@@ -15,6 +16,9 @@
 #include <yt/yql/providers/yt/lib/skiff/yql_skiff_schema.h>
 #include <yt/yql/providers/yt/lib/yt_download/yt_download.h>
 #include <yt/yql/providers/yt/provider/yql_yt_provider.h>
+
+#include <yt/yql/providers/ytflow/gateway/yql_ytflow.h>
+#include <yt/yql/providers/ytflow/provider/yql_ytflow_provider.h>
 
 #include <yql/essentials/providers/common/codec/yql_codec_type_flags.h>
 #include <yql/essentials/providers/common/codec/yql_codec.h>
@@ -358,6 +362,12 @@ public:
                 NYson::ReflectProtobufMessageType<NYql::TYtGatewayConfig>(),
                 protobufWriterOptions));
 
+            auto* gatewayYtflowConfig = GatewaysConfigInitial_.MutableYtflow();
+            gatewayYtflowConfig->ParseFromStringOrThrow(NYson::YsonStringToProto(
+                options.YtflowGatewayConfig,
+                NYson::ReflectProtobufMessageType<NYql::TYtflowGatewayConfig>(),
+                protobufWriterOptions));
+
             NYql::TFileStorageConfig fileStorageConfig;
             fileStorageConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
                 options.FileStorageConfig,
@@ -460,7 +470,11 @@ public:
         auto factory = CreateProgramFactory(*dynamicConfig);
         auto program = factory->Create("-memory-", queryText);
 
-        program->AddCredentials({{"default_yt", NYql::TCredential("yt", "", YqlAgentToken_)}});
+        program->AddCredentials({
+            {"default_yt", NYql::TCredential("yt", "", YqlAgentToken_)},
+            {"default_ytflow", NYql::TCredential("ytflow", "", YqlAgentToken_)}
+        });
+
         program->SetOperationAttrsYson(PatchQueryAttributes(OperationAttributes_, settings));
 
         auto defaultQueryCluster = dynamicConfig->DefaultCluster;
@@ -944,6 +958,13 @@ private:
 
         auto ytNativeGateway = CreateYtNativeGateway(ytServices);
         dataProvidersInit.push_back(GetYtNativeDataProviderInitializer(ytNativeGateway, NDq::MakeCBOOptimizerFactory(), MakeDqHelper()));
+
+        ExtProviderSpecific(
+            dynamicConfig.GatewaysConfig,
+            FuncRegistry_.Get(),
+            dataProvidersInit,
+            FileStorage_);
+
         YQL_LOG(DEBUG) << __FUNCTION__ << ": dataProvidersInit ready";
 
         auto factory = MakeIntrusive<NYql::TProgramFactory>(

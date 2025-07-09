@@ -1458,7 +1458,7 @@ void TGangOperationController::TrySwitchToNewOperationIncarnation(
             .IncarnationSwitchReason = reason,
             .IncarnationSwitchInfo{
                 .TriggerJobId = joblet->JobId,
-            }
+            },
         };
         SwitchToNewOperationIncarnation(operationIsReviving, std::move(data));
     }

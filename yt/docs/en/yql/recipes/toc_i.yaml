@@ -1,0 +1,8 @@
+items:
+  - name: Custom aggregate functions in YQL
+    href: udaf.md
+  - name: Accessing values inside JSON with YQL
+    href: accessing-json.md
+  - name: Modifying JSON with YQL
+    href: modifying-json.md
+

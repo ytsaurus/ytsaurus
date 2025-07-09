@@ -22,6 +22,7 @@ DECLARE_REFCOUNTED_STRUCT(TCypressKeyReaderConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressKeyWriterConfig)
 DECLARE_REFCOUNTED_STRUCT(TSignatureGenerationConfig)
 DECLARE_REFCOUNTED_STRUCT(TSignatureValidationConfig)
+DECLARE_REFCOUNTED_STRUCT(TSignatureInstanceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,6 +33,7 @@ DECLARE_REFCOUNTED_CLASS(TSignatureGenerator)
 DECLARE_REFCOUNTED_CLASS(TSignatureValidator)
 DECLARE_REFCOUNTED_CLASS(TCypressKeyReader)
 DECLARE_REFCOUNTED_CLASS(TCypressKeyWriter)
+DECLARE_REFCOUNTED_CLASS(TSignatureComponents)
 
 ////////////////////////////////////////////////////////////////////////////////
 

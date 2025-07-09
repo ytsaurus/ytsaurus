@@ -67,7 +67,7 @@ using namespace NYTree;
 #define DEFINE_KAFKA_HANDLER(method)                         \
     TRsp##method Do##method(                                 \
         [[maybe_unused]] TConnectionId connectionId,         \
-        [[maybe_unused]] TReq##method request,        \
+        [[maybe_unused]] TReq##method request,               \
         const NLogging::TLogger& Logger)
 
 ////////////////////////////////////////////////////////////////////////////////

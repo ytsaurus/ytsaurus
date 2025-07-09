@@ -10,7 +10,6 @@
 #include <contrib/ydb/core/tablet_flat/flat_row_state.h>
 
 #include <contrib/ydb/core/tx/tx_proxy/proxy.h>
-#include <contrib/ydb/core/tx/tx_proxy/upload_rows.h>
 
 #include <contrib/ydb/core/ydb_convert/table_description.h>
 #include <contrib/ydb/core/ydb_convert/ydb_convert.h>
@@ -154,8 +153,8 @@ public:
 
     TAutoPtr<IDestructable> Finish(EStatus status) final {
         auto& record = Response->Record;
-        record.SetReadRows(ReadRows);
-        record.SetReadBytes(ReadBytes);
+        record.MutableMeteringStats()->SetReadRows(ReadRows);
+        record.MutableMeteringStats()->SetReadBytes(ReadBytes);
 
         if (status == EStatus::Exception) {
             record.SetStatus(NKikimrIndexBuilder::EBuildStatus::BUILD_ERROR);
