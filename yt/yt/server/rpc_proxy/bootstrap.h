@@ -63,12 +63,14 @@ private:
 
     NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
+    NBus::IBusServerPtr PublicBusServer_;
     NBus::IBusServerPtr TvmOnlyBusServer_;
     IApiServicePtr ApiService_;
     IApiServicePtr TvmOnlyApiService_;
     NRpc::IServicePtr DiscoveryService_;
     NRpc::IServicePtr ShuffleService_;
     NRpc::IServerPtr RpcServer_;
+    NRpc::IServerPtr PublicRpcServer_;
     NRpc::IServerPtr TvmOnlyRpcServer_;
     NRpc::IServerPtr GrpcServer_;
     NHttp::IServerPtr HttpServer_;

@@ -75,12 +75,16 @@ class LocalYtConfig(object):
 
     """TLS settings"""
     enable_tls = attr.ib(False)
-    ca_cert = attr.ib(None)
-    ca_cert_key = attr.ib(None)
+    internal_ca_cert = attr.ib(None)
+    internal_ca_cert_key = attr.ib(None)
+    public_ca_cert = attr.ib(None)
+    public_ca_cert_key = attr.ib(None)
     rpc_cert = attr.ib(None)
     rpc_cert_key = attr.ib(None)
     https_cert = attr.ib(None)
     https_cert_key = attr.ib(None)
+    public_rpc_cert = attr.ib(None)
+    piblic_rpc_cert_key = attr.ib(None)
 
     """Native authentication settings"""
     mock_tvm_id = attr.ib(None)
