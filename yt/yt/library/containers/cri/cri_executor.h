@@ -18,12 +18,6 @@ struct TCriDescriptor
     TString Id;
 };
 
-struct TCriPodDescriptor
-{
-    TString Name;
-    TString Id;
-};
-
 struct TCriImageDescriptor
 {
     TString Image;
@@ -35,28 +29,6 @@ void FormatValue(TStringBuilderBase* builder, const TCriPodDescriptor& descripto
 void FormatValue(TStringBuilderBase* builder, const TCriImageDescriptor& descriptor, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TCriContainerResources
-{
-    std::optional<double> CpuLimit;
-    std::optional<double> CpuRequest;
-    std::optional<i64> MemoryLimit;
-    std::optional<i64> MemoryRequest;
-
-    //! At OOM kill all tasks at once.
-    std::optional<bool> MemoryOomGroup;
-
-    std::optional<TString> CpusetCpus;
-};
-
-struct TCriPodSpec
-    : public TRefCounted
-{
-    TString Name;
-    TCriContainerResources Resources;
-};
-
-DEFINE_REFCOUNTED_TYPE(TCriPodSpec)
 
 struct TCriBindMount
 {
@@ -147,7 +119,7 @@ struct ICriExecutor
         std::function<void(NProto::ContainerFilter&)> initFilter = nullptr) = 0;
 
     virtual TFuture<void> ForEachPodSandbox(
-        const TCallback<void(const TCriPodDescriptor&, const NProto::PodSandbox&)>& callback,
+        const TCallback<void(TCriPodDescriptorPtr, const NProto::PodSandbox&)>& callback,
         std::function<void(NProto::PodSandboxFilter&)> initFilter = nullptr) = 0;
 
     virtual TFuture<void> ForEachContainer(
@@ -157,29 +129,29 @@ struct ICriExecutor
     //! Returns status of the pod.
     //! @param verbose fill field "info" with runtime-specific debug.
     virtual TFuture<TCriRuntimeApi::TRspPodSandboxStatusPtr> GetPodSandboxStatus(
-        const TCriPodDescriptor& pod, bool verbose = false) = 0;
+        const TCriPodDescriptorPtr& pod, bool verbose = false) = 0;
 
     //! Returns status of the container.
     //! @param verbose fill "info" with runtime-specific debug information.
     virtual TFuture<TCriRuntimeApi::TRspContainerStatusPtr> GetContainerStatus(
         const TCriDescriptor& ct, bool verbose = false) = 0;
 
-    virtual TFuture<TCriPodDescriptor> RunPodSandbox(TCriPodSpecPtr podSpec) = 0;
-    virtual TFuture<void> StopPodSandbox(const TCriPodDescriptor& pod) = 0;
-    virtual TFuture<void> RemovePodSandbox(const TCriPodDescriptor& pod) = 0;
+    virtual TFuture<TCriPodDescriptorPtr> RunPodSandbox(TCriPodSpecPtr podSpec) = 0;
+    virtual TFuture<void> StopPodSandbox(const TCriPodDescriptorPtr& pod) = 0;
+    virtual TFuture<void> RemovePodSandbox(const TCriPodDescriptorPtr& pod) = 0;
     virtual TFuture<void> UpdatePodResources(
-        const TCriPodDescriptor& pod,
+        const TCriPodDescriptorPtr& pod,
         const TCriContainerResources& resources) = 0;
 
     //! Remove all pods and containers in namespace managed by executor.
     virtual void CleanNamespace() = 0;
 
     //! Remove all containers in one pod.
-    virtual void CleanPodSandbox(const TCriPodDescriptor& pod) = 0;
+    virtual void CleanPodSandbox(const TCriPodDescriptorPtr& pod) = 0;
 
     virtual TFuture<TCriDescriptor> CreateContainer(
         TCriContainerSpecPtr containerSpec,
-        const TCriPodDescriptor& pod,
+        const TCriPodDescriptorPtr& pod,
         TCriPodSpecPtr podSpec) = 0;
 
     virtual TFuture<void> StartContainer(const TCriDescriptor& ct) = 0;
@@ -216,7 +188,7 @@ struct ICriExecutor
     virtual TProcessBasePtr CreateProcess(
         const TString& path,
         TCriContainerSpecPtr containerSpec,
-        const TCriPodDescriptor& pod,
+        TCriPodDescriptorPtr pod,
         TCriPodSpecPtr podSpec) = 0;
 };
 

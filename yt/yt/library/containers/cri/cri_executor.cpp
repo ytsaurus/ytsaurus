@@ -87,13 +87,13 @@ public:
         const TString& path,
         ICriExecutorPtr executor,
         TCriContainerSpecPtr containerSpec,
-        const TCriPodDescriptor& podDescriptor,
+        TCriPodDescriptorPtr podDescriptor,
         TCriPodSpecPtr podSpec,
         TDuration pollPeriod = TDuration::MilliSeconds(100))
         : TProcessBase(path)
         , Executor_(std::move(executor))
         , ContainerSpec_(std::move(containerSpec))
-        , PodDescriptor_(podDescriptor)
+        , PodDescriptor_(std::move(podDescriptor))
         , PodSpec_(std::move(podSpec))
         , PollPeriod_(pollPeriod)
     {
@@ -135,7 +135,7 @@ public:
 private:
     const ICriExecutorPtr Executor_;
     const TCriContainerSpecPtr ContainerSpec_;
-    const TCriPodDescriptor PodDescriptor_;
+    const TCriPodDescriptorPtr PodDescriptor_;
     const TCriPodSpecPtr PodSpec_;
     const TDuration PollPeriod_;
 
@@ -160,7 +160,7 @@ private:
             }
         }
 
-        Logger.AddTag("Pod: %v", PodDescriptor_);
+        Logger.AddTag("Pod: %v", *PodDescriptor_);
 
         YT_LOG_DEBUG("Creating container (Container: %v)",
             ContainerSpec_->Name);
@@ -207,8 +207,8 @@ private:
             auto error = TError("Cannot get container status")
                 << TErrorAttribute("container_name", ContainerDescriptor_.Name)
                 << TErrorAttribute("container_id", ContainerDescriptor_.Id)
-                << TErrorAttribute("pod_name", PodDescriptor_.Name)
-                << TErrorAttribute("pod_id", PodDescriptor_.Id)
+                << TErrorAttribute("pod_name", PodDescriptor_->Name)
+                << TErrorAttribute("pod_id", PodDescriptor_->Id)
                 << responseOrError;
             YT_LOG_ERROR(error, "Process is lost");
             YT_UNUSED_FUTURE(AsyncWaitExecutor_->Stop());
@@ -324,13 +324,12 @@ public:
     }
 
     TFuture<void> ForEachPodSandbox(
-        const TCallback<void(const TCriPodDescriptor&, const NProto::PodSandbox&)>& callback,
+        const TCallback<void(TCriPodDescriptorPtr, const NProto::PodSandbox&)>& callback,
         std::function<void(NProto::PodSandboxFilter&)> initFilter) override
     {
         return ListPodSandbox(initFilter).Apply(BIND([=] (const TCriRuntimeApi::TRspListPodSandboxPtr& rsp) {
             for (const auto& pod : rsp->items()) {
-                TCriPodDescriptor descriptor{.Name=pod.metadata().name(), .Id=pod.id()};
-                callback(descriptor, pod);
+                callback(TCriPodDescriptor::Create(pod.metadata().name(), pod.id()), pod);
             }
         }));
     }
@@ -348,10 +347,10 @@ public:
     }
 
     TFuture<TCriRuntimeApi::TRspPodSandboxStatusPtr> GetPodSandboxStatus(
-        const TCriPodDescriptor& podDescriptor, bool verbose = false) override
+        const TCriPodDescriptorPtr& podDescriptor, bool verbose = false) override
     {
         auto req = RuntimeApi_.PodSandboxStatus();
-        req->set_pod_sandbox_id(podDescriptor.Id);
+        req->set_pod_sandbox_id(podDescriptor->Id);
         req->set_verbose(verbose);
         return req->Invoke();
     }
@@ -365,7 +364,7 @@ public:
         return req->Invoke();
     }
 
-    TFuture<TCriPodDescriptor> RunPodSandbox(TCriPodSpecPtr podSpec) override
+    TFuture<TCriPodDescriptorPtr> RunPodSandbox(TCriPodSpecPtr podSpec) override
     {
         auto req = RuntimeApi_.RunPodSandbox();
 
@@ -375,27 +374,27 @@ public:
             req->set_runtime_handler(Config_->RuntimeHandler);
         }
 
-        return req->Invoke().Apply(BIND([name = podSpec->Name] (const TCriRuntimeApi::TRspRunPodSandboxPtr& rsp) -> TCriPodDescriptor {
-            return TCriPodDescriptor{.Name = name, .Id = rsp->pod_sandbox_id()};
+        return req->Invoke().Apply(BIND([name = podSpec->Name] (const TCriRuntimeApi::TRspRunPodSandboxPtr& rsp) -> TCriPodDescriptorPtr {
+            return TCriPodDescriptor::Create(name, rsp->pod_sandbox_id());
         }));
     }
 
-    TFuture<void> StopPodSandbox(const TCriPodDescriptor& podDescriptor) override
+    TFuture<void> StopPodSandbox(const TCriPodDescriptorPtr& podDescriptor) override
     {
         auto req = RuntimeApi_.StopPodSandbox();
-        req->set_pod_sandbox_id(podDescriptor.Id);
+        req->set_pod_sandbox_id(podDescriptor->Id);
         return req->Invoke().AsVoid();
     }
 
-    TFuture<void> RemovePodSandbox(const TCriPodDescriptor& podDescriptor) override
+    TFuture<void> RemovePodSandbox(const TCriPodDescriptorPtr& podDescriptor) override
     {
         auto req = RuntimeApi_.RemovePodSandbox();
-        req->set_pod_sandbox_id(podDescriptor.Id);
+        req->set_pod_sandbox_id(podDescriptor->Id);
         return req->Invoke().AsVoid();
     }
 
     TFuture<void> UpdatePodResources(
-        const TCriPodDescriptor& /*pod*/,
+        const TCriPodDescriptorPtr& /*pod*/,
         const TCriContainerResources& /*resources*/) override
     {
         return MakeFuture(TError("Not implemented"));
@@ -403,11 +402,11 @@ public:
 
     TFuture<TCriDescriptor> CreateContainer(
         TCriContainerSpecPtr containerSpec,
-        const TCriPodDescriptor& podDescriptor,
+        const TCriPodDescriptorPtr& podDescriptor,
         TCriPodSpecPtr podSpec) override
     {
         auto req = RuntimeApi_.CreateContainer();
-        req->set_pod_sandbox_id(podDescriptor.Id);
+        req->set_pod_sandbox_id(podDescriptor->Id);
 
         auto* config = req->mutable_config();
 
@@ -546,7 +545,7 @@ public:
             std::vector<TFuture<void>> futures;
             futures.reserve(pods->items_size());
             for (const auto& pod : pods->items()) {
-                TCriPodDescriptor podDescriptor{.Name = pod.metadata().name(), .Id = pod.id() };
+                auto podDescriptor = TCriPodDescriptor::Create(pod.metadata().name(), pod.id());
                 futures.push_back(StopPodSandbox(podDescriptor));
             }
             WaitFor(AllSucceeded(std::move(futures)))
@@ -557,7 +556,7 @@ public:
             std::vector<TFuture<void>> futures;
             futures.reserve(pods->items_size());
             for (const auto& pod : pods->items()) {
-                TCriPodDescriptor podDescriptor{.Name = pod.metadata().name(), .Id = pod.id()};
+                auto podDescriptor = TCriPodDescriptor::Create(pod.metadata().name(), pod.id());
                 futures.push_back(RemovePodSandbox(podDescriptor));
             }
             WaitFor(AllSucceeded(std::move(futures)))
@@ -565,10 +564,10 @@ public:
         }
     }
 
-    void CleanPodSandbox(const TCriPodDescriptor& podDescriptor) override
+    void CleanPodSandbox(const TCriPodDescriptorPtr& podDescriptor) override
     {
         auto containers = WaitFor(ListContainers([=] (NProto::ContainerFilter& filter) {
-                filter.set_pod_sandbox_id(podDescriptor.Id);
+                filter.set_pod_sandbox_id(podDescriptor->Id);
             }))
             .ValueOrThrow();
 
@@ -641,10 +640,10 @@ public:
     TProcessBasePtr CreateProcess(
         const TString& path,
         TCriContainerSpecPtr containerSpec,
-        const TCriPodDescriptor& podDescriptor,
+        TCriPodDescriptorPtr podDescriptor,
         TCriPodSpecPtr podSpec) override
     {
-        return New<TCriProcess>(path, this, std::move(containerSpec), podDescriptor, std::move(podSpec));
+        return New<TCriProcess>(path, this, std::move(containerSpec), std::move(podDescriptor), std::move(podSpec));
     }
 
 private:
@@ -700,7 +699,7 @@ private:
 
         {
             auto* linux = config->mutable_linux();
-            linux->set_cgroup_parent(GetPodCgroup(spec.Name));
+            linux->set_cgroup_parent(GetPodCgroup(TString(spec.Name)));
 
             auto* security = linux->mutable_security_context();
             auto* namespaces = security->mutable_namespace_options();
