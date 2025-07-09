@@ -95,8 +95,8 @@ class HttpProxyTestBase(YTEnvSetup):
     def _get_https_proxy_address(self):
         return self.Env.get_http_proxy_address(https=True)
 
-    def _get_ca_cert(self):
-        return self.Env.yt_config.ca_cert
+    def _get_https_ca_cert(self):
+        return self.Env.yt_config.public_ca_cert
 
     def _get_proxy_cert_path(self, index=0):
         proxy_config = self.Env.configs["http_proxy"][index]
@@ -1951,7 +1951,7 @@ class TestHttpsProxy(HttpProxyTestBase):
 
     @authors("khlebnikov")
     def test_ping_verify_ca(self):
-        rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_ca_cert())
+        rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_https_ca_cert())
         rsp.raise_for_status()
 
     @authors("khlebnikov")
@@ -1967,8 +1967,8 @@ class TestHttpsProxy(HttpProxyTestBase):
         assert current_fingerprint() == old_fingerprint
 
         create_certificate(
-            ca_cert=self._get_ca_cert(),
-            ca_cert_key=self.Env.yt_config.ca_cert_key,
+            ca_cert=self.Env.yt_config.public_ca_cert,
+            ca_cert_key=self.Env.yt_config.public_ca_cert_key,
             cert=proxy_cert,
             cert_key=proxy_cert_key,
             names=[self.Env.yt_config.fqdn, self.Env.yt_config.cluster_name],
@@ -1981,7 +1981,7 @@ class TestHttpsProxy(HttpProxyTestBase):
 
         wait(lambda: current_fingerprint() == new_fingerprint)
 
-        rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_ca_cert())
+        rsp = requests.get(self._get_https_proxy_url() + "/ping", verify=self._get_https_ca_cert())
         rsp.raise_for_status()
 
 

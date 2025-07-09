@@ -417,17 +417,30 @@ class YTInstance(object):
     def _prepare_certificates(self):
         names = [self.yt_config.fqdn, self.yt_config.cluster_name]
 
-        if self.yt_config.ca_cert is None:
-            self.yt_config.ca_cert = os.path.join(self.path, "ca.crt")
-            self.yt_config.ca_cert_key = os.path.join(self.path, "ca.key")
-            create_ca(ca_cert=self.yt_config.ca_cert, ca_cert_key=self.yt_config.ca_cert_key)
+        if self.yt_config.internal_ca_cert is None:
+            self.yt_config.internal_ca_cert = os.path.join(self.path, "internal_ca.crt")
+            self.yt_config.internal_ca_cert_key = os.path.join(self.path, "internal_ca.key")
+            create_ca(
+                ca_cert=self.yt_config.internal_ca_cert,
+                ca_cert_key=self.yt_config.internal_ca_cert_key,
+                subj="/O={}/OU={}".format(self.id, "YT Internal CA"),
+            )
+
+        if self.yt_config.public_ca_cert is None:
+            self.yt_config.public_ca_cert = os.path.join(self.path, "public_ca.crt")
+            self.yt_config.public_ca_cert_key = os.path.join(self.path, "public_ca.key")
+            create_ca(
+                ca_cert=self.yt_config.public_ca_cert,
+                ca_cert_key=self.yt_config.public_ca_cert_key,
+                subj="/O={}/OU={}".format(self.id, "YT Public CA"),
+            )
 
         if self.yt_config.rpc_cert is None:
             self.yt_config.rpc_cert = os.path.join(self.path, "rpc.crt")
             self.yt_config.rpc_cert_key = os.path.join(self.path, "rpc.key")
             create_certificate(
-                ca_cert=self.yt_config.ca_cert,
-                ca_cert_key=self.yt_config.ca_cert_key,
+                ca_cert=self.yt_config.internal_ca_cert,
+                ca_cert_key=self.yt_config.internal_ca_cert_key,
                 cert=self.yt_config.rpc_cert,
                 cert_key=self.yt_config.rpc_cert_key,
                 names=names
@@ -437,10 +450,21 @@ class YTInstance(object):
             self.yt_config.https_cert = os.path.join(self.path, "https.crt")
             self.yt_config.https_cert_key = os.path.join(self.path, "https.key")
             create_certificate(
-                ca_cert=self.yt_config.ca_cert,
-                ca_cert_key=self.yt_config.ca_cert_key,
+                ca_cert=self.yt_config.public_ca_cert,
+                ca_cert_key=self.yt_config.public_ca_cert_key,
                 cert=self.yt_config.https_cert,
                 cert_key=self.yt_config.https_cert_key,
+                names=names
+            )
+
+        if self.yt_config.public_rpc_cert is None and self.yt_config.rpc_proxy_count > 0:
+            self.yt_config.public_rpc_cert = os.path.join(self.path, "public_rpc.crt")
+            self.yt_config.public_rpc_cert_key = os.path.join(self.path, "public_rpc.key")
+            create_certificate(
+                ca_cert=self.yt_config.public_ca_cert,
+                ca_cert_key=self.yt_config.public_ca_cert_key,
+                cert=self.yt_config.public_rpc_cert,
+                cert_key=self.yt_config.public_rpc_cert_key,
                 names=names
             )
 
@@ -858,23 +882,27 @@ class YTInstance(object):
         return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "port", "kafkaproxy"))
                 for config in self.configs["kafka_proxy"]]
 
-    def get_rpc_proxy_address(self, tvm_only=False):
-        return self.get_rpc_proxy_addresses(tvm_only=tvm_only)[0]
+    def get_rpc_proxy_address(self, address_type=None, tvm_only=False):
+        return self.get_rpc_proxy_addresses(address_type=address_type, tvm_only=tvm_only)[0]
 
-    def get_rpc_proxy_addresses(self, tvm_only=False):
+    def get_rpc_proxy_addresses(self, address_type=None, tvm_only=False):
         if self.yt_config.rpc_proxy_count == 0:
             raise YtError("Rpc proxies are not started")
-        if tvm_only:
-            return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "tvm_only_rpc_port", "rpc_proxy"))
-                    for config in self.configs["rpc_proxy"]]
-        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "rpc_port", "rpcproxy"))
+
+        if address_type == "tvm_only_internal_rpc" or tvm_only:
+            port_field = "tvm_only_rpc_port"
+        elif address_type == "public_rpc":
+            port_field = "public_rpc_port"
+        elif address_type == "monitoring_http":
+            port_field = "monitoring_port"
+        else:
+            port_field = "rpc_port"
+
+        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, port_field, "rpc_proxy"))
                 for config in self.configs["rpc_proxy"]]
 
     def get_rpc_proxy_monitoring_addresses(self):
-        if self.yt_config.rpc_proxy_count == 0:
-            raise YtError("Rpc proxies are not started")
-        return ["{0}:{1}".format(self.yt_config.fqdn, get_value_from_config(config, "monitoring_port", "rpcproxy"))
-                for config in self.configs["rpc_proxy"]]
+        return self.get_rpc_proxy_addresses(address_type="monitoring_http")
 
     def get_http_proxy_monitoring_addresses(self):
         if self.yt_config.http_proxy_count == 0:
@@ -1973,6 +2001,17 @@ class YTInstance(object):
             return YtClient(token=token, proxy=self.get_http_proxy_address(), config=self._default_client_config)
         return self.create_native_client()
 
+    def create_rpc_client(self, driver_name="rpc_driver"):
+        token = DEFAULT_ADMIN_TOKEN if self.yt_config.enable_auth else None
+        config = update(
+            self._default_client_config,
+            {
+                "backend": "rpc",
+                "driver_config": self.configs[driver_name],
+            }
+        )
+        return YtClient(token=token, config=config)
+
     def create_native_client(self, driver_name="driver"):
         driver_config_path = self.config_paths[driver_name]
 
@@ -2138,12 +2177,12 @@ class YTInstance(object):
             self.config_paths["rpc_proxy"].append(config_path)
             self._service_processes["rpc_proxy"].append(None)
 
-            rpc_client_config_path = os.path.join(self.configs_path, "rpc-client.yson")
-            if self._load_existing_environment:
-                if not os.path.isfile(rpc_client_config_path):
-                    raise YtError("Rpc client config {0} not found".format(rpc_client_config_path))
-            else:
-                write_config(rpc_client_config, rpc_client_config_path)
+        rpc_client_config_path = os.path.join(self.configs_path, "rpc-client.yson")
+        if self._load_existing_environment:
+            if not os.path.isfile(rpc_client_config_path):
+                raise YtError("Rpc client config {0} not found".format(rpc_client_config_path))
+        else:
+            write_config(rpc_client_config, rpc_client_config_path)
 
     def start_multi(self):
         name = "multi"
