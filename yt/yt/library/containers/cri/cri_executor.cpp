@@ -93,7 +93,7 @@ public:
         : TProcessBase(path)
         , Executor_(std::move(executor))
         , ContainerSpec_(std::move(containerSpec))
-        , PodDescriptor_(podDescriptor)
+        , PodDescriptor_(std::move(podDescriptor))
         , PodSpec_(std::move(podSpec))
         , PollPeriod_(pollPeriod)
     {
@@ -347,7 +347,7 @@ public:
     }
 
     TFuture<TCriRuntimeApi::TRspPodSandboxStatusPtr> GetPodSandboxStatus(
-        TCriPodDescriptorPtr podDescriptor, bool verbose = false) override
+        const TCriPodDescriptorPtr& podDescriptor, bool verbose = false) override
     {
         auto req = RuntimeApi_.PodSandboxStatus();
         req->set_pod_sandbox_id(podDescriptor->Id);
@@ -379,14 +379,14 @@ public:
         }));
     }
 
-    TFuture<void> StopPodSandbox(TCriPodDescriptorPtr podDescriptor) override
+    TFuture<void> StopPodSandbox(const TCriPodDescriptorPtr& podDescriptor) override
     {
         auto req = RuntimeApi_.StopPodSandbox();
         req->set_pod_sandbox_id(podDescriptor->Id);
         return req->Invoke().AsVoid();
     }
 
-    TFuture<void> RemovePodSandbox(TCriPodDescriptorPtr podDescriptor) override
+    TFuture<void> RemovePodSandbox(const TCriPodDescriptorPtr& podDescriptor) override
     {
         auto req = RuntimeApi_.RemovePodSandbox();
         req->set_pod_sandbox_id(podDescriptor->Id);
@@ -394,15 +394,15 @@ public:
     }
 
     TFuture<void> UpdatePodResources(
-        TCriPodDescriptorPtr /*pod*/,
-        TCriContainerResourcesPtr /*resources*/) override
+        const TCriPodDescriptorPtr& /*pod*/,
+        const TCriContainerResources& /*resources*/) override
     {
         return MakeFuture(TError("Not implemented"));
     }
 
     TFuture<TCriDescriptor> CreateContainer(
         TCriContainerSpecPtr containerSpec,
-        TCriPodDescriptorPtr podDescriptor,
+        const TCriPodDescriptorPtr& podDescriptor,
         TCriPodSpecPtr podSpec) override
     {
         auto req = RuntimeApi_.CreateContainer();
@@ -527,7 +527,7 @@ public:
         return req->Invoke().AsVoid();
     }
 
-    TFuture<void> UpdateContainerResources(const TCriDescriptor& descriptor, TCriContainerResourcesPtr resources) override
+    TFuture<void> UpdateContainerResources(const TCriDescriptor& descriptor, const TCriContainerResources& resources) override
     {
         auto req = RuntimeApi_.UpdateContainerResources();
         req->set_container_id(descriptor.Id);
@@ -564,7 +564,7 @@ public:
         }
     }
 
-    void CleanPodSandbox(TCriPodDescriptorPtr podDescriptor) override
+    void CleanPodSandbox(const TCriPodDescriptorPtr& podDescriptor) override
     {
         auto containers = WaitFor(ListContainers([=] (NProto::ContainerFilter& filter) {
                 filter.set_pod_sandbox_id(podDescriptor->Id);
@@ -653,31 +653,31 @@ private:
 
     std::atomic<ui32> Attempt_;
 
-    void FillLinuxContainerResources(NProto::LinuxContainerResources* resources, TCriContainerResourcesPtr spec)
+    void FillLinuxContainerResources(NProto::LinuxContainerResources* resources, const TCriContainerResources& spec)
     {
         auto* unified = resources->mutable_unified();
 
-        if (spec->CpuLimit) {
+        if (spec.CpuLimit) {
             i64 period = Config_->CpuPeriod.MicroSeconds();
-            i64 quota = period * *spec->CpuLimit;
+            i64 quota = period * *spec.CpuLimit;
 
             resources->set_cpu_period(period);
             resources->set_cpu_quota(quota);
         }
 
-        if (spec->MemoryLimit) {
-            resources->set_memory_limit_in_bytes(*spec->MemoryLimit);
+        if (spec.MemoryLimit) {
+            resources->set_memory_limit_in_bytes(*spec.MemoryLimit);
         }
 
-        if (spec->MemoryRequest) {
-            (*unified)["memory.low"] = ToString(*spec->MemoryRequest);
+        if (spec.MemoryRequest) {
+            (*unified)["memory.low"] = ToString(*spec.MemoryRequest);
         }
 
-        if (spec->MemoryOomGroup.value_or(Config_->MemoryOomGroup)) {
+        if (spec.MemoryOomGroup.value_or(Config_->MemoryOomGroup)) {
             (*unified)["memory.oom.group"] = "1";
         }
 
-        if (const auto& cpusetCpus = spec->CpusetCpus) {
+        if (const auto& cpusetCpus = spec.CpusetCpus) {
             resources->set_cpuset_cpus(*cpusetCpus);
         }
     }
@@ -699,7 +699,7 @@ private:
 
         {
             auto* linux = config->mutable_linux();
-            linux->set_cgroup_parent(GetPodCgroup(spec.Name));
+            linux->set_cgroup_parent(GetPodCgroup(TString(spec.Name)));
 
             auto* security = linux->mutable_security_context();
             auto* namespaces = security->mutable_namespace_options();
