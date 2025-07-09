@@ -1016,7 +1016,9 @@ public:
 
         criJobEnv->PodDescriptor = PodDescriptors_[slotIndex];
         criJobEnv->PodSpec = PodSpecs_[slotIndex];
-        criJobEnv->GpuConfig = GetContainerGpuConfig(jobProxyConfig);
+        if (auto gpuConfig = GetContainerGpuConfig(jobProxyConfig)) {
+            criJobEnv->GpuConfig = std::move(*gpuConfig);
+        }
     }
 
     void DoInit(int slotCount, double cpuLimit, double /*idleCpuFraction*/) override
@@ -1233,7 +1235,9 @@ private:
             ->GpuManager
             ->DefaultNvidiaDriverCapabilities;
         config->NvidiaVisibleDevices = JoinSeq(",", jobProxyConfig->GpuIndexes);
-        config->InfinibandDevices = ListInfinibandDevices();
+        for (const auto& infinibandDevice: ListInfinibandDevices()) {
+            config->InfinibandDevices.push_back(infinibandDevice);
+        }
         return config;
     }
 
@@ -1287,8 +1291,8 @@ private:
 
             for (const auto& devicePath : gpuContainerConfig->InfinibandDevices) {
                 spec->BindDevices.push_back(NCri::TCriBindDevice{
-                    .ContainerPath = devicePath,
-                    .HostPath = devicePath,
+                    .ContainerPath = TString(devicePath),
+                    .HostPath = TString(devicePath),
                     .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
                 });
             }

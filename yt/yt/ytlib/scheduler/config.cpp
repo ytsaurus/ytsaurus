@@ -1149,7 +1149,7 @@ void TSidecarJobSpec::Register(TRegistrar registrar)
         .LessThanOrEqual(16_TB);
 
     registrar.Parameter("docker_image", &TThis::DockerImage)
-        .Default();
+        .Optional();
 
     registrar.Parameter("restart_policy", &TThis::RestartPolicy)
         .Default(ESidecarRestartPolicy::FailOnError);

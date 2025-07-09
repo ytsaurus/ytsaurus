@@ -10057,7 +10057,7 @@ double TOperationControllerBase::GetCpuLimit(const TUserJobSpecPtr& userJobSpec)
     return std::max(userJobSpec->CpuLimit, Options_->MinCpuLimit);
 }
 
-std::pair<std::optional<TString>, bool> TOperationControllerBase::NormalizeDockerImage(
+TOperationControllerBase::NormalizedDockerImage TOperationControllerBase::NormalizeDockerImage(
     const TString& dockerImage) const
 {
     std::optional<TString> normalizedImage;
@@ -10068,7 +10068,10 @@ std::pair<std::optional<TString>, bool> TOperationControllerBase::NormalizeDocke
     }
 
     auto needDockerAuth = dockerImageSpec.IsInternal && Config_->DockerRegistry->UseYtTokenForInternalRegistry;
-    return {normalizedImage, needDockerAuth};
+    return NormalizedDockerImage{
+        .Image = std::move(normalizedImage),
+        .AddAuthTokenToEnv = needDockerAuth
+    };
 }
 
 void TOperationControllerBase::InitUserJobSpecTemplate(
@@ -10268,10 +10271,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     auto needDockerAuth = false;
     if (jobSpecConfig->DockerImage) {
         auto result = NormalizeDockerImage(*jobSpecConfig->DockerImage);
-        if (result.first) {
-            jobSpec->set_docker_image(*result.first);
+        if (result.Image) {
+            jobSpec->set_docker_image(*result.Image);
         }
-        needDockerAuth |= result.second;
+        needDockerAuth |= result.AddAuthTokenToEnv;
     }
 
     if (jobSpecConfig->Sidecars) {
@@ -10282,14 +10285,14 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
             if (sidecarSpec->DockerImage) {
                 auto result = NormalizeDockerImage(*sidecarSpec->DockerImage);
-                if (result.first) {
-                    protoSidecar.set_docker_image(*result.first);
+                if (result.Image) {
+                    protoSidecar.set_docker_image(*result.Image);
                 } else {
                     // ToProto(..) sets the docker_image as-is, but we want either the normalized one,
                     // or no image at all (same as with the main job), so we clear it in this case.
                     protoSidecar.clear_docker_image();
                 }
-                needDockerAuth |= result.second;
+                needDockerAuth |= result.AddAuthTokenToEnv;
             }
         }
     }

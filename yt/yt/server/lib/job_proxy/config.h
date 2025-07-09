@@ -168,9 +168,9 @@ DEFINE_REFCOUNTED_TYPE(TBindConfig)
 struct TContainerGpuConfig
     : public NYTree::TYsonStruct
 {
-    TString NvidiaDriverCapabilities;
-    TString NvidiaVisibleDevices;
-    std::vector<TString> InfinibandDevices;
+    std::string NvidiaDriverCapabilities;
+    std::string NvidiaVisibleDevices;
+    std::vector<std::string> InfinibandDevices;
 
     REGISTER_YSON_STRUCT(TContainerGpuConfig);
 
@@ -321,7 +321,7 @@ struct TCriJobEnvironmentConfig
 
     NContainers::NCri::TCriPodDescriptorPtr PodDescriptor;
     NContainers::NCri::TCriPodSpecPtr PodSpec;
-    std::optional<TContainerGpuConfigPtr> GpuConfig;
+    TContainerGpuConfigPtr GpuConfig;
 
     REGISTER_YSON_STRUCT(TCriJobEnvironmentConfig);
 

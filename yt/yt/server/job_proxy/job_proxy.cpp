@@ -190,7 +190,7 @@ TJobProxy::TJobProxy(
     , JobId_(jobId)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
-    , JobProxyEnvironmentThread_(New<TActionQueue>("JobProxyEnvironment"))
+    , JobProxyEnvironmentThread_(New<TActionQueue>("JobProxyEnv"))
     , Logger(JobProxyLogger().WithTag("OperationId: %v, JobId: %v",
         OperationId_,
         JobId_))
@@ -848,7 +848,17 @@ TJobResult TJobProxy::RunJob()
 
         SolomonExporter_ = New<TSolomonExporter>(Config_->SolomonExporter);
 
-        environment = CreateJobProxyEnvironment(Config_, JobProxyEnvironmentThread_->GetInvoker());
+        environment = CreateJobProxyEnvironment(
+            Config_,
+            JobProxyEnvironmentThread_->GetInvoker(),
+            GetSlotPath(),
+            [this] (TError sidecarError) {
+                auto job = FindJob();
+                if (!job) {
+                    YT_LOG_FATAL("Job is missing within sidecar failure (SidecarError: %v)", sidecarError);
+                }
+                job->Fail(std::move(sidecarError));
+        });
         SetJobProxyEnvironment(environment);
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->LocalHostName, Config_->Rack, Config_->DataCenter);
@@ -1046,13 +1056,7 @@ TJobResult TJobProxy::RunJob()
     CpuMonitor_->Start();
 
     if (GetJobSpecHelper()->HasSidecars()) {
-        environment->StartSidecars(this, GetJobSpecHelper()->GetJobSpecExt(), [this] (TError sidecarError) {
-            auto job = FindJob();
-            if (!job) {
-                YT_LOG_FATAL("Tried to get the job, but it is unavailable (SidecarError: %v)", sidecarError);
-            }
-            job->Fail(std::move(sidecarError));
-        });
+        environment->StartSidecars(GetJobSpecHelper()->GetJobSpecExt());
     }
 
     return job->Run();

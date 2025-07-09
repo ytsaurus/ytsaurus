@@ -191,10 +191,7 @@ struct IJobProxyEnvironment
 
     virtual bool UseExecFromLayer() const = 0;
 
-    virtual void StartSidecars(
-        IJobHostPtr jobProxy,
-        const NControllerAgent::NProto::TJobSpecExt& jobSpecExt,
-        std::function<void(TError)> failJobCallback) = 0;
+    virtual void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) = 0;
     virtual void StartSidecar(const std::string& name) = 0;
     virtual void OnSidecarFinished(const std::string& sidecarName, const TErrorOr<void> &value) = 0;
     virtual void KillSidecars() = 0;
@@ -204,9 +201,14 @@ DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Creates a job proxy environment.
+//! #failedSidecarCallback is invoked when a fatal error occurs in the sidecar(s),
+//! and it is expected to fail the job.
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     TJobProxyInternalConfigPtr config,
-    IInvokerPtr invoker);
+    IInvokerPtr invoker,
+    const std::string& jobProxySlotPath,
+    std::function<void(TError)> failedSidecarCallback);
 
 ////////////////////////////////////////////////////////////////////////////////
 

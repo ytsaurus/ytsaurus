@@ -181,13 +181,6 @@ message TSidecarJobSpec
 
     optional string docker_image = 4;
 
-    // +-------------------+---------------------+---------------------+
-    // | Value / Behaviour | Success             | Failure             |
-    // +-------------------+---------------------+---------------------+
-    // | Always            | Restart the sidecar | Restart the sidecar |
-    // | OnFailure         | Do nothing          | Restart the sidecar |
-    // | FailOnError       | Do nothing          | Fail the job        |
-    // +-------------------+---------------------+---------------------+
     required int32 restart_policy = 5; // ESidecarRestartPolicy
 }
 

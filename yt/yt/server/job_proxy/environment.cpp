@@ -656,9 +656,7 @@ public:
             PortoExecutor_);
     }
 
-    void StartSidecars(IJobHostPtr /*host*/,
-        const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/,
-        std::function<void(TError)> /*failJobCallback*/) override
+    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -903,10 +901,7 @@ public:
         return New<TSimpleUserJobEnvironment>();
     }
 
-    void StartSidecars(
-        IJobHostPtr /*host*/,
-        const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/,
-        std::function<void(TError)> /*failJobCallback*/) override
+    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& /*jobSpecExt*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -1158,13 +1153,17 @@ class TCriJobProxyEnvironment
     : public IJobProxyEnvironment
 {
 public:
-    explicit TCriJobProxyEnvironment(
+    TCriJobProxyEnvironment(
         TCriJobProxyConfig criJobProxyConfig,
         TCriJobEnvironmentConfigPtr criJobEnvironmentConfig,
-        IInvokerPtr invoker)
+        IInvokerPtr invoker,
+        const std::string& jobProxySlotPath,
+        std::function<void(TError)> failedSidecarCallback)
         : CriJobProxyConfig_(std::move(criJobProxyConfig))
         , CriJobEnvironmentConfig_(std::move(criJobEnvironmentConfig))
         , Invoker_(std::move(invoker))
+        , ProcessWorkingDirectory_(NFS::CombinePaths(TString(jobProxySlotPath), GetSandboxRelPath(ESandboxKind::User)))
+        , FailedSidecarCallback_(std::move(failedSidecarCallback))
         , Executor_(CreateCriExecutor(CriJobEnvironmentConfig_->CriExecutor))
         , ImageCache_(NContainers::NCri::CreateCriImageCache(CriJobEnvironmentConfig_->CriImageCache, Executor_))
     { }
@@ -1260,16 +1259,11 @@ public:
         return New<TCriUserJobEnvironment>(this);
     }
 
-    void StartSidecars(
-        IJobHostPtr host,
-        const NControllerAgent::NProto::TJobSpecExt& jobSpecExt,
-        std::function<void(TError)> failJobCallback) override
+    void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) override
     {
         if (!jobSpecExt.has_user_job_spec()) {
             return;
         }
-        Host_ = std::move(host);
-        FailJobCallback_ = std::move(failJobCallback);
 
         const auto& podDescriptor = CriJobEnvironmentConfig_->PodDescriptor;
         const auto& podSpec = CriJobEnvironmentConfig_->PodSpec;
@@ -1333,15 +1327,15 @@ public:
 
             // More or less the same logic as in spawning of the job proxy, but it may change
             // pretty drastically when we get to the actual resource management implementation step.
-            if (CriJobEnvironmentConfig_->GpuConfig) {
-                auto gpuContainerConfig = *CriJobEnvironmentConfig_->GpuConfig;
+            if (CriJobEnvironmentConfig_->GpuConfig != nullptr) {
+                const auto& gpuContainerConfig = CriJobEnvironmentConfig_->GpuConfig;
                 containerSpec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = gpuContainerConfig->NvidiaDriverCapabilities;
                 containerSpec->Environment["NVIDIA_VISIBLE_DEVICES"] = gpuContainerConfig->NvidiaVisibleDevices;
 
                 for (const auto& devicePath : gpuContainerConfig->InfinibandDevices) {
                     containerSpec->BindDevices.push_back(NCri::TCriBindDevice{
-                        .ContainerPath = devicePath,
-                        .HostPath = devicePath,
+                        .ContainerPath = TString(devicePath),
+                        .HostPath = TString(devicePath),
                         .Permissions = NCri::ECriBindDevicePermissions::Read | NCri::ECriBindDevicePermissions::Write,
                     });
                 }
@@ -1386,7 +1380,7 @@ public:
             CriJobEnvironmentConfig_->PodSpec
         );
         process->AddArguments(sidecarConfig.Arguments);
-        process->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), GetSandboxRelPath(ESandboxKind::User)));
+        process->SetWorkingDirectory(ProcessWorkingDirectory_);
 
         auto sidecarFuture = BIND([=] {
                 return process->Spawn();
@@ -1434,7 +1428,7 @@ public:
                 YT_LOG_DEBUG("Sidecar has failed, exiting the main job (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
                     sidecarName, restartPolicy, exitValue);
                 KillSidecars();
-                FailJobCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
+                FailedSidecarCallback_(TError("Failing the job because sidecar with FailOnError policy has failed")
                     << TErrorAttribute("sidecar_name", sidecarName)
                     << TErrorAttribute("sidecar_exit_value", exitValue));
                 break;
@@ -1455,11 +1449,11 @@ private:
     const TCriJobProxyConfig CriJobProxyConfig_;
     const TCriJobEnvironmentConfigPtr CriJobEnvironmentConfig_;
     const IInvokerPtr Invoker_;
+    const TString ProcessWorkingDirectory_;
+    const std::function<void(TError)> FailedSidecarCallback_;
     const NContainers::NCri::ICriExecutorPtr Executor_;
     const NContainers::NCri::ICriImageCachePtr ImageCache_;
 
-    IJobHostPtr Host_;
-    std::function<void(TError)> FailJobCallback_;
     THashMap<TString, TSidecarCriConfig> SidecarsConfigs_;
     THashMap<TString, std::pair<TProcessBasePtr, TFuture<void>>> SidecarsRunning_;
 
@@ -1473,7 +1467,9 @@ DEFINE_REFCOUNTED_TYPE(TCriJobProxyEnvironment)
 
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     TJobProxyInternalConfigPtr config,
-    IInvokerPtr invoker)
+    IInvokerPtr invoker,
+    const std::string& jobProxySlotPath,
+    std::function<void(TError)> failedSidecarCallback)
 {
     switch (config->JobEnvironment.GetCurrentType()) {
 #ifdef _linux_
@@ -1491,7 +1487,9 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
             return New<TCriJobProxyEnvironment>(
                 TCriJobProxyConfig(config),
                 config->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>(),
-                std::move(invoker));
+                std::move(invoker),
+                jobProxySlotPath,
+                std::move(failedSidecarCallback));
 
         default:
             THROW_ERROR_EXCEPTION("Unable to create resource controller for %Qlv environment",

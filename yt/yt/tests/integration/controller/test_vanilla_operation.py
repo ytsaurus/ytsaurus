@@ -2790,7 +2790,7 @@ class TestSidecarVanilla(YTEnvSetup):
             sidecar_cmds_file_open.write(sidecar_command)
         return sidecar_cmds_file
 
-    def launch_operation(self, master_command, sidecar_command, sidecar_restart_policy="fail_on_error"):
+    def start_operation(self, master_command, sidecar_command, sidecar_restart_policy="fail_on_error"):
         docker_image = self.Env.yt_config.default_docker_image
         sidecar_cmds_file = self.prepare_sidecar_cmd_file(sidecar_command)
         op = vanilla(
@@ -2855,7 +2855,7 @@ class TestSidecarVanilla(YTEnvSetup):
             ]
         )
 
-        op = self.launch_operation(master_command, sidecar_command)
+        op = self.start_operation(master_command, sidecar_command)
 
         # Wait until both master job and sidecar job are started, then finish the test.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
@@ -2986,7 +2986,7 @@ else
 fi
 """
 
-        op = self.launch_operation(master_command, sidecar_command, "always")
+        op = self.start_operation(master_command, sidecar_command, "always")
 
         # Wait until master job is started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
@@ -3028,7 +3028,7 @@ else
 fi
 """
 
-        op = self.launch_operation(master_command, sidecar_command, "always")
+        op = self.start_operation(master_command, sidecar_command, "always")
 
         # Wait until master job is started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
@@ -3068,7 +3068,7 @@ else
 fi
 """
 
-        op = self.launch_operation(master_command, sidecar_command, "on_failure")
+        op = self.start_operation(master_command, sidecar_command, "on_failure")
 
         # Wait until master job is started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
@@ -3113,7 +3113,7 @@ else
 fi
 """
 
-        op = self.launch_operation(master_command, sidecar_command, "on_failure")
+        op = self.start_operation(master_command, sidecar_command, "on_failure")
 
         # Wait until master job is started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
@@ -3153,7 +3153,7 @@ else
 fi
 """
 
-        op = self.launch_operation(master_command, sidecar_command, "fail_on_error")
+        op = self.start_operation(master_command, sidecar_command, "fail_on_error")
 
         # Wait until master job is started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
@@ -3196,7 +3196,7 @@ else
 fi
 """
 
-        op = self.launch_operation(master_command, sidecar_command, "fail_on_error")
+        op = self.start_operation(master_command, sidecar_command, "fail_on_error")
 
         # Wait until master job is started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
@@ -3240,7 +3240,7 @@ echo 'sidecar_write' >> {shared_file}
 {events_on_fs().wait_event_cmd("finish")}
 """
 
-        op = self.launch_operation(master_command, sidecar_command)
+        op = self.start_operation(master_command, sidecar_command)
 
         # Wait until both master job and sidecar are started.
         events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))

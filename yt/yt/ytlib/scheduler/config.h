@@ -1321,6 +1321,13 @@ DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! +-------------------+---------------------+---------------------+
+//! | Value / Behaviour | Success             | Failure             |
+//! +-------------------+---------------------+---------------------+
+//! | Always            | Restart the sidecar | Restart the sidecar |
+//! | OnFailure         | Do nothing          | Restart the sidecar |
+//! | FailOnError       | Do nothing          | Fail the job        |
+//! +-------------------+---------------------+---------------------+
 DEFINE_ENUM(ESidecarRestartPolicy,
     (Always)
     (OnFailure)
@@ -1339,13 +1346,6 @@ struct TSidecarJobSpec
     //! the main job.
     std::optional<TString> DockerImage;
 
-    //! +-------------------+---------------------+---------------------+
-    //! | Value / Behaviour | Success             | Failure             |
-    //! +-------------------+---------------------+---------------------+
-    //! | Always            | Restart the sidecar | Restart the sidecar |
-    //! | OnFailure         | Do nothing          | Restart the sidecar |
-    //! | FailOnError       | Do nothing          | Fail the job        |
-    //! +-------------------+---------------------+---------------------+
     ESidecarRestartPolicy RestartPolicy;
 
     REGISTER_YSON_STRUCT(TSidecarJobSpec);

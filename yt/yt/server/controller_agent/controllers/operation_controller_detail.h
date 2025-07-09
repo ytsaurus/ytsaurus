@@ -1535,10 +1535,15 @@ private:
     void BuildJobsYson(NYTree::TFluentMap fluent) const;
     void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
 
-    //! Returns the normalized Docker image together a boolean; if set to true, an
-    //! authentication token must be added to the environment to access the image.
-    std::pair<std::optional<TString>, bool> NormalizeDockerImage(
-        const TString& dockerImage) const;
+    struct NormalizedDockerImage
+    {
+        std::optional<TString> Image;
+
+        //! If set to true, the authentication token must be added to the
+        //! environment to access the image.
+        bool AddAuthTokenToEnv;
+    };
+    NormalizedDockerImage NormalizeDockerImage(const TString& dockerImage) const;
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOperationControllerBase, 0x6715254c);
