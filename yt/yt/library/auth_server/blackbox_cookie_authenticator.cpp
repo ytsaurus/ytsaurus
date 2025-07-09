@@ -100,7 +100,6 @@ public:
 
             if (credentials.Origin) {
                 origin = StripSchema(*credentials.Origin);
-                origin = *credentials.Origin;
                 errorAttributes.emplace_back("origin", origin);
                 if (!CheckSessguardOrigin(origin)) {
                     return MakeFuture<TAuthenticationResult>(TError("Sessguard cookie from disallowed origin: %Qv",
