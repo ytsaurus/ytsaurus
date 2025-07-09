@@ -182,13 +182,13 @@ class MonitoringSerializerBase(SerializerBase):
 
         query = "{" + ", ".join(_format_kv_pair(k, v) for k, v in string_tags) + "}"
 
+        if SystemFields.NanAsZero in other_tags:
+            query = "replace_nan({}, 0)".format(query)
+
         if SystemFields.Top in other_tags:
             limit, aggregation = other_tags[SystemFields.Top]
             if limit:
                 query = "top({}, '{}', {})".format(limit, aggregation, query)
-
-        if SystemFields.NanAsZero in other_tags:
-            query = "replace_nan({}, 0)".format(query)
 
         if SystemFields.QueryTransformation in other_tags:
             query = other_tags[SystemFields.QueryTransformation].format(query=query)
