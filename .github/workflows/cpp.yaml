@@ -200,6 +200,7 @@ jobs:
       - check
       - build-cmake
       - build-ya-make
+      - docker-ya-make
       - docker-cmake
       - build-strawberry
     if: always()
