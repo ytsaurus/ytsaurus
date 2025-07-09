@@ -1051,7 +1051,7 @@ public:
 
         auto slotInitFuture = Executor_->RunPodSandbox(podSpec);
         slotInitFuture
-            .Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptor>& result){
+            .Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptorPtr>& result){
                 YT_ASSERT_THREAD_AFFINITY(JobThread);
 
                 if (result.IsOK()) {
@@ -1201,7 +1201,7 @@ private:
     const ICriExecutorPtr Executor_;
     const ICriImageCachePtr ImageCache_;
 
-    std::vector<TCriPodDescriptor> PodDescriptors_;
+    std::vector<TCriPodDescriptorPtr> PodDescriptors_;
     std::vector<TCriPodSpecPtr> PodSpecs_;
     std::vector<TString> SlotCpusetCpus_;
     double CpuLimit_ = 0;
