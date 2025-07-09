@@ -119,18 +119,18 @@ DEFINE_REFCOUNTED_TYPE(TSignatureGenerationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSignatureInstanceConfig
+struct TSignatureComponentsConfig
     : public NYTree::TYsonStruct
 {
     TSignatureValidationConfigPtr Validation;
     TSignatureGenerationConfigPtr Generation;
 
-    REGISTER_YSON_STRUCT(TSignatureInstanceConfig);
+    REGISTER_YSON_STRUCT(TSignatureComponentsConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TSignatureInstanceConfig)
+DEFINE_REFCOUNTED_TYPE(TSignatureComponentsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

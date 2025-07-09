@@ -22,7 +22,7 @@ DECLARE_REFCOUNTED_STRUCT(TCypressKeyReaderConfig)
 DECLARE_REFCOUNTED_STRUCT(TCypressKeyWriterConfig)
 DECLARE_REFCOUNTED_STRUCT(TSignatureGenerationConfig)
 DECLARE_REFCOUNTED_STRUCT(TSignatureValidationConfig)
-DECLARE_REFCOUNTED_STRUCT(TSignatureInstanceConfig)
+DECLARE_REFCOUNTED_STRUCT(TSignatureComponentsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

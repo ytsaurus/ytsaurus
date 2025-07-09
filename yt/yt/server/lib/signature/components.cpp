@@ -15,7 +15,7 @@ using namespace NApi;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSignatureComponents::TSignatureComponents(
-    const TSignatureInstanceConfigPtr& config,
+    const TSignatureComponentsConfigPtr& config,
     IClientPtr client,
     IInvokerPtr rotateInvoker)
     : Client_(std::move(client))

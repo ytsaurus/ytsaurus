@@ -38,7 +38,7 @@ struct TSignatureComponentsTest
     TSignatureGeneratorConfigPtr GeneratorConfig = New<TSignatureGeneratorConfig>();
     TSignatureGenerationConfigPtr GenerationConfig = New<TSignatureGenerationConfig>();
     TSignatureValidationConfigPtr ValidationConfig = New<TSignatureValidationConfig>();
-    TSignatureInstanceConfigPtr Config = New<TSignatureInstanceConfig>();
+    TSignatureComponentsConfigPtr Config = New<TSignatureComponentsConfig>();
     TIntrusivePtr<TStrictMockClient> Client = New<TStrictMockClient>();
     TSignatureComponentsPtr Instance;
 
