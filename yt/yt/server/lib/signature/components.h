@@ -14,7 +14,7 @@ class TSignatureComponents final
 {
 public:
     TSignatureComponents(
-        const TSignatureInstanceConfigPtr& config,
+        const TSignatureComponentsConfigPtr& config,
         NApi::IClientPtr client,
         IInvokerPtr rotateInvoker);
 

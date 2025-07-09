@@ -148,8 +148,7 @@ private:
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
 
-    NSignature::ISignatureValidatorPtr SignatureValidator_;
-    NSignature::TKeyRotatorPtr SignatureKeyRotator_;
+    NSignature::TSignatureComponentsPtr SignatureComponents_;
 
     void DoRun();
     void DoInitialize();
