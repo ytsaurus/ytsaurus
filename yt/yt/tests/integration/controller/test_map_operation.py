@@ -3205,6 +3205,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         )
         wait_breakpoint()
         time.sleep(elapsed)
+        wait(lambda: exists(op.get_path() + "/@progress/schedule_job_statistics/failed/task_delayed"))
         assert get(op.get_path() + "/@progress/schedule_job_statistics/failed/task_delayed") == 0
 
 
