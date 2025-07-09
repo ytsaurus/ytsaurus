@@ -57,7 +57,8 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
 
 i64 TTransactionWriteRecord::GetByteSize() const
 {
-    return WriteCommands.Data_.Size() + WriteCommands.Commands().capacity() * sizeof(TWireWriteCommands);
+    // Capacity would be more accurate, but it lacks consistency.
+    return WriteCommands.Data_.Size() + WriteCommands.Commands().size() * sizeof(TWireWriteCommands);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
