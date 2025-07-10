@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TypedDict, Union, Literal, Dict, List, Any
 
 from . import common
 from .config_remote_patch import (RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean,
@@ -27,7 +27,314 @@ DEFAULT_GLOBAL_CONFIG_PATH = "/etc/ytclient.conf"
 DEFAULT_USER_CONFIG_REL_PATH = ".yt/config"
 
 
-def retry_backoff_config(**kwargs):
+class DefaultConfigRetriesBackoffType(TypedDict, total=False):
+    policy: Optional[Union[Literal["rounded_up_to_request_timeout"], Literal["constant_time"], Literal["exponential"]]]
+    constant_time: Optional[int]
+
+    class DefaultConfigRetriesBackoffExponentialPolicyType(TypedDict, total=False):
+        start_timeout: int
+        base: int
+        max_timeout: int
+        decay_factor_bound: float
+
+    exponential_policy: Optional[DefaultConfigRetriesBackoffExponentialPolicyType]
+
+
+class DefaultConfigRetriesType(TypedDict, total=False):
+    count: Optional[int]
+    enable: bool
+    backoff: Optional[DefaultConfigRetriesBackoffType]
+    total_timeout: Union[None, timedelta, int, float]
+    additional_retriable_error_codes: Optional[List[Any]]
+
+
+class DefaultConfigType(TypedDict, total=False):
+    backend: Union[Literal["http"], Literal["rpc"], Literal["native"]]
+
+    class DefaultConfigProxyType(TypedDict, total=False):
+        url: str
+        aliases: Dict[str, str]
+        http_proxy_role: Optional[str]
+        rpc_proxy_role: Optional[str]
+        allow_light_proxy_for_heavy_requests: bool
+        network_name: Optional[str]
+        prefer_https: bool
+        ca_bundle_path: Optional[str]
+        default_suffix: Optional[str]
+        tvm_only: bool
+        accept_encoding: Optional[Union[Literal["gzip"], Literal["br"], Literal["identity"]]]
+        content_encoding: Optional[str]
+        retries: DefaultConfigRetriesType
+        connect_timeout: int
+        request_timeout: int
+        heavy_request_timeout: int
+        skip_backoff_if_connect_timed_out: bool
+        operation_state_discovery_retry_count: int
+        request_backoff_time: Optional[Any]
+        http_proxy: Optional[str]
+        https_proxy: Optional[str]
+        force_ipv4: bool
+        force_ipv6: bool
+        header_format: Optional[str]
+        force_tracing: bool
+        enable_proxy_discovery: bool
+        number_of_top_proxies_for_random_choice: int
+        proxy_discovery_url: str
+        proxy_ban_timeout: int
+        operation_link_pattern: str
+        query_link_pattern: str
+        check_response_format: bool
+        commands_with_framing: List[str]
+
+    proxy: DefaultConfigProxyType
+    dynamic_table_retries: DefaultConfigRetriesType
+    max_row_count_for_local_sampling: int
+    tablets_ready_timeout: int
+    tablets_check_interval: float
+    enable_request_logging: bool
+    enable_token: bool
+    check_token: bool
+    cache_token: bool
+    token: Optional[str]
+    token_path: Optional[str]
+    allow_receive_token_by_current_ssh_session: bool
+    oauth_client_id: str
+    oauth_client_secret: str
+    tvm_auth: Optional[Any]
+    impersonation_user: Optional[str]
+    api_version: Optional[str]
+    default_api_version_for_http: str
+    default_api_version_for_rpc: str
+    enable_passing_request_id_to_driver: bool
+    driver_user_name: Optional[str]
+    driver_config: Optional[Dict[str, Any]]
+    driver_logging_config: Optional[Any]
+    enable_driver_logging_to_stderr: Optional[Any]
+    driver_address_resolver_config: Optional[Any]
+    yp_service_discovery_config: Optional[Any]
+    driver_config_path: Optional[str]
+    config_path: Optional[str]
+    config_format: str
+    config_profile: Optional[str]
+    config_remote_patch_path: str
+    apply_remote_patch_at_start: bool
+
+    class DefaultConfigPicklingType(TypedDict, total=False):
+        search_extensions: Optional[Any]
+        module_filter: Optional[Any]
+        force_using_py_instead_of_pyc: bool
+        create_init_file_for_package_modules: bool
+        additional_files_to_archive: Optional[Any]
+        create_modules_archive_function: Optional[Any]
+        find_module_file_error_logging_level: str
+        framework: str
+        load_additional_dill_types: bool
+        pickler_kwargs: List[Any]
+        check_python_version: bool
+        use_local_python_in_jobs: Optional[Any]
+        enable_local_files_usage_in_job: Optional[Any]
+        python_binary: Optional[Any]
+        safe_stream_mode: bool
+        stdout_fd_protection: str
+        redirect_stdout_to_stderr: bool
+        enable_tmpfs_archive: bool
+        add_tmpfs_archive_size_to_memory_limit: bool
+        enable_job_statistics: bool
+
+        class DefaultConfigPicklingDynamicLibrariesType(TypedDict, total=False):
+            enable_auto_collection: bool
+            library_filter: Optional[Any]
+
+        dynamic_libraries: DefaultConfigPicklingDynamicLibrariesType
+        ignore_yson_bindings_for_incompatible_platforms: bool
+        use_function_name_as_title: bool
+        enable_modules_compatibility_filter: bool
+        modules_archive_compression_level: int
+        modules_archive_compression_codec: str
+        modules_chunk_size: int
+        modules_bypass_artifacts_cache: Optional[Any]
+        ignore_system_modules: bool
+        system_module_patterns: List[Any]
+        encrypt_pickle_files: int
+
+    pickling: DefaultConfigPicklingType
+    is_local_mode: Optional[Any]
+    allow_http_requests_to_yt_from_job: bool
+
+    class DefaultConfigYamrModeType(TypedDict, total=False):
+        always_set_executable_flag_on_files: bool
+        use_yamr_style_destination_fds: bool
+        treat_unexisting_as_empty: bool
+        delete_empty_tables: bool
+        use_yamr_sort_reduce_columns: bool
+        replace_tables_on_copy_and_move: bool
+        create_recursive: bool
+        throw_on_missing_destination: bool
+        run_map_reduce_if_source_is_not_sorted: bool
+        use_non_strict_upper_key: bool
+        check_input_fully_consumed: bool
+        abort_transactions_with_remove: bool
+        use_yamr_style_prefix: bool
+        create_tables_outside_of_transaction: bool
+        use_yamr_defaults: bool
+        ignore_empty_tables_in_mapreduce_list: bool
+        create_schema_on_tables: bool
+        run_merge_instead_of_sort_if_input_tables_are_sorted: bool
+
+    yamr_mode: DefaultConfigYamrModeType
+    tabular_data_format: Optional[Any]
+    structured_data_format: Optional[Any]
+    force_using_yson_for_formatted_requests: bool
+    create_table_attributes: Optional[Any]
+    clear_local_temp_files: bool
+    local_temp_directory: Optional[Any]
+    remote_temp_files_directory: Optional[Any]
+    remote_temp_tables_directory: str
+    remote_temp_tables_bucket_count: int
+    temp_expiration_timeout: int
+    max_replication_factor: int
+
+    class DefaultConfigFileCacheType(TypedDict, total=False):
+        replication_factor: int
+
+    file_cache: DefaultConfigFileCacheType
+    use_legacy_file_cache: Optional[Any]
+
+    class DefaultConfigOperationTrackerType(TypedDict, total=False):
+        poll_period: int
+        stderr_logging_level: str
+        progress_logging_level: str
+        ignore_stderr_if_download_failed: bool
+        abort_on_sigint: bool
+        log_job_statistics: bool
+        stderr_download_threading_enable: bool
+        stderr_download_thread_count: int
+        stderr_download_timeout: int
+        enable_logging_failed_operation: bool
+        stderr_encoding: str
+        always_show_job_stderr: bool
+
+    operation_tracker: DefaultConfigOperationTrackerType
+
+    class DefaultConfigQueryTrackerType(TypedDict, total=False):
+        poll_period: int
+        stderr_logging_level: str
+        progress_logging_level: str
+        abort_on_sigint: bool
+
+    query_tracker: DefaultConfigQueryTrackerType
+
+    class DefaultConfigReadParallelType(TypedDict, total=False):
+        max_thread_count: int
+        data_size_per_thread: int
+        enable: bool
+
+    read_parallel: DefaultConfigReadParallelType
+
+    class DefaultConfigWriteParallelType(TypedDict, total=False):
+        max_thread_count: Optional[Any]
+        enable: Optional[Any]
+        memory_limit: int
+        unordered: bool
+        concatenate_size: int
+        use_tmp_dir_for_intermediate_data: bool
+
+    write_parallel: DefaultConfigWriteParallelType
+    read_buffer_size: int
+    read_omit_inaccessible_columns: Optional[Any]
+    spec_defaults: Dict[str, Any]
+    spec_overrides: Dict[str, Any]
+    memory_limit: Optional[Any]
+    pool: Optional[Any]
+    operation_base_layer: Optional[Any]
+    base_layers_registry_path: str
+    table_writer: Dict[str, Any]
+    user_job_spec_defaults: Dict[str, Any]
+    detached: bool
+    prefix: Optional[Any]
+    transaction_timeout: int
+    transaction_sleep_period: int
+    transaction_use_signal_if_ping_failed: Optional[Any]
+    ping_failed_mode: Optional[Any]
+    ping_failed_function: Optional[Any]
+    default_value_of_raw_option: bool
+    enable_batch_mode_for_search: bool
+
+    class DefaultConfigReadRetriesType(DefaultConfigRetriesType, total=False):
+        allow_multiple_ranges: bool
+        create_transaction_and_take_snapshot_lock: bool
+        change_proxy_period: Optional[Any]
+        use_locked_node_id: bool
+
+    read_retries: DefaultConfigReadRetriesType
+
+    class DefaultConfigWriteRetriesType(DefaultConfigRetriesType, total=False):
+        chunk_size: Optional[Any]
+        transaction_id: Optional[Any]
+        rows_chunk_size: int
+
+    write_retries: DefaultConfigWriteRetriesType
+    start_operation_retries: DefaultConfigRetriesType
+    start_operation_request_timeout: int
+    concatenate_retries: DefaultConfigRetriesType
+    get_operation_retries: DefaultConfigRetriesType
+    operation_info_commands_timeout: int
+
+    class DefaultConfigAutoMergeOutputType(TypedDict, total=False):
+        action: str
+        min_chunk_count: int
+        max_chunk_size: int
+
+    auto_merge_output: DefaultConfigAutoMergeOutputType
+    argcomplete_verbose: bool
+    ignore_root_path_resolve_error_in_search: bool
+
+    class DefaultConfigTransformOptionsType(TypedDict, total=False):
+        chunk_count_to_compute_compression_ratio: int
+        desired_chunk_size: int
+        max_data_size_per_job: int
+
+    transform_options: DefaultConfigTransformOptionsType
+
+    class DefaultConfigMountSandboxInTmpfsType(TypedDict, total=False):
+        enable: bool
+        additional_tmpfs_size: int
+
+    mount_sandbox_in_tmpfs: DefaultConfigMountSandboxInTmpfsType
+    max_batch_size: int
+    execute_batch_concurrency: int
+    batch_requests_retries: DefaultConfigRetriesType
+    skynet_manager_url: str
+    enable_logging_for_params_changes: bool
+
+    class DefaultConfigWriteProgressBarType(TypedDict, total=False):
+        enable: Optional[Any]
+
+    write_progress_bar: DefaultConfigWriteProgressBarType
+
+    class DefaultConfigReadProgressBarType(TypedDict, total=False):
+        enable: bool
+
+    read_progress_bar: DefaultConfigReadProgressBarType
+    allow_fallback_to_native_driver: bool
+    started_by_command_length_limit: int
+    runtime_type_validation: bool
+    strawberry_ctl_address: str
+    strawberry_cluster_name: str
+
+    class DefaultConfigUploadTableOptionsType(TypedDict, total=False):
+        write_arrow_batch_size: int
+
+    upload_table_options: DefaultConfigUploadTableOptionsType
+
+    class DefaultConfigDumpTableOptionsType(TypedDict, total=False):
+        min_batch_row_count: int
+
+    dump_table_options: DefaultConfigDumpTableOptionsType
+    enable_password_strength_validation: bool
+
+
+def retry_backoff_config(**kwargs) -> DefaultConfigRetriesBackoffType:
     config_dict = {
         # Backoff options for failed requests.
         # Supported policies:
@@ -54,7 +361,7 @@ def retry_backoff_config(**kwargs):
     return config
 
 
-def retries_config(**kwargs):
+def retries_config(**kwargs) -> DefaultConfigRetriesType:
     if "total_timeout" in kwargs and isinstance(kwargs["total_timeout"], timedelta):
         kwargs["total_timeout"] = kwargs["total_timeout"].total_seconds() * 1000.0
 
@@ -71,7 +378,7 @@ def retries_config(**kwargs):
     return config
 
 
-def get_dynamic_table_retries():
+def get_dynamic_table_retries() -> DefaultConfigRetriesBackoffType:
     return retries_config(enable=True, total_timeout=timedelta(minutes=10), backoff={
         "policy": "exponential",
         "exponential_policy": {
@@ -762,7 +1069,7 @@ def transform_value(value, original_value):
     return value
 
 
-def get_default_config():
+def get_default_config() -> DefaultConfigType:
     """Returns default configuration of python API."""
     template_dict = deepcopy(default_config)
     template_dict["proxy"] = VerifiedDict(
