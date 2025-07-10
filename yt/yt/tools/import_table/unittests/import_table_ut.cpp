@@ -600,10 +600,8 @@ private:
 
         auto serverConfig = New<NHttps::TServerConfig>();
         serverConfig->Credentials = New<NHttps::TServerCredentialsConfig>();
-        serverConfig->Credentials->PrivateKey = New<TPemBlobConfig>();
-        serverConfig->Credentials->PrivateKey->Value = TestCertificate;
-        serverConfig->Credentials->CertificateChain = New<TPemBlobConfig>();
-        serverConfig->Credentials->CertificateChain->Value = TestCertificate;
+        serverConfig->Credentials->PrivateKey = CreateTestKeyBlob("key.pem");
+        serverConfig->Credentials->CertificateChain = CreateTestKeyBlob("cert.pem");
         SetupServer(serverConfig);
         Server = NHttps::CreateServer(serverConfig, Poller);
 
