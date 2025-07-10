@@ -113,6 +113,8 @@
 
 #include <library/cpp/yt/memory/memory_usage_tracker.h>
 
+#include <tcmalloc/malloc_extension.h>
+
 #include <util/system/fs.h>
 
 #include <sys/resource.h>
@@ -1656,6 +1658,14 @@ void TJobProxy::CheckMemoryUsage()
                 usage,
                 JobProxyMemoryReserve_,
                 TRefCountedTracker::Get()->GetDebugInfo(2 /*sortByColumn*/));
+            // NB(coteeq): Refcount dump and TCMalloc stats are quite huge, so we will exceed
+            // logging's message length limit. So let's duplicate the warning to reliably see at least
+            // a prefix of both blobs.
+            YT_LOG_WARNING("Job proxy used more memory than estimated "
+                "(JobProxyMaxMemoryUsage: %v, JobProxyMemoryReserve: %v, TCMallocStats: %v)",
+                usage,
+                JobProxyMemoryReserve_,
+                tcmalloc::MallocExtension::GetStats());
             LastRefCountedTrackerLogTime_ = TInstant::Now();
             LastLoggedJobProxyMaxMemoryUsage_ = usage;
         }
