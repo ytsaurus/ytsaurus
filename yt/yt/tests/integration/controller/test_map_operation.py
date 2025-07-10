@@ -1712,13 +1712,14 @@ print(json.dumps(input))
             track=False,
             in_=input_table,
             out=output,
-            command=with_breakpoint("""read row; echo $row; BREAKPOINT; sleep 5; cat"""),
+            command=with_breakpoint("""read row; echo $row; BREAKPOINT; while read row; do echo $row; sleep 1; done"""),
             spec={
                 "force_allow_job_interruption": True,
                 "job_count": job_count,
                 "job_io": {
                     "buffer_row_count": 1,
                 },
+                "mapper": {"format": "json"},
             },
         )
 
