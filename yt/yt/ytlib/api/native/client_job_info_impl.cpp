@@ -132,6 +132,7 @@ static const THashSet<TString> SupportedJobsAttributes = {
     "events",
     "statistics",
     "is_stale",
+    "gang_rank",
 };
 
 // Some attributes are required for 'list_jobs' command regardless of user's demand.
@@ -183,6 +184,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "pool",
     "progress",
     "is_stale",
+    "gang_rank",
 };
 
 static const THashSet<TString> DefaultGetJobAttributes = [] {
@@ -227,6 +229,7 @@ static const THashMap<std::string, std::optional<int>> JobAttributeToMinArchiveV
     {"addresses", 57},
     {"controller_start_time", 58},
     {"controller_finish_time", 58},
+    {"gang_rank", 60},
 };
 
 static bool DoesArchiveContainAttribute(const TString& attribute, int archiveVersion) {
@@ -1603,7 +1606,7 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
             bool failTypeFilter = options.Type && *options.Type != jobType;
             bool failStateFilter = options.State && *options.State != jobState;
 
-            // NB(bystrovserg): list_jobs and list_operation have similar logic for calculating counters:
+            // NB(bystrovserg): list_jobs and list_operations have similar logic for calculating counters:
             // for given counter we assume its filter is empty and all other filters are applied.
             if (!failStateFilter) {
                 statistics.TypeCounts[jobType] += count;
@@ -1658,6 +1661,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             .JobCookie = record.JobCookie,
             .ArchiveFeatures = record.ArchiveFeatures.value_or(TYsonString()),
             .OperationIncarnation = record.OperationIncarnation,
+            .GangRank = record.GangRank,
         };
 
         if (responseIdMapping.OperationIdHi) {
@@ -1933,6 +1937,7 @@ static void ParseJobsFromControllerAgentResponse(
     auto needMonitoringDescriptor = attributes.contains("monitoring_descriptor");
     auto needOperationIncarnation = attributes.contains("operation_incarnation");
     auto needAllocationId = attributes.contains("allocation_id");
+    auto needGangRank = attributes.contains("gang_rank");
 
     for (const auto& [jobIdString, jobNode] : jobNodes) {
         if (!filter(jobNode)) {
@@ -2017,6 +2022,9 @@ static void ParseJobsFromControllerAgentResponse(
         }
         if (needAllocationId) {
             job.AllocationId = jobMapNode->FindChildValue<TAllocationId>("allocation_id");
+        }
+        if (needGangRank) {
+            job.GangRank = jobMapNode->FindChildValue<i64>("gang_rank");
         }
         job.PresentInControllerAgent = true;
     }
@@ -2273,6 +2281,7 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::JobCookie);
     mergeNullableField(&TJob::OperationIncarnation);
     mergeNullableField(&TJob::AllocationId);
+    mergeNullableField(&TJob::GangRank);
     if (controllerAgentJob.StderrSize && archiveJob->StderrSize.value_or(0) < controllerAgentJob.StderrSize) {
         archiveJob->StderrSize = controllerAgentJob.StderrSize;
     }

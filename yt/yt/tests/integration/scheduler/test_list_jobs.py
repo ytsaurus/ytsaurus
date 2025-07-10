@@ -1409,6 +1409,41 @@ class TestListJobs(TestListJobsCommon):
             job = jobs[0]
             assert job.get("brief_statistics") != {}
 
+    # TODO(bystrovserg): Do smth with copypaste of similar tests for get_job and list_jobs.
+    @authors("bystrovserg")
+    def test_gang_rank(self):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={
+                "gang_options": {},
+            },
+        )
+
+        wait_breakpoint(job_count=3)
+
+        wait(lambda: len(op.get_running_jobs()) == 3)
+        running_jobs = op.get_running_jobs()
+
+        job_ranks = {job_id: info["gang_rank"] for job_id, info in running_jobs.items()}
+        print_debug("Acquired job ranks from controller: {}".format(job_ranks))
+
+        def check_job_ranks():
+            jobs = list_jobs(op.id, attributes=["gang_rank"])["jobs"]
+            wait(lambda: len(list_jobs(op.id, attributes=["gang_rank"])["jobs"]) == 3)
+            wait(lambda: all(job.get("gang_rank") is not None for job in list_jobs(op.id, attributes=["gang_rank"])["jobs"]))
+            jobs = list_jobs(op.id, attributes=["gang_rank"])["jobs"]
+
+            job_ranks_api = {job["id"]: job["gang_rank"] for job in jobs}
+            assert job_ranks_api == job_ranks
+
+        check_job_ranks()
+
+        release_breakpoint()
+        op.track()
+
+        check_job_ranks()
+
 
 class TestListJobsAllocation(TestListJobsBase):
     NUM_NODES = 1

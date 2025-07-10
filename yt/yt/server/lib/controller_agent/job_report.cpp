@@ -87,6 +87,12 @@ TControllerJobReport TControllerJobReport::FinishTime(TInstant finishTime)
     return std::move(*this);
 }
 
+TControllerJobReport TControllerJobReport::GangRank(std::optional<i64> gangRank)
+{
+    GangRank_ = gangRank;
+    return std::move(*this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent

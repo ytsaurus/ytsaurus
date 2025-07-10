@@ -108,7 +108,8 @@ public:
             Report_.OperationIncarnation(),
             Report_.AllocationId().Underlying(),
             Report_.ControllerStartTime(),
-            Report_.ControllerFinishTime());
+            Report_.ControllerFinishTime(),
+            Report_.GangRank());
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
@@ -212,6 +213,11 @@ public:
         if (archiveVersion >= 58) {
             record.ControllerStartTime = Report_.ControllerStartTime();
             record.ControllerFinishTime = Report_.ControllerFinishTime();
+        }
+
+        // COMPAT(bystrovserg)
+        if (archiveVersion >= 60) {
+            record.GangRank = Report_.GangRank();
         }
 
         return FromRecord(record);
