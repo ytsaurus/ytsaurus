@@ -1,9 +1,10 @@
 from yt_env_setup import YTEnvSetup
 
+
 from yt_commands import (
     authors, wait, create, get, write_table, map, merge, raises_yt_error,
     get_table_columnar_statistics, sorted_dicts, set_nodes_banned, set_node_banned,
-    read_table
+    read_table, interrupt_job, wait_breakpoint, release_breakpoint, with_breakpoint,
 )
 
 from yt_type_helpers import (
@@ -653,6 +654,78 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
         else:
             op.track()
             assert "invalid_data_weight_per_job" in op.get_alerts()
+
+    @authors("apollo1321")
+    def test_unordered_map_with_job_interruptions(self):
+        # The purpose of this test is to check that
+
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "col1", "type": "string"},
+            ]),
+            "optimize_for": "scan",
+        })
+
+        chunk_count = 10
+
+        for _ in range(chunk_count):
+            write_table(
+                "<append=true>//tmp/t_in",
+                [{"col1": "a"}],
+                table_writer={"block_size": 1}
+            )
+
+        user_slots = self.NUM_NODES
+
+        command = with_breakpoint(f"""
+if [ "$YT_JOB_INDEX" -lt {user_slots} ]; then
+    i=0
+    while read ROW && [ "$i" -lt 100 ]; do
+        ((i++))
+        echo "$ROW"
+    done
+    BREAKPOINT
+    while read ROW; do
+        echo "$ROW"
+    done
+else
+    cat
+fi
+""")
+        op = map(
+            track=False,
+            in_="//tmp/t_in{col1}",
+            out="<create=true>//tmp/t_out",
+            command=command,
+            spec={
+                "mapper": {
+                    "format": "dsv",
+                },
+                "max_failed_job_count": 1,
+                "job_io": {
+                    "buffer_row_count": 1,
+                    "pipe_capacity": 1,
+                },
+                "max_compressed_data_size_per_job": int(get("//tmp/t_in/@compressed_data_size") / (chunk_count * 0.8)),
+                "max_job_count": 1,
+                "resource_limits": {"user_slots": user_slots},
+            },
+        )
+
+        jobs = wait_breakpoint(job_count=user_slots)
+        for job_id in jobs:
+            interrupt_job(job_id, interrupt_timeout=10000)
+
+        release_breakpoint()
+
+        op.track()
+
+        progress = get(op.get_path() + "/@progress")
+        actual_compressed_data_size = self._get_completed_summary(progress["job_statistics_v2"]["data"]["input"]["compressed_data_size"])["sum"]
+        estimated_compressed_data_size = progress["estimated_input_statistics"]["compressed_data_size"]
+
+        # Actual size may be up to 2x estimated size due to job restarts.
+        assert estimated_compressed_data_size * 0.9 <= actual_compressed_data_size <= estimated_compressed_data_size * 2.1
 
 
 @pytest.mark.enabled_multidaemon
