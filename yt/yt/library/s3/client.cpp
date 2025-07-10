@@ -17,32 +17,58 @@ namespace NYT::NS3 {
 using namespace NConcurrency;
 using namespace NNet;
 
-namespace NPocoXml = Poco::XML;
-using TPocoXmlDocumentPtr = NPocoXml::AutoPtr<NPocoXml::Document>;
+using TPocoXmlDocumentPtr = Poco::XML::AutoPtr<Poco::XML::Document>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NPocoXml::Node* GetRootNode(TPocoXmlDocumentPtr document)
+Poco::XML::Node* GetRootNode(TPocoXmlDocumentPtr document)
 {
     for (auto* child = document->firstChild(); child != nullptr; child = child->nextSibling()) {
         // Skip the comment nodes.
-        if (child->nodeType() == NPocoXml::Node::ELEMENT_NODE) {
+        if (child->nodeType() == Poco::XML::Node::ELEMENT_NODE) {
             return child;
         }
     }
     THROW_ERROR_EXCEPTION("The document does not have a non-comment root node");
 }
 
-//! Returns a pair <ParsedDocument, RootNode>. We need both of them as the first will manage the lifetime
-//! of the parsed document, while the second one is usually what we actually want to access.
-std::pair<TPocoXmlDocumentPtr, NPocoXml::Node*> ParseXmlDocument(TSharedRef responseBody)
+struct TXmlParsedDocument
+{
+    Poco::XML::Node& operator*()
+    {
+        return *RootNode;
+    }
+    const Poco::XML::Node& operator*() const
+    {
+        return *RootNode;
+    }
+    Poco::XML::Node* operator->()
+    {
+        return RootNode;
+    }
+    const Poco::XML::Node* operator->() const
+    {
+        return RootNode;
+    }
+
+    //! Parsed document; this pointer also manages the lifetime.
+    TPocoXmlDocumentPtr Document;
+
+    //! Pointer to the root node of this document.
+    Poco::XML::Node* RootNode;
+};
+
+TXmlParsedDocument ParseXmlDocument(TSharedRef responseBody)
 {
     std::string responseString(responseBody.ToStringBuf());
-    TPocoXmlDocumentPtr parsedDocument = NPocoXml::DOMParser{}.parseString(responseString);
-    return std::make_pair(parsedDocument, GetRootNode(parsedDocument));
+    TPocoXmlDocumentPtr parsedDocument = Poco::XML::DOMParser{}.parseString(responseString);
+    return {
+        .Document = parsedDocument,
+        .RootNode = GetRootNode(parsedDocument),
+    };
 }
 
-NPocoXml::Node* GetChildByName(const NPocoXml::Node& node, const std::string& childName)
+Poco::XML::Node* GetChildByName(const Poco::XML::Node& node, const std::string& childName)
 {
     for (auto* child = node.firstChild(); child != nullptr; child = child->nextSibling()) {
         if (child->nodeName() == childName) {
@@ -52,7 +78,7 @@ NPocoXml::Node* GetChildByName(const NPocoXml::Node& node, const std::string& ch
     THROW_ERROR_EXCEPTION("Child with name %Qv not found in node %Qv", childName, node.nodeName());
 }
 
-NPocoXml::Node* TryGetChildByName(const NPocoXml::Node& node, const std::string& childName)
+Poco::XML::Node* TryGetChildByName(const Poco::XML::Node& node, const std::string& childName)
 {
     try {
         return GetChildByName(node, childName);
@@ -63,13 +89,13 @@ NPocoXml::Node* TryGetChildByName(const NPocoXml::Node& node, const std::string&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBucket::Deserialize(const NPocoXml::Node& node)
+void TBucket::Deserialize(const Poco::XML::Node& node)
 {
     CreationDate = TInstant::ParseIso8601(GetChildByName(node, "CreationDate")->innerText());
     Name = GetChildByName(node, "Name")->innerText();
 }
 
-void TObject::Deserialize(const NPocoXml::Node& node)
+void TObject::Deserialize(const Poco::XML::Node& node)
 {
     Key = GetChildByName(node, "Key")->innerText();
     LastModified = TInstant::ParseIso8601(GetChildByName(node, "LastModified")->innerText());
@@ -77,7 +103,7 @@ void TObject::Deserialize(const NPocoXml::Node& node)
     Size = FromString<ui64>(GetChildByName(node, "Size")->innerText());
 }
 
-void TOwner::Deserialize(const NPocoXml::Node& node)
+void TOwner::Deserialize(const Poco::XML::Node& node)
 {
     DisplayName = GetChildByName(node, "DisplayName")->innerText();
     Id = GetChildByName(node, "ID")->innerText();
@@ -93,12 +119,12 @@ void TListBucketsRequest::Serialize(THttpRequest* request) const
 
 void TListBucketsResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
-    auto [document, rootNode] = ParseXmlDocument(response->ReadAll());
-    auto bucketsNode = GetChildByName(*rootNode, "Buckets");
+    auto parsedDocument = ParseXmlDocument(response->ReadAll());
+    auto bucketsNode = GetChildByName(*parsedDocument, "Buckets");
     for (auto* child = bucketsNode->firstChild(); child != nullptr; child = child->nextSibling()) {
         Buckets.emplace_back().Deserialize(*child);
     }
-    Owner.Deserialize(*GetChildByName(*rootNode, "Owner"));
+    Owner.Deserialize(*GetChildByName(*parsedDocument, "Owner"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,14 +144,14 @@ void TListObjectsRequest::Serialize(THttpRequest* request) const
 
 void TListObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
-    auto [document, rootNode] = ParseXmlDocument(response->ReadAll());
-    for (auto* child = rootNode->firstChild(); child != nullptr; child = child->nextSibling()) {
+    auto parsedDocument = ParseXmlDocument(response->ReadAll());
+    for (auto* child = parsedDocument->firstChild(); child != nullptr; child = child->nextSibling()) {
         if (child->nodeName() != "Contents") {
             continue;
         }
         Objects.emplace_back().Deserialize(*child);
     }
-    if (auto nextToken = TryGetChildByName(*rootNode, "NextContinuationToken"); nextToken != nullptr) {
+    if (auto nextToken = TryGetChildByName(*parsedDocument, "NextContinuationToken")) {
         NextContinuationToken = nextToken->innerText();
     }
 }
@@ -256,8 +282,8 @@ void TDeleteObjectsRequest::Serialize(THttpRequest* request) const
 
 void TDeleteObjectsResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
-    auto [document, rootNode] = ParseXmlDocument(response->ReadAll());
-    for (auto* errorNode = TryGetChildByName(*rootNode, "Error");
+    auto parsedDocument = ParseXmlDocument(response->ReadAll());
+    for (auto* errorNode = TryGetChildByName(*parsedDocument, "Error");
         errorNode != nullptr;
         errorNode = errorNode->nextSibling())
     {
@@ -280,10 +306,10 @@ void TCreateMultipartUploadRequest::Serialize(THttpRequest* request) const
 
 void TCreateMultipartUploadResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
-    auto [document, rootNode] = ParseXmlDocument(response->ReadAll());
-    Bucket = GetChildByName(*rootNode, "Bucket")->innerText();
-    Key = GetChildByName(*rootNode, "Key")->innerText();
-    UploadId = GetChildByName(*rootNode, "UploadId")->innerText();
+    auto parsedDocument = ParseXmlDocument(response->ReadAll());
+    Bucket = GetChildByName(*parsedDocument, "Bucket")->innerText();
+    Key = GetChildByName(*parsedDocument, "Key")->innerText();
+    UploadId = GetChildByName(*parsedDocument, "UploadId")->innerText();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -320,9 +346,9 @@ void TCompleteMultipartUploadRequest::Serialize(THttpRequest* request) const
 
 void TCompleteMultipartUploadResponse::Deserialize(const NHttp::IResponsePtr& response)
 {
-    auto [document, rootNode] = ParseXmlDocument(response->ReadAll());
+    auto parsedDocument = ParseXmlDocument(response->ReadAll());
 
-    ETag = GetChildByName(*rootNode, "ETag")->innerText();
+    ETag = GetChildByName(*parsedDocument, "ETag")->innerText();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -424,8 +450,8 @@ private:
         error <<= TErrorAttribute("http_code", statusCode);
         auto responseBody = response->ReadAll();
         try {
-            const auto [document, rootNode] = ParseXmlDocument(responseBody);
-            for (auto* child = rootNode->firstChild(); child != nullptr; child = child->nextSibling()) {
+            auto parsedDocument = ParseXmlDocument(responseBody);
+            for (auto* child = parsedDocument->firstChild(); child != nullptr; child = child->nextSibling()) {
                 error <<= TErrorAttribute(child->nodeName(), child->innerText());
             }
         } catch (const std::exception&) {
