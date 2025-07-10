@@ -104,7 +104,7 @@ public:
             "BatchRowCount: %v, SamplingRate: %v, SingleJob: %v, HasJobSizeAdjuster: %v)",
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetSamplingRate() ? std::optional<i64>(JobSizeConstraints_->GetSamplingDataWeightPerJob()) : std::nullopt,
-            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
+            JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetCompressedDataSizePerJob(),
             JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
