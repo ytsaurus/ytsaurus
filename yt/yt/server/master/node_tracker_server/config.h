@@ -135,6 +135,14 @@ struct TDynamicNodeTrackerConfig
 
     TDuration ThrottledNodeRegistrationExpirationTime;
 
+    TDuration NodeAlertsCheckPeriod;
+
+    TDuration NodeDataHeartbeatOutdateDuration;
+
+    TDuration NodeJobHeartbeatOutdateDuration;
+
+    TDuration MaxNodeIncompleteStateDuration;
+
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);

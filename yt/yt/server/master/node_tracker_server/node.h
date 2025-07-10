@@ -271,6 +271,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TMediumMap<i64>, MediumToWriteSessionCountLimit);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, WriteSessionLimit);
 
+    // Transient update times used for alerts only.
+    DEFINE_BYVAL_RW_PROPERTY(TCpuInstant, LastDataHeartbeatTime);
+    DEFINE_BYVAL_RW_PROPERTY(TCpuInstant, LastJobHeartbeatTime);
+    DEFINE_BYVAL_RW_PROPERTY(TCpuInstant, LastStateChangeTime);
 
 public:
     explicit TNode(NObjectServer::TObjectId objectId);
