@@ -14,6 +14,7 @@ from yt_commands import (
     get_job,
     exists,
     join_reduce,
+    ls,
     raises_yt_error,
     read_table,
     release_breakpoint,
@@ -32,6 +33,7 @@ from yt_commands import (
     merge,
     reduce,
     sort,
+    set_all_nodes_banned,
     wait_for_nodes,
     wait,
 )
@@ -746,6 +748,7 @@ class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteO
 
 class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOperationCommandsBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_DISCOVERY_SERVERS = 1
     DELTA_NODE_CONFIG = {
         "exec_node": {
             # Enable job throttler on exe node.
@@ -787,6 +790,8 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
     THROTTLER_JITTER_MULTIPLIER = 0.5
     DATA_WEIGHT_SIZE_PER_CHUNK = 10 ** 7
 
+    LEASE_TIMEOUT_SECONDS = 1
+
     # Setup //sys/cluster_throttlers on local cluster.
     def setup_cluster_throttlers(self):
         remove('//sys/cluster_throttlers', force=True)
@@ -802,12 +807,13 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
             },
             "distributed_throttler": {
                 "member_client": {
-                    "heartbeat_period": 50,
-                    "attribute_update_period": 300,
-                    "heartbeat_throttler_count_limit": 2,
+                    "lease_timeout": self.LEASE_TIMEOUT_SECONDS * 1000,
                 },
-                "limit_update_period": 100,
-                "leader_update_period": 1500,
+                "heartbeat_period": 200,
+                "attribute_update_period": 600,
+                "heartbeat_throttler_count_limit": 2,
+                "limit_update_period": 600,
+                "leader_update_period": 600,
             },
         }
         set('//sys/cluster_throttlers', cluster_throttlers_config)
@@ -872,6 +878,48 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
             wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/usage", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
 
     @authors("yuryalekseev")
+    def test_cluster_throttlers_all_nodes_banned(self):
+        self.setup_cluster_throttlers()
+
+        # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
+        with Restarter(self.Env, NODES_SERVICE):
+            time.sleep(1)
+
+        # Wait for exe nodes to restart.
+        wait_for_nodes()
+
+        def has_remote_cluster_throttlers_group_members():
+            servers = ls("//sys/discovery_servers")
+            if len(servers) == 0:
+                return False
+            discovery_server = servers[0]
+            groups = ls("//sys/discovery_servers/{}/orchid/discovery_server".format(discovery_server))
+            if 'remote_cluster_throttlers_group' not in groups:
+                return False
+            group_members = ls("//sys/discovery_servers/{}/orchid/discovery_server/remote_cluster_throttlers_group/@members".format(discovery_server))
+            return len(group_members) > 0
+
+        # Wait for some exe nodes to register in discovery service.
+        wait(lambda: has_remote_cluster_throttlers_group_members())
+
+        # Ban all nodes on local cluster.
+        set_all_nodes_banned(True)
+
+        def has_no_remote_cluster_throttlers_group_members():
+            servers = ls("//sys/discovery_servers")
+            if len(servers) == 0:
+                return False
+            discovery_server = servers[0]
+            groups = ls("//sys/discovery_servers/{}/orchid/discovery_server".format(discovery_server))
+            if 'remote_cluster_throttlers_group' not in groups:
+                return True
+            group_members = ls("//sys/discovery_servers/{}/orchid/discovery_server/remote_cluster_throttlers_group/@members".format(discovery_server))
+            return len(group_members) == 0
+
+        # Wait for all exe nodes to unregister from discovery service.
+        wait(lambda: has_no_remote_cluster_throttlers_group_members(), timeout=5*self.LEASE_TIMEOUT_SECONDS)
+
+    @authors("yuryalekseev")
     def test_rate_limit_ratio_hard_threshold(self):
         bandwidth_limit = self.BANDWIDTH_LIMIT * 8
 
@@ -890,10 +938,11 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
             },
             "distributed_throttler": {
                 "member_client": {
-                    "heartbeat_period": 50,
-                    "attribute_update_period": 300,
-                    "heartbeat_throttler_count_limit": 2,
+                    "lease_timeout": 1000,
                 },
+                "heartbeat_period": 50,
+                "attribute_update_period": 300,
+                "heartbeat_throttler_count_limit": 2,
                 "limit_update_period": 100,
                 "leader_update_period": 1500,
             },

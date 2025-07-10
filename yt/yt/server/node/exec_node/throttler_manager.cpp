@@ -1,5 +1,7 @@
-#include "public.h"
 #include "throttler_manager.h"
+#include "bootstrap.h"
+#include "master_connector.h"
+#include "public.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
@@ -41,6 +43,8 @@ public:
         NClusterNode::IBootstrap* bootstrap,
         TThrottlerManagerOptions options);
 
+    ~TThrottlerManager();
+
     TFuture<void> Start() override;
 
     IThroughputThrottlerPtr GetOrCreateThrottler(
@@ -74,6 +78,7 @@ private:
     const TPromise<void> ClusterThrottlersConfigInitializedPromise_ = NewPromise<void>();
 
     // The following members are protected by Lock_.
+    bool Disable_ = false;
     TClusterThrottlersConfigPtr ClusterThrottlersConfig_;
     IDistributedThrottlerFactoryPtr DistributedThrottlerFactory_;
     struct TThroughputThrottlerData
@@ -92,6 +97,9 @@ private:
 
     static TThrottlerId ToThrottlerId(EThrottlerTrafficType trafficType, const TClusterName& clusterName);
     static std::pair<EThrottlerTrafficType, TClusterName> FromThrottlerId(const TThrottlerId& throttlerId);
+
+    void OnMasterConnected();
+    void OnMasterDisconnected();
 
     void TryUpdateClusterThrottlersConfig();
     //! Lock_ has to be taken prior to calling this method.
@@ -148,6 +156,33 @@ std::pair<EThrottlerTrafficType, TClusterName> TThrottlerManager::FromThrottlerI
         }
     }
     THROW_ERROR_EXCEPTION("Invalid throttler id %Qv", throttlerId);
+}
+
+void TThrottlerManager::OnMasterConnected()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    YT_LOG_INFO("Update cluster throttlers on master connect");
+
+    {
+        auto guard = Guard(Lock_);
+        Disable_ = false;
+    }
+
+    TryUpdateClusterThrottlersConfig();
+}
+
+void TThrottlerManager::OnMasterDisconnected()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    YT_LOG_INFO("Disable cluster throttlers on master disconnect");
+
+    auto guard = Guard(Lock_);
+    Disable_ = true;
+    ClusterThrottlersConfig_.Reset();
+    DistributedThrottlersHolder_.clear();
+    DistributedThrottlerFactory_.Reset();
 }
 
 void TThrottlerManager::UpdateDistributedThrottlers()
@@ -242,6 +277,7 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 
         {
             auto guard = Guard(Lock_);
+            ClusterThrottlersConfig_.Reset();
             DistributedThrottlersHolder_.clear();
             DistributedThrottlerFactory_.Reset();
         }
@@ -253,6 +289,11 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
 
     {
         auto guard = Guard(Lock_);
+
+        if (Disable_) {
+            YT_LOG_DEBUG("Skip updating cluster throttlers config since throttler manager is disabled");
+            return;
+        }
 
         if (AreClusterThrottlersConfigsEqual(ClusterThrottlersConfig_, newConfig)) {
             YT_LOG_DEBUG("New cluster throttlers config is the same as the old one");
@@ -413,7 +454,7 @@ IThroughputThrottlerPtr TThrottlerManager::DoGetOrCreateThrottler(
     {
         localThrottler = GetLocalThrottler(kind, trafficType);
         distributedThrottler = GetOrCreateDistributedThrottler(kind, trafficType, remoteClusterName);
-        if (!distributedThrottler) {
+        if (Disable_ || !distributedThrottler) {
             YT_LOG_DEBUG("Distributed throttler is missing; falling back to local throttler");
             return localThrottler;
         }
@@ -446,6 +487,8 @@ TThrottlerManager::TThrottlerManager(
         // Default period will be updated once config has been retrieved.
         TDuration::Seconds(10)))
 {
+    YT_LOG_INFO("Constructing throttler manager");
+
     if (ClusterNodeConfig_->EnableFairThrottler) {
         Throttlers_[EExecNodeThrottlerKind::JobIn] = Bootstrap_->GetInThrottler("job_in");
         Throttlers_[EExecNodeThrottlerKind::ArtifactCacheIn] = Bootstrap_->GetInThrottler("artifact_cache_in");
@@ -470,6 +513,15 @@ TThrottlerManager::TThrottlerManager(
             Throttlers_[kind] = std::move(throttler);
         }
     }
+
+    const auto& masterConnector = Bootstrap_->GetExecNodeBootstrap()->GetMasterConnector();
+    masterConnector->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterConnected, MakeWeak(this)));
+    masterConnector->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TThrottlerManager::OnMasterDisconnected, MakeWeak(this)));
+}
+
+TThrottlerManager::~TThrottlerManager()
+{
+    YT_LOG_INFO("Destructing throttler manager");
 }
 
 TFuture<void> TThrottlerManager::Start()
