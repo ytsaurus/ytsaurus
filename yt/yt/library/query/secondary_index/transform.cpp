@@ -138,13 +138,14 @@ struct TTableReferenceReplacer
 void TransformWithIndexStatement(
     NAst::TQuery* query,
     const ITableMountCachePtr& cache,
-    TObjectsHolder* holder)
+    TObjectsHolder* holder,
+    bool allowUnaliasedSecondaryIndex)
 {
     if (auto* fromSubquery = std::get_if<NAst::TQueryAstHeadPtr>(&query->FromClause)) {
         THROW_ERROR_EXCEPTION_IF(query->WithIndex,
             "WITH INDEX clause is not supported with subqueries at the moment");
 
-        TransformWithIndexStatement(&fromSubquery->Get()->Ast, cache, holder);
+        TransformWithIndexStatement(&fromSubquery->Get()->Ast, cache, holder, allowUnaliasedSecondaryIndex);
         return;
     }
 
@@ -213,9 +214,13 @@ void TransformWithIndexStatement(
     }
 
     if (!index.Alias) {
-        index.Alias = SecondaryIndexAlias;
+        if (allowUnaliasedSecondaryIndex) {
+            index.Alias = SecondaryIndexAlias;
+        } else {
+            THROW_ERROR_EXCEPTION("Misuse of operator WITH INDEX: index table %v has no alias",
+                index.Path);
+        }
     }
-
 
     if (unfoldedColumn) {
         NAst::TReference repeatedIndexedColumn(unfoldedColumn->Name(), table.Alias);

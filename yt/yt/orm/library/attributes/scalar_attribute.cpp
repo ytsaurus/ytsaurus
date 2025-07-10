@@ -751,6 +751,35 @@ bool AreProtoMessagesEqualByPath(
 
 } // namespace NDetail
 
+////////////////////////////////////////////////////////////////////////////////
+
+bool HasProtobufField(
+    const google::protobuf::Message& message,
+    const std::string& fieldName)
+{
+    auto throwPresenceCheckError = [&] (const std::string& reason) {
+        THROW_ERROR_EXCEPTION("Could not check presence for field %Qv of %Qv: %v",
+            message.GetTypeName(),
+            fieldName,
+            reason);
+    };
+
+    const auto* reflection = message.GetReflection();
+    const auto* field = message.GetDescriptor()->FindFieldByName(fieldName);
+    if (!field) {
+        throwPresenceCheckError(/*reason*/ "field does not exists");
+    }
+
+    if (field->is_optional()) {
+        return reflection->HasField(message, field);
+    } else if (field->is_repeated()) {
+        return reflection->FieldSize(message, field) > 0;
+    }
+
+    throwPresenceCheckError(/*reason*/ "field does not support presence");
+    YT_UNREACHABLE();
+}
+
 void ClearProtobufFieldByPath(
     Message& message,
     const NYPath::TYPath& path,

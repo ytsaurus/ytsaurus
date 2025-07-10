@@ -901,7 +901,7 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
 
     for (const auto& [accountId, stuckNodes] : AccountIdToStuckNodes_) {
         TWithTagGuard tagGuard(buffer, "account", getAccountTag(accountId));
-        buffer->AddGauge("/chunk_merger/stuck_nodes_count", stuckNodes.size());
+        buffer->AddGauge("/chunk_merger/stuck_node_count", stuckNodes.size());
     }
 }
 

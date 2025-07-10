@@ -1,6 +1,7 @@
 """A eventlet based handler."""
 from __future__ import absolute_import
 
+import atexit
 import contextlib
 import logging
 
@@ -12,7 +13,6 @@ from eventlet.green import selectors as green_selectors
 from eventlet import queue as green_queue
 
 from kazoo.handlers import utils
-import kazoo.python2atexit as python2atexit
 from kazoo.handlers.utils import selector_select
 
 LOG = logging.getLogger(__name__)
@@ -43,9 +43,9 @@ class AsyncResult(utils.AsyncResult):
     """A one-time event that stores a value or an exception"""
 
     def __init__(self, handler):
-        super(AsyncResult, self).__init__(handler,
-                                          green_threading.Condition,
-                                          TimeoutError)
+        super(AsyncResult, self).__init__(
+            handler, green_threading.Condition, TimeoutError
+        )
 
 
 class SequentialEventletHandler(object):
@@ -76,6 +76,7 @@ class SequentialEventletHandler(object):
         returns.
 
     """
+
     name = "sequential_eventlet_handler"
     queue_impl = green_queue.LightQueue
     queue_empty = green_queue.Empty
@@ -106,8 +107,10 @@ class SequentialEventletHandler(object):
                 with _yield_before_after():
                     cb()
             except Exception:
-                LOG.warning("Exception in worker completion queue greenlet",
-                            exc_info=True)
+                LOG.warning(
+                    "Exception in worker completion queue greenlet",
+                    exc_info=True,
+                )
             finally:
                 del cb  # release before possible idle
 
@@ -120,8 +123,10 @@ class SequentialEventletHandler(object):
                 with _yield_before_after():
                     cb()
             except Exception:
-                LOG.warning("Exception in worker callback queue greenlet",
-                            exc_info=True)
+                LOG.warning(
+                    "Exception in worker callback queue greenlet",
+                    exc_info=True,
+                )
             finally:
                 del cb  # release before possible idle
 
@@ -135,7 +140,7 @@ class SequentialEventletHandler(object):
             w = eventlet.spawn(self._process_callback_queue)
             self._workers.append((w, self.callback_queue))
             self._started = True
-            python2atexit.register(self.stop)
+            atexit.register(self.stop)
 
     def stop(self):
         while self._workers:
@@ -143,7 +148,7 @@ class SequentialEventletHandler(object):
             q.put(_STOP)
             w.wait()
         self._started = False
-        python2atexit.unregister(self.stop)
+        atexit.unregister(self.stop)
 
     def socket(self, *args, **kwargs):
         return utils.create_tcp_socket(green_socket)
@@ -165,8 +170,9 @@ class SequentialEventletHandler(object):
 
     def select(self, *args, **kwargs):
         with _yield_before_after():
-            return selector_select(*args, selectors_module=green_selectors,
-                                   **kwargs)
+            return selector_select(
+                *args, selectors_module=green_selectors, **kwargs
+            )
 
     def async_result(self):
         return AsyncResult(self)

@@ -5426,10 +5426,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenAsmMatcher.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenAsmMatcher.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -5523,10 +5523,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenAsmWriter.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenAsmWriter.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -5620,10 +5620,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenCallingConv.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenCallingConv.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -5717,10 +5717,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenDAGISel.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenDAGISel.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -5815,10 +5815,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenDisassemblerTables.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenDisassemblerTables.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -5912,10 +5912,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenExegesis.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenExegesis.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -6009,10 +6009,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenFastISel.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenFastISel.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -6106,10 +6106,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenGlobalISel.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenGlobalISel.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -6203,10 +6203,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenInstrInfo.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenInstrInfo.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -6300,10 +6300,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenMCCodeEmitter.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenMCCodeEmitter.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -6397,10 +6397,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenRegisterBank.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenRegisterBank.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -6494,10 +6494,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenRegisterInfo.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenRegisterInfo.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -6591,10 +6591,10 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenSubtargetInfo.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCGenSubtargetInfo.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/GISel/PPCRegisterBanks.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P10InstrResources.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/P9InstrResources.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPC.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCCallingConv.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstr64Bit.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/lib/Target/PowerPC/PPCInstrAltivec.td
@@ -9641,8 +9641,8 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/tools/llvm-objcopy/ObjcopyOpts.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/tools/llvm-objcopy/ObjcopyOpts.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/tools/llvm-objcopy/ObjcopyOpts.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/tools/llvm-objcopy/CommonOpts.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/tools/llvm-objcopy/ObjcopyOpts.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/include/llvm/Option/OptParser.td
   ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY
@@ -9667,8 +9667,8 @@ add_custom_command(
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/tools/llvm-objcopy/StripOpts.inc
   ${PROJECT_BINARY_DIR}/contrib/libs/llvm18/tools/llvm-objcopy/StripOpts.inc.d
   DEPENDS
-  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/tools/llvm-objcopy/StripOpts.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/tools/llvm-objcopy/CommonOpts.td
+  ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/tools/llvm-objcopy/StripOpts.td
   ${PROJECT_SOURCE_DIR}/contrib/libs/llvm18/include/llvm/Option/OptParser.td
   ${TOOL_llvm-tblgen_bin}
   WORKING_DIRECTORY

@@ -2,8 +2,6 @@
 from collections import namedtuple
 import struct
 
-import six
-
 from kazoo.exceptions import EXCEPTIONS
 from kazoo.protocol.states import ZnodeStat
 from kazoo.security import ACL
@@ -11,16 +9,16 @@ from kazoo.security import Id
 
 
 # Struct objects with formats compiled
-bool_struct = struct.Struct('B')
-int_struct = struct.Struct('!i')
-int_int_struct = struct.Struct('!ii')
-int_int_long_struct = struct.Struct('!iiq')
+bool_struct = struct.Struct("B")
+int_struct = struct.Struct("!i")
+int_int_struct = struct.Struct("!ii")
+int_int_long_struct = struct.Struct("!iiq")
 
-int_long_int_long_struct = struct.Struct('!iqiq')
-long_struct = struct.Struct('!q')
-multiheader_struct = struct.Struct('!iBi')
-reply_header_struct = struct.Struct('!iqi')
-stat_struct = struct.Struct('!qqqqiiiqiiq')
+int_long_int_long_struct = struct.Struct("!iqiq")
+long_struct = struct.Struct("!q")
+multiheader_struct = struct.Struct("!iBi")
+reply_header_struct = struct.Struct("!iqi")
+stat_struct = struct.Struct("!qqqqiiiqiiq")
 
 
 def read_string(buffer, offset):
@@ -33,7 +31,7 @@ def read_string(buffer, offset):
     else:
         index = offset
         offset += length
-        return buffer[index:index + length].decode('utf-8'), offset
+        return buffer[index : index + length].decode("utf-8"), offset
 
 
 def read_acl(bytes, offset):
@@ -48,7 +46,7 @@ def write_string(bytes):
     if not bytes:
         return int_struct.pack(-1)
     else:
-        utf8_str = bytes.encode('utf-8')
+        utf8_str = bytes.encode("utf-8")
         return int_struct.pack(len(utf8_str)) + utf8_str
 
 
@@ -67,38 +65,50 @@ def read_buffer(bytes, offset):
     else:
         index = offset
         offset += length
-        return bytes[index:index + length], offset
+        return bytes[index : index + length], offset
 
 
-class Close(namedtuple('Close', '')):
+class Close(namedtuple("Close", "")):
     type = -11
 
     @classmethod
     def serialize(cls):
-        return b''
+        return b""
+
 
 CloseInstance = Close()
 
 
-class Ping(namedtuple('Ping', '')):
+class Ping(namedtuple("Ping", "")):
     type = 11
 
     @classmethod
     def serialize(cls):
-        return b''
+        return b""
+
 
 PingInstance = Ping()
 
 
-class Connect(namedtuple('Connect', 'protocol_version last_zxid_seen'
-                         ' time_out session_id passwd read_only')):
+class Connect(
+    namedtuple(
+        "Connect",
+        "protocol_version last_zxid_seen"
+        " time_out session_id passwd read_only",
+    )
+):
     type = None
 
     def serialize(self):
         b = bytearray()
-        b.extend(int_long_int_long_struct.pack(
-            self.protocol_version, self.last_zxid_seen, self.time_out,
-            self.session_id))
+        b.extend(
+            int_long_int_long_struct.pack(
+                self.protocol_version,
+                self.last_zxid_seen,
+                self.time_out,
+                self.session_id,
+            )
+        )
         b.extend(write_buffer(self.passwd))
         b.extend([1 if self.read_only else 0])
         return b
@@ -106,7 +116,8 @@ class Connect(namedtuple('Connect', 'protocol_version last_zxid_seen'
     @classmethod
     def deserialize(cls, bytes, offset):
         proto_version, timeout, session_id = int_int_long_struct.unpack_from(
-            bytes, offset)
+            bytes, offset
+        )
         offset += int_int_long_struct.size
         password, offset = read_buffer(bytes, offset)
 
@@ -115,11 +126,13 @@ class Connect(namedtuple('Connect', 'protocol_version last_zxid_seen'
             offset += bool_struct.size
         except struct.error:
             read_only = False
-        return cls(proto_version, 0, timeout, session_id, password,
-                   read_only), offset
+        return (
+            cls(proto_version, 0, timeout, session_id, password, read_only),
+            offset,
+        )
 
 
-class Create(namedtuple('Create', 'path data acl flags')):
+class Create(namedtuple("Create", "path data acl flags")):
     type = 1
 
     def serialize(self):
@@ -128,8 +141,11 @@ class Create(namedtuple('Create', 'path data acl flags')):
         b.extend(write_buffer(self.data))
         b.extend(int_struct.pack(len(self.acl)))
         for acl in self.acl:
-            b.extend(int_struct.pack(acl.perms) +
-                     write_string(acl.id.scheme) + write_string(acl.id.id))
+            b.extend(
+                int_struct.pack(acl.perms)
+                + write_string(acl.id.scheme)
+                + write_string(acl.id.id)
+            )
         b.extend(int_struct.pack(self.flags))
         return b
 
@@ -138,7 +154,7 @@ class Create(namedtuple('Create', 'path data acl flags')):
         return read_string(bytes, offset)[0]
 
 
-class Delete(namedtuple('Delete', 'path version')):
+class Delete(namedtuple("Delete", "path version")):
     type = 2
 
     def serialize(self):
@@ -152,7 +168,7 @@ class Delete(namedtuple('Delete', 'path version')):
         return True
 
 
-class Exists(namedtuple('Exists', 'path watcher')):
+class Exists(namedtuple("Exists", "path watcher")):
     type = 3
 
     def serialize(self):
@@ -167,7 +183,7 @@ class Exists(namedtuple('Exists', 'path watcher')):
         return stat if stat.czxid != -1 else None
 
 
-class GetData(namedtuple('GetData', 'path watcher')):
+class GetData(namedtuple("GetData", "path watcher")):
     type = 4
 
     def serialize(self):
@@ -183,7 +199,7 @@ class GetData(namedtuple('GetData', 'path watcher')):
         return data, stat
 
 
-class SetData(namedtuple('SetData', 'path data version')):
+class SetData(namedtuple("SetData", "path data version")):
     type = 5
 
     def serialize(self):
@@ -198,7 +214,7 @@ class SetData(namedtuple('SetData', 'path data version')):
         return ZnodeStat._make(stat_struct.unpack_from(bytes, offset))
 
 
-class GetACL(namedtuple('GetACL', 'path')):
+class GetACL(namedtuple("GetACL", "path")):
     type = 6
 
     def serialize(self):
@@ -219,7 +235,7 @@ class GetACL(namedtuple('GetACL', 'path')):
         return acls, stat
 
 
-class SetACL(namedtuple('SetACL', 'path acls version')):
+class SetACL(namedtuple("SetACL", "path acls version")):
     type = 7
 
     def serialize(self):
@@ -227,8 +243,11 @@ class SetACL(namedtuple('SetACL', 'path acls version')):
         b.extend(write_string(self.path))
         b.extend(int_struct.pack(len(self.acls)))
         for acl in self.acls:
-            b.extend(int_struct.pack(acl.perms) +
-                     write_string(acl.id.scheme) + write_string(acl.id.id))
+            b.extend(
+                int_struct.pack(acl.perms)
+                + write_string(acl.id.scheme)
+                + write_string(acl.id.id)
+            )
         b.extend(int_struct.pack(self.version))
         return b
 
@@ -237,7 +256,7 @@ class SetACL(namedtuple('SetACL', 'path acls version')):
         return ZnodeStat._make(stat_struct.unpack_from(bytes, offset))
 
 
-class GetChildren(namedtuple('GetChildren', 'path watcher')):
+class GetChildren(namedtuple("GetChildren", "path watcher")):
     type = 8
 
     def serialize(self):
@@ -260,7 +279,7 @@ class GetChildren(namedtuple('GetChildren', 'path watcher')):
         return children
 
 
-class Sync(namedtuple('Sync', 'path')):
+class Sync(namedtuple("Sync", "path")):
     type = 9
 
     def serialize(self):
@@ -271,7 +290,7 @@ class Sync(namedtuple('Sync', 'path')):
         return read_string(buffer, offset)[0]
 
 
-class GetChildren2(namedtuple('GetChildren2', 'path watcher')):
+class GetChildren2(namedtuple("GetChildren2", "path watcher")):
     type = 12
 
     def serialize(self):
@@ -295,7 +314,7 @@ class GetChildren2(namedtuple('GetChildren2', 'path watcher')):
         return children, stat
 
 
-class CheckVersion(namedtuple('CheckVersion', 'path version')):
+class CheckVersion(namedtuple("CheckVersion", "path version")):
     type = 13
 
     def serialize(self):
@@ -305,14 +324,15 @@ class CheckVersion(namedtuple('CheckVersion', 'path version')):
         return b
 
 
-class Transaction(namedtuple('Transaction', 'operations')):
+class Transaction(namedtuple("Transaction", "operations")):
     type = 14
 
     def serialize(self):
         b = bytearray()
         for op in self.operations:
-            b.extend(MultiHeader(op.type, False, -1).serialize() +
-                     op.serialize())
+            b.extend(
+                MultiHeader(op.type, False, -1).serialize() + op.serialize()
+            )
         return b + multiheader_struct.pack(-1, True, -1)
 
     @classmethod
@@ -327,7 +347,8 @@ class Transaction(namedtuple('Transaction', 'operations')):
                 response = True
             elif header.type == SetData.type:
                 response = ZnodeStat._make(
-                    stat_struct.unpack_from(bytes, offset))
+                    stat_struct.unpack_from(bytes, offset)
+                )
                 offset += stat_struct.size
             elif header.type == CheckVersion.type:
                 response = True
@@ -344,14 +365,14 @@ class Transaction(namedtuple('Transaction', 'operations')):
     def unchroot(client, response):
         resp = []
         for result in response:
-            if isinstance(result, six.string_types):
+            if isinstance(result, str):
                 resp.append(client.unchroot(result))
             else:
                 resp.append(result)
         return resp
 
 
-class Create2(namedtuple('Create2', 'path data acl flags')):
+class Create2(namedtuple("Create2", "path data acl flags")):
     type = 15
 
     def serialize(self):
@@ -360,8 +381,11 @@ class Create2(namedtuple('Create2', 'path data acl flags')):
         b.extend(write_buffer(self.data))
         b.extend(int_struct.pack(len(self.acl)))
         for acl in self.acl:
-            b.extend(int_struct.pack(acl.perms) +
-                     write_string(acl.id.scheme) + write_string(acl.id.id))
+            b.extend(
+                int_struct.pack(acl.perms)
+                + write_string(acl.id.scheme)
+                + write_string(acl.id.id)
+            )
         b.extend(int_struct.pack(self.flags))
         return b
 
@@ -372,8 +396,9 @@ class Create2(namedtuple('Create2', 'path data acl flags')):
         return path, stat
 
 
-class Reconfig(namedtuple('Reconfig',
-                          'joining leaving new_members config_id')):
+class Reconfig(
+    namedtuple("Reconfig", "joining leaving new_members config_id")
+):
     type = 16
 
     def serialize(self):
@@ -391,15 +416,18 @@ class Reconfig(namedtuple('Reconfig',
         return data, stat
 
 
-class Auth(namedtuple('Auth', 'auth_type scheme auth')):
+class Auth(namedtuple("Auth", "auth_type scheme auth")):
     type = 100
 
     def serialize(self):
-        return (int_struct.pack(self.auth_type) + write_string(self.scheme) +
-                write_string(self.auth))
+        return (
+            int_struct.pack(self.auth_type)
+            + write_string(self.scheme)
+            + write_string(self.auth)
+        )
 
 
-class SASL(namedtuple('SASL', 'challenge')):
+class SASL(namedtuple("SASL", "challenge")):
     type = 102
 
     def serialize(self):
@@ -413,7 +441,7 @@ class SASL(namedtuple('SASL', 'challenge')):
         return challenge, offset
 
 
-class Watch(namedtuple('Watch', 'type state path')):
+class Watch(namedtuple("Watch", "type state path")):
     @classmethod
     def deserialize(cls, bytes, offset):
         """Given bytes and the current bytes offset, return the
@@ -424,17 +452,19 @@ class Watch(namedtuple('Watch', 'type state path')):
         return cls(type, state, path), offset
 
 
-class ReplyHeader(namedtuple('ReplyHeader', 'xid, zxid, err')):
+class ReplyHeader(namedtuple("ReplyHeader", "xid, zxid, err")):
     @classmethod
     def deserialize(cls, bytes, offset):
         """Given bytes and the current bytes offset, return a
         :class:`ReplyHeader` instance and the new offset"""
         new_offset = offset + reply_header_struct.size
-        return cls._make(
-            reply_header_struct.unpack_from(bytes, offset)), new_offset
+        return (
+            cls._make(reply_header_struct.unpack_from(bytes, offset)),
+            new_offset,
+        )
 
 
-class MultiHeader(namedtuple('MultiHeader', 'type done err')):
+class MultiHeader(namedtuple("MultiHeader", "type done err")):
     def serialize(self):
         b = bytearray()
         b.extend(int_struct.pack(self.type))

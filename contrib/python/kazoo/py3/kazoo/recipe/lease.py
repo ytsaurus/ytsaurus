@@ -44,10 +44,16 @@ class NonBlockingLease(object):
     # Bump when storage format changes
     _version = 1
     _date_format = "%Y-%m-%dT%H:%M:%S"
-    _byte_encoding = 'utf-8'
+    _byte_encoding = "utf-8"
 
-    def __init__(self, client, path, duration, identifier=None,
-                 utcnow=datetime.datetime.utcnow):
+    def __init__(
+        self,
+        client,
+        path,
+        duration,
+        identifier=None,
+        utcnow=datetime.datetime.utcnow,
+    ):
         """Create a non-blocking lease.
 
         :param client: A :class:`~kazoo.client.KazooClient` instance.
@@ -78,15 +84,19 @@ class NonBlockingLease(object):
                     if data["version"] != self._version:
                         # We need an upgrade, let someone else take the lease
                         return
-                    current_end = datetime.datetime.strptime(data['end'],
-                                                             self._date_format)
-                    if data['holder'] != ident and now < current_end:
+                    current_end = datetime.datetime.strptime(
+                        data["end"], self._date_format
+                    )
+                    if data["holder"] != ident and now < current_end:
                         # Another client is still holding the lease
                         return
                     client.delete(holder_path)
                 end_lease = (now + duration).strftime(self._date_format)
-                new_data = {'version': self._version, 'holder': ident,
-                            'end': end_lease}
+                new_data = {
+                    "version": self._version,
+                    "holder": ident,
+                    "end": end_lease,
+                }
                 client.create(holder_path, self._encode(new_data))
                 self.obtained = True
 
@@ -128,12 +138,24 @@ class MultiNonBlockingLease(object):
 
     """
 
-    def __init__(self, client, count, path, duration, identifier=None,
-                 utcnow=datetime.datetime.utcnow):
+    def __init__(
+        self,
+        client,
+        count,
+        path,
+        duration,
+        identifier=None,
+        utcnow=datetime.datetime.utcnow,
+    ):
         self.obtained = False
         for num in range(count):
-            ls = NonBlockingLease(client, '%s/%d' % (path, num), duration,
-                                  identifier=identifier, utcnow=utcnow)
+            ls = NonBlockingLease(
+                client,
+                "%s/%d" % (path, num),
+                duration,
+                identifier=identifier,
+                utcnow=utcnow,
+            )
             if ls:
                 self.obtained = True
                 break

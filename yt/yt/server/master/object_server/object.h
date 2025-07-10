@@ -255,7 +255,6 @@ public:
     virtual void LoadEctoplasm(TStreamLoadContext& context);
 
 protected:
-    // COMPAT(aleksandra-zh): add `const` after 25.2.
     TObjectId Id_;
 
     int RefCounter_ = 0;

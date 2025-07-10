@@ -435,7 +435,7 @@ void TExpirationTracker::RemoveExpiredNodesViaClient(const std::vector<TEphemera
         prerequisiteRevision->set_revision(trunkNode->GetRevision().Underlying());
 
         // TODO(danilalexeev): YT-24752. Support TExpirationExt in Sequoia.
-        SetCausedByNodeExpiration(&req->Header());
+        SetCausedByNodeExpiration(&req->Header(), true);
 
         batchReq->AddRequest(req);
     }

@@ -88,6 +88,7 @@ TJobReport TJobReport::ExtractStderr() const
     copy.JobId_ = JobId_;
     copy.OperationId_ = OperationId_;
     copy.Stderr_ = Stderr_;
+    copy.GpuCheckStderr_ = GpuCheckStderr_;
     return copy;
 }
 

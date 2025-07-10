@@ -46,6 +46,21 @@ void SetPrerequisites(
     }
 }
 
+std::vector<TTransactionId> GetPrerequisiteTransactionIds(const NRpc::NProto::TRequestHeader& header)
+{
+    auto extensionId = NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext;
+    if (!header.HasExtension(extensionId)) {
+        return {};
+    }
+
+    const auto& prerequisiteTransactions = header.GetExtension(extensionId).transactions();
+    std::vector<TTransactionId> transactionIds(prerequisiteTransactions.size());
+    for (int i : std::views::iota(0, prerequisiteTransactions.size())) {
+        FromProto(&transactionIds[i], prerequisiteTransactions[i].transaction_id());
+    }
+    return transactionIds;
+}
+
 void SetSuppressUpstreamSyncs(
     const TObjectServiceProxy::TReqExecuteBatchBasePtr& request,
     const TTransactionalOptions& options)
@@ -159,4 +174,3 @@ EAtomicity AtomicityFromTransactionId(TTransactionId id)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTransactionClient
-

@@ -121,7 +121,7 @@ DECLARE_REFCOUNTED_CLASS(TPrewhereSettings)
 DECLARE_REFCOUNTED_STRUCT(TReadPlanWithFilter)
 
 struct TValue;
-class TSubquerySpec;
+struct TSubquerySpec;
 struct TSubquery;
 struct TSecondaryQuery;
 struct TQueryAnalysisResult;

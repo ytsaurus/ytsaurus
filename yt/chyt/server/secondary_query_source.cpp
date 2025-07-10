@@ -40,38 +40,45 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TTableReaderConfigPtr MergeTableReaderConfigs(TTableReaderConfigPtr storageConfig, TTableReaderConfigPtr subqueryConfig)
+{
+    auto config = CloneYsonStruct(storageConfig);
+    config->SamplingMode = subqueryConfig->SamplingMode;
+    config->SamplingRate = subqueryConfig->SamplingRate;
+    config->SamplingSeed = subqueryConfig->SamplingSeed;
+    return config;
+}
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TReaderFactory
 {
 public:
     TReaderFactory(
         TStorageContext* storageContext,
         const TSubquerySpec& subquerySpec,
-        TReadPlanWithFilterPtr readPlan,
+        TNameTablePtr nameTable,
         const TClientChunkReadOptions& chunkReadOptions,
         std::optional<TCallback<TSecondaryQueryReadDescriptors()>> readTaskCallback = std::nullopt)
-    : DataSourceDirectory_(subquerySpec.DataSourceDirectory)
-    , ChunkReaderHost_(CreateSingleSourceMultiChunkReaderHost(
-        TChunkReaderHost::FromClient(storageContext->QueryContext->Client())))
-    , ChunkReadOptions_(chunkReadOptions)
-    , ReadTaskCallback_(std::move(readTaskCallback))
+        : DataSourceDirectory_(subquerySpec.DataSourceDirectory)
+        , ChunkReaderHost_(CreateSingleSourceMultiChunkReaderHost(
+            TChunkReaderHost::FromClient(storageContext->QueryContext->Client())))
+        , ChunkReadOptions_(chunkReadOptions)
+        , TableReaderConfig_(MergeTableReaderConfigs(
+            storageContext->Settings->TableReader,
+            subquerySpec.TableReaderConfig))
+        , NameTable_(std::move(nameTable))
+        , ReadTaskCallback_(std::move(readTaskCallback))
     {
         auto* queryContext = storageContext->QueryContext;
 
         ReaderMemoryManager_ = queryContext->Host->GetMultiReaderMemoryManager()->CreateMultiReaderMemoryManager(
             queryContext->Host->GetConfig()->ReaderMemoryRequirement,
             {{"user", queryContext->User}});
-
-        TableReaderConfig_ = CloneYsonStruct(storageContext->Settings->TableReader);
-        TableReaderConfig_->SamplingMode = subquerySpec.TableReaderConfig->SamplingMode;
-        TableReaderConfig_->SamplingRate = subquerySpec.TableReaderConfig->SamplingRate;
-        TableReaderConfig_->SamplingSeed = subquerySpec.TableReaderConfig->SamplingSeed;
-
-        NameTable_ = New<TNameTable>();
-        for (const auto& step : readPlan->Steps) {
-            for (const auto& column : step.Columns) {
-                NameTable_->RegisterNameOrThrow(column.Name());
-            }
-        }
     }
 
     ISchemalessMultiChunkReaderPtr CreateReader(const std::vector<TDataSliceDescriptor>& dataSliceDescriptors)
@@ -102,13 +109,13 @@ public:
     }
 
 private:
-    NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory_;
-    TMultiChunkReaderHostPtr ChunkReaderHost_;
-    TClientChunkReadOptions ChunkReadOptions_;
-    TTableReaderConfigPtr TableReaderConfig_;
+    const NChunkClient::TDataSourceDirectoryPtr DataSourceDirectory_;
+    const TMultiChunkReaderHostPtr ChunkReaderHost_;
+    const TClientChunkReadOptions ChunkReadOptions_;
+    const TTableReaderConfigPtr TableReaderConfig_;
+    const TNameTablePtr NameTable_;
+    const std::optional<TCallback<TSecondaryQueryReadDescriptors()>> ReadTaskCallback_;
     NChunkClient::IMultiReaderMemoryManagerPtr ReaderMemoryManager_;
-    TNameTablePtr NameTable_;
-    std::optional<TCallback<TSecondaryQueryReadDescriptors()>> ReadTaskCallback_;
 
     std::vector<TDataSliceDescriptor> AdjustDataSlices(std::vector<TDataSliceDescriptor> dataSliceDescriptors)
     {
@@ -269,8 +276,6 @@ private:
         YT_LOG_TRACE("Started reading ClickHouse block");
 
         TRowBatchReadOptions options{
-            // .MaxRowsPerRead = 100 * 1000,
-            // .MaxDataWeightPerRead = 160_MB,
             .Columnar = Settings_->EnableColumnarRead,
         };
 
@@ -498,10 +503,16 @@ ISchemalessMultiChunkReaderPtr CreateSourceReader(
     const TClientChunkReadOptions& chunkReadOptions,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors)
 {
+    auto nameTable = New<TNameTable>();
+    for (const auto& step : readPlan->Steps) {
+        for (const auto& column : step.Columns) {
+            nameTable->RegisterNameOrThrow(column.Name());
+        }
+    }
     auto readerFactory = std::make_shared<TReaderFactory>(
         storageContext,
         subquerySpec,
-        readPlan,
+        std::move(nameTable),
         chunkReadOptions);
     return readerFactory->CreateReader(dataSliceDescriptors);
 }

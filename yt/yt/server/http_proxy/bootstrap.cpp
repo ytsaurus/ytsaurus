@@ -16,12 +16,7 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
-#include <yt/yt/server/lib/signature/config.h>
-#include <yt/yt/server/lib/signature/cypress_key_store.h>
-#include <yt/yt/server/lib/signature/config.h>
-#include <yt/yt/server/lib/signature/key_rotator.h>
-#include <yt/yt/server/lib/signature/signature_generator.h>
-#include <yt/yt/server/lib/signature/signature_validator.h>
+#include <yt/yt/server/lib/signature/components.h>
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
@@ -65,9 +60,6 @@
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
-#include <yt/yt/client/signature/generator.h>
-#include <yt/yt/client/signature/validator.h>
-
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
@@ -110,7 +102,6 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NAdmin;
 using namespace NFusion;
-using namespace NSignature;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -254,46 +245,27 @@ void TBootstrap::DoInitialize()
 
     AccessChecker_ = CreateAccessChecker(this);
 
-    if (Config_->SignatureValidation) {
-        auto cypressKeyReader = New<TCypressKeyReader>(
-            Config_->SignatureValidation->CypressKeyReader,
-            RootClient_);
-        SignatureValidator_ = New<TSignatureValidator>(std::move(cypressKeyReader));
-    } else {
-        // NB(pavook): we cannot do any meaningful signature operations safely.
-        SignatureValidator_ = CreateAlwaysThrowingSignatureValidator();
-    }
-
-    if (Config_->SignatureGeneration) {
-        auto cypressKeyWriter = WaitFor(CreateCypressKeyWriter(
-            Config_->SignatureGeneration->CypressKeyWriter,
-            RootClient_))
-            .ValueOrThrow();
-        auto signatureGenerator = New<TSignatureGenerator>(Config_->SignatureGeneration->Generator);
-        SignatureKeyRotator_ = New<TKeyRotator>(
-            Config_->SignatureGeneration->KeyRotator,
-            GetControlInvoker(),
-            std::move(cypressKeyWriter),
-            signatureGenerator);
-        Connection_->SetSignatureGenerator(std::move(signatureGenerator));
-    } else {
-        // NB(pavook): we cannot do any meaningful signature operations safely.
-        Connection_->SetSignatureGenerator(CreateAlwaysThrowingSignatureGenerator());
-    }
+    SignatureComponents_ = New<TSignatureComponents>(
+        Config_->SignatureComponents,
+        RootClient_,
+        GetControlInvoker());
+    // NB(pavook): proxy bootstrap should be possible even in master read-only mode. :(
+    YT_UNUSED_FUTURE(SignatureComponents_->Initialize());
+    Connection_->SetSignatureGenerator(SignatureComponents_->GetSignatureGenerator());
 
     auto driverV3Config = CloneYsonStruct(Config_->Driver);
     driverV3Config->ApiVersion = ApiVersion3;
     DriverV3_ = CreateDriver(
         Connection_,
         driverV3Config,
-        SignatureValidator_);
+        SignatureComponents_->GetSignatureValidator());
 
     auto driverV4Config = CloneYsonStruct(Config_->Driver);
     driverV4Config->ApiVersion = ApiVersion4;
     DriverV4_ = CreateDriver(
         Connection_,
         driverV4Config,
-        SignatureValidator_);
+        SignatureComponents_->GetSignatureValidator());
 
     AuthenticationManager_ = CreateAuthenticationManager(
         Config_->Auth,
@@ -481,13 +453,11 @@ void TBootstrap::DoStart()
 
     MonitoringServer_->Start();
 
-    if (SignatureKeyRotator_) {
-        // NB(pavook):
-        // We don't wait for key rotation completion anywhere in bootstrap, because proxy bootstrap
-        // should be possible even in master read-only mode.
-        // So, we just throw on all signature-requiring operations until the key rotation actually happens.
-        YT_UNUSED_FUTURE(SignatureKeyRotator_->Start());
-    }
+    // NB(pavook):
+    // We don't wait for key rotation completion anywhere in bootstrap, because proxy bootstrap
+    // should be possible even in master read-only mode.
+    // So, we just throw on all signature-requiring operations until the key rotation actually happens.
+    YT_UNUSED_FUTURE(SignatureComponents_->StartRotation());
 
     ApiHttpServer_->Start();
     if (ApiHttpsServer_) {

@@ -211,6 +211,7 @@ private:
     {
         auto proxyAddressMap = TProxyAddressMap{
             {EAddressType::InternalRpc, GetLocalAddresses(Config_->Addresses, Config_->RpcPort)},
+            {EAddressType::PublicRpc, GetLocalAddresses(Config_->Addresses, Config_->PublicRpcPort ? Config_->PublicRpcPort : Config_->RpcPort)},
             {EAddressType::MonitoringHttp, GetLocalAddresses(Config_->Addresses, Config_->MonitoringPort)}
         };
 

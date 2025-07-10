@@ -62,7 +62,14 @@ const TTableSchemaPtr& {{type.type_name}}Descriptor::GetPrimaryTableSchema() con
                 .SetSortOrder(ESortOrder::Ascending),
 {%- endif %}
 {%- for field in type.fields if field.expression is none %}
-            TColumnSchema("{{field.column_name}}", ESimpleLogicalValueType::{{field.column_type}})
+            TColumnSchema(
+                "{{field.column_name}}",
+    {%- if field.column_type_v3 is none %}
+                ESimpleLogicalValueType::{{field.column_type}}
+    {%- else %}
+                FromRecordCodegenTypeV3({{field.get_type_v3_string()}})
+    {%- endif -%}
+            )
 {%- if field.sort_order %}
                 .SetSortOrder(ESortOrder::{{field.sort_order}})
 {%- endif %}
@@ -79,7 +86,14 @@ const TTableSchemaPtr& {{type.type_name}}Descriptor::GetPrimaryTableSchema() con
     , IdMapping_(NameTable_)
     , PrimaryTableSchema_(New<TTableSchema>(std::vector{
 {% for field in type.fields -%}
-        TColumnSchema("{{field.column_name}}", ESimpleLogicalValueType::{{field.column_type}})
+        TColumnSchema(
+            "{{field.column_name}}",
+    {%- if field.column_type_v3 is none %}
+            ESimpleLogicalValueType::{{field.column_type}}
+    {%- else %}
+            FromRecordCodegenTypeV3({{field.get_type_v3_string()}})
+    {%- endif -%}
+        )
 {%- if field.sort_order %}
             .SetSortOrder(ESortOrder::{{field.sort_order}})
 {%- endif %}
@@ -111,7 +125,7 @@ TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
 {
     std::array values{
 {%- for field in type.fields if field.sort_order and field.expression is none %}
-        ToUnversionedValue({{field.cpp_name}}, rowBuffer, {{loop.index0}}),
+        {{"ToUnversionedValue" if field.column_type_v3 is none else "ToUnversionedCompositeValue"}}({{field.cpp_name}}, rowBuffer, {{loop.index0}}),
 {%- endfor %}
     };
     return rowBuffer->CaptureRow(TRange(values), /*captureValues*/ false);
@@ -145,13 +159,13 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
             GetColumnIdOrThrow(idMapping.TabletIndex, TabletIndexColumnName)),
 {%- endif %}
 {% for field in type.fields if field.sort_order and field.expression is none -%}
-        ToUnversionedValue(
+        {{"ToUnversionedValue" if field.column_type_v3 is none else "ToUnversionedCompositeValue"}}(
             Key.{{field.cpp_name}},
             rowBuffer,
             GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))),
 {%- endfor %}
 {%- for field in type.fields if not field.sort_order and field.expression is none %}
-        ToUnversionedValue(
+        {{"ToUnversionedValue" if field.column_type_v3 is none else "ToUnversionedCompositeValue"}}(
             {{field.cpp_name}},
             rowBuffer,
             GetColumnIdOrThrow(idMapping.{{field.cpp_name}},
@@ -226,7 +240,7 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
 {%- endif %}
 {%- for field in type.fields if field.sort_order and field.expression is none %}
     builder.AddValue(
-        ToUnversionedValue(
+        {{"ToUnversionedValue" if field.column_type_v3 is none else "ToUnversionedCompositeValue"}}(
             Key.{{field.cpp_name}},
             rowBuffer,
             GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))));
@@ -234,7 +248,7 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
 {%- for field in type.fields if not field.sort_order and not field.expression %}
     if (idMapping.{{field.cpp_name}} && {{field.cpp_name}}) {
         builder.AddValue(
-            ToUnversionedValue
+            {{"ToUnversionedValue" if field.column_type_v3 is none else "ToUnversionedCompositeValue"}}
             (*{{field.cpp_name}},
             rowBuffer,
             *idMapping.{{field.cpp_name}},

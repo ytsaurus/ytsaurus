@@ -27,7 +27,7 @@ class BaseQueue(object):
         self.client = client
         self.path = path
         self._entries_path = path
-        self.structure_paths = (self.path, )
+        self.structure_paths = (self.path,)
         self.ensured_path = False
 
     def _check_put_arguments(self, value, priority=100):
@@ -87,7 +87,8 @@ class Queue(BaseQueue):
     def _inner_get(self):
         if not self._children:
             self._children = self.client.retry(
-                self.client.get_children, self.path)
+                self.client.get_children, self.path
+            )
             self._children = sorted(self._children)
         if not self._children:
             return None
@@ -114,8 +115,9 @@ class Queue(BaseQueue):
         """
         self._check_put_arguments(value, priority)
         self._ensure_paths()
-        path = '{path}/{prefix}{priority:03d}-'.format(
-            path=self.path, prefix=self.prefix, priority=priority)
+        path = "{path}/{prefix}{priority:03d}-".format(
+            path=self.path, prefix=self.prefix, priority=priority
+        )
         self.client.create(path, value, sequence=True)
 
 
@@ -143,6 +145,7 @@ class LockingQueue(BaseQueue):
         :class:`LockingQueue` requires ZooKeeper 3.4 or above, since it is
         using transactions.
     """
+
     lock = "/taken"
     entries = "/entries"
     entry = "entry"
@@ -180,10 +183,11 @@ class LockingQueue(BaseQueue):
 
         self.client.create(
             "{path}/{prefix}-{priority:03d}-".format(
-                path=self._entries_path,
-                prefix=self.entry,
-                priority=priority),
-            value, sequence=True)
+                path=self._entries_path, prefix=self.entry, priority=priority
+            ),
+            value,
+            sequence=True,
+        )
 
     def put_all(self, values, priority=100):
         """Put several entries into the queue. The action only succeeds
@@ -211,8 +215,11 @@ class LockingQueue(BaseQueue):
                     "{path}/{prefix}-{priority:03d}-".format(
                         path=self._entries_path,
                         prefix=self.entry,
-                        priority=priority),
-                    value, sequence=True)
+                        priority=priority,
+                    ),
+                    value,
+                    sequence=True,
+                )
 
     def get(self, timeout=None):
         """Locks and gets an entry from the queue. If a previously got entry
@@ -253,12 +260,12 @@ class LockingQueue(BaseQueue):
         if self.processing_element is not None and self.holds_lock():
             id_, value = self.processing_element
             with self.client.transaction() as transaction:
-                transaction.delete("{path}/{id}".format(
-                    path=self._entries_path,
-                    id=id_))
-                transaction.delete("{path}/{id}".format(
-                    path=self._lock_path,
-                    id=id_))
+                transaction.delete(
+                    "{path}/{id}".format(path=self._entries_path, id=id_)
+                )
+                transaction.delete(
+                    "{path}/{id}".format(path=self._lock_path, id=id_)
+                )
             self.processing_element = None
             return True
         else:
@@ -274,9 +281,9 @@ class LockingQueue(BaseQueue):
         if self.processing_element is not None and self.holds_lock():
             id_, value = self.processing_element
             with self.client.transaction() as transaction:
-                transaction.delete("{path}/{id}".format(
-                    path=self._lock_path,
-                    id=id_))
+                transaction.delete(
+                    "{path}/{id}".format(path=self._lock_path, id=id_)
+                )
             self.processing_element = None
             return True
         else:
@@ -297,11 +304,13 @@ class LockingQueue(BaseQueue):
                 values = self.client.retry(
                     self.client.get_children,
                     self._entries_path,
-                    check_for_updates)
+                    check_for_updates,
+                )
                 taken = self.client.retry(
                     self.client.get_children,
                     self._lock_path,
-                    check_for_updates)
+                    check_for_updates,
+                )
                 available = self._filter_locked(values, taken)
                 if len(available) > 0:
                     ret = self._take(available[0])
@@ -324,17 +333,19 @@ class LockingQueue(BaseQueue):
     def _filter_locked(self, values, taken):
         taken = set(taken)
         available = sorted(values)
-        return (available if len(taken) == 0 else
-                [x for x in available if x not in taken])
+        return (
+            available
+            if len(taken) == 0
+            else [x for x in available if x not in taken]
+        )
 
     def _take(self, id_):
         try:
             self.client.create(
-                "{path}/{id}".format(
-                    path=self._lock_path,
-                    id=id_),
+                "{path}/{id}".format(path=self._lock_path, id=id_),
                 self.id,
-                ephemeral=True)
+                ephemeral=True,
+            )
         except NodeExistsError:
             # Item is already locked
             return None
@@ -342,12 +353,12 @@ class LockingQueue(BaseQueue):
         try:
             value, stat = self.client.retry(
                 self.client.get,
-                "{path}/{id}".format(path=self._entries_path, id=id_))
+                "{path}/{id}".format(path=self._entries_path, id=id_),
+            )
         except NoNodeError:
             # Item is already consumed
             self.client.delete(
-                "{path}/{id}".format(
-                    path=self._lock_path,
-                    id=id_))
+                "{path}/{id}".format(path=self._lock_path, id=id_)
+            )
             return None
         return (id_, value)

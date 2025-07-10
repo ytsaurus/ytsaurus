@@ -65,7 +65,6 @@
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
 #include <yt/yt/server/lib/security_server/helpers.h>
-#include <yt/yt/server/lib/security_server/permission_checker.h>
 
 #include <yt/yt/ytlib/security_client/group_ypath_proxy.h>
 
@@ -2414,7 +2413,7 @@ public:
         EPermission permission,
         const TPermissionCheckResult& result) override
     {
-        YT_ASSERT(result.Action == ESecurityAction::Deny);
+        YT_VERIFY(result.Action == ESecurityAction::Deny);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* object = objectManager->GetObject(target.ObjectId);
@@ -3936,6 +3935,16 @@ private:
 
         if (auto* user = FindUserByName(name, /*activeLifeStageOnly*/ false)) {
             // User could have been created manually.
+            if (!IsWellKnownId(user->GetId())) {
+                YT_LOG_ALERT("User is builtin, but doesn't have well known id, will fix it (User: %Qv, Id: %v -> %v)",
+                    name,
+                    user->GetId(),
+                    id);
+
+                auto userHolder = UserMap_.Release(user->GetId());
+                userHolder->SetId(id);
+                UserMap_.Insert(id, std::move(userHolder));
+            }
             return user;
         }
 

@@ -313,11 +313,13 @@ class TestCypress(YTEnvSetup):
         set("//tmp/t", b"<attr=100;mode=rw> {nodes={a=1; b=2}}", is_raw=True)
         assert get("//tmp/t/@attr") == 100
         assert get("//tmp/t/@mode") == "rw"
+        assert get("//tmp/t/@key") == "t"
 
         attrs = get("//tmp/t/@")
         assert "attr" in attrs
         assert "mode" in attrs
         assert "path" in attrs
+        assert attrs["key"] == "t"
         assert isinstance(attrs["path"], yson.YsonEntity)
 
         attrs = get("//tmp/t/@", attributes=["attr", "path"])

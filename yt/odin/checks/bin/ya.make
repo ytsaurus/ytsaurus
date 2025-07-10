@@ -47,8 +47,8 @@ RECURSE(
     tablet_cell_gossip
     tablet_cell_snapshots
     tablet_cells
+    tmp_node_count
     unaware_nodes
-    wrapper_node_count
 )
 
 IF (NOT OPENSOURCE)

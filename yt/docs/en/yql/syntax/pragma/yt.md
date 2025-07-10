@@ -1006,7 +1006,7 @@ Sets the maximum amount of data for the inline list obtained as a result of the 
 
 Sets the maximum number of elements in the inline list obtained as a result of the Folder computation. If a greater size is selected, a temporary file will be used.
 
-## yt.UseNativeYtTypes
+## `yt.UseNativeYtTypes` {#yt-usenativeyttypes}
 
 | Value type | Default value | Static/<br/>dynamic |
 | --- | --- | --- |

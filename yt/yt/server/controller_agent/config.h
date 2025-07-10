@@ -788,6 +788,9 @@ struct TDockerRegistryConfig
     //! Alternative addresses for internal docker registry.
     std::vector<std::string> InternalRegistryAlternativeAddresses;
 
+    //! Regex of trusted docker registries which accept cluster yt token for authentication.
+    NRe2::TRe2Ptr InternalRegistryRegex;
+
     bool UseYtTokenForInternalRegistry = false;
 
     bool ForwardInternalImagesToJobSpecs = false;

@@ -24,6 +24,8 @@ namespace NSQLComplete {
         TStringBuf text = Content;
         if (IsQuoted(text)) {
             text = Unquoted(text);
+        } else if (IsBinding(text)) {
+            text = Unbinded(text);
         }
         return ToLowerUTF8(text);
     }
@@ -73,7 +75,9 @@ namespace NSQLComplete {
 
             TVector<INameService::TPtr> children;
 
-            children.emplace_back(MakeBindingNameService(std::move(global.Names)));
+            if (!local.IsQuoted) {
+                children.emplace_back(MakeBindingNameService(std::move(global.Names)));
+            }
 
             if (!local.Binding && global.Column) {
                 children.emplace_back(MakeColumnNameService(std::move(global.Column->Columns)));

@@ -24,6 +24,7 @@ PEERDIR(
     yt/yql/providers/yt/fmr/table_data_service/discovery/file
     yt/yql/providers/yt/fmr/yt_job_service/impl
     yql/essentials/utils/log
+    yql/essentials/public/udf/service/terminate_policy
 )
 
 YQL_LAST_ABI_VERSION()

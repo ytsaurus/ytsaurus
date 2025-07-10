@@ -13,8 +13,8 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITokenAuthenticatorPtr CreateYCIAMTokenAuthenticator(
-    TYCIAMTokenAuthenticatorConfigPtr config,
+ITokenAuthenticatorPtr CreateYCIamTokenAuthenticator(
+    TYCIamTokenAuthenticatorConfigPtr config,
     NConcurrency::IPollerPtr poller,
     ICypressUserManagerPtr userManager,
     NProfiling::TProfiler profiler = {});

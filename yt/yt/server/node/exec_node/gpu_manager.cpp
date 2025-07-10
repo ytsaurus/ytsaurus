@@ -92,7 +92,7 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         "CumulativeUtilizationClocksSM: %v, CumulativeSMClocks: %v, CumulativeSMUtilization: %v, CumulativeSMOccupancy: %v, "
         "NvlinkRxBytes: %v, NvlinkTxBytes: %v, PcieRxBytes: %v, PcieTxBytes: %v, "
         "CumulativeTensorActivity: %v, CumulativeDramActivity: %v, "
-        "CumulativeSwThermalSlowdown: %v, CumulativeHwThermalSlowdown: %v, CumulativeHwPowerBrakeSlowdown: %v, CumulativeHwSlowdown: %v, "
+        "Slowdowns: %v, "
         "MaxStuckDuration: %v}",
         gpuStatistics.CumulativeUtilizationGpu,
         gpuStatistics.CumulativeUtilizationMemory,
@@ -112,10 +112,7 @@ void FormatValue(TStringBuilderBase* builder, const TGpuStatistics& gpuStatistic
         gpuStatistics.PcieTxBytes,
         gpuStatistics.CumulativeTensorActivity,
         gpuStatistics.CumulativeDramActivity,
-        gpuStatistics.CumulativeSwThermalSlowdown,
-        gpuStatistics.CumulativeHwThermalSlowdown,
-        gpuStatistics.CumulativeHwPowerBrakeSlowdown,
-        gpuStatistics.CumulativeHwSlowdown,
+        gpuStatistics.CumulativeSlowdowns,
         gpuStatistics.MaxStuckDuration);
 }
 
@@ -740,7 +737,10 @@ void TGpuManager::ApplyNetworkPriority(std::optional<TNetworkPriority> networkPr
 
     TNetworkPriority newNetworkPriority = networkPriority.value_or(DefaultNetworkPriority);
 
-    YT_LOG_DEBUG("Applying network priority (Old: %v, New: %v)", CurrentNetworkPriority_, networkPriority);
+    YT_LOG_DEBUG(
+        "Applying network priority (Old: %v, New: %v)",
+        CurrentNetworkPriority_,
+        networkPriority);
 
     if (newNetworkPriority == CurrentNetworkPriority_) {
         return;
@@ -774,6 +774,7 @@ void TGpuManager::ApplyNetworkPriority(std::optional<TNetworkPriority> networkPr
 
     CurrentNetworkPriority_ = newNetworkPriority;
 }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NExecNode

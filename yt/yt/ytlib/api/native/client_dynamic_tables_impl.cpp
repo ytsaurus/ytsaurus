@@ -1628,6 +1628,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         options.PlaceholderValues,
         options.SyntaxVersion);
 
+    auto dynamicConfig = GetNativeConnection()->GetConfig();
+
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
     auto mainTable = NAst::GetMainTablePath(*astQuery);
@@ -1635,9 +1637,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto mountCache = CreateStickyCache(Connection_->GetTableMountCache());
     PreheatCache(astQuery, mountCache);
 
-    TransformWithIndexStatement(astQuery, mountCache, &parsedQuery->AstHead);
+    TransformWithIndexStatement(astQuery, mountCache, &parsedQuery->AstHead, dynamicConfig->AllowUnaliasedSecondaryIndex);
 
-    auto dynamicConfig = GetNativeConnection()->GetConfig();
     auto replicaStatusCache = GetNativeConnection()->GetTableReplicaSynchronicityCache();
     auto pickReplicaSession = CreatePickReplicaSession(
         astQuery,
@@ -1784,9 +1785,10 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     auto mountCache = CreateStickyCache(Connection_->GetTableMountCache());
 
-    TransformWithIndexStatement(astQuery, cache, &parsedQuery->AstHead);
-
     auto dynamicConfig = GetNativeConnection()->GetConfig();
+
+    TransformWithIndexStatement(astQuery, cache, &parsedQuery->AstHead, dynamicConfig->AllowUnaliasedSecondaryIndex);
+
     auto replicaStatusCache = Connection_->GetTableReplicaSynchronicityCache();
     auto pickReplicaSession = CreatePickReplicaSession(
         astQuery,

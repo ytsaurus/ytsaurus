@@ -245,7 +245,7 @@ TFuture<THashMap<TString, TQueueExportProgressPtr>> GetQueueExportProgressFromOb
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TrimProfilingTagValue(const TString& value)
+std::string TrimProfilingTagValue(const std::string& value)
 {
     static constexpr int MaxProfilingTagValueLength = 200;
 

@@ -12,6 +12,8 @@ PEERDIR(
 
 END()
 
-RECURSE(
-    test_query_tracker
-)
+IF (NOT OPENSOURCE)
+    RECURSE(
+        test_query_tracker
+    )
+ENDIF()

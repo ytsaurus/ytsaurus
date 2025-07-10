@@ -67,7 +67,7 @@ TEST(TYPathTest, Append)
     path.Append("/second");
     EXPECT_EQ(path.Underlying(), "/first/\\/second");
 
-    auto absolute = TRelativePath::UnsafeMakeCanonicalPath("/");
+    auto absolute = TAbsolutePath::UnsafeMakeCanonicalPath("/");
     absolute.Append("first");
     EXPECT_EQ(absolute.Underlying(), "//first");
     absolute.Append("second");

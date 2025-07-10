@@ -69,8 +69,6 @@ public:
         tokenizer.Advance();
 
         auto recordPrefixAndSuffix = [&] {
-            // NB: partially tokenized path: parsed_prefix + current_token + suffix
-            // tokenizer.GetSuffix(): suffix
             prefixLengths.push_back(builder.GetLength());
             prefixes.Suffixes_.push_back(tokenizer.GetSuffix());
         };

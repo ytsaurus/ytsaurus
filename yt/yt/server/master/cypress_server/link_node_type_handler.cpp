@@ -267,7 +267,9 @@ private:
         auto pathRootType = EPathRootType::Other;
         // TODO(danilalexeev): YT-20675. Forbid the usage of '\0' in YPath.
         auto linkPath = cypressManager->GetNodePath(
-            node->GetTrunkNode(), node->GetTransaction(), &pathRootType);
+            node->GetTrunkNode(),
+            node->GetTransaction(),
+            &pathRootType);
         if (pathRootType == EPathRootType::Other) [[unlikely]] {
             YT_LOG_ALERT("Attempted to set a dangling link node reachable (NodeId: %v)",
                 node->GetVersionedId());
@@ -275,8 +277,8 @@ private:
         }
 
         YT_VERIFY(!node->ImmutableSequoiaProperties());
-        // NB: This |ParentId| shouldn't be used for non-Sequoia nodes so
-        // it's OK (I hope).
+        // NB (kvk1920): This |ParentId| shouldn't be used for non-Sequoia
+        // nodes so it's OK (I hope).
         node->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
             NYPath::DirNameAndBaseName(linkPath).second,
             linkPath,

@@ -1,5 +1,9 @@
 PROTO_LIBRARY()
 
+PEERDIR(
+    contrib/ydb/public/api/protos/annotations
+)
+
 SRCS(
     encrypted_file.proto
 )

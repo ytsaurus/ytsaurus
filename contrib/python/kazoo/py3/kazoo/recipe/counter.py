@@ -8,6 +8,7 @@ from kazoo.exceptions import BadVersionError
 from kazoo.retry import ForceRetryError
 import struct
 
+
 class Counter(object):
     """Kazoo Counter
 
@@ -56,6 +57,7 @@ class Counter(object):
         counter.post_value == 1
 
     """
+
     def __init__(self, client, path, default=0, support_curator=False):
         """Create a Kazoo Counter
 
@@ -75,8 +77,10 @@ class Counter(object):
         self.pre_value = None
         self.post_value = None
         if self.support_curator and not isinstance(self.default, int):
-            raise TypeError("when support_curator is enabled the default "
-                            "type must be an int")
+            raise TypeError(
+                "when support_curator is enabled the default "
+                "type must be an int"
+            )
 
     def _ensure_node(self):
         if not self._ensured_path:
@@ -88,9 +92,9 @@ class Counter(object):
         self._ensure_node()
         old, stat = self.client.get(self.path)
         if self.support_curator:
-            old = struct.unpack(">i", old)[0] if old != b'' else self.default
+            old = struct.unpack(">i", old)[0] if old != b"" else self.default
         else:
-            old = old.decode('ascii') if old != b'' else self.default
+            old = old.decode("ascii") if old != b"" else self.default
         version = stat.version
         data = self.default_type(old)
         return data, version
@@ -101,7 +105,7 @@ class Counter(object):
 
     def _change(self, value):
         if not isinstance(value, self.default_type):
-            raise TypeError('invalid type for value change')
+            raise TypeError("invalid type for value change")
         self.client.retry(self._inner_change, value)
         return self
 
@@ -111,7 +115,7 @@ class Counter(object):
         if self.support_curator:
             data = struct.pack(">i", post_value)
         else:
-            data = repr(post_value).encode('ascii')
+            data = repr(post_value).encode("ascii")
         try:
             self.client.set(self.path, data, version=version)
         except BadVersionError:  # pragma: nocover

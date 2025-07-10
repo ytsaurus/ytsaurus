@@ -105,7 +105,7 @@ TFuture<TYsonString> TYsonTableSchemaCache::DoGet(
 {
     if (auto tableManager = WeakTableManager_.Lock(); EnableTableSchemaCache_ && tableManager) {
         return tableManager->GetHeavyTableSchemaAsync(schema)
-            .Apply(BIND([schema] (const TTableSchemaPtr& heavySchema) {
+            .Apply(BIND([] (const TTableSchemaPtr& heavySchema) {
                 return ConvertHeavySchemaToYsonString(heavySchema).ValueOrThrow();
             }));
     }

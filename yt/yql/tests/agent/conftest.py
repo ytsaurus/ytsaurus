@@ -14,7 +14,7 @@ import yatest.common
 
 
 class YqlAgent():
-    def __init__(self, env, count, libraries):
+    def __init__(self, env, count, libraries, modify_yql_agent_config):
         self.yql_agent = YqlAgentComponent()
 
         self.yql_agent.prepare(env, config={
@@ -26,6 +26,7 @@ class YqlAgent():
             "ui_origin": "https://ui.test.ru",
             "native_client_supported": True,
             "libraries": libraries,
+            "modify_yql_agent_config": modify_yql_agent_config,
         })
 
     def __enter__(self):
@@ -61,6 +62,8 @@ def yql_agent(request):
         with open(test_lib_path, "w") as fp:
             fp.write(getattr(cls, "YQL_TEST_LIBRARY"))
 
-    with YqlAgent(cls.Env, count, libraries) as yql_agent:
+    modify_yql_agent_config = getattr(cls, "modify_yql_agent_config", None)
+
+    with YqlAgent(cls.Env, count, libraries, modify_yql_agent_config) as yql_agent:
         update_yql_agent_environment(cls, yql_agent)
         yield yql_agent

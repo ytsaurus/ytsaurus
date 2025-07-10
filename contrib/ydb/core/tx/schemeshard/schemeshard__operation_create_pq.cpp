@@ -1,19 +1,19 @@
-#include "schemeshard__operation_part.h"
-#include "schemeshard__operation_common.h"
-#include "schemeshard_impl.h"
 #include "schemeshard__op_traits.h"
-
+#include "schemeshard__operation_common.h"
+#include "schemeshard__operation_part.h"
+#include "schemeshard_impl.h"
 #include "schemeshard_utils.h"  // for PQGroupReserve
-
-#include <library/cpp/int128/int128.h>
 
 #include <contrib/ydb/core/base/subdomain.h>
 #include <contrib/ydb/core/engine/mkql_proto.h>
+#include <contrib/ydb/core/mind/hive/hive.h>
 #include <contrib/ydb/core/persqueue/config/config.h>
 #include <contrib/ydb/core/persqueue/partition_key_range/partition_key_range.h>
 #include <contrib/ydb/core/persqueue/utils.h>
-#include <contrib/ydb/core/mind/hive/hive.h>
+
 #include <contrib/ydb/services/lib/sharding/sharding.h>
+
+#include <library/cpp/int128/int128.h>
 
 namespace {
 
@@ -357,7 +357,7 @@ public:
 
             if (checks) {
                 checks
-                    .IsValidLeafName()
+                    .IsValidLeafName(context.UserToken.Get())
                     .DepthLimit()
                     .PathsLimit()
                     .DirChildrenLimit()

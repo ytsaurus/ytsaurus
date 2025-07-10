@@ -255,6 +255,8 @@ public:
     //! Sets password salt for user. Passing null removes salt.
     void SetPasswordSalt(std::optional<std::string> passwordSalt);
 
+    void SetId(NObjectServer::TObjectId id);
+
 private:
     // Transient
     int RequestQueueSize_ = 0;

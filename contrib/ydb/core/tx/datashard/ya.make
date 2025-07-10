@@ -116,6 +116,7 @@ SRCS(
     datashard_repl_offsets.cpp
     datashard_repl_offsets_client.cpp
     datashard_repl_offsets_server.cpp
+    datashard_s3_download.cpp
     datashard_s3_downloads.cpp
     datashard_s3_upload_rows.cpp
     datashard_s3_uploads.cpp
@@ -219,6 +220,7 @@ SRCS(
     build_index/local_kmeans.cpp
     build_index/sample_k.cpp
     build_index/secondary_index.cpp
+    build_index/recompute_kmeans.cpp
     build_index/reshuffle_kmeans.cpp
 )
 
@@ -238,8 +240,6 @@ RESOURCE(
 
 PEERDIR(
     contrib/libs/zstd
-    contrib/ydb/library/actors/core
-    contrib/ydb/library/actors/http
     library/cpp/containers/absl_flat_hash
     library/cpp/containers/stack_vector
     library/cpp/digest/md5
@@ -271,15 +271,18 @@ PEERDIR(
     contrib/ydb/core/wrappers
     contrib/ydb/core/ydb_convert
     contrib/ydb/library/aclib
+    contrib/ydb/library/actors/core
+    contrib/ydb/library/actors/http
+    contrib/ydb/library/chunks_limiter
+    contrib/ydb/library/protobuf_printer
+    contrib/ydb/library/yql/dq/actors/compute
     yql/essentials/types/binary_json
     yql/essentials/types/dynumber
     yql/essentials/core/minsketch
     yql/essentials/parser/pg_wrapper/interface
     contrib/ydb/public/api/protos
-    contrib/ydb/library/yql/dq/actors/compute
     yql/essentials/parser/pg_wrapper/interface
     contrib/ydb/services/lib/sharding
-    contrib/ydb/library/chunks_limiter
     yql/essentials/types/uuid
     contrib/ydb/core/io_formats/cell_maker
 )

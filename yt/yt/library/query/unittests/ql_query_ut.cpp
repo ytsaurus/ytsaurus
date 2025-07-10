@@ -147,6 +147,13 @@ TEST_F(TQueryPrepareTest, BadSyntax)
         HasSubstr("syntax error"));
 }
 
+TEST_F(TQueryPrepareTest, UnmatchedQuote)
+{
+    ExpectPrepareThrowsWithDiagnostics(
+        "a FROM [//t]\" limit 1",
+        HasSubstr("Unexpected end of query text"));
+}
+
 TEST_F(TQueryPrepareTest, BadWhere)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
@@ -10343,11 +10350,11 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple(
             "a from [//t] where a = {}",
             "{}",
-            "a =  >>>>> { <<<<< }"),
+            "Unexpected end of query text"),
         std::tuple(
             "a from [//t] where a = {{a}}",
             "{}",
-            "a =  >>>>> { <<<<< {a}}"),
+            "Unexpected end of query text"),
         std::tuple(
             "a from {t} where a = {a}",
             "{t=table_name;a=42}",

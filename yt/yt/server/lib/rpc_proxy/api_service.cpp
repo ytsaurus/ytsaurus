@@ -3425,6 +3425,7 @@ private:
 
         TGetJobStderrOptions options;
         SetTimeoutOptions(&options, context.Get());
+        options.Type = FromProto<NExecNode::EJobStderrType>(request->type());
 
         context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v, Limit: %v, Offset: %v",
             operationIdOrAlias,
@@ -4757,15 +4758,17 @@ private:
 
         TCreateQueueProducerSessionOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_user_meta()) {
             options.UserMeta = ConvertToNode(TYsonStringBuf(request->user_meta()));
         }
 
         context->SetRequestInfo(
-            "ProducerPath: %v, QueuePath: %v, SessionId: %v",
+            "ProducerPath: %v, QueuePath: %v, SessionId: %v, MutationId: %v",
             producerPath,
             queuePath,
-            sessionId);
+            sessionId,
+            options.MutationId);
 
         ExecuteCall(
             context,

@@ -119,7 +119,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IFlushableAsyncOutputStreamPtr CreateProfilingOutpuStream(
+IFlushableAsyncOutputStreamPtr CreateProfilingOutputStream(
     IResponseWriterPtr underlying,
     TApiPtr api,
     const std::string& user,

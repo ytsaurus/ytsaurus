@@ -1002,6 +1002,8 @@ public:
             Logger,
             std::move(authenticator)))
     {
+        YT_LOG_INFO("Starting distributed throttler factory");
+
         auto* attributes = MemberClient_->GetAttributes();
         attributes->Set(RealmIdAttributeKey, RealmId_);
         attributes->Set(AddressAttributeKey, address);
@@ -1027,8 +1029,14 @@ public:
 
     ~TDistributedThrottlerFactory()
     {
-        YT_UNUSED_FUTURE(MemberClient_->Stop());
+        YT_LOG_INFO("Stopping distributed throttler factory");
+
         DistributedThrottlerService_->Finalize();
+        YT_UNUSED_FUTURE(MemberClient_->Stop());
+
+        YT_UNUSED_FUTURE(UpdateThrottlersAttributesExecutor_->Stop());
+        YT_UNUSED_FUTURE(UpdateLeaderExecutor_->Stop());
+        YT_UNUSED_FUTURE(UpdateLimitsExecutor_->Stop());
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
@@ -1103,7 +1111,7 @@ public:
             wrappedThrottler->SetLeaderChannel(leaderChannel);
 
             if (config->InitializeThrottlersOnCreation) {
-                wrappedThrottler->Initialize(0);
+                wrappedThrottler->Initialize(/*limit*/ 0);
             }
 
             auto wasEmpty = Throttlers_->Throttlers.empty();

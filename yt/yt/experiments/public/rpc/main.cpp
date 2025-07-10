@@ -12,7 +12,6 @@
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/config.h>
 
-#include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/config.h>
 #include <yt/yt/library/coredumper/coredumper.h>
 
@@ -31,6 +30,8 @@
 #include <yt/yt/experiments/public/rpc/main.pb.h>
 
 #include <library/cpp/yt/assert/assert.h>
+
+#include <library/cpp/yt/memory/blob.h>
 
 #include <library/cpp/deprecated/atomic/atomic.h>
 

@@ -96,4 +96,15 @@ void TSignatureGenerationConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSignatureComponentsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("validation", &TThis::Validation)
+        .Optional();
+
+    registrar.Parameter("generation", &TThis::Generation)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSignature

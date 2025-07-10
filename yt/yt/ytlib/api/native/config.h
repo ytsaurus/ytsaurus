@@ -375,6 +375,9 @@ struct TConnectionDynamicConfig
     // COMPAT(gryzlov-ad)
     bool UseFindChaosObject;
 
+    // COMPAT(sabdenovch)
+    bool AllowUnaliasedSecondaryIndex;
+
     TDuration FlowPipelineControllerRpcTimeout;
 
     EMasterChannelKind ReadOperationsArchiveStateFrom;
