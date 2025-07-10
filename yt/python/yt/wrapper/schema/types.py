@@ -239,6 +239,21 @@ def _get_time_types():
     return _get_time_types._info
 
 
+def _get_tz_time_types():
+    if hasattr(_get_tz_time_types, "_info"):
+        return _get_tz_time_types._info
+    check_schema_module_available()
+    _get_tz_time_types._info = {
+        ti.TzDate,
+        ti.TzDatetime,
+        ti.TzTimestamp,
+        ti.TzDate32,
+        ti.TzDatetime64,
+        ti.TzTimestamp64,
+    }
+    return _get_tz_time_types._info
+
+
 def _get_py_time_types():
     if hasattr(_get_py_time_types, "_info"):
         return _get_py_time_types._info
@@ -276,11 +291,11 @@ def _is_py_type_compatible_with_ti_type(py_type, ti_type):
     elif issubclass(py_type, str):
         return ti_type in (ti.Utf8, ti.String)
     elif issubclass(py_type, bytes):
-        return ti_type in (ti.String, ti.Yson, ti.Utf8)
+        return ti_type in (ti.String, ti.Yson, ti.Utf8) or ti_type in _get_tz_time_types()
     elif issubclass(py_type, float):
         return ti_type in (ti.Float, ti.Double)
     elif issubclass(py_type, datetime.datetime):
-        return ti_type in (ti.Datetime, ti.Timestamp)
+        return ti_type in (ti.Datetime, ti.Timestamp) or ti_type in _get_tz_time_types()
     elif issubclass(py_type, datetime.date):
         return ti_type == ti.Date
     elif issubclass(py_type, datetime.timedelta):
@@ -368,6 +383,13 @@ if is_schema_module_available():
     Datetime = create_annotated_type(int, ti.Datetime)
     Timestamp = create_annotated_type(int, ti.Timestamp)
     Interval = create_annotated_type(int, ti.Interval)
+
+    TzDate = create_annotated_type(bytes, ti.TzDate)
+    TzDatetime = create_annotated_type(bytes, ti.TzDatetime)
+    TzTimestamp = create_annotated_type(bytes, ti.TzTimestamp)
+    TzDate32 = create_annotated_type(bytes, ti.TzDate32)
+    TzDatetime64 = create_annotated_type(bytes, ti.TzDatetime64)
+    TzTimestamp64 = create_annotated_type(bytes, ti.TzTimestamp64)
 
     YsonBytes = create_annotated_type(bytes, ti.Yson)
 

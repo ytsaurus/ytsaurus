@@ -46,8 +46,11 @@ from dataclasses import dataclass, asdict
 
 import copy
 import pytest
+import math
 import typing
 import datetime
+
+from zoneinfo import ZoneInfo
 
 
 @yt_dataclass
@@ -985,6 +988,86 @@ class TestTypedApi(object):
         yt.create("table", table, attributes={"schema": schema_with_required_a})
         with pytest.raises(yt.YtError, match=r'field ".*\.Row3\.a" is optional in yt_dataclass and required'):
             yt.write_table_structured(table, Row3, [Row3(a=1)])
+
+    @authors("nadya02")
+    def test_tz_datetime(self):
+        def check_datetime(py_type, ti_type, datetime_object, raw_object, expected_object=None):
+            if not expected_object:
+                expected_object = datetime_object
+            assert expected_object == write_and_read_primitive(py_type, ti_type, raw_object, mode="write_unstructured_read_structured")
+            assert raw_object == yt.yson.get_bytes(write_and_read_primitive(py_type, ti_type, datetime_object, mode="write_structured_read_unstructured"))
+
+        def microseconds_timestamp(timedelta):
+            return math.floor(timedelta.total_seconds()) * 10 ** 6 + timedelta.microseconds
+
+        zone = "Europe/Moscow"
+        # Timestamp.
+        yt_tz_timestamp_as_datetime = datetime.datetime(year=2025, month=6, day=18, hour=15, minute=15, microsecond=42, tzinfo=ZoneInfo(zone))
+        yt_timestamp_as_int = microseconds_timestamp(yt_tz_timestamp_as_datetime - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc))
+        timestamp_tz_string = yt_timestamp_as_int.to_bytes(8, byteorder="big", signed=False) + zone.encode("ascii")
+
+        check_datetime(datetime.datetime, ti.TzTimestamp, yt_tz_timestamp_as_datetime, timestamp_tz_string)
+
+        # Datetime.
+        yt_tz_datetime_as_datetime = yt_tz_timestamp_as_datetime.replace(microsecond=0, tzinfo=ZoneInfo(zone))
+        yt_tz_datetime_as_int = yt_timestamp_as_int // 10 ** 6
+        datetime_tz_string = yt_tz_datetime_as_int.to_bytes(4, byteorder="big", signed=False) + zone.encode("ascii")
+
+        check_datetime(datetime.datetime, ti.TzDatetime, yt_tz_datetime_as_datetime, datetime_tz_string)
+
+        # Timstamp64.
+        yt_tz_timestamp64_as_datetime = datetime.datetime(year=1900, month=6, day=18, hour=15, minute=15, second=2, microsecond=42, tzinfo=ZoneInfo(zone))
+        yt_tz_timestamp64_as_int = microseconds_timestamp(yt_tz_timestamp64_as_datetime - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc))
+        raw_bytes = yt_tz_timestamp64_as_int.to_bytes(8, byteorder="big", signed=True)
+        first_byte = raw_bytes[0] ^ 0x80
+        timestamp64_tz_string = bytes([first_byte]) + raw_bytes[1:] + zone.encode("ascii")
+
+        check_datetime(datetime.datetime, ti.TzTimestamp64, yt_tz_timestamp64_as_datetime, timestamp64_tz_string)
+
+        # Datetime64.
+        yt_tz_datetime64_as_datetime = yt_tz_timestamp64_as_datetime.replace(microsecond=0, tzinfo=ZoneInfo(zone))
+        yt_tz_datetime64_as_int = yt_tz_timestamp64_as_int // 10 ** 6
+
+        raw_bytes = yt_tz_datetime64_as_int.to_bytes(8, byteorder="big", signed=True)
+        first_byte = raw_bytes[0] ^ 0x80
+        datetime64_tz_string = bytes([first_byte]) + raw_bytes[1:] + zone.encode("ascii")
+
+        check_datetime(datetime.datetime, ti.TzDatetime64, yt_tz_datetime64_as_datetime, datetime64_tz_string)
+
+        # Date.
+        yt_tz_date_as_datetime = datetime.datetime(year=2025, month=6, day=18, tzinfo=datetime.timezone.utc)
+        days_since_epoch = (yt_tz_date_as_datetime.astimezone(ZoneInfo(zone)) - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)).days
+
+        date_tz_string = days_since_epoch.to_bytes(2, byteorder="big", signed=False) + zone.encode("ascii")
+
+        check_datetime(datetime.datetime, ti.TzDate, yt_tz_date_as_datetime.astimezone(ZoneInfo(zone)), date_tz_string)
+
+        # Date32.
+        yt_tz_date32_as_datetime = datetime.datetime(year=2025, month=6, day=18, tzinfo=datetime.timezone.utc)
+        days32_since_epoch = (yt_tz_date32_as_datetime.astimezone(ZoneInfo(zone)) - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)).days
+
+        raw_bytes = days32_since_epoch.to_bytes(4, byteorder="big", signed=False)
+        first_byte = raw_bytes[0] ^ 0x80
+        date32_tz_string = bytes([first_byte]) + raw_bytes[1:] + zone.encode("ascii")
+
+        check_datetime(datetime.datetime, ti.TzDate32, yt_tz_date32_as_datetime.astimezone(ZoneInfo(zone)), date32_tz_string)
+
+        # Date32.
+        yt_tz_date32_as_datetime = datetime.datetime(year=1970, month=1, day=2, tzinfo=datetime.timezone.utc)
+        check_datetime(datetime.datetime, ti.TzDate32, yt_tz_date32_as_datetime.astimezone(ZoneInfo(zone)), b"\x80\x00\x00\x01\x45\x75\x72\x6f\x70\x65\x2f\x4d\x6f\x73\x63\x6f\x77")
+
+        # Date.
+        yt_tz_date_as_datetime = datetime.datetime(year=1970, month=1, day=2, tzinfo=datetime.timezone.utc)
+        check_datetime(datetime.datetime, ti.TzDate, yt_tz_date_as_datetime.astimezone(ZoneInfo(zone)), b"\x00\x01\x45\x75\x72\x6f\x70\x65\x2f\x4d\x6f\x73\x63\x6f\x77")
+
+        # Datetime.
+        yt_tz_datetime_as_datetime = datetime.datetime(year=1970, month=1, day=1, hour=0, minute=0, second=1, tzinfo=datetime.timezone.utc)
+        check_datetime(datetime.datetime, ti.TzDatetime, yt_tz_datetime_as_datetime.astimezone(ZoneInfo(zone)), b"\x00\x00\x00\x01\x45\x75\x72\x6f\x70\x65\x2f\x4d\x6f\x73\x63\x6f\x77")
+
+        # Datetime64.
+        yt_tz_datetime64_as_datetime = datetime.datetime(year=1970, month=1, day=1, hour=0, minute=0, second=1, tzinfo=datetime.timezone.utc)
+        datetime64_string = b"\x80\x00\x00\x00\x00\x00\x00\x01\x45\x75\x72\x6f\x70\x65\x2f\x4d\x6f\x73\x63\x6f\x77"
+        check_datetime(datetime.datetime, ti.TzDatetime64, yt_tz_datetime64_as_datetime.astimezone(ZoneInfo(zone)), datetime64_string)
 
     @authors("aleexfi")
     def test_schema_matching_datetime(self):
@@ -2102,5 +2185,6 @@ class TestTypedApi(object):
         # check for new types
         all_ti_types = set(PRIMITIVES_V3.keys())
         not_yet_implemented_ti_types = set(["void", "uuid", "null", "json", "interval64", "datetime64",
-                                            "timestamp64", "date32", "tz_date", "tz_datetime", "tz_timestamp"])
+                                            "timestamp64", "date32", "tz_date", "tz_datetime", "tz_timestamp",
+                                            "tz_date32", "tz_datetime64", "tz_timestamp64"])
         assert set([t.name.lower() for t in yt.schema._PY_TYPE_BY_TI_TYPE.keys()]) == all_ti_types - not_yet_implemented_ti_types
