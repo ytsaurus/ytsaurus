@@ -1050,7 +1050,7 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
     TOperationId operationId,
     TJobId jobId,
     TInstant deadline,
-    NExecNode::EJobStderrType type)
+    EJobStderrType type)
 {
     try {
         NQueryClient::TQueryBuilder builder;
@@ -1059,10 +1059,10 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
         builder.SetSource(GetOperationsArchiveJobStderrsPath());
 
         switch (type) {
-            case NExecNode::EJobStderrType::UserJobStderr:
+            case EJobStderrType::UserJobStderr:
                 builder.AddSelectExpression("stderr");
                 break;
-            case NExecNode::EJobStderrType::GpuCheckStderr:
+            case EJobStderrType::GpuCheckStderr:
                 builder.AddSelectExpression("gpu_check_stderr AS stderr");
                 break;
         }
@@ -1123,9 +1123,9 @@ TGetJobStderrResponse TClient::DoGetJobStderr(
 
     ValidateOperationAccess(operationId, jobId, EPermissionSet(EPermission::Read));
 
-    auto stderrType = options.Type.value_or(NExecNode::EJobStderrType::UserJobStderr);
+    auto stderrType = options.Type.value_or(EJobStderrType::UserJobStderr);
 
-    if (stderrType == NExecNode::EJobStderrType::UserJobStderr) {
+    if (stderrType == EJobStderrType::UserJobStderr) {
         if (auto jobStderr = DoGetUserJobStderrFromNode(operationId, jobId, options)) {
             return *jobStderr;
         }
@@ -1139,7 +1139,7 @@ TGetJobStderrResponse TClient::DoGetJobStderr(
     auto archiveVersion = *maybeArchiveVersion;
 
     // COMPAT(bystrovserg)
-    if (stderrType == NExecNode::EJobStderrType::GpuCheckStderr && archiveVersion < 61) {
+    if (stderrType == EJobStderrType::GpuCheckStderr && archiveVersion < 61) {
         THROW_ERROR_EXCEPTION(EErrorCode::UnsupportedArchiveVersion, "GPU checker stderr is not supported in current archive version")
             << TErrorAttribute("current_archive_version", archiveVersion)
             << TErrorAttribute("required_archive_version", 61);
