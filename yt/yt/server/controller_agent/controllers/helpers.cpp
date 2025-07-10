@@ -405,7 +405,7 @@ void GenerateDockerAuthFromToken(
         auto child = secureVault->FindChild(std::string(key));
         return child && child->GetType() == ENodeType::String ? std::optional(child->AsString()->GetValue()) : std::nullopt;
     };
-    if (!findEnv(DockerAuthEnv)) {
+    if (secureVault && !findEnv(DockerAuthEnv)) {
         if (auto token = findEnv("YT_TOKEN")) {
             jobSpec->add_environment(Format("%s_%s={username=%Qs; password=%Qs}", SecureVaultEnvPrefix, DockerAuthEnv, authenticatedUser, *token));
         }
