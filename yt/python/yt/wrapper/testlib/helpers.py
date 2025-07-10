@@ -1,12 +1,5 @@
 from __future__ import print_function
 
-try:
-    from yt.packages.six import iteritems, integer_types, text_type, binary_type, b, PY3
-    from yt.packages.six.moves import xrange
-except ImportError:
-    from six import iteritems, integer_types, text_type, binary_type, b, PY3
-    from six.moves import xrange
-
 from yt.packages import requests
 
 from yt.test_helpers import wait, get_tests_sandbox
@@ -34,6 +27,7 @@ import tempfile
 import threading
 from contextlib import contextmanager
 from copy import deepcopy
+from typing import Optional
 try:
     import collections.abc as collections_abc
 except ImportError:
@@ -93,18 +87,15 @@ def get_python():
     if yatest_common is None:
         return sys.executable
     else:
-        if PY3:
-            return arcadia_interop.search_binary_path("yt-python3")
-        else:
-            return arcadia_interop.search_binary_path("yt-python")
+        return arcadia_interop.search_binary_path("yt-python3")
 
 
 def _filter_simple_types(obj):
-    if isinstance(obj, integer_types) or \
+    if isinstance(obj, int) or \
             isinstance(obj, float) or \
             obj is None or \
             isinstance(obj, yson.YsonType) or \
-            isinstance(obj, (binary_type, text_type)):
+            isinstance(obj, (bytes, str)):
         return obj
     elif isinstance(obj, datetime.timedelta):
         return obj.total_seconds() * 1000.0
@@ -113,7 +104,7 @@ def _filter_simple_types(obj):
     elif isinstance(obj, list):
         return [_filter_simple_types(item) for item in obj]
     elif isinstance(obj, collections_abc.Mapping):
-        return dict([(key, _filter_simple_types(value)) for key, value in iteritems(obj)])
+        return dict([(key, _filter_simple_types(value)) for key, value in obj.items()])
     return None
 
 
@@ -198,7 +189,7 @@ def run_python_script_with_check(yt_env, script):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE)
 
-        out, err = proc.communicate(b(dumps_yt_config()))
+        out, err = proc.communicate(dumps_yt_config().encode("latin-1"))
         assert proc.returncode == 0, err
 
         return out, err
@@ -283,11 +274,20 @@ def failing_heavy_request(module, n_fails, assert_exhausted=True):
 
 def random_string(length):
     char_set = string.ascii_lowercase + string.digits + string.ascii_uppercase
-    return "".join(random.choice(char_set) for _ in xrange(length))
+    return "".join(random.choice(char_set) for _ in range(length))
 
 
 @contextmanager
-def inject_http_error(client, filter_url=None, interrupt_from=0, interrupt_till=3, interrupt_every=2, raise_connection_reset=False, raise_custom_exception=None):
+def inject_http_error(
+    client,
+    filter_url: Optional[str] = None,
+    interrupt_from: int = 0,
+    interrupt_till: int = 3,
+    interrupt_every: int = 2,
+    raise_connection_reset: bool = False,
+    raise_custom_exception: Optional[requests.exceptions.RequestException] = None,
+    response: Optional[requests.Response] = None,
+):
     """Raises RuntimeError or ConnectionError("Connection aborted.") every N http request. Modifies client.config retries
          filter_url - which urls will intercepted
          interrupt_from/interrupt_till - "window" in filtered requests
@@ -327,6 +327,8 @@ def inject_http_error(client, filter_url=None, interrupt_from=0, interrupt_till=
                     # PY3: raise_custom_exception=requests.ConnectionError("Connection aborted.", ConnectionResetError(104, "Connection reset by peer"))
                     # PY2: raise_custom_exception=requests.ConnectionError("Connection aborted.", socket.error(errno.ECONNRESET))
                     raise requests.ConnectionError("Connection aborted.")
+                elif response is not None:
+                    return response
                 else:
                     raise RuntimeError()
             else:

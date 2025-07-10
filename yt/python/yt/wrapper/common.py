@@ -59,6 +59,7 @@ GB = 1024 * MB
 
 SECRET_PREFIXES = ("AQAD-", "y1_AQAD-")
 SECRET_PREFIXES_RE = (re.compile(r"\b(\w+_)?AQAD-\S+"), )
+HIDDEN_VALUE = "hidden"
 
 
 def hide_fields(
@@ -67,7 +68,7 @@ def hide_fields(
     prefixes: typing.Union[str, typing.Iterable[str], None] = None,
     prefix_re: typing.Union[typing.Pattern[str], None] = None,
     snooper=None,  # type: typing.Union[secret_snooper.Searcher, None]
-    hidden_value: str = "hidden"
+    hidden_value: str = HIDDEN_VALUE
 ):
     if not snooper and HAS_SNOOPER:
         # masking via Snooper has priority
@@ -135,6 +136,13 @@ def hide_auth_headers_in_request_info(request_info):
         if copied_request_info is None:
             copied_request_info = deepcopy(request_info)
         copied_request_info[key] = hide_auth_headers(request_info[key])
+
+    if "params" in request_info and request_info["params"] and "spec" in request_info["params"] and request_info["params"]["spec"] and "secure_vault" in request_info["params"]["spec"]:
+        if copied_request_info is None:
+            copied_request_info = deepcopy(request_info)
+
+        copied_request_info["params"]["spec"]["secure_vault"] = dict((k, HIDDEN_VALUE, ) for k in copied_request_info["params"]["spec"]["secure_vault"].keys())
+
     return copied_request_info if copied_request_info is not None else request_info
 
 
