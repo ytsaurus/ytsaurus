@@ -1874,6 +1874,19 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         # All rows are deleted due to "max_data_ttl" and it is not prevented by low watermark value.
         wait(lambda: select_rows(query) == [])
 
+    @authors("sabdenovch")
+    def test_row_cache_memory_starvation(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", lookup_cache_rows_ratio=1.0)
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(100)])
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
 
 @pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
