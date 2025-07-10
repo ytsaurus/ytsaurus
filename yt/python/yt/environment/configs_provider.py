@@ -211,8 +211,11 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         version=binary_to_version["ytserver-http-proxy"])
 
     http_proxy_url = None
+    https_proxy_url = None
     if yt_config.http_proxy_count > 0:
         http_proxy_url = "{0}:{1}".format(yt_config.fqdn, http_proxy_configs[0]["port"])
+        if yt_config.https_cert is not None:
+            https_proxy_url = "https://{0}:{1}".format(yt_config.fqdn, http_proxy_configs[0]["https_server"]["port"])
 
     rpc_proxy_configs = _build_rpc_proxy_configs(
         multidaemon_config,
@@ -230,7 +233,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
     rpc_proxy_addresses = None
     if yt_config.rpc_proxy_count > 0:
         rpc_proxy_addresses = [
-            "{0}:{1}".format(yt_config.fqdn, rpc_proxy_config["rpc_port"])
+            "{0}:{1}".format(yt_config.fqdn, rpc_proxy_config.get("public_rpc_port", rpc_proxy_config["rpc_port"]))
             for rpc_proxy_config in rpc_proxy_configs
         ]
         rpc_client_config = {
@@ -248,7 +251,12 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         queue_agent_rpc_ports,
         yt_config=yt_config)
 
-    rpc_driver_config = _build_rpc_driver_config(rpc_proxy_addresses, http_proxy_url)
+    rpc_driver_config = _build_rpc_driver_config(
+        yt_config,
+        http_proxy_url,
+        https_proxy_url,
+        rpc_proxy_addresses,
+    )
 
     tablet_balancer_configs, tablet_balancer_addresses = _build_tablet_balancer_configs(
         yt_config,
@@ -1061,10 +1069,10 @@ def _build_node_configs(multidaemon_config_output,
             set_at(config, "exec_node/job_proxy/forward_all_environment_variables", True)
 
             # Job proxy needs CA certificate to validate incoming connections.
-            if yt_config.ca_cert is not None:
+            if yt_config.internal_ca_cert is not None:
                 get_at(config, "exec_node/slot_manager/job_environment/job_proxy_bind_mounts").append({
-                    "internal_path": yt_config.ca_cert,
-                    "external_path": yt_config.ca_cert,
+                    "internal_path": yt_config.internal_ca_cert,
+                    "external_path": yt_config.internal_ca_cert,
                     "read_only": True,
                 })
 
@@ -1320,6 +1328,9 @@ def _build_http_proxy_config(multidaemon_config_output,
                              version):
     driver_config = default_config.get_driver_config()
 
+    if yt_config.enable_tls and yt_config.rpc_proxy_count > 0:
+        driver_config["default_rpc_proxy_address_type"] = "public_rpc"
+
     cluster_connection = _build_cluster_connection_config(
         yt_config,
         master_connection_configs,
@@ -1428,6 +1439,9 @@ def _build_native_driver_configs(master_connection_configs,
         init_chunk_client_dispatcher(config)
         config["start_queue_consumer_registration_manager"] = True
 
+        if yt_config.enable_tls and yt_config.rpc_proxy_count > 0:
+            config["default_rpc_proxy_address_type"] = "public_rpc"
+
         if cell_index == 0:
             tag = primary_cell_tag
             update_inplace(config, _build_cluster_connection_config(
@@ -1502,7 +1516,10 @@ def _build_native_driver_configs(master_connection_configs,
     return configs
 
 
-def _build_rpc_driver_config(rpc_proxy_addresses, http_proxy_url):
+def _build_rpc_driver_config(yt_config,
+                             http_proxy_url,
+                             https_proxy_url,
+                             rpc_proxy_addresses):
     config = default_config.get_driver_config()
 
     config["connection_type"] = "rpc"
@@ -1512,10 +1529,28 @@ def _build_rpc_driver_config(rpc_proxy_addresses, http_proxy_url):
         "hard_backoff_time": 100
     }
 
-    if http_proxy_url is not None:
+    if https_proxy_url is not None:
+        config["cluster_url"] = https_proxy_url
+        config["https_client"] = {
+            "credentials": {
+                "ca": {
+                    "file_name": yt_config.public_ca_cert,
+                },
+            },
+        }
+    elif http_proxy_url is not None:
         config["cluster_url"] = http_proxy_url
     else:
         config["proxy_addresses"] = rpc_proxy_addresses
+
+    if yt_config.enable_tls:
+        config["bus_client"] = {
+            "encryption_mode": "required",
+            "verification_mode": "full",
+            "ca": {
+                "file_name": yt_config.public_ca_cert,
+            },
+        }
 
     return config
 
@@ -1597,6 +1632,20 @@ def _build_rpc_proxy_configs(multidaemon_config_output,
             yt_config.rpc_proxy_ports[index] if yt_config.rpc_proxy_ports else next(ports_generator)
         if yt_config.enable_tvm_only_proxies:
             config["tvm_only_rpc_port"] = next(ports_generator)
+
+        if yt_config.enable_tls:
+            config["public_rpc_port"] = config["rpc_port"]
+            config["rpc_port"] = next(ports_generator)
+            config["public_bus_server"] = {
+                "cert_chain": {
+                    "file_name": yt_config.public_rpc_cert,
+                },
+                "private_key": {
+                    "file_name": yt_config.public_rpc_cert_key,
+                },
+                "encryption_mode": "optional",
+                "verification_mode": "none",
+            }
 
         multidaemon_config_output["daemons"][f"rpc_proxy_{index}"] = {
             "type": "rpc_proxy",
@@ -1801,10 +1850,10 @@ def _build_cluster_connection_config(yt_config,
             "refresh_time": 0
         }
 
-    if yt_config.ca_cert is not None:
+    if yt_config.internal_ca_cert is not None:
         set_at(cluster_connection, "bus_client", {
             "ca": {
-                "file_name": yt_config.ca_cert,
+                "file_name": yt_config.internal_ca_cert,
             },
             "encryption_mode": "required",
             "verification_mode": "full",

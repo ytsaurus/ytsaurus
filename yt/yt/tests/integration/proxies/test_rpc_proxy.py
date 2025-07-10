@@ -20,6 +20,8 @@ from yt_helpers import write_log_barrier, read_structured_log, read_structured_l
 from yt_type_helpers import make_schema
 
 from yt.wrapper import JsonFormat, YtClient
+from yt.wrapper.driver import make_formatted_request
+
 from yt.common import YtError, YtResponseError, update_inplace
 import yt.yson as yson
 
@@ -694,6 +696,68 @@ class TestRpcProxyDiscoveryViaHttp(YTEnvSetup):
             yc.get("//tmp/@")
 
         assert excinfo.value.contains_text("Proxy list is empty")
+
+
+class TestRpcProxyTls(YTEnvSetup):
+    ENABLE_HTTP_PROXY = True
+    ENABLE_RPC_PROXY = True
+    ENABLE_TLS = True
+
+    NUM_RPC_PROXIES = 2
+
+    @authors("khlebnikov")
+    def test_addresses(self):
+        rpc_proxies = ls("//sys/rpc_proxies")
+        assert len(rpc_proxies) > 0
+        for proxy in rpc_proxies:
+            get("//sys/rpc_proxies/" + proxy + "/orchid/rpc_proxy")
+            addresses = get("//sys/rpc_proxies/" + proxy + "/@addresses")
+            assert "internal_rpc" in addresses
+            assert "public_rpc" in addresses
+            assert "default" in addresses["internal_rpc"]
+            assert "default" in addresses["public_rpc"]
+            assert proxy == addresses["internal_rpc"]["default"]
+            assert proxy != addresses["public_rpc"]["default"]
+
+    @authors("khlebnikov")
+    def test_discovery(self):
+        http_client = self.Env.create_client()
+
+        internal_proxy_addresses = sorted(self.Env.get_rpc_proxy_addresses())
+        public_proxy_addresses = sorted(self.Env.get_rpc_proxy_addresses(address_type="public_rpc"))
+        configured_monitoring_addresses = sorted(self.Env.get_rpc_proxy_addresses(address_type="monitoring_http"))
+
+        for test_name, params, expected_addresses in [
+            (
+                "defaults",
+                {"type": "rpc"},
+                public_proxy_addresses,
+            ),
+            (
+                "public_rpc",
+                {"type": "rpc", "address_type": "public_rpc"},
+                public_proxy_addresses,
+            ),
+            (
+                "internal_rpc",
+                {"type": "rpc", "address_type": "internal_rpc"},
+                internal_proxy_addresses,
+            ),
+            (
+                "monitoring_http",
+                {"type": "rpc", "address_type": "monitoring_http", "network_name": "default"},
+                configured_monitoring_addresses,
+            ),
+        ]:
+            proxies = discover_proxies(type_=params["type"], **params)
+            assert sorted(proxies) == expected_addresses, test_name
+            proxies = make_formatted_request("discover_proxies", params, format=None, client=http_client).get("proxies")
+            assert sorted(proxies) == expected_addresses, test_name
+
+    @authors("khlebnikov")
+    def test_rpc_client(self):
+        yc = self.Env.create_rpc_client()
+        yc.get("//tmp/@")
 
 
 @pytest.mark.enabled_multidaemon

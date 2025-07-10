@@ -29,6 +29,12 @@ namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Checks that field with name `fieldName` is present in `message`.
+// TODO(grigminakov): Upgrade to `HasProtobufFieldByPath` or unify with `ResolveProtobufElementByYPath`.
+bool HasProtobufField(
+    const google::protobuf::Message& message,
+    const std::string& fieldName);
+
 //! Clears the field that the `path` points to in the `message`.
 //! Throws an error if path is invalid, or specified field is not set unless `skipMissing` is true.
 void ClearProtobufFieldByPath(

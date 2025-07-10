@@ -1151,11 +1151,17 @@ public:
 
     bool isTableExist(const DB::String& name, DB::ContextPtr context) const override {
         const auto& hostContext = GetHostContext(context);
+        if (!hostContext) {
+            return false;
+        }
         return hostContext->InputType && name == "Input";
     }
 
     DB::StoragePtr tryGetTable(const DB::String& name, DB::ContextPtr context) const override {
         const auto& hostContext = GetHostContext(context);
+        if (!hostContext) {
+            return nullptr;
+        }
         if (hostContext->InputType && name == "Input") {
             return std::make_shared<TStorageInput>(context);
         }

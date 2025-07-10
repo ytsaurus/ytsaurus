@@ -1318,6 +1318,8 @@ void TTablet::AsyncLoad(TLoadContext& context)
         }
     }
 
+    TabletCounters_.TabletCount.Update(1);
+
     auto tabletSizeProfiler = GetTabletSizeProfiler();
 
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", StoreIdMap_.size());
@@ -2269,6 +2271,7 @@ void TTablet::ReconfigureProfiling()
     TabletCounters_ = TableProfiler_->GetTabletCounters();
 
     TabletCounters_.TabletCount.Update(1);
+    auto tabletSizeProfiler = GetTabletSizeProfiler();
 
     UpdateReplicaCounters();
 }
