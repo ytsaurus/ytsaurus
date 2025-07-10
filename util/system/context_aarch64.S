@@ -50,3 +50,20 @@ ___mylongjmp:
     cbnz x1, 1f
     mov x0, #1
 1:    br x30
+
+.p2align 2
+#if !(defined __darwin__) && !(defined __arm64__)
+.global __stacktrampoline
+.type __stacktrampoline,@function
+__stacktrampoline:
+#else
+.global ___stacktrampoline
+___stacktrampoline:
+#endif
+    .cfi_startproc
+    .cfi_undefined x29
+    .cfi_undefined x30
+    mov x0, x20
+    blr x19
+    udf #0
+    .cfi_endproc
