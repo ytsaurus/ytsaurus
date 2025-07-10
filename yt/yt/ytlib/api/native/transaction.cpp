@@ -600,7 +600,7 @@ public:
         const TTableWriterOptions& options),
         (path, options))
 
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<ITableImporterPtr>, CreateTableImporter, (
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, ImportTable, (
         const TRichYPath& path,
         std::vector<std::string> s3Keys,
         const TTableWriterOptions& options),

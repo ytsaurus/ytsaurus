@@ -14,7 +14,6 @@
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/table_client/key.h>
-#include <yt/yt/client/table_client/unversioned_importer.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
@@ -122,7 +121,7 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<IUnversionedImporterPtr> CreateSchemalessTableImporter(
+TFuture<void> ImportSchemalessTable(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const NYPath::TRichYPath& richPath,
@@ -131,6 +130,7 @@ TFuture<IUnversionedImporterPtr> CreateSchemalessTableImporter(
     TString localHostName,
     NApi::ITransactionPtr transaction,
     NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
+    std::vector<std::string> s3Keys,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 

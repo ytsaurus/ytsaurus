@@ -4,7 +4,6 @@
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/skynet.h>
-#include <yt/yt/client/api/table_importer.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
@@ -333,18 +332,6 @@ void TImportTableCommand::Register(TRegistrar registrar)
         .Default();
 }
 
-NApi::ITableImporterPtr TImportTableCommand::CreateTableImporter(
-    const ICommandContextPtr& context)
-{
-    PutMethodInfoInTraceContext("import_table");
-
-    return WaitFor(context->GetClient()->CreateTableImporter(
-        Path,
-        S3Keys,
-        Options))
-            .ValueOrThrow();
-}
-
 void TImportTableCommand::DoExecuteImpl(const ICommandContextPtr& context)
 {
     auto transaction = AttachTransaction(context, false);
@@ -357,10 +344,9 @@ void TImportTableCommand::DoExecuteImpl(const ICommandContextPtr& context)
     Options.PingAncestors = true;
     Options.Config = config;
 
-    auto apiImporter = CreateTableImporter(context);
+    PutMethodInfoInTraceContext("import_table");
 
-    WaitFor(apiImporter->Close())
-        .ThrowOnError();
+    WaitFor(context->GetClient()->ImportTable(Path, S3Keys, Options)).ThrowOnError();
 }
 
 void TImportTableCommand::DoExecute(ICommandContextPtr context)

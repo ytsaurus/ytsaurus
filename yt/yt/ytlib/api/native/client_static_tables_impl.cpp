@@ -90,7 +90,7 @@ TFuture<ITableWriterPtr> TClient::CreateTableWriter(
     }));
 }
 
-TFuture<ITableImporterPtr> TClient::CreateTableImporter(
+TFuture<void> TClient::ImportTable(
     const NYPath::TRichYPath& path,
     std::vector<std::string> s3Keys,
     const TTableWriterOptions& options)
@@ -109,7 +109,7 @@ TFuture<ITableImporterPtr> TClient::CreateTableImporter(
         transaction = AttachTransaction(options.TransactionId, transactionOptions);
     }
 
-    auto asyncSchemalessImporter = CreateSchemalessTableImporter(
+    return ImportSchemalessTable(
         options.Config ? options.Config : New<TTableWriterConfig>(),
         writerOptions,
         path,
@@ -117,11 +117,9 @@ TFuture<ITableImporterPtr> TClient::CreateTableImporter(
         this,
         /*localHostName*/ TString(), // Locality is not important during table upload.
         transaction,
-        /*writeBlocksOptions*/ {});
-
-    return asyncSchemalessImporter.Apply(BIND([s3Keys = std::move(s3Keys)] (const IUnversionedImporterPtr& schemalessImporter) {
-        return CreateApiFromSchemalessImporterAdapter(std::move(schemalessImporter), s3Keys);
-    }));
+        /*writeBlocksOptions*/ {},
+        std::move(s3Keys)
+    );
 }
 
 std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(

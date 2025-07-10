@@ -8,7 +8,6 @@
 #include "journal_reader.h"
 #include "journal_writer.h"
 #include "private.h"
-#include "table_importer.h"
 #include "table_reader.h"
 #include "table_writer.h"
 #include "transaction.h"
@@ -795,7 +794,7 @@ TFuture<ITableWriterPtr> TClientBase::CreateTableWriter(
         })).As<ITableWriterPtr>();
 }
 
-TFuture<ITableImporterPtr> TClientBase::CreateTableImporter(
+TFuture<void> TClientBase::ImportTable(
     const TRichYPath& path,
     std::vector<std::string> s3Keys,
     const TTableWriterOptions& options)
@@ -813,21 +812,7 @@ TFuture<ITableImporterPtr> TClientBase::CreateTableImporter(
     }
 
     ToProto(req->mutable_transactional_options(), options);
-
-    auto schema = New<TTableSchema>();
-    return NRpc::CreateRpcClientOutputStream(
-        std::move(req),
-        BIND ([=] (const TSharedRef& metaRef) {
-            NApi::NRpcProxy::NProto::TWriteTableMeta meta;
-            if (!TryDeserializeProto(&meta, metaRef)) {
-                THROW_ERROR_EXCEPTION("Failed to deserialize schema for table writer");
-            }
-
-            FromProto(schema.Get(), meta.schema());
-        }))
-        .ApplyUnique(BIND([=] (IAsyncZeroCopyOutputStreamPtr&& outputStream) {
-            return NRpcProxy::CreateTableImporter(std::move(outputStream), std::move(schema));
-        })).As<ITableImporterPtr>();
+    return req->Invoke().AsVoid();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

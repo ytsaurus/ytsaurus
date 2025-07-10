@@ -107,9 +107,6 @@ public:
     static void Register(TRegistrar registrar);
 
 protected:
-    virtual NApi::ITableImporterPtr CreateTableImporter(
-        const ICommandContextPtr& context);
-
     void DoExecuteImpl(const ICommandContextPtr& context);
 
 private:

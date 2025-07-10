@@ -4,7 +4,6 @@
 #include "schema.h"
 #include "row_batch.h"
 
-#include <yt/yt/client/api/table_importer.h>
 #include <yt/yt/client/api/table_writer.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -68,54 +67,6 @@ ITableWriterPtr CreateApiFromSchemalessWriterAdapter(
     IUnversionedWriterPtr underlyingWriter)
 {
     return New<TApiFromSchemalessWriterAdapter<ITableWriter, IUnversionedWriter>>(std::move(underlyingWriter));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <std::derived_from<ITableImporter> TInterface, std::derived_from<IUnversionedImporter> TUnderlyingInterface>
-class TApiFromSchemalessImporterAdapter
-    : public TInterface
-{
-public:
-    TApiFromSchemalessImporterAdapter(
-        TIntrusivePtr<TUnderlyingInterface> underlyingImporter,
-        std::vector<std::string> s3Keys)
-        : UnderlyingImporter_(std::move(underlyingImporter))
-    {
-        std::vector<TCallback<TFuture<void>()>> importers;
-        for (auto& s3Key : s3Keys) {
-            importers.push_back(BIND(&IUnversionedImporter::Import,
-                MakeStrong(&*UnderlyingImporter_),
-                std::move(s3Key)));
-        }
-        Import_ = CancelableRunWithBoundedConcurrency(std::move(importers), 1, true /* failOnError */).AsVoid();
-    }
-
-    TFuture<void> Close() /*override*/
-    {
-        return Import_.Apply(BIND(&IUnversionedImporter::Close,
-            MakeStrong(&*UnderlyingImporter_)));
-    }
-
-    const TNameTablePtr& GetNameTable() const /*override*/
-    {
-        return UnderlyingImporter_->GetNameTable();
-    }
-
-    const TTableSchemaPtr& GetSchema() const /*override*/
-    {
-        return UnderlyingImporter_->GetSchema();
-    }
-
-protected:
-    const TIntrusivePtr<TUnderlyingInterface> UnderlyingImporter_;
-    TFuture<void> Import_;
-};
-
-ITableImporterPtr CreateApiFromSchemalessImporterAdapter(
-    IUnversionedImporterPtr underlyingImporter, std::vector<std::string> s3Keys)
-{
-    return New<TApiFromSchemalessImporterAdapter<ITableImporter, IUnversionedImporter>>(std::move(underlyingImporter), s3Keys);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

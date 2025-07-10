@@ -47,7 +47,6 @@ SRCS(
     api/rpc_proxy/journal_reader.cpp
     api/rpc_proxy/journal_writer.cpp
     api/rpc_proxy/table_mount_cache.cpp
-    api/rpc_proxy/table_importer.cpp
     api/rpc_proxy/table_reader.cpp
     api/rpc_proxy/table_writer.cpp
     api/rpc_proxy/timestamp_provider.cpp

@@ -709,13 +709,13 @@ TFuture<ITableWriterPtr> TTransaction::CreateTableWriter(
         PatchTransactionId(options));
 }
 
-TFuture<ITableImporterPtr> TTransaction::CreateTableImporter(
+TFuture<void> TTransaction::ImportTable(
     const TRichYPath& path,
     std::vector<std::string> s3Keys,
     const NApi::TTableWriterOptions& options)
 {
     ValidateActive();
-    return Client_->CreateTableImporter(
+    return Client_->ImportTable(
         path,
         std::move(s3Keys),
         PatchTransactionId(options));

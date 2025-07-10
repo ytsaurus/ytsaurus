@@ -21,9 +21,6 @@ IUnversionedWriterPtr CreateSchemalessFromApiWriterAdapter(
 NApi::ITableWriterPtr CreateApiFromSchemalessWriterAdapter(
     IUnversionedWriterPtr underlyingWriter);
 
-NApi::ITableImporterPtr CreateApiFromSchemalessImporterAdapter(
-    IUnversionedImporterPtr underlyingImporter, std::vector<std::string> s3Keys);
-
 NApi::ITableFragmentWriterPtr CreateApiFromSchemalessWriterAdapter(
     IUnversionedTableFragmentWriterPtr underlyingWriter);
 

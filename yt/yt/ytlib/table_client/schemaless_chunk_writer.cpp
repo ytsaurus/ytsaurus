@@ -2523,8 +2523,7 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessTableImporter
-    : public IUnversionedImporter
-    , public TTransactionListener
+    : public TTransactionListener
 {
 public:
     TSchemalessTableImporter(
@@ -2537,7 +2536,8 @@ public:
         ITransactionPtr transaction,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
-        IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
+        std::vector<std::string> s3Keys)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , RichPath_(richPath)
@@ -2549,6 +2549,7 @@ public:
         , Throttler_(std::move(throttler))
         , BlockCache_(std::move(blockCache))
         , WriteBlocksOptions_(std::move(writeBlocksOptions))
+        , S3Keys_(std::move(s3Keys))
         , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
             richPath.GetPath(),
             TransactionId_))
@@ -2558,36 +2559,11 @@ public:
         }
     }
 
-    TFuture<void> Open()
+    TFuture<void> Run()
     {
-        return BIND(&TSchemalessTableImporter::DoOpen, MakeStrong(this))
+        return BIND(&TSchemalessTableImporter::DoRun, MakeStrong(this))
             .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
             .Run();
-    }
-
-    TFuture<void> Import(std::string_view s3Key) override
-    {
-        return BIND(&TSchemalessTableImporter::DoImport, MakeStrong(this), std::string(s3Key))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
-            .Run();
-    }
-
-    TFuture<void> Close() override
-    {
-        return BIND(&TSchemalessTableImporter::DoClose, MakeStrong(this))
-            .AsyncVia(NChunkClient::TDispatcher::Get()->GetWriterInvoker())
-            .Run();
-    }
-
-    const TNameTablePtr& GetNameTable() const override
-    {
-        return NameTable_;
-    }
-
-    const TTableSchemaPtr& GetSchema() const override
-    {
-        YT_VERIFY(Uploader_);
-        return Uploader_->GetSchema();
     }
 
 private:
@@ -2602,6 +2578,7 @@ private:
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
     const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
+    const std::vector<std::string> S3Keys_;
 
     const NLogging::TLogger Logger;
 
@@ -2628,7 +2605,7 @@ private:
         YT_LOG_DEBUG("Table opened");
     }
 
-    void DoImport(std::string s3Key)
+    void DoImport(const std::string& s3Key)
     {
         if (IsAborted()) {
             auto error = TError("Aborted");
@@ -2737,11 +2714,20 @@ private:
 
         YT_LOG_DEBUG("Table closed");
     }
+
+    void DoRun()
+    {
+        DoOpen();
+        for (auto& s3Key : S3Keys_) {
+            DoImport(s3Key);
+        }
+        DoClose();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<IUnversionedImporterPtr> CreateSchemalessTableImporter(
+TFuture<void> ImportSchemalessTable(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     const TRichYPath& richPath,
@@ -2750,6 +2736,7 @@ TFuture<IUnversionedImporterPtr> CreateSchemalessTableImporter(
     TString localHostName,
     ITransactionPtr transaction,
     IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
+    std::vector<std::string> s3Keys,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
@@ -2761,7 +2748,7 @@ TFuture<IUnversionedImporterPtr> CreateSchemalessTableImporter(
         config->EnableBlockReordering = false;
     }
 
-    auto writer = New<TSchemalessTableImporter>(
+    return New<TSchemalessTableImporter>(
         std::move(config),
         std::move(options),
         richPath,
@@ -2771,9 +2758,8 @@ TFuture<IUnversionedImporterPtr> CreateSchemalessTableImporter(
         std::move(transaction),
         std::move(throttler),
         std::move(blockCache),
-        std::move(writeBlocksOptions));
-    return writer->Open()
-        .Apply(BIND([=] () -> IUnversionedImporterPtr { return writer; }));
+        std::move(writeBlocksOptions),
+        std::move(s3Keys))->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

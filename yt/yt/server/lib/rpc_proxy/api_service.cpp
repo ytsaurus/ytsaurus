@@ -44,7 +44,6 @@
 #include <yt/yt/client/api/query_tracker_client.h>
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/sticky_transaction_pool.h>
-#include <yt/yt/client/api/table_importer.h>
 #include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/table_writer.h>
 #include <yt/yt/client/api/transaction.h>
@@ -6007,18 +6006,7 @@ private:
         for (auto& s3Key : request->s3_keys()) {
             s3Keys.push_back(s3Key);
         }
-        auto tableImporter = WaitFor(client->CreateTableImporter(path, s3Keys, options))
-            .ValueOrThrow();
-
-        NApi::NRpcProxy::NProto::TWriteTableMeta meta;
-        ToProto(meta.mutable_schema(), tableImporter->GetSchema());
-        auto metaRef = SerializeProtoToRef(meta);
-        auto outputStream = context->GetResponseAttachmentsStream();
-        WaitFor(outputStream->Write(metaRef))
-            .ThrowOnError();
-
-        WaitFor(tableImporter->Close())
-            .ThrowOnError();
+        WaitFor(client->ImportTable(path, s3Keys, options)).ThrowOnError();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetColumnarStatistics)

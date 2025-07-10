@@ -355,7 +355,7 @@ struct ITableClientBase
         const NYPath::TRichYPath& path,
         const TTableWriterOptions& options = {}) = 0;
 
-    virtual TFuture<NApi::ITableImporterPtr> CreateTableImporter(
+    virtual TFuture<void> ImportTable(
         const NYPath::TRichYPath& path,
         std::vector<std::string> s3Keys,
         const TTableWriterOptions& options = {}) = 0;

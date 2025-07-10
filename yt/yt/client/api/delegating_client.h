@@ -87,7 +87,7 @@ public:
         const TTableWriterOptions& options),
         (path, options))
 
-    DELEGATE_METHOD(TFuture<ITableImporterPtr>, CreateTableImporter, (
+    DELEGATE_METHOD(TFuture<void>, ImportTable, (
         const NYPath::TRichYPath& path,
         std::vector<std::string> s3Keys,
         const TTableWriterOptions& options),
