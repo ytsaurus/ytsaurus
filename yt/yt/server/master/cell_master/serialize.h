@@ -183,10 +183,12 @@ DEFINE_ENUM(EMasterReign,
     ((ValidateResourceUsageIncreaseOnPrimaryMediumChange)           (2744))  // danilalexeev
     ((Int64InHistogramSnapshot)                                     (2745))  // babenko
     ((SecondaryIndexUnfoldedColumnApi)                              (2746))  // sabdenovch
-    ((Decimal256)                                                   (2747))  // achulkov2+ermolovd
-    ((HunkStorageMulticell)                                         (2748))  // akozhikhov
-    ((NoAvenuesDuringMigrationTo24_2)                               (2749))  // ifsmirnov
-    ((DropEnableFixRequisitionUpdateCompat_24_2)                    (2750))  // kvk1920
+    ((FixCompositeKeyDeserialization_24_2)                          (2747))  // ermolovd
+    ((DropEnableFixRequisitionUpdateCompat_24_2)                    (2748))  // kvk1920
+    // 25.1 effectively starts here.
+    ((Decimal256)                                                   (2749))  // achulkov2+ermolovd
+    ((HunkStorageMulticell)                                         (2750))  // akozhikhov
+    ((NoAvenuesDuringMigrationTo24_2)                               (2751))  // ifsmirnov
     // 25.1 starts here.
     ((SequoiaSetActionLatePrapare)                                  (2800))  // danilalexeev
     ((RemoveUseHydraPersistenceDirectoryFlag)                       (2801))  // danilalexeev
