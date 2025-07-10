@@ -20,6 +20,7 @@
 #include <yt/yt/server/tcp_proxy/program.h>
 #include <yt/yt/server/kafka_proxy/program.h>
 #include <yt/yt/server/replicated_table_tracker/program.h>
+#include <yt/yt/server/offshore_node_proxy/program.h>
 #include <yt/yt/server/multidaemon/program.h>
 
 #include <yt/yt/library/program/program.h>
@@ -135,6 +136,7 @@ const TProgramMap& GetProgramMap()
             .Add(NTcpProxy::RunTcpProxyProgram, "tcp-proxy")
             .Add(NKafkaProxy::RunKafkaProxyProgram, "kafka-proxy")
             .Add(NReplicatedTableTracker::RunReplicatedTableTrackerProgram, "replicated-table-tracker")
+            .Add(NOffshoreNodeProxy::RunOffshoreNodeProxyProgram, "offshore-node-proxy")
             .Add(NMultidaemon::RunMultidaemonProgram, "multi")
             .Finish();
     }();

@@ -38,9 +38,10 @@ public:
 
     bool operator==(const TMediumDescriptor& other) const;
 
-protected:
+public:
     //! Populates protobuf with the type-specific data of this descriptor.
     virtual void FillProto(NProto::TMediumDirectory::TMediumDescriptor* protoItem) const;
+protected:
     virtual void LoadFrom(const NProto::TMediumDirectory::TMediumDescriptor& protoItem);
 
     virtual bool Equals(const TMediumDescriptor& other) const;

@@ -14,6 +14,8 @@ import "yt/ytlib/chunk_client/proto/session_id.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto";
 
+import "yt/ytlib/chunk_client/proto/medium_directory.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TAllyReplicasInfo
@@ -245,6 +247,8 @@ message TReqGetBlockSet
     optional uint64 ally_replicas_revision = 13;
 
     reserved 3, 4, 9;
+
+    optional TMediumDirectory.TMediumDescriptor medium_descriptor = 14;
 }
 
 message TRspGetBlockSet
@@ -422,6 +426,8 @@ message TReqGetChunkMeta
     // If requested chunk uses features that are not supported by client,
     // an error is returned.
     optional uint64 supported_chunk_features = 8;
+
+    optional TMediumDirectory.TMediumDescriptor medium_descriptor = 9;
 }
 
 message TRspGetChunkMeta

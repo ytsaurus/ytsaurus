@@ -1,0 +1,15 @@
+#pragma once
+
+#include <yt/yt/core/rpc/public.h>
+
+namespace NYT::NOffshoreNodeProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NRpc::IServicePtr CreateOffshoreNodeService(
+    IInvokerPtr invoker,
+    NRpc::IAuthenticatorPtr authenticator);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NOffshoreNodeProxy

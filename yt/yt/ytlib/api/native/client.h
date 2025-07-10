@@ -102,6 +102,7 @@ struct IClient
 
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual const NNodeTrackerClient::INodeChannelFactoryPtr& GetChannelFactory() = 0;
+    // virtual NRpc::IChannelPtr GetOffshoreNodeProxyChannel() = 0;
 
     virtual ITransactionPtr AttachNativeTransaction(
         NTransactionClient::TTransactionId transactionId,

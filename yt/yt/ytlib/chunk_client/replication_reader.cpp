@@ -8,11 +8,13 @@
 #include "chunk_reader_host.h"
 #include "config.h"
 #include "data_node_service_proxy.h"
+#include "offshore_node_service_proxy.h"
 #include "helpers.h"
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_reader_options.h"
 #include "chunk_replica_cache.h"
 #include "s3_reader.h"
+#include "medium_descriptor.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -122,6 +124,19 @@ void FormatValue(TStringBuilderBase* builder, const TPeer& peer, TStringBuf form
 }
 
 using TPeerList = TCompactVector<TPeer, 3>;
+
+bool IsOffshorePeerList(const TPeerList& peers)
+{
+    if (std::ssize(peers) == 1 && peers[0].Replica.GetNodeId() == OffshoreNodeId) {
+        return true;
+    }
+
+    for (const auto& peer : peers) {
+        YT_VERIFY(peer.Replica.GetNodeId() != OffshoreNodeId);
+    }
+
+    return false;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -746,6 +761,12 @@ protected:
         }
 
         auto optionalAddress = descriptor.FindAddress(Networks_);
+
+        if (replica.GetNodeId() == OffshoreNodeId) {
+            YT_VERIFY(!optionalAddress);
+            optionalAddress = "fake-fix-me-later";
+        }
+
         if (!optionalAddress) {
             YT_LOG_WARNING("Skipping peer since no suitable address could be found (NodeDescriptor: %v, Networks: %v)",
                 descriptor,
@@ -816,6 +837,10 @@ protected:
         auto reader = Reader_.Lock();
         if (!reader) {
             return nullptr;
+        }
+
+        if (address == "fake-fix-me-later") {
+            return reader->Client_->GetNativeConnection()->GetOffshoreNodeProxyChannel();
         }
 
         try {
@@ -1049,7 +1074,17 @@ protected:
         nodeIds.reserve(seedReplicas.size());
         peerAddresses.reserve(seedReplicas.size());
 
+        TNodeDescriptor fakeDescriptor;
+
         for (auto replica : seedReplicas) {
+            if (replica.GetNodeId() == OffshoreNodeId) {
+                peerDescriptors.push_back(&fakeDescriptor);
+                replicas.push_back(replica);
+                nodeIds.push_back(replica.GetNodeId());
+                peerAddresses.push_back("fake-fix-me-later");
+                continue;
+            }
+
             const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
             if (!descriptor) {
                 RegisterError(TError(
@@ -1076,6 +1111,7 @@ protected:
             peerAddresses.push_back(*address);
         }
 
+        // XXX(achulkov2): Works fine with weird node ids, doesn't matter for now.
         auto nodeSuspicionMarkTimes = NodeStatusDirectory_
             ? NodeStatusDirectory_->RetrieveSuspicionMarkTimes(nodeIds)
             : std::vector<std::optional<TInstant>>();
@@ -1180,6 +1216,7 @@ protected:
             return {};
         }
 
+        // XXX(achulkov2): Offshore replicas should exit here for now.
         if (candidates.size() <= 1) {
             return {candidates.begin(), candidates.end()};
         }
@@ -1896,6 +1933,7 @@ private:
             BIND(&TReadBlockSetSession::DoRequestBlocks, MakeStrong(this)));
     }
 
+    // XXX(achulkov2): This will not be called for offshore peers for now, so whatever.
     bool UpdatePeerBlockMap(
         const TPeer& suggestorPeer,
         const ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor>& peerDescriptors,
@@ -2886,7 +2924,20 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->MetaRpcTimeout);
         proxy.SetDefaultMemoryUsageTracker(SessionOptions_.MemoryUsageTracker);
 
-        auto req = proxy.GetChunkMeta();
+        TOffshoreNodeServiceProxy offshoreProxy(channel);
+        offshoreProxy.SetDefaultTimeout(ReaderConfig_->MetaRpcTimeout);
+        offshoreProxy.SetDefaultMemoryUsageTracker(SessionOptions_.MemoryUsageTracker);
+
+        bool isOffshorePeer = IsOffshorePeerList(peers);
+
+        auto req = [&] {
+            if (isOffshorePeer) {
+                return offshoreProxy.GetChunkMeta();
+            }
+
+            return proxy.GetChunkMeta();
+        }();
+
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(SessionOptions_.MultiplexingParallelism);
@@ -2901,6 +2952,12 @@ private:
             ToProto(req->mutable_extension_tags(), *ExtensionTags_);
         }
         req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
+
+        if (isOffshorePeer) {
+            auto mediumDescriptor = reader->Client_->GetNativeConnection()->GetMediumDirectory()->FindByIndex(peers[0].Replica.GetMediumIndex());
+            YT_VERIFY(mediumDescriptor);
+            mediumDescriptor->FillProto(req->mutable_medium_descriptor());
+        }
 
         auto rspFuture = req->Invoke();
         SetSessionFuture(rspFuture.As<void>());
@@ -3766,9 +3823,26 @@ private:
     TFuture<TGetBlocksResult> ExecuteBatchRequest(const TRequestBatch<TGetBlocksResult>& queuedBatch)
     {
         TDataNodeServiceProxy proxy(queuedBatch.Channel);
-        proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
+        TOffshoreNodeServiceProxy offshoreProxy(queuedBatch.Channel);
 
-        auto req = proxy.GetBlockSet();
+        proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
+        offshoreProxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
+
+        bool isOffshorePeer = std::ssize(queuedBatch.Peers) == 1 && queuedBatch.Peers[0].Replica.GetNodeId() == OffshoreNodeId;
+        if (!isOffshorePeer) {
+            for (const auto& peer : queuedBatch.Peers) {
+                YT_VERIFY(peer.Replica.GetNodeId() != OffshoreNodeId);
+            }
+        }
+
+        auto req = [&] () {
+            if (isOffshorePeer) {
+                return offshoreProxy.GetBlockSet();
+            }
+
+            return proxy.GetBlockSet();
+        }();
+
         req->SetResponseHeavy(true);
         req->SetMultiplexingBand(queuedBatch.Session->SessionOptions_.MultiplexingBand);
         req->SetMultiplexingParallelism(queuedBatch.Session->SessionOptions_.MultiplexingParallelism);
@@ -3785,6 +3859,12 @@ private:
         for (const auto& barrier : queuedBatch.Barriers) {
             auto* waitBarrier = req->add_wait_barriers();
             waitBarrier->CopyFrom(barrier);
+        }
+
+        if (isOffshorePeer) {
+            auto mediumDescriptor = Reader_.Lock()->Client_->GetNativeConnection()->GetMediumDirectory()->FindByIndex(queuedBatch.Peers[0].Replica.GetMediumIndex());
+            YT_VERIFY(mediumDescriptor);
+            mediumDescriptor->FillProto(req->mutable_medium_descriptor());
         }
 
         return req->Invoke()

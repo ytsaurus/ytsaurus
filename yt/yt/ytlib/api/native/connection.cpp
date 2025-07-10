@@ -70,6 +70,8 @@
 
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_channel.h>
 
+#include <yt/yt/ytlib/offshore_node_proxy/offshore_node_proxy_channel.h>
+
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
 #include <yt/yt/ytlib/tablet_client/native_table_mount_cache.h>
@@ -253,6 +255,11 @@ public:
             ChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
+
+        OffshoreNodeProxyChannel_ = NOffshoreNodeProxy::CreateOffshoreNodeProxyChannel(
+            config->OffshoreNodeProxy,
+            ChannelFactory_,
+            GetMasterChannelOrThrow(EMasterChannelKind::Leader));
 
         InitializeQueueAgentChannels();
         QueueConsumerRegistrationManager_ = New<TQueueConsumerRegistrationManager>(
@@ -586,6 +593,11 @@ public:
     const IChannelPtr& GetBundleControllerChannel() override
     {
         return BundleControllerChannel_;
+    }
+
+    const IChannelPtr& GetOffshoreNodeProxyChannel() override
+    {
+        return OffshoreNodeProxyChannel_;
     }
 
     IChannelPtr GetChaosChannelByCellId(TCellId cellId, EPeerKind peerKind) override
@@ -930,6 +942,7 @@ private:
 
     IChannelPtr SchedulerChannel_;
     IChannelPtr BundleControllerChannel_;
+    IChannelPtr OffshoreNodeProxyChannel_;
 
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
     TQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;

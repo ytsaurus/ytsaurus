@@ -1,0 +1,90 @@
+package NYT.NChunkClient.NProto;
+
+// TODO(achulkov2): Leave only necessary imports.
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
+import "yt_proto/yt/client/misc/proto/workload.proto";
+import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt/ytlib/chunk_client/proto/chunk_info.proto";
+import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
+import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
+import "yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto";
+import "yt/ytlib/chunk_client/proto/chunk_slice.proto";
+import "yt/ytlib/chunk_client/proto/chunk_writer_statistics.proto";
+import "yt/ytlib/chunk_client/proto/session_id.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+import "yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(achulkov2): Think about code sharing with DataNodeService.
+// We could probably use exactly the same protos for both services.
+// This would require hardcoding 
+
+message TReqGetBlockSet
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    repeated int32 block_indexes = 2;
+    optional bool populate_cache = 5 [default = true];
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 6;
+    // COMPAT(babenko): drop once all clusters support ProbeBlockSet
+    optional bool fetch_from_cache = 7 [default = true];
+    // COMPAT(babenko): drop once all clusters support ProbeBlockSet
+    optional bool fetch_from_disk = 8 [default = true];
+
+    repeated TP2PBarrier wait_barriers = 11;
+    optional NYT.NProto.TGuid read_session_id = 12;
+
+    optional uint64 ally_replicas_revision = 13;
+
+    reserved 3, 4, 9;
+}
+
+message TRspGetBlockSet
+{
+    repeated TPeerDescriptor peer_descriptors = 1;
+    optional TAllyReplicasInfo ally_replicas = 11;
+    required bool has_complete_chunk = 3;
+    required bool net_throttling = 5;
+    required int64 net_queue_size = 6;
+    required bool disk_throttling = 7;
+    required int64 disk_queue_size = 8;
+    optional TChunkReaderStatistics chunk_reader_statistics = 10;
+    repeated fixed64 block_checksums = 9;
+
+    // Blocks are returned via attachments and correspond to block_indexes
+    // list in the request. Some blocks may be null.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetChunkMeta
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    optional int32 medium_index = 7;
+    repeated int32 extension_tags = 2;
+    // If true, then extension_tags are ignored and
+    // the whole available meta is returned.
+    optional bool all_extension_tags = 3 [default = false];
+    optional int32 partition_tag = 4;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 5;
+
+    // COMPAT(psushin).
+    optional bool enable_throttling = 6 [default = false];
+
+    // Bitmask of the chunk features that are supported by client.
+    // If requested chunk uses features that are not supported by client,
+    // an error is returned.
+    optional uint64 supported_chunk_features = 8;
+}
+
+message TRspGetChunkMeta
+{
+    optional TChunkMeta chunk_meta = 1;
+    optional bool net_throttling = 2 [default = false];
+    optional TChunkReaderStatistics chunk_reader_statistics = 3;
+    optional NYT.NProto.TGuid location_uuid = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////

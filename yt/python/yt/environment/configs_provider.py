@@ -289,6 +289,19 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         logs_dir,
     )
 
+    offshore_node_proxy_configs = _build_offshore_node_proxy_configs(
+        yt_config,
+        multidaemon_config,
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_config),
+        discovery_configs,
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        cypress_proxy_rpc_ports,
+        ports_generator,
+        logs_dir,
+    )
+
     cluster_configuration = {
         "master": master_configs,
         "clock": clock_configs,
@@ -310,6 +323,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         "tablet_balancer": tablet_balancer_configs,
         "cypress_proxy": cypress_proxy_configs,
         "replicated_table_tracker": replicated_table_tracker_configs,
+        "offshore_node_proxy": offshore_node_proxy_configs,
         "cluster_connection": _build_cluster_connection_config(
             yt_config,
             master_connection_configs,
@@ -1911,6 +1925,54 @@ def _build_replicated_table_tracker_configs(yt_config,
             "config": config,
         }
         configs.append(config)
+
+    return configs
+
+
+def _build_offshore_node_proxy_configs(yt_config,
+                                       multidaemon_config_output,
+                                       master_connection_configs,
+                                       clock_connection_config,
+                                       discovery_configs,
+                                       timestamp_provider_addresses,
+                                       master_cache_addresses,
+                                       cypress_proxy_rpc_ports,
+                                       ports_generator,
+                                       logs_dir):
+    configs = []
+
+    for index in xrange(yt_config.offshore_node_proxy_count):
+        config = default_config.get_offshore_node_proxy_config()
+
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        if not yt_config.enable_multidaemon:
+            init_singletons(singletons_config, yt_config)
+
+            _init_logging(logs_dir,
+                          "offshore-node-proxy-" + str(index),
+                          singletons_config.setdefault("logging", {}),
+                          yt_config)
+            
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_config,
+                discovery_configs,
+                timestamp_provider_addresses,
+                master_cache_addresses,
+                cypress_proxy_rpc_ports)
+
+        config["rpc_port"] = next(ports_generator)
+        config["monitoring_port"] = next(ports_generator)
+
+        multidaemon_config_output["daemons"][f"offshore_node_proxy_{index}"] = {
+            "type": "offshore_node_proxy",
+            "config": config,
+        }
+        configs.append(config)
+        
+        init_cypress_annotations(config, index)
 
     return configs
 

@@ -930,6 +930,10 @@ void DumpCodecStatistics(
 
 bool IsAddressLocal(const std::string& address)
 {
+    if (address == "fake-fix-me-later") {
+        return false;
+    }
+
     return GetServiceHostName(address) == GetLocalHostName();
 }
 

@@ -25,7 +25,7 @@ IChunkReaderPtr CreatePhysicalChunkReader(
 {
     auto replicasByType = GetReplicasByType(seedReplicas);
 
-    if (replicasByType.DomesticReplicas.empty() && !replicasByType.OffshoreReplicas.empty()) {
+    if (false && replicasByType.DomesticReplicas.empty() && !replicasByType.OffshoreReplicas.empty()) {
         if (!chunkReaderHost) {
             THROW_ERROR_EXCEPTION(
                 "Cannot create offshore chunk reader for chunk %v without chunk reader host",
@@ -51,7 +51,7 @@ IChunkReaderPtr CreatePhysicalChunkReader(
         std::move(options),
         std::move(chunkReaderHost),
         chunkId,
-        std::move(replicasByType.DomesticReplicas));
+        seedReplicas);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

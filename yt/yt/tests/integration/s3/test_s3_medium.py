@@ -58,6 +58,8 @@ class TestS3Medium(YTEnvSetup):
 
     NUM_SCHEDULERS = 1
 
+    NUM_OFFSHORE_NODE_PROXIES = 1
+
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
