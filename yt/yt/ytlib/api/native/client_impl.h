@@ -1413,7 +1413,7 @@ private:
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         TInstant deadline,
-        NExecNode::EJobStderrType stderrType);
+        EJobStderrType stderrType);
 
     TSharedRef DoGetJobFailContextFromNode(
         NScheduler::TOperationId operationId,
