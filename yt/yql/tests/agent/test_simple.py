@@ -270,6 +270,15 @@ class TestTypes(TestQueriesYqlBase):
                'column4': [[['abc']], [[None]], [None]],
                'column5': [[None, None], [[None], None], [['abc'], None]]}])
 
+    @authors("aleksandr.gaev")
+    def test_decimal_web_json(self, query_tracker, yql_agent):
+        q = start_query("yql", 'SELECT Decimal("123.456", 13, 9);')
+        q.track()
+        assert q.get()["result_count"] == 1
+        format = yson.loads(b"<value_format=yql>web_json")
+        result = q.read_result(0, output_format=format)
+        assert_items_equal(result, b'{"rows":[{"column0":["123.456","8"]}],"incomplete_columns":"false","incomplete_all_column_names":"false","all_column_names":["column0"],"yql_type_registry":[["NullType"],["DataType","Int64"],["DataType","Uint64"],["DataType","Double"],["DataType","Boolean"],["DataType","String"],["DataType","Yson"],["DataType","Yson"],["DataType","Decimal","13","9"]]}')
+
 
 class TestYqlAgentBan(TestQueriesYqlBase):
     NUM_YQL_AGENTS = 1
