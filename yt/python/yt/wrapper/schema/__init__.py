@@ -18,7 +18,9 @@ if is_schema_module_available():
         Float, Double,
         Date, Datetime, Timestamp, Interval,
         YsonBytes, OtherColumns, FormattedPyDatetime,
-        _PY_TYPE_BY_TI_TYPE)
+        _PY_TYPE_BY_TI_TYPE,
+        TzDate, TzDatetime, TzTimestamp,
+        TzDate32, TzDatetime64, TzTimestamp64)
 
     from .types import RowIteratorProtocol as RowIterator, ContextProtocol as Context  # noqa
     from .variant import Variant  # noqa
