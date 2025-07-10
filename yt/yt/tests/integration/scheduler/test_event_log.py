@@ -69,19 +69,19 @@ class TestEventLog(YTEnvSetup):
         op = map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null && sleep 2',
+            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null && python3 -c "import time; x = [i for i in range(10**7)]; time.sleep(2)"',
         )
 
         def check_statistics(statistics, statistic_extractor):
-            return statistic_extractor(statistics, "user_job.cpu.user") > 0 and \
-                statistic_extractor(statistics, "user_job.max_memory") > 0 and \
-                statistic_extractor(statistics, "user_job.block_io.bytes_read") is not None and \
-                statistic_extractor(statistics, "user_job.current_memory.rss") is not None and \
-                statistic_extractor(statistics, "user_job.cumulative_memory_mb_sec") > 0 and \
-                statistic_extractor(statistics, "job_proxy.cpu.user") > 0
+            assert statistic_extractor(statistics, "user_job.cpu.user") > 0
+            assert statistic_extractor(statistics, "user_job.max_memory") > 0
+            assert statistic_extractor(statistics, "user_job.block_io.bytes_read") is not None
+            assert statistic_extractor(statistics, "user_job.current_memory.rss") is not None
+            assert statistic_extractor(statistics, "user_job.cumulative_memory_mb_sec") > 0
+            assert statistic_extractor(statistics, "job_proxy.cpu.user") > 0
 
-        wait(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics_v2"), extract_statistic_v2))
-        wait(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics"), extract_deprecated_statistic))
+        wait_no_assert(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics_v2"), extract_statistic_v2))
+        wait_no_assert(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics"), extract_deprecated_statistic))
 
         @wait_no_assert
         def check():
