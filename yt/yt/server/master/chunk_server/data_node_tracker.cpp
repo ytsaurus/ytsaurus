@@ -924,6 +924,7 @@ private:
                 node->GetLocalState());
 
             nodeTracker->UpdateLastSeenTime(node);
+            nodeTracker->UpdateLastDataHeartbeatTime(node);
 
             ProcessIncrementalHeartbeat(node, request, response);
         }
@@ -960,6 +961,7 @@ private:
                 node->GetLocalState());
 
             nodeTracker->UpdateLastSeenTime(node);
+            nodeTracker->UpdateLastDataHeartbeatTime(node);
 
             ProcessFullHeartbeat(node, request, response);
         }
@@ -998,6 +1000,7 @@ private:
                 node->GetLocalState());
 
             nodeTracker->UpdateLastSeenTime(node);
+            nodeTracker->UpdateLastDataHeartbeatTime(node);
 
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             PopulateChunkLocationStatistics(node, request->statistics());
@@ -1029,6 +1032,7 @@ private:
             node->GetDefaultAddress());
 
         nodeTracker->UpdateLastSeenTime(node);
+        nodeTracker->UpdateLastDataHeartbeatTime(node);
 
         auto& statistics = *request->mutable_statistics();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
