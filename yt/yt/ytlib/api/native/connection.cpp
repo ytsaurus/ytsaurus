@@ -969,6 +969,11 @@ public:
         return ConvertToYsonString(GetCompoundConfig());
     }
 
+    bool IsSequoiaConfigured() override
+    {
+        return static_cast<bool>(Config_.Acquire()->SequoiaConnection);
+    }
+
     NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override
     {
         // Fast path: return the cached client.
@@ -978,15 +983,15 @@ public:
 
         // Slow path: create a new client.
         auto config = Config_.Acquire()->SequoiaConnection;
-        auto localClient = CreateNativeClient(TClientOptions::Root());
+        auto localClient = config ? CreateNativeClient(TClientOptions::Root()) : IClientPtr();
         auto groundClientFuture = [&] () -> TFuture<IClientPtr> {
-            if (config->GroundClusterName) {
-                return InsistentGetRemoteConnection(this, *config->GroundClusterName)
+            if (config) {
+                return InsistentGetRemoteConnection(this, config->GroundClusterName)
                     .Apply(BIND([] (const IConnectionPtr& groundConnection) {
                         return groundConnection->CreateNativeClient(TClientOptions::Root());
                     }));
             } else {
-                return MakeFuture(localClient);
+                return MakeFuture<IClientPtr>(TError("Sequoia is not configured"));
             }
         }();
 
@@ -1001,22 +1006,24 @@ public:
 
         YT_LOG_DEBUG("Sequoia client recreated");
 
-        // We've got a cycle:
-        // *-> local client -> local connection -> sequoia client --*
-        // |                                                        |
-        // *--------------------------------------------------------*
-        //
-        // This callback is scheduled to break it after a short period of time
-        // and force the cached sequoia client to be recreated on demand.
-        //
-        // This also deals with ground cluster reconfiguration.
-        TDelayedExecutor::Submit(
-            BIND([weakThis = MakeWeak(this)] {
-                if (auto this_ = weakThis.Lock()) {
-                    this_->CachedSequoiaClient_.Reset();
-                }
-            }),
-            config->GroundClusterConnectionUpdatePeriod);
+        if (config) {
+            // We've got a cycle:
+            // *-> local client -> local connection -> sequoia client --*
+            // |                                                        |
+            // *--------------------------------------------------------*
+            //
+            // This callback is scheduled to break it after a short period of time
+            // and force the cached sequoia client to be recreated on demand.
+            //
+            // This also deals with ground cluster reconfiguration.
+            TDelayedExecutor::Submit(
+                BIND([weakThis = MakeWeak(this)] {
+                    if (auto this_ = weakThis.Lock()) {
+                        this_->CachedSequoiaClient_.Reset();
+                    }
+                }),
+                config->GroundClusterConnectionUpdatePeriod);
+        }
 
         return sequoiaClient;
     }

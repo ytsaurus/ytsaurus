@@ -141,16 +141,10 @@ DEFINE_REFCOUNTED_TYPE(TSequoiaRetriesConfig)
 struct TSequoiaConnectionConfig
     : public virtual NYTree::TYsonStruct
 {
-    //! If |nullopt|, Sequoia tables are handled on the local cluster.
-    std::optional<std::string> GroundClusterName;
-
+    std::string GroundClusterName;
     TDuration GroundClusterConnectionUpdatePeriod;
-
     NYTree::TYPath SequoiaRootPath;
-
     TDuration SequoiaTransactionTimeout;
-
-    TSequoiaRetriesConfigPtr Retries;
 
     REGISTER_YSON_STRUCT(TSequoiaConnectionConfig);
 
@@ -344,6 +338,7 @@ struct TConnectionDynamicConfig
     NRpc::TRetryingChannelConfigPtr HydraAdminChannel;
 
     TSequoiaConnectionConfigPtr SequoiaConnection;
+    TSequoiaRetriesConfigPtr SequoiaRetries;
 
     bool UseFollowersForWriteTargetsAllocation;
 
