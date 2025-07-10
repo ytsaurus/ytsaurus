@@ -7,7 +7,7 @@ from yt_commands import (
     create_pool, run_sleeping_vanilla, print_debug,
     update_controller_agent_config, get_allocation_id_from_job_id,
     lookup_rows, write_table, map, vanilla, run_test_vanilla,
-    abort_job, get_job, set, get, sync_create_cells, raises_yt_error, exists)
+    abort_job, get_job, set, get, sync_create_cells, raises_yt_error, exists, wait_for_cells)
 
 import yt_error_codes
 
@@ -541,6 +541,7 @@ class TestGetJob(_TestGetJobCommon):
         wait(lambda: exists(orchid_path))
         wait(lambda: len(get(orchid_path + "/retained_finished_jobs")) == 0)
 
+        wait_for_cells()
         wait(lambda: self._compare_time_from_archive_with_api(op.id, job_id, "finish_time"), ignore_exceptions=True)
 
     @authors("bystrovserg")
