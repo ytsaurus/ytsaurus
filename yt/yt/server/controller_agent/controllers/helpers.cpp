@@ -401,11 +401,12 @@ void GenerateDockerAuthFromToken(
     const std::string& authenticatedUser,
     NControllerAgent::NProto::TUserJobSpec* jobSpec)
 {
+    if (!secureVault) return;
     auto findEnv = [&] (const TStringBuf& key) -> std::optional<TString> {
         auto child = secureVault->FindChild(std::string(key));
         return child && child->GetType() == ENodeType::String ? std::optional(child->AsString()->GetValue()) : std::nullopt;
     };
-    if (secureVault && !findEnv(DockerAuthEnv)) {
+    if (!findEnv(DockerAuthEnv)) {
         if (auto token = findEnv("YT_TOKEN")) {
             jobSpec->add_environment(Format("%s_%s={username=%Qs; password=%Qs}", SecureVaultEnvPrefix, DockerAuthEnv, authenticatedUser, *token));
         }
