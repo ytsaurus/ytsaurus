@@ -78,7 +78,7 @@ private:
     const TPromise<void> ClusterThrottlersConfigInitializedPromise_ = NewPromise<void>();
 
     // The following members are protected by Lock_.
-    bool Disable_ = false;
+    bool MasterConnected_ = false;
     TClusterThrottlersConfigPtr ClusterThrottlersConfig_;
     IDistributedThrottlerFactoryPtr DistributedThrottlerFactory_;
     struct TThroughputThrottlerData
@@ -166,7 +166,7 @@ void TThrottlerManager::OnMasterConnected()
 
     {
         auto guard = Guard(Lock_);
-        Disable_ = false;
+        MasterConnected_ = true;
     }
 
     TryUpdateClusterThrottlersConfig();
@@ -179,7 +179,7 @@ void TThrottlerManager::OnMasterDisconnected()
     YT_LOG_INFO("Disable cluster throttlers on master disconnect");
 
     auto guard = Guard(Lock_);
-    Disable_ = true;
+    MasterConnected_ = false;
     ClusterThrottlersConfig_.Reset();
     DistributedThrottlersHolder_.clear();
     DistributedThrottlerFactory_.Reset();
@@ -290,8 +290,8 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
     {
         auto guard = Guard(Lock_);
 
-        if (Disable_) {
-            YT_LOG_DEBUG("Skip updating cluster throttlers config since throttler manager is disabled");
+        if (!MasterConnected_) {
+            YT_LOG_DEBUG("Skip updating cluster throttlers config since master is diconnected");
             return;
         }
 
@@ -454,12 +454,13 @@ IThroughputThrottlerPtr TThrottlerManager::DoGetOrCreateThrottler(
     {
         localThrottler = GetLocalThrottler(kind, trafficType);
         distributedThrottler = GetOrCreateDistributedThrottler(kind, trafficType, remoteClusterName);
-        if (Disable_ || !distributedThrottler) {
-            YT_LOG_DEBUG("Distributed throttler is missing; falling back to local throttler");
+        if (!MasterConnected_ || !distributedThrottler) {
+            YT_LOG_DEBUG("Distributed throttler is missing; falling back to local throttler (MasterConnected: %v)",
+                MasterConnected_);
             return localThrottler;
         }
     }
-    YT_VERIFY(localThrottler && distributedThrottler);
+    YT_VERIFY(localThrottler && distributedThrottler && MasterConnected_);
 
     YT_LOG_DEBUG("Creating combined throttler");
     return CreateCombinedThrottler({std::move(localThrottler), std::move(distributedThrottler)});
