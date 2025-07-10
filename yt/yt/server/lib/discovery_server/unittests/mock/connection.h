@@ -283,6 +283,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    bool IsSequoiaConfigured() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() override
     {
         YT_UNIMPLEMENTED();
