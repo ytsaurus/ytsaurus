@@ -3,10 +3,7 @@
 #include "config.h"
 #include "plugin_service.h"
 
-#include <library/cpp/yt/logging/backends/arcadia/backend.h>
-#include <library/cpp/yt/mlock/mlock.h>
-
-#include <util/system/thread.h>
+#include <yt/yql/plugin/bridge/plugin.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/server.h>
@@ -21,7 +18,10 @@
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 #include <yt/yt/library/program/program_setsid_mixin.h>
 
-#include <yt/yql/plugin/bridge/plugin.h>
+#include <library/cpp/yt/logging/backends/arcadia/backend.h>
+#include <library/cpp/yt/mlock/mlock.h>
+
+#include <util/system/thread.h>
 
 namespace NYT::NYqlPlugin {
 namespace NProcess {
@@ -70,13 +70,13 @@ protected:
         TYqlPluginOptions options{
             .SingletonsConfig = config->PluginOptions->SingletonsConfig,
             .GatewayConfig = config->PluginOptions->GatewayConfig,
-            .DqGatewayConfig = config->PluginOptions->DqGatewayConfig.value_or(NYT::NYson::TYsonString()),
-            .DqManagerConfig = config->PluginOptions->DqManagerConfig.value_or(NYT::NYson::TYsonString()),
+            .DqGatewayConfig = config->PluginOptions->DqGatewayConfig.value_or(NYson::TYsonString()),
+            .DqManagerConfig = config->PluginOptions->DqManagerConfig.value_or(NYson::TYsonString()),
             .FileStorageConfig = config->PluginOptions->FileStorageConfig,
             .OperationAttributes = config->PluginOptions->OperationAttributes,
             .Libraries = config->PluginOptions->Libraries,
             .YTTokenPath = config->PluginOptions->YTTokenPath,
-            .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
+            .LogBackend = NLogging::CreateArcadiaLogBackend(NLogging::TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = config->PluginOptions->YqlPluginSharedLibrary,
         };
 
