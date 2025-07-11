@@ -33,7 +33,6 @@ static constexpr auto& Logger = YqlProcessPluginLogger;
 using namespace NConcurrency;
 using namespace NYson;
 
-using NYqlClient::NProto::TYqlQueryFile;
 using NYqlClient::NProto::TYqlQueryFile_EContentType;
 using NYqlClient::NProto::TYqlResponse;
 
@@ -383,7 +382,7 @@ private:
 
         // We should check whether query was started in process. If it did not, then
         // we need to restart process, because otherwise it will be stuck forever.
-        NYT::NConcurrency::TDelayedExecutor::Submit(
+        NConcurrency::TDelayedExecutor::Submit(
             BIND(&TYqlProcessPlugin::CheckProcessIsActive, this, acquiredProcess, queryId),
             Config_->CheckProcessActiveDelay,
             Invoker_);
@@ -453,7 +452,7 @@ private:
             return;
         }
 
-        auto guard = NYT::NThreading::WriterGuard(ProcessesLock_);
+        auto guard = NThreading::WriterGuard(ProcessesLock_);
 
         StandbyProcessesQueue_.push_back(slotIndex);
         StandByProcesses_.insert(slotIndex);
@@ -560,13 +559,13 @@ private:
             NFS::Remove(unixDomainSocketPath);
         }
 
-        auto serverConfig = NYT::NBus::TBusServerConfig::CreateUds(unixDomainSocketPath);
-        auto clientConfig = NYT::NBus::TBusClientConfig::CreateUds(unixDomainSocketPath);
+        auto serverConfig = NBus::TBusServerConfig::CreateUds(unixDomainSocketPath);
+        auto clientConfig = NBus::TBusClientConfig::CreateUds(unixDomainSocketPath);
 
         TYqlPluginProcessInternalConfigPtr config = BuildProcessConfig(slotIndex, serverConfig);
         auto client = NBus::CreateBusClient(clientConfig);
 
-        TProcessBasePtr process = New<TSimpleProcess>(YqlAgentProgrammName);
+        TProcessBasePtr process = New<TSimpleProcess>(YqlAgentProgramName);
 
         WriteConfig(config, NFS::CombinePaths(workingDirectory, YqlPluginConfigFilename));
 
@@ -591,9 +590,9 @@ private:
         config->SlotIndex = slotIndex;
         config->BusServer = serverConfig;
 
-        auto fileStorageConfig = NYT::NodeFromYsonString(config->PluginOptions->FileStorageConfig.ToString());
+        auto fileStorageConfig = NodeFromYsonString(config->PluginOptions->FileStorageConfig.ToString());
         fileStorageConfig.AsMap()["path"] = NFS::CombinePaths(GetSlotPath(slotIndex), "tmp");
-        config->PluginOptions->FileStorageConfig = NYson::TYsonString(NYT::NodeToYsonString(fileStorageConfig));
+        config->PluginOptions->FileStorageConfig = NYson::TYsonString(NodeToYsonString(fileStorageConfig));
 
         auto logManagerConfig = config->GetSingletonConfig<NLogging::TLogManagerConfig>();
         logManagerConfig->UpdateWriters([&](const NYTree::IMapNodePtr& writerConfigNode) {
@@ -634,12 +633,12 @@ private:
         NYson::TProtobufWriterOptions protobufWriterOptions;
         protobufWriterOptions.ConvertSnakeToCamelCase = true;
 
-        auto dynamicGatewaysConfig = NYT::NodeFromYsonString(config.GatewaysConfig.AsStringBuf());
-        auto templateGatewaysConfig = NYT::NodeFromYsonString(ConfigTemplate_->PluginOptions->GatewayConfig.AsStringBuf());
+        auto dynamicGatewaysConfig = NodeFromYsonString(config.GatewaysConfig.AsStringBuf());
+        auto templateGatewaysConfig = NodeFromYsonString(ConfigTemplate_->PluginOptions->GatewayConfig.AsStringBuf());
 
-        NYT::MergeNodes(templateGatewaysConfig, dynamicGatewaysConfig);
+        MergeNodes(templateGatewaysConfig, dynamicGatewaysConfig);
 
-        ConfigTemplate_->PluginOptions->GatewayConfig = NYT::NYson::TYsonString(NYT::NodeToYsonString(templateGatewaysConfig));
+        ConfigTemplate_->PluginOptions->GatewayConfig = NYson::TYsonString(NodeToYsonString(templateGatewaysConfig));
     }
 
     static TYqlPluginProcessInternalConfigPtr BuildPluginConfigTemplate(
