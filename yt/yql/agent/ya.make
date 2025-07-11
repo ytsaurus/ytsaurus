@@ -54,6 +54,7 @@ PEERDIR(
     yt/yql/plugin/bridge
 
     yql/essentials/public/result_format
+    yql/essentials/public/langver
 )
 
 END()

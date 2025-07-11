@@ -36,6 +36,8 @@ struct TYqlPluginOptions
     THolder<TLogBackend> LogBackend;
 
     std::optional<TString> YqlPluginSharedLibrary;
+
+    TString MaxYqlLangVersion;
 };
 
 struct TYqlPluginDynamicConfig
