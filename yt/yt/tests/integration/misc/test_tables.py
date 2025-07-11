@@ -575,7 +575,7 @@ class TestTables(YTEnvSetup):
 
     @authors("cherepashka")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_non_materializied_computed_columns(self, optimize_for):
+    def test_non_materialized_computed_columns(self, optimize_for):
         create(
             "table",
             "//tmp/table",
@@ -601,7 +601,7 @@ class TestTables(YTEnvSetup):
 
     @authors("cherepashka")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_non_materializied_computed_columns_dependencies(self, optimize_for):
+    def test_non_materialized_computed_columns_dependencies(self, optimize_for):
         create(
             "table",
             "//tmp/table",

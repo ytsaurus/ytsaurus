@@ -52,7 +52,7 @@ YT_TRY_BLOCK_SIGNAL_FOR_PROCESS(SIGRTMIN, [] (bool ok, int threadCount) {
                 "Failed to block SIGRTMIN for process: thread count is not 1 at the process start; delivery fenced write will be disabled (ThreadCount: %v)",
                 threadCount);
         }
-        DeliveyFencedWriteEnabled = ok;
+        DeliveryFencedWriteEnabled = ok;
     });
 
 class TJobProxyProgram
