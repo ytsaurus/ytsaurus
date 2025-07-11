@@ -462,7 +462,7 @@ class TestArrowFormat(YTEnvSetup):
         assert read_table("//tmp/table1") == read_table("//tmp/table2")
 
     @authors("cherepashka")
-    def test_non_materializied_computed_columns(self, optimize_for):
+    def test_non_materialized_computed_columns(self, optimize_for):
         create(
             "table",
             "//tmp/table",

@@ -1284,7 +1284,7 @@ void TInputManager::BuildUnavailableInputChunksYson(TFluentAny fluent) const
             .DoFor(Clusters_, [] (TFluentMap fluent, const auto& clusterNameAndCluster) {
                 const auto& [name, cluster] = clusterNameAndCluster;
                 fluent
-                    .Item(Format("%v", name))
+                    .Item(ToStringViaBuilder(name))
                     .Value(cluster->UnavailableInputChunkIds());
             })
         .EndMap();
