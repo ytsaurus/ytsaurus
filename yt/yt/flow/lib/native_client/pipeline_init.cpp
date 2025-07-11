@@ -176,6 +176,18 @@ IAttributeDictionaryPtr GetFlowStateObsoleteTableAttributes()
     return attributes;
 }
 
+IAttributeDictionaryPtr GetPartitionTransactionsTableAttributes()
+{
+    return CreateDynamicTableAttributes(TTableSchema(
+        std::vector{
+            TColumnSchema("hash", EValueType::Uint64, ESortOrder::Ascending).SetExpression(("farm_hash(partition_id)")),
+            TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("last_transaction_start_timestamp", EValueType::Uint64),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true));
+}
+
 auto GetTables()
 {
     return std::vector<std::tuple<TStringBuf, IAttributeDictionaryPtr>>{
@@ -188,6 +200,7 @@ auto GetTables()
         {ControllerLogsTableName, GetControllerLogsTableAttributes()},
         {FlowStateTableName, GetFlowStateTableAttributes()},
         {FlowStateObsoleteTableName, GetFlowStateObsoleteTableAttributes()},
+        {PartitionTransactionsTableName, GetPartitionTransactionsTableAttributes()},
     };
 }
 
