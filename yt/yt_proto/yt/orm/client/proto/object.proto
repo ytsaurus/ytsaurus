@@ -215,7 +215,7 @@ message TLocalAttributeMigration
 // Next field number 55.
 message TObjectTypeOption
 {
-    reserved 6, 7, 15, 17, 20, 21, 28, 29, 37, 38, 46;
+    reserved 6, 7, 15, 17, 20, 21, 28, 29, 35, 37, 38, 46;
     reserved "use_custom_default_permissions";
     reserved "history_indexed_attributes";
     reserved "history_attributes";
@@ -225,6 +225,7 @@ message TObjectTypeOption
     reserved "labels_data_group";
     reserved "forbid_parent_removal";
     reserved "yp_compat_includes";
+    reserved "yp_generate_cpp";
 
     // Snake case names of fields in /meta comprising the primary key, in order.
     repeated string primary_key = 13;
@@ -294,9 +295,6 @@ message TObjectTypeOption
 
     // Use to reevaluate key attributes with zero value forcibly via synonym evaluation mechanism.
     optional bool force_zero_key_evaluation = 31;
-
-    // COMPAT generate cpp code for this object in yp.
-    optional bool yp_generate_cpp = 35;
 
     repeated TAttributeSensor attribute_sensors = 36;
 
