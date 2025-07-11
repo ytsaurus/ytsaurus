@@ -46,10 +46,10 @@ ELSE()
         )
     ENDIF()
 
-    # CONTRIB-2709 - Временно оключаем
-    #PEERDIR(
-    #    contrib/python/ujson
-    #)
+    # CONTRIB-2709 - temporarily disabled.
+    # PEERDIR(
+    #     contrib/python/ujson
+    # )
 
     NO_CHECK_IMPORTS(
         yt.wrapper.cypress_fuse
