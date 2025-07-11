@@ -1,6 +1,6 @@
-=======================
- ``zope.event`` README
-=======================
+==========
+zope.event
+==========
 
 .. image:: https://img.shields.io/pypi/v/zope.event.svg
         :target: https://pypi.python.org/pypi/zope.event/
