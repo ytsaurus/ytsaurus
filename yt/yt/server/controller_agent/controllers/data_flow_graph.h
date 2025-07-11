@@ -21,6 +21,8 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IDataFlowGraphVisitor;
+
 class TDataFlowGraph
     : public TRefCounted
 {
@@ -81,6 +83,8 @@ public:
     const std::vector<TVertexDescriptor>& GetTopologicalOrdering() const;
 
     void SetNodeDirectory(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
+
+    void Traverse(IDataFlowGraphVisitor& visitor) const;
 
 private:
     class TImpl;
@@ -168,6 +172,22 @@ struct TOutputStreamDescriptor
 };
 
 DEFINE_REFCOUNTED_TYPE(TOutputStreamDescriptor)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IDataFlowGraphVisitor
+{
+    virtual void VisitEdge(
+        const TDataFlowGraph::TVertexDescriptor& from,
+        const TDataFlowGraph::TVertexDescriptor& to,
+        const NChunkClient::NProto::TDataStatistics& jobDataStatistics,
+        const NChunkClient::NProto::TDataStatistics& teleportDataStatistics);
+
+    virtual void VisitVertex(
+        const TDataFlowGraph::TVertexDescriptor& vertex,
+        const TProgressCounter& jobCounter,
+        EJobType jobType);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
