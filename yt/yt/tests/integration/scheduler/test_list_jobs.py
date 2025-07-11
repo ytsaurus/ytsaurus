@@ -1035,7 +1035,7 @@ class TestListJobs(TestListJobsCommon):
         check_sorted_list_jobs_with_attr([])
         check_sorted_list_jobs_with_attr(["task_name"])
 
-    @authors("omgronny")
+    @authors("bystrovserg")
     def test_list_jobs_continuation_token(self):
         op = run_sleeping_vanilla(job_count=3)
 
@@ -1050,6 +1050,15 @@ class TestListJobs(TestListJobsCommon):
         jobs = list_jobs(op.id, continuation_token=jobs["continuation_token"], state="completed")["jobs"]
         assert len(jobs) == 2
         assert "continuation_token" not in jobs
+
+        print_debug("Check continuation_token with attributes")
+        jobs_with_attr = list_jobs(op.id, attributes=["start_time"], limit=1, sort_field="start_time")
+        assert len(jobs_with_attr["jobs"]) == 1
+        assert jobs_with_attr["jobs"][0].keys() == {"id", "start_time"}
+
+        jobs_with_attr = list_jobs(op.id, continuation_token=jobs_with_attr["continuation_token"])
+        assert len(jobs_with_attr["jobs"]) == 2
+        assert jobs_with_attr["jobs"][0].keys() == {"id", "start_time"}
 
     @authors("eshcherbin", "pogorelov")
     def test_operation_incarnation(self):
