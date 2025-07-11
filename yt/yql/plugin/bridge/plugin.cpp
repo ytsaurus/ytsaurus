@@ -132,6 +132,7 @@ public:
             .LogBackend = &options.LogBackend,
             .Libraries = options.Libraries.AsStringBuf().data(),
             .LibrariesLength = options.Libraries.AsStringBuf().size(),
+            .MaxYqlLangVersion = options.MaxYqlLangVersion.data(),
         };
 
         BridgePlugin_ = BridgeCreateYqlPlugin(&bridgeOptions);

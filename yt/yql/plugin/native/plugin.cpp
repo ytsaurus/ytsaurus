@@ -445,6 +445,17 @@ public:
             UIOrigin_ = options.UIOrigin;
             // do not use token from .yt/token or env in queries
             NYT::TConfig::Get()->Token = {};
+
+            TLangVersionBuffer buf;
+            TStringBuf versionStringBuf;
+
+            ParseLangVersion(options.MaxYqlLangVersion, MaxYqlLangVersion_);
+            YQL_LOG(INFO) << Format("Maximum supported YQL version is set to '%v'", options.MaxYqlLangVersion);
+
+            DefaultYqlApiLangVersion_ = MinLangVersion;
+            FormatLangVersion(DefaultYqlApiLangVersion_, buf, versionStringBuf);
+            YQL_LOG(INFO) << Format("Deafult YQL version for API and CLI is set to '%v'", versionStringBuf);
+
         } catch (const std::exception& ex) {
             // NB: YQL_LOG may be not initialized yet (for example, during singletons config parse),
             // so we use std::cerr instead of it.
@@ -482,6 +493,8 @@ public:
         if (auto cluster = ysonSettings.FindPtr("cluster")) {
             defaultQueryCluster = cluster->AsString();
         }
+
+        SetProgramYqlVersion(program, ysonSettings);
 
         auto userDataTable = FilesToUserTable(files);
         program->AddUserDataTable(userDataTable);
@@ -572,6 +585,8 @@ public:
         if (auto cluster = settingsMap.FindPtr("cluster")) {
             defaultQueryCluster = cluster->AsString();
         }
+
+        SetProgramYqlVersion(program, settingsMap);
 
         auto userDataTable = FilesToUserTable(files);
         program->AddUserDataTable(userDataTable);
@@ -825,6 +840,9 @@ private:
     TString YqlAgentToken_;
     TString UIOrigin_;
 
+    TLangVersion MaxYqlLangVersion_;
+    TLangVersion DefaultYqlApiLangVersion_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock_);
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;
     TUserDataTable UserDataTable_;
@@ -979,6 +997,20 @@ private:
 
         YQL_LOG(DEBUG) << __FUNCTION__ << ": done";
         return std::move(factory);
+    }
+
+    void SetProgramYqlVersion(TProgramPtr program, TNode::TMapType& settingsMap) {
+        program->SetMaxLanguageVersion(MaxYqlLangVersion_);
+        if (auto version = settingsMap.FindPtr("yql_version")) {
+            TLangVersion parsedVersion;
+            if (ParseLangVersion(version->AsString(), parsedVersion)) {
+                program->SetLanguageVersion(parsedVersion);
+            } else {
+                ythrow yexception() << Format("Invalid YQL language version: '%v'", version->AsString());
+            }
+        } else {
+            program->SetLanguageVersion(DefaultYqlApiLangVersion_);
+        }
     }
 };
 

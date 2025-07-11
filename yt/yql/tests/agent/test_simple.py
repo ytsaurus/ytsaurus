@@ -1277,3 +1277,113 @@ class TestAstReturns(TestQueriesYqlBase):
         assert len(finished_query_ast_lines) > 2
         for line in finished_query_ast_lines:
             assert (re.fullmatch(r"([()]*)|(^\(.*\)$)|(^\(.*\(block '\($)", line.strip()))
+
+
+class TestYqlVersionChanges(TestQueriesYqlBase):
+    NUM_YQL_AGENTS = 2
+
+    @authors("kirsiv40")
+    def test_yql_version_changes(self, query_tracker, yql_agent):
+        settings = {"yql_version": "2025.01"}
+
+        query_old_version = start_query("yql", "select CurrentLanguageVersion() as result;", settings=settings)
+        query_old_version.track()
+        assert_items_equal(query_old_version.read_result(0), [{"result": "2025.01"}])
+
+        query_old_udfs = start_query("yql", "select String::Reverse(\"abc\") as result;", settings=settings)
+        query_old_udfs.track()
+        assert_items_equal(query_old_udfs.read_result(0), [{"result": "cba"}])
+
+        settings["yql_version"] = "2025.02"
+        query_new_version = start_query("yql", "select CurrentLanguageVersion() as result;", settings=settings)
+        query_new_version.track()
+        assert_items_equal(query_new_version.read_result(0), [{"result": "2025.02"}])
+
+        with raises_yt_error() as err:
+            query_new_udfs = start_query("yql", "select String::Reverse(\"abc\");", settings=settings)
+            query_new_udfs.track()
+        assert err[0].contains_text("'String.Reverse' is not available")
+
+    @authors("kirsiv40")
+    def test_yql_versions_throws(self, query_tracker, yql_agent):
+        with raises_yt_error() as err:
+            query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.00"})
+            query.track()
+        assert err[0].contains_text("Invalid YQL language version")
+
+        with raises_yt_error() as err:
+            query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "not a valid version"})
+            query.track()
+        assert err[0].contains_text("Invalid YQL language version")
+
+    @authors("kirsiv40")
+    def test_default_yql_version(self, query_tracker, yql_agent):
+        query = start_query("yql", "select CurrentLanguageVersion() as result;")
+        query.track()
+        result_version = query.read_result(0)[0]["result"]
+        assert re.fullmatch(r'\d\d\d\d\.\d\d', result_version)
+        assert result_version >= "2025.01"
+        assert result_version <= "3000.00"
+
+
+class TestMaxYqlVersionConfigAttr(TestQueriesYqlBase):
+    MAX_YQL_VERSION = "2025.01"
+
+    @authors("kirsiv40")
+    def test_max_yql_version(self, query_tracker, yql_agent):
+        query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.01"})
+        query.track()
+        assert_items_equal(query.read_result(0), [{"result": "2025.01"}])
+
+        with raises_yt_error() as err:
+            query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.02"})
+            query.track()
+        assert err[0].contains_text("is not available, maximum version is")
+
+    @authors("kirsiv40")
+    def test_yql_versions_throws(self, query_tracker, yql_agent):
+        with raises_yt_error() as err:
+            query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.00"})
+            query.track()
+        assert err[0].contains_text("Invalid YQL language version")
+
+        with raises_yt_error() as err:
+            query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "not a valid version"})
+            query.track()
+        assert err[0].contains_text("Invalid YQL language version")
+
+    @authors("kirsiv40")
+    def test_default_yql_version(self, query_tracker, yql_agent):
+        query = start_query("yql", "select CurrentLanguageVersion() as result;")
+        query.track()
+        assert_items_equal(query.read_result(0), [{"result": "2025.01"}])
+
+
+class TestSimpleQueriesBase(TestQueriesYqlBase):
+    def _test_simple_yql_query_versions(self, query_tracker, yql_agent):
+        query = start_query("yql", "select CurrentLanguageVersion() as result;")
+        query.track()
+        result_version = query.read_result(0)[0]["result"]
+        assert re.fullmatch(r'\d\d\d\d\.\d\d', result_version)
+        assert result_version >= "2025.01"
+        assert result_version <= "3000.00"
+
+        query = start_query("yql", "select CurrentLanguageVersion() as result;", settings={"yql_version": "2025.03"})
+        query.track()
+        assert_items_equal(query.read_result(0), [{"result": "2025.03"}])
+
+
+class TestAgentWithInvalidMaxYqlVersion(TestSimpleQueriesBase):
+    MAX_YQL_VERSION = "some invalid version name. should be set to maximum availible in facade"
+
+    @authors("kirsiv40")
+    def test_default_yql_query(self, query_tracker, yql_agent):
+        self._test_simple_yql_query_versions(query_tracker, yql_agent)
+
+
+class TestAgentWithUndefinedMaxYqlVersion(TestSimpleQueriesBase):
+    MAX_YQL_VERSION = "9999.99"
+
+    @authors("kirsiv40")
+    def test_default_yql_query(self, query_tracker, yql_agent):
+        self._test_simple_yql_query_versions(query_tracker, yql_agent)

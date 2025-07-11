@@ -178,6 +178,7 @@ struct TYqlAgentConfig
     int IssueTokenAttempts;
 
     int YqlThreadCount;
+    TString MaxSupportedYqlVersion;
 
     REGISTER_YSON_STRUCT(TYqlAgentConfig);
 

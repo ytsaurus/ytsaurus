@@ -33,6 +33,7 @@ PEERDIR(
     yql/essentials/minikql/invoke_builtins/llvm16
     yql/essentials/minikql/comp_nodes/llvm16
     yql/essentials/protos
+    yql/essentials/public/langver
     yql/essentials/public/udf/service/exception_policy
     yql/essentials/utils/backtrace
     yql/essentials/utils/log

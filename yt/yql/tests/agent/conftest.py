@@ -14,7 +14,7 @@ import yatest.common
 
 
 class YqlAgent():
-    def __init__(self, env, count, libraries, modify_yql_agent_config):
+    def __init__(self, env, count, libraries, modify_yql_agent_config, max_yql_version):
         self.yql_agent = YqlAgentComponent()
 
         self.yql_agent.prepare(env, config={
@@ -27,6 +27,7 @@ class YqlAgent():
             "native_client_supported": True,
             "libraries": libraries,
             "modify_yql_agent_config": modify_yql_agent_config,
+            "max_supported_yql_version": max_yql_version,
         })
 
     def __enter__(self):
@@ -63,7 +64,8 @@ def yql_agent(request):
             fp.write(getattr(cls, "YQL_TEST_LIBRARY"))
 
     modify_yql_agent_config = getattr(cls, "modify_yql_agent_config", None)
+    max_yql_version = getattr(cls, "MAX_YQL_VERSION", None)
 
-    with YqlAgent(cls.Env, count, libraries, modify_yql_agent_config) as yql_agent:
+    with YqlAgent(cls.Env, count, libraries, modify_yql_agent_config, max_yql_version) as yql_agent:
         update_yql_agent_environment(cls, yql_agent)
         yield yql_agent
