@@ -131,6 +131,10 @@ Before updating the operator, make sure the cluster is healthy. For example, it 
     * ```spyts.cluster.ytsaurus.tech.yaml```
     * ```ytsaurus.cluster.ytsaurus.tech.yaml```
 
+4. Following the cluster update, unrecognized options might remain in the master server configs (this occurs when we stop using some config fields in the `{{product-name}}` version, which is common during major updates). If this situation occurs, you'll see the following alert:
+```Found unrecognized options in dynamic cluster config```.
+You can remove unrecognized master options either manually or by running the script available [here](https://github.com/ytsaurus/ytsaurus/tree/main/yt/yt/scripts/remove_master_unrecognized_options).
+
 ### Possible automated cluster update
 
 Different operator versions may generate different configs for the same components (for example, a new field may be added in the new operator version). In that case, the cluster update is initiated immediately after starting the operator.
