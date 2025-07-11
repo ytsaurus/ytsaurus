@@ -1,6 +1,6 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: zope.event
-Version: 5.0
+Version: 5.1
 Summary: Very basic event publishing system
 Home-page: https://github.com/zopefoundation/zope.event
 Author: Zope Foundation and Contributors
@@ -13,27 +13,39 @@ Classifier: License :: OSI Approved :: Zope Public License
 Classifier: Operating System :: OS Independent
 Classifier: Programming Language :: Python
 Classifier: Programming Language :: Python :: 3
-Classifier: Programming Language :: Python :: 3.7
-Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
 Classifier: Programming Language :: Python :: Implementation :: CPython
 Classifier: Programming Language :: Python :: Implementation :: Jython
 Classifier: Programming Language :: Python :: Implementation :: PyPy
 Classifier: Framework :: Zope :: 3
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
-Requires-Python: >=3.7
+Requires-Python: >=3.9
 License-File: LICENSE.txt
 Requires-Dist: setuptools
 Provides-Extra: docs
-Requires-Dist: Sphinx ; extra == 'docs'
+Requires-Dist: Sphinx; extra == "docs"
 Provides-Extra: test
-Requires-Dist: zope.testrunner ; extra == 'test'
+Requires-Dist: zope.testrunner; extra == "test"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: license-file
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
 
-=======================
- ``zope.event`` README
-=======================
+==========
+zope.event
+==========
 
 .. image:: https://img.shields.io/pypi/v/zope.event.svg
         :target: https://pypi.python.org/pypi/zope.event/
@@ -61,6 +73,14 @@ Please see http://zopeevent.readthedocs.io/ for the documentation.
 ==========================
  ``zope.event`` Changelog
 ==========================
+
+5.1 (2025-06-26)
+================
+
+- Add support for Python 3.12 and 3.13.
+
+- Drop support for Python 3.7 and 3.8.
+
 
 5.0 (2023-06-23)
 ================
