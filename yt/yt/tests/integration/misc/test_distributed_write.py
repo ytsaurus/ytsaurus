@@ -42,18 +42,19 @@ class TestDistributedWriteRPC(TestDistributedWrite):
         "enable_retries": True,
     }
     DELTA_RPC_PROXY_CONFIG = {
-        "signature_validation": {
-            "cypress_key_reader": dict(),
-            "validator": dict(),
-        },
-        "signature_generation": {
-            "cypress_key_writer": {
-                "owner_id": "test-rpc-proxy",
+        "signature_components": {
+            "validation": {
+                "cypress_key_reader": dict(),
             },
-            "key_rotator": {
-                "key_rotation_interval": "2h",
+            "generation": {
+                "cypress_key_writer": {
+                    "owner_id": "test-rpc-proxy",
+                },
+                "key_rotator": {
+                    "key_rotation_interval": "2h",
+                },
+                "generator": dict(),
             },
-            "generator": dict(),
         },
     }
     DRIVER_BACKEND = "rpc"
