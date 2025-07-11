@@ -392,7 +392,6 @@ message TTableOutputSpec
 
 message TRemoteInputCluster
 {
-    required string name = 1;
     required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
     repeated string networks = 3;
 }
