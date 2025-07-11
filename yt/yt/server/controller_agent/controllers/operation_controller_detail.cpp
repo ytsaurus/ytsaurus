@@ -192,6 +192,8 @@ using namespace NQueryClient;
 using namespace NRpc;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NServer;
+using namespace NStatisticPath;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
@@ -200,17 +202,16 @@ using namespace NYPath;
 using namespace NYTProf;
 using namespace NYTree;
 using namespace NYson;
-using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
 
+using NControllerAgent::NProto::TJobResultExt;
 using NControllerAgent::NProto::TJobSpec;
+using NControllerAgent::NProto::TJobSpecExt;
 using NJobTrackerClient::EJobState;
 using NNodeTrackerClient::TNodeId;
 using NProfiling::TCpuInstant;
-using NControllerAgent::NProto::TJobResultExt;
-using NControllerAgent::NProto::TJobSpecExt;
 using NTableClient::NProto::TBoundaryKeysExt;
 using NTableClient::NProto::THeavyColumnStatisticsExt;
 using NTabletNode::DefaultMaxOverlappingStoreCount;
@@ -5440,7 +5441,7 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
     YT_LOG_DEBUG("Operation node flushed");
 }
 
-void TOperationControllerBase::OnOperationCompleted(bool /* interrupted */)
+void TOperationControllerBase::OnOperationCompleted(bool interrupted)
 {
     // This can happen if operation failed during completion in derived class (e.g. SortController).
     if (IsFinished()) {
@@ -5448,6 +5449,48 @@ void TOperationControllerBase::OnOperationCompleted(bool /* interrupted */)
     }
 
     State_ = EControllerState::Completed;
+
+    // XXX(namorniradnug): is this a right place for this alert?
+    if (auto simpleSpec = DynamicPointerCast<TSimpleOperationSpecBase>(Spec_);
+        !interrupted && simpleSpec && simpleSpec->CompressedDataSizePerJob)
+    {
+        constexpr int EstimationInaccuracyThreshold = 2;
+
+        i64 actualCompressedData = [&] {
+            struct TInputCompressedDataSizeCollector
+                : public IDataFlowGraphVisitor
+            {
+                i64 InputCompressedDataSize = 0;
+
+                void VisitEdge(
+                    const TDataFlowGraph::TVertexDescriptor& from,
+                    const TDataFlowGraph::TVertexDescriptor& /*to*/,
+                    const NChunkClient::NProto::TDataStatistics& /*jobDataStatistics*/,
+                    const NChunkClient::NProto::TDataStatistics& teleportDataStatistics) override
+                {
+                    if (from == TDataFlowGraph::SourceDescriptor) {
+                        InputCompressedDataSize += teleportDataStatistics.compressed_data_size();
+                    }
+                }
+            };
+
+            TInputCompressedDataSizeCollector collector;
+            DataFlowGraph_->Traverse(collector);
+            return collector.InputCompressedDataSize;
+        }();
+
+
+        if (EstimatedInputStatistics_->CompressedDataSize > EstimationInaccuracyThreshold * actualCompressedData ||
+            EstimatedInputStatistics_->CompressedDataSize * EstimationInaccuracyThreshold < actualCompressedData)
+        {
+            SetOperationAlert(
+                EOperationAlertType::InaccuratelyEstimatedCompressedDataSize,
+                TError("Compressed data size estimation is not accurate; "
+                    "use fetcher with \"mode=from_nodes\" to get more accurate job slicing")
+                    << TErrorAttribute("estimated_compressed_data_size", EstimatedInputStatistics_->CompressedDataSize)
+                    << TErrorAttribute("actual_compressed_data_size", actualCompressedData));
+        }
+    }
 
     GetCancelableInvoker()->Invoke(
         BIND([this, this_ = MakeStrong(this)] {
