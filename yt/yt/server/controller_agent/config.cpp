@@ -780,6 +780,18 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDisallowRemoteOperationsConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("allowed_users", &TThis::AllowedUsers)
+        .Default();
+    registrar.Parameter("allowed_clusters", &TThis::AllowedClusters)
+        .Default();
+    registrar.Parameter("allowed_for_everyone_clusters", &TThis::AllowedForEveryoneClusters)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TRemoteOperationsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("allowed_users", &TThis::AllowedUsers)
@@ -1389,6 +1401,15 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("remote_operations", &TThis::RemoteOperations)
         .Default();
 
+    // NB(coteeq): The alias thing is a little hack: when we serialize config
+    // to yson, parameter's key conflicts with unrecognized's key causing
+    // controller to spit an error instead of a proper unrecognized alert.
+    // This hack will allow to parse from original name, but serialize under
+    // a different name that will not make yson serializer unhappy.
+    registrar.Parameter("disallow_remote_operations_is_deprecated", &TThis::DisallowRemoteOperations)
+        .Alias("disallow_remote_operations")
+        .Default();
+
     registrar.Parameter("enable_merge_schemas_during_schema_infer", &TThis::EnableMergeSchemasDuringSchemaInfer)
         .Default(false);
 
@@ -1471,6 +1492,26 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
                 config->CudaProfilerEnvironmentVariables,
                 config->CudaProfilerEnvironment->PathEnvironmentVariableName,
                 config->CudaProfilerEnvironment->PathEnvironmentVariableValue);
+        }
+
+        // COMPAT(coteeq)
+        if (config->DisallowRemoteOperations) {
+            config->MarkUnrecognized("disallow_remote_operations", ConvertTo<NYTree::IMapNodePtr>(config->DisallowRemoteOperations));
+            // Convert to new config only if new config is empty.
+            if (!config->RemoteOperations.empty()) {
+                for (const auto& cluster : config->DisallowRemoteOperations->AllowedForEveryoneClusters) {
+                    auto newConfigIter = EmplaceOrCrash(config->RemoteOperations, NScheduler::TClusterName(cluster), New<TRemoteOperationsConfig>());
+                    newConfigIter->second->AllowedForEveryone = true;
+                }
+                for (const auto& cluster : config->DisallowRemoteOperations->AllowedClusters) {
+                    if (!config->RemoteOperations.contains(NScheduler::TClusterName(cluster))) {
+                        auto newConfigIter = EmplaceOrCrash(config->RemoteOperations, NScheduler::TClusterName(cluster), New<TRemoteOperationsConfig>());
+                        newConfigIter->second->AllowedUsers = config->DisallowRemoteOperations->AllowedUsers;
+                    } else {
+                        // Cluster already is allowed for everyone.
+                    }
+                }
+            }
         }
     });
 }
