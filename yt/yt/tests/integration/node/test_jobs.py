@@ -1,4 +1,4 @@
-from yt_env_setup import (YTEnvSetup, is_asan_build)
+from yt_env_setup import (YTEnvSetup, is_asan_build, Restarter, NODES_SERVICE)
 
 from yt_commands import (
     authors, ls, get, set, create, write_table, wait, run_test_vanilla,
@@ -116,6 +116,13 @@ class TestJobsDisabled(YTEnvSetup):
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
         return job_ids[0]
+
+    def teardown_method(self, method):
+        node_address = ls("//sys/cluster_nodes")[0]
+        if (get("//sys/cluster_nodes/{}/@alerts".format(node_address))):
+            with Restarter(self.Env, NODES_SERVICE):
+                pass
+        super(TestJobsDisabled, self).teardown_method(method)
 
     @authors("pogorelov")
     def test_job_abort_on_fatal_alert(self):
