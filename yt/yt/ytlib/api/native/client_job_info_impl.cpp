@@ -2370,12 +2370,12 @@ TListJobsResult TClient::DoListJobs(
     }
 
     auto attributesToReturn = DeduceActualAttributes(
-        options.Attributes,
+        optionsResult.Attributes,
         RequiredListJobsAttributes,
         DefaultListJobsAttributes);
 
     auto attributesToRequest = DeduceActualAttributes(
-        options.Attributes,
+        optionsResult.Attributes,
         LightAttributes,
         DefaultListJobsAttributes);
 
