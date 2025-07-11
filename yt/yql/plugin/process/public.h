@@ -5,7 +5,7 @@
 namespace NYT::NYqlPlugin {
 namespace NProcess {
 
-extern const TString YqlAgentProgrammName;
+extern const TString YqlAgentProgramName;
 extern const TString YqlPluginSubcommandName;
 extern const TString YqlPluginConfigFilename;
 

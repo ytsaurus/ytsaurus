@@ -5,7 +5,7 @@
 namespace NYT::NYqlPlugin {
 namespace NProcess {
 
-const TString YqlAgentProgrammName = "ytserver-yql-agent";
+const TString YqlAgentProgramName = "ytserver-yql-agent";
 const TString YqlPluginSubcommandName = "yql-plugin";
 const TString YqlPluginConfigFilename = "config.yson";
 
