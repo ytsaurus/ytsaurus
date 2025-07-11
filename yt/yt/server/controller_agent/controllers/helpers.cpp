@@ -401,6 +401,9 @@ void GenerateDockerAuthFromToken(
     const std::string& authenticatedUser,
     NControllerAgent::NProto::TUserJobSpec* jobSpec)
 {
+    if (!secureVault) {
+        return;
+    }
     auto findEnv = [&] (const TStringBuf& key) -> std::optional<TString> {
         auto child = secureVault->FindChild(std::string(key));
         return child && child->GetType() == ENodeType::String ? std::optional(child->AsString()->GetValue()) : std::nullopt;
