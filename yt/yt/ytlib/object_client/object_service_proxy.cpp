@@ -36,7 +36,7 @@ const auto ExecuteMethodDescriptor = TMethodDescriptor("Execute");
 
 TReqExecuteBatchRetriesConfigPtr GetSequoiaRetriesConfig(const IConnectionPtr& connection)
 {
-    return connection->GetConfig()->SequoiaConnection->Retries->ToRetriesConfig();
+    return connection->GetConfig()->SequoiaRetries->ToRetriesConfig();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

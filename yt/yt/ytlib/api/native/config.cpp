@@ -121,18 +121,14 @@ TReqExecuteBatchRetriesConfigPtr TSequoiaRetriesConfig::ToRetriesConfig() const
 void TSequoiaConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("ground_cluster_name", &TThis::GroundClusterName)
-        .Default();
+        // COMPAT(babenko): drop once trunk_vs_25_1 and trunk_vs_25_2 are no more.
+        .Default("<invalid>");
     registrar.Parameter("ground_cluster_connection_update_period", &TThis::GroundClusterConnectionUpdatePeriod)
         .Default(TDuration::Seconds(5));
-
-        registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
+    registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
         .Default("//sys/sequoia");
-
     registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)
         .Default(TDuration::Minutes(1));
-
-    registrar.Parameter("retries", &TThis::Retries)
-        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -425,6 +421,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("sequoia_connection", &TThis::SequoiaConnection)
+        .Default();
+    registrar.Parameter("sequoia_retries", &TThis::SequoiaRetries)
         .DefaultNew();
 
     registrar.Parameter("use_followers_for_write_targets_allocation", &TThis::UseFollowersForWriteTargetsAllocation)

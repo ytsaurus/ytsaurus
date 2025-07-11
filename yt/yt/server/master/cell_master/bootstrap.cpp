@@ -380,6 +380,11 @@ const NNative::IClientPtr& TBootstrap::GetRootClient() const
     return RootClient_;
 }
 
+bool TBootstrap::IsSequoiaConfigured() const
+{
+    return ClusterConnection_->IsSequoiaConfigured();
+}
+
 ISequoiaClientPtr TBootstrap::GetSequoiaClient() const
 {
     return ClusterConnection_->GetSequoiaClient();
