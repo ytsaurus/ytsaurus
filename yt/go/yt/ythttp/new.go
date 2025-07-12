@@ -2,6 +2,7 @@
 package ythttp
 
 import (
+	"net/http"
 	"testing"
 
 	"golang.org/x/xerrors"
@@ -30,6 +31,10 @@ func NewClient(c *yt.Config) (yt.Client, error) {
 	}
 
 	return httpclient.NewHTTPClient(c)
+}
+
+func BuildHTTPClient(c *yt.Config) (*http.Client, error) {
+	return httpclient.BuildHTTPClient(c)
 }
 
 // NewTestClient creates new client from config to be used in integration tests.
