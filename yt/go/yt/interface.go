@@ -649,6 +649,7 @@ type JobStatus struct {
 	Error           yterrors.Error     `yson:"error,omitempty"`
 	Progress        float64            `yson:"progress,omitempty"`
 	ExecAttributes  *JobExecAttributes `yson:"exec_attributes,omitempty"`
+	IsStale         bool               `yson:"is_stale,omitempty"`
 }
 
 type JobExecAttributes struct {
