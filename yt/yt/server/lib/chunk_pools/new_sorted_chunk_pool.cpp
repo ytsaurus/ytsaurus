@@ -83,7 +83,7 @@ public:
                 options.JobSizeAdjusterConfig);
         }
 
-        YT_LOG_DEBUG("New sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
+        YT_LOG_INFO("New sorted chunk pool created (EnableKeyGuarantee: %v, PrimaryPrefixLength: %v, "
             "ForeignPrefixLength: %v, DataWeightPerJob: %v, "
             "PrimaryDataWeightPerJob: %v, MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, "
             "MinManiacDataWeight: %v, HasJobSizeAdjuster: %v)",

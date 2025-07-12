@@ -207,7 +207,7 @@ private:
         //! Used only for persistence.
         TJob() = default;
 
-        TJob(TNewJobManager* owner, std::unique_ptr<TNewJobStub> jobBuilder, IChunkPoolOutput::TCookie cookie);
+        TJob(TNewJobManager* owner, std::unique_ptr<TNewJobStub> jobStub, IChunkPoolOutput::TCookie cookie);
 
         void SetState(EJobState state);
 

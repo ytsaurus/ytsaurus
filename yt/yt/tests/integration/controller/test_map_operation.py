@@ -63,6 +63,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     "max_jobs_per_split": 3,
                     "max_input_table_count": 5,
                 },
+                "min_slice_data_weight": 1024,
             },
         }
     }
@@ -2366,6 +2367,35 @@ print(json.dumps(input))
             )
 
             assert op.get_job_count("completed") == job_count
+
+    @authors("apollo1321")
+    def test_job_count_with_small_max_data_slices_per_job(self):
+        skip_if_component_old(self.Env, (25, 3), "controller-agent")
+        create("table", "//tmp/t_in")
+
+        for _ in range(5):
+            write_table("<append=%true>//tmp/t_in", [
+                {"col": "a" * 1024},
+                {"col": "a" * 1024},
+                {"col": "a" * 1024},
+                {"col": "a" * 1024},
+            ])
+
+        op = map(
+            in_="//tmp/t_in",
+            out="<create=true>//tmp/t_out",
+            command="cat > /dev/null",
+            spec={
+                "job_count": 5,
+                "max_data_slices_per_job": 1,
+            },
+        )
+
+        assert op.get_job_count("completed") == 5
+        max_data_weight = extract_statistic_v2(op.get_statistics(), "data.input.data_weight", summary_type="max")
+
+        assert 4_000 <= max_data_weight <= 4_200
+        assert "too_many_slices_in_jobs" in op.get_alerts()
 
 
 ##################################################################

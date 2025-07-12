@@ -62,12 +62,7 @@ void TNewJobStub::Finalize()
         for (const auto& dataSlice : stripe->DataSlices) {
             YT_VERIFY(!dataSlice->IsLegacy);
         }
-        const auto& statistics = stripe->GetStatistics();
-        StripeList_->TotalDataWeight += statistics.DataWeight;
-        StripeList_->TotalRowCount += statistics.RowCount;
-        StripeList_->TotalChunkCount += statistics.ChunkCount;
-        StripeList_->TotalCompressedDataSize += statistics.CompressedDataSize;
-        StripeList_->Stripes.emplace_back(std::move(stripe));
+        StripeList_->AddStripe(stripe);
     }
     StripeMap_.clear();
 
