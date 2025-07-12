@@ -97,7 +97,7 @@ public:
             YT_VERIFY(!JobSizeConstraints_->GetSamplingRate());
         }
 
-        YT_LOG_DEBUG(
+        YT_LOG_INFO(
             "Ordered chunk pool created (DataWeightPerJob: %v, SamplingDataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
             "CompressedDataSizePerJob: %v, MaxCompressedDataSizePerJob: %v, "
             "MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, "

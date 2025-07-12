@@ -30,11 +30,25 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 // COMPAT(apollo1321): Remove in 25.2.
 DEFINE_ENUM(EUnorderedChunkPoolMode,
     (Normal)
     (AutoMerge)
 );
+
+DEFINE_ENUM(EFinishAddingStripesReason,
+    (NoMoreStripes)
+    (SufficientDataWeight)
+    (SufficientCompressedDataSize)
+    (SufficientSliceCount)
+    (MaxDataWeightPerJobEncountered)
+    (MaxCompressedDataSizePerJobEncountered)
+    (NotEnoughStripes)
+);
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,13 +113,22 @@ public:
                 ConvertToYsonString(options.JobSizeAdjusterConfig, EYsonFormat::Text));
         }
 
-        if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {
-            YT_LOG_DEBUG(
-                "Building jobs with sampling "
-                "(SamplingRate: %v, SamplingDataWeightPerJob: %v)",
-                *JobSizeConstraints_->GetSamplingRate(),
-                JobSizeConstraints_->GetSamplingDataWeightPerJob());
-        }
+        YT_LOG_INFO(
+            "Unordered chunk pool created (DataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
+            "CompressedDataSizePerJob: %v, MaxCompressedDataSizePerJob: %v, "
+            "MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, "
+            "SamplingRate: %v, JobCount: %v, IsExplicitJobCount: %v, HasJobSizeAdjuster: %v)",
+            JobSizeConstraints_->GetDataWeightPerJob(),
+            JobSizeConstraints_->GetMaxDataWeightPerJob(),
+            JobSizeConstraints_->GetCompressedDataSizePerJob(),
+            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
+            JobSizeConstraints_->GetMaxDataSlicesPerJob(),
+            JobSizeConstraints_->GetInputSliceDataWeight(),
+            JobSizeConstraints_->GetInputSliceRowCount(),
+            JobSizeConstraints_->GetSamplingRate(),
+            JobSizeConstraints_->GetJobCount(),
+            JobSizeConstraints_->IsExplicitJobCount(),
+            static_cast<bool>(JobSizeAdjuster_));
 
         UpdateFreeJobCounter();
     }
@@ -901,23 +924,27 @@ private:
         i64 idealDataWeightPerJob,
         i64 idealCompressedDataSizePerJob)
     {
-        const auto& jobCounter = GetJobCounter();
         std::vector<int> addedStripeIndexes;
+
+        auto finishReason = EFinishAddingStripesReason::NoMoreStripes;
 
         for (auto it = begin; it != end; ++it) {
             bool hasSufficientDataWeight = jobStub->GetDataWeight() >= idealDataWeightPerJob;
             bool hasSufficientCompressedDataSize = jobStub->GetCompressedDataSize() >= idealCompressedDataSizePerJob;
 
-            if (hasSufficientDataWeight || hasSufficientCompressedDataSize) {
-                if (!JobSizeConstraints_->IsExplicitJobCount() || FreeJobCounter_->GetTotal() > 1) {
-                    break;
-                }
+            if ((hasSufficientDataWeight || hasSufficientCompressedDataSize) &&
+                (!JobSizeConstraints_->IsExplicitJobCount() || FreeJobCounter_->GetTotal() > 1))
+            {
+                finishReason = hasSufficientDataWeight
+                    ? EFinishAddingStripesReason::SufficientDataWeight
+                    : EFinishAddingStripesReason::SufficientCompressedDataSize;
+                break;
             }
 
-            // NB: We should ignore check of chunk stripe count in case of last job.
             if (jobStub->GetSliceCount() >= JobSizeConstraints_->GetMaxDataSlicesPerJob() &&
-                (!JobSizeConstraints_->IsExplicitJobCount() || jobCounter->GetPending() > 1))
+                !JobSizeConstraints_->IsExplicitJobCount())
             {
+                finishReason = EFinishAddingStripesReason::SufficientSliceCount;
                 break;
             }
 
@@ -926,14 +953,14 @@ private:
             const auto& stat = suspendableStripe.GetStatistics();
 
             // We should always return at least one stripe, even if we get Max...PerJob overflow.
-            if (jobStub->GetDataWeight() > 0 &&
-                (!JobSizeConstraints_->IsExplicitJobCount() || jobCounter->GetPending() > 1))
-            {
-                i64 nextDataWeight = jobStub->GetDataWeight() + stat.DataWeight;
-                i64 nextCompressedDataSize = jobStub->GetCompressedDataSize() + stat.CompressedDataSize;
-                if (nextDataWeight > JobSizeConstraints_->GetMaxDataWeightPerJob() ||
-                    nextCompressedDataSize > JobSizeConstraints_->GetMaxCompressedDataSizePerJob())
-                {
+            if (jobStub->GetDataWeight() > 0 && !JobSizeConstraints_->IsExplicitJobCount()) {
+                if (jobStub->GetDataWeight() + stat.DataWeight > JobSizeConstraints_->GetMaxDataWeightPerJob()) {
+                    finishReason = EFinishAddingStripesReason::MaxDataWeightPerJobEncountered;
+                    break;
+                }
+
+                if (jobStub->GetCompressedDataSize() + stat.CompressedDataSize > JobSizeConstraints_->GetMaxCompressedDataSizePerJob()) {
+                    finishReason = EFinishAddingStripesReason::MaxCompressedDataSizePerJobEncountered;
                     break;
                 }
             }
@@ -943,6 +970,7 @@ private:
                 jobStub->GetDataWeight() > 0 &&
                 std::ssize(Stripes_) - (std::ssize(ExtractedStripes_) + std::ssize(addedStripeIndexes)) < FreeJobCounter_->GetTotal())
             {
+                finishReason = EFinishAddingStripesReason::NotEnoughStripes;
                 break;
             }
 
@@ -953,25 +981,37 @@ private:
             }
         }
 
-        if (JobSizeConstraints_->IsExplicitJobCount() && FreeJobCounter_->GetTotal() == 1 && jobStub->GetDataWeight() > idealDataWeightPerJob) {
-            // NB(apollo1321): Compressed data size per job is *not* used when explicit job count is set.
-            YT_LOG_WARNING_IF(
-                UseNewSlicingImplementation_,
-                "Last job is bigger than expected (AddedStripesCount: %v, JobDataWeight: %v, "
-                "IdealDataWeightPerJob: %v, IdealCompressedDataSizePerJob: %v, "
-                "MaxDataWeightPerJob: %v, MaxCompressedDataSizePerJob: %v)",
-                std::ssize(addedStripeIndexes),
-                jobStub->GetDataWeight(),
-                idealDataWeightPerJob,
-                idealCompressedDataSizePerJob,
-                JobSizeConstraints_->GetMaxDataWeightPerJob(),
-                JobSizeConstraints_->GetMaxCompressedDataSizePerJob());
-        }
-
         for (int stripeIndex : addedStripeIndexes) {
             Unregister(stripeIndex);
             YT_VERIFY(ExtractedStripes_.insert(stripeIndex).second);
         }
+
+        YT_LOG_DEBUG(
+            "Stripes added to job stub (AddedStripesCount: %v, FinishAddingStripesReason: %v, "
+            "UnextractedStripesCount: %v, JobDataWeight: %v, JobCompressedDataSize: %v, "
+            "IdealDataWeightPerJob: %v, IdealCompressedDataSizePerJob: %v)",
+            std::ssize(addedStripeIndexes),
+            finishReason,
+            std::ssize(Stripes_) - std::ssize(ExtractedStripes_),
+            jobStub->GetDataWeight(),
+            jobStub->GetCompressedDataSize(),
+            idealDataWeightPerJob,
+            idealCompressedDataSizePerJob);
+
+        if (JobSizeConstraints_->IsExplicitJobCount() && FreeJobCounter_->GetTotal() == 1 && jobStub->GetDataWeight() > idealDataWeightPerJob) {
+            // NB(apollo1321): Compressed data size per job is *not* used when explicit job count is set.
+            YT_LOG_WARNING_IF(
+                UseNewSlicingImplementation_,
+                "Last job is bigger than expected (AddedStripesCount: %v, "
+                "JobDataWeight: %v, JobCompressedDataSize: %v, "
+                "IdealDataWeightPerJob: %v, IdealCompressedDataSizePerJob: %v)",
+                std::ssize(addedStripeIndexes),
+                jobStub->GetDataWeight(),
+                jobStub->GetCompressedDataSize(),
+                idealDataWeightPerJob,
+                idealCompressedDataSizePerJob);
+        }
+
     }
 
     void CheckCompleted()

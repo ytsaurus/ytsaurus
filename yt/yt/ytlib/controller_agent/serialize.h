@@ -67,6 +67,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((IntroduceInputStatistics)              (301807))
     ((DropUnusedFieldInJobSizeConstraints)   (301808))
     ((DropOutputOrder)                       (301809))
+    ((AddSliceCountStatistics)               (301810))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

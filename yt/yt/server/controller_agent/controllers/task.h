@@ -570,6 +570,8 @@ private:
     std::expected<TOutputCookieInfo, EScheduleFailReason>
     GetOutputCookieInfoForNextJob(const TAllocation& allocation);
 
+    void ValidateJobSizeConstraints(const TJobletPtr& joblet) const;
+
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTask, 0x81ab3cd3);
 };
