@@ -126,6 +126,7 @@ func newTx(
 	}
 
 	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)
+	tx.Encoder.InvokeInTx = tx.Encoder.InvokeInTx.Wrap(tx.Intercept)
 	tx.Encoder.InvokeReadRow = tx.Encoder.InvokeReadRow.Wrap(tx.ReadRow)
 
 	return tx, nil
