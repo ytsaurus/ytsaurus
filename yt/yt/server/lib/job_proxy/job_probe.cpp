@@ -80,12 +80,9 @@ public:
         auto* proxy = GetOrCreateJobProberProxy();
 
         auto req = proxy->GetStderr();
-        if (options.Limit) {
-            req->set_limit(*options.Limit);
-        }
-        if (options.Offset) {
-            req->set_offset(*options.Offset);
-        }
+        YT_OPTIONAL_SET_PROTO(req, limit, options.Limit);
+        YT_OPTIONAL_SET_PROTO(req, offset, options.Offset);
+
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
         const auto& rsp = rspOrError.Value();

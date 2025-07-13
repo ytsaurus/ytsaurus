@@ -197,7 +197,7 @@ public:
         return 0;
     }
 
-    TFuture<std::vector<TShellCommandOutput>> RunCommands(
+    TFuture<std::vector<TShellCommandResult>> RunCommands(
         int /*slotIndex*/,
         ESlotType /*slotType*/,
         TJobId /*jobId*/,
@@ -207,7 +207,8 @@ public:
         const std::optional<std::vector<TDevice>>& /*devices*/,
         const std::optional<TString>& /*hostName*/,
         const std::vector<TIP6Address>& /*ipAddresses*/,
-        std::string /*tag*/) override
+        std::string /*tag*/,
+        bool /*throwOnFailedCommand*/) override
     {
         THROW_ERROR_EXCEPTION("Running custom commands is not yet supported by %Qlv environment",
             Config_.GetCurrentType());
@@ -569,7 +570,7 @@ public:
         return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path, locationIndex);
     }
 
-    TFuture<std::vector<TShellCommandOutput>> RunCommands(
+    TFuture<std::vector<TShellCommandResult>> RunCommands(
         int slotIndex,
         ESlotType slotType,
         TJobId jobId,
@@ -579,12 +580,13 @@ public:
         const std::optional<std::vector<TDevice>>& devices,
         const std::optional<TString>& hostName,
         const std::vector<TIP6Address>& ipAddresses,
-        std::string tag) override
+        std::string tag,
+        bool throwOnFailedCommand) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, hostName, ipAddresses, tag] {
-            std::vector<TShellCommandOutput> outputs;
+        return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, hostName, ipAddresses, tag, throwOnFailedCommand] {
+            std::vector<TShellCommandResult> outputs;
             outputs.reserve(commands.size());
 
             for (int index = 0; index < std::ssize(commands); ++index) {
@@ -621,7 +623,7 @@ public:
 
                 auto error = WaitFor(instance->Wait());
 
-                TShellCommandOutput instanceOutput{
+                TShellCommandResult instanceResult{
                     .Stdout = instance->GetStdout(),
                     .Stderr = instance->GetStderr(),
                 };
@@ -629,16 +631,19 @@ public:
                 if (!error.IsOK()) {
                     YT_LOG_WARNING(error, "Command failed (JobId: %v, Stderr: %Qv, Stdout: %Qv)",
                         jobId,
-                        instanceOutput.Stderr,
-                        instanceOutput.Stdout);
+                        instanceResult.Stderr,
+                        instanceResult.Stdout);
 
-                    error <<= TErrorAttribute("stdout", TruncateString(instanceOutput.Stdout, MaxCommandOutputSizeInError));
-                    error <<= TErrorAttribute("stderr", TruncateString(instanceOutput.Stderr, MaxCommandOutputSizeInError));
+                    error <<= TErrorAttribute("stdout", TruncateString(instanceResult.Stdout, MaxCommandOutputSizeInError));
+                    error <<= TErrorAttribute("stderr", TruncateString(instanceResult.Stderr, MaxCommandOutputSizeInError));
 
-                    THROW_ERROR error;
+                    if (throwOnFailedCommand) {
+                        THROW_ERROR error;
+                    }
+                    instanceResult.Error = error;
                 }
 
-                outputs.push_back(instanceOutput);
+                outputs.push_back(instanceResult);
 
                 YT_LOG_DEBUG(
                     "Command finished (JobId: %v, Path: %v, Args: %v, EnvironmentVariables: %v)",
@@ -1112,7 +1117,7 @@ public:
             ImageCache_);
     }
 
-    TFuture<std::vector<TShellCommandOutput>> RunCommands(
+    TFuture<std::vector<TShellCommandResult>> RunCommands(
         int slotIndex,
         ESlotType slotType,
         TJobId jobId,
@@ -1122,7 +1127,8 @@ public:
         const std::optional<std::vector<TDevice>>& /*devices*/,
         const std::optional<TString>& /*hostName*/,
         const std::vector<TIP6Address>& /*ipAddresses*/,
-        std::string tag) override
+        std::string tag,
+        bool /*throwOnFailedCommand*/) override
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1182,7 +1188,7 @@ public:
             .Apply(BIND([this, this_ = MakeStrong(this), slotIndex](const TError& error) {
                 Executor_->CleanPodSandbox(PodDescriptors_[slotIndex]);
                 error.ThrowOnError();
-                return std::vector<TShellCommandOutput>{};
+                return std::vector<TShellCommandResult>{};
             })
             .AsyncVia(ActionQueue_->GetInvoker()));
     }

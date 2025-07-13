@@ -1820,6 +1820,28 @@ NQueryTrackerClient::EQueryState ConvertQueryStateFromProto(
     YT_ABORT();
 }
 
+NApi::EJobStderrType ConvertJobStderrTypeFromProto(
+    NProto::EJobStderrType proto)
+{
+    switch (proto) {
+        case NProto::EJobStderrType::JST_USER_JOB_STDERR:
+            return NApi::EJobStderrType::UserJobStderr;
+        case NProto::EJobStderrType::JST_GPU_CHECK_STDERR:
+            return NApi::EJobStderrType::GpuCheckStderr;
+    }
+}
+
+NProto::EJobStderrType ConvertJobStderrTypeToProto(
+    NApi::EJobStderrType jobStderrType)
+{
+    switch (jobStderrType) {
+        case NApi::EJobStderrType::UserJobStderr:
+            return NProto::EJobStderrType::JST_USER_JOB_STDERR;
+        case NApi::EJobStderrType::GpuCheckStderr:
+            return NProto::EJobStderrType::JST_GPU_CHECK_STDERR;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FillRequest(

@@ -945,6 +945,27 @@ TRANSFORMS[60] = [
             })),
 ]
 
+TRANSFORMS[61] = [
+    Conversion(
+        "stderrs",
+        table_info=TableInfo(
+            [
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64"),
+            ], [
+                ("stderr", "string", {"max_inline_hunk_size": 512}),
+                ("gpu_check_stderr", "string", {"max_inline_hunk_size": 512}),
+            ],
+            attributes={
+                "atomicity": "none",
+                "tablet_cell_bundle": SYS_BLOBS_BUNDLE_NAME,
+                "account": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            })),
+]
+
 # NB(renadeen): don't forget to update min_required_archive_version at yt/yt/server/lib/scheduler/config.cpp
 
 

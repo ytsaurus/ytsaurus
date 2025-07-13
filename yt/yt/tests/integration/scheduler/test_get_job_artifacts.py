@@ -8,12 +8,13 @@ from yt_commands import (
     sort, list_jobs, get_job_input,
     get_job_stderr, get_job_stderr_paged, get_job_spec, get_job_input_paths,
     clean_operations, sync_create_cells, update_op_parameters, raises_yt_error,
-    gc_collect)
+    gc_collect, run_test_vanilla)
 
 
 import yt.environment.init_operations_archive as init_operations_archive
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import parts_to_uuid, YtError
+from yt_gpu_layers_helpers import GpuCheckBase
 import yt.yson as yson
 
 import datetime
@@ -1099,6 +1100,151 @@ class TestGetJobSpec(YTEnvSetup):
             get_job_spec(job_id, authenticated_user="v")
 
 
+@authors("bystrovserg")
+class TestGetJobStderrGpuChecker(YTEnvSetup, GpuCheckBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    USE_PORTO = True
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "job_proxy": {
+                "test_root_fs": True,
+            },
+            "gpu_manager": {
+                "driver_version": "0",
+                "testing": {
+                    "test_resource": True,
+                    "test_layers": True,
+                    "test_gpu_count": 1,
+                },
+            },
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                    "porto_executor": {
+                        "enable_network_isolation": False,
+                    },
+                },
+            },
+        },
+    }
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "%true": {
+            "exec_node": {
+                "job_reporter": {
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                }
+            },
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "operations_cleaner": {
+                "enable": False,
+                "analysis_period": 100,
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+            },
+            "enable_job_reporter": True,
+            "enable_job_spec_reporter": True,
+            "enable_job_stderr_reporter": True,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "gpu_check_layer_directory_path": "//tmp/gpu_check"
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestGetJobStderrGpuChecker, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(), override_tablet_cell_bundle="default"
+        )
+
+    def teardown_method(self, method):
+        remove("//sys/operations_archive")
+        super(TestGetJobStderrGpuChecker, self).teardown_method(method)
+
+    @pytest.mark.timeout(180)
+    def test_gpu_check_stderr_on_fail(self):
+        self.setup_gpu_layer_and_reset_nodes()
+
+        op = run_test_vanilla(
+            command="echo 1",
+            spec={
+                "max_failed_job_count": 1,
+            },
+            task_patch={
+                "layer_paths": ["//tmp/base_layer"],
+                "enable_gpu_layers": True,
+                "gpu_check_layer_name": "0",
+                "gpu_check_binary_path": "/gpu_check/gpu_check_fail",
+            },
+            track=False,
+        )
+
+        wait(lambda: len(op.list_jobs()) == 1)
+        job_id = op.list_jobs()[0]
+
+        print_debug("Check gpu check stderr")
+        wait(lambda: len(get_job_stderr(op.id, job_id, type="gpu_check_stderr")) != 0, ignore_exceptions=True)
+
+        print_debug("Check job stderr")
+        with raises_yt_error("Stderr is not found"):
+            get_job_stderr(op.id, job_id)
+
+        with raises_yt_error("Stderr is not found"):
+            get_job_stderr(op.id, job_id, type="user_job_stderr")
+
+        print_debug("Aborting operation")
+        op.abort()
+
+    @authors("bystrovserg")
+    @pytest.mark.timeout(180)
+    def test_gpu_check_success_with_job_error(self):
+        self.setup_gpu_layer_and_reset_nodes()
+
+        op = run_test_vanilla(
+            command="echo AAA >&2",
+            spec={
+                "max_failed_job_count": 1,
+            },
+            task_patch={
+                "layer_paths": ["//tmp/base_layer"],
+                "enable_gpu_layers": True,
+                "gpu_check_layer_name": "0",
+                "gpu_check_binary_path": "/gpu_check/gpu_check_success",
+            },
+            track=True,
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        print_debug("Check gpu check stderr")
+        with raises_yt_error("Stderr is not found"):
+            get_job_stderr(op.id, job_id, type="gpu_check_stderr")
+
+        print_debug("Check job stderr")
+        job_error = get_job_stderr(op.id, job_id)
+        assert job_error == b"AAA\n"
+
+
 ##################################################################
 
 
@@ -1119,6 +1265,13 @@ class TestGetJobStderrRpcProxy(TestGetJobStderr):
 
 @pytest.mark.enabled_multidaemon
 class TestGetJobSpecRpcProxy(TestGetJobSpec):
+    ENABLE_MULTIDAEMON = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+
+@pytest.mark.enabled_multidaemon
+class TestGetJobStderrGpuCheckerRpcProxy(TestGetJobStderrGpuChecker):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

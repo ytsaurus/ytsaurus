@@ -3403,6 +3403,7 @@ private:
 
         TGetJobStderrOptions options;
         SetTimeoutOptions(&options, context.Get());
+        options.Type = FromProto<NApi::EJobStderrType>(request->type());
 
         context->SetRequestInfo("OperationIdOrAlias: %v, JobId: %v, Limit: %v, Offset: %v",
             operationIdOrAlias,
