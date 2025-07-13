@@ -48,17 +48,50 @@ def test_tvm_user_ticket():
         },
     )
 
-    # skip client prepare
+    # Skip client prepare.
     client._api_version = "v4"
     client._commands = {"get": yt.command.Command(name="get", input_type=None, output_type="output_type", is_volatile=False, is_heavy=False)}
 
-    with mock.patch('yt.packages.urllib3.connectionpool.HTTPConnectionPool.urlopen') as m:
+    with mock.patch("yt.packages.urllib3.connectionpool.HTTPConnectionPool.urlopen") as m:
         try:
             tvm_auth.set_user_ticket("3:user:b64BODY:b64SIGN")
             client.get('//')
         except Exception:
             pass
         assert m.call_args.kwargs["headers"]["X-Ya-User-Ticket"] == "3:user:b64BODY:b64SIGN"
+
+
+@authors("nadya73")
+def test_auth_class():
+    token = "my-token"
+    client = yt.YtClient(
+        "localhost",
+        config={
+            "auth_class": {
+                "module_name": "yt.wrapper.testlib.helpers",
+                "class_name": "CustomAuthTest",
+                "config": {
+                    "token": token,
+                }
+            },
+            "proxy": {
+                "retries": {
+                    "enable": False,
+                },
+            },
+        },
+    )
+
+    # Skip client prepare.
+    client._api_version = "v4"
+    client._commands = {"get": yt.command.Command(name="get", input_type=None, output_type="output_type", is_volatile=False, is_heavy=False)}
+
+    with mock.patch("yt.packages.urllib3.connectionpool.HTTPConnectionPool.urlopen") as m:
+        try:
+            client.get('//')
+        except Exception:
+            pass
+        assert m.call_args.kwargs["headers"]["Authorization"] == f"OAuth {token}"
 
 
 @pytest.mark.usefixtures("yt_env_with_authentication")

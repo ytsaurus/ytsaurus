@@ -101,6 +101,14 @@ class DefaultConfigType(TypedDict, total=False):
     oauth_client_id: str
     oauth_client_secret: str
     tvm_auth: Optional[Any]
+
+    class DefaultConfigAuthClassType(TypedDict, total=False):
+        module_name: Optional[str]
+        class_name: Optional[str]
+        config: Optional[Any]
+
+    auth_class: DefaultConfigAuthClassType
+    auth: Optional[Any]
     impersonation_user: Optional[str]
     api_version: Optional[str]
     default_api_version_for_http: str
@@ -320,7 +328,7 @@ class DefaultConfigType(TypedDict, total=False):
     started_by_command_length_limit: int
     runtime_type_validation: bool
     strawberry_ctl_address: str
-    strawberry_cluster_name: str
+    strawberry_cluster_name: Optional[str]
 
     class DefaultConfigUploadTableOptionsType(TypedDict, total=False):
         write_arrow_batch_size: int
@@ -545,9 +553,17 @@ default_config = {
     # Tokens for receiving token by current ssh session.
     "oauth_client_id": "23b4f83306e3469abdee07054d307e7c",
     "oauth_client_secret": "87dcc81340254b12a4cecdfe34c6d387",
-    # Set to yt.wrapper.tvm.ServiceTicketAuth(tvm_client) or yt.wrapper.tvm.UserTicketFixedAuth()
+    # DEPRECATED: use `auth` instead of it.
     "tvm_auth": None,
-
+    # Set to yt.wrapper.tvm.ServiceTicketAuth(tvm_client), yt.wrapper.tvm.UserTicketFixedAuth() or other implementation of yt.packages.requests.auth.AuthBase.
+    "auth": None,
+    # Description of auth class derived from AuthBase.
+    "auth_class": {
+        "module_name": None,
+        "class_name": None,
+        # If specified, it will be passed in the `class_name` constructor.
+        "config": None,
+    },
     # This option allows the client to impersonate another user.
     # Setting this option is only allowed for superusers that are not banned,
     # all other attempts at impersonation will result in an authorization error.
