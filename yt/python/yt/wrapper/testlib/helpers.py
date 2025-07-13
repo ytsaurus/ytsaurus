@@ -13,6 +13,7 @@ import yt.subprocess_wrapper as subprocess
 import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.wrapper.errors import YtRetriableError
+from yt.wrapper.http_driver import TokenAuth
 import yt.wrapper as yt
 
 import datetime
@@ -339,3 +340,13 @@ def inject_http_error(
     client._requests_session.send = send_wrapper
     yield cnt
     client._requests_session.send = reqeust_session_send_orig
+
+
+class CustomAuthTest(TokenAuth):
+    def __init__(self, config):
+        super().__init__(None)
+        self.config = config
+
+    def __call__(self, request):
+        self.token = self.config["token"]
+        return super().__call__(request)
