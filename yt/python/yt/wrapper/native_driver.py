@@ -1,5 +1,5 @@
 from .config import get_config, get_option, set_option, get_backend_type
-from .common import require, generate_int64, update, get_value
+from .common import require, generate_uuid, update, get_value
 from .constants import RPC_PACKAGE_INSTALLATION_TEXT, ENABLE_YP_SERVICE_DISCOVERY
 from .errors import create_response_error, YtError
 from .string_iter_io import StringIterIO
@@ -316,9 +316,9 @@ def make_request(command_name, params,
             else:
                 output_stream = driver_bindings.BufferedStream(size=get_config(client)["read_buffer_size"])
 
-    request_id = generate_int64(get_option("_random_generator", client))
+    request_id = generate_uuid(get_option("_random_generator", client))
 
-    logger.debug("Executing command %s with parameters %s and id %s", command_name, repr(params), hex(request_id)[2:])
+    logger.debug("Executing command %s with parameters %s and id %s", command_name, repr(params), request_id)
 
     driver_user_name = get_config(client)["driver_user_name"]
     if driver_user_name is not None:
