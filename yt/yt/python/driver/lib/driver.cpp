@@ -152,7 +152,7 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
     }
 
     if (auto id = FindAttr(pyRequest, "id"); id && !id->isNone()) {
-        request.Id = static_cast<ui64>(Py::ConvertToLongLong(*id));
+        request.Id = TGuid::FromString(Py::ConvertStringObjectToString(*id));
     }
 
     auto inputStreamObj = GetAttr(pyRequest, "input_stream");
