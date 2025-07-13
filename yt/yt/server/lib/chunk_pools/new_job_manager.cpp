@@ -871,7 +871,7 @@ void TNewJobManager::Enlarge(
         return false;
     };
 
-    auto isJobJoinable = [&] (int index) -> bool {
+    auto isJobJoinable = [&] (int index) {
         const auto& job = Jobs_[index];
         // NB(coteeq): We do not want to join running or completed jobs.
         return job.GetIsBarrier() || job.GetState() != EJobState::Pending;

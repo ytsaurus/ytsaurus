@@ -44,8 +44,7 @@ private:
     struct TUninitialized
     {
         bool operator ==(const TUninitialized& uninitializedTag) const = default;
-        inline void Persist(const auto& /*context*/)
-        { }
+        void Persist(const auto& /*context*/);
     };
 
     std::variant<

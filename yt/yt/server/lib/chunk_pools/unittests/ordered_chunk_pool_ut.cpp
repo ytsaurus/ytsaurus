@@ -60,6 +60,7 @@ protected:
         Options_.Logger = GetTestLogger();
         DataWeightPerJob_ = Inf64;
         SamplingDataWeightPerJob_ = Inf64;
+        CompressedDataSizePerJob_ = Inf64;
         MaxDataSlicesPerJob_ = Inf32;
         InputSliceDataWeight_ = Inf64;
         InputSliceRowCount_ = Inf64;
@@ -76,7 +77,7 @@ protected:
             /*jobCount*/ ExplicitJobCount_.value_or(0),
             DataWeightPerJob_,
             /*primaryDataWeightPerJob*/ Inf64,
-            /*compressedDataSizePerJob*/ MaxCompressedDataSizePerJob_,
+            /*compressedDataSizePerJob*/ CompressedDataSizePerJob_,
             MaxDataSlicesPerJob_,
             /*maxDataWeightPerJob_*/ MaxDataWeightPerJob_,
             /*maxPrimaryDataWeightPerJob*/ 0,
@@ -371,6 +372,8 @@ protected:
     i64 MaxDataWeightPerJob_;
 
     i64 MaxCompressedDataSizePerJob_;
+
+    i64 CompressedDataSizePerJob_;
 
     i64 InputSliceDataWeight_;
 
@@ -814,6 +817,139 @@ TEST_P(TOrderedChunkPoolTest, EnlargementAfterSampling)
 
     EXPECT_NEAR(chunkCountAfterSampling, 50, 10);
     EXPECT_GT(numberOfSmallHoles, 5);
+}
+
+TEST_P(TOrderedChunkPoolTest, SliceByDataWeightFirstChunkOnly)
+{
+    if (!Options_.UseNewSlicingImplementation) {
+        GTEST_SKIP_("Compressed data size per job is not supported");
+    }
+
+    // +-------+---------------+
+    // |       |               |
+    // | Data  |               |
+    // | Weight|               |
+    // |       | #  _  _  _  _ | <- 250_MB
+    // +-------+---------------+
+    // |       | #  #  #  #  # | <- 1_GB
+    // | Compr.| #  #  #  #  # |
+    // | Data  | #  #  #  #  # |
+    // | Size  | #  #  #  #  # |
+    // +-------+---------------+
+    // | Chunk | 1  2  3  4  5 |
+    // +-------+---------------+
+    //
+    // Expected slicing:
+    //  - Row count: |2|2|2|2|2|   400   |
+    //  - Chunk id:  |1|1|1|1|1| 2,3,4,5 |
+
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    CompressedDataSizePerJob_ = 6_GB;
+    DataWeightPerJob_ = 50_MB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddChunk(CreateChunk(
+        0,
+        /*weight*/ 250_MB,
+        /*rowCount*/ 10,
+        /*compressedSize*/ 1_GB));
+    PersistAndRestore();
+
+    for (int i = 0; i < 4; ++i) {
+        AddChunk(CreateChunk(
+            0,
+            /*weight*/ 10_KB,
+            /*rowCount*/ 100,
+            /*compressedSize*/ 1_GB));
+        PersistAndRestore();
+    }
+
+    ChunkPool_->Finish();
+
+    PersistAndRestore();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_TRUE(TeleportChunks_.empty());
+
+    EXPECT_EQ(stripeLists.size(), 6u);
+
+    CheckEverything(stripeLists);
+}
+
+TEST_P(TOrderedChunkPoolTest, SliceByCompressedDataSizeAndThenByDataWeight)
+{
+    if (!Options_.UseNewSlicingImplementation) {
+        GTEST_SKIP_("Compressed data size per job is not supported");
+    }
+
+    // +-------+---------------+
+    // |       |          #  # | <- 1_GB
+    // | Data  |          #  # |
+    // | Weight|    #  #  #  # | <- data_weight_per_job = 500_MB
+    // |       | #  #  #  #  # |
+    // +-------+---------------+
+    // | Compr.| #  #  #       | <- 1_GB
+    // | Data  | #  #  #       |
+    // | Size  | #  #  #       | <- compressed_data_size_per_job = 500_MB
+    // |       | #  #  #  #  # | <- 250_MB
+    // +-------+---------------+
+    // | Chunk | 1  2  3  4  5 |
+    // +-------+---------------+
+
+    InitTables(
+        /*isTeleportable*/ {false},
+        /*isVersioned*/ {false});
+
+    CompressedDataSizePerJob_ = 500_MB;
+    DataWeightPerJob_ = 500_MB;
+    InitJobConstraints();
+
+    CreateChunkPool();
+
+    AddChunk(CreateChunk(
+        0,
+        /*weight*/ 250_MB,
+        /*rowCount*/ 4,
+        /*compressedSize*/ 1_GB));
+    PersistAndRestore();
+
+    for (int i = 0; i < 2; ++i) {
+        AddChunk(CreateChunk(
+            0,
+            /*weight*/ 500_MB,
+            /*rowCount*/ 4,
+            /*compressedSize*/ 1_GB));
+        PersistAndRestore();
+    }
+
+    for (int i = 0; i < 2; ++i) {
+        AddChunk(CreateChunk(
+            0,
+            /*weight*/ 1_GB,
+            /*rowCount*/ 4,
+            /*compressedSize*/ 250_MB));
+        PersistAndRestore();
+    }
+
+    ChunkPool_->Finish();
+
+    PersistAndRestore();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_TRUE(TeleportChunks_.empty());
+
+    EXPECT_EQ(stripeLists.size(), 10u);
+
+    CheckEverything(stripeLists);
 }
 
 INSTANTIATE_TEST_SUITE_P(BasicTests,
@@ -1326,19 +1462,22 @@ TEST_P(TOrderedChunkPoolJobSizesTestRandomized, BuildJobsInputByCompressedDataSi
         chunks.push_back(std::move(chunk));
     };
 
-    DataWeightPerJob_ = std::max<i64>(generateSize(), 1);
-    MaxCompressedDataSizePerJob_ = std::max<i64>(generateSize(), 1);
-    CanAdjustDataSizePerJob_ = true;
-
     // Don't build too many jobs.
-    while (totalDataWeight / DataWeightPerJob_ > 50) {
-        DataWeightPerJob_ *= 10;
-        DataWeightPerJob_ += std::uniform_int_distribution<int>(0, 9)(Gen_);
-    }
-    while (totalCompressedDataSize / MaxCompressedDataSizePerJob_ > 50) {
-        MaxCompressedDataSizePerJob_ *= 10;
-        MaxCompressedDataSizePerJob_ += std::uniform_int_distribution<int>(0, 9)(Gen_);
-    }
+    auto normalizeValue = [&] (i64 value, i64 nominator, i64 maxValue) {
+        while (nominator / value > maxValue) {
+            value *= 10;
+            value += std::uniform_int_distribution<int>(0, 9)(Gen_);
+        }
+        return value;
+    };
+
+    constexpr int approximateMaxJobCount = 50;
+
+    DataWeightPerJob_ = normalizeValue(std::max<i64>(generateSize(), 1), totalDataWeight, approximateMaxJobCount);
+    MaxCompressedDataSizePerJob_ = normalizeValue(std::max<i64>(generateSize(), 1), totalCompressedDataSize, approximateMaxJobCount);
+    CompressedDataSizePerJob_ = normalizeValue(std::max<i64>(generateSize(), 1), totalCompressedDataSize, approximateMaxJobCount);
+
+    CanAdjustDataSizePerJob_ = true;
 
     InitJobConstraints();
 

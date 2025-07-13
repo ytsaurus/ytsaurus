@@ -79,6 +79,9 @@ bool TChunkStripeKey::operator ==(const TChunkStripeKey& other) const
     return Key_ == other.Key_;
 }
 
+void TChunkStripeKey::TUninitialized::Persist(const auto& /*context*/)
+{ }
+
 PHOENIX_DEFINE_TYPE(TChunkStripeKey);
 
 ////////////////////////////////////////////////////////////////////////////////
