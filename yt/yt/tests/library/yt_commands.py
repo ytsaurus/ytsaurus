@@ -3876,3 +3876,8 @@ def finish_distributed_write_session(session: yson.YsonType, results: list[yson.
 def ping_chaos_lease(chaos_lease_id, **kwargs):
     kwargs["chaos_lease_id"] = chaos_lease_id
     execute_command("ping_chaos_lease", kwargs)
+
+
+def ping_node(node_address, **kwargs):
+    kwargs["node_address"] = node_address
+    return execute_command("ping_node", kwargs, parse_yson=True)

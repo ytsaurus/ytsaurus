@@ -610,6 +610,43 @@ void TRequestRestartCommand::DoExecute(ICommandContextPtr context)
     WaitFor(context->GetClient()->RequestRestart(NodeAddress_, Options))
         .ThrowOnError();
 }
+////////////////////////////////////////////////////////////////////////////////
+
+void TPingNodeCommand::Register(TRegistrar registrar)
+{
+    registrar.Parameter("node_address", &TThis::NodeAddress_);
+
+    registrar.ParameterWithUniversalAccessor<std::optional<size_t>>(
+        "payload_size",
+        [] (TThis* command) -> auto& {
+            return command->Options.PayloadSize;
+        })
+        .Optional(/*init*/ false);
+
+    registrar.ParameterWithUniversalAccessor<std::vector<std::string>>(
+        "chain_addresses",
+        [] (TThis* command) -> auto& {
+            return command->Options.ChainAddresses;
+        })
+        .Optional(/*init*/ false);
+}
+
+void TPingNodeCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result = WaitFor(context->GetClient()->PingNode(NodeAddress_, Options))
+        .ValueOrThrow();
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("latency").Value(result.Latency)
+            .Item("chain")
+                .DoListFor(result.ChainLatencies, [&] (TFluentList fluent, const auto& latency) {
+                    fluent
+                        .Item().BeginMap()
+                            .Item("latency").Value(latency)
+                        .EndMap();
+                })
+        .EndMap());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

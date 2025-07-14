@@ -5,6 +5,7 @@
 #include "private.h"
 #include "transaction.h"
 
+#include <yt/yt/ytlib/admin/public.h>
 #include <yt/yt/ytlib/admin/admin_service_proxy.h>
 #include <yt/yt/ytlib/admin/restart_service_proxy.h>
 
@@ -50,6 +51,8 @@
 #include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
+
+#include <util/random/entropy.h>
 
 namespace NYT::NApi::NNative {
 
@@ -477,6 +480,45 @@ void TClient::DoKillProcess(const std::string& address, const TKillProcessOption
     // This is the intended behavior.
     WaitFor(req->Invoke())
         .ThrowOnError();
+}
+
+TPingNodeResult TClient::DoPingNode(const std::string& nodeAddress, const TPingNodeOptions& options)
+{
+    ValidateSuperuserPermissions();
+
+    THROW_ERROR_EXCEPTION_IF(options.ChainAddresses.size() > PingNodeChainMax, "Ping node chain is too long");
+    THROW_ERROR_EXCEPTION_IF(options.PayloadSize.value_or(0) > PingNodePayloadMax, "Ping node payload is too large");
+
+    auto channel = Connection_->GetChannelFactory()->CreateChannel(nodeAddress);
+    TAdminServiceProxy proxy(channel);
+
+    auto req = proxy.PingNode();
+    req->SetMultiplexingBand(options.MultiplexingBand);
+    req->SetTimeout(options.Timeout.value_or(PingNodeDefaultTimeout));
+    req->mutable_chain_addresses()->Add(options.ChainAddresses.begin(), options.ChainAddresses.end());
+
+    struct TPingNodeBufferTag { };
+    TSharedMutableRef payload;
+    if (options.PayloadSize) {
+        payload = TSharedMutableRef::Allocate<TPingNodeBufferTag>(*options.PayloadSize, {.InitializeStorage = false});
+        EntropyPool().LoadOrFail(payload.Data(), payload.Size());
+        req->Attachments().push_back(payload);
+    }
+
+    auto startTime = NProfiling::GetCpuInstant();
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    auto finishTime = NProfiling::GetCpuInstant();
+
+    if (options.PayloadSize) {
+        THROW_ERROR_EXCEPTION_UNLESS(rsp->Attachments().size() == 1 && TRef::AreBitwiseEqual(rsp->Attachments()[0], payload),
+            "Ping node response with wrong payload");
+    }
+
+    return TPingNodeResult{
+        .Latency = NProfiling::CpuDurationToDuration(finishTime - startTime),
+        .ChainLatencies = FromProto<std::vector<TDuration>>(rsp->chain_latencies()),
+    };
 }
 
 TString TClient::DoWriteCoreDump(const std::string& address, const TWriteCoreDumpOptions& /*options*/)

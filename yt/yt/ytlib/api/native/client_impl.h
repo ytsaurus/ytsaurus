@@ -721,6 +721,10 @@ public: \
         const std::string& address,
         const TKillProcessOptions& options),
         (address, options))
+    IMPLEMENT_METHOD(TPingNodeResult, PingNode, (
+        const std::string& nodeAddress,
+        const TPingNodeOptions& options),
+        (nodeAddress, options))
     IMPLEMENT_METHOD(TString, WriteCoreDump, (
         const std::string& address,
         const TWriteCoreDumpOptions& options),

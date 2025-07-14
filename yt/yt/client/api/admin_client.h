@@ -71,6 +71,20 @@ struct TKillProcessOptions
     int ExitCode = 42;
 };
 
+struct TPingNodeOptions
+    : public TTimeoutOptions
+    , public TMultiplexingBandOptions
+{
+    std::optional<size_t> PayloadSize;
+    std::vector<std::string> ChainAddresses;
+};
+
+struct TPingNodeResult
+{
+    TDuration Latency;
+    std::vector<TDuration> ChainLatencies;
+};
+
 struct TWriteCoreDumpOptions
     : public TTimeoutOptions
 { };
@@ -249,6 +263,10 @@ struct IAdminClient
     virtual TFuture<void> KillProcess(
         const std::string& address,
         const TKillProcessOptions& options = {}) = 0;
+
+    virtual TFuture<TPingNodeResult> PingNode(
+        const std::string& nodeAddress,
+        const TPingNodeOptions& options = {}) = 0;
 
     virtual TFuture<TString> WriteCoreDump(
         const std::string& address,

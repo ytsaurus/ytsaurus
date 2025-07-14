@@ -13,6 +13,16 @@ message TReqDie
 message TRspDie
 { }
 
+message TReqPingNode
+{
+    repeated string chain_addresses = 1;
+}
+
+message TRspPingNode
+{
+    repeated uint64 chain_latencies = 1;
+}
+
 message TReqWriteCoreDump
 { }
 
