@@ -115,10 +115,11 @@ public:
         , SystemMemoryUsageTracker_(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::SystemJobs))
         , UserMemoryUsageTracker_(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::UserJobs))
         , Profiler_("/job_controller")
-        , MajorPageFaultsGauge_(Profiler_.Gauge("/major_page_faults"))
-        , FreeMemoryWatermarkMultiplierGauge_(Profiler_.Gauge("/free_memory_watermark_multiplier"))
-        , FreeMemoryWatermarkAddedMemoryGauge_(Profiler_.Gauge("/free_memory_watermark_added_memory"))
-        , FreeMemoryWatermarkIsIncreasedGauge_(Profiler_.Gauge("/free_memory_watermark_is_increased"))
+        , MajorPageFaultsGauge_(Profiler_.Gauge("/memory_pressure_detector/major_page_faults"))
+        , FreeMemoryWatermarkMultiplierGauge_(Profiler_.Gauge("/memory_pressure_detector/free_memory_watermark_multiplier"))
+        , FreeMemoryWatermarkAddedMemoryGauge_(Profiler_.Gauge("/memory_pressure_detector/free_memory_watermark_added_memory"))
+        , FreeMemoryWatermarkIsIncreasedGauge_(Profiler_.Gauge("/memory_pressure_detector/free_memory_watermark_is_increased"))
+        , FreeUserJobMemoryWatermarkGauge_(Profiler_.Gauge("/free_user_job_memory_watermark"))
     {
         YT_VERIFY(StaticConfig_);
         YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
@@ -219,9 +220,13 @@ public:
             doProfile(writer, EResourcesState::Releasing);
         });
 
-        ResourceLimitsBuffer_->Update([this] (ISensorWriter* writer) {
-            ProfileResources(writer, GetResourceLimits());
+        auto resourceLimits = GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
+
+        ResourceLimitsBuffer_->Update([&] (ISensorWriter* writer) {
+            ProfileResources(writer, resourceLimits);
         });
+
+        FreeUserJobMemoryWatermarkGauge_.Update(resourceLimits.UserMemory * (1.0 - GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier));
 
         if (Bootstrap_->IsExecNode()) {
             MajorPageFaultsGauge_.Update(LastMajorPageFaultCount_);
@@ -249,7 +254,7 @@ public:
         resources.VCpu = static_cast<double>(NVectorHdrf::TCpuResource(resources.Cpu * GetCpuToVCpuFactor()));
     }
 
-    TJobResources GetResourceLimits() const final
+    TJobResources GetResourceLimits(bool considerUserJobFreeMemoryWatermark) const final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -299,17 +304,21 @@ public:
 
         // NB: Some categories can have no explicit limit.
         // Therefore we need bound memory limit by actually available memory.
-        auto getUsedMemory = [&] (IMemoryUsageTracker* memoryUsageTracker) {
+        auto getTotalUnusedFreeMemory = [&] (IMemoryUsageTracker* memoryUsageTracker) {
             return std::max<i64>(
                 0,
                 memoryUsageTracker->GetUsed() + NodeMemoryUsageTracker_->GetTotalFree() - GetFreeMemoryWatermark());
         };
         result.UserMemory = std::min(
             UserMemoryUsageTracker_->GetLimit(),
-            getUsedMemory(UserMemoryUsageTracker_.Get()));
+            getTotalUnusedFreeMemory(UserMemoryUsageTracker_.Get()));
         result.SystemMemory = std::min(
             SystemMemoryUsageTracker_->GetLimit(),
-            getUsedMemory(SystemMemoryUsageTracker_.Get()));
+            getTotalUnusedFreeMemory(SystemMemoryUsageTracker_.Get()));
+
+        if (considerUserJobFreeMemoryWatermark) {
+            result.UserMemory *= (1.0 - GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier);
+        }
 
         const auto& nodeResourceManager = Bootstrap_->GetNodeResourceManager();
         result.Cpu = nodeResourceManager->GetJobsCpuLimit();
@@ -366,10 +375,10 @@ public:
         return MakeNonnegative(CalculateFreeResources(resourceLimits, resourceUsage));
     }
 
-    TJobResources GetFreeResources() const
+    TJobResources GetFreeResources(bool considerUserJobFreeMemoryWatermark) const
     {
         return CalculateFreeResources(
-            GetResourceLimits(),
+            GetResourceLimits(considerUserJobFreeMemoryWatermark),
             GetResourceUsage({
                 EResourcesState::Acquired,
                 EResourcesState::Releasing
@@ -619,7 +628,7 @@ public:
             releasingResources);
     }
 
-    bool TryReserveResources(TNonNullPtr<TResourceHolder> resourceHolder, const TJobResources& resources)
+    bool TryReserveResources(TNonNullPtr<TResourceHolder> resourceHolder, const TJobResources& resources, bool considerUserJobFreeMemoryWatermark)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -629,7 +638,7 @@ public:
 
         const auto& Logger = resourceHolder->GetLogger();
 
-        auto resourceLimits = GetResourceLimits();
+        auto resourceLimits = GetResourceLimits(considerUserJobFreeMemoryWatermark);
 
         {
             auto guard = WriterGuard(ResourcesLock_);
@@ -641,11 +650,16 @@ public:
             {
                 YT_LOG_DEBUG(
                     error,
-                    "Not enough resources (NeededResources: %v, ResourceUsage: %v, AcquiredResources: %v, ReleasingResources: %v)",
+                    "Not enough resources (NeededResources: %v, AdjustedResourceLimits: %v, "
+                    "AcquiredResources: %v, ReleasingResources: %v, "
+                    "ConsiderUserJobFreeMemoryWatermark: %v, "
+                    "FreeUserJobMemoryWatermarkMultiplier: %v)",
                     resources,
-                    FormatResourceUsage(acquiredUsage + releasingResources, resourceLimits),
+                    resourceLimits,
                     acquiredUsage,
-                    releasingResources);
+                    releasingResources,
+                    considerUserJobFreeMemoryWatermark,
+                    GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier);
 
                 return false;
             }
@@ -664,11 +678,14 @@ public:
         }
 
         YT_LOG_DEBUG(
-            "Resources reserved (Resources: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v)",
+            "Resources reserved (Resources: %v, PendingResources: %v, AcquiredResources: %v, ReleasingResources: %v, "
+            "ConsiderUserJobFreeMemoryWatermark: %v, FreeUserJobMemoryWatermarkMultiplier: %v)",
             resources,
             pendingResources,
             acquiredResources,
-            releasingResources);
+            releasingResources,
+            considerUserJobFreeMemoryWatermark,
+            GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier);
 
         return true;
     }
@@ -752,6 +769,8 @@ public:
 
         const auto& Logger = resourceHolder->GetLogger();
 
+        bool considerUserJobFreeMemoryWatermark = GetDynamicConfig()->ConsiderUserJobFreeMemoryWatermarkInResourceAcquisition;
+
         TResourceHolder::TAcquiredResources acquiredResources(this);
 
         auto onResourcesAcquisitionFailed = [resourceHolder, neededResources, this] () {
@@ -760,7 +779,7 @@ public:
                 neededResources);
         };
 
-        if (!TryReserveResources(resourceHolder, neededResources)) {
+        if (!TryReserveResources(resourceHolder, neededResources, considerUserJobFreeMemoryWatermark)) {
             return std::tuple(
                 false,
                 std::move(acquiredResources),
@@ -1048,7 +1067,11 @@ public:
 
         bool resourceUsageOverdraftOccurred = false;
 
-        auto error = CheckResourceOverdraft(acquiredResources + releasingResources, GetResourceLimits());
+        auto resourceLimits = GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
+
+        auto error = CheckResourceOverdraft(
+            acquiredResources + releasingResources,
+            resourceLimits);
         if (!error.IsOK()) {
             YT_LOG_INFO(error, "Resource overdraft detected");
             resourceUsageOverdraftOccurred = true;
@@ -1074,8 +1097,6 @@ public:
         } else if (userMemory < 0) {
             UserMemoryUsageTracker_->Release(-userMemory);
         }
-
-        auto resourceLimits = GetResourceLimits();
 
         if (!Dominates(resourceDelta, ZeroJobResources())) {
             NotifyResourcesReleased();
@@ -1189,6 +1210,8 @@ private:
     TGauge FreeMemoryWatermarkAddedMemoryGauge_;
     TGauge FreeMemoryWatermarkIsIncreasedGauge_;
 
+    TGauge FreeUserJobMemoryWatermarkGauge_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ResourcesLock_);
 
     TEnumIndexedArray<EResourcesState, TJobResources> ResourceUsages_;
@@ -1218,6 +1241,10 @@ private:
         i64 LastMajorPageFaultCount;
 
         double FreeMemoryWatermarkMultiplier;
+
+        double FreeUserJobMemoryWatermarkMultiplier;
+
+        i64 FreeUserJobMemoryWaterMark;
 
         double CpuToVCpuFactor;
 
@@ -1256,14 +1283,19 @@ private:
             ports = GetFreePorts();
         }
 
+        auto resourceLimits = GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
+        auto freeUserJobMemoryWatermarkMultiplier = GetDynamicConfig()->FreeUserJobMemoryWatermarkMultiplier;
+
         return {
-            .ResourceLimits = GetResourceLimits(),
+            .ResourceLimits = resourceLimits,
             .PendingResourceUsage = pendingResources,
             .AcquiredResourceUsage = acquiredResources,
             .ReleasingResourceUsage = releasingResources,
             .PendingResourceHolderCount = pendingResourceHolderCount,
             .LastMajorPageFaultCount = LastMajorPageFaultCount_,
             .FreeMemoryWatermarkMultiplier = FreeMemoryWatermarkMultiplier_,
+            .FreeUserJobMemoryWatermarkMultiplier = freeUserJobMemoryWatermarkMultiplier,
+            .FreeUserJobMemoryWaterMark = static_cast<i64>(resourceLimits.UserMemory * freeUserJobMemoryWatermarkMultiplier),
             .CpuToVCpuFactor = GetCpuToVCpuFactor(),
             .FreePorts = std::move(ports),
         };
@@ -1327,6 +1359,8 @@ private:
             .Item("pending_resource_holder_count").Value(jobResourceManagerInfo.PendingResourceHolderCount)
             .Item("last_major_page_fault_count").Value(jobResourceManagerInfo.LastMajorPageFaultCount)
             .Item("free_memory_multiplier").Value(jobResourceManagerInfo.FreeMemoryWatermarkMultiplier)
+            .Item("free_user_job_memory_watermark_multiplier").Value(jobResourceManagerInfo.FreeUserJobMemoryWatermarkMultiplier)
+            .Item("free_user_job_memory_watermark").Value(jobResourceManagerInfo.FreeUserJobMemoryWaterMark)
             .Item("cpu_to_vcpu_factor").Value(jobResourceManagerInfo.CpuToVCpuFactor)
             .Item("free_ports").Value(jobResourceManagerInfo.FreePorts)
             .Item("resource_holders").DoMapFor(
@@ -1550,7 +1584,7 @@ public:
 
     i64 GetFree() const final
     {
-        return GetMemory(ResourceHolder_->GetFreeResources());
+        return GetMemory(ResourceHolder_->GetFreeResources(/*considerUserJobFreeMemoryWatermark*/ false));
     }
 
     void SetLimit(i64 /*size*/) final
@@ -1560,7 +1594,7 @@ public:
 
     i64 GetLimit() const final
     {
-        auto resource = ResourceHolder_->GetResourceLimits();
+        auto resource = ResourceHolder_->GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
         return GetMemory(resource) ? GetMemory(resource) : std::numeric_limits<i64>::max();
     }
 
@@ -1999,14 +2033,14 @@ IMemoryUsageTrackerPtr TResourceHolder::GetAdditionalMemoryUsageTracker(EMemoryC
     return New<TJobMemoryUsageTracker>(MakeStrong(this), memoryCategory);
 }
 
-TJobResources TResourceHolder::GetResourceLimits() const noexcept
+TJobResources TResourceHolder::GetResourceLimits(bool considerUserJobFreeMemoryWatermark) const noexcept
 {
-    return ResourceManagerImpl_->GetResourceLimits();
+    return ResourceManagerImpl_->GetResourceLimits(considerUserJobFreeMemoryWatermark);
 }
 
-TJobResources TResourceHolder::GetFreeResources() const noexcept
+TJobResources TResourceHolder::GetFreeResources(bool considerUserJobFreeMemoryWatermark) const noexcept
 {
-    return ResourceManagerImpl_->GetFreeResources();
+    return ResourceManagerImpl_->GetFreeResources(considerUserJobFreeMemoryWatermark);
 }
 
 TJobResources TResourceHolder::GetInitialResourceDemand() const noexcept

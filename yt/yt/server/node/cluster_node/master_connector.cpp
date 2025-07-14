@@ -190,7 +190,8 @@ public:
         WaitFor(BIND(
             [this, &heartbeat, this_ = MakeStrong(this)] {
                 const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
-                *heartbeat->mutable_resource_limits() = ToNodeResources(jobResourceManager->GetResourceLimits());
+                // NB(pogorelov): Master should not care about user job free memory watermark.
+                *heartbeat->mutable_resource_limits() = ToNodeResources(jobResourceManager->GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false));
                 *heartbeat->mutable_resource_usage() = ToNodeResources(jobResourceManager->GetResourceUsage({
                     NJobAgent::EResourcesState::Pending,
                     NJobAgent::EResourcesState::Acquired,

@@ -412,7 +412,7 @@ private:
 
         request->set_node_id(ToProto(Bootstrap_->GetNodeId()));
         ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
-        *request->mutable_resource_limits() = ToNodeResources(JobResourceManager_->GetResourceLimits());
+        *request->mutable_resource_limits() = ToNodeResources(JobResourceManager_->GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false));
         *request->mutable_resource_usage() = ToNodeResources(JobResourceManager_->GetResourceUsage({
             NJobAgent::EResourcesState::Pending,
             NJobAgent::EResourcesState::Acquired,
