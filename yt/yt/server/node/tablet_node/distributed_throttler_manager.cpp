@@ -33,9 +33,9 @@ class TDistributedThrottlerManager
 public:
     TDistributedThrottlerManager(
         IBootstrap* bootstrap,
-        TCellId cellId)
+        NDiscoveryClient::TMemberId memberId)
         : Bootstrap_(bootstrap)
-        , MemberId_(ToString(cellId))
+        , MemberId_(std::move(memberId))
     { }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(
@@ -56,31 +56,49 @@ public:
 
         TKey key(tablePath, mode);
 
-        auto [it, inserted] = Factories_.emplace(key, nullptr);
-        auto& factory = it->second;
-        if (inserted) {
-            try {
-                auto factoryName = MakeFactoryName(tablePath, mode);
+        IDistributedThrottlerFactoryPtr factory = nullptr;
 
-                YT_LOG_DEBUG("Creating distributed throttler factory "
-                    "(TablePath: %v, ThrottlerMode: %v, RpcTimeout: %v, GroupId: %v)",
-                    tablePath,
-                    mode,
-                    rpcTimeout,
-                    factoryName);
+        // Fast path.
+        {
+            auto guard = ReaderGuard(SpinLock_);
 
-                factory = DoCreateFactory(factoryName, cellTag, mode, profiler);
-            } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Failed to create distributed throttler factory "
-                    "(TablePath: %v, ThrottlerMode: %v, RpcTimeout: %v)",
-                    tablePath,
-                    mode,
-                    rpcTimeout);
-                Factories_.erase(it);
-                return admitUnlimitedThrottler
-                    ? GetUnlimitedThrottler()
-                    : nullptr;
+            if (auto it = Factories_.find(key); it != Factories_.end()) {
+                factory = it->second;
             }
+        }
+
+        // Slow path.
+        if (factory == nullptr) {
+            auto guard = WriterGuard(SpinLock_);
+
+            auto [it, inserted] = Factories_.emplace(key, nullptr);
+            if (inserted) {
+                try {
+                    auto factoryName = MakeFactoryName(tablePath, mode);
+
+                    YT_LOG_DEBUG("Creating distributed throttler factory "
+                        "(TablePath: %v, ThrottlerMode: %v, RpcTimeout: %v, GroupId: %v)",
+                        tablePath,
+                        mode,
+                        rpcTimeout,
+                        factoryName);
+
+                    it->second = DoCreateFactory(factoryName, cellTag, mode, profiler);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(ex, "Failed to create distributed throttler factory "
+                        "(TablePath: %v, ThrottlerMode: %v, RpcTimeout: %v)",
+                        tablePath,
+                        mode,
+                        rpcTimeout);
+
+                    Factories_.erase(it);
+                    return admitUnlimitedThrottler
+                        ? GetUnlimitedThrottler()
+                        : nullptr;
+                }
+            }
+
+            factory = it->second;
         }
 
         return factory->GetOrCreateThrottler(throttlerId, config, rpcTimeout);
@@ -92,6 +110,7 @@ private:
     IBootstrap* const Bootstrap_;
     const NDiscoveryClient::TMemberId MemberId_;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TKey, NDistributedThrottler::IDistributedThrottlerFactoryPtr> Factories_;
 
     static TString MakeFactoryName(
@@ -136,9 +155,9 @@ DEFINE_REFCOUNTED_TYPE(TDistributedThrottlerManager)
 
 IDistributedThrottlerManagerPtr CreateDistributedThrottlerManager(
     IBootstrap* bootstrap,
-    TCellId cellId)
+    NDiscoveryClient::TMemberId memberId)
 {
-    return New<TDistributedThrottlerManager>(bootstrap, cellId);
+    return New<TDistributedThrottlerManager>(bootstrap, std::move(memberId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

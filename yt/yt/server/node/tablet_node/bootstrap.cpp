@@ -44,6 +44,8 @@
 #include <yt/yt/server/lib/cellar_agent/cellar.h>
 #include <yt/yt/server/lib/cellar_agent/cellar_manager.h>
 
+#include <yt/yt/server/node/tablet_node/distributed_throttler_manager.h>
+#include <yt/yt/server/node/tablet_node/medium_throttler_manager.h>
 #include <yt/yt/ytlib/chaos_client/config.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_updates_batcher.h>
 
@@ -63,6 +65,8 @@
 #include <yt/yt/core/concurrency/poller.h>
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
+
+#include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/overload_controller.h>
@@ -306,6 +310,14 @@ public:
                 Throttlers_[kind] = throttler;
             }
         }
+
+        auto selfAddress = NNet::BuildServiceAddress(GetLocalHostName(), GetConfig()->RpcPort);
+        DistributedThrottlerManager_ = CreateDistributedThrottlerManager(
+            this,
+            NDiscoveryClient::TMemberId(selfAddress));
+        MediumThrottlerManagerFactory_ = CreateMediumThrottlerManagerFactory(
+            GetBundleDynamicConfigManager(),
+            DistributedThrottlerManager_);
 
         ColumnEvaluatorCache_ = NQueryClient::CreateColumnEvaluatorCache(GetConfig()->TabletNode->ColumnEvaluatorCache);
 
@@ -559,6 +571,16 @@ public:
             : Throttlers_[it->second];
     }
 
+    const IDistributedThrottlerManagerPtr& GetDistributedThrottlerManager() const override
+    {
+        return DistributedThrottlerManager_;
+    }
+
+    IMediumThrottlerManagerFactoryPtr& GetMediumThrottlerManagerFactory() override
+    {
+        return MediumThrottlerManagerFactory_;
+    }
+
     const IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const override
     {
         return ColumnEvaluatorCache_;
@@ -629,6 +651,8 @@ private:
 
     TEnumIndexedArray<ETabletNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
     TEnumIndexedArray<ETabletNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
+    IDistributedThrottlerManagerPtr DistributedThrottlerManager_;
+    IMediumThrottlerManagerFactoryPtr MediumThrottlerManagerFactory_;
 
     NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     NQueryClient::IRowComparerProviderPtr RowComparerProvider_;
