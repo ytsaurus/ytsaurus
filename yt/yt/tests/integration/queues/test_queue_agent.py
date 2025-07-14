@@ -5857,14 +5857,26 @@ class TestControllerInfo(TestQueueAgentBase):
 class TestMigration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
+    QUEUE_AGENT_STATE_ROOT = "//sys/queue_agents"
+
+    @classmethod
+    def setup_class(cls):
+        super(cls, TestMigration).setup_class()
+
+        sync_create_cells(1)
+
+    # XXX(apachee): Maybe just use //tmp/queue_agents as root for automatic cleanup?
+    def teardown_method(self, method):
+        remove(self.QUEUE_AGENT_STATE_ROOT, force=True)
+
     @authors("nadya73")
     def test_run_migration(self):
-        sync_create_cells(1)
         client = self.Env.create_native_client()
         migration = prepare_migration(client)
         run_migration(
-            migration, client,
-            tables_path="//sys/queue_agent",
+            migration,
+            client,
+            tables_path=self.QUEUE_AGENT_STATE_ROOT,
             target_version=get_latest_version(),
             shard_count=1,
             force=False,
