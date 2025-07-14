@@ -424,6 +424,11 @@ void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
         "request_new_agent_delay",
         &TThis::RequestNewAgentDelay)
         .Default(TDuration::Minutes(10));
+
+    registrar.Parameter(
+        "consider_user_job_free_memory_watermark",
+        &TThis::ConsiderUserJobFreeMemoryWatermark)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

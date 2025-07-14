@@ -134,13 +134,17 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
 {
     YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
+    bool considerUserJobFreeMemoryWatermark = DynamicConfig_.Acquire()->ConsiderUserJobFreeMemoryWatermark;
+
     auto scheduleOutOfBandHeartbeat = [&] {
-        YT_LOG_DEBUG("Send out of band heartbeat to scheduler");
+        YT_LOG_DEBUG(
+            "Send out of band heartbeat to scheduler (ConsiderUserJobFreeMemoryWatermark: %v)",
+            considerUserJobFreeMemoryWatermark);
         HeartbeatExecutor_->ScheduleOutOfBand();
     };
 
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
-    auto resourceLimits = jobResourceManager->GetResourceLimits();
+    auto resourceLimits = jobResourceManager->GetResourceLimits(considerUserJobFreeMemoryWatermark);
     auto resourceUsage = DynamicConfig_.Acquire()->IncludeReleasingResourcesInSchedulerHeartbeat
         ? jobResourceManager->GetResourceUsage({
             NJobAgent::EResourcesState::Pending,
@@ -166,9 +170,10 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
     if (Dominates(MinSpareResources_, freeResources)) {
         NotEnoughResourcesHeartbeatSkippedCounter_.Increment();
         YT_LOG_DEBUG(
-            "Skipping out of band heartbeat because of not enough resources (FreeResources: %v, MinSpareResources: %v)",
+            "Skipping out of band heartbeat because of not enough resources (FreeResources: %v, MinSpareResources: %v, ConsiderUserJobFreeMemoryWatermark: %v)",
             freeResources,
-            MinSpareResources_);
+            MinSpareResources_,
+            considerUserJobFreeMemoryWatermark);
 
         return;
     }
@@ -406,8 +411,10 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
     context->RequestNewAgentDelay = DynamicConfig_.Acquire()->RequestNewAgentDelay;
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
 
+    bool considerUserJobFreeMemoryWatermark = DynamicConfig_.Acquire()->ConsiderUserJobFreeMemoryWatermark;
+
     {
-        auto resourceLimits = ToNodeResources(jobResourceManager->GetResourceLimits());
+        auto resourceLimits = ToNodeResources(jobResourceManager->GetResourceLimits(considerUserJobFreeMemoryWatermark));
         auto diskResources = jobResourceManager->GetDiskResources();
 
         bool includeReleasingResources = DynamicConfig_.Acquire()->IncludeReleasingResourcesInSchedulerHeartbeat;
@@ -423,11 +430,12 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
             }));
 
         YT_LOG_DEBUG(
-            "Reporting resource usage to scheduler (IncludeReleasingResources: %v, Usage: %v, Limits: %v, DiskResources: %v)",
+            "Reporting resource usage to scheduler (IncludeReleasingResources: %v, Usage: %v, Limits: %v, DiskResources: %v, ConsiderUserJobFreeMemoryWatermark: %v)",
             includeReleasingResources,
             resourceUsage,
             resourceLimits,
-            diskResources);
+            diskResources,
+            considerUserJobFreeMemoryWatermark);
 
         *request->mutable_resource_limits() = resourceLimits;
         *request->mutable_resource_usage() = resourceUsage;

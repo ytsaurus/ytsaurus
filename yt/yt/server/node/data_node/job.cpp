@@ -3068,7 +3068,7 @@ TMasterJobBasePtr CreateJob(
                 ->ReadMemoryLimit;
             auto mergeSlots = bootstrap
                 ->GetJobResourceManager()
-                ->GetResourceLimits()
+                ->GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false)
                 .MergeSlots;
             auto readMemoryLimit = totalMergeJobMemoryLimit / mergeSlots;
 
