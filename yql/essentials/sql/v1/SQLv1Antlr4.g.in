@@ -374,9 +374,9 @@ select_unparenthesized_stmt_intersect: select_kind_partial (intersect_op select_
 
 select_kind_parenthesis: select_kind_partial | LPAREN select_kind_partial RPAREN;
 
-union_op: UNION (DISTINCT | ALL)?;
+union_op: (UNION | EXCEPT) (DISTINCT | ALL)?;
 
-intersect_op: (INTERSECT | EXCEPT) (DISTINCT | ALL)?;
+intersect_op: INTERSECT (DISTINCT | ALL)?;
 
 select_kind_partial: select_kind
   (LIMIT expr ((OFFSET | COMMA) expr)?)?
@@ -941,8 +941,8 @@ lambda_or_parameter:
 ;
 
 create_transfer_stmt: CREATE TRANSFER object_ref
-    FROM object_ref TO object_ref (USING lambda_or_parameter)?
-    WITH LPAREN transfer_settings RPAREN
+    FROM object_ref TO object_ref USING lambda_or_parameter
+    (WITH LPAREN transfer_settings RPAREN)?
 ;
 
 transfer_settings: transfer_settings_entry (COMMA transfer_settings_entry)*;

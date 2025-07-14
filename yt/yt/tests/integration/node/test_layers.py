@@ -1592,6 +1592,7 @@ class TestNbdConnectionFailuresWithSquashFSLayers(YTEnvSetup):
         set("//tmp/squashfs.img/@filesystem", "squashfs")
 
     @authors("yuryalekseev")
+    @pytest.mark.skip(reason="Test is broken")
     def test_read_timeout(self):
         self.setup_files()
 

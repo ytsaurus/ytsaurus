@@ -206,6 +206,12 @@ public:
     //! Sets last seen time of the node to now.
     virtual void UpdateLastSeenTime(TNode* node) = 0;
 
+    //! Sets last LastDataHeartbeatTime time of the node to now.
+    virtual void UpdateLastDataHeartbeatTime(TNode* node) = 0;
+
+    //! Sets last LastJobHeartbeatTime time of the node to now.
+    virtual void UpdateLastJobHeartbeatTime(TNode* node) = 0;
+
     //! Recalculates maintenance status.
     virtual void OnNodeMaintenanceUpdated(TNode* node, EMaintenanceType type) = 0;
 

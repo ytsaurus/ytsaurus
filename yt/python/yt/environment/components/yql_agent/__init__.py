@@ -36,6 +36,8 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 or "yql_plugin_shared_library" not in config:
             raise YtError("Artifacts path is not specified in yql agent config")
 
+        self.max_supported_yql_version = config["max_supported_yql_version"] if "max_supported_yql_version" in config else None
+
         super(YqlAgent, self).prepare(env, config)
 
         if config.get("native_client_supported", False):
@@ -141,6 +143,9 @@ class YqlAgent(YTServerComponentBase, YTComponent):
         modify_yql_agent_config = self.config.get('modify_yql_agent_config')
         if modify_yql_agent_config is not None:
             modify_yql_agent_config(config)
+
+        if self.max_supported_yql_version:
+            config["yql_agent"]["max_supported_yql_version"] = self.max_supported_yql_version
 
         return config
 

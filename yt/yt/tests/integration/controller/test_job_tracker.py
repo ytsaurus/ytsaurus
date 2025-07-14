@@ -43,6 +43,7 @@ class TestJobTracker(YTEnvSetup):
         "controller_agent": {
             "job_tracker": {
                 "node_disconnection_timeout": 500,
+                "revival_node_disconnection_timeout": 500,
                 "job_confirmation_timeout": 500,
             },
             "snapshot_period": 3000,
@@ -256,6 +257,7 @@ class TestJobTracker(YTEnvSetup):
         assert not job_orchid["stored"]
 
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 30000)
 
         update_nodes_dynamic_config({
             "exec_node": {
@@ -381,6 +383,14 @@ class TestJobTracker(YTEnvSetup):
             )
         )
 
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "controller_agent_connector": {
+                    "test_heartbeat_delay": 0,
+                },
+            },
+        })
+
         release_breakpoint()
 
         op.track()
@@ -449,6 +459,7 @@ class TestJobTracker(YTEnvSetup):
     @authors("pogorelov")
     def test_abort_disappeared_from_node_job(self):
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 100000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 100000)
         update_controller_agent_config("job_tracker/duration_before_job_considered_disappeared_from_node", 100)
 
         update_scheduler_config("nodes_attributes_update_period", 1000000)
@@ -506,6 +517,7 @@ class TestJobTrackerRaces(YTEnvSetup):
         "controller_agent": {
             "job_tracker": {
                 "node_disconnection_timeout": 500,
+                "revival_node_disconnection_timeout": 500,
             },
             "snapshot_period": 3000,
         },

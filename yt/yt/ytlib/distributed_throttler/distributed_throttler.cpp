@@ -1115,7 +1115,7 @@ public:
             }
 
             auto wasEmpty = Throttlers_->Throttlers.empty();
-            Throttlers_->Throttlers[throttlerId] = std::move(wrappedThrottler);
+            Throttlers_->Throttlers[throttlerId] = MakeWeak(wrappedThrottler);
 
             if (wasEmpty) {
                 Start();

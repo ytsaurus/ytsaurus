@@ -123,6 +123,10 @@ struct TJobResourceManagerDynamicConfig
 
     NJobAgent::TMemoryPressureDetectorConfigPtr MemoryPressureDetector;
 
+    double FreeUserJobMemoryWatermarkMultiplier;
+
+    bool ConsiderUserJobFreeMemoryWatermarkInResourceAcquisition;
+
     REGISTER_YSON_STRUCT(TJobResourceManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);

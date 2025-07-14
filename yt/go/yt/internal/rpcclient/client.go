@@ -17,6 +17,7 @@ import (
 	"go.ytsaurus.tech/library/go/core/xerrors"
 	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/proto/client/api/rpc_proxy"
+	"go.ytsaurus.tech/yt/go/proto/core/misc"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
 	"go.ytsaurus.tech/yt/go/yt/internal"
@@ -216,16 +217,38 @@ func (c *client) invoke(
 	return err
 }
 
+type requestWithTransactionalOptions interface {
+	GetTransactionalOptions() *rpc_proxy.TTransactionalOptions
+}
+
 func (c *client) invokeInTx(
 	ctx context.Context,
 	call *Call,
 	rsp proto.Message,
 	opts ...bus.SendOption,
 ) error {
+	req, ok := call.Req.(requestWithTransactionalOptions)
+	if !ok {
+		panic("invokeInTx: req must implement TransactionalRequest")
+	}
+
+	var txOpts *yt.TransactionOptions
+	if req.GetTransactionalOptions() != nil {
+		protoTxOpts := req.GetTransactionalOptions()
+		txOpts = &yt.TransactionOptions{}
+		if protoTxOpts.GetTransactionId() != nil {
+			txOpts.TransactionID = yt.TxID(misc.NewGUIDFromProto(protoTxOpts.GetTransactionId()))
+		}
+		txOpts.Ping = protoTxOpts.GetPing()
+		txOpts.PingAncestors = protoTxOpts.GetPingAncestors()
+		txOpts.SuppressTransactionCoordinatorSync = protoTxOpts.GetSuppressTransactionCoordinatorSync()
+		txOpts.SuppressUpstreamSync = protoTxOpts.GetSuppressUpstreamSync()
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	tx, err := c.BeginTx(ctx, nil)
+	tx, err := c.BeginTx(ctx, &yt.StartTxOptions{TransactionOptions: txOpts})
 	if err != nil {
 		return err
 	}

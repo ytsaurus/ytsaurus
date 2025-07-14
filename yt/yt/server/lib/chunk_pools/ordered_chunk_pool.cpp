@@ -97,14 +97,14 @@ public:
             YT_VERIFY(!JobSizeConstraints_->GetSamplingRate());
         }
 
-        YT_LOG_DEBUG(
+        YT_LOG_INFO(
             "Ordered chunk pool created (DataWeightPerJob: %v, SamplingDataWeightPerJob: %v, MaxDataWeightPerJob: %v, "
             "CompressedDataSizePerJob: %v, MaxCompressedDataSizePerJob: %v, "
             "MaxDataSlicesPerJob: %v, InputSliceDataWeight: %v, InputSliceRowCount: %v, "
             "BatchRowCount: %v, SamplingRate: %v, SingleJob: %v, HasJobSizeAdjuster: %v)",
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetSamplingRate() ? std::optional<i64>(JobSizeConstraints_->GetSamplingDataWeightPerJob()) : std::nullopt,
-            JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
+            JobSizeConstraints_->GetMaxDataWeightPerJob(),
             JobSizeConstraints_->GetCompressedDataSizePerJob(),
             JobSizeConstraints_->GetMaxCompressedDataSizePerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),

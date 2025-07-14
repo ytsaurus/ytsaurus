@@ -41,17 +41,18 @@ class TestShuffleService(YTEnvSetup):
 
     DELTA_RPC_PROXY_CONFIG = {
         "enable_shuffle_service": True,
-        "signature_generation": {
-            "generator": {},
-            "cypress_key_writer": {
-                "owner_id": "test"
+        "signature_components": {
+            "generation": {
+                "generator": {},
+                "cypress_key_writer": {
+                    "owner_id": "test"
+                },
+                "key_rotator": {},
             },
-            "key_rotator": {},
+            "validation": {
+                "cypress_key_reader": {},
+            },
         },
-        "signature_validation": {
-            "validator": {},
-            "cypress_key_reader": {},
-        }
     }
 
     STORE_LOCATION_COUNT = 2

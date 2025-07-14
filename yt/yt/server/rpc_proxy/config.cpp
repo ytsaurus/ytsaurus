@@ -124,10 +124,8 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
         .DefaultNew();
 
-    registrar.Parameter("signature_generation", &TThis::SignatureGeneration)
-        .Default();
-    registrar.Parameter("signature_validation", &TThis::SignatureValidation)
-        .Default();
+    registrar.Parameter("signature_components", &TThis::SignatureComponents)
+        .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
         config->DynamicConfigManager->IgnoreConfigAbsence = true;

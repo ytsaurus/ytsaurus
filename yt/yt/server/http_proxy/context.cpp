@@ -79,7 +79,7 @@ TContext::TContext(
     , Response_(std::move(response))
     , Logger(HttpProxyLogger().WithTag("RequestId: %v", Request_->GetRequestId()))
 {
-    DriverRequest_.Id = RandomNumber<ui64>();
+    DriverRequest_.Id = Request_->GetRequestId();
 }
 
 bool TContext::TryPrepare()
@@ -552,12 +552,10 @@ void TContext::SetContentDispositionAndMimeType()
 
 void TContext::LogRequest()
 {
-    DriverRequest_.Id = Request_->GetRequestId();
     Parameters_ = ConvertToYsonString(
         HideSecretParameters(Descriptor_->CommandName, DriverRequest_.Parameters),
         EYsonFormat::Text).ToString();
-    YT_LOG_INFO("Gathered request parameters (RequestId: %v, Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v)",
-        Request_->GetRequestId(),
+    YT_LOG_INFO("Gathered request parameters (Command: %v, User: %v, Parameters: %v, InputFormat: %v, InputCompression: %v, OutputFormat: %v, OutputCompression: %v)",
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
         Parameters_,
@@ -586,8 +584,7 @@ void TContext::LogStructuredRequest()
         }
     });
 
-    YT_LOG_DEBUG("Request finished (RequestId: %v, Command: %v, User: %v, WallTime: %v, CpuTime: %v, InBytes: %v, OutBytes: %v)",
-        Request_->GetRequestId(),
+    YT_LOG_DEBUG("Request finished (Command: %v, User: %v, WallTime: %v, CpuTime: %v, InBytes: %v, OutBytes: %v)",
         Descriptor_->CommandName,
         DriverRequest_.AuthenticatedUser,
         WallTime_,

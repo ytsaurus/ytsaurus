@@ -192,7 +192,6 @@ std::shared_ptr<TNodeDirectoryBuilder> TNodeDirectoryBuilderFactory::GetNodeDire
         auto* protoNodeDirectory = JobSpecExt_->mutable_input_node_directory();
         if (!IsLocal(clusterName)) {
             auto* remoteClusterProto = &((*JobSpecExt_->mutable_remote_input_clusters())[clusterName.Underlying()]);
-            remoteClusterProto->set_name(ToProto(clusterName.Underlying()));
             protoNodeDirectory = remoteClusterProto->mutable_node_directory();
         }
         Builders_.emplace(
@@ -1284,7 +1283,7 @@ void TInputManager::BuildUnavailableInputChunksYson(TFluentAny fluent) const
             .DoFor(Clusters_, [] (TFluentMap fluent, const auto& clusterNameAndCluster) {
                 const auto& [name, cluster] = clusterNameAndCluster;
                 fluent
-                    .Item(Format("%v", name))
+                    .Item(ToStringViaBuilder(name))
                     .Value(cluster->UnavailableInputChunkIds());
             })
         .EndMap();

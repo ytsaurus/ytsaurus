@@ -430,7 +430,7 @@ TFuture<T> TClient::Execute(
     return promise
         .ToFuture()
         .WithTimeout(options.Timeout, TFutureTimeoutOptions{
-            .Error = TError("Command failed")
+            .Error = TError(NYT::EErrorCode::Timeout, "Command timed out")
                 << TErrorAttribute("command", commandName),
         });
 }

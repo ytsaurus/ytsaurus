@@ -49,6 +49,8 @@ struct TBridgeYqlPluginOptions
 
     const char* Libraries = nullptr;
     size_t LibrariesLength = 0;
+
+    const char* MaxYqlLangVersion = nullptr;
 };
 
 // Opaque type representing a YQL plugin.

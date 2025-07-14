@@ -26,9 +26,9 @@ private:
     std::optional<bool> Flag_;
 };
 
-// NB(pogorelov): No don't need in to be an atomic,
-// cause it can be modified only once (and it modification will happen before it can be read).
-inline TOneShotFlag DeliveyFencedWriteEnabled;
+// NB(pogorelov): Doesn't need to be an atomic,
+// cause it can be modified only once (and its modification will happen before it can be read).
+inline TOneShotFlag DeliveryFencedWriteEnabled;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,4 +41,3 @@ DECLARE_REFCOUNTED_CLASS(TProxySignatureGenerator)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy
-

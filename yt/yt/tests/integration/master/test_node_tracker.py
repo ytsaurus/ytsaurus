@@ -663,3 +663,70 @@ class TestNodesThrottling(YTEnvSetup):
 
         # Wait for nodes to become online, nothing should crash.
         wait(lambda: self.get_node_count() == self.NUM_NODES)
+
+##################################################################
+
+
+class TestNodeTrackerPeriodicAlertChecks(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and alerts.
+    DELTA_MASTER_CONFIG = {
+        "logging": {
+            "abort_on_alert": False,
+        },
+    }
+
+    def _has_alert(self, message):
+        for alert in get("//sys/@master_alerts"):
+            if alert["message"] == message:
+                return True
+        return False
+
+    @authors("grphil")
+    def test_no_alerts_by_default(self):
+        set("//sys/@config/node_tracker/node_alerts_check_period", 100)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        sleep(5)
+
+        assert not self._has_alert("Node had no data heartbeat for too long")
+        assert not self._has_alert("Node had no job heartbeat for too long")
+        assert not self._has_alert("Node had no state change for too long")
+
+    @authors("grphil")
+    def test_outdated_data_heartbeat_alert(self):
+        set("//sys/@config/node_tracker/node_data_heartbeat_outdate_duration", 1)
+        set("//sys/@config/node_tracker/node_alerts_check_period", 100)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(lambda: self._has_alert("Node had no data heartbeat for too long"))
+
+    @authors("grphil")
+    def test_outdated_job_heartbeat_alert(self):
+        set("//sys/@config/node_tracker/node_job_heartbeat_outdate_duration", 1)
+        set("//sys/@config/node_tracker/node_alerts_check_period", 100)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(lambda: self._has_alert("Node had no job heartbeat for too long"))
+
+    @authors("grphil")
+    def test_incomplete_state_alert(self):
+        set("//sys/@config/node_tracker/max_node_incomplete_state_duration", 1)
+        set("//sys/@config/node_tracker/node_alerts_check_period", 100)
+
+        set("//sys/@config/node_tracker/max_nodes_being_disposed", 0)
+        set("//sys/@config/node_tracker/testing/disable_disposal_finishing", True)
+
+        with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
+            wait(lambda: self._has_alert("Node had no state change for too long"))
+
+            set("//sys/@config/node_tracker/testing/disable_disposal_finishing", False)
+            set("//sys/@config/node_tracker/max_nodes_being_disposed", 10)
+
+            for node in ls("//sys/cluster_nodes"):
+                wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")

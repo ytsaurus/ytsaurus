@@ -11,9 +11,22 @@ from ..errors import YtError
 import copy
 import datetime
 import sys
+import math
 
 import yt.type_info as ti
 import yt.logger as logger
+
+HAS_ZONEINFO = False
+
+try:
+    from zoneinfo import ZoneInfo
+    HAS_ZONEINFO = True
+except ImportError:
+    try:
+        from backports.zoneinfo import ZoneInfo
+        HAS_ZONEINFO = True
+    except ImportError:
+        ZoneInfo = None
 
 try:
     import dataclasses
@@ -250,15 +263,51 @@ def _get_dict_key_value_types(py_type):
     return arg_types
 
 
+def _tz_item_to_bytes(timestamp, zone, num_bytes, signed):
+    # type: (int, str, int, bool) -> bytes
+    if (timestamp.bit_length() + 7) // 8 > num_bytes:
+        raise YtError(
+            "The timestamp in tz datetime takes more than the expected number of bytes",
+            attributes={"timestamp": timestamp, "expected_num_bytes": num_bytes},
+        )
+    raw = bytearray(timestamp.to_bytes(num_bytes, byteorder="big", signed=signed))
+    if signed:
+        raw[0] ^= 0x80
+
+    return bytes(raw) + zone.encode("ascii")
+
+
+def _get_tz_item(tz_string, num_bytes, signed):
+    # type: (bytes, int, bool) -> tuple[int, str]
+    zone = tz_string[num_bytes:].decode("ascii")
+    restored = tz_string[:num_bytes]
+    if signed:
+        restored = bytes([tz_string[0] ^ 0x80]) + tz_string[1:num_bytes]
+    timestamp = int.from_bytes(restored, byteorder="big", signed=signed)
+    return timestamp, zone
+
+
 def _get_time_types_converters():
     converters = dict()
 
     UNIX_EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
     UNIX_EPOCH_DATE = UNIX_EPOCH.date()
     MICROSECONDS_IN_SECOND = 10 ** 6
+    DATE_BYTE_WIDTH = 2
+    DATE32_BYTE_WIDTH = 4
+    DATETIME_BYTE_WIDTH = 4
+    DATETIME64_BYTE_WIDTH = 8
+    TIMESTAMP_BYTE_WIDTH = 8
+
+    def check_tz_info_in_datetime(datetime_):
+        if datetime_.tzinfo is None or not hasattr(datetime_.tzinfo, "key"):
+            raise YtError(
+                "Timezone info is expected in datetime for yt tz type",
+                attributes={"datetime": datetime_},
+            )
 
     def timedelta_to_yt_interval(timedelta):
-        return int(timedelta.total_seconds()) * MICROSECONDS_IN_SECOND + timedelta.microseconds
+        return math.floor(timedelta.total_seconds()) * MICROSECONDS_IN_SECOND + timedelta.microseconds
 
     def yt_interval_to_timedelta(microseconds):
         return datetime.timedelta(microseconds=microseconds)
@@ -284,6 +333,55 @@ def _get_time_types_converters():
         yt_datetime_to_datetime,
     )
 
+    def datetime_to_yt_tz_date(datetime_, byte_width, signed):
+        check_tz_info_in_datetime(datetime_)
+        days_since_epoch = (datetime_ - UNIX_EPOCH).days
+        return _tz_item_to_bytes(days_since_epoch, datetime_.tzinfo.key, byte_width, signed)
+
+    def yt_tz_date_to_datetime(tz_string, byte_width, signed):
+        if not HAS_ZONEINFO:
+            raise YtError(
+                'Failed to import zoneinfo package'
+                'Try using a newer version of Python or install backports.zoneinfo package')
+        days, zone = _get_tz_item(tz_string, byte_width, signed)
+        datetime_ = UNIX_EPOCH + datetime.timedelta(days=days)
+        print(datetime_, file=sys.stderr)
+        return datetime_.astimezone(ZoneInfo(zone))
+
+    converters[(datetime.datetime, ti.TzDate)] = (
+        lambda datetime_: datetime_to_yt_tz_date(datetime_, DATE_BYTE_WIDTH, False),
+        lambda tz_string: yt_tz_date_to_datetime(tz_string, DATE_BYTE_WIDTH, False),
+    )
+
+    converters[(datetime.datetime, ti.TzDate32)] = (
+        lambda datetime_: datetime_to_yt_tz_date(datetime_, DATE32_BYTE_WIDTH, True),
+        lambda tz_string: yt_tz_date_to_datetime(tz_string, DATE32_BYTE_WIDTH, True),
+    )
+
+    def datetime_to_yt_tz_datetime(datetime_, byte_width, invert_bit):
+        check_tz_info_in_datetime(datetime_)
+        timestamp = datetime_to_yt_datetime(datetime_)
+        return _tz_item_to_bytes(timestamp, datetime_.tzinfo.key, byte_width, invert_bit)
+
+    def yt_tz_datetime_to_datetime(tz_string, byte_width, invert_bit):
+        if not HAS_ZONEINFO:
+            raise YtError(
+                'Failed to import zoneinfo package'
+                'Try using a newer version of Python or install backports.zoneinfo package')
+        timestamp, zone = _get_tz_item(tz_string, byte_width, invert_bit)
+        datetime_ = datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
+        return datetime_.astimezone(ZoneInfo(zone))
+
+    converters[(datetime.datetime, ti.TzDatetime)] = (
+        lambda datetime_: datetime_to_yt_tz_datetime(datetime_, DATETIME_BYTE_WIDTH, False),
+        lambda tz_string: yt_tz_datetime_to_datetime(tz_string, DATETIME_BYTE_WIDTH, False),
+    )
+
+    converters[(datetime.datetime, ti.TzDatetime64)] = (
+        lambda datetime_: datetime_to_yt_tz_datetime(datetime_, DATETIME64_BYTE_WIDTH, True),
+        lambda tz_string: yt_tz_datetime_to_datetime(tz_string, DATETIME64_BYTE_WIDTH, True),
+    )
+
     def datetime_to_yt_timestamp(datetime_):
         return timedelta_to_yt_interval(datetime_.astimezone(datetime.timezone.utc) - UNIX_EPOCH)
 
@@ -293,6 +391,29 @@ def _get_time_types_converters():
     converters[(datetime.datetime, ti.Timestamp)] = (
         datetime_to_yt_timestamp,
         yt_timestamp_to_datetime,
+    )
+
+    def datetime_to_yt_tz_timestamp(datetime_, signed):
+        check_tz_info_in_datetime(datetime_)
+        timestamp = datetime_to_yt_timestamp(datetime_)
+        return _tz_item_to_bytes(timestamp, datetime_.tzinfo.key, TIMESTAMP_BYTE_WIDTH, signed)
+
+    def yt_tz_timestamp_to_datetime(tz_string, signed):
+        if not HAS_ZONEINFO:
+            raise YtError(
+                'Failed to import zoneinfo package'
+                'Try using a newer version of Python or install backports.zoneinfo package')
+        timestamp, zone = _get_tz_item(tz_string, TIMESTAMP_BYTE_WIDTH, signed)
+        return yt_timestamp_to_datetime(timestamp).astimezone(ZoneInfo(zone))
+
+    converters[(datetime.datetime, ti.TzTimestamp)] = (
+        lambda datetime_: datetime_to_yt_tz_timestamp(datetime_, False),
+        lambda tz_string: yt_tz_timestamp_to_datetime(tz_string, False),
+    )
+
+    converters[(datetime.datetime, ti.TzTimestamp64)] = (
+        lambda datetime_: datetime_to_yt_tz_timestamp(datetime_, True),
+        lambda tz_string: yt_tz_timestamp_to_datetime(tz_string, True),
     )
 
     return converters
@@ -610,6 +731,13 @@ def _ti_type_to_wire_type(ti_type):
             ti.Datetime: "uint32",
             ti.Timestamp: "uint64",
             ti.Interval: "int64",
+
+            ti.TzDate: "string32",
+            ti.TzDatetime: "string32",
+            ti.TzTimestamp: "string32",
+            ti.TzDate32: "string32",
+            ti.TzDatetime64: "string32",
+            ti.TzTimestamp64: "string32",
 
             ti.String: "string32",
             ti.Utf8: "string32",

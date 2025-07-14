@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 from yt_commands import (
-    authors, clean_operations, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
+    authors, clean_operations, wait_breakpoint, release_breakpoint, with_breakpoint, create, wait_no_assert,
     remove, abort_job, ls,
     vanilla, map,
     update_controller_agent_config,
@@ -244,36 +244,33 @@ class TestJobStatisticFeatures(YTEnvSetup):
         op = map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null && sleep 2',
+            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null && python3 -c "import time; x = [i for i in range(10**7)]; time.sleep(2)"',
         )
 
         def check_statistic():
             features = ControllerFeatures(op.id)
-            check = True
             for component in ["user_job", "job_proxy"]:
-                component_check = features.task["map"]["job_statistics." + component + ".cpu.user.completed.sum"] > 0 and \
-                    features.task["map"]["job_statistics." + component + ".cpu.system.completed.sum"] > 0 and \
-                    features.task["map"]["job_statistics." + component + ".cpu.context_switches.completed.sum"] is not None and \
-                    features.task["map"]["job_statistics." + component + ".cpu.peak_thread_count.completed.max"] is not None and \
-                    features.task["map"]["job_statistics." + component + ".cpu.wait.completed.sum"] is not None and \
-                    features.task["map"]["job_statistics." + component + ".cpu.throttled.completed.sum"] is not None and \
-                    features.task["map"]["job_statistics." + component + ".block_io.bytes_read.completed.sum"] is not None and \
-                    features.task["map"]["job_statistics." + component + ".max_memory.completed.sum"] > 0 and \
-                    features.task["map"]["job_statistics." + component + ".cpu.user.completed.avg"] > 0 and \
-                    features.task["map"]["job_statistics." + component + ".cpu.system.completed.avg"] > 0 and \
-                    features.task["map"]["job_statistics." + component + ".cpu.context_switches.completed.avg"] is not None and \
-                    features.task["map"]["job_statistics." + component + ".cpu.peak_thread_count.completed.max"] is not None and \
-                    features.task["map"]["job_statistics." + component + ".cpu.wait.completed.avg"] is not None and \
-                    features.task["map"]["job_statistics." + component + ".cpu.throttled.completed.avg"] is not None and \
-                    features.task["map"]["job_statistics." + component + ".block_io.bytes_read.completed.avg"] is not None and \
-                    features.task["map"]["job_statistics." + component + ".max_memory.completed.avg"] > 0
-                check = check and component_check
+                assert features.task["map"]["job_statistics." + component + ".cpu.user.completed.sum"] > 0
+                assert features.task["map"]["job_statistics." + component + ".cpu.system.completed.sum"] > 0
+                assert features.task["map"]["job_statistics." + component + ".cpu.context_switches.completed.sum"] is not None
+                assert features.task["map"]["job_statistics." + component + ".cpu.peak_thread_count.completed.max"] is not None
+                assert features.task["map"]["job_statistics." + component + ".cpu.wait.completed.sum"] is not None
+                assert features.task["map"]["job_statistics." + component + ".cpu.throttled.completed.sum"] is not None
+                assert features.task["map"]["job_statistics." + component + ".block_io.bytes_read.completed.sum"] is not None
+                assert features.task["map"]["job_statistics." + component + ".max_memory.completed.sum"] > 0
+                assert features.task["map"]["job_statistics." + component + ".cpu.user.completed.avg"] > 0
+                assert features.task["map"]["job_statistics." + component + ".cpu.system.completed.avg"] > 0
+                assert features.task["map"]["job_statistics." + component + ".cpu.context_switches.completed.avg"] is not None
+                assert features.task["map"]["job_statistics." + component + ".cpu.peak_thread_count.completed.max"] is not None
+                assert features.task["map"]["job_statistics." + component + ".cpu.wait.completed.avg"] is not None
+                assert features.task["map"]["job_statistics." + component + ".cpu.throttled.completed.avg"] is not None
+                assert features.task["map"]["job_statistics." + component + ".block_io.bytes_read.completed.avg"] is not None
+                assert features.task["map"]["job_statistics." + component + ".max_memory.completed.avg"] > 0
 
-            check = check and features.task["map"]["job_statistics.user_job.cumulative_memory_mb_sec.completed.sum"] > 0
-            check = check and features.task["map"]["job_statistics.user_job.cumulative_memory_mb_sec.completed.avg"] > 0
-            return check
+            assert features.task["map"]["job_statistics.user_job.cumulative_memory_mb_sec.completed.sum"] > 0
+            assert features.task["map"]["job_statistics.user_job.cumulative_memory_mb_sec.completed.avg"] > 0
 
-        wait(check_statistic)
+        wait_no_assert(check_statistic)
 
 
 class TestPendingTimeFeatures(YTEnvSetup):

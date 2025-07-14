@@ -3553,10 +3553,17 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert len(self._find_tablet_orchid(address, tablet_id)["partitions"]) == 1
 
         def _get_eden_chunk_ids():
-            return [
-                chunk_id for chunk_id in get("//tmp/t/@chunk_ids")
-                if get("#{}/@eden".format(chunk_id)) and get("#{}/@chunk_type".format(chunk_id)) != "hunk"
-            ]
+            chunk_ids = get("//tmp/t/@chunk_ids")
+            eden_chunk_ids = []
+            for chunk_id in chunk_ids:
+                try:
+                    if get("#{}/@eden".format(chunk_id)):
+                        eden_chunk_ids.append(chunk_id)
+                except YtError as err:
+                    if err.contains_code(yt_error_codes.ResolveErrorCode):
+                        continue
+                    raise
+            return eden_chunk_ids
 
         assert len(_get_eden_chunk_ids()) == 1
 

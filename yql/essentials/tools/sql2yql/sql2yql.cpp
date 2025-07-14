@@ -228,7 +228,7 @@ int BuildAST(int argc, char* argv[]) {
     TString queryString;
     ui16 syntaxVersion;
     TString outFileNameFormat;
-    NYql::TLangVersion langVer;
+    NYql::TLangVersion langVer = NYql::MinLangVersion;
     THashMap<TString, TString> clusterMapping;
     clusterMapping["plato"] = NYql::YtProviderName;
     clusterMapping["pg_catalog"] = NYql::PgProviderName;
@@ -432,7 +432,9 @@ int BuildAST(int argc, char* argv[]) {
                     parseRes = NSQLTranslation::SqlToYql(translators, query, settings);
                 }
             }
-
+            if (noDebug && parseRes.IsOk()) {
+                continue;
+            }
             if (parseRes.Root) {
                 TStringStream yqlProgram;
                 parseRes.Root->PrettyPrintTo(yqlProgram, NYql::TAstPrintFlags::PerLine | NYql::TAstPrintFlags::ShortQuote);

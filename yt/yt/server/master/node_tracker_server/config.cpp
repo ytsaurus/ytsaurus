@@ -127,6 +127,18 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("throttled_node_registration_expiration_time", &TThis::ThrottledNodeRegistrationExpirationTime)
         .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("node_alerts_check_period", &TThis::NodeAlertsCheckPeriod)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("node_data_heartbeat_outdate_duration", &TThis::NodeDataHeartbeatOutdateDuration)
+        .Default(TDuration::Minutes(10));
+
+    registrar.Parameter("node_job_heartbeat_outdate_duration", &TThis::NodeJobHeartbeatOutdateDuration)
+        .Default(TDuration::Minutes(10));
+
+    registrar.Parameter("max_node_incomplete_state_duration", &TThis::MaxNodeIncompleteStateDuration)
+        .Default(TDuration::Days(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

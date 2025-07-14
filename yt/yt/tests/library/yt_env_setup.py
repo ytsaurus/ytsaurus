@@ -636,10 +636,8 @@ class YTEnvSetup(object):
             if delta_global_cluster_connection_config is None:
                 delta_global_cluster_connection_config = {}
             update_inplace(delta_global_cluster_connection_config, {
-                "sequoia_connection": {
-                    "retries": {
-                        "enable": True,
-                    },
+                "sequoia_retries": {
+                    "enable": True,
                 },
             })
         if cls._is_ground_cluster(index):

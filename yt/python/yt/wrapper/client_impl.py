@@ -3,13 +3,17 @@
 from .cypress_commands import _KwargSentinelClass, _MapOrderSorted
 from .client_helpers import initialize_client
 from .client_state import ClientState
+from .default_config import DefaultConfigType
+from .mappings import VerifiedDict
 from . import client_api
+
+from typing import Union, Dict, Any
 
 
 class YtClient(ClientState):
     """Implements YT client."""
 
-    def __init__(self, proxy=None, token=None, config=None):
+    def __init__(self, proxy: str = None, token: str = None, config: Union[DefaultConfigType, VerifiedDict, Dict[str, Any]] = None):
         super(YtClient, self).__init__()
         initialize_client(self, proxy, token, config)
 

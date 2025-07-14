@@ -5,6 +5,8 @@
 
 #include <library/cpp/yt/logging/backends/arcadia/backend.h>
 
+#include <yql/essentials/public/langver/yql_langver.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/yql_client/public.h>
@@ -255,6 +257,21 @@ public:
             }
         }
 
+        NYql::TLangVersionBuffer buf;
+        TStringBuf maxVersionStringBuf;
+        NYql::TLangVersion maxYqlLangVersion;
+        if (!NYql::ParseLangVersion(Config_->MaxSupportedYqlVersion, maxYqlLangVersion) || !NYql::IsValidLangVersion(maxYqlLangVersion)) {
+            maxYqlLangVersion = NYql::GetMaxLangVersion();
+            NYql::FormatLangVersion(maxYqlLangVersion, buf, maxVersionStringBuf);
+            if (!Config_->MaxSupportedYqlVersion.empty()) {
+                YT_LOG_ERROR("Max YQL version '%v' set via config or flag is not valid. Setting '%v' as maximum available version.", Config_->MaxSupportedYqlVersion, maxVersionStringBuf);
+            }
+        } else {
+            NYql::FormatLangVersion(maxYqlLangVersion, buf, maxVersionStringBuf);
+        }
+
+        YT_LOG_INFO("Maximum supported YQL version is set to '%v'", maxVersionStringBuf);
+
         NYqlPlugin::TYqlPluginOptions options{
             .SingletonsConfig = singletonsConfigString,
             .GatewayConfig = ConvertToYsonString(Config_->GatewayConfig),
@@ -268,6 +285,7 @@ public:
             .UIOrigin = Config_->UIOrigin,
             .LogBackend = NYT::NLogging::CreateArcadiaLogBackend(TLogger("YqlPlugin")),
             .YqlPluginSharedLibrary = Config_->YqlPluginSharedLibrary,
+            .MaxYqlLangVersion = TString(maxVersionStringBuf),
         };
 
         // NB: under debug build this method does not fit in regular fiber stack

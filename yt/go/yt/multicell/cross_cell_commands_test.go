@@ -110,6 +110,77 @@ func TestCrossCellCommandsRetries(t *testing.T) {
 	}
 }
 
+func TestCrossCellCopyingInTx(t *testing.T) {
+	env := yttest.New(t)
+
+	portalEntrance := ypath.Path("//home/some-portal-tx")
+	portalCellID := 3
+	yc := clienttest.NewHTTPClient(t, env.L)
+	_, err := yc.CreateNode(env.Ctx, portalEntrance, yt.NodePortalEntrance,
+		&yt.CreateNodeOptions{Attributes: map[string]any{"exit_cell_tag": portalCellID}})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name       string
+		yc         yt.Client
+		runCommand func(ctx context.Context, yc yt.CypressClient, src, dst ypath.YPath) (yt.NodeID, error)
+	}{
+		{
+			name: "cross-cell-copy-in-tx-http",
+			yc:   clienttest.NewHTTPClient(t, env.L),
+			runCommand: func(ctx context.Context, yc yt.CypressClient, src, dst ypath.YPath) (yt.NodeID, error) {
+				return yc.CopyNode(ctx, src, dst, nil)
+			},
+		},
+		{
+			name: "cross-cell-copy-in-tx-rpc",
+			yc:   clienttest.NewRPCClient(t, env.L),
+			runCommand: func(ctx context.Context, yc yt.CypressClient, src, dst ypath.YPath) (yt.NodeID, error) {
+				return yc.CopyNode(ctx, src, dst, nil)
+			},
+		},
+		{
+			name: "cross-cell-move-in-tx-http",
+			yc:   clienttest.NewHTTPClient(t, env.L),
+			runCommand: func(ctx context.Context, yc yt.CypressClient, src, dst ypath.YPath) (yt.NodeID, error) {
+				return yc.MoveNode(ctx, src, dst, nil)
+			},
+		},
+		{
+			name: "cross-cell-move-in-tx-rpc",
+			yc:   clienttest.NewRPCClient(t, env.L),
+			runCommand: func(ctx context.Context, yc yt.CypressClient, src, dst ypath.YPath) (yt.NodeID, error) {
+				return yc.MoveNode(ctx, src, dst, nil)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srcPath := portalEntrance.Child(fmt.Sprintf("src-table-%s", tc.name))
+			_, err = yc.CreateNode(env.Ctx, srcPath, yt.NodeTable, nil)
+			require.NoError(t, err)
+
+			dstDir := ypath.Path(fmt.Sprintf("//tmp/dst-dir-%s", tc.name))
+			tx, err := tc.yc.BeginTx(env.Ctx, nil)
+			require.NoError(t, err)
+			defer tx.Abort()
+
+			_, err = tx.CreateNode(env.Ctx, dstDir, yt.NodeMap, nil)
+			require.NoError(t, err)
+
+			dstPath := dstDir.Child(fmt.Sprintf("dst-table-%s", tc.name))
+
+			_, err = tc.runCommand(env.Ctx, tx, srcPath, dstPath)
+			require.NoError(t, err)
+
+			require.NoError(t, tx.Commit())
+
+			exists, err := tc.yc.NodeExists(env.Ctx, dstPath, nil)
+			require.NoError(t, err)
+			require.True(t, exists)
+		})
+	}
+}
+
 type timeoutNetError struct {
 }
 
