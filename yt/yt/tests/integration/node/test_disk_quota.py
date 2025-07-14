@@ -78,37 +78,22 @@ class TestDiskUsagePorto(YTEnvSetup):
         os.makedirs(cls.fake_default_disk_path)
         config["exec_node"]["slot_manager"]["locations"][0]["path"] = cls.fake_default_disk_path
 
-    def _init_tables(self):
-        tables = ["//tmp/t1", "//tmp/t2", "//tmp/t3"]
-        for table in tables:
-            create("table", table)
-        write_table(tables[0], [{"foo": "bar"} for _ in range(10)])
-        return tables
-
-    def run_test(self, tables, fatty_options):
-        options = {
-            "in_": tables[0],
-            "out": tables[1],
-            "track": False,
-        }
-
-        options.update(fatty_options)
-
-        first = map(**options)
+    def run_test(self, fatty_options):
+        first = run_test_vanilla(**fatty_options)
 
         events_on_fs().wait_event("file_written")
 
-        check_op = {
-            "in_": tables[0],
-            "out": tables[2],
-            "command": "true",
-            "spec": {
-                "mapper": {"disk_space_limit": 1024 * 1024 // 2},
-                "max_failed_job_count": 1,
-            },
-        }
+        # Exec node need some time to updated cached information about disk resources.
+        time.sleep(1)
 
-        op = map(track=False, **check_op)
+        check_operation_params = dict(
+            command="true",
+            spec={"max_failed_job_count": 1},
+            task_patch={"disk_space_limit": 1024 * 1024 // 2},
+        )
+
+        op = run_test_vanilla(**check_operation_params)
+
         wait(lambda: exists(op.get_path() + "/controller_orchid/progress/jobs"))
         for type in ("running", "aborted", "failed"):
             assert op.get_job_count(type) == 0
@@ -117,11 +102,10 @@ class TestDiskUsagePorto(YTEnvSetup):
         events_on_fs().notify_event("finish_job")
         first.track()
 
-        map(**check_op)
+        run_test_vanilla(track=True, **check_operation_params)
 
     @authors("astiunov")
     def test_lack_space_node(self):
-        tables = self._init_tables()
         options = {
             "command": " ; ".join(
                 [
@@ -132,11 +116,10 @@ class TestDiskUsagePorto(YTEnvSetup):
             )
         }
 
-        self.run_test(tables, options)
+        self.run_test(options)
 
     @authors("astiunov")
     def test_lack_space_node_with_quota(self):
-        tables = self._init_tables()
         options = {
             "command": " ; ".join(
                 [
@@ -146,12 +129,14 @@ class TestDiskUsagePorto(YTEnvSetup):
                 ]
             ),
             "spec": {
-                "mapper": {"disk_space_limit": 1024 * 1024 * 2 // 3},
                 "max_failed_job_count": 1,
+            },
+            "task_patch": {
+                "disk_space_limit": 1024 * 1024 * 2 // 3,
             },
         }
 
-        self.run_test(tables, options)
+        self.run_test(options)
 
     @authors("ignat")
     def test_not_available_nodes(self):
