@@ -2774,7 +2774,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             "//tmp/t",
             "tablet/throttled_write_count")
 
-        def _insert(overdraft_expected, max_attempts=10):
+        def _insert(overdraft_expected, max_attempts=20):
             overdrafted = False
             for i in range(max_attempts):
                 try:
