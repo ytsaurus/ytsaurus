@@ -8,7 +8,6 @@ Is released as a docker image.
 
 **Releases:**
 
-
 {% cut "**0.0.10**" %}
 
 **Release date:** 2025-06-23
