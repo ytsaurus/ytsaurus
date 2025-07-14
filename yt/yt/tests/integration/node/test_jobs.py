@@ -158,6 +158,37 @@ class TestJobsDisabled(YTEnvSetup):
         op1.abort()
         op2.abort()
 
+    @authors("krasovav")
+    def test_job_abort_on_cleanup_timeout(self):
+        node_address = ls("//sys/cluster_nodes")[0]
+        assert not get("//sys/cluster_nodes/{}/@alerts".format(node_address))
+
+        aborted_job_profiler = JobCountProfiler(
+            "aborted", tags={"tree": "default", "job_type": "vanilla", "abort_reason": "node_with_disabled_jobs"})
+
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "job_cleanup_timeout": 500,
+                    }
+                }
+
+            },
+        })
+
+        op = run_sleeping_vanilla(
+            spec={"job_testing_options": {"delay_in_cleanup": 1000}, "sanity_check_delay": 60 * 1000},
+        )
+
+        job_id = self._get_op_job(op)
+
+        abort_job(job_id)
+
+        wait(lambda: aborted_job_profiler.get_job_count_delta() >= 1)
+
+        op.abort()
+
 
 class TestNodeBanned(YTEnvSetup):
     NUM_NODES = 1

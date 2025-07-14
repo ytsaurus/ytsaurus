@@ -585,6 +585,9 @@ void TJobCommonConfig::Register(TRegistrar registrar)
     registrar.Parameter("waiting_for_job_cleanup_timeout", &TThis::WaitingForJobCleanupTimeout)
         .Default(TDuration::Minutes(15));
 
+    registrar.Parameter("job_cleanup_timeout", &TThis::JobCleanupTimeout)
+        .Default(TDuration::Minutes(15));
+
     registrar.Parameter("job_prepare_time_limit", &TThis::JobPrepareTimeLimit)
         .Default();
 

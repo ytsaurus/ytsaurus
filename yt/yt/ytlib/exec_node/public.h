@@ -50,6 +50,7 @@ YT_DEFINE_ERROR_ENUM(
     ((PortoExecutorFailure)                  (1141))
     ((JobCleanupTimeout)                     (1142))
     ((NotEnoughInitializedSlots)             (1143))
+    ((WaitingForJobCleanupTimeout)           (1144))
 );
 
 DEFINE_ENUM(EJobPhase,

@@ -928,6 +928,15 @@ void TSlotManager::OnWaitingForJobCleanupTimeout(TError error)
     // NB(arkady-e1ppa): This call is sync and this event has already
     // been logged before going there.
 
+    YT_VERIFY(error.FindMatching(NExecNode::EErrorCode::WaitingForJobCleanupTimeout));
+
+    Disable(std::move(error));
+}
+
+void TSlotManager::OnJobCleanupTimeout(TError error)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
     YT_VERIFY(error.FindMatching(NExecNode::EErrorCode::JobCleanupTimeout));
 
     Disable(std::move(error));
@@ -1406,6 +1415,7 @@ ESlotManagerAlertType DeduceAlertType(const TError& error, std::optional<ESlotMa
         error.FindMatching(NExecNode::EErrorCode::PortoVolumeManagerFailure) ||
         error.FindMatching(NExecNode::EErrorCode::PortoHealthCheckFailed) ||
         error.FindMatching(NExecNode::EErrorCode::JobCleanupTimeout) ||
+        error.FindMatching(NExecNode::EErrorCode::WaitingForJobCleanupTimeout) ||
         error.FindMatching(NExecNode::EErrorCode::PortoExecutorFailure))
     {
         return ESlotManagerAlertType::PortoFailure;

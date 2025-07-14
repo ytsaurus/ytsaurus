@@ -170,6 +170,12 @@ public:
      *  \note
      *  Thread affinity: any
      */
+    void OnJobCleanupTimeout(TError error);
+
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     void OnJobEnvironmentDisabled(TError error);
 
     /*!
