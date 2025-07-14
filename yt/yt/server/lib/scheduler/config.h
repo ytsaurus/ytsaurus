@@ -488,6 +488,8 @@ struct TFairShareStrategyTreeConfig
     // TODO(eshcherbin): Remove when 24.2 is finalized.
     bool AllowSingleJobLargeGpuOperationsInMultipleTrees;
 
+    std::optional<TJobResourcesConfigPtr> MinSpareAllocationResourcesOnNode;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);
@@ -596,6 +598,9 @@ struct TFairShareStrategyConfig
     TString EphemeralPoolNameRegex;
 
     bool RequireSpecifiedOperationPoolsExistence;
+
+    //! Minimum amount of resources to continue schedule allocation attempts.
+    std::optional<TJobResourcesConfigPtr> MinSpareAllocationResourcesOnNode;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyConfig);
 
@@ -1001,9 +1006,6 @@ struct TSchedulerConfig
     //! How long the alert will remain on after an error occured when matching operations against experiment filters.
     //! Should be significantly longer than the #ExperimentAssignmentErrorCheckPeriod.
     TDuration ExperimentAssignmentAlertDuration;
-
-    //! Minimum amount of resources to continue schedule allocation attempts.
-    std::optional<TJobResourcesConfigPtr> MinSpareAllocationResourcesOnNode;
 
     bool ConsiderDiskQuotaInPreemptiveSchedulingDiscount;
 

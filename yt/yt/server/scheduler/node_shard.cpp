@@ -633,12 +633,14 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         ->GetClient()
         ->GetNativeConnection()
         ->GetMediumDirectory();
+    auto minSpareResources = strategyProxy->GetMinSpareResourcesForScheduling();
     auto schedulingContext = CreateSchedulingContext(
         Id_,
         Config_,
         node,
         runningAllocations,
-        mediumDirectory);
+        mediumDirectory,
+        minSpareResources);
 
     Y_UNUSED(WaitFor(strategyProxy->ProcessSchedulingHeartbeat(schedulingContext, skipScheduleAllocations)));
 
@@ -648,13 +650,13 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
     ProcessOperationInfoHeartbeat(request, response);
 
-    ToProto(response->mutable_min_spare_resources(), GetMinSpareResources());
+    ToProto(response->mutable_min_spare_resources(), minSpareResources);
 
     if (isThrottlingActive) {
         schedulingContext->SetSchedulingStopReason(ESchedulingStopReason::Throttling);
     }
 
-    UpdateUnscheduledNodeCounters(schedulingContext, node);
+    UpdateUnscheduledNodeCounters(schedulingContext, node, minSpareResources);
 
     auto now = TInstant::Now();
     auto shouldSendRegisteredControllerAgents = ShouldSendRegisteredControllerAgents(request);
@@ -2374,7 +2376,10 @@ void TNodeShard::ProcessOperationInfoHeartbeat(
     }
 }
 
-void TNodeShard::UpdateUnscheduledNodeCounters(const ISchedulingContextPtr& schedulingContext, const TExecNodePtr& node)
+void TNodeShard::UpdateUnscheduledNodeCounters(
+    const ISchedulingContextPtr& schedulingContext,
+    const TExecNodePtr& node,
+    const TJobResources& minSpareResources)
 {
     auto now = TInstant::Now();
 
@@ -2390,7 +2395,7 @@ void TNodeShard::UpdateUnscheduledNodeCounters(const ISchedulingContextPtr& sche
         return;
     }
 
-    if (Dominates(node->LastHeartbeatUnscheduledResources(), GetMinSpareResources())) {
+    if (Dominates(node->LastHeartbeatUnscheduledResources(), minSpareResources)) {
         auto secondsSinceLastHeartbeat = (now - node->LastHeartbeatTime()).SecondsFloat();
         auto unscheduledResourceTime = node->LastHeartbeatUnscheduledResources() * secondsSinceLastHeartbeat;
 
@@ -2420,13 +2425,6 @@ void TNodeShard::AddRegisteredControllerAgentsToResponse(auto* response)
 
     HeartbeatRegisteredControllerAgentsBytes_.Increment(
         response->registered_controller_agents().SpaceUsedExcludingSelfLong());
-}
-
-TJobResources TNodeShard::GetMinSpareResources() const
-{
-    return Config_->MinSpareAllocationResourcesOnNode
-        ? ToJobResources(*Config_->MinSpareAllocationResourcesOnNode, TJobResources())
-        : TJobResources();
 }
 
 void TNodeShard::RegisterAllocation(const TAllocationPtr& allocation)

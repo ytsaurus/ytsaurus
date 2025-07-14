@@ -23,13 +23,15 @@ public:
         TSchedulerConfigPtr config,
         TExecNodePtr node,
         const std::vector<TAllocationPtr>& runningAllocations,
-        const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
+        const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
+        const TJobResources& defaultMinSpareAllocationResources)
         : TSchedulingContextBase(
             nodeShardId,
             std::move(config),
             std::move(node),
             runningAllocations,
-            mediumDirectory)
+            mediumDirectory,
+            defaultMinSpareAllocationResources)
     { }
 
     NProfiling::TCpuInstant GetNow() const override
@@ -96,14 +98,16 @@ ISchedulingContextPtr CreateSchedulingContext(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
     const std::vector<TAllocationPtr>& runningAllocations,
-    const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
+    const TJobResources& defaultMinSpareAllocationResources)
 {
     return New<TSchedulingContext>(
         nodeShardId,
         std::move(config),
         std::move(node),
         runningAllocations,
-        mediumDirectory);
+        mediumDirectory,
+        defaultMinSpareAllocationResources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
