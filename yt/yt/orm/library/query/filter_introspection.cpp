@@ -269,7 +269,8 @@ public:
 
     bool OnLiteral(const TLiteralExpressionPtr literalExpr)
     {
-        return std::holds_alternative<bool>(literalExpr->Value) && !std::get<bool>(literalExpr->Value);
+        auto* literalValue = std::get_if<bool>(&literalExpr->Value);
+        return literalValue && !*literalValue;
     }
 
     bool OnReference(const TReferenceExpressionPtr /*referenceExpr*/)
