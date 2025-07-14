@@ -212,7 +212,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
     TLogger logger;
-    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(
+        std::numeric_limits<i64>::max(),
+        New<TNodeMemoryTrackerConfig>());
 
     std::vector<TFakeRow> transactions;
 
@@ -243,7 +245,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadAll)
     mountConfig->MaxDataWeightPerReplicationCommit = 1000;
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
-    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(
+        std::numeric_limits<i64>::max(),
+        New<TNodeMemoryTrackerConfig>());
     TLogger logger;
 
     std::vector<TFakeRow> replicationLogRows;
@@ -277,7 +281,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     mountConfig->MaxDataWeightPerReplicationCommit = 1000;
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
-    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(
+        std::numeric_limits<i64>::max(),
+        New<TNodeMemoryTrackerConfig>());
     TLogger logger;
 
     std::vector<TFakeRow> transactions;
@@ -329,7 +335,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     mountConfig->MaxDataWeightPerReplicationCommit = 1000;
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
-    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(
+        std::numeric_limits<i64>::max(),
+        New<TNodeMemoryTrackerConfig>());
     TLogger logger;
 
     std::vector<TFakeRow> transactions;
@@ -381,7 +389,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadAllNoMatching)
     mountConfig->MaxDataWeightPerReplicationCommit = 1000;
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
-    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(
+        std::numeric_limits<i64>::max(),
+        New<TNodeMemoryTrackerConfig>());
     TLogger logger;
 
     std::vector<TFakeRow> replicationLogRows;
@@ -415,7 +425,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadAllSomeMatching)
     mountConfig->MaxDataWeightPerReplicationCommit = 1000;
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
-    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(
+        std::numeric_limits<i64>::max(),
+        New<TNodeMemoryTrackerConfig>());
     TLogger logger;
 
     std::vector<TFakeRow> replicationLogRows;
@@ -455,7 +467,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsNoneMatching)
     mountConfig->MaxDataWeightPerReplicationCommit = 1000;
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
-    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(
+        std::numeric_limits<i64>::max(),
+        New<TNodeMemoryTrackerConfig>());
     TLogger logger;
 
     std::vector<TFakeRow> transactions;
@@ -506,7 +520,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadByLimitsSomeMatching)
     mountConfig->MaxDataWeightPerReplicationCommit = 1000;
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
-    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(
+        std::numeric_limits<i64>::max(),
+        New<TNodeMemoryTrackerConfig>());
     TLogger logger;
 
     std::vector<TFakeRow> transactions;
@@ -568,7 +584,9 @@ TEST(TReplicationLogBatchReaderTest, TestCombinedTransactionWithUpperBound)
     mountConfig->MaxDataWeightPerReplicationCommit = 1000;
     mountConfig->MaxTimestampsPerReplicationCommit = 1000;
 
-    auto nodeMemoryTracker = CreateNodeMemoryTracker(std::numeric_limits<i64>::max());
+    auto nodeMemoryTracker = CreateNodeMemoryTracker(
+        std::numeric_limits<i64>::max(),
+        New<TNodeMemoryTrackerConfig>());
     TLogger logger;
 
     std::vector<TFakeRow> transactions;

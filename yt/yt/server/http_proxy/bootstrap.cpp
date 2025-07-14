@@ -156,6 +156,7 @@ void TBootstrap::DoInitialize()
 
     MemoryUsageTracker_ = CreateNodeMemoryTracker(
         Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max()),
+        New<TNodeMemoryTrackerConfig>(),
         /*limits*/ {},
         Logger(),
         HttpProxyProfiler().WithPrefix("/memory_usage"));

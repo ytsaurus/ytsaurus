@@ -63,7 +63,10 @@ INodeMemoryTrackerPtr CreateTracker(i64 totalLimit, std::vector<i64> categoryLim
             categoryLimits[i]);
     }
 
-    return CreateNodeMemoryTracker(totalLimit, limits);
+    return CreateNodeMemoryTracker(
+        totalLimit,
+        New<TNodeMemoryTrackerConfig>(),
+        limits);
 }
 
 TSharedRef CreateRandomReference(TFastRng64& rnd, i64 size)
@@ -112,7 +115,10 @@ TEST(TMemoryUsageTrackerTest, Basic)
 
 TEST(TMemoryUsageTrackerTest, NoCategoryLimit)
 {
-    auto tracker = CreateNodeMemoryTracker(10000, std::vector<std::pair<ECategory, i64>>{});
+    auto tracker = CreateNodeMemoryTracker(
+        10000,
+        New<TNodeMemoryTrackerConfig>(),
+        std::vector<std::pair<ECategory, i64>>{});
 
     EXPECT_EQ(tracker->GetTotalLimit(), 10000);
     EXPECT_EQ(tracker->GetTotalUsed(), 0);
