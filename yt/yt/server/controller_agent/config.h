@@ -803,6 +803,23 @@ DEFINE_REFCOUNTED_TYPE(TDockerRegistryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(coteeq)
+struct TDisallowRemoteOperationsConfig
+    : public NYTree::TYsonStruct
+{
+    THashSet<TString> AllowedUsers;
+    THashSet<std::string> AllowedClusters;
+    THashSet<std::string> AllowedForEveryoneClusters;
+
+    REGISTER_YSON_STRUCT(TDisallowRemoteOperationsConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDisallowRemoteOperationsConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TRemoteOperationsConfig
     : public NYTree::TYsonStruct
 {
@@ -1296,6 +1313,9 @@ struct TControllerAgentConfig
 
     //! How many initial successive job aborts are needed to fail operation.
     THashMap<EAbortReason, int> MaxJobAbortsUntilOperationFailure;
+
+    // COMPAT(coteeq): Remove in 25.3
+    TDisallowRemoteOperationsConfigPtr DisallowRemoteOperations;
 
     THashMap<NScheduler::TClusterName, TRemoteOperationsConfigPtr> RemoteOperations;
 
