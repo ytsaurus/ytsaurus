@@ -47,12 +47,12 @@ target_link_libraries(libs-cctz-tzdata.global PUBLIC
 
 target_sources(libs-cctz-tzdata.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/tzdata/factory.cpp
-  ${PROJECT_BINARY_DIR}/contrib/libs/cctz/tzdata/748b7fa4194ab8d938cc22420b1bf89e.cpp
+  ${PROJECT_BINARY_DIR}/contrib/libs/cctz/tzdata/7b772acbb5396bf7667e72d736f45d32.cpp
 )
 
 
 resources(libs-cctz-tzdata.global
-  ${PROJECT_BINARY_DIR}/contrib/libs/cctz/tzdata/748b7fa4194ab8d938cc22420b1bf89e.cpp
+  ${PROJECT_BINARY_DIR}/contrib/libs/cctz/tzdata/7b772acbb5396bf7667e72d736f45d32.cpp
   INPUTS
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/tzdata/generated/Africa/Abidjan
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/tzdata/generated/Africa/Accra
@@ -153,6 +153,7 @@ resources(libs-cctz-tzdata.global
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/tzdata/generated/America/Coral_Harbour
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/tzdata/generated/America/Cordoba
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/tzdata/generated/America/Costa_Rica
+  ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/tzdata/generated/America/Coyhaique
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/tzdata/generated/America/Creston
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/tzdata/generated/America/Cuiaba
   ${PROJECT_SOURCE_DIR}/contrib/libs/cctz/tzdata/generated/America/Curacao
@@ -752,6 +753,7 @@ resources(libs-cctz-tzdata.global
   /cctz/tzdata/America/Coral_Harbour
   /cctz/tzdata/America/Cordoba
   /cctz/tzdata/America/Costa_Rica
+  /cctz/tzdata/America/Coyhaique
   /cctz/tzdata/America/Creston
   /cctz/tzdata/America/Cuiaba
   /cctz/tzdata/America/Curacao
