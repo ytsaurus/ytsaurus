@@ -16,18 +16,18 @@
 
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
-#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
 #include <yt/yt/ytlib/controller_agent/helpers.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
-
-#include <yt/yt/ytlib/scheduler/public.h>
+#include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+#include <yt/yt/ytlib/scheduler/public.h>
 
 #include <yt/yt/ytlib/table_client/chunk_slice.h>
 
@@ -38,8 +38,8 @@
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/config.h>
+#include <yt/yt/core/misc/finally.h>
 
 #include <library/cpp/iterator/zip.h>
 
@@ -50,11 +50,11 @@ using namespace NChunkPools;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
+using namespace NStatisticPath;
 using namespace NTableClient;
+using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
-using namespace NYPath;
-using namespace NStatisticPath;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -2103,31 +2103,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NSche
 
     jobSpecExt->set_job_cpu_monitor_config(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor).ToString());
 
-    auto failOperation = [&] (TError error) {
-        TaskHost_->GetCancelableInvoker()->Invoke(BIND(
-            &ITaskHost::OnOperationFailed,
-            MakeWeak(TaskHost_),
-            error,
-            /*flush*/ true,
-            /*abortAllJoblets*/ true));
-        THROW_ERROR(error);
-    };
-
-    if (jobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
-        failOperation(TError(
-            NChunkPools::EErrorCode::MaxDataWeightPerJobExceeded,
-            "Maximum allowed data weight per job exceeds the limit: %v > %v",
-            jobSpecExt->input_data_weight(),
-            TaskHost_->GetSpec()->MaxDataWeightPerJob));
-    }
-
-    if (joblet->InputStripeList->TotalCompressedDataSize > TaskHost_->GetSpec()->MaxCompressedDataSizePerJob) {
-        failOperation(TError(
-            NChunkPools::EErrorCode::MaxCompressedDataSizePerJobExceeded,
-            "Maximum allowed compressed data size per job exceeds the limit: %v > %v",
-            joblet->InputStripeList->TotalCompressedDataSize,
-            TaskHost_->GetSpec()->MaxCompressedDataSizePerJob));
-    }
+    ValidateJobSizeConstraints(joblet);
 
     ToProto(jobSpecExt->mutable_job_competition_id(), joblet->CompetitionIds[EJobCompetitionType::Speculative]);
     ToProto(jobSpecExt->mutable_probing_job_competition_id(), joblet->CompetitionIds[EJobCompetitionType::Probing]);
@@ -2286,7 +2262,7 @@ void TTask::RegisterStripe(
                     TError("Restarted job produced dissimilar output; "
                            "this may lead to inconsistent operation results; "
                            "consider setting enable_intermediate_output_recalculation=%%false.")
-                        << TErrorAttribute("task_name", joblet->Task->GetVertexDescriptor())
+                        << TErrorAttribute("task_name", GetVertexDescriptor())
                         << TErrorAttribute("job_id", joblet->JobId));
             }
             if (digestIt == JobOutputHash_.end()) {
@@ -2601,6 +2577,8 @@ TDuration TTask::GetExhaustTime() const
 
 void TTask::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary)
 {
+    YT_VERIFY(joblet->Task == this);
+
     i64 statisticsLimit = TaskHost_->GetOptions()->CustomStatisticsCountLimit;
     bool isLimitExceeded = false;
 
@@ -2617,7 +2595,7 @@ void TTask::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, cons
         TaskHost_->SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,
             TError("Limit for number of custom statistics exceeded for task, so they are truncated")
                 << TErrorAttribute("limit", statisticsLimit)
-                << TErrorAttribute("task_name", joblet->Task->GetVertexDescriptor()));
+                << TErrorAttribute("task_name", GetVertexDescriptor()));
     }
 }
 
@@ -2728,6 +2706,53 @@ void TTask::UpdateClusterToNetworkBandwidthAvailabilityLocked(const NScheduler::
 {
     YT_VERIFY(ClusterToNetworkBandwidthAvailabilityLock_.IsLockedByWriter());
     ClusterToNetworkBandwidthAvailability_[clusterName] = isAvailable;
+}
+
+void TTask::ValidateJobSizeConstraints(const TJobletPtr& joblet) const
+{
+    auto failOperation = [&] (TError error) {
+        TaskHost_->GetCancelableInvoker()->Invoke(BIND(
+            &ITaskHost::OnOperationFailed,
+            MakeWeak(TaskHost_),
+            error,
+            /*flush*/ true,
+            /*abortAllJoblets*/ true));
+        THROW_ERROR(error);
+    };
+
+    const auto& spec = TaskHost_->GetSpec();
+
+    if (joblet->InputStripeList->TotalDataWeight > spec->MaxDataWeightPerJob) {
+        failOperation(TError(
+            NChunkPools::EErrorCode::MaxDataWeightPerJobExceeded,
+            "Maximum allowed data weight per job exceeds the limit: %v > %v",
+            joblet->InputStripeList->TotalDataWeight,
+            TaskHost_->GetSpec()->MaxDataWeightPerJob));
+    }
+
+    if (joblet->InputStripeList->TotalCompressedDataSize > spec->MaxCompressedDataSizePerJob) {
+        failOperation(TError(
+            NChunkPools::EErrorCode::MaxCompressedDataSizePerJobExceeded,
+            "Maximum allowed compressed data size per job exceeds the limit: %v > %v",
+            joblet->InputStripeList->TotalCompressedDataSize,
+            TaskHost_->GetSpec()->MaxCompressedDataSizePerJob));
+    }
+
+    if (auto simpleSpec = DynamicPointerCast<TSimpleOperationSpecBase>(spec)) {
+        const auto& options = TaskHost_->GetOptions();
+        i64 maxDataSlicesPerJob = std::min(
+            simpleSpec->MaxDataSlicesPerJob.value_or(options->MaxDataSlicesPerJob),
+            options->MaxDataSlicesPerJobLimit);
+
+        if (joblet->InputStripeList->TotalSliceCount > maxDataSlicesPerJob) {
+            TaskHost_->SetOperationAlert(EOperationAlertType::TooManySlicesInJobs,
+                TError("Some jobs have too many data slices in their input; consider decreasing the job count")
+                    << TErrorAttribute("job_id", joblet->JobId)
+                    << TErrorAttribute("task_name", GetVertexDescriptor())
+                    << TErrorAttribute("job_slice_count", joblet->InputStripeList->TotalSliceCount)
+                    << TErrorAttribute("max_data_slices_per_job", maxDataSlicesPerJob));
+        }
+    }
 }
 
 PHOENIX_DEFINE_TYPE(TTask);

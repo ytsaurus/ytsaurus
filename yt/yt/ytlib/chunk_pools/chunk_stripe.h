@@ -73,6 +73,8 @@ struct TChunkStripeList
     int TotalChunkCount = 0;
     int LocalChunkCount = 0;
 
+    i64 TotalSliceCount = 0;
+
     PHOENIX_DECLARE_TYPE(TChunkStripeList, 0x85f55d0b);
 };
 

@@ -627,6 +627,8 @@ class TestCompressedDataSizePerJob(TestJobSlicingBase):
         progress = get(op.get_path() + "/@progress")
         assert 2 <= progress["jobs"]["completed"]["total"] <= 3
 
+
+class TestJobSlicing(TestJobSlicingBase):
     @authors("apollo1321")
     @pytest.mark.parametrize("strict_data_weight_per_job_verification", [False, True])
     def test_invalid_data_weight_per_job_alert(self, strict_data_weight_per_job_verification):
