@@ -657,6 +657,11 @@ public:
         const TKillProcessOptions& options),
         (address, options))
 
+    DELEGATE_METHOD(TFuture<TPingNodeResult>, PingNode, (
+        const std::string& nodeAddress,
+        const TPingNodeOptions& options),
+        (nodeAddress, options))
+
     DELEGATE_METHOD(TFuture<TString>, WriteCoreDump, (
         const std::string& address,
         const TWriteCoreDumpOptions& options),

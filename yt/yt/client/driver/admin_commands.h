@@ -371,4 +371,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPingNodeCommand
+    : public TTypedCommand<NApi::TPingNodeOptions>
+{
+public:
+    REGISTER_YSON_STRUCT_LITE(TPingNodeCommand);
+
+    static void Register(TRegistrar registrar);
+
+private:
+    std::string NodeAddress_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver
