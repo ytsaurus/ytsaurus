@@ -848,6 +848,7 @@ private:
 
         NodeMemoryUsageTracker_ = CreateNodeMemoryTracker(
             Config_->ResourceLimits->TotalMemory,
+            New<TNodeMemoryTrackerConfig>(),
             /*limits*/ {},
             Logger(),
             ClusterNodeProfiler().WithPrefix("/memory_usage"));
@@ -1493,6 +1494,8 @@ private:
                 (*stockpile->TotalMemoryFractionOverride);
         }
         TSingletonManager::Reconfigure(newConfig);
+
+        NodeMemoryUsageTracker_->Reconfigure(newConfig->NodeMemoryTracker);
 
         StorageHeavyThreadPool_->SetThreadCount(
             newConfig->DataNode->StorageHeavyThreadCount.value_or(Config_->DataNode->StorageHeavyThreadCount));

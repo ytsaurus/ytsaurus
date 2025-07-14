@@ -1069,12 +1069,14 @@ public:
 
         auto resourceLimits = GetResourceLimits(/*considerUserJobFreeMemoryWatermark*/ false);
 
-        auto error = CheckResourceOverdraft(
-            acquiredResources + releasingResources,
-            resourceLimits);
-        if (!error.IsOK()) {
-            YT_LOG_INFO(error, "Resource overdraft detected");
-            resourceUsageOverdraftOccurred = true;
+        if (GetDynamicConfig()->CheckUserJobsCtegoryLimitOnResourcesUpdating) {
+            auto error = CheckResourceOverdraft(
+                acquiredResources + releasingResources,
+                resourceLimits);
+            if (!error.IsOK()) {
+                YT_LOG_INFO(error, "Resource overdraft detected");
+                resourceUsageOverdraftOccurred = true;
+            }
         }
 
         auto systemMemory = resourceDelta.SystemMemory;

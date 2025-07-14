@@ -92,6 +92,7 @@ public:
     TTestNodeMemoryTracker()
         : Underlying_(CreateNodeMemoryTracker(
             std::numeric_limits<i64>::max(),
+            New<TNodeMemoryTrackerConfig>(),
             {}))
     { }
 
@@ -254,6 +255,11 @@ public:
         bool keepHolder) override
     {
         return Underlying_->TryTrack(std::move(reference), category, std::move(poolTag), keepHolder);
+    }
+
+    void Reconfigure(const TNodeMemoryTrackerConfigPtr& config) override
+    {
+        Underlying_->Reconfigure(config);
     }
 
 private:
