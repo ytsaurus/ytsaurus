@@ -28,17 +28,15 @@ TSchedulingContextBase::TSchedulingContextBase(
     TSchedulerConfigPtr config,
     TExecNodePtr node,
     const std::vector<TAllocationPtr>& runningAllocations,
-    const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
+    const TJobResources& defaultMinSpareAllocationResources)
     : NodeShardId_(nodeShardId)
     , Config_(std::move(config))
     , Node_(std::move(node))
     , NodeDescriptor_(Node_->BuildExecDescriptor())
     , NodeTags_(Node_->Tags())
     , MediumDirectory_(mediumDirectory)
-    , DefaultMinSpareAllocationResources_(
-        Config_->MinSpareAllocationResourcesOnNode
-        ? ToJobResources(*Config_->MinSpareAllocationResourcesOnNode, TJobResources())
-        : TJobResources())
+    , DefaultMinSpareAllocationResources_(defaultMinSpareAllocationResources)
     , ResourceUsage_(Node_->ResourceUsage())
     , ResourceLimits_(Node_->ResourceLimits())
     , DiskResources_(Node_->DiskResources())

@@ -4730,3 +4730,71 @@ class TestGuaranteePriorityScheduling(YTEnvSetup):
 
         wait(lambda: get(scheduler_orchid_operation_path(prod_op.id) + "/resource_usage/user_slots") == 2)
         wait(lambda: get(scheduler_orchid_operation_path(research_op.id) + "/resource_usage/user_slots") == 0)
+
+
+##################################################################
+
+
+@pytest.mark.enabled_multidaemon
+class TestMinSpareResources(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 1
+    NUM_NODES = 2
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "job_resource_manager": {
+            "resource_limits": {
+                "user_slots": 5,
+            }
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestMinSpareResources, self).setup_method(method)
+
+        set("//sys/pool_trees/default/@config/nodes_filter", "!other")
+        create_pool_tree("other", config={"nodes_filter": "other"})
+
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{}/@user_tags".format(node), ["other"])
+        wait(
+            lambda: get(
+                scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/other/resource_limits/cpu"
+            )
+            > 0.0
+        )
+
+    @authors("eshcherbin")
+    def test_simple(self):
+        update_scheduler_config("min_spare_allocation_resources_on_node", {"cpu": 0.5, "user_slots": 1})
+
+        op = run_sleeping_vanilla(job_count=5, task_patch={"cpu_limit": 0.2})
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/user_slots", default=None) == 3)
+
+        time.sleep(3.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/user_slots") == 3)
+
+        update_scheduler_config("min_spare_allocation_resources_on_node", {"user_slots": 1})
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/user_slots") == 5)
+
+    @authors("eshcherbin")
+    def test_per_tree_config(self):
+        update_scheduler_config("min_spare_allocation_resources_on_node", {"cpu": 0.5})
+
+        op = run_sleeping_vanilla(job_count=10, spec={"pool_trees": ["default", "other"]}, task_patch={"cpu_limit": 0.2})
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="default") + "/resource_usage/user_slots", default=None) == 3)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_usage/user_slots", default=None) == 3)
+
+        time.sleep(3.0)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="default") + "/resource_usage/user_slots") == 3)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_usage/user_slots") == 3)
+
+        update_pool_tree_config_option("other", "min_spare_allocation_resources_on_node", {"cpu": 0.1})
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_usage/user_slots") == 5)

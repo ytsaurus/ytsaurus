@@ -18,7 +18,8 @@ public:
         TSchedulerConfigPtr config,
         TExecNodePtr node,
         const std::vector<TAllocationPtr>& runningAllocations,
-        const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
+        const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
+        const TJobResources& defaultMinSpareAllocationResources);
 
     int GetNodeShardId() const override;
 
