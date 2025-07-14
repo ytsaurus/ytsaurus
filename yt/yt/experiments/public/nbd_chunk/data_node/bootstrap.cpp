@@ -56,6 +56,7 @@ public:
 
         NodeMemoryUsageTracker_ = CreateNodeMemoryTracker(
             Config_->ResourceLimits->TotalMemory,
+            New<TNodeMemoryTrackerConfig>(),
             /*limits*/ {},
             Logger,
             Profiler_.WithPrefix("/memory_usage"));

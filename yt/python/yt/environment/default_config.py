@@ -792,6 +792,12 @@ def get_dynamic_node_config():
                     },
                 },
             },
+            "job_resource_manager": {
+                "check_user_jobs_category_limit_on_resources_updating": True,
+            },
+            "node_memory_tracker": {
+                "check_per_category_limit_overcommit": True,
+            },
         },
     }
 

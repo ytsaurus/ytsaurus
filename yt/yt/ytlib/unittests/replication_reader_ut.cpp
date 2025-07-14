@@ -354,7 +354,7 @@ TEST_P(TReplicationReaderTest, ReadTest)
     auto pool = NConcurrency::CreateThreadPool(16, "Worker");
     auto invoker = pool->GetInvoker();
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-    auto memoryTracker = CreateNodeMemoryTracker(32_MB, {});
+    auto memoryTracker = CreateNodeMemoryTracker(32_MB, New<TNodeMemoryTrackerConfig>(), {});
 
     THashMap<std::string, IServicePtr> addressToService;
 
