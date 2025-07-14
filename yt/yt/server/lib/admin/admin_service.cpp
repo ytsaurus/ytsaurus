@@ -12,6 +12,8 @@
 #include <yt/yt/core/logging/fluent_log.h>
 #include <yt/yt/core/logging/log_manager.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <library/cpp/yt/system/exit.h>
 
 namespace NYT::NAdmin {
@@ -43,6 +45,7 @@ public:
         , ChannelFactory_(std::move(channelFactory))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Die));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteCoreDump));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(WriteLogBarrier));
     }
@@ -62,6 +65,72 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, Die)
     {
         AbortProcessSilently(request->exit_code());
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NProto, PingNode)
+    {
+        context->SetRequestInfo();
+
+        TSharedRef payload;
+        switch (request->Attachments().size()) {
+            case 0:
+                break;
+            case 1:
+                payload = request->Attachments()[0];
+                if (payload.size() > PingNodePayloadMax) {
+                    context->Reply(TError("Ping payload too large"));
+                    return;
+                }
+                break;
+            default:
+                context->Reply(TError("Too many ping attachments"));
+                return;
+        }
+
+        if (!request->chain_addresses().empty()) {
+            if (!ChannelFactory_) {
+                context->Reply(TError("Channel factory is not set up for ping chain"));
+                return;
+            }
+            const auto& addresses = request->chain_addresses();
+            if (addresses.size() > PingNodeChainMax) {
+                context->Reply(TError("Too many addresses in ping chain"));
+                return;
+            }
+
+            auto channel = ChannelFactory_->CreateChannel(addresses[0]);
+            TAdminServiceProxy proxy(channel);
+
+            auto req = proxy.PingNode();
+            // TODO(khlebnikov): Forward other parameters like multiplexing band.
+            req->SetTimeout(context->GetTimeout());
+            req->mutable_chain_addresses()->Add(addresses.cbegin()+1, addresses.cend());
+
+            if (payload) {
+                req->Attachments().push_back(payload);
+                payload = TSharedRef::MakeEmpty();
+            }
+
+            auto startTime = NProfiling::GetCpuInstant();
+            auto rsp = WaitFor(req->Invoke())
+                .ValueOrThrow();
+            auto finishTime = NProfiling::GetCpuInstant();;
+
+            auto* latencies = response->mutable_chain_latencies();
+            latencies->Reserve(rsp->chain_latencies_size()+1);
+            latencies->Add(ToProto(CpuDurationToDuration(finishTime - startTime)));
+            latencies->MergeFrom(rsp->chain_latencies());
+
+            if (payload && rsp->Attachments().size() == 1) {
+                payload = rsp->Attachments()[0];
+            }
+        }
+
+        if (payload) {
+            response->Attachments().push_back(payload);
+        }
+
+        context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, WriteCoreDump)
