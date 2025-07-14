@@ -159,6 +159,8 @@ struct INodeHeartbeatStrategyProxy
     virtual bool HasMatchingTree() const = 0;
 
     virtual std::optional<TString> GetMaybeTreeId() const = 0;
+
+    virtual TJobResources GetMinSpareResourcesForScheduling() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeHeartbeatStrategyProxy)

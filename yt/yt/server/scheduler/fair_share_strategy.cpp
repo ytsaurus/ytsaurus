@@ -31,6 +31,8 @@
 #include <yt/yt/core/ytree/service_combiner.h>
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <library/cpp/yt/threading/atomic_object.h>
 
 namespace NYT::NScheduler {
@@ -56,6 +58,7 @@ public:
         ISchedulerStrategyHost* host,
         std::vector<IInvokerPtr> feasibleInvokers)
         : Config_(std::move(config))
+        , AtomicConfig_(Config_)
         , Host_(host)
         , FeasibleInvokers_(std::move(feasibleInvokers))
         , Logger(StrategyLogger)
@@ -220,8 +223,10 @@ public:
         const TBooleanFormulaTags& tags,
         TMatchingTreeCookie cookie) const override
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         auto [tree, newCookie] = FindTreeForNodeWithCookie(address, tags, cookie);
-        return New<TNodeHeartbeatStrategyProxy>(nodeId, tree, newCookie);
+        return New<TNodeHeartbeatStrategyProxy>(nodeId, AtomicConfig_.Acquire(), tree, newCookie);
     }
 
     void RegisterOperation(
@@ -548,6 +553,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         Config_ = config;
+        AtomicConfig_ = config;
 
         for (const auto& [treeId, tree] : IdToTree_) {
             tree->UpdateControllerConfig(Config_);
@@ -1523,7 +1529,11 @@ private:
     class TPoolTreeService;
     friend class TPoolTreeService;
 
+    // Thread affinity: Control.
     TFairShareStrategyConfigPtr Config_;
+    // Thread affinity: any.
+    TAtomicIntrusivePtr<TFairShareStrategyConfig> AtomicConfig_;
+
     ISchedulerStrategyHost* const Host_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -1720,6 +1730,8 @@ private:
         const TBooleanFormulaTags& nodeTags,
         TMatchingTreeCookie cookie) const
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         auto snapshot = TreeSetSnapshot_.Acquire();
         if (!snapshot) {
             return {nullptr, TMatchingTreeCookie{}};
@@ -2469,9 +2481,14 @@ private:
         : public INodeHeartbeatStrategyProxy
     {
     public:
-        TNodeHeartbeatStrategyProxy(TNodeId nodeId, const IFairShareTreePtr& tree, TMatchingTreeCookie cookie)
+        TNodeHeartbeatStrategyProxy(
+            TNodeId nodeId,
+            TFairShareStrategyConfigPtr config,
+            IFairShareTreePtr tree,
+            TMatchingTreeCookie cookie)
             : NodeId_(nodeId)
-            , Tree_(tree)
+            , Config_(std::move(config))
+            , Tree_(std::move(tree))
             , Cookie_(cookie)
         { }
 
@@ -2527,8 +2544,24 @@ private:
             return {Tree_->GetId()};
         }
 
+        TJobResources GetMinSpareResourcesForScheduling() const override
+        {
+            if (Tree_) {
+                if (auto treeConfig = Tree_->GetSnapshottedConfig();
+                    treeConfig->MinSpareAllocationResourcesOnNode)
+                {
+                    return ToJobResources(*treeConfig->MinSpareAllocationResourcesOnNode, TJobResources());
+                }
+            }
+
+            return Config_->MinSpareAllocationResourcesOnNode
+                ? ToJobResources(*Config_->MinSpareAllocationResourcesOnNode, TJobResources())
+                : TJobResources();
+        }
+
     private:
         const TNodeId NodeId_;
+        const TFairShareStrategyConfigPtr Config_;
         const IFairShareTreePtr Tree_;
         const TMatchingTreeCookie Cookie_;
     };
