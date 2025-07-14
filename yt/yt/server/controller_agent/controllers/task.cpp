@@ -2205,6 +2205,7 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
         }
         CachedMinNeededResources_ = GetMinNeededResourcesHeavy();
     }
+
     auto result = ApplyMemoryReserve(
         *CachedMinNeededResources_,
         GetJobProxyMemoryReserveFactor(),

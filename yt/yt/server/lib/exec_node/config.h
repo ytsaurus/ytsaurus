@@ -342,6 +342,8 @@ struct TSchedulerConnectorDynamicConfig
 
     TDuration RequestNewAgentDelay;
 
+    bool ConsiderUserJobFreeMemoryWatermark;
+
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);
