@@ -38,7 +38,8 @@ target_link_libraries(yt-yt-server-lib-squash_fs-unittests PUBLIC
 )
 
 target_allocator(yt-yt-server-lib-squash_fs-unittests
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(yt-yt-server-lib-squash_fs-unittests PRIVATE

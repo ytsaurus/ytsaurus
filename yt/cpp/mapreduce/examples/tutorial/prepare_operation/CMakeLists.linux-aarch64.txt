@@ -48,7 +48,8 @@ target_link_libraries(prepare_operation PUBLIC
 )
 
 target_allocator(prepare_operation
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(prepare_operation PRIVATE

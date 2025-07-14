@@ -35,7 +35,8 @@ target_link_libraries(unittester-client-query-client PUBLIC
 )
 
 target_allocator(unittester-client-query-client
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-client-query-client PRIVATE

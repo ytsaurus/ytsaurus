@@ -35,7 +35,8 @@ target_link_libraries(grpc_cpp PUBLIC
 )
 
 target_allocator(grpc_cpp
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(grpc_cpp PRIVATE

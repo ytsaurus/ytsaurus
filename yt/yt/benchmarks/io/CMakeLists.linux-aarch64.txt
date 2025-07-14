@@ -36,7 +36,8 @@ target_link_libraries(iotest PUBLIC
 )
 
 target_allocator(iotest
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(iotest PRIVATE

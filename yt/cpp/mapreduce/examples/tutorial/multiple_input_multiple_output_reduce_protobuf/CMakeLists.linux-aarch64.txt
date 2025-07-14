@@ -48,7 +48,8 @@ target_link_libraries(multiple_input_multiple_output_reduce_protobuf PUBLIC
 )
 
 target_allocator(multiple_input_multiple_output_reduce_protobuf
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(multiple_input_multiple_output_reduce_protobuf PRIVATE

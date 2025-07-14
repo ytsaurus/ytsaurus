@@ -27,7 +27,8 @@ target_link_libraries(chyt_query PUBLIC
 )
 
 target_allocator(chyt_query
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(chyt_query PRIVATE

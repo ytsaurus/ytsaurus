@@ -40,7 +40,8 @@ target_link_libraries(unittester-core-http PUBLIC
 )
 
 target_allocator(unittester-core-http
-  cpp-malloc-jemalloc
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(unittester-core-http PRIVATE
