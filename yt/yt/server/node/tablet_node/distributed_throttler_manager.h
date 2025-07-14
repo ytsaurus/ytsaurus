@@ -28,7 +28,7 @@ DEFINE_REFCOUNTED_TYPE(IDistributedThrottlerManager)
 
 IDistributedThrottlerManagerPtr CreateDistributedThrottlerManager(
     IBootstrap* bootstrap,
-    TCellId cellId);
+    NDiscoveryClient::TMemberId memberId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
