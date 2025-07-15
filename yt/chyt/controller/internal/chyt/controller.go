@@ -24,6 +24,11 @@ const (
 	DefaultLogRotationMode = LogRotationModeBuiltin
 )
 
+type ResourcesConfig struct {
+	DefaultInstanceCPU    *uint64 `yson:"default_instance_cpu"`
+	DefaultInstanceMemory *uint64 `yson:"default_instance_memory"`
+}
+
 type Config struct {
 	// LocalBinariesDir is set if we want to execute local binaries on the clique.
 	// This directory should contain trampoline and chyt binaries.
@@ -35,6 +40,7 @@ type Config struct {
 	ExportSystemLogTables     *bool                `yson:"export_system_log_tables"`
 	EnableGeodata             *bool                `yson:"enable_geodata"`
 	EnableRuntimeData         *bool                `yson:"enable_runtime_data"`
+	ResourcesConfig           *ResourcesConfig     `yson:"resources_config"`
 	SecureVaultFiles          map[string]string    `yson:"secure_vault_files"`
 }
 
@@ -78,6 +84,20 @@ func (c *Config) EnableRuntimeDataOrDefault() bool {
 		return *c.EnableRuntimeData
 	}
 	return DefaultEnableRuntimeData
+}
+
+func (c *Config) getDefaultInstanceCPU() uint64 {
+	if c.ResourcesConfig != nil && c.ResourcesConfig.DefaultInstanceCPU != nil {
+		return *c.ResourcesConfig.DefaultInstanceCPU
+	}
+	return defaultInstanceCPU
+}
+
+func (c *Config) getDefaultMemory() uint64 {
+	if c.ResourcesConfig != nil && c.ResourcesConfig.DefaultInstanceMemory != nil {
+		return *c.ResourcesConfig.DefaultInstanceMemory
+	}
+	return (&InstanceMemory{}).totalMemory()
 }
 
 type Controller struct {
