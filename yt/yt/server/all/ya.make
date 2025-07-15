@@ -10,10 +10,8 @@ ALLOCATOR(TCMALLOC)
 
 IF (SANITIZER_TYPE == "address")
     IF (OS_LINUX)
-        LDFLAGS(
-            -Wl,--compress-debug-sections=zlib
-        )
-        CFLAGS(-gdwarf64 -mcmodel=large)
+        LDFLAGS(-Wl,--compress-debug-sections=zlib -gdwarf64 -mcmodel=large -gsplit-dwarf -mlarge-data-threshold=1)
+        CFLAGS(-gdwarf64 -mcmodel=large -gsplit-dwarf -mlarge-data-threshold=1)
     ENDIF()
 ENDIF()
 
