@@ -65,7 +65,9 @@ private:
         // TOOD(gryzlov-ad): Use chaos bundle name. Unify different chaos type handlers with some base class
         auto chaosCellId = attributes->Get<TCellId>("chaos_cell_id");
         auto parentId = attributes->FindAndRemove<TChaosLeaseId>("parent_id");
-        auto timeoutValue = attributes->FindAndRemove<i64>("timeout");
+        auto timeout = attributes->GetAndRemove<TDuration>(
+            "timeout",
+            Client_->GetNativeConnection()->GetConfig()->DefaultChaosLeaseTimeout);
 
         auto channel = Client_->GetChaosChannelByCellId(chaosCellId);
         auto proxy = TChaosNodeServiceProxy(std::move(channel));
@@ -73,15 +75,11 @@ private:
         proxy.SetDefaultTimeout(NRpc::DefaultRpcRequestTimeout);
 
         auto req = proxy.CreateChaosLease();
+        req->set_timeout(ToProto(timeout));
         ToProto(req->mutable_attributes(), *attributes);
         if (parentId) {
             ToProto(req->mutable_parent_id(), *parentId);
         }
-
-        auto timeout = timeoutValue
-            ? TDuration::MilliSeconds(*timeoutValue)
-            : Client_->GetNativeConnection()->GetConfig()->DefaultChaosLeaseTimeout;
-        req->set_timeout(ToProto(timeout));
 
         Client_->SetMutationId(req, options);
 
