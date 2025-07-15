@@ -1931,8 +1931,13 @@ print(json.dumps(input))
             command=with_breakpoint("""read row; echo $row; BREAKPOINT; cat"""),
             spec={"mapper": {"cookie_group_size": 2}},
         )
-        jobs = wait_breakpoint(job_count=2)
-        abort_job(jobs[0])
+        abort_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["main_job_id"])["main_job_id"])
+        wait_breakpoint(job_count=2)[0]
+        assert op.get_job_count("aborted") == 1
+        assert read_table("//tmp/t2") == []
+        release_breakpoint()
+        op.track()
+        assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @authors("faucct")
     def test_distributed_interrupting(self):
