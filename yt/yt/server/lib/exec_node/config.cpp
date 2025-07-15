@@ -849,9 +849,6 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("root_fs_binds", &TThis::RootFSBinds)
         .Default();
 
-    registrar.Parameter("container_user_group_name", &TThis::ContainerUserGroupName)
-        .Default("docker");
-
     registrar.Parameter("slot_manager", &TThis::SlotManager)
         .DefaultNew();
 

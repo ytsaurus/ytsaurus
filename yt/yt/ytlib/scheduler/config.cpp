@@ -1138,15 +1138,15 @@ void TSidecarJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("command", &TThis::Command);
 
     registrar.Parameter("cpu_limit", &TThis::CpuLimit)
-        .Optional()
+        .Default()
         .GreaterThanOrEqual(0);
     registrar.Parameter("memory_limit", &TThis::MemoryLimit)
-        .Optional()
+        .Default()
         .GreaterThan(0)
         .LessThanOrEqual(16_TB);
 
     registrar.Parameter("docker_image", &TThis::DockerImage)
-        .Optional();
+        .Default();
 
     registrar.Parameter("restart_policy", &TThis::RestartPolicy)
         .Default(ESidecarRestartPolicy::FailOnError);

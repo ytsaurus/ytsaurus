@@ -661,16 +661,6 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void StartSidecar(const std::string& /*name*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void OnSidecarFinished(const std::string& /*sidecarName*/, const TErrorOr<void> &/*value*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     void KillSidecars() override
     {
         YT_UNIMPLEMENTED();
@@ -906,16 +896,6 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void StartSidecar(const std::string& /*name*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void OnSidecarFinished(const std::string& /*sidecarName*/, const TErrorOr<void> &/*value*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     void KillSidecars() override
     {
         YT_UNIMPLEMENTED();
@@ -1130,7 +1110,7 @@ DEFINE_REFCOUNTED_TYPE(TCriUserJobEnvironment)
 struct TCriJobProxyConfig
 {
     TCriJobProxyConfig() = default;
-    explicit TCriJobProxyConfig(TJobProxyInternalConfigPtr config)
+    explicit TCriJobProxyConfig(const TJobProxyInternalConfigPtr& config)
         : DockerImage(config->DockerImage)
         , SlotPath(config->SlotPath)
         , Binds(config->Binds)
@@ -1356,21 +1336,23 @@ public:
             commandSplit.erase(commandSplit.begin());
 
             // Save them for later use.
-            SidecarsConfigs_[name] = TSidecarCriConfig{
-                std::move(sidecarSpec),
-                std::move(containerSpec),
-                std::move(command),
-                std::move(commandSplit)
+            RunningSidecars_[name] = TRunningSidecar{
+                .Config = TSidecarCriConfig{
+                    std::move(sidecarSpec),
+                    std::move(containerSpec),
+                    std::move(command),
+                    std::move(commandSplit),
+                },
             };
             StartSidecar(name);
         }
     }
 
-    void StartSidecar(const std::string& name) override
+    void StartSidecar(const std::string& name)
     {
-        auto sidecarIt = SidecarsConfigs_.find(name);
-        YT_VERIFY(sidecarIt != SidecarsConfigs_.end());
-        const auto& sidecarConfig = sidecarIt->second;
+        auto sidecarIt = RunningSidecars_.find(name);
+        YT_VERIFY(sidecarIt != RunningSidecars_.end());
+        const auto& sidecarConfig = sidecarIt->second.Config;
 
         auto process = Executor_->CreateProcess(
             sidecarConfig.Command,
@@ -1380,25 +1362,30 @@ public:
         );
         process->AddArguments(sidecarConfig.Arguments);
         process->SetWorkingDirectory(ProcessWorkingDirectory_);
+        sidecarIt->second.Process = process;
 
         auto sidecarFuture = BIND([=] {
                 return process->Spawn();
             })
             .AsyncVia(Invoker_)
             .Run();
-        sidecarFuture.Subscribe(BIND(&TCriJobProxyEnvironment::OnSidecarFinished, MakeStrong(this), name));
-        SidecarsRunning_[name] = {process, std::move(sidecarFuture)};
+        sidecarIt->second.FutureCallbackCookie = sidecarFuture.Subscribe(BIND_NO_PROPAGATE(
+            &TCriJobProxyEnvironment::OnSidecarFinished,
+            MakeStrong(this),
+            name
+        ));
+        sidecarIt->second.Future = std::move(sidecarFuture);
     }
 
-    void OnSidecarFinished(const std::string& sidecarName, const TErrorOr<void> &exitValue) override
+    void OnSidecarFinished(const std::string& sidecarName, const TErrorOr<void> &exitValue)
     {
         YT_LOG_INFO("Sidecar has finished the execution (SidecarName: %v, ExitValue: %v)", sidecarName, exitValue);
 
         // When a sidecar exits, we need to take an appropriate action depending on the RestartPolicy.
-        auto sidecarIt = SidecarsConfigs_.find(sidecarName);
-        YT_VERIFY(sidecarIt != SidecarsConfigs_.end());
-        const auto restartPolicy = sidecarIt->second.JobSpec->RestartPolicy;
-        const auto restartSidecar = [this, &sidecarName, restartPolicy, &exitValue] {
+        auto sidecarIt = RunningSidecars_.find(sidecarName);
+        YT_VERIFY(sidecarIt != RunningSidecars_.end());
+        const auto restartPolicy = sidecarIt->second.Config.JobSpec->RestartPolicy;
+        auto restartSidecar = [this, &sidecarName, restartPolicy, &exitValue] {
             YT_LOG_DEBUG("Restarting the sidecar as part of the exit event processing (SidecarName: %v, RestartPolicy: %v, ExitValue: %v)",
                 sidecarName, restartPolicy, exitValue);
             StartSidecar(sidecarName);
@@ -1436,10 +1423,11 @@ public:
 
     void KillSidecars() override
     {
-        for (auto& [name, sidecar]: SidecarsRunning_) {
-            if (!sidecar.first->IsFinished()) {
+        for (auto& [name, sidecar]: RunningSidecars_) {
+            if (!sidecar.Process->IsFinished()) {
                 YT_LOG_DEBUG("Killing a CRI sidecar (Name: %v)", name);
-                sidecar.first->Kill(SIGKILL);
+                sidecar.Future.Unsubscribe(sidecar.FutureCallbackCookie);
+                sidecar.Process->Kill(SIGKILL);
             }
         }
     }
@@ -1453,8 +1441,15 @@ private:
     const NContainers::NCri::ICriExecutorPtr Executor_;
     const NContainers::NCri::ICriImageCachePtr ImageCache_;
 
-    THashMap<TString, TSidecarCriConfig> SidecarsConfigs_;
-    THashMap<TString, std::pair<TProcessBasePtr, TFuture<void>>> SidecarsRunning_;
+    struct TRunningSidecar
+    {
+        TSidecarCriConfig Config;
+        TProcessBasePtr Process;
+        TFuture<void> Future;
+        TFutureCallbackCookie FutureCallbackCookie;
+    };
+
+    THashMap<TString, TRunningSidecar> RunningSidecars_;
 
     NCGroups::TSelfCGroupsStatisticsFetcher StatisticsFetcher_;
 };

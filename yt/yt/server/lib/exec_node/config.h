@@ -795,13 +795,6 @@ struct TExecNodeConfig
     //! Should include ChunkCache if artifacts are passed by symlinks.
     std::vector<NJobProxy::TBindConfigPtr> RootFSBinds;
 
-    //! Name of the user group which has access to container management. For instance, this group
-    //! should have access to containerd socket in case CRI is used. This value will only be used
-    //! if sidecars are to be spawned as part of the user job.
-    //! If unset, value `docker` will be used by default. This may lead to failure in job_proxy
-    //! if such group does not exist, and thus access to the socket is not possible.
-    TString ContainerUserGroupName;
-
     TSlotManagerConfigPtr SlotManager;
 
     TGpuManagerConfigPtr GpuManager;

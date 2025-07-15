@@ -10124,11 +10124,11 @@ double TOperationControllerBase::GetCpuLimit(const TUserJobSpecPtr& userJobSpec)
 }
 
 TOperationControllerBase::NormalizedDockerImage TOperationControllerBase::NormalizeDockerImage(
-    const TString& dockerImage) const
+    const std::string& dockerImage) const
 {
     std::optional<TString> normalizedImage;
 
-    TDockerImageSpec dockerImageSpec(dockerImage, Config_->DockerRegistry);
+    TDockerImageSpec dockerImageSpec(TString(dockerImage), Config_->DockerRegistry);
     if (!dockerImageSpec.IsInternal || Config_->DockerRegistry->ForwardInternalImagesToJobSpecs) {
         normalizedImage = dockerImageSpec.GetDockerImage();
     }
@@ -10343,23 +10343,21 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         needDockerAuth |= result.AddAuthTokenToEnv;
     }
 
-    if (jobSpecConfig->Sidecars) {
-        auto* protoSidecars = jobSpec->mutable_sidecars();
-        for (const auto& [sidecarName, sidecarSpec]: *jobSpecConfig->Sidecars) {
-            auto& protoSidecar = (*protoSidecars)[sidecarName];
-            ToProto(&protoSidecar, *sidecarSpec);
+    auto* protoSidecars = jobSpec->mutable_sidecars();
+    for (const auto& [sidecarName, sidecarSpec]: jobSpecConfig->Sidecars) {
+        auto& protoSidecar = (*protoSidecars)[sidecarName];
+        ToProto(&protoSidecar, *sidecarSpec);
 
-            if (sidecarSpec->DockerImage) {
-                auto result = NormalizeDockerImage(*sidecarSpec->DockerImage);
-                if (result.Image) {
-                    protoSidecar.set_docker_image(*result.Image);
-                } else {
-                    // ToProto(..) sets the docker_image as-is, but we want either the normalized one,
-                    // or no image at all (same as with the main job), so we clear it in this case.
-                    protoSidecar.clear_docker_image();
-                }
-                needDockerAuth |= result.AddAuthTokenToEnv;
+        if (sidecarSpec->DockerImage) {
+            auto result = NormalizeDockerImage(*sidecarSpec->DockerImage);
+            if (result.Image) {
+                protoSidecar.set_docker_image(*result.Image);
+            } else {
+                // ToProto(..) sets the docker_image as-is, but we want either the normalized one,
+                // or no image at all (same as with the main job), so we clear it in this case.
+                protoSidecar.clear_docker_image();
             }
+            needDockerAuth |= result.AddAuthTokenToEnv;
         }
     }
 

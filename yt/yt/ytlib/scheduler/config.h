@@ -1510,7 +1510,7 @@ struct TUserJobSpec
     std::optional<TDuration> ArchiveTtl;
 
     //! Map consisting of pairs <sidecar_name, sidecar_spec>.
-    std::optional<THashMap<TString, TSidecarJobSpecPtr>> Sidecars;
+    THashMap<TString, TSidecarJobSpecPtr> Sidecars;
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 

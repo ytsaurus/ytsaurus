@@ -1538,13 +1538,13 @@ private:
 
     struct NormalizedDockerImage
     {
-        std::optional<TString> Image;
+        std::optional<std::string> Image;
 
         //! If set to true, the authentication token must be added to the
         //! environment to access the image.
         bool AddAuthTokenToEnv;
     };
-    NormalizedDockerImage NormalizeDockerImage(const TString& dockerImage) const;
+    NormalizedDockerImage NormalizeDockerImage(const std::string& dockerImage) const;
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOperationControllerBase, 0x6715254c);

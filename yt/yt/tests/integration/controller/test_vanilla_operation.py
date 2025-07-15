@@ -2850,6 +2850,15 @@ class TestSidecarVanilla(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     JOB_ENVIRONMENT_TYPE = "cri"
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "job_environment": {
+                    "container_user_group_name": "docker",
+                },
+            },
+        },
+    }
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
@@ -2881,7 +2890,6 @@ class TestSidecarVanilla(YTEnvSetup):
                         ],
                         "sidecars": {
                             "sidecar1": {
-                                "job_count": 1,
                                 "command": f"/bin/bash {sidecar_cmds_file}",
                                 "docker_image": docker_image,
                                 "restart_policy": sidecar_restart_policy,
@@ -2919,7 +2927,7 @@ class TestSidecarVanilla(YTEnvSetup):
         """
         master_command = " ; ".join(
             [
-                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().notify_event_cmd("master_job_started"),
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
@@ -2933,7 +2941,7 @@ class TestSidecarVanilla(YTEnvSetup):
         op = self.start_operation(master_command, sidecar_command)
 
         # Wait until both master job and sidecar job are started, then finish the test.
-        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().wait_event("sidecar_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish")
 
@@ -2946,7 +2954,7 @@ class TestSidecarVanilla(YTEnvSetup):
         """
         master_command = " ; ".join(
             [
-                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().notify_event_cmd("master_job_started"),
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
@@ -2963,7 +2971,6 @@ class TestSidecarVanilla(YTEnvSetup):
                             "docker_image": docker_image,
                             "sidecars": {
                                 "sidecar1": {
-                                    "job_count": 1,
                                     "docker_image": docker_image,
                                 }
                             }
@@ -2979,7 +2986,7 @@ class TestSidecarVanilla(YTEnvSetup):
         """
         master_command = " ; ".join(
             [
-                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().notify_event_cmd("master_job_started"),
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
@@ -3013,12 +3020,10 @@ class TestSidecarVanilla(YTEnvSetup):
                         ],
                         "sidecars": {
                             "sidecar1": {
-                                "job_count": 1,
                                 "command": f"/bin/bash {sidecar1_cmds_file}",
                                 "docker_image": docker_image,
                             },
                             "sidecar2": {
-                                "job_count": 1,
                                 "command": f"/bin/bash {sidecar2_cmds_file}",
                                 "docker_image": docker_image,
                             }
@@ -3030,7 +3035,7 @@ class TestSidecarVanilla(YTEnvSetup):
         wait(lambda: len(get(op.get_path() + "/@progress/tasks")) == 1, ignore_exceptions=True)
 
         # Wait until master job and both sidecars are started, then finish the test.
-        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().wait_event("sidecar1_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().wait_event("sidecar2_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().notify_event("finish")
@@ -3045,7 +3050,7 @@ class TestSidecarVanilla(YTEnvSetup):
         """
         master_command = " ; ".join(
             [
-                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().notify_event_cmd("master_job_started"),
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
@@ -3064,7 +3069,7 @@ fi
         op = self.start_operation(master_command, sidecar_command, "always")
 
         # Wait until master job is started.
-        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
 
         # When the sidecar starts for the 1st time, finish its execution by sending the corresponding event.
         events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
@@ -3086,7 +3091,7 @@ fi
         """
         master_command = " ; ".join(
             [
-                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().notify_event_cmd("master_job_started"),
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
@@ -3106,7 +3111,7 @@ fi
         op = self.start_operation(master_command, sidecar_command, "always")
 
         # Wait until master job is started.
-        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
 
         # When the sidecar starts for the 1st time, it will finish the execution with error; we
         # expect it to restart.
@@ -3129,7 +3134,7 @@ fi
         """
         master_command = " ; ".join(
             [
-                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().notify_event_cmd("master_job_started"),
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
@@ -3146,7 +3151,7 @@ fi
         op = self.start_operation(master_command, sidecar_command, "on_failure")
 
         # Wait until master job is started.
-        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
 
         # Wait until the sidecar is started.
         events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
@@ -3171,7 +3176,7 @@ fi
         """
         master_command = " ; ".join(
             [
-                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().notify_event_cmd("master_job_started"),
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
@@ -3191,7 +3196,7 @@ fi
         op = self.start_operation(master_command, sidecar_command, "on_failure")
 
         # Wait until master job is started.
-        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
 
         # When the sidecar starts for the 1st time, it will finish the execution with error; we
         # expect it to restart.
@@ -3214,7 +3219,7 @@ fi
         """
         master_command = " ; ".join(
             [
-                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().notify_event_cmd("master_job_started"),
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
@@ -3231,7 +3236,7 @@ fi
         op = self.start_operation(master_command, sidecar_command, "fail_on_error")
 
         # Wait until master job is started.
-        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
 
         # Wait until the sidecar is started.
         events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
@@ -3256,7 +3261,7 @@ fi
         """
         master_command = " ; ".join(
             [
-                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().notify_event_cmd("master_job_started"),
                 events_on_fs().wait_event_cmd("finish"),  # Will not arrive.
             ]
         )
@@ -3274,7 +3279,7 @@ fi
         op = self.start_operation(master_command, sidecar_command, "fail_on_error")
 
         # Wait until master job is started.
-        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
 
         # The sidecar's execution will finish with error.
         events_on_fs().wait_event("sidecar_first_job_started", timeout=datetime.timedelta(1000))
@@ -3300,9 +3305,9 @@ sidecar_write
 
         master_command = " ; ".join(
             [
-                events_on_fs().notify_event_cmd("master_job_started_${YT_JOB_COOKIE}"),
+                events_on_fs().notify_event_cmd("master_job_started"),
                 f"echo 'master_write' >> {shared_file}",
-                events_on_fs().notify_event_cmd("master_job_wrote_${YT_JOB_COOKIE}"),
+                events_on_fs().notify_event_cmd("master_job_wrote"),
                 events_on_fs().wait_event_cmd("finish"),
             ]
         )
@@ -3318,11 +3323,11 @@ echo 'sidecar_write' >> {shared_file}
         op = self.start_operation(master_command, sidecar_command)
 
         # Wait until both master job and sidecar are started.
-        events_on_fs().wait_event("master_job_started_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("master_job_started", timeout=datetime.timedelta(1000))
         events_on_fs().wait_event("sidecar_job_started", timeout=datetime.timedelta(1000))
 
         # Wait until master job has written something into the file.
-        events_on_fs().wait_event("master_job_wrote_0", timeout=datetime.timedelta(1000))
+        events_on_fs().wait_event("master_job_wrote", timeout=datetime.timedelta(1000))
 
         # Allow the sidecar to proceed and check that it also has written into the file.
         events_on_fs().notify_event("sidecar_proceed")

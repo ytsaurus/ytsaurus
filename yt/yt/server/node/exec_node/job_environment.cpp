@@ -198,7 +198,7 @@ public:
         return 0;
     }
 
-    void EnrichJobEnvironmentConfig(int /*slotIndex*/, NJobProxy::TJobProxyInternalConfigPtr& /*jobProxyConfig*/) const override
+    void EnrichJobEnvironmentConfig(int /*slotIndex*/, TNonNullPtr<NJobProxy::TJobProxyInternalConfig> /*jobProxyConfig*/) const override
     { }
 
     TFuture<std::vector<TShellCommandResult>> RunCommands(
@@ -979,7 +979,7 @@ private:
         return SelfInstance_->GetMajorPageFaultCount();
     }
 
-    void EnrichJobEnvironmentConfig(int /*slotIndex*/, NJobProxy::TJobProxyInternalConfigPtr& /*jobProxyConfig*/) const override
+    void EnrichJobEnvironmentConfig(int /*slotIndex*/, TNonNullPtr<NJobProxy::TJobProxyInternalConfig> /*jobProxyConfig*/) const override
     { }
 
     TJobWorkspaceBuilderPtr CreateJobWorkspaceBuilder(
@@ -1014,7 +1014,7 @@ public:
         , ImageCache_(CreateCriImageCache(ConcreteConfig_->CriImageCache, Executor_))
     { }
 
-    void EnrichJobEnvironmentConfig(int slotIndex, NJobProxy::TJobProxyInternalConfigPtr& jobProxyConfig) const override
+    void EnrichJobEnvironmentConfig(int slotIndex, TNonNullPtr<NJobProxy::TJobProxyInternalConfig> jobProxyConfig) const override
     {
         auto criJobEnv = jobProxyConfig->JobEnvironment.TryGetConcrete<TCriJobEnvironmentConfig>();
         YT_VERIFY(criJobEnv);
@@ -1022,7 +1022,7 @@ public:
         criJobEnv->PodDescriptor = PodDescriptors_[slotIndex];
         criJobEnv->PodSpec = PodSpecs_[slotIndex];
         if (auto gpuConfig = GetContainerGpuConfig(jobProxyConfig)) {
-            criJobEnv->GpuConfig = std::move(*gpuConfig);
+            criJobEnv->GpuConfig = std::move(gpuConfig);
         }
     }
 
@@ -1227,10 +1227,10 @@ private:
 
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("CriMounter");
 
-    std::optional<TContainerGpuConfigPtr> GetContainerGpuConfig(const NJobProxy::TJobProxyInternalConfigPtr& jobProxyConfig) const
+    TContainerGpuConfigPtr GetContainerGpuConfig(const TNonNullPtr<NJobProxy::TJobProxyInternalConfig>& jobProxyConfig) const
     {
         if (!Bootstrap_->GetGpuManager()->HasGpuDevices()) {
-            return std::nullopt;
+            return nullptr;
         }
 
         auto config = New<TContainerGpuConfig>();
@@ -1288,8 +1288,7 @@ private:
 
         // NB: If nvidia container runtime is used, empty list of devices
         // should be set explicitly to avoid binding all devices to job container.
-        if (auto gpuContainerConfigOpt = GetContainerGpuConfig(config)) {
-            auto gpuContainerConfig = *gpuContainerConfigOpt;
+        if (auto gpuContainerConfig = GetContainerGpuConfig(config)) {
             spec->Environment["NVIDIA_DRIVER_CAPABILITIES"] = gpuContainerConfig->NvidiaDriverCapabilities;
             spec->Environment["NVIDIA_VISIBLE_DEVICES"] = gpuContainerConfig->NvidiaVisibleDevices;
 
@@ -1365,13 +1364,13 @@ private:
         }
 
         // Required for job_proxy to be able to work with the containerd socket.
-        const auto processSocketPath = [&spec](TString socketPath) {
-            if (socketPath.size() >= 7 && socketPath.StartsWith("unix")) {
-                socketPath.erase(0, 7);
+        auto processSocketPath = [&spec] (std::string_view socketPath) {
+            if (socketPath.size() >= 7 && socketPath.starts_with("unix")) {
+                socketPath.remove_prefix(7);
             }
             spec->BindMounts.push_back(NCri::TCriBindMount{
-                .ContainerPath = socketPath,
-                .HostPath = socketPath,
+                .ContainerPath = TString(socketPath),
+                .HostPath = TString(socketPath),
                 .ReadOnly = false,
             });
         };
@@ -1379,15 +1378,15 @@ private:
         processSocketPath(ConcreteConfig_->CriExecutor->RuntimeEndpoint);
 
 #ifdef _linux_
-        // Required for job_proxy to be able to actually access the containerd socket.
-        const auto* containerGroup =
-            getgrnam(Bootstrap_->GetConfig()->ExecNode->ContainerUserGroupName.c_str());
-        if (containerGroup != nullptr) {
-            spec->Credentials.Groups = {containerGroup->gr_gid};
-        } else {
-            YT_LOG_ERROR(
-                "Cannot find user group by the specified name, sidecars may not work in job_proxy (ContainerUserGroupName: %v)",
-                Bootstrap_->GetConfig()->ExecNode->ContainerUserGroupName);
+        const auto& groupName = ConcreteConfig_->ContainerUserGroupName;
+        if (!groupName.empty()) {
+            const auto* groupRetrieved = getgrnam(groupName.c_str());
+            if (groupRetrieved != nullptr) {
+                spec->Credentials.Groups = {groupRetrieved->gr_gid};
+            } else {
+                THROW_ERROR_EXCEPTION("Cannot find user group by the specified name")
+                    << TErrorAttribute("container_user_group_name", groupName);
+            }
         }
 #endif
 

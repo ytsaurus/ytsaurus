@@ -192,8 +192,6 @@ struct IJobProxyEnvironment
     virtual bool UseExecFromLayer() const = 0;
 
     virtual void StartSidecars(const NControllerAgent::NProto::TJobSpecExt& jobSpecExt) = 0;
-    virtual void StartSidecar(const std::string& name) = 0;
-    virtual void OnSidecarFinished(const std::string& sidecarName, const TErrorOr<void> &value) = 0;
     virtual void KillSidecars() = 0;
 };
 
