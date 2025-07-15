@@ -1954,20 +1954,32 @@ print(json.dumps(input))
         interrupt_job(get_job(op.id, wait_breakpoint(job_count=2)[0], attributes=["main_job_id"])["main_job_id"])
         release_breakpoint()
         op.track()
+        assert op.get_job_count("aborted") == 0
 
     @authors("faucct")
     def test_distributed_with_job_fail_and_operation_completion(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
-        map(
+        op = map(
             in_="//tmp/t1",
             out="//tmp/t2",
-            command="""if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; elif [ "$YT_JOB_INDEX" < 2 ]; then exit 1; fi""",
+            command=with_breakpoint(
+                """BREAKPOINT; if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; elif [ "$YT_JOB_INDEX" < 2 ]; then exit 1; fi"""
+            ),
             spec={"mapper": {"cookie_group_size": 2}, "max_failed_job_count": 2},
+            track=False,
         )
-        res = read_table("//tmp/t2")
-        assert res == [{"a": "b"}]
+        main_job_id = get_job(op.id, wait_breakpoint()[0], attributes=["main_job_id"])["main_job_id"]
+        release_breakpoint(job_id=main_job_id)
+        try:
+            wait(lambda: get_job(op.id, main_job_id)["state"] == "completed")
+        except Exception as e:
+            assert "not found neither in archive nor in controller agent" in str(e)
+        assert read_table("//tmp/t2") == []
+        release_breakpoint()
+        op.track()
+        assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @authors("ifsmirnov")
     def test_disallow_partially_sorted_output(self):
