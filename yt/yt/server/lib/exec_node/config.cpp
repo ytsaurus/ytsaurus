@@ -36,6 +36,9 @@ void TSlotLocationConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_disk_quota", &TThis::EnableDiskQuota)
         .Default(true);
 
+    registrar.Parameter("heavy_location_queue_watchdog_threshold", &TThis::HeavyLocationQueueWatchdogThreshold)
+        .Default(TDuration::Seconds(30));
+
     registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
         .DefaultNew();
 }
