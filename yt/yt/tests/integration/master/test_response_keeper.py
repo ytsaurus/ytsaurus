@@ -79,7 +79,7 @@ class TestSequoiaResponseKeeper(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 2
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["sequoia_node_host"]},
-        # Master cell with tag 11 is reserved for portals.
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
         "12": {"roles": ["sequoia_node_host"]},
     }
 

@@ -2940,6 +2940,12 @@ class TestTablesMulticell(TestTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
     @authors("babenko")
     def test_concatenate_teleport(self):
         create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
@@ -3278,6 +3284,12 @@ class TestTablesPortal(TestTablesMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "cypress_node_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
 
 @pytest.mark.enabled_multidaemon
 class TestTablesShardedTx(TestTablesPortal):
@@ -3285,6 +3297,8 @@ class TestTablesShardedTx(TestTablesPortal):
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "cypress_node_host"]},
         "13": {"roles": ["transaction_coordinator", "chunk_host"]},
         "14": {"roles": ["transaction_coordinator"]},
     }

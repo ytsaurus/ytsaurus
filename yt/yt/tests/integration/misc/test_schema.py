@@ -1576,6 +1576,11 @@ class TestSchemaObjects(TestSchemaDeduplication):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
+
     @authors("shakurov", "h0pless")
     def test_schema_map(self):
         create("table", "//tmp/empty_schema_holder", attributes={"external_cell_tag": 11})

@@ -35,6 +35,10 @@ class TestTracing(YTEnvSetup):
         },
     }
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+    }
+
     @classmethod
     def teardown_class(cls):
         # Wait for tracing queue flush
