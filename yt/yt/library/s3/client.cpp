@@ -32,39 +32,42 @@ Poco::XML::Node* GetRootNode(TPocoXmlDocumentPtr document)
     THROW_ERROR_EXCEPTION("The document does not have a non-comment root node");
 }
 
-struct TXmlParsedDocument
+struct TXmlNodeHolder
 {
     Poco::XML::Node& operator*()
     {
-        return *RootNode;
+        return *Node;
     }
+
     const Poco::XML::Node& operator*() const
     {
-        return *RootNode;
+        return *Node;
     }
+
     Poco::XML::Node* operator->()
     {
-        return RootNode;
+        return Node;
     }
+
     const Poco::XML::Node* operator->() const
     {
-        return RootNode;
+        return Node;
     }
 
     //! Parsed document; this pointer also manages the lifetime.
     TPocoXmlDocumentPtr Document;
 
-    //! Pointer to the root node of this document.
-    Poco::XML::Node* RootNode;
+    //! Pointer to one of the nodes (by default a root node) of this document.
+    Poco::XML::Node* Node;
 };
 
-TXmlParsedDocument ParseXmlDocument(TSharedRef responseBody)
+TXmlNodeHolder ParseXmlDocument(TSharedRef responseBody)
 {
     std::string responseString(responseBody.ToStringBuf());
     TPocoXmlDocumentPtr parsedDocument = Poco::XML::DOMParser{}.parseString(responseString);
     return {
         .Document = parsedDocument,
-        .RootNode = GetRootNode(parsedDocument),
+        .Node = GetRootNode(parsedDocument),
     };
 }
 
