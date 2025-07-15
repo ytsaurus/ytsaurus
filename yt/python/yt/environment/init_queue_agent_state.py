@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
 from yt.wrapper import config, YtClient
-from yt.wrapper.ypath import ypath_join
 
 from yt.environment.migrationlib import TableInfo, Migration, Conversion
 
@@ -425,23 +424,16 @@ def build_arguments_parser():
     return parser
 
 
-# Creates missing tables for compatability with previous version of init_queue_agent_state,
-# and handle cases when some tables were removed manually.
-def _create_missing_tables(client, root, migration):
-    if not client.exists(root):
-        # This case is handled by migrationlib
-        return
+def run_migration(client, root, target_version=None, shard_count=1, force=False, migration=None):
+    if migration is None:
+        migration = prepare_migration(client)
 
-    for table, table_info in migration.initial_table_infos.items():
-        table_path = ypath_join(root, table)
-        if not client.exists(table_path):
-            table_info.create_dynamic_table(client, table_path)
+    if target_version is None:
+        target_version = migration.get_latest_version()
 
-
-def run_migration(migration, client, tables_path, shard_count, target_version, force):
     migration.run(
-        client,
-        tables_path=tables_path,
+        client=client,
+        tables_path=root,
         shard_count=shard_count,
         target_version=target_version,
         force=force,
@@ -453,15 +445,16 @@ def main():
     args = build_arguments_parser().parse_args()
     client = YtClient(proxy=args.proxy, token=config["token"])
 
-    migration = prepare_migration(client)
-
-    _create_missing_tables(client, args.root, migration)
-
     target_version = args.target_version
     if args.latest:
         target_version = MIGRATION.get_latest_version()
 
-    run_migration(migration, client, args.root, args.shard_count, target_version, args.force)
+    run_migration(
+        client=client,
+        root=args.root,
+        target_version=target_version,
+        shard_count=args.shard_count,
+        force=args.force)
 
 
 if __name__ == "__main__":
