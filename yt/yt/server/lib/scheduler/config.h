@@ -482,6 +482,9 @@ struct TFairShareStrategyTreeConfig
 
     TJobResourcesConfigPtr MinJobResourceLimits;
     TJobResourcesConfigPtr MaxJobResourceLimits;
+    TJobResourcesConfigPtr MinNodeResourceLimits;
+
+    TDuration MinNodeResourceLimitsCheckPeriod;
 
     bool AllowGangOperationsOnlyInFifoPools;
 

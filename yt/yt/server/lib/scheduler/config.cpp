@@ -643,6 +643,12 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_job_resource_limits", &TThis::MaxJobResourceLimits)
         .DefaultNew();
 
+    registrar.Parameter("min_node_resource_limits", &TThis::MinNodeResourceLimits)
+        .DefaultNew();
+
+    registrar.Parameter("min_node_resource_limits_check_period", &TThis::MinNodeResourceLimitsCheckPeriod)
+        .Default(TDuration::Minutes(1));
+
     registrar.Parameter("allow_gang_operations_only_in_fifo_pools", &TThis::AllowGangOperationsOnlyInFifoPools)
         .Default(false);
 
