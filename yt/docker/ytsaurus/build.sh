@@ -77,8 +77,8 @@ mkdir ${output_path}/credits
 if [[ "${component}" == "ytsaurus" ]]; then
 
     ytserver_all="${ytsaurus_build_path}/yt/yt/server/all/ytserver-all"
-    init_queue_agent_state="${ytsaurus_source_path}/yt/python/yt/environment/init_queue_agent_state.py"
-    init_operations_archive="${ytsaurus_source_path}/yt/python/yt/environment/init_operations_archive.py"
+    init_queue_agent_state="${ytsaurus_build_path}/yt/python/yt/environment/bin/init_queue_agent_state/init_queue_agent_state"
+    init_operations_archive="${ytsaurus_build_path}/yt/python/yt/environment/bin/init_operations_archive/init-operations-archive"
     credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytsaurus"
 
     cp ${ytserver_all} ${output_path}
@@ -92,7 +92,7 @@ if [[ "${component}" == "ytsaurus" ]]; then
 elif [[ "${component}" == "chyt" ]]; then
 
     ytserver_clickhouse="${ytsaurus_build_path}/yt/chyt/server/bin/ytserver-clickhouse"
-    clickhouse_trampoline="${ytsaurus_source_path}/yt/chyt/trampoline/clickhouse-trampoline.py"
+    clickhouse_trampoline="${ytsaurus_build_path}/yt/chyt/trampoline/clickhouse-trampoline"
 
     chyt_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/chyt"
     setup_script="${ytsaurus_source_path}/yt/docker/ytsaurus/setup_cluster_for_chyt.sh"
@@ -107,7 +107,7 @@ elif [[ "${component}" == "query-tracker" ]]; then
 
     ytserver_all="${ytsaurus_build_path}/yt/yt/server/all/ytserver-all"
     ytserver_yql_agent="${yql_build_path}/yt/yql/agent/bin/ytserver-yql-agent"
-    init_query_tracker_state="${ytsaurus_source_path}/yt/python/yt/environment/init_query_tracker_state.py"
+    init_query_tracker_state="${ytsaurus_build_path}/yt/python/yt/environment/bin/init_query_tracker_state/init_query_tracker_state"
     mrjob="${ytsaurus_source_path}/yt/yql/tools/mrjob/mrjob"
     dq_vanilla_job="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job/dq_vanilla_job"
     dq_vanilla_job_lite="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job.lite/dq_vanilla_job.lite"
@@ -144,7 +144,7 @@ elif [[ "${component}" == "local" ]]; then
     ytserver_all_credits="${ytsaurus_source_path}/yt/docker/ytsaurus/credits/ytsaurus"
 
     ytserver_yql_agent="${yql_build_path}/yt/yql/agent/bin/ytserver-yql-agent"
-    init_query_tracker_state="${ytsaurus_source_path}/yt/python/yt/environment/init_query_tracker_state.py"
+    init_query_tracker_state="${ytsaurus_build_path}/yt/python/yt/environment/bin/init_query_tracker_state/init_query_tracker_state"
     mrjob="${ytsaurus_source_path}/yt/yql/tools/mrjob/mrjob"
     dq_vanilla_job="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job/dq_vanilla_job"
     dq_vanilla_job_lite="${yql_build_path}/ydb/library/yql/yt/dq_vanilla_job.lite/dq_vanilla_job.lite"
