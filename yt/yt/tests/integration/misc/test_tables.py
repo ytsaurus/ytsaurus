@@ -599,6 +599,32 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table") == [{"doubled_num": 2 * i, "num": i} for i in [1, 1, 2, 3, 5, 8, 13]]
         assert read_table("//tmp/table{doubled_num}") == [{"doubled_num": 2 * i} for i in [1, 1, 2, 3, 5, 8, 13]]
 
+    @authors("coteeq")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_non_materialized_string_value(self, optimize_for):
+        create(
+            "table",
+            "//tmp/table",
+            attributes={
+                "optimize_for": optimize_for,
+                "schema": [
+                    {"name": "num", "type": "int64"},
+                    {
+                        "name": "doubled_num",
+                        "type": "string",
+                        "expression": "numeric_to_string(num * 2)",
+                        "materialized": False,
+                    },
+                ]
+            },
+        )
+        assert get("//tmp/table/@schema_mode") == "strong"
+
+        write_table("//tmp/table", [{"num": 1}, {"num": 1}, {"num": 2}, {"num": 3}, {"num": 5}, {"num": 8}, {"num": 13}])
+
+        assert read_table("//tmp/table") == [{"doubled_num": str(2 * i), "num": i} for i in [1, 1, 2, 3, 5, 8, 13]]
+        assert read_table("//tmp/table{doubled_num}") == [{"doubled_num": str(2 * i)} for i in [1, 1, 2, 3, 5, 8, 13]]
+
     @authors("cherepashka")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_non_materialized_computed_columns_dependencies(self, optimize_for):

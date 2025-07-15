@@ -601,6 +601,8 @@ protected:
     const int CommonKeyPrefix_;
     const bool UnpackAny_;
 
+    // TODO(coteeq): Include this in reader memory estimation.
+    TRowBufferPtr EphemeralRowBuffer_ = New<TRowBuffer>();
     TColumnEvaluatorPtr ColumnEvaluator_;
 
     int GetChunkKeyColumnCount() const
@@ -612,8 +614,7 @@ protected:
     {
         if (ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns()) {
             YT_VERIFY(ColumnEvaluator_);
-            auto rowBuffer = New<TRowBuffer>();
-            ColumnEvaluator_->EvaluateKeys(row, rowBuffer, /*preserveColumnsIds*/ true);
+            ColumnEvaluator_->EvaluateKeys(row, EphemeralRowBuffer_, /*preserveColumnsIds*/ true);
         }
 
         auto firstIndexToSkip = GetFirstIndexToSkipRemappingInRow(row.GetCount());
@@ -849,6 +850,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
     auto readGuard = AcquireReadGuard();
 
     MemoryPool_.Clear();
+    EphemeralRowBuffer_->Clear();
 
     if (!BeginRead()) {
         // Not ready yet.
@@ -1363,6 +1365,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
     auto readGuard = AcquireReadGuard();
 
     MemoryPool_.Clear();
+    EphemeralRowBuffer_->Clear();
 
     std::vector<TUnversionedRow> rows;
     rows.reserve(
@@ -1436,6 +1439,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
     auto readGuard = AcquireReadGuard();
 
     MemoryPool_.Clear();
+    EphemeralRowBuffer_->Clear();
 
     std::vector<TUnversionedRow> rows;
     i64 dataWeight = 0;
@@ -1670,8 +1674,7 @@ public:
     {
         if (ChunkMeta_->ChunkSchema()->HasNonMaterializedComputedColumns()) {
             YT_VERIFY(ColumnEvaluator_);
-            auto rowBuffer = New<TRowBuffer>();
-            ColumnEvaluator_->EvaluateKeys(row, rowBuffer, /*preserveColumnsIds*/ true);
+            ColumnEvaluator_->EvaluateKeys(row, EphemeralRowBuffer_, /*preserveColumnsIds*/ true);
         }
 
         ApplyColumnIdMapping(row, chunkToReaderIdMapping, prefixToRemapSize, firstIndexToSkip, lastIndexToSkip);
@@ -1681,6 +1684,9 @@ protected:
     std::vector<IUnversionedColumnReader*> RowColumnReaders_;
     std::vector<IUnversionedColumnReader*> KeyColumnReaders_;
     ISchemalessColumnReader* SchemalessReader_ = nullptr;
+
+    // TODO(coteeq): Include this in reader memory estimation.
+    TRowBufferPtr EphemeralRowBuffer_ = New<TRowBuffer>();
     TColumnEvaluatorPtr ColumnEvaluator_;
 
     TChunkedMemoryPool MemoryPool_;
@@ -1824,7 +1830,8 @@ public:
         YT_VERIFY(PendingUnmaterializedRowCount_ == 0);
 
         Pool_.Clear();
-        MemoryGuard_.SetSize(Pool_.GetCapacity());
+        EphemeralRowBuffer_->Clear();
+        MemoryGuard_.SetSize(Pool_.GetCapacity() + EphemeralRowBuffer_->GetCapacity());
 
         if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
@@ -2142,7 +2149,7 @@ private:
             intermediateRootBatchColumns.push_back(rootColumn);
             currentBatchColumnIndex += 1;
 
-            MemoryGuard_.SetSize(Pool_.GetCapacity());
+            MemoryGuard_.SetSize(Pool_.GetCapacity() + EphemeralRowBuffer_->GetCapacity());
         }
 
         // Filter out columns and apply column id mapping.
@@ -2230,7 +2237,7 @@ private:
             keys.push_back(key);
         }
 
-        MemoryGuard_.SetSize(Pool_.GetCapacity());
+        MemoryGuard_.SetSize(Pool_.GetCapacity() + EphemeralRowBuffer_->GetCapacity());
 
         return keys;
     }
@@ -2285,7 +2292,7 @@ private:
                 GetLastIndexToSkipRemappingInRow(row.GetCount()));
         }
 
-        MemoryGuard_.SetSize(Pool_.GetCapacity());
+        MemoryGuard_.SetSize(Pool_.GetCapacity() + EphemeralRowBuffer_->GetCapacity());
 
         AdvanceRowIndex(rowCount);
     }
@@ -2376,7 +2383,8 @@ public:
         auto readGuard = AcquireReadGuard();
 
         Pool_.Clear();
-        MemoryGuard_.SetSize(Pool_.GetCapacity());
+        EphemeralRowBuffer_->Clear();
+        MemoryGuard_.SetSize(Pool_.GetCapacity() + EphemeralRowBuffer_->GetCapacity());
 
         if (!IsReadyEventSetAndOK()) {
             return CreateEmptyUnversionedRowBatch();
@@ -2483,7 +2491,7 @@ private:
             GetFirstIndexToSkipRemappingInRow(row.GetCount()),
             GetLastIndexToSkipRemappingInRow(row.GetCount()));
 
-        MemoryGuard_.SetSize(Pool_.GetCapacity());
+        MemoryGuard_.SetSize(Pool_.GetCapacity() + EphemeralRowBuffer_->GetCapacity());
 
         return row;
     }
