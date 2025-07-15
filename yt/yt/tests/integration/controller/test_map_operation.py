@@ -1924,7 +1924,7 @@ print(json.dumps(input))
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
-        op=map(
+        op = map(
             track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -1944,7 +1944,7 @@ print(json.dumps(input))
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
-        op=map(
+        op = map(
             track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
