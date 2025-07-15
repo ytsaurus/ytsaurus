@@ -75,7 +75,7 @@ struct TCriContainerSpec
 
     TCriCredentials Credentials;
 
-    TCriContainerResourcesPtr Resources;
+    TCriContainerResources Resources;
 
     //! Command to execute (i.e., entrypoint for docker).
     std::vector<TString> Command;
@@ -166,7 +166,7 @@ struct ICriExecutor
 
     virtual TFuture<void> UpdateContainerResources(
         const TCriDescriptor& ct,
-        TCriContainerResourcesPtr resources) = 0;
+        const TCriContainerResources& resources) = 0;
 
     virtual TFuture<TCriImageApi::TRspListImagesPtr> ListImages(
         std::function<void(NProto::ImageFilter&)> initFilter = nullptr) = 0;

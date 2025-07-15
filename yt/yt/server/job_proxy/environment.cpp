@@ -1274,7 +1274,6 @@ public:
 
             // Prepare the sidecar container spec.
             auto containerSpec = New<NCri::TCriContainerSpec>();
-            containerSpec->Resources = New<NCri::TCriContainerResources>();
 
             containerSpec->Name = Format("sidecar-%v-%v-%v", podDescriptor->Name, podSpec->Name, name);
 
@@ -1284,12 +1283,12 @@ public:
                 CriJobProxyConfig_.DockerImage.value_or(
                     CriJobEnvironmentConfig_->JobProxyImage));
 
-            containerSpec->Resources->CpuLimit = sidecarSpec->CpuLimit;
-            containerSpec->Resources->MemoryLimit = sidecarSpec->MemoryLimit;
+            containerSpec->Resources.CpuLimit = sidecarSpec->CpuLimit;
+            containerSpec->Resources.MemoryLimit = sidecarSpec->MemoryLimit;
 
-            const auto& cpusetCpu = podSpec->Resources->CpusetCpus;
+            const auto& cpusetCpu = podSpec->Resources.CpusetCpus;
             if (cpusetCpu != EmptyCpuSet) {
-                containerSpec->Resources->CpusetCpus = cpusetCpu;
+                containerSpec->Resources.CpusetCpus = cpusetCpu;
             }
 
             containerSpec->CapabilitiesToAdd.push_back("SYS_PTRACE");

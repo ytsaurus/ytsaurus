@@ -198,6 +198,9 @@ public:
         return 0;
     }
 
+    void EnrichJobEnvironmentConfig(int /*slotIndex*/, NJobProxy::TJobProxyInternalConfigPtr& /*jobProxyConfig*/) const override
+    { }
+
     TFuture<std::vector<TShellCommandResult>> RunCommands(
         int /*slotIndex*/,
         ESlotType /*slotType*/,
@@ -1061,7 +1064,7 @@ public:
 
         auto podSpec = New<NCri::TCriPodSpec>();
         podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
-        podSpec->Resources->CpuLimit = CpuLimit_;
+        podSpec->Resources.CpuLimit = CpuLimit_;
         PodSpecs_[slotIndex] = podSpec;
         SlotCpusetCpus_[slotIndex] = EmptyCpuSet;
 
@@ -1151,7 +1154,6 @@ public:
         YT_VERIFY(slotType == ESlotType::Common);
 
         auto spec = New<NCri::TCriContainerSpec>();
-        spec->Resources = New<NCri::TCriContainerResources>();
 
         // Run setup using default docker image for job workspace.
         spec->Image.Image = ConcreteConfig_->JobProxyImage;
@@ -1175,7 +1177,7 @@ public:
 
         const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
         if (cpusetCpu != EmptyCpuSet) {
-            spec->Resources->CpusetCpus = cpusetCpu;
+            spec->Resources.CpusetCpus = cpusetCpu;
         }
 
         std::vector<TFuture<void>> results;
@@ -1255,7 +1257,6 @@ private:
         YT_VERIFY(slotType == ESlotType::Common);
 
         auto spec = New<NCri::TCriContainerSpec>();
-        spec->Resources = New<NCri::TCriContainerResources>();
 
         spec->Name = "job-proxy";
 
@@ -1390,12 +1391,12 @@ private:
         }
 #endif
 
-        spec->Resources->CpuLimit = config->ContainerCpuLimit;
-        spec->Resources->MemoryLimit = config->SlotContainerMemoryLimit;
+        spec->Resources.CpuLimit = config->ContainerCpuLimit;
+        spec->Resources.MemoryLimit = config->SlotContainerMemoryLimit;
 
         const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
         if (cpusetCpu != EmptyCpuSet) {
-            spec->Resources->CpusetCpus = cpusetCpu;
+            spec->Resources.CpusetCpus = cpusetCpu;
         }
 
         // Allow strace in job shell.

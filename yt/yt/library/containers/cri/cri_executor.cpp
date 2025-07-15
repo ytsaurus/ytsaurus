@@ -527,7 +527,7 @@ public:
         return req->Invoke().AsVoid();
     }
 
-    TFuture<void> UpdateContainerResources(const TCriDescriptor& descriptor, TCriContainerResourcesPtr resources) override
+    TFuture<void> UpdateContainerResources(const TCriDescriptor& descriptor, const TCriContainerResources& resources) override
     {
         auto req = RuntimeApi_.UpdateContainerResources();
         req->set_container_id(descriptor.Id);
@@ -653,31 +653,31 @@ private:
 
     std::atomic<ui32> Attempt_;
 
-    void FillLinuxContainerResources(NProto::LinuxContainerResources* resources, TCriContainerResourcesPtr spec)
+    void FillLinuxContainerResources(NProto::LinuxContainerResources* resources, const TCriContainerResources& spec)
     {
         auto* unified = resources->mutable_unified();
 
-        if (spec->CpuLimit) {
+        if (spec.CpuLimit) {
             i64 period = Config_->CpuPeriod.MicroSeconds();
-            i64 quota = period * *spec->CpuLimit;
+            i64 quota = period * *spec.CpuLimit;
 
             resources->set_cpu_period(period);
             resources->set_cpu_quota(quota);
         }
 
-        if (spec->MemoryLimit) {
-            resources->set_memory_limit_in_bytes(*spec->MemoryLimit);
+        if (spec.MemoryLimit) {
+            resources->set_memory_limit_in_bytes(*spec.MemoryLimit);
         }
 
-        if (spec->MemoryRequest) {
-            (*unified)["memory.low"] = ToString(*spec->MemoryRequest);
+        if (spec.MemoryRequest) {
+            (*unified)["memory.low"] = ToString(*spec.MemoryRequest);
         }
 
-        if (spec->MemoryOomGroup.value_or(Config_->MemoryOomGroup)) {
+        if (spec.MemoryOomGroup.value_or(Config_->MemoryOomGroup)) {
             (*unified)["memory.oom.group"] = "1";
         }
 
-        if (const auto& cpusetCpus = spec->CpusetCpus) {
+        if (const auto& cpusetCpus = spec.CpusetCpus) {
             resources->set_cpuset_cpus(*cpusetCpus);
         }
     }
