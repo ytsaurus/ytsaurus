@@ -1242,6 +1242,7 @@ class YTEnvSetup(object):
                 config["flavors"] = cls.DELTA_NODE_FLAVORS[index]
 
             cls.update_timestamp_provider_config(config, cluster_index)
+            cls.update_sequoia_connection_config(config, cluster_index)
             cls.modify_node_config(config, cluster_index)
 
         for index, config in enumerate(configs["chaos_node"]):
