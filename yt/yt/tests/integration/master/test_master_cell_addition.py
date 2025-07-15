@@ -25,18 +25,6 @@ class TestMasterCellAddition(MasterCellAdditionBaseChecks):
     NUM_TEST_PARTITIONS = 3
     DOWNTIME_ALL_COMPONENTS = True
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager": {
-            "testing": {
-                "allow_master_cell_with_empty_role": True,
-            },
-        },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
-    }
-
     @authors("shakurov", "cherepashka")
     @pytest.mark.timeout(120)
     def test_add_new_cell(self):
@@ -68,10 +56,6 @@ class TestMasterCellsListChangeWithoutDowntime(MasterCellAdditionBaseChecks):
                 "allow_master_cell_with_empty_role": True,
             },
         },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
     }
 
     @authors("shakurov", "cherepashka")
@@ -110,7 +94,6 @@ class TestMasterCellsMultipleAdditions(MasterCellAdditionBase):
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 1
     REMOVE_LAST_MASTER_BEFORE_START = False
 
@@ -120,16 +103,6 @@ class TestMasterCellsMultipleAdditions(MasterCellAdditionBase):
                 "allow_master_cell_removal": True,
                 "allow_master_cell_with_empty_role": True,
             },
-        },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
-    }
-
-    DELTA_MASTER_CONFIG = {
-        "world_initializer": {
-            "update_period": 1000,
         },
     }
 
@@ -159,18 +132,6 @@ class TestMasterCellAdditionChaosMultiCluster(MasterCellAdditionChaosMultiCluste
     NUM_TEST_PARTITIONS = 3
 
     DOWNTIME_ALL_COMPONENTS = True
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager": {
-            "testing": {
-                "allow_master_cell_with_empty_role": True,
-            },
-        },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
-    }
 
     @authors("ponasenko-rs")
     @pytest.mark.timeout(300)
@@ -222,7 +183,6 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
@@ -249,10 +209,6 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
             "leader_reassignment_timeout": 2000,  # 2 sec
             "peer_revocation_timeout": 3000,  # 3 sec
         },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
     }
 
     @authors("cherepashka")
@@ -315,28 +271,9 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 6
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
-
-    DELTA_MASTER_CONFIG = {
-        "world_initializer": {
-            "update_period": 1000,
-        },
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager": {
-            "testing": {
-                "allow_master_cell_with_empty_role": True,
-            },
-        },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
-    }
 
     DELTA_NODE_CONFIG = {
         "exec_node_is_not_data_node": True,
@@ -383,8 +320,9 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 
         self._enable_last_cell(downtime=False)
 
-        # Make sure nodes have discovered the new cell.
+        # Make sure nodes have discovered the new cell and the last master cell receive all heartbetas.
         wait(lambda: self._nodes_synchronized_with_masters(nodes))
+        self._wait_for_nodes_state("online", aggregate_state=False)
 
         # Nodes should not reregister.
         for node in ls("//sys/cluster_nodes"):
@@ -397,10 +335,8 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
         set("//sys/@config/multicell_manager/testing/discovered_masters_cell_tags", [13])
         set("//sys/@config/multicell_manager/cell_descriptors", {"13": {"roles": ["cypress_node_host", "chunk_host"]}})
 
-        self._wait_for_nodes_state("online")
-
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
-        write_table("//tmp/t", [{"a" : "b"}])
+        wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"a" : "b"}])))
         assert read_table("//tmp/t") == [{"a" : "b"}]
 
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 13})
@@ -435,26 +371,7 @@ class TestMasterCellDynamicPropagationDuringMultiflavorNodeRegistration(MasterCe
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_SECONDARY_MASTER_CELLS = 3
     NUM_NODES = 4
-
-    DELTA_MASTER_CONFIG = {
-        "world_initializer": {
-            "update_period": 1000,
-        },
-    }
-
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager": {
-            "testing": {
-                "allow_master_cell_with_empty_role": True,
-            },
-        },
-    }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
-    }
 
     @authors("cherepashka")
     def test_registration_after_synchronization(self):
