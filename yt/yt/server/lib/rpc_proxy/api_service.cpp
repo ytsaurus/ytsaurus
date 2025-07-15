@@ -4124,6 +4124,15 @@ private:
         if (request->has_min_row_count_per_subquery()) {
             options.MinRowCountPerSubquery = request->min_row_count_per_subquery();
         }
+        if (request->has_rowset_processing_batch_size()) {
+            options.RowsetProcessingBatchSize = request->rowset_processing_batch_size();
+        }
+        if (request->has_write_rowset_size()) {
+            options.WriteRowsetSize = request->write_rowset_size();
+        }
+        if (request->has_max_join_batch_size()) {
+            options.MaxJoinBatchSize = request->max_join_batch_size();
+        }
 
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;

@@ -73,7 +73,7 @@ public:
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         const IMemoryChunkProviderPtr& memoryChunkProvider,
-        const TQueryBaseOptions& options,
+        const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags,
         TFuture<TFeatureFlags> responseFeatureFlags) override
     {
@@ -115,7 +115,8 @@ public:
                 options.EnableCodeCache,
                 options.UseCanonicalNullRelations,
                 options.ExecutionBackend,
-                options.AllowUnorderedGroupByWithLimit);
+                options.AllowUnorderedGroupByWithLimit,
+                options.MaxJoinBatchSize);
 
             // NB: Function contexts need to be destroyed before queryInstance since it hosts destructors.
             auto finalizer = Finally([&] {
@@ -130,6 +131,9 @@ public:
                 .OutputRowLimit = options.OutputRowLimit,
                 .GroupRowLimit = options.OutputRowLimit,
                 .JoinRowLimit = options.OutputRowLimit,
+                .RowsetProcessingBatchSize = options.RowsetProcessingBatchSize,
+                .WriteRowsetSize = options.WriteRowsetSize,
+                .MaxJoinBatchSize = options.MaxJoinBatchSize,
                 .Offset = query->Offset,
                 .Limit = query->Limit,
                 .Ordered = query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
@@ -184,7 +188,8 @@ private:
         bool enableCodeCache,
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,
-        bool allowUnorderedGroupByWithLimit)
+        bool allowUnorderedGroupByWithLimit,
+        i64 maxJoinBatchSize)
     {
         llvm::FoldingSetNodeID id;
 
@@ -197,7 +202,8 @@ private:
             executionBackend,
             functionProfilers,
             aggregateProfilers,
-            allowUnorderedGroupByWithLimit);
+            allowUnorderedGroupByWithLimit,
+            maxJoinBatchSize);
 
         auto Logger = MakeQueryLogger(query);
 

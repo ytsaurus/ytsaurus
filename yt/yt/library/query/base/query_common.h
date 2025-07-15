@@ -195,6 +195,10 @@ struct TQueryOptions
     i64 MinRowCountPerSubquery = 100'000;
     int MaxSubqueries = std::numeric_limits<int>::max();
 
+    i64 RowsetProcessingBatchSize = DefaultRowsetProcessingBatchSize;
+    i64 WriteRowsetSize = DefaultWriteRowsetSize;
+    i64 MaxJoinBatchSize = DefaultMaxJoinBatchSize;
+
     bool VerboseLogging = false;
     bool AllowFullScan = true;
     bool SuppressAccessTracking = false;
