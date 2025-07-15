@@ -55,6 +55,7 @@ def update_yql_agent_environment(cls, yql_agent):
 def yql_agent(request):
     cls = request.cls
     count = getattr(cls, "NUM_YQL_AGENTS", 1)
+    use_subprocess = getattr(cls, "USE_YQL_SUBPROCESSES", False)
 
     libraries = {}
     if hasattr(cls, "YQL_TEST_LIBRARY"):

@@ -35,6 +35,10 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 or "mr_job_udfs_dir" not in config \
                 or "yql_plugin_shared_library" not in config:
             raise YtError("Artifacts path is not specified in yql agent config")
+        
+        if "process_plugin_config" in config:
+            enabled = config["process_plugin_config"].get("enabled", False)
+            self.process_plugin_config = config["process_plugin_config"] if enabled else None
 
         self.max_supported_yql_version = config["max_supported_yql_version"] if "max_supported_yql_version" in config else None
 
@@ -152,7 +156,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
     def wait_for_readiness(self, address):
         wait(lambda: self.client.get(f"//sys/yql_agent/instances/{address}/orchid/service/version"),
              ignore_exceptions=True,
-             timeout=60)
+             timeout=600)
 
     def stop(self):
         logger.info("Stopping yql agent")
