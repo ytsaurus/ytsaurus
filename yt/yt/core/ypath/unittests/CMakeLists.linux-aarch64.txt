@@ -36,8 +36,7 @@ target_link_libraries(unittester-core-ypath PUBLIC
 )
 
 target_allocator(unittester-core-ypath
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(unittester-core-ypath PRIVATE

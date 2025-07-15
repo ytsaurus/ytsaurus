@@ -28,8 +28,7 @@ target_link_libraries(collect_chunk_statistics PUBLIC
 )
 
 target_allocator(collect_chunk_statistics
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(collect_chunk_statistics PRIVATE

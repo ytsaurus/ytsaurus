@@ -45,8 +45,7 @@ target_link_libraries(hydra_stress PUBLIC
 )
 
 target_allocator(hydra_stress
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(hydra_stress PRIVATE

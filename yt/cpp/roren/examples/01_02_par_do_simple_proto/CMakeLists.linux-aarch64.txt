@@ -41,8 +41,7 @@ target_link_libraries(01_02_par_do_simple_proto PUBLIC
 )
 
 target_allocator(01_02_par_do_simple_proto
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(01_02_par_do_simple_proto PRIVATE

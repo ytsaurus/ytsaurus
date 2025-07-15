@@ -32,8 +32,7 @@ target_link_libraries(cuda_core_dump_simulator PUBLIC
 )
 
 target_allocator(cuda_core_dump_simulator
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(cuda_core_dump_simulator PRIVATE

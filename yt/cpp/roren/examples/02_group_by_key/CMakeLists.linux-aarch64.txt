@@ -26,8 +26,7 @@ target_link_libraries(02_group_by_key PUBLIC
 )
 
 target_allocator(02_group_by_key
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(02_group_by_key PRIVATE

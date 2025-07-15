@@ -28,8 +28,7 @@ target_link_libraries(print_column_statistics PUBLIC
 )
 
 target_allocator(print_column_statistics
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(print_column_statistics PRIVATE

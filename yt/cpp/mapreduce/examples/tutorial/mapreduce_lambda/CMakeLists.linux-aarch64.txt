@@ -49,8 +49,7 @@ target_link_libraries(mapreduce_lambda PUBLIC
 )
 
 target_allocator(mapreduce_lambda
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(mapreduce_lambda PRIVATE

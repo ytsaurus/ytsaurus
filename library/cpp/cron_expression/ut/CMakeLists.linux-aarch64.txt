@@ -26,8 +26,7 @@ target_link_libraries(library-cpp-cron_expression-ut PUBLIC
 )
 
 target_allocator(library-cpp-cron_expression-ut
-  cpp-malloc-tcmalloc
-  libs-tcmalloc-no_percpu_cache
+  system_allocator
 )
 
 target_link_options(library-cpp-cron_expression-ut PRIVATE
