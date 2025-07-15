@@ -698,6 +698,11 @@ class TestTwoRandomChoicesWriteTargetAllocationMulticell(TestTwoRandomChoicesWri
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 ##################################################################
 
@@ -712,6 +717,11 @@ class TestNodePendingRestartBase(YTEnvSetup):
             "lease_transaction_timeout": 2000,
             "lease_transaction_ping_period": 1000,
         },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
     }
 
     @classmethod
@@ -981,6 +991,12 @@ class TestChunkServerMulticell(TestChunkServer):
             # NB: Allow to remove secondary cell default roles from cells with chunks and nodes behind portal.
             "allow_master_cell_role_invariant_check": False,
         },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
     }
 
     @authors("babenko")
@@ -1254,6 +1270,12 @@ class TestChunkServerMulticell(TestChunkServer):
 class TestChunkServerPortal(TestChunkServerMulticell):
     ENABLE_TMP_PORTAL = True
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
 
 ##################################################################
 
@@ -1347,6 +1369,11 @@ class TestChunkServerReplicaRemovalMulticell(TestChunkServerReplicaRemoval):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
 
 ##################################################################
@@ -1505,6 +1532,11 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
     @authors("shakurov")
     def test_token_count_attribute(self):

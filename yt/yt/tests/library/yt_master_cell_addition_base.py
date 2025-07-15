@@ -69,6 +69,8 @@ class MasterCellAdditionBase(YTEnvSetup):
     }
 
     MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "cypress_node_host"]},
         "13": {"roles": []},
     }
 

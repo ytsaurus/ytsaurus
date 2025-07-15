@@ -82,11 +82,6 @@ class TestMasterCellsListChangeWithoutDowntimeRemoveSecondaryCellDefaultRoles(Te
         },
     }
 
-    MASTER_CELL_DESCRIPTORS = {
-        "11": {"roles": ["cypress_node_host", "chunk_host"]},
-        "12": {"roles": ["cypress_node_host", "chunk_host"]},
-    }
-
 ##################################################################
 
 
@@ -330,11 +325,11 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
             assert lease_txs[node] == get(f"//sys/cluster_nodes/{node}/@lease_transaction_id")
 
         with raises_yt_error("not discovered by all nodes"):
-            set("//sys/@config/multicell_manager/cell_descriptors", {"13": {"roles": ["cypress_node_host", "chunk_host"]}})
+            set("//sys/@config/multicell_manager/cell_descriptors/13", {"roles": ["cypress_node_host", "chunk_host"]})
 
         # Make the new master cell "reliable" for other master cells.
         set("//sys/@config/multicell_manager/testing/discovered_masters_cell_tags", [13])
-        set("//sys/@config/multicell_manager/cell_descriptors", {"13": {"roles": ["cypress_node_host", "chunk_host"]}})
+        set("//sys/@config/multicell_manager/cell_descriptors/13", {"roles": ["cypress_node_host", "chunk_host"]})
 
         create("table", "//tmp/t", attributes={"external_cell_tag": 13})
         wait(lambda: self.do_with_retries(lambda: write_table("//tmp/t", [{"a" : "b"}])))

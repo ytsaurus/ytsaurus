@@ -144,6 +144,11 @@ class TestNodeFlavors(YTEnvSetup):
 class TestNodeFlavorsMulticell(TestNodeFlavors):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
 
 class TestNodeFlavorsExecNodeIsNotDataNode(TestNodeFlavors):
     DELTA_NODE_CONFIG = {
@@ -164,6 +169,11 @@ class TestNodeFlavorsExecNodeIsNotDataNodeMulticell(TestNodeFlavors):
             "lease_transaction_ping_period": 1000,
         },
         "exec_node_is_not_data_node": True,
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
     }
 
 ##################################################################

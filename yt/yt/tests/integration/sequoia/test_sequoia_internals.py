@@ -82,6 +82,7 @@ class TestSequoiaInternals(YTEnvSetup):
         # Master cell with tag 11 is reserved for portals.
         "11": {"roles": ["cypress_node_host"]},
         "12": {"roles": ["sequoia_node_host"]},
+        "13": {"roles": ["chunk_host"]},
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {

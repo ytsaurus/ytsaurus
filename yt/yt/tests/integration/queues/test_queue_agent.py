@@ -3031,6 +3031,11 @@ class TestQueueStaticExportBase(TestQueueAgentBase, QueueStaticExportHelpers):
         },
     }
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     QUEUE_AGENT_DO_WAIT_FOR_GLOBAL_SYNC_ON_SETUP = True
 
     # NB: We rely on manual flushing in almost all of the static export tests. Override if necessary.
@@ -5018,6 +5023,11 @@ class TestQueueStaticExportPortals(TestQueueStaticExport):
     ENABLE_TMP_PORTAL = True
 
     ENABLE_MULTIDAEMON = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
     @authors("achulkov2", "nadya73")
     def test_different_native_cells(self):

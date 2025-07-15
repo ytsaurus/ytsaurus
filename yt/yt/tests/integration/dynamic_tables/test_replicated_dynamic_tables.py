@@ -99,6 +99,7 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
     NUM_REMOTE_CLUSTERS = 1
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 1
 
     ENABLE_STANDALONE_REPLICATED_TABLE_TRACKER = True
     NUM_REPLICATED_TABLE_TRACKERS = 2
@@ -124,6 +125,10 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
                 "update_period": 100
             }
         }
+    }
+
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "21": {"roles": ["chunk_host", "cypress_node_host"]},
     }
 
     def setup_method(self, method):
@@ -3419,6 +3424,11 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
 
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])

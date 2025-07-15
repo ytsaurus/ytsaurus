@@ -54,6 +54,12 @@ class TestPortals(YTEnvSetup):
     ENABLE_BULK_INSERT = True
     NUM_SCHEDULERS = 1
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["cypress_node_host", "chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
+
     @authors("nadya02")
     def test_disable_cross_cell_copying(self):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 11})
@@ -1382,6 +1388,11 @@ class TestResolveCache(YTEnvSetup):
     NUM_NODES = 0
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("babenko")
     def test_cache_populated_on_resolve(self):
         create("map_node", "//tmp/dir1/dir2", recursive=True)
@@ -1508,6 +1519,12 @@ class TestCrossCellCopy(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 3
     USE_DYNAMIC_TABLES = True
     ENABLE_BULK_INSERT = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["cypress_node_host", "chunk_host"]},
+        "13": {"roles": ["chunk_host"]},
+    }
 
     FILE_PAYLOAD = b"FILE PAYLOAD SOME BYTES AND STUFF"
     TABLE_PAYLOAD = [{"key": 42, "value": "the answer"}]
@@ -2545,6 +2562,12 @@ class TestPortalsWithoutInvariantChecking(YTEnvSetup):
         "hydra_manager": {
             "invariants_check_probability": None,
         }
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["cypress_node_host"]},
+        "13": {"roles": ["chunk_host"]},
     }
 
     @authors("h0pless")

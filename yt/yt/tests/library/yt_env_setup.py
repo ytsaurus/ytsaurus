@@ -965,6 +965,10 @@ class YTEnvSetup(object):
 
         yt_commands.wait_drivers()
 
+        # Set proper master dynamic config with master roles before creating any objects at the cluster.
+        dynamic_master_config = cls._apply_master_dynamic_config_patches(get_dynamic_master_config(), cluster_index=0)
+        yt_commands.set("//sys/@config", dynamic_master_config)
+
         for env in cls.combined_envs:
             if env is None:
                 continue

@@ -119,6 +119,11 @@ class TestSecondaryIndexBase(DynamicTablesBase):
     NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     def _sync_create_cells(self, cell_count=1):
         sync_create_cells(cell_count)
 
@@ -222,6 +227,12 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 1
     REPLICA_CLUSTER_NAME = "remote_0"
+    NUM_SECONDARY_MASTER_CELLS_REMOTE_0 = 2
+    MASTER_CELL_DESCRIPTORS_REMOTE_0 = {
+        "20": {"roles": ["transaction_coordinator"]},
+        "21": {"roles": ["chunk_host", "cypress_node_host"]},
+        "22": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
 
     def setup_method(self, method):
         super(TestSecondaryIndexReplicatedBase, self).setup_method(method)
@@ -538,6 +549,11 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
 @pytest.mark.enabled_multidaemon
 class TestSecondaryIndexPortal(TestSecondaryIndexBase):
     ENABLE_MULTIDAEMON = True
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host", "cypress_node_host"]},
+        "12": {"roles": ["chunk_host", "cypress_node_host"]},
+    }
 
     @authors("sabdenovch")
     def test_forbid_create_beyond_portal(self):

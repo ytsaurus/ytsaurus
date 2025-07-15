@@ -355,6 +355,11 @@ class TestNodeTrackerMulticell(TestNodeTracker):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["chunk_host"]},
+        "12": {"roles": ["chunk_host"]},
+    }
+
     @authors("shakurov")
     def test_tag_replication(self):
         node = ls("//sys/cluster_nodes")[0]
