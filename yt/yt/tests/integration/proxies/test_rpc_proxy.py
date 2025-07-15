@@ -230,9 +230,9 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
     @classmethod
-    def modify_rpc_proxy_config(cls, multidaemon_config, config):
-        if "logging" in config[0]:
-            config[0]["logging"]["rules"].append(
+    def modify_rpc_proxy_config(cls, config, multidaemon_config, proxy_index):
+        if "logging" in config:
+            config["logging"]["rules"].append(
                 {
                     "min_level": "debug",
                     "writers": ["main"],
@@ -240,9 +240,9 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
                     "message_format": "structured",
                 }
             )
-            config[0]["logging"]["writers"]["main"] = {
+            config["logging"]["writers"]["main"] = {
                 "type": "file",
-                "file_name": os.path.join(cls.path_to_run, "logs/rpc-proxy-0.main.yson.log"),
+                "file_name": os.path.join(cls.path_to_run, f"logs/rpc-proxy-{proxy_index}.main.yson.log"),
                 "format": "yson",
             }
         multidaemon_config["logging"]["rules"].append(
@@ -255,7 +255,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
         )
         multidaemon_config["logging"]["writers"]["main-rpc-proxy"] = {
             "type": "file",
-            "file_name": os.path.join(cls.path_to_run, "logs/rpc-proxy-0.main.yson.log"),
+            "file_name": os.path.join(cls.path_to_run, f"logs/rpc-proxy-{proxy_index}.main.yson.log"),
             "format": "yson",
         }
 

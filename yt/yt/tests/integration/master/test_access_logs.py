@@ -128,7 +128,7 @@ class TestAccessLog(YTEnvSetup):
         wait(check_lines, iter=30, sleep_backoff=1.0, timeout=30)
 
     @classmethod
-    def modify_master_config(cls, multidaemon_config, config, cell_index, cell_tag, peer_index, cluster_index):
+    def modify_master_config(cls, config, multidaemon_config, cell_index, cell_tag, peer_index, cluster_index):
         if "logging" in config:
             config["logging"]["flush_period"] = 100
             config["logging"]["rules"].append(

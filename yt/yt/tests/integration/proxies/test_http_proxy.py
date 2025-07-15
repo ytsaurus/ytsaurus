@@ -1286,23 +1286,22 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
     ENABLE_MULTIDAEMON = True
 
     @classmethod
-    def modify_proxy_config(cls, multidaemon_config, configs):
-        for i in range(len(configs)):
-            if "logging" in configs[i]:
-                configs[i]["logging"]["flush_period"] = 100
-                configs[i]["logging"]["rules"].append(
-                    {
-                        "min_level": "info",
-                        "writers": ["job_shell"],
-                        "include_categories": ["JobShell"],
-                        "message_format": "structured",
-                    }
-                )
-                configs[i]["logging"]["writers"]["job_shell"] = {
-                    "type": "file",
-                    "file_name": os.path.join(cls.path_to_run, "logs/job-shell-{}.json.log".format(i)),
-                    "accepted_message_format": "structured",
+    def modify_http_proxy_config(cls, config, multidaemon_config, proxy_index):
+        if "logging" in config:
+            config["logging"]["flush_period"] = 100
+            config["logging"]["rules"].append(
+                {
+                    "min_level": "info",
+                    "writers": ["job_shell"],
+                    "include_categories": ["JobShell"],
+                    "message_format": "structured",
                 }
+            )
+            config["logging"]["writers"]["job_shell"] = {
+                "type": "file",
+                "file_name": os.path.join(cls.path_to_run, f"logs/job-shell-{proxy_index}.json.log"),
+                "accepted_message_format": "structured",
+            }
 
         multidaemon_config["logging"]["flush_period"] = 100
         multidaemon_config["logging"]["rules"].append(
@@ -2002,10 +2001,8 @@ class TestHttpProxyDiscovery(YTEnvSetup):
         self.driver = Driver(driver_config)
 
     @classmethod
-    def modify_proxy_config(cls, multidaemon_config, configs):
-        for config in configs:
-            addresses = [["default", "localhost"], ["fastbone", "fb-localhost"]]
-            config["addresses"] = addresses
+    def modify_http_proxy_config(cls, config, multidaemon_config, proxy_index):
+        config["addresses"] = [["default", "localhost"], ["fastbone", "fb-localhost"]]
 
     @authors("nadya73")
     def test_addresses(self):
