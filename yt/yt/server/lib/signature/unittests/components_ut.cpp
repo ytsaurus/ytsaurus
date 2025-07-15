@@ -57,9 +57,12 @@ struct TSignatureComponentsTest
 TEST_F(TSignatureComponentsTest, EmptyInit)
 {
     Instance = New<TSignatureComponents>(Config, Client, GetCurrentInvoker());
-    EXPECT_TRUE(Instance->Initialize().IsSet());
-    EXPECT_TRUE(Instance->StartRotation().IsSet());
-    EXPECT_TRUE(Instance->StopRotation().IsSet());
+    auto initializationFuture = Instance->Initialize();
+    auto startRotationFuture = Instance->StartRotation();
+    auto stopRotationFuture = Instance->StopRotation();
+    EXPECT_TRUE(initializationFuture.IsSet() && initializationFuture.Get().IsOK());
+    EXPECT_TRUE(startRotationFuture.IsSet() && startRotationFuture.Get().IsOK());
+    EXPECT_TRUE(stopRotationFuture.IsSet() && stopRotationFuture.Get().IsOK());
 
     auto generator = Instance->GetSignatureGenerator();
     auto validator = Instance->GetSignatureValidator();
@@ -94,6 +97,55 @@ TEST_F(TSignatureComponentsTest, Generation)
     EXPECT_TRUE(generator);
     auto signature = generator->Sign("test");
     EXPECT_EQ(signature->Payload(), "test");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSignatureComponentsTest, InitializeFailed)
+{
+    EXPECT_CALL(*Client, CreateNode(_, _, _))
+        .WillOnce(Return(MakeFuture<TNodeId>(TError("failed to create node"))));
+
+    Config->Generation = GenerationConfig;
+    Instance = New<TSignatureComponents>(Config, Client, GetCurrentInvoker());
+    auto initialization = Instance->Initialize();
+    auto startRotation = Instance->StartRotation();
+    EXPECT_THROW_WITH_SUBSTRING(
+        WaitFor(initialization)
+            .ThrowOnError(),
+        "failed to create node");
+    EXPECT_THROW_WITH_SUBSTRING(
+        WaitFor(startRotation)
+            .ThrowOnError(),
+        "failed to create node");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TSignatureComponentsTest, StartRotationWaitsForInitialization)
+{
+    TPromise<TNodeId> createNodePromise = NewPromise<TNodeId>();
+    EXPECT_CALL(*Client, CreateNode(_, _, _))
+        .WillOnce(Return(createNodePromise.ToFuture()))
+        .WillOnce(Return(MakeFuture(TNodeId())));
+    EXPECT_CALL(*Client, SetNode(_, _, _))
+        .WillOnce(Return(VoidFuture));
+
+    Config->Generation = GenerationConfig;
+    Instance = New<TSignatureComponents>(Config, Client, GetCurrentInvoker());
+
+    auto initializeFuture = Instance->Initialize();
+    auto startRotationFuture = Instance->StartRotation();
+
+    Sleep(TDuration::Seconds(5));
+
+    EXPECT_FALSE(initializeFuture.IsSet());
+    EXPECT_FALSE(startRotationFuture.IsSet());
+
+    createNodePromise.Set(TNodeId());
+
+    EXPECT_TRUE(WaitFor(initializeFuture).IsOK());
+    EXPECT_TRUE(WaitFor(startRotationFuture).IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
