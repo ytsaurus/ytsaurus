@@ -1699,6 +1699,7 @@ class TestGangOperations(YTEnvSetup):
     @authors("pogorelov")
     def test_gang_operation_controller_in_failing_state(self):
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 50000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 50000)
         update_nodes_dynamic_config(
             path="exec_node/controller_agent_connector/heartbeat_executor",
             value={
@@ -1827,6 +1828,7 @@ class TestGangOperations(YTEnvSetup):
         update_scheduler_config("node_registration_timeout", 500)
 
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 30000)
+        update_controller_agent_config("job_tracker/revival_node_disconnection_timeout", 30000)
 
         op = run_test_vanilla(
             with_breakpoint("BREAKPOINT"),
