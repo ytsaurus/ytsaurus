@@ -1422,7 +1422,7 @@ print("x={0}\ty={1}".format(x, y))
                 reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
                 sort_by=[{"name": "key", "sort_order": "ascending"}],
                 spec={
-                    "mapper": {"cpu_limit": 1},
+                    "mapper": {"cpu_limit": 1, "cookie_group_size": 2},
                     "reducer": {"cookie_group_size": 2},
                     "reduce_combiner": {"cpu_limit": 1, "cookie_group_size": 2},
                     "force_reduce_combiners": True,
@@ -1436,7 +1436,7 @@ print("x={0}\ty={1}".format(x, y))
                 reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; else echo "{foo=bar}"; fi',
                 sort_by=[{"name": "key", "sort_order": "ascending"}],
                 spec={
-                    "mapper": {"cpu_limit": 1},
+                    "mapper": {"cpu_limit": 1, "cookie_group_size": 2},
                     "reducer": {"cookie_group_size": 2},
                     "reduce_combiner": {"cpu_limit": 1, "cookie_group_size": 2},
                     "force_reduce_combiners": True,
@@ -1449,7 +1449,7 @@ print("x={0}\ty={1}".format(x, y))
             reduce_combiner_command='if [ "$YT_JOB_COOKIE_GROUP_INDEX" == 0 ]; then cat; fi',
             sort_by=[{"name": "key", "sort_order": "ascending"}],
             spec={
-                "mapper": {"cpu_limit": 1},
+                "mapper": {"cpu_limit": 1, "cookie_group_size": 2},
                 "reducer": {"cookie_group_size": 2},
                 "reduce_combiner": {"cpu_limit": 1, "cookie_group_size": 2},
                 "force_reduce_combiners": True,
