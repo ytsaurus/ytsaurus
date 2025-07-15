@@ -1,37 +1,36 @@
-#### **Q: Почему в CHYT есть клики, тогда как в обычном ClickHouse ничего похожего нет? Что такое клика?**
+#### **Q: Почему в CHYT есть клики, тогда как в обычном ClickHouse ничего похожего нет? Что такое клика?** {#chyt-cliques-explanation}
 
 **A:** Про это есть отдельная [статья](../../user-guide/data-processing/chyt/general.md).
 
 ------
 
-#### **Q: Получаю одну из ошибок «DB::NetException: Connection refused», «DB::Exception: Attempt to read after eof: while receiving packet from». Что это значит?**
+#### **Q: Получаю одну из ошибок «DB::NetException: Connection refused», «DB::Exception: Attempt to read after eof: while receiving packet from». Что это значит?** {#connection-refused-error}
 
- **A:** Типично такое означает, что процесс CHYT внутри операции Vanilla аварийно завершился. Можно посмотреть в UI операции на [счётчики](../../user-guide/data-processing/chyt/cliques/ui.md) числа aborted/failed джобов. Если есть недавние aborted-джобы по причине preemption, это значит, что клике не хватает ресурсов. Если есть недавние failed джобы, обратитесь к администратору системы.
+**A:** Типично такое означает, что процесс CHYT внутри операции Vanilla аварийно завершился. Можно посмотреть в UI операции на [счётчики](../../user-guide/data-processing/chyt/cliques/ui.md) числа aborted/failed джобов. Если есть недавние aborted-джобы по причине preemption, это значит, что клике не хватает ресурсов. Если есть недавние failed джобы, обратитесь к администратору системы.
 
 ------
 
-#### **Q: Получаю ошибку «Subquery exceeds data weight limit: XXX > YYY». Что это значит?**
+#### **Q: Получаю ошибку «Subquery exceeds data weight limit: XXX > YYY». Что это значит?** {#subquery-data-weight-limit}
 
 **A:** смотрите опцию `max_data_weight_per_subquery` в документации по [конфигурации](../../user-guide/data-processing/chyt/reference/configuration.md#yt) клики.
 
 ------
 
-#### **Q: Как сохранять в таблицу?**
+#### **Q: Как сохранять в таблицу?** {#save-to-table}
 
 **A:** Есть функции **INSERT INTO** и **CREATE TABLE**, Подробнее можно прочитать в разделе [Отличие от ClickHouse.](../../user-guide/data-processing/chyt/yt-tables.md#save)
 
-
 ------
 
-#### **Q: Как загрузить геословари в собственной клике?**
+#### **Q: Как загрузить геословари в собственной клике?** {#load-geodictionaries-chyt}
 
 **A:** При старте любой клики можно указать опцию `--cypress-geodata-path`, которая позволяет указать путь к геословарям в Кипарисе. Подробнее про эту опцию можно прочитать в статье [Как попробовать](../../user-guide/data-processing/chyt/try-chyt.md).
 
 ------
 
-#### **Q: CHYT умеет обрабатывать даты в формате TzDatetime?**
+#### **Q: CHYT умеет обрабатывать даты в формате TzDatetime?** {#chyt-tzdatetime-handling}
 
-**A:**  CHYT умеет обрабатывать даты в формате TzDatetime ровно в той же мере, в какой обычный ClickHouse. Хранить данные придётся в виде строк или чисел и конвертировать при чтении-записи. Пример извлечения даты:
+**A:** CHYT умеет обрабатывать даты в формате TzDatetime ровно в той же мере, в какой обычный ClickHouse. Хранить данные придётся в виде строк или чисел и конвертировать при чтении-записи. Пример извлечения даты:
 
 ```sql
 toDate(reinterpretAsInt64(reverse(unhex(substring(hex(payment_dt), 1, 8)))))
@@ -43,7 +42,7 @@ https://yql.yandex-team.ru/Operations/XVZ8JglcTpHZhVoH3iFVAeixaazEBY0NtJKv0zUIQm
 
 ------
 
-#### **Q: Как переложить таблицу на SSD?** { #how-to-set-ssd }
+#### **Q: Как переложить таблицу на SSD?** {#how-to-set-ssd}
 
 **A:** Для начала необходимо убедиться, что в вашем аккаунте в {{product-name}} квота в медиуме **ssd_blobs**. Для этого можно на {% if audience == "public" %}странице аккаунтов{% else %}[странице аккаунтов](https://yt.yandex-team.ru/hahn/accounts/general?medium=ssd_blobs){% endif %} переключить тип медиума на **ssd_blobs** и ввести название своего аккаунта. Если квоты в медиуме **ssd_blobs** нет, то ее можно запросить через специальную форму.
 
@@ -85,7 +84,7 @@ $ yt get //home/dev/test_table/@chunk_media_statistics
 
 ------
 
-#### **Q: Поддерживается ли конструкция SAMPLE языка ClickHouse?**
+#### **Q: Поддерживается ли конструкция SAMPLE языка ClickHouse?** {#chyt-sample-support}
 
 **A:** CHYT поддерживает конструкцию Sample. Отличие заключается в том, что CHYT игнорирует команду `OFFSET ...`, таким образом нельзя получить выборку из другой части отобранных данных.
 
@@ -101,6 +100,6 @@ $ yt get //home/dev/test_table/@chunk_media_statistics
 
 ------
 
-#### **Q: Как мне получить имя таблицы в запросе?**
+#### **Q: Как мне получить имя таблицы в запросе?** {#get-table-name-query}
 
 **A:** Можно воспользоваться виртуальными колонками `$table_name` и `$table_path`. Подробнее про виртуальные колонки читайте в разделе [Работа с таблицами {{product-name}}](../../user-guide/data-processing/chyt/yt-tables.md##virtual_columns).
